@@ -39,8 +39,11 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.Connection;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
@@ -438,5 +441,76 @@ public class HazelcastTaskServiceTest {
                 verify(taskDto, times(0)).getId();
             }
         }
+    }
+    @Nested
+    class SingleTaskFilterEventDataIfNeedTest{
+        HazelcastTaskService hazelcastTaskService;
+        @BeforeEach
+        void init(){
+            hazelcastTaskService = mock(HazelcastTaskService.class);
+        }
+
+        @DisplayName("test SingleTaskFilterEventDataIfNeed when connections is null")
+        @Test
+        void test1() {
+            AtomicBoolean needFilterEvent = new AtomicBoolean(true);
+            TableNode tableNode = new TableNode();
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(null,needFilterEvent,tableNode);
+            hazelcastTaskService.singleTaskFilterEventDataIfNeed(null, needFilterEvent, tableNode);
+            assertEquals(true, needFilterEvent.get());
+        }
+
+        @DisplayName("test SingleTaskFilterEventDataIfNeed when needFilterEvent is not null")
+        @Test
+        void test2() {
+            Connections connections = new Connections();
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,null,null);
+            assertDoesNotThrow(() -> hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, null, null));
+        }
+
+        @DisplayName("test SingleTaskFilterEventDataIfNeed when connections is schema-free")
+        @Test
+        void test3() {
+            Connections connections = new Connections();
+            List<String> definitionTags = new ArrayList<>();
+            definitionTags.add("schema-free");
+            connections.setDefinitionTags(definitionTags);
+            AtomicBoolean needFilterEvent = new AtomicBoolean(true);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,null);
+            hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
+            assertEquals(false, needFilterEvent.get());
+        }
+        @DisplayName("test SingleTaskFilterEventDataIfNeed when connections is not schema-free")
+        @Test
+        void test4(){
+            Connections connections = new Connections();
+            List<String> definitionTags = new ArrayList<>();
+            definitionTags.add("Database");
+            definitionTags.add("ssl");
+            definitionTags.add("doubleActive");
+            connections.setDefinitionTags(definitionTags);
+            AtomicBoolean needFilterEvent = new AtomicBoolean(true);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,null);
+            hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
+            assertEquals(true, needFilterEvent.get());
+        }
+        @DisplayName("test SingleTaskFilterEventDataIfNeed when connections is not schema-free and tableNode is enableCustomSql")
+        @Test
+        void test5(){
+            Connections connections = new Connections();
+            List<String> definitionTags = new ArrayList<>();
+            definitionTags.add("Database");
+            definitionTags.add("ssl");
+            definitionTags.add("doubleActive");
+            connections.setDefinitionTags(definitionTags);
+            AtomicBoolean needFilterEvent = new AtomicBoolean(true);
+            TableNode tableNode=new TableNode();
+            tableNode.setEnableCustomCommand(true);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,tableNode);
+            hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, tableNode);
+            assertEquals(false, needFilterEvent.get());
+        }
+
+
     }
 }

@@ -301,6 +301,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
 				Connections connection = null;
+				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
@@ -319,6 +320,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				if (node instanceof DataParentNode) {
 					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+					tableNode = node instanceof TableNode ? (TableNode) node : null;
 				} else if (node.isLogCollectorNode()) {
 					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
 					String connectionId = logCollectorNode.getConnectionIds().get(0);
@@ -370,7 +372,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 				vertex.localParallelism(1);
 				dag.vertex(vertex);
-				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent);
+				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent, tableNode);
 			}
 
 			handleEdge(dag, edges, nodeMap, vertexMap);
@@ -379,11 +381,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
 	}
 
-	private void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent) {
+	protected void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent, TableNode tableNode) {
 		if (null == conn || null == needFilterEvent) return;
 		List<String> tags = conn.getDefinitionTags();
 		if (Boolean.TRUE.equals(needFilterEvent.get())) {
-			needFilterEvent.set(null == tags || !tags.contains("schema-free"));
+			boolean isCustomCommand = null != tableNode && tableNode.isEnableCustomCommand();
+			needFilterEvent.set(null == tags || (!tags.contains("schema-free") && !isCustomCommand));
 		}
 	}
 
