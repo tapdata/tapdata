@@ -8,27 +8,20 @@ import com.tapdata.tm.utils.SpringContextHelper;
 import io.tapdata.utils.AppType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
-import org.springframework.stereotype.Component;
 
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
-
-@Component
 @PatchAnnotation(appType = AppType.DAAS, version = "3.8-1")
 public class v3_8_1_AccessToken_TTL_Index extends AbsPatch {
-    private static Long accessTokenTtl;
-    @Value("${access.token.ttl}")
-    private void setAccessTokenTtl(long value){
-        accessTokenTtl = value;
-    }
+    private Long accessTokenTtl;
     private static final Logger logger = LogManager.getLogger(v3_8_1_AccessToken_TTL_Index.class);
     public v3_8_1_AccessToken_TTL_Index(PatchType type, PatchVersion version) {
         super(type, version);
-    }
-    public v3_8_1_AccessToken_TTL_Index(){
     }
 
     @Override
@@ -36,6 +29,12 @@ public class v3_8_1_AccessToken_TTL_Index extends AbsPatch {
         logger.info("Execute java patch: {}...", getClass().getName());
         String collectionName = "AccessToken";
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
+
+        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource("application-default.yml"));
+        Properties properties = yaml.getObject();
+        Integer ttl = (Integer) properties.get("access.token.ttl");
+        accessTokenTtl = ttl.longValue();
 
         long buffer = 86400L;
         long ttlValue = accessTokenTtl + buffer;

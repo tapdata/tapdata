@@ -11,8 +11,6 @@ import com.tapdata.tm.init.PatchVersion;
 public abstract class AbsPatch implements IPatch {
     protected PatchType type;
     protected PatchVersion version;
-    public AbsPatch(){
-    }
 
     public AbsPatch(PatchType type, PatchVersion version) {
         this.type = type;
