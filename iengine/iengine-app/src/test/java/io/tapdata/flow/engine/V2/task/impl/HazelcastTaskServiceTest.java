@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.task.impl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
@@ -18,6 +19,7 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.MockTaskUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -439,6 +441,48 @@ public class HazelcastTaskServiceTest {
                 verify(taskDto).getErrorEvents();
                 verify(taskDto, times(0)).setErrorEvents(anyList());
                 verify(taskDto, times(0)).getId();
+            }
+        }
+    }
+    @Nested
+    class Task2HazelcastDAGTest{
+        HazelcastTaskService hazelcastTaskService;
+        ClientMongoOperator clientMongoOperator;
+        ConfigurationCenter configurationCenter;
+        @BeforeEach
+        void init(){
+            clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = mock(HazelcastTaskService.class);
+            configurationCenter = mock(ConfigurationCenter.class);
+            ReflectionTestUtils.setField(hazelcastTaskService, "clientMongoOperator", clientMongoOperator);
+            ReflectionTestUtils.setField(hazelcastTaskService, "configurationCenter", configurationCenter);
+        }
+        @DisplayName("test task2HazelcastDAG method when node is tableNode")
+        @Test
+        void test1() {
+            try (MockedStatic<HazelcastTaskService> hazelcastTaskServiceMockedStatic = mockStatic(HazelcastTaskService.class);
+                 MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
+
+                TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto);
+
+                when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
+                Connections connections = new Connections();
+                connections.setPdkHash("dummy");
+                when(hazelcastTaskService.getConnection(anyString())).thenReturn(connections);
+                DatabaseTypeEnum.DatabaseType databaseType = mock(DatabaseTypeEnum.DatabaseType.class);
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(any(), any())).thenReturn(databaseType);
+
+                HashMap<String, String> stringStringHashMap = new HashMap<>();
+                stringStringHashMap.put("testNodeId", "testQualifiedName");
+                HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap();
+                tableNameAndQualifiedNameMap.put("testNodeId", "1234");
+                TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testNodeId", tableNameAndQualifiedNameMap);
+                tapTableMap.put("testNodeId", new TapTable());
+
+                when(hazelcastTaskService.getTapTableMap(any(), any(), any())).thenReturn(tapTableMap);
+                hazelcastTaskService.task2HazelcastDAG(taskDto);
+                verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
     }

@@ -247,7 +247,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	@SneakyThrows
-	private JetDag task2HazelcastDAG(TaskDto taskDto) {
+	protected JetDag task2HazelcastDAG(TaskDto taskDto) {
 
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
@@ -390,7 +390,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	private static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
+	protected static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
 		try {
 			SnapshotOrderService snapshotOrderService = SnapshotOrderService.getInstance();
 			SnapshotOrderController snapshotOrderController = snapshotOrderService.addController(taskDtoAtomicReference.get());
@@ -401,7 +401,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
+	protected static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
 		TapTableMap<String, TapTable> tapTableMap;
 		if (node instanceof AutoInspectNode) {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, ((AutoInspectNode) node).getTargetNodeId(), System.currentTimeMillis());
@@ -903,7 +903,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return connections;
 	}
 
-	private TaskConfig getTaskConfig(TaskDto taskDto) {
+	protected TaskConfig getTaskConfig(TaskDto taskDto) {
 		return TaskConfig.create()
 				.taskDto(taskDto)
 				.taskRetryConfig(getTaskRetryConfig())
@@ -919,7 +919,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				.maxRetryTimeSecond(maxRetryTimeSecond);
 	}
 
-	private void initSourceInitialCounter(TaskDto taskDto) {
+	protected void initSourceInitialCounter(TaskDto taskDto) {
 		String type = taskDto.getType();
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> sourceNodes = dag.getSourceNodes();
