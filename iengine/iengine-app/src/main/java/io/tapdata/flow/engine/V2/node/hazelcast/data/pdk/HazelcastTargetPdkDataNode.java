@@ -328,34 +328,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tapIndex.setCluster(index.getCluster());
 				indexList.add(tapIndex);
 			});
-			//query exist index
-			queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)->{
-				tapIndexList.forEach(existsIndex -> {
-					// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
-					for (TapIndex tapIndex : indexList) {
-						if (tapIndex.getName().equals(existsIndex.getName())) {
-							indexList.remove(tapIndex);
-							obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
-							break;
-						}
-						if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
-							boolean same = true;
-							for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
-								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
-										|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
-									same = false;
-									break;
-								}
-							}
-							if (same) {
-								indexList.remove(tapIndex);
-								obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, tapIndex.getName());
-								break;
-							}
-						}
-					}
+			List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, indexList);
+			if(CollectionUtils.isNotEmpty(existsIndexes)){
+				existsIndexes.forEach(i -> {
+					obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i.getName());
+					indexList.remove(i);
 				});
-			});
+				return;
+			}
 			if (CollectionUtils.isEmpty(indexList)) {
 				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
 				return;
@@ -387,6 +367,40 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		long end = System.currentTimeMillis();
 		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end-start);
 	}
+
+	protected List<TapIndex> queryExistsIndexes(TapTable tapTable, List<TapIndex> indexList) throws Throwable {
+		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
+		if (null == queryIndexesFunction) {
+			return new ArrayList<>();
+		}
+		List<TapIndex> existsIndexes = new ArrayList<>();
+		queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)->{
+			tapIndexList.forEach(existsIndex -> {
+				// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
+				for (TapIndex tapIndex : indexList) {
+					if (null != tapIndex.getName() && null != existsIndex.getName() && tapIndex.getName().equals(existsIndex.getName())) {
+						existsIndexes.add(tapIndex);
+						continue;
+					}
+					if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
+						boolean same = true;
+						for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
+							if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+									|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
+								same = false;
+								break;
+							}
+						}
+						if (same) {
+							existsIndexes.add(tapIndex);
+						}
+					}
+				}
+			});
+		});
+		return existsIndexes;
+	}
+
 	protected boolean checkSyncIndexOpen(){
 		Node node = getNode();
 		if (node instanceof DatabaseNode || node instanceof TableNode) {
@@ -715,39 +729,48 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return createTable(tgtTapTable, new AtomicBoolean());
 	}
 
-	private boolean executeCreateIndexFunction(TapCreateIndexEvent tapCreateIndexEvent) {
+	protected boolean executeCreateIndexFunction(TapCreateIndexEvent tapCreateIndexEvent) {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		String tableId = tapCreateIndexEvent.getTableId();
+		if (StringUtils.isBlank(tableId)) {
+			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_EVENT_TABLE_ID_EMPTY).addEvent(tapCreateIndexEvent);
+		}
+		TapTable tapTable = tapTableMap.get(tableId);
+		if (null == tapTable) {
+			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_TABLE_NOT_FOUND, String.format("Table id: %s", tableId))
+					.addEvent(tapCreateIndexEvent);
+		}
 		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
 		if (null == createIndexFunction) {
-			return true;
+			return false;
 		}
-		for (String tableId : tapTableMap.keySet()) {
-			if (!isRunning()) {
-				return true;
-			}
-			TapTable tapTable = tapTableMap.get(tableId);
-			if (null == tapTable) {
-				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_TABLE_NOT_FOUND, String.format("Table id: %s", tableId))
-						.addEvent(tapCreateIndexEvent);
-			}
+		List<TapIndex> existsIndexes;
+		try {
+			existsIndexes = queryExistsIndexes(tapTable, tapCreateIndexEvent.getIndexList());
+		} catch (Throwable e) {
+			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_QUERY_EXISTS_INDEX_FAILED, e)
+					.addEvent(tapCreateIndexEvent);
+		}
+		if (CollectionUtils.isNotEmpty(existsIndexes)) {
+			existsIndexes.forEach(tapCreateIndexEvent.getIndexList()::remove);
+		}
 
-			try {
-				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
-						.table(tapTable)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.createIndexEvent(tapCreateIndexEvent)
-						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
-						PDKMethod.TARGET_CREATE_INDEX,
-						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, tapCreateIndexEvent), TAG));
-			} catch (Exception e) {
-				Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
-				if (null != matched) {
-					throw (TapCodeException) matched;
-				}else {
-					throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_EXECUTE_FAILED, String.format("Execute PDK method: %s", PDKMethod.TARGET_CREATE_INDEX), e)
-							.addEvent(tapCreateIndexEvent);
-				}
+		try {
+			executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+					.table(tapTable)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
+					.createIndexEvent(tapCreateIndexEvent)
+					.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+					PDKMethod.TARGET_CREATE_INDEX,
+					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, tapCreateIndexEvent), TAG));
+		} catch (Exception e) {
+			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
+			if (null != matched) {
+				throw (TapCodeException) matched;
+			}else {
+				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_EXECUTE_FAILED, String.format("Execute PDK method: %s", PDKMethod.TARGET_CREATE_INDEX), e)
+						.addEvent(tapCreateIndexEvent);
 			}
 		}
 		return true;
