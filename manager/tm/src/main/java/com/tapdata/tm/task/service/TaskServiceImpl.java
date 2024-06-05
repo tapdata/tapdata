@@ -2855,7 +2855,7 @@ public class TaskServiceImpl extends TaskService{
         private long count;
     }
 
-    private String exportTask(List<String> taskIds, UserDetail user) {
+    public String exportTask(List<String> taskIds, UserDetail user) {
         List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
         List<TaskDto> tasks = findAllTasksByIds(taskIds);
         Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
@@ -2936,7 +2936,7 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
-    private byte[] callEngineRpc(String engineId, String cls, String method, Object[] args) {
+    public byte[] callEngineRpc(String engineId, String cls, String method, Object[] args) {
         HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
         Mockito.when(request.isAsyncSupported()).thenReturn(true);
         // 模拟 AsyncContext
