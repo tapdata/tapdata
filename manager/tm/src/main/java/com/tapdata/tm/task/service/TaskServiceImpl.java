@@ -3919,6 +3919,11 @@ public class TaskServiceImpl extends TaskService{
             update(new Query(criteria), update);
         });
     }
+    public void updateDelayTime(ObjectId taskId, long delayTime) {
+        Criteria criteria = Criteria.where("_id").is(taskId);
+        Update update = new Update().set("delayTime", delayTime);
+        update(new Query(criteria), update);
+    }
 
 
     public void increaseClear(ObjectId taskId, String srcNode, String tgtNode, UserDetail user) {

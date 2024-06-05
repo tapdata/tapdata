@@ -2824,6 +2824,16 @@ class TaskServiceImplTest {
             verify(taskService).update(any(Query.class),any(Update.class));
         }
     }
+    @Nested
+    class UpdateDelayTimeTest{
+        @Test
+        void testUpdateDelayTimeNormal(){
+            ObjectId id = mock(ObjectId.class);
+            doCallRealMethod().when(taskService).updateDelayTime(id, 0);
+            taskService.updateDelayTime(id, 0);
+            verify(taskService,new Times(1)).update(any(Query.class), any(Update.class));
+        }
+    }
 
     @Test
     void testFindRunningTasksByAgentIdWithoutId() {
