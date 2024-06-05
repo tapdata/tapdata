@@ -12,12 +12,14 @@ import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.repository.InspectRepository;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.webhook.enums.ConstVariable;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -51,7 +53,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public Page<InspectDto> list(Filter filter, UserDetail userDetail) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        return new Page<>(0, new ArrayList<>());
     }
 
     @Override

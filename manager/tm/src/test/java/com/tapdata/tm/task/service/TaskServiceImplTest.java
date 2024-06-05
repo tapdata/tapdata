@@ -570,17 +570,14 @@ class TaskServiceImplTest {
     }
     @Nested
     class CreateTest{
-        private CustomSqlService customSqlService;
         private DateNodeService dateNodeService;
         private TransformSchemaService transformSchemaService;
         @BeforeEach
         void setUp(){
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
-            customSqlService = mock(CustomSqlService.class);
             dateNodeService = mock(DateNodeService.class);
             transformSchemaService = mock(TransformSchemaService.class);
-            ReflectionTestUtils.setField(taskService, "customSqlService",customSqlService);
             ReflectionTestUtils.setField(taskService, "dateNodeService",dateNodeService);
             ReflectionTestUtils.setField(taskService, "transformSchemaService",transformSchemaService);
         }
@@ -598,7 +595,6 @@ class TaskServiceImplTest {
             ObjectId taskId = mock(ObjectId.class);
             when(taskDto.getId()).thenReturn(taskId);
             doNothing().when(taskService).checkTaskName("test", user, taskId);
-            doNothing().when(customSqlService).checkCustomSqlTask(taskDto, user);
             doNothing().when(dateNodeService).checkTaskDateNode(taskDto, user);
             when(taskService.save(taskDto,user)).thenReturn(taskDto);
             doNothing().when(transformSchemaService).transformSchema(dag, user, taskId);
@@ -684,7 +680,6 @@ class TaskServiceImplTest {
     @Nested
     class UpdateByIdTest{
         private MeasurementServiceV2 measurementServiceV2;
-        private CustomSqlService customSqlService;
         private DateNodeService dateNodeService;
         private TaskSaveService taskSaveService;
         private TransformSchemaAsyncService transformSchemaAsyncService;
@@ -693,11 +688,9 @@ class TaskServiceImplTest {
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
             measurementServiceV2 = mock(MeasurementServiceV2.class);
-            customSqlService = mock(CustomSqlService.class);
             dateNodeService = mock(DateNodeService.class);
             taskSaveService = mock(TaskSaveService.class);
             transformSchemaAsyncService = mock(TransformSchemaAsyncService.class);
-            ReflectionTestUtils.setField(taskService, "customSqlService",customSqlService);
             ReflectionTestUtils.setField(taskService, "dateNodeService",dateNodeService);
             ReflectionTestUtils.setField(taskService, "measurementServiceV2", measurementServiceV2);
             ReflectionTestUtils.setField(taskService, "taskSaveService", taskSaveService);
@@ -2832,6 +2825,16 @@ class TaskServiceImplTest {
             verify(taskService).update(any(Query.class),any(Update.class));
         }
     }
+    @Nested
+    class UpdateDelayTimeTest{
+        @Test
+        void testUpdateDelayTimeNormal(){
+            ObjectId id = mock(ObjectId.class);
+            doCallRealMethod().when(taskService).updateDelayTime(id, 0);
+            taskService.updateDelayTime(id, 0);
+            verify(taskService,new Times(1)).update(any(Query.class), any(Update.class));
+        }
+    }
 
     @Test
     void testFindRunningTasksByAgentIdWithoutId() {
@@ -3921,8 +3924,6 @@ class TaskServiceImplTest {
 
         @Test
         void testImportRmProject() throws IOException {
-            CustomSqlService customSqlService = mock(CustomSqlService.class);
-            taskService.setCustomSqlService(customSqlService);
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
             ParseParam param = new ParseParam()

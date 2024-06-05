@@ -1,17 +1,22 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.BaseTaskTest;
+import com.tapdata.constant.ConnectorContext;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.error.TapEventException;
+import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -149,6 +154,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		private GetTableInfoFunction getTableInfoFunction;
 		private QueryIndexesFunction queryIndexesFunction;
 		@BeforeEach
+		@SneakyThrows
 		void beforeEach(){
 			tableId = "test";
 			tapTable = mock(TapTable.class);
@@ -162,6 +168,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			createIndexFunction = mock(CreateIndexFunction.class);
 			getTableInfoFunction = mock(GetTableInfoFunction.class);
 			queryIndexesFunction = mock(QueryIndexesFunction.class);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
 		}
 		@Test
 		@DisplayName("test sync method when sync index switch is off")
@@ -423,6 +430,131 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node1);
 			boolean actual = hazelcastTargetPdkDataNode.checkSyncIndexOpen();
 			assertEquals(false, actual);
+		}
+	}
+
+	@Nested
+	class executeCreateIndexFunctionTest {
+
+		private TapTableMap<String, TapTable> tapTableMap;
+
+		@BeforeEach
+		void setUp() {
+			when(hazelcastTargetPdkDataNode.executeCreateIndexFunction(any())).thenCallRealMethod();
+			tapTableMap = mock(TapTableMap.class);
+			DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", dataProcessorContext);
+		}
+
+		@Test
+		@DisplayName("test main process")
+		@SneakyThrows
+		void test1() {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			tapIndices.add(new TapIndex()
+					.indexField(new TapIndexField().name("test_id").fieldAsc(true))
+					.indexField(new TapIndexField().name("test_id1").fieldAsc(false)));
+			tapIndices.add(new TapIndex()
+					.name("dup_index")
+					.indexField(new TapIndexField().name("dup_id").fieldAsc(true)));
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent()
+					.indexList(tapIndices);
+			tapCreateIndexEvent.setTableId("test");
+			TapTable tapTable = new TapTable("test");
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+			CreateIndexFunction createIndexFunction = mock(CreateIndexFunction.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			List<TapIndex> existsIndexes = new ArrayList<>();
+			existsIndexes.add(tapIndices.get(1));
+			when(hazelcastTargetPdkDataNode.queryExistsIndexes(tapTable, tapIndices)).thenReturn(existsIndexes);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doCallRealMethod().when(connectorNode).applyClassLoaderContext(any());
+			doAnswer(invocationOnMock -> {
+				Object argument3 = invocationOnMock.getArgument(2);
+				((CommonUtils.AnyErrorConsumer<?>) argument3).accept(null);
+				return null;
+			}).when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(), any(), any());
+			boolean result = hazelcastTargetPdkDataNode.executeCreateIndexFunction(tapCreateIndexEvent);
+			assertTrue(result);
+			assertEquals(1, tapCreateIndexEvent.getIndexList().size());
+			verify(hazelcastTargetPdkDataNode).queryExistsIndexes(tapTable, tapIndices);
+			verify(createIndexFunction).createIndex(connectorContext, tapTable, tapCreateIndexEvent);
+		}
+
+		@Test
+		@DisplayName("test event's tableId is empty")
+		void test2() {
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent();
+			TapEventException tapEventException = assertThrows(TapEventException.class, () -> hazelcastTargetPdkDataNode.executeCreateIndexFunction(tapCreateIndexEvent));
+			assertEquals(TaskTargetProcessorExCode_15.CREATE_INDEX_EVENT_TABLE_ID_EMPTY, tapEventException.getCode());
+			assertNotNull(tapEventException.getEvents());
+			assertEquals(1, tapEventException.getEvents().size());
+			assertEquals(tapCreateIndexEvent, tapEventException.getEvents().get(0));
+		}
+
+		@Test
+		@DisplayName("test cannot get TapTable by tableId")
+		void test3() {
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent();
+			tapCreateIndexEvent.setTableId("test");
+			when(tapTableMap.get("test")).thenReturn(null);
+			TapEventException tapEventException = assertThrows(TapEventException.class, () -> hazelcastTargetPdkDataNode.executeCreateIndexFunction(tapCreateIndexEvent));
+			assertEquals(TaskTargetProcessorExCode_15.CREATE_INDEX_TABLE_NOT_FOUND, tapEventException.getCode());
+			assertNotNull(tapEventException.getEvents());
+			assertEquals(1, tapEventException.getEvents().size());
+			assertEquals(tapCreateIndexEvent, tapEventException.getEvents().get(0));
+		}
+
+		@Test
+		@DisplayName("test not support CreateIndexFunction")
+		void test4() {
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent();
+			tapCreateIndexEvent.setTableId("test");
+			TapTable tapTable = new TapTable("test");
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(null);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			assertFalse(hazelcastTargetPdkDataNode.executeCreateIndexFunction(tapCreateIndexEvent));
+		}
+
+		@Test
+		@DisplayName("test queryExistsIndexes error")
+		@SneakyThrows
+		void test5() {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			tapIndices.add(new TapIndex()
+					.indexField(new TapIndexField().name("test_id").fieldAsc(true))
+					.indexField(new TapIndexField().name("test_id1").fieldAsc(false)));
+			tapIndices.add(new TapIndex()
+					.name("dup_index")
+					.indexField(new TapIndexField().name("dup_id").fieldAsc(true)));
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent()
+					.indexList(tapIndices);
+			tapCreateIndexEvent.setTableId("test");
+			TapTable tapTable = new TapTable("test");
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+			CreateIndexFunction createIndexFunction = mock(CreateIndexFunction.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			when(hazelcastTargetPdkDataNode.queryExistsIndexes(tapTable, tapIndices)).thenThrow(new RuntimeException("test"));
+
+			TapEventException tapEventException = assertThrows(TapEventException.class, () -> hazelcastTargetPdkDataNode.executeCreateIndexFunction(tapCreateIndexEvent));
+			assertEquals(TaskTargetProcessorExCode_15.CREATE_INDEX_QUERY_EXISTS_INDEX_FAILED, tapEventException.getCode());
+			assertNotNull(tapEventException.getEvents());
+			assertEquals(1, tapEventException.getEvents().size());
+			assertEquals(tapCreateIndexEvent, tapEventException.getEvents().get(0));
 		}
 	}
 }

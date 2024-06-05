@@ -247,7 +247,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	@SneakyThrows
-	private JetDag task2HazelcastDAG(TaskDto taskDto) {
+	protected JetDag task2HazelcastDAG(TaskDto taskDto) {
 
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
@@ -301,6 +301,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
 				Connections connection = null;
+				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
@@ -319,6 +320,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				if (node instanceof DataParentNode) {
 					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+					tableNode = node instanceof TableNode ? (TableNode) node : null;
 				} else if (node.isLogCollectorNode()) {
 					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
 					String connectionId = logCollectorNode.getConnectionIds().get(0);
@@ -370,7 +372,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 				vertex.localParallelism(1);
 				dag.vertex(vertex);
-				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent);
+				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent, tableNode);
 			}
 
 			handleEdge(dag, edges, nodeMap, vertexMap);
@@ -379,15 +381,16 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
 	}
 
-	private void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent) {
+	protected void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent, TableNode tableNode) {
 		if (null == conn || null == needFilterEvent) return;
 		List<String> tags = conn.getDefinitionTags();
 		if (Boolean.TRUE.equals(needFilterEvent.get())) {
-			needFilterEvent.set(null == tags || !tags.contains("schema-free"));
+			boolean isCustomCommand = null != tableNode && tableNode.isEnableCustomCommand();
+			needFilterEvent.set(null == tags || (!tags.contains("schema-free") && !isCustomCommand));
 		}
 	}
 
-	private static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
+	protected static void initSnapshotOrder(AtomicReference<TaskDto> taskDtoAtomicReference) {
 		try {
 			SnapshotOrderService snapshotOrderService = SnapshotOrderService.getInstance();
 			SnapshotOrderController snapshotOrderController = snapshotOrderService.addController(taskDtoAtomicReference.get());
@@ -398,7 +401,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
+	protected static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
 		TapTableMap<String, TapTable> tapTableMap;
 		if (node instanceof AutoInspectNode) {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, ((AutoInspectNode) node).getTargetNodeId(), System.currentTimeMillis());
@@ -900,7 +903,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return connections;
 	}
 
-	private TaskConfig getTaskConfig(TaskDto taskDto) {
+	protected TaskConfig getTaskConfig(TaskDto taskDto) {
 		return TaskConfig.create()
 				.taskDto(taskDto)
 				.taskRetryConfig(getTaskRetryConfig())
@@ -916,7 +919,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				.maxRetryTimeSecond(maxRetryTimeSecond);
 	}
 
-	private void initSourceInitialCounter(TaskDto taskDto) {
+	protected void initSourceInitialCounter(TaskDto taskDto) {
 		String type = taskDto.getType();
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> sourceNodes = dag.getSourceNodes();
