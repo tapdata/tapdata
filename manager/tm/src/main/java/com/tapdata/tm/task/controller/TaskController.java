@@ -5,9 +5,6 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import org.springframework.core.io.InputStreamResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.tapdata.tm.base.controller.BaseController;
@@ -68,9 +65,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -333,35 +328,16 @@ public class TaskController extends BaseController {
     /**
      * collect task info to do performance analyze
      *
-     * @param id
-     * @return zip file
+     * @param taskId taskId
+     * @return tar file
      */
     @Operation(summary = "collect task info to do performance analyze")
-    @PatchMapping("analyze/{id}")
-    public ResponseEntity<Resource> analyzeTask(
+    @PostMapping("analyze/{id}")
+    public ResponseEntity<InputStreamResource> analyzeTask(
             HttpServletRequest request,
-            @PathVariable("id") String id) {
-        UserDetail user = getLoginUser();
-        TaskDto taskDto = dataPermissionCheckOfId(request, user, MongoUtils.toObjectId(id), DataPermissionActionEnums.View,
-                () -> taskService.findById(MongoUtils.toObjectId(id), null, user));
-
-
-        File file = new File("/tmp/xxx"); // 文件的路径
-        if (!file.exists()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-
-        InputStreamResource resource = new InputStreamResource(new FileInputStream(file));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + file.getName());
-        headers.add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE);
-
-        return ResponseEntity.ok()
-                .headers(headers)
-                .contentLength(file.length())
-                .body(resource);
-
+            @PathVariable("id") String taskId,
+            HttpServletResponse response) throws IOException {
+        return taskService.analyzeTask(request, response, taskId, getLoginUser());
     }
 
     /**

@@ -13,6 +13,7 @@ import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
@@ -24,6 +25,13 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.vo.*;
+import io.tapdata.pdk.core.api.PDKIntegration;
+import org.apache.commons.io.FileUtils;
+import org.mockito.Mockito;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -50,13 +58,7 @@ import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
-import com.tapdata.tm.commons.schema.Tag;
-import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.DataSyncMq;
@@ -101,9 +103,12 @@ import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
+import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitor.service.impl.BatchServiceImpl;
+import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
@@ -116,14 +121,6 @@ import com.tapdata.tm.schedule.service.ScheduleService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
-import com.tapdata.tm.task.bean.Chart6Vo;
-import com.tapdata.tm.task.bean.FullSyncVO;
-import com.tapdata.tm.task.bean.LogCollectorResult;
-import com.tapdata.tm.task.bean.RunTimeInfo;
-import com.tapdata.tm.task.bean.SampleTaskVo;
-import com.tapdata.tm.task.bean.SyncTaskStatusDto;
-import com.tapdata.tm.task.bean.TableStatusInfoDto;
-import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.task.constant.InputNumCache;
 import com.tapdata.tm.task.constant.SyncStatus;
 import com.tapdata.tm.task.constant.SyncType;
@@ -142,31 +139,34 @@ import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
-import com.tapdata.tm.task.vo.ShareCacheDetailVo;
-import com.tapdata.tm.task.vo.ShareCacheVo;
-import com.tapdata.tm.task.vo.TaskDetailVo;
-import com.tapdata.tm.task.vo.TaskStatsDto;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.GZIPUtil;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MapUtils;
-import com.tapdata.tm.utils.MessageUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.NumberUtil;
-import com.tapdata.tm.utils.SpringContextHelper;
-import com.tapdata.tm.utils.TimeUtil;
-import com.tapdata.tm.utils.UUIDUtil;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.entity.error.CoreException;
+
+import java.io.*;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.modules.api.net.error.NetErrors;
+import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
+import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -174,25 +174,34 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.util.IOUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.AsyncContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
@@ -200,20 +209,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -230,6 +226,8 @@ import static com.tapdata.tm.inspect.constant.InspectStatusEnum.RUNNING;
 import static com.tapdata.tm.inspect.constant.InspectStatusEnum.SCHEDULING;
 import static com.tapdata.tm.inspect.constant.InspectStatusEnum.STOPPING;
 import static com.tapdata.tm.inspect.constant.InspectStatusEnum.WAITING;
+import static io.tapdata.entity.simplify.TapSimplify.fromJson;
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 
@@ -322,6 +320,7 @@ public class TaskServiceImpl extends TaskService{
     private MetaDataHistoryService historyService;
     private WorkerService workerService;
     private FileService fileService1;
+    private TaskRecordService taskRecordService;
     private UserLogService userLogService;
     private MessageQueueServiceImpl messageQueueService;
     private UserService userService;
@@ -367,12 +366,14 @@ public class TaskServiceImpl extends TaskService{
     private SettingsServiceImpl settingsService;
 
     private TaskNodeService taskNodeService;
+    private final AsyncContextManager asyncContextManager = new AsyncContextManager();
 
     private AgentGroupService agentGroupService;
     private DataSourceDefinitionService dataSourceDefinitionService;
     private BatchUpChecker batchUpChecker;
     private ChartViewService chartViewService;
     private UserDataReportService userDataReportService;
+    private BatchService batchService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -2854,10 +2855,8 @@ public class TaskServiceImpl extends TaskService{
         private long count;
     }
 
-
-    public void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user) {
+    private String exportTask(List<String> taskIds, UserDetail user) {
         List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
-
         List<TaskDto> tasks = findAllTasksByIds(taskIds);
         Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
         for (String taskId : taskIds) {
@@ -2874,7 +2873,7 @@ public class TaskServiceImpl extends TaskService{
                 taskDto.setStatus(TaskDto.STATUS_EDIT);
                 taskDto.setSyncStatus(SyncStatus.NORMAL);
                 taskDto.setStatuses(new ArrayList<>());
-							taskDto.setAttrs(new HashMap<>()); // 导出任务不保留运行时信息
+                taskDto.setAttrs(new HashMap<>()); // 导出任务不保留运行时信息
                 jsonList.add(new TaskUpAndLoadDto("Task", JsonUtil.toJsonUseJackson(taskDto)));
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
@@ -2921,7 +2920,473 @@ public class TaskServiceImpl extends TaskService{
                 }
             }
         }
-        String json = JsonUtil.toJsonUseJackson(jsonList);
+        return JsonUtil.toJsonUseJackson(jsonList);
+    }
+
+    private void addContentToTar(TarArchiveOutputStream taos, Map<String, byte[]> contents) throws IOException {
+        for (Map.Entry<String, byte[]> entry : contents.entrySet()) {
+            byte[] contentBytes = entry.getValue();
+            TarArchiveEntry entry1 = new TarArchiveEntry(entry.getKey());
+            entry1.setSize(contentBytes.length);
+            taos.putArchiveEntry(entry1);
+            try (ByteArrayInputStream bais = new ByteArrayInputStream(contentBytes)) {
+                IOUtils.copy(bais, taos);
+            }
+            taos.closeArchiveEntry();
+        }
+    }
+
+    private byte[] callEngineRpc(String engineId, String cls, String method, Object[] args) {
+        HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        Mockito.when(request.isAsyncSupported()).thenReturn(true);
+        // 模拟 AsyncContext
+        AsyncContext asyncContext = Mockito.mock(AsyncContext.class);
+        Mockito.when(request.startAsync()).thenReturn(asyncContext);
+        ServiceCaller serviceCaller = new ServiceCaller()
+                .className(cls)
+                .method(method)
+                .args(args);
+        if (engineId != null) {
+            serviceCaller.subscribeIds("processId_" + engineId);
+        }
+        serviceCaller.setReturnClass(Object.class.getName());
+        String callId = UUID.randomUUID().toString().replace("-", "");
+        serviceCaller.setId(callId);
+        final Map<String, Object> response = new HashMap<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        asyncContextManager.registerAsyncJob(callId, request, (result, error) -> {
+            if (error != null) {
+                if (error instanceof CoreException) {
+                    response.put("code", ((CoreException) error).getCode());
+                    response.put("data", error.getMessage());
+                }
+            } else {
+                response.put("code", 0);
+                response.put("data", result);
+            }
+            latch.countDown();
+        });
+        EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class, true);
+        try {
+            engineMessageExecutionService.call(serviceCaller, (result, throwable) -> {
+                asyncContextManager.applyAsyncJobResult(callId, result, throwable);
+            });
+        } catch(Throwable throwable) {
+            asyncContextManager.applyAsyncJobResult(callId, null, throwable);
+        }
+        try {
+            if (!latch.await(30, TimeUnit.SECONDS)) {
+                response.put("code", 1);
+                response.put("data", "call timeout");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        if (!response.get("code").equals(0)) {
+            return response.get("data").toString().getBytes();
+        }
+
+        String data = response.get("data").toString();
+        Map<String, Object> map = fromJson(data, Map.class);
+        return Base64.getDecoder().decode(map.get("content").toString());
+    }
+
+
+    public ResponseEntity<InputStreamResource> analyzeTask(HttpServletRequest request, HttpServletResponse response, String taskId, UserDetail user) throws IOException {
+        String tarFileName = "analyze-" + taskId + "-" + System.currentTimeMillis() + ".tar";
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        TarArchiveOutputStream taos = new TarArchiveOutputStream(baos);
+
+        Map<String, byte[]> contents = new HashMap<>();
+
+        TaskDto taskDto = findByTaskId(new ObjectId(taskId), AGENT_ID);
+        String agentId = taskDto.getAgentId();
+
+        // 导出任务信息与表结构信息
+        String taskFileName = "task.json.gz";
+        try {
+            List<String> taskIds = new ArrayList<>();
+            taskIds.add(taskId);
+            String taskJson = exportTask(taskIds, user);
+            byte[] gzipFile = GZIPUtil.gzip(taskJson.getBytes(StandardCharsets.UTF_8));
+            contents.put(taskFileName, gzipFile);
+        } catch (Exception e) {
+            contents.put(taskFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出任务运行历史记录
+        String runId = null;
+        String taskRecordFileName = "task_records.txt";
+        try {
+            Page<TaskRecordListVo> recordsPage = taskRecordService.queryRecords(new TaskRecordDto(taskId, 1, 100));
+            List<TaskRecordListVo> records = recordsPage.getItems();
+            if (recordsPage.getTotal() > 0) {
+                runId = records.get(0).getTaskRecordId();
+            }
+            contents.put(taskRecordFileName, toJson(records).toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            contents.put(taskRecordFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+
+        // 导出任务日志信息
+        String logFileName = "log.txt";
+        try {
+            MonitoringLogQueryParam queryParam = new MonitoringLogQueryParam();
+            queryParam.setTaskId(taskId);
+            queryParam.setPageSize(100000L);
+            queryParam.setPage(1L);
+            if (runId != null) {
+                queryParam.setTaskRecordId(runId);
+                queryParam.setOrder("desc");
+                queryParam.setLevels(Lists.of("ERROR", "WARN", "INFO", "DEBUG"));
+                queryParam.setStart(0L);
+                queryParam.setEnd(System.currentTimeMillis());
+                try {
+                    Page<MonitoringLogsDto> logsDtoPage = monitoringLogsService.query(queryParam);
+                    contents.put(logFileName, JsonUtil.toJsonUseJackson(logsDtoPage).getBytes(StandardCharsets.UTF_8));
+                } catch (Exception e) {
+                    contents.put(logFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+                }
+            } else {
+                contents.put(logFileName, "[]".getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            contents.put(logFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出任务指标信息
+        String metricFileName = "metric.txt";
+        try {
+            String metricContent = "{\n" +
+                    "  \"verifyTotals\": {\n" +
+                    "    \"uri\": \"/api/task/auto-inspect-totals\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"id\": \"" + taskId + "\"\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"alarmData\": {\n" +
+                    "    \"uri\": \"/api/alarm/list_task\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"taskId\": \"" + taskId + "\"\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"logTotals\": {\n" +
+                    "    \"uri\": \"/api/MonitoringLogs/count\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"taskId\": \"" + taskId + "\",\n" +
+                    "      \"taskRecordId\": \"" + runId + "\"\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"totalData\": {\n" +
+                    "    \"uri\": \"/api/measurement/query/v2\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"startAt\": " + (System.currentTimeMillis() - 6 * 86400 * 1000) + ",\n" +
+                    "      \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "      \"samples\": {\n" +
+                    "        \"data\": {\n" +
+                    "          \"tags\": {\n" +
+                    "            \"type\": \"task\",\n" +
+                    "            \"taskId\": \"" + taskId + "\",\n" +
+                    "            \"taskRecordId\": \"" + runId + "\"\n" +
+                    "          },\n" +
+                    "          \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "          \"fields\": [\n" +
+                    "            \"inputInsertTotal\",\n" +
+                    "            \"inputUpdateTotal\",\n" +
+                    "            \"inputDeleteTotal\",\n" +
+                    "            \"inputDdlTotal\",\n" +
+                    "            \"inputOthersTotal\",\n" +
+                    "            \"outputInsertTotal\",\n" +
+                    "            \"outputUpdateTotal\",\n" +
+                    "            \"outputDeleteTotal\",\n" +
+                    "            \"outputDdlTotal\",\n" +
+                    "            \"outputOthersTotal\",\n" +
+                    "            \"tableTotal\",\n" +
+                    "            \"createTableTotal\",\n" +
+                    "            \"snapshotTableTotal\",\n" +
+                    "            \"initialCompleteTime\",\n" +
+                    "            \"sourceConnection\",\n" +
+                    "            \"targetConnection\",\n" +
+                    "            \"snapshotDoneAt\",\n" +
+                    "            \"snapshotRowTotal\",\n" +
+                    "            \"snapshotInsertRowTotal\",\n" +
+                    "            \"outputQps\",\n" +
+                    "            \"currentSnapshotTableRowTotal\",\n" +
+                    "            \"currentSnapshotTableInsertRowTotal\",\n" +
+                    "            \"replicateLag\",\n" +
+                    "            \"snapshotStartAt\",\n" +
+                    "            \"currentEventTimestamp\",\n" +
+                    "            \"snapshotDoneCost\",\n" +
+                    "            \"outputQpsMax\",\n" +
+                    "            \"outputQpsAvg\"\n" +
+                    "          ],\n" +
+                    "          \"type\": \"instant\"\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"barChartData\": {\n" +
+                    "    \"uri\": \"/api/measurement/query/v2\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"startAt\": " + (System.currentTimeMillis() - 6 * 86400 * 1000) + ",\n" +
+                    "       \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "      \"samples\": {\n" +
+                    "        \"data\": {\n" +
+                    "          \"tags\": {\n" +
+                    "            \"type\": \"task\",\n" +
+                    "            \"taskId\": \"" + taskId + "\",\n" +
+                    "            \"taskRecordId\": \"" + runId + "\"\n" +
+                    "          },\n" +
+                    "          \"fields\": [\n" +
+                    "            \"inputInsertTotal\",\n" +
+                    "            \"inputUpdateTotal\",\n" +
+                    "            \"inputDeleteTotal\",\n" +
+                    "            \"inputDdlTotal\",\n" +
+                    "            \"inputOthersTotal\",\n" +
+                    "            \"outputInsertTotal\",\n" +
+                    "            \"outputUpdateTotal\",\n" +
+                    "            \"outputDeleteTotal\",\n" +
+                    "            \"outputDdlTotal\",\n" +
+                    "            \"outputOthersTotal\"\n" +
+                    "          ],\n" +
+                    "          \"type\": \"difference\"\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"lineChartData\": {\n" +
+                    "    \"uri\": \"/api/measurement/query/v2\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"startAt\": " + (System.currentTimeMillis() - 6 * 86400 * 1000) + ",\n" +
+                    "       \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "      \"samples\": {\n" +
+                    "        \"data\": {\n" +
+                    "          \"tags\": {\n" +
+                    "            \"type\": \"task\",\n" +
+                    "            \"taskId\": \"" + taskId + "\",\n" +
+                    "            \"taskRecordId\": \"" + runId + "\"\n" +
+                    "          },\n" +
+                    "          \"fields\": [\n" +
+                    "            \"inputQps\",\n" +
+                    "            \"outputQps\",\n" +
+                    "            \"timeCostAvg\",\n" +
+                    "            \"replicateLag\",\n" +
+                    "            \"inputSizeQps\",\n" +
+                    "            \"outputSizeQps\",\n" +
+                    "            \"qpsType\"\n" +
+                    "          ],\n" +
+                    "          \"type\": \"continuous\"\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"dagData\": {\n" +
+                    "    \"uri\": \"/api/measurement/query/v2\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"startAt\": " + (System.currentTimeMillis() - 6 * 86400 * 1000) + ",\n" +
+                    "       \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "      \"samples\": {\n" +
+                    "        \"data\": {\n" +
+                    "          \"tags\": {\n" +
+                    "            \"type\": \"node\",\n" +
+                    "            \"taskId\": \"" + taskId + "\",\n" +
+                    "            \"taskRecordId\": \"" + runId + "\"\n" +
+                    "          },\n" +
+                    "          \"fields\": [\n" +
+                    "            \"inputInsertTotal\",\n" +
+                    "            \"inputUpdateTotal\",\n" +
+                    "            \"inputDeleteTotal\",\n" +
+                    "            \"inputDdlTotal\",\n" +
+                    "            \"inputOthersTotal\",\n" +
+                    "            \"outputInsertTotal\",\n" +
+                    "            \"outputUpdateTotal\",\n" +
+                    "            \"outputDeleteTotal\",\n" +
+                    "            \"outputDdlTotal\",\n" +
+                    "            \"outputOthersTotal\",\n" +
+                    "            \"qps\",\n" +
+                    "            \"timeCostAvg\",\n" +
+                    "            \"currentEventTimestamp\",\n" +
+                    "            \"tcpPing\",\n" +
+                    "            \"connectPing\",\n" +
+                    "            \"inputTotal\",\n" +
+                    "            \"outputTotal\",\n" +
+                    "            \"inputQps\",\n" +
+                    "            \"outputQps\",\n" +
+                    "            \"snapshotRowTotal\",\n" +
+                    "            \"snapshotInsertRowTotal\",\n" +
+                    "            \"snapshotTableTotal\",\n" +
+                    "            \"tableTotal\",\n" +
+                    "            \"snapshotSourceReadTimeCostAvg\",\n" +
+                    "            \"incrementalSourceReadTimeCostAvg\",\n" +
+                    "            \"targetWriteTimeCostAvg\",\n" +
+                    "            \"snapshotStartAt\",\n" +
+                    "            \"snapshotDoneAt\",\n" +
+                    "            \"replicateLag\"\n" +
+                    "          ],\n" +
+                    "          \"type\": \"instant\"\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"agentData\": {\n" +
+                    "    \"uri\": \"/api/measurement/query/v2\",\n" +
+                    "    \"param\": {\n" +
+                    "     \"startAt\": " + (System.currentTimeMillis() - 6 * 86400 * 1000) + ",\n" +
+                    "       \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "      \"samples\": {\n" +
+                    "        \"data\": {\n" +
+                    "          \"tags\": {\n" +
+                    "            \"type\": \"engine\",\n" +
+                    "            \"engineId\": \"" + agentId + "\"\n" +
+                    "          },\n" +
+                    "         \"endAt\": " + System.currentTimeMillis() + ",\n" +
+                    "          \"fields\": [\n" +
+                    "            \"memoryRate\",\n" +
+                    "            \"cpuUsage\",\n" +
+                    "            \"gcRate\"\n" +
+                    "          ],\n" +
+                    "          \"type\": \"instant\"\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }\n" +
+                    "  },\n" +
+                    "  \"taskRecord\": {\n" +
+                    "    \"uri\": \"/api/task/records\",\n" +
+                    "    \"param\": {\n" +
+                    "      \"taskId\": \"" + taskId + "\",\n" +
+                    "      \"size\": 200,\n" +
+                    "      \"page\": 1\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}";
+            BatchRequestDto batchRequestDto = fromJson(metricContent, BatchRequestDto.class);
+            Map<String, Object> data = batchService.batch(batchRequestDto, request.getLocale());
+            contents.put(metricFileName, toJson(data).toString().getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            contents.put(metricFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出引擎的 cpu 火焰图
+        String cpuFlameGraphFileName = "engine_cpu.html";
+        try {
+            byte[] cpuFlameGraph = callEngineRpc(agentId, "FlameGraphService", "cpu", new Object[]{});
+            contents.put(cpuFlameGraphFileName, cpuFlameGraph);
+        } catch (Exception e) {
+            contents.put(cpuFlameGraphFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出管理端的 cpu 火焰图
+        String tmCpuFlameGraphFileName = "tm_cpu.html";
+        try {
+            FileUtils.deleteQuietly(new File("tm_cpu.html"));
+            String name = ManagementFactory.getRuntimeMXBean().getName();
+            // 提取 PID
+            String pid = name.split("@")[0];
+            // 1. 执行命令:
+            String command = "./async-profiler/bin/asprof -e cpu -d " + 15 + " -f ./tm_cpu.html " + pid;
+            Process process = Runtime.getRuntime().exec(command);
+
+            byte[] content = null;
+            process.waitFor(20, TimeUnit.SECONDS);
+            content = FileUtils.readFileToByteArray(new File("tm_cpu.html"));
+            contents.put(tmCpuFlameGraphFileName, content);
+        } catch (Exception e) {
+            contents.put(tmCpuFlameGraphFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出引擎的 内存分配 火焰图
+        String memoryFlameGraphFileName = "engine_memory.html";
+        try {
+            byte[] memoryFlameGraph = callEngineRpc(agentId, "FlameGraphService", "memory", new Object[]{});
+            contents.put(memoryFlameGraphFileName, memoryFlameGraph);
+        } catch (Exception e) {
+            contents.put(memoryFlameGraphFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出管理端的 内存分配 火焰图
+        String tmMemoryFlameGraphFileName = "tm_memory.html";
+        try {
+            FileUtils.deleteQuietly(new File("tm_memory.html"));
+            String name = ManagementFactory.getRuntimeMXBean().getName();
+            // 提取 PID
+            String pid = name.split("@")[0];
+            // 1. 执行命令:
+            String command = "./async-profiler/bin/asprof -e alloc -d " + 15 + " -f ./tm_memory.html " + pid;
+            Process process = Runtime.getRuntime().exec(command);
+
+            byte[] content = null;
+            process.waitFor(20, TimeUnit.SECONDS);
+            content = FileUtils.readFileToByteArray(new File("tm_memory.html"));
+            contents.put(tmMemoryFlameGraphFileName, content);
+        } catch (Exception e) {
+            contents.put(tmMemoryFlameGraphFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出引擎的 jstack 信息
+        String threadFileName = "engine_jstack.txt";
+        try {
+            byte[] threadDump = callEngineRpc(agentId, "FlameGraphService", "jstack", new Object[]{});
+            contents.put(threadFileName, threadDump);
+        } catch (Exception e) {
+            contents.put(threadFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出管理端的 jstack 信息
+        String tmThreadFileName = "tm_jstack.txt";
+        try {
+            ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+            boolean lockedMonitors = false;
+            boolean lockedSynchronizers = false;
+            ThreadInfo[] threadInfos = threadMXBean.dumpAllThreads(lockedMonitors, lockedSynchronizers);
+            String threadDump = "";
+            for (ThreadInfo threadInfo : threadInfos) {
+                threadDump += threadInfo.toString();
+                threadDump += "\n";
+            }
+            contents.put(tmThreadFileName, threadDump.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            contents.put(tmThreadFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出引擎的一些内存信息
+        String engineMemoryFileName = "engine_memory.txt";
+        try {
+            byte[] engineMemory = callEngineRpc(agentId, "MemoryService", "memory", new Object[]{});
+            contents.put(engineMemoryFileName, engineMemory);
+        } catch (Exception e) {
+            contents.put(engineMemoryFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 导出管理端的一些内存信息
+        String tmMemoryFileName = "tm_memory.txt";
+        try {
+            byte[] tmMemory = PDKIntegration.outputMemoryFetchers(null, null, "Detail").getBytes(StandardCharsets.UTF_8);
+            contents.put(tmMemoryFileName, tmMemory);
+        } catch (Exception e) {
+            contents.put(tmMemoryFileName, e.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        addContentToTar(taos, contents);
+
+        InputStream inputStream = new ByteArrayInputStream(baos.toByteArray());
+        InputStreamResource resource = new  InputStreamResource(inputStream);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + tarFileName);
+        headers.add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE);
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(resource);
+    }
+
+
+    public void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user) {
+        List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
+        List<TaskDto> tasks = findAllTasksByIds(taskIds);
+        Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
+        String json = exportTask(taskIds, user);
 
         AtomicReference<String> fileName = new AtomicReference<>("");
         String yyyymmdd = DateUtil.today().replace("-", "");
