@@ -353,7 +353,6 @@ public class TaskServiceImpl extends TaskService{
     private ExternalStorageService externalStorageService;
 
 
-    private CustomSqlService customSqlService;
 
 
     private LockControlService lockControlService;
@@ -424,7 +423,6 @@ public class TaskServiceImpl extends TaskService{
 
         checkTaskName(taskDto.getName(), user, taskDto.getId());
 
-        customSqlService.checkCustomSqlTask(taskDto, user);
         dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean rename = false;
@@ -640,7 +638,6 @@ public class TaskServiceImpl extends TaskService{
         }
 
 
-        customSqlService.checkCustomSqlTask(taskDto, user);
         dateNodeService.checkTaskDateNode(taskDto, user);
 
         boolean agentReq = isAgentReq();
@@ -3918,6 +3915,11 @@ public class TaskServiceImpl extends TaskService{
             Update update = new Update().set("attrs.syncProgress." + k, v);
             update(new Query(criteria), update);
         });
+    }
+    public void updateDelayTime(ObjectId taskId, long delayTime) {
+        Criteria criteria = Criteria.where("_id").is(taskId);
+        Update update = new Update().set("delayTime", delayTime);
+        update(new Query(criteria), update);
     }
 
 
