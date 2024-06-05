@@ -32,7 +32,7 @@ public class v3_8_1_AccessToken_TTL_Index extends AbsPatch {
         Integer ttl = Integer.valueOf(environment.getProperty("access.token.ttl"));
         accessTokenTtl = ttl.longValue();
 
-        long buffer = 86400L;
+        long buffer = TimeUnit.DAYS.toMillis(1L);
         long ttlValue = accessTokenTtl + buffer;
 
         Index index = new Index().on("last_updated", Sort.Direction.DESC).expire(ttlValue, TimeUnit.SECONDS).background();
