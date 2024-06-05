@@ -135,3 +135,5 @@ py-lib
 sybase-poc/
 sybase-poc-temp/
 .tmStartMsg.json
+
+run-resources
