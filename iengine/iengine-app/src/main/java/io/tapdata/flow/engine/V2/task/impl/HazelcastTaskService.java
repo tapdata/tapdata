@@ -27,9 +27,11 @@ import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.entity.task.error.TaskServiceExCode_23;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.exception.AutoInspectException;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
@@ -46,12 +48,14 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
-import com.tapdata.tm.commons.task.dto.ErrorEvent;
-import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.dto.*;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.taskmilestones.EngineDeductionAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
+import io.tapdata.common.DAGDataEngineServiceImpl;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
@@ -107,6 +111,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -127,6 +132,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static HazelcastInstance hazelcastInstance;
 	private static HazelcastTaskService taskService;
+	private static final Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap = new ConcurrentHashMap<>();
 
 	@Autowired
 	private ConfigurationCenter configurationCenter;
@@ -183,7 +189,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
+			initializeModel(taskDto);
 			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			tapTableMapHashMap.clear();
 			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			Job job = jet.newJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
@@ -412,7 +420,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		} else if (node instanceof VirtualTargetNode) {
 			tapTableMap = TapTableMap.create(node.getId());
 		} else {
-			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
+			if(tapTableMapHashMap.containsKey(node.getId())){
+				tapTableMap = tapTableMapHashMap.get(node.getId());
+			}else{
+				tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
+			}
+
 		}
 		return tapTableMap;
 	}
@@ -928,4 +941,31 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			taskGlobalVariable.put(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, new AtomicInteger(sourceNodes.size()));
 		}
 	}
+
+	protected void initializeModel(TaskDto taskDto){
+		AspectUtils.executeAspect(new EngineDeductionAspect().start());
+		Map<String, List<Message>> transformSchema;
+		try {
+			com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
+			TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
+					TransformerWsMessageDto.class);
+			transformerWsMessageDto.getTaskDto().setDag(dag);
+			transformerWsMessageDto.getOptions().setBatchNum(5);
+			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
+			long start = System.currentTimeMillis();
+			transformSchema = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+			AspectUtils.executeAspect(new EngineDeductionAspect().end());
+			logger.info("transformed cons={}", System.currentTimeMillis() - start + "ms");
+		}catch (Exception e){
+			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));
+			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE,"reason:"+e.getMessage());
+		}
+		if(null != transformSchema && !transformSchema.isEmpty()){
+			AspectUtils.executeAspect(new EngineDeductionAspect().error(new Throwable(transformSchema.toString())));
+			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE,"reason:"+transformSchema);
+		}
+
+	}
+
 }

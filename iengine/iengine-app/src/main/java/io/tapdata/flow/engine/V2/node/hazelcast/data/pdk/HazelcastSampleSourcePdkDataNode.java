@@ -69,7 +69,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 			int rows = 1;
 			if (node instanceof DatabaseNode) {
 				rows = ((DatabaseNode) node).getRows() == null ? 1 : ((DatabaseNode) node).getRows();
-				tables = ((DatabaseNode) node).getTableNames();
 			} else if (node instanceof TableNode) {
 				rows = ((TableNode) node).getRows() == null ? 1 : ((TableNode) node).getRows();
 			}

@@ -112,7 +112,7 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
                  Map<String, MetadataInstancesEntity> existsMetadataInstances);
 
     public abstract int bulkSave(List<MetadataInstancesDto> insertMetaDataDtos,
-                 Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId, String uuid);
+                 Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId, String uuid,Boolean isLastBatch);
 
     public abstract Pair<Integer, Integer> bulkUpsetByWhere(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user);
 

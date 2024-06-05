@@ -27,4 +27,6 @@ public class TransformerWsMessageResult {
     @JsonDeserialize( using = DagDeserialize.class)
     private DAG dag;
     private String transformUuid;
+    private Boolean isLastBatch = true;
+    private String agentId;
 }

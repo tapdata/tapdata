@@ -18,4 +18,10 @@ public interface TaskServiceExCode_23 {
 			describe = "Failed to initialize task global variables, task ID cannot be empty"
 	)
 	String TASK_GLOBAL_VARIABLE_INIT_TASK_ID_EMPTY = "23002";
+
+	@TapExCode(
+			describeCN = "引擎推演模型失败",
+			describe = "Engine deduction model failed"
+	)
+	String TASK_FAILED_TO_LOAD_TABLE_STRUCTURE = "23004";
 }

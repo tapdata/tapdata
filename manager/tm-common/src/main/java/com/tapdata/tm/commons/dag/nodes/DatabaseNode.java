@@ -227,12 +227,15 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             List<String> includes = new ArrayList<>();
             options.setIncludes(includes);
             List<List<String>> partition = ListUtils.partition(tables, options.getBatchNum());
-            partition.forEach(list -> {
+            for (int i = 0; i < partition.size(); i++){
                 includes.clear();
-                includes.addAll(list);
+                includes.addAll(partition.get(i));
                 this.setSchema(null);
                 super.transformSchema(options);
-            });
+                if(service.whetherEngineDeduction()){
+                    service.initializeModel(i == partition.size() - 1);
+                }
+            }
         }
     }
 

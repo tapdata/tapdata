@@ -423,7 +423,7 @@ public class TransformSchemaService {
             taskService.update(new Query(Criteria.where("_id").is(taskIds.get(0))), Update.update("transformDagHash", 0));
         }
 
-        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid(),result.getIsLastBatch());
 
         List<String> batchRemoveMetaDataList = result.getBatchRemoveMetaDataList();
         List<String> newBatchRemoveMetaDataList = new ArrayList<>();
@@ -577,5 +577,10 @@ public class TransformSchemaService {
             update.set("dag", dag);
             taskService.updateById(taskId, update, user);
         }
+    }
+
+    public Boolean checkEngineDeduction(String taskId,String agentId){
+        TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"agentId");
+        return org.apache.commons.lang3.StringUtils.isEmpty(taskDto.getAgentId()) || org.apache.commons.lang3.StringUtils.isEmpty(agentId) || taskDto.getAgentId().equals(agentId);
     }
 }
