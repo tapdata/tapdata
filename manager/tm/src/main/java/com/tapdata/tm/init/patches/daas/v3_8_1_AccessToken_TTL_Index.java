@@ -29,8 +29,7 @@ public class v3_8_1_AccessToken_TTL_Index extends AbsPatch {
         MongoTemplate mongoTemplate = SpringContextHelper.getBean(MongoTemplate.class);
 
         Environment environment = SpringContextHelper.getBean(Environment.class);
-        Integer ttl = Integer.valueOf(environment.getProperty("access.token.ttl"));
-        accessTokenTtl = ttl.longValue();
+        accessTokenTtl = Long.parseLong(environment.getProperty("access.token.ttl"));
 
         long buffer = TimeUnit.DAYS.toSeconds(1L);
         long ttlValue = accessTokenTtl + buffer;
