@@ -67,16 +67,6 @@ public interface ConverterProvider {
 	Object targetValueConverter(Object data) throws ConvertException;
 
 	default Object commTargetValueConverter(Object data) throws ConvertException {
-
-		try {
-			/*if (data instanceof Undefined) {
-				data = null;
-			}*/
-		} catch (Exception e) {
-			throw new ConvertException(ConvertLog.ERR_COMMON_TARGET_0001.getErrCode(),
-					String.format(ConvertLog.ERR_COMMON_TARGET_0001.getMessage(), data, "Undefined", "null", e.getMessage()));
-		}
-
 		return data;
 	}
 
