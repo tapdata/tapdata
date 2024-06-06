@@ -2,6 +2,7 @@ package com.tapdata.tm.inspect.service;
 
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -90,14 +91,10 @@ public class InspectServiceImplTest {
         when(impl.list(any(Filter.class), any(UserDetail.class))).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.list(mock(Filter.class), mock(UserDetail.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
+            Page<InspectDto> list = impl.list(mock(Filter.class), mock(UserDetail.class));
+            Assertions.assertEquals(0L, list.getTotal());
+            Assertions.assertNotNull(list.getItems());
+            Assertions.assertEquals(0, list.getItems().size());
         }
     }
 

@@ -26,6 +26,8 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
@@ -2146,6 +2148,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 						return new TapStringValue(value.toString())
 								.tapType(new TapString(24L, true))
 								.originType(BsonType.OBJECT_ID.name());
+					} else if (value instanceof Document) {
+						return new TapMapValue((Document) value);
+					} else if (value instanceof List) {
+						return new TapArrayValue((List<Object>) value);
 					}
 					return value;
 				});

@@ -77,14 +77,18 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
+    public static final String REPLICATE_LAG = "replicateLag";
+    public static final String TASK_ID = "taskId";
     private final MongoTemplate mongoOperations;
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
+    private Map<String, Long> taskDelayTimeMap;
 
     public MeasurementServiceV2Impl(@Qualifier(value = "obsMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture, MetadataInstancesService metadataInstancesService, TaskService taskService) throws ExecutionException, InterruptedException {
         this.mongoOperations = mongoTemplateCompletableFuture.get();
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
+        this.taskDelayTimeMap = new HashMap<>();
     }
 
     @Override
@@ -140,27 +144,19 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             bulkOperations.upsert(query, update);
+            if ("task".equals(tags.get("type"))) {
+                Map<String, Object> vs = (Map) sampleMap.get("vs");
+                Object replicateLag = Optional.ofNullable(vs.get(REPLICATE_LAG)).orElse(0);
+                Long taskDelayTime = taskDelayTimeMap.get(tags.get(TASK_ID));
+                long delayTime = Long.parseLong(replicateLag.toString());
+                if (null == taskDelayTime || taskDelayTime != delayTime){
+                    taskDelayTimeMap.put(tags.get(TASK_ID), delayTime);
+                    taskService.updateDelayTime(new ObjectId(tags.get(TASK_ID)), delayTime);
+                }
+            }
         }
 
         bulkOperations.execute();
-    }
-
-    private Sample supplyKeyData(Sample requestSample, Map<String, Number> data, Map<String, Number> requestMap) {
-        List<String> list = Lists.newArrayList( "timeCostAvg", "targetWriteTimeCostAvg", "replicateLag");
-
-        for (String key : list) {
-            Number value = data.get(key);
-            if (requestMap.containsKey(key)
-                    && Objects.nonNull(requestMap.get(key))
-                    && requestMap.get(key).doubleValue() == 0
-                    && Objects.nonNull(value)
-                    && value.doubleValue() > 0) {
-                requestSample.getVs().put(key, value);
-            } else if (!requestMap.containsKey(key) && data.containsKey(key)) {
-                requestSample.getVs().put(key, value);
-            }
-        }
-        return requestSample;
     }
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
@@ -440,7 +436,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 // 按照延迟逻辑,源端无事件时,应该为全量同步开始到现在的时间差
                 if (Objects.isNull(currentEventTimestamp) && Objects.nonNull(snapshotStartAt)) {
                     Number maxRep = Math.abs(System.currentTimeMillis() - snapshotStartAt.longValue());
-                    values.put("replicateLag", maxRep);
+                    values.put(REPLICATE_LAG, maxRep);
                 }
 
             }
@@ -1124,8 +1120,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             Sample sample = samples.get(0);
             Long cdcDelayTime = null;
             Date lastData = null;
-            if (sample.getVs().get("replicateLag") != null) {
-                cdcDelayTime = Long.valueOf(sample.getVs().get("replicateLag").toString());
+            if (sample.getVs().get(REPLICATE_LAG) != null) {
+                cdcDelayTime = Long.valueOf(sample.getVs().get(REPLICATE_LAG).toString());
             }
             tableStatusInfoDto.setCdcDelayTime(cdcDelayTime);
             if (sample.getVs().get("currentEventTimestamp") != null) {
