@@ -288,9 +288,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                 taskMilestone(KPI_DEDUCTION, this::setFinish);
                 break;
             case DEDUCTION_ERROR:
-                taskMilestone(KPI_DEDUCTION, (m)->{
-                    setError(aspect,m);
-                });
+                taskMilestone(KPI_DEDUCTION, (m)->{setError(aspect,m);});
                 break;
         }
         return null;

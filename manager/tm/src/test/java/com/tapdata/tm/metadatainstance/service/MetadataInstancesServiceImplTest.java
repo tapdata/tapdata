@@ -1378,6 +1378,23 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid,true);
 			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(),any(UserDetail.class),anyString());
 		}
+
+		@Test
+		@DisplayName("test bulkSave method when insertMetaDataDtos is null and updateMetaMap is not null ")
+		void test5(){
+			uuid = "111";
+			saveHistory = false;
+			updateMetaMap = new HashMap<>();
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName");
+			updateMetaMap.put("test_updateMap",metadataInstancesDto);
+			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setId(mock(ObjectId.class));
+			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid,false);
+			verify(metadataInstancesService,times(0)).deleteAll(any(Query.class),any(UserDetail.class));
+		}
 	}
 	@Nested
 	class BulkUpsetByWhereTest{

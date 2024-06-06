@@ -103,7 +103,7 @@ public interface DAGDataService {
     List<MetadataInstancesDto> findByNodeId(String id);
 
     default void initializeModel(Boolean isLastBatch){
-
+        return;
     }
 
     default Boolean whetherEngineDeduction(){
@@ -111,6 +111,6 @@ public interface DAGDataService {
     }
 
     default void uploadModel(Map<String, List<Message>> transformSchema,Boolean isLastBatch) {
-
+        return;
     }
 }

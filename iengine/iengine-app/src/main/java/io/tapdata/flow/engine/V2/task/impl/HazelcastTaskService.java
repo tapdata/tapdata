@@ -132,7 +132,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static HazelcastInstance hazelcastInstance;
 	private static HazelcastTaskService taskService;
-	private static final Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap = new ConcurrentHashMap<>();
 
 	@Autowired
 	private ConfigurationCenter configurationCenter;
@@ -189,9 +188,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
-			initializeModel(taskDto);
-			final JetDag jetDag = task2HazelcastDAG(taskDto);
-			tapTableMapHashMap.clear();
+			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
 			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			Job job = jet.newJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
@@ -221,7 +218,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			taskDto.setDag(taskDto.getDag());
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
-			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			final JetDag jetDag = task2HazelcastDAG(taskDto,false);
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
@@ -240,7 +237,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			taskDto.setDag(taskDto.getDag());
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("KYE_OF_SCRIPT_RUN_RESULT", result).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
-			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			final JetDag jetDag = task2HazelcastDAG(taskDto,false);
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
@@ -255,8 +252,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	@SneakyThrows
-	protected JetDag task2HazelcastDAG(TaskDto taskDto) {
-
+	protected JetDag task2HazelcastDAG(TaskDto taskDto,Boolean deduce) {
+		Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap;
+		if(deduce){
+			tapTableMapHashMap = initializeModel(taskDto);
+		}else {
+			tapTableMapHashMap = new HashMap<>();
+		}
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
 
@@ -311,7 +313,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				Connections connection = null;
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
+				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node,tapTableMapHashMap);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -409,7 +411,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	protected static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
+	protected static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node, Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap) {
 		TapTableMap<String, TapTable> tapTableMap;
 		if (node instanceof AutoInspectNode) {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, ((AutoInspectNode) node).getTargetNodeId(), System.currentTimeMillis());
@@ -942,8 +944,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	protected void initializeModel(TaskDto taskDto){
+	protected Map<String,TapTableMap<String, TapTable>> initializeModel(TaskDto taskDto){
 		AspectUtils.executeAspect(new EngineDeductionAspect().start());
+		Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
 		Map<String, List<Message>> transformSchema;
 		try {
 			com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
@@ -951,7 +954,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
 					TransformerWsMessageDto.class);
 			transformerWsMessageDto.getTaskDto().setDag(dag);
-			transformerWsMessageDto.getOptions().setBatchNum(5);
 			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
 			long start = System.currentTimeMillis();
 			transformSchema = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
@@ -965,7 +967,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(new Throwable(transformSchema.toString())));
 			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE,"reason:"+transformSchema);
 		}
-
+		return tapTableMapHashMap;
 	}
 
 }

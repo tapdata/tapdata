@@ -69,7 +69,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         super(metadataInstancesDtos, dataSourceMap, definitionDtoMap, userId, userName, taskDto, transformerDtoMap);
         this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
         this.taskService = taskService;
-        this.tapTableMapHashMap = new ConcurrentHashMap<>();
+        this.tapTableMapHashMap = new HashMap<>();
         this.clientMongoOperator = clientMongoOperator;
         this.taskDto = taskDto;
         this.engineDeduction = false;
@@ -123,7 +123,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         return null;
     }
 
-    private TaskClient<TaskDto> execTask(TaskDto taskDto) {
+    protected TaskClient<TaskDto> execTask(TaskDto taskDto) {
         taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
         TaskClient<TaskDto> taskClient = taskService.startTestTask(taskDto);
         taskClient.join();
@@ -131,11 +131,23 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
     }
     @Override
     public void initializeModel(Boolean isLastBatch) {
-        Map<String, List<MetadataInstancesDto>> metadataInstancesDtos = getBatchMetadataUpdateMap().values().stream()
+        Map<String, List<MetadataInstancesDto>> updateMetadataInstancesDtos = getBatchMetadataUpdateMap().values().stream()
                 .filter(metadataInstancesDto -> SourceTypeEnum.VIRTUAL.name().equals(metadataInstancesDto.getSourceType()))
                 .collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
 
-        for (Map.Entry<String, List<MetadataInstancesDto>> entry : metadataInstancesDtos.entrySet()) {
+        Map<String, List<MetadataInstancesDto>> insertMetadataInstancesDtos = getBatchInsertMetaDataList().stream()
+                .filter(metadataInstancesDto -> SourceTypeEnum.VIRTUAL.name().equals(metadataInstancesDto.getSourceType()))
+                .collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
+
+        insertMetadataInstancesDtos.forEach((nodeId, metadataInstancesDtos) -> {
+            updateMetadataInstancesDtos.merge(nodeId,metadataInstancesDtos,(v1,v2)->{
+                List<MetadataInstancesDto> metadataInstancesDtoList = new ArrayList<>(v1);
+                metadataInstancesDtoList.addAll(v2);
+                return metadataInstancesDtoList;
+            });
+        });
+
+        for (Map.Entry<String, List<MetadataInstancesDto>> entry : updateMetadataInstancesDtos.entrySet()) {
             Map<String, String> tableNameQualifiedNameMap = new HashMap<>();
             List<MetadataInstancesDto> filteredList = entry.getValue();
             TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.computeIfAbsent(entry.getKey(), key -> TapTableMap.create(null, entry.getKey(), tableNameQualifiedNameMap,taskDto.getTmCurrentTime()));
@@ -146,6 +158,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                 }
             });
         }
+
        CommonUtils.ignoreAnyError(()->{uploadModel(new HashMap<>(),isLastBatch);},"Failed to upload deduction model");
     }
 

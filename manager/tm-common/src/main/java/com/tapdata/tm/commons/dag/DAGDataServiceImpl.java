@@ -1275,6 +1275,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         upsertTransformer.clear();
         batchMetadataUpdateMap.clear();
         batchInsertMetaDataList.clear();
+        batchRemoveMetaDataList.clear();
         upsertItems.clear();
     }
 }

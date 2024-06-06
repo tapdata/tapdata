@@ -82,7 +82,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DEDUCE_SCHEMA, true);
 	}
 
-	private static class DeduceSchemaRequest {
+	protected static class DeduceSchemaRequest {
 
 		private TaskDto taskDto;
 
