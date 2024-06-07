@@ -135,13 +135,11 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                 .filter(metadataInstancesDto -> SourceTypeEnum.VIRTUAL.name().equals(metadataInstancesDto.getSourceType()))
                 .collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
 
-        insertMetadataInstancesDtos.forEach((nodeId, metadataInstancesDtos) -> {
-            updateMetadataInstancesDtos.merge(nodeId,metadataInstancesDtos,(v1,v2)->{
-                List<MetadataInstancesDto> metadataInstancesDtoList = new ArrayList<>(v1);
-                metadataInstancesDtoList.addAll(v2);
-                return metadataInstancesDtoList;
-            });
-        });
+        insertMetadataInstancesDtos.forEach((nodeId, metadataInstancesDtos) -> updateMetadataInstancesDtos.merge(nodeId,metadataInstancesDtos,(v1, v2)->{
+            List<MetadataInstancesDto> metadataInstancesDtoList = new ArrayList<>(v1);
+            metadataInstancesDtoList.addAll(v2);
+            return metadataInstancesDtoList;
+        }));
 
         for (Map.Entry<String, List<MetadataInstancesDto>> entry : updateMetadataInstancesDtos.entrySet()) {
             Map<String, String> tableNameQualifiedNameMap = new HashMap<>();
@@ -155,7 +153,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             });
         }
 
-       CommonUtils.ignoreAnyError(()->{uploadModel(new HashMap<>(),isLastBatch);},"Failed to upload deduction model");
+       CommonUtils.ignoreAnyError(()-> uploadModel(new HashMap<>(),isLastBatch),"Failed to upload deduction model");
     }
 
     @Override

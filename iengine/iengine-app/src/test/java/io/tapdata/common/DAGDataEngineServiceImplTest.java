@@ -139,7 +139,7 @@ public class DAGDataEngineServiceImplTest {
                 when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
                 dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,new ConcurrentHashMap<>(),clientMongoOperator);
                 List<MigrateJsResultVo> result = dagDataEngineService.getJsResult("test","test",taskDto);
-                Assertions.assertNull(result);
+                Assertions.assertTrue(result.isEmpty());
             }
         }
     }
