@@ -843,8 +843,6 @@ public class TaskServiceTest {
 
         @Test
         void testImportRmProject() throws IOException {
-            CustomSqlService customSqlService = mock(CustomSqlService.class);
-            taskService.setCustomSqlService(customSqlService);
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
             ParseParam param = new ParseParam()
