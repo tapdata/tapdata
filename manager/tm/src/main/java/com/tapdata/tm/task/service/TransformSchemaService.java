@@ -579,7 +579,10 @@ public class TransformSchemaService {
         }
     }
 
-    public Boolean checkEngineDeduction(String taskId,String agentId){
+    public Boolean checkEngineTransformSchema(String taskId,String agentId){
+        if (StringUtils.isBlank(taskId)) {
+            return false;
+        }
         TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"agentId");
         return org.apache.commons.lang3.StringUtils.isEmpty(taskDto.getAgentId()) || org.apache.commons.lang3.StringUtils.isEmpty(agentId) || taskDto.getAgentId().equals(agentId);
     }

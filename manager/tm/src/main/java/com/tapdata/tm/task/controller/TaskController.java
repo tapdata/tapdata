@@ -1127,7 +1127,7 @@ public class TaskController extends BaseController {
         byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
         String json = new String(resultByte, StandardCharsets.UTF_8);
         TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
-        if(transformSchemaService.checkEngineDeduction(transformerWsMessageResult.getTaskId(),transformerWsMessageResult.getAgentId())){
+        if(transformSchemaService.checkEngineTransformSchema(transformerWsMessageResult.getTaskId(),transformerWsMessageResult.getAgentId())){
             transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, false);
         }
         return success();

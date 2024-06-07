@@ -7,7 +7,6 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
@@ -28,11 +27,11 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.websocket.handler.DeduceSchemaHandler;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 
@@ -62,18 +61,15 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
     }
 
-    public DAGDataEngineServiceImpl(List<MetadataInstancesDto> metadataInstancesDtos, Map<String, DataSourceConnectionDto> dataSourceMap,
-                                    Map<String, DataSourceDefinitionDto> definitionDtoMap, String userId, String userName, TaskDto taskDto,
-                                    Map<String, MetadataTransformerDto> transformerDtoMap, TaskService<TaskDto> taskService,
-                                    DAG.Options options,ClientMongoOperator clientMongoOperator) {
-        super(metadataInstancesDtos, dataSourceMap, definitionDtoMap, userId, userName, taskDto, transformerDtoMap);
-        this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+    public DAGDataEngineServiceImpl(DeduceSchemaHandler.DeduceSchemaRequest request,TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator) {
+        super(request.getMetadataInstancesDtoList(), request.getDataSourceMap(), request.getDefinitionDtoMap(),request.getUserId(), request.getUserName(), request.getTaskDto(), request.getTransformerDtoMap());
+        this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(request.getTaskDto());
         this.taskService = taskService;
         this.tapTableMapHashMap = new HashMap<>();
         this.clientMongoOperator = clientMongoOperator;
-        this.taskDto = taskDto;
+        this.taskDto = request.getTaskDto();
         this.engineDeduction = false;
-        this.uuid = options.getUuid();
+        this.uuid = request.getOptions().getUuid();
     }
 
     @Override
@@ -120,7 +116,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         } catch (Exception e) {
             obsLogger.error("An error occurred while obtaining the results of model deduction", e);
         }
-        return null;
+        return new ArrayList<>();
     }
 
     protected TaskClient<TaskDto> execTask(TaskDto taskDto) {

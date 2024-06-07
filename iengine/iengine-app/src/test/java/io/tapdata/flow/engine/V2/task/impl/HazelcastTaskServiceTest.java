@@ -642,7 +642,7 @@ public class HazelcastTaskServiceTest {
 
                 when(dag.clone()).thenReturn(cloneDag);
                 when(cloneDag.transformSchema(any(),any(),any())).thenReturn(new HashMap<>());
-                Map<String,TapTableMap<String, TapTable>> result = hazelcastTaskService.initializeModel(taskDto);
+                Map<String,TapTableMap<String, TapTable>> result = hazelcastTaskService.engineTransformSchema(taskDto);
                 Assertions.assertNotNull(result);
             } catch (CloneNotSupportedException e) {
                 throw new RuntimeException(e);
@@ -682,7 +682,7 @@ public class HazelcastTaskServiceTest {
                 when(dag.clone()).thenReturn(cloneDag);
                 when(cloneDag.transformSchema(any(),any(),any())).thenReturn(transformSchema);
                 Assertions.assertThrows(TapCodeException.class,()->{
-                    hazelcastTaskService.initializeModel(taskDto);
+                    hazelcastTaskService.engineTransformSchema(taskDto);
                 });
             } catch (CloneNotSupportedException e) {
                 throw new RuntimeException(e);
@@ -705,7 +705,7 @@ public class HazelcastTaskServiceTest {
                 ObsLogger obsLogger = mock(ObsLogger.class);
                 when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
                 Assertions.assertThrows(TapCodeException.class,()->{
-                    hazelcastTaskService.initializeModel(taskDto);
+                    hazelcastTaskService.engineTransformSchema(taskDto);
                 });
             }
 

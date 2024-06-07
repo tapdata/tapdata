@@ -414,4 +414,49 @@ class TransformSchemaServiceTest {
             }
         }
     }
+
+    @Nested
+    class checkEngineTransformSchema{
+        @Test
+        void testSameAgentId(){
+            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
+            TaskDto taskDto = new TaskDto();
+            taskDto.setAgentId("agentId");
+            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
+            Assertions.assertTrue(transformSchemaService.checkEngineTransformSchema("taskId","agentId"));
+        }
+
+        @Test
+        void testTaskIdIsNull(){
+            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
+            Assertions.assertFalse(transformSchemaService.checkEngineTransformSchema(null,"agentId"));
+        }
+
+        @Test
+        void testNotSameAgentId(){
+            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
+            TaskDto taskDto = new TaskDto();
+            taskDto.setAgentId("agentId1");
+            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
+            Assertions.assertFalse(transformSchemaService.checkEngineTransformSchema("taskId","agentId"));
+        }
+
+        @Test
+        void testAgentIdIsNull(){
+            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
+            TaskDto taskDto = new TaskDto();
+            taskDto.setAgentId("agentId1");
+            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
+            Assertions.assertTrue(transformSchemaService.checkEngineTransformSchema("taskId",null));
+        }
+
+        @Test
+        void testTaskAgentIdIsNull(){
+            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
+            TaskDto taskDto = new TaskDto();
+            taskDto.setAgentId(null);
+            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
+            Assertions.assertTrue(transformSchemaService.checkEngineTransformSchema("taskId","agentId"));
+        }
+    }
 }

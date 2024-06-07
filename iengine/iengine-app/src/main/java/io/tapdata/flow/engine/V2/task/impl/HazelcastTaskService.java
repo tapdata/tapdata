@@ -255,7 +255,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	protected JetDag task2HazelcastDAG(TaskDto taskDto,Boolean deduce) {
 		Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap;
 		if(deduce){
-			tapTableMapHashMap = initializeModel(taskDto);
+			tapTableMapHashMap = engineTransformSchema(taskDto);
 		}else {
 			tapTableMapHashMap = new HashMap<>();
 		}
@@ -944,7 +944,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	protected Map<String,TapTableMap<String, TapTable>> initializeModel(TaskDto taskDto){
+	protected Map<String,TapTableMap<String, TapTable>> engineTransformSchema(TaskDto taskDto){
 		AspectUtils.executeAspect(new EngineDeductionAspect().start());
 		Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
 		Map<String, List<Message>> transformSchema;
@@ -955,10 +955,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					TransformerWsMessageDto.class);
 			transformerWsMessageDto.getTaskDto().setDag(dag);
 			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
-			long start = System.currentTimeMillis();
 			transformSchema = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 			AspectUtils.executeAspect(new EngineDeductionAspect().end());
-			logger.info("transformed cons={}", System.currentTimeMillis() - start + "ms");
 		}catch (Exception e){
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));
 			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE,"reason:"+e.getMessage());

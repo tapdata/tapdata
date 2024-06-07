@@ -63,15 +63,8 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		DAG dagAgo = request.getTaskDto().getDag();
 		request.getTaskDto().setDag(dagAgo);
 		DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(
-				request.getMetadataInstancesDtoList(),
-				request.getDataSourceMap(),
-				request.getDefinitionDtoMap(),
-				request.getUserId(),
-				request.getUserName(),
-				request.getTaskDto(),
-				request.getTransformerDtoMap(),
+				request,
 				taskService,
-				request.getOptions(),
 				clientMongoOperator
 		);
 		long start = System.currentTimeMillis();
@@ -82,7 +75,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DEDUCE_SCHEMA, true);
 	}
 
-	protected static class DeduceSchemaRequest {
+	public static class DeduceSchemaRequest {
 
 		private TaskDto taskDto;
 

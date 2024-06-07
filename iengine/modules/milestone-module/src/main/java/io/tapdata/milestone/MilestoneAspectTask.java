@@ -290,6 +290,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             case DEDUCTION_ERROR:
                 taskMilestone(KPI_DEDUCTION, (m)->{setError(aspect,m);});
                 break;
+            default:
+                break;
         }
         return null;
     }
