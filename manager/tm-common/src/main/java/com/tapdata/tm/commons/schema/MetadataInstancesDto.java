@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -10,6 +11,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.schema.bean.*;
 import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.result.ResultItem;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -148,6 +150,48 @@ public class MetadataInstancesDto extends BaseDto {
                 fields.addAll(noPrimarys);
             }
             fields.sort(Comparator.comparing(Field::getColumnPosition));
+        }
+    }
+
+    public static void filterMetadataInstancesFields(MetadataInstancesDto item) {
+        List<Field> fields = item.getFields();
+        if (CollectionUtils.isNotEmpty(fields)){
+
+            Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
+            if (Objects.nonNull(dataTypes)) {
+                fields.forEach(field -> {
+                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && org.apache.commons.collections4.CollectionUtils.isEmpty(dataTypes.get(field.getFieldName()).getDataTypes())) {
+                        field.setDeleted(true);
+                    }
+                    TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
+                    if (TapType.TYPE_RAW == tapType.getType()) {
+                        field.setDeleted(true);
+                    }
+                });
+            }
+
+            List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
+            item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
+            List<TableIndex> indices = item.getIndices();
+            List<TableIndex> newIndices = new ArrayList<>();
+
+            if(indices != null) {
+                for (TableIndex index : indices) {
+                    List<TableIndexColumn> columns = index.getColumns();
+                    List<TableIndexColumn> newIndexColums = new ArrayList<>();
+                    for (TableIndexColumn column : columns) {
+                        if (!deleteFieldNames.contains(column.getColumnName())) {
+                            newIndexColums.add(column);
+                        }
+                    }
+                    if (newIndexColums.size() > 0) {
+                        index.setColumns(newIndexColums);
+                        newIndices.add(index);
+                    }
+                }
+            }
+
+            item.setIndices(newIndices);
         }
     }
 }
