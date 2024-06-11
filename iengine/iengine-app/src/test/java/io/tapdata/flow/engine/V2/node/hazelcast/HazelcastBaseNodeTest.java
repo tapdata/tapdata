@@ -440,7 +440,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		void testSetThreadName() {
 			hazelcastBaseNode.setThreadName();
 			String actual = Thread.currentThread().getName();
-			assertNotNull(actual);
+			assertEquals("HazelcastBaseNode-dummy2dummy(6555b257407e2d16ae88c5ad)-dummy_test(2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4)", actual);
 		}
 	}
 
