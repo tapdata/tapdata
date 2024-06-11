@@ -39,5 +39,5 @@ public class MeasurementEntity  implements Serializable {
     @Field(FIELD_TAGS)
     private Map<String, String> tags;
     @Field(FIELD_SAMPLES)
-    private List<Sample> samples;
+    private List<SampleVO> samples;
 }

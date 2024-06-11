@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Data
-public class Sample {
+public class SampleVO {
     public static final String FIELD_DATE = "date";
     public static final String FIELD_VALUES = "vs";
 
