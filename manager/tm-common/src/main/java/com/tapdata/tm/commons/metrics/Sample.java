@@ -31,10 +31,10 @@ public class Sample {
     }
 
     public Map initVsValue() {
-        Map<String, Number> vs = this.getVs();
-        vs.forEach((key, value) -> {
-            vs.put(key, 0);
+        Map<String, Number> vsMap = this.getVs();
+        vsMap.forEach((key, value) -> {
+            vsMap.put(key, 0);
         });
-        return vs;
+        return vsMap;
     }
 }
