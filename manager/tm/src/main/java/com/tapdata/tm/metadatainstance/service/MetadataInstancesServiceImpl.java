@@ -972,7 +972,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
 
     public int bulkSave(List<MetadataInstancesDto> insertMetaDataDtos,
-                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId, String uuid,Boolean isLastBatch) {
+                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId, String uuid) {
 
         BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 
@@ -1116,7 +1116,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 qualifiedNameLinkLogic(qualifiedNames, userDetail, taskId);
             }
 
-            if (StringUtils.isNotBlank(uuid) && !saveHistory && isLastBatch) {
+            if (StringUtils.isNotBlank(uuid) && !saveHistory) {
                 Criteria deleteOldMetadata = Criteria.where("taskId").is(taskId)
                         .and("transformUuid").ne(uuid);
                 deleteAll(new Query(deleteOldMetadata), userDetail);

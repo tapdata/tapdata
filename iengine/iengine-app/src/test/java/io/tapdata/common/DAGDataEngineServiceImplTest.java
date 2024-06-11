@@ -4,9 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.entity.schema.SchemaApplyResult;
-import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -14,7 +12,6 @@ import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -302,7 +299,7 @@ public class DAGDataEngineServiceImplTest {
                 ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
                 beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
                 when(configurationCenter.getConfig(any())).thenReturn("agentId");
-                dagDataEngineService.initializeModel(true);
+                dagDataEngineService.initializeModel();
                 Assertions.assertTrue(tapTableMapHashMap.get("test1").containsKey("test1"));
                 Assertions.assertTrue(tapTableMapHashMap.get("test2").containsKey("test2"));
                 Assertions.assertTrue(tapTableMapHashMap.get("test2").containsKey("test3"));
@@ -328,7 +325,7 @@ public class DAGDataEngineServiceImplTest {
                 ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
                 beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
                 when(configurationCenter.getConfig(any())).thenReturn("agentId");
-                dagDataEngineService.initializeModel(true);
+                dagDataEngineService.initializeModel();
                 Assertions.assertTrue(tapTableMapHashMap.isEmpty());
             }
         }
@@ -358,16 +355,8 @@ public class DAGDataEngineServiceImplTest {
                 nodes.add(new DatabaseNode());
                 when(dag.getNodes()).thenReturn(nodes);
                 dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,new HashMap<>(),clientMongoOperator);
-                doAnswer(invocation -> {
-                    String result = invocation.getArgument(0);
-                    byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
-                    String json = new String(resultByte, StandardCharsets.UTF_8);
-                    TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
-                    Assertions.assertTrue(transformerWsMessageResult.getIsLastBatch());
-                    Assertions.assertEquals("agentId",transformerWsMessageResult.getAgentId());
-                    return null;
-                }).when(clientMongoOperator).insertOne(any(),any());
-                dagDataEngineService.uploadModel(new HashMap<>(),true);
+                dagDataEngineService.uploadModel(new HashMap<>());
+                verify(clientMongoOperator,times(1)).insertOne(any(),any());
             }
         }
     }

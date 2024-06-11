@@ -44,7 +44,6 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.data.mapping.MappingException;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.sql.Connection;
@@ -604,7 +603,7 @@ public class HazelcastTaskServiceTest {
 
     }
     @Nested
-    class InitializeModelTest{
+    class EngineTransformSchemaTest{
         HazelcastTaskService hazelcastTaskService;
         ClientMongoOperator clientMongoOperator;
         @BeforeEach
@@ -677,10 +676,8 @@ public class HazelcastTaskServiceTest {
                 mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
                 when(clientMongoOperator.findOne(any(Query.class),any(),any())).thenReturn(transformerWsMessageDto);
                 DAG cloneDag = mock(DAG.class);
-                Map<String, List<Message>> transformSchema = new HashMap<>();
-                transformSchema.put("error",new ArrayList<>());
                 when(dag.clone()).thenReturn(cloneDag);
-                when(cloneDag.transformSchema(any(),any(),any())).thenReturn(transformSchema);
+                doThrow(new MongoClientException("")).when(cloneDag).transformSchema(any(),any(),any(),any());
                 Assertions.assertThrows(TapCodeException.class,()->{
                     hazelcastTaskService.engineTransformSchema(taskDto);
                 });

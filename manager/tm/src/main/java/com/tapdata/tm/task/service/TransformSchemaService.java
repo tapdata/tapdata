@@ -360,8 +360,12 @@ public class TransformSchemaService {
         transformSchema(taskDto, transformParam, checkJs, user);
     }
 
-    private void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
-        taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
+    protected void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
+        if (workerService.checkEngineVersion(user)){
+            taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()),user);
+        }else{
+            taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
+        }
 
         boolean taskContainJs = checkTaskContainJs(taskDto);
 
@@ -423,7 +427,7 @@ public class TransformSchemaService {
             taskService.update(new Query(Criteria.where("_id").is(taskIds.get(0))), Update.update("transformDagHash", 0));
         }
 
-        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid(),result.getIsLastBatch());
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());
 
         List<String> batchRemoveMetaDataList = result.getBatchRemoveMetaDataList();
         List<String> newBatchRemoveMetaDataList = new ArrayList<>();
@@ -579,11 +583,4 @@ public class TransformSchemaService {
         }
     }
 
-    public Boolean checkEngineTransformSchema(String taskId,String agentId){
-        if (StringUtils.isBlank(taskId)) {
-            return false;
-        }
-        TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"agentId");
-        return org.apache.commons.lang3.StringUtils.isEmpty(taskDto.getAgentId()) || org.apache.commons.lang3.StringUtils.isEmpty(agentId) || taskDto.getAgentId().equals(agentId);
-    }
 }

@@ -666,8 +666,13 @@ public class TaskServiceImpl extends TaskService{
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
                     transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }
-            } else {
-                transformSchemaService.transformSchema(dag, user, taskDto.getId());
+            }else{
+                if(workerService.checkEngineVersion(user)){
+                    transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+                }else{
+                    transformSchemaService.transformSchema(dag, user, taskDto.getId());
+                }
+
             }
         }
         log.debug("check task dag complete, task id =- {}", taskDto.getId());

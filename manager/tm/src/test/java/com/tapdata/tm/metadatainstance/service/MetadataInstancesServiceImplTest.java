@@ -1328,7 +1328,7 @@ public class MetadataInstancesServiceImplTest {
 			MetadataInstancesDto meta = new MetadataInstancesDto();
 			meta.setId(mock(ObjectId.class));
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid,true);
+			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid);
 			verify(metadataInstancesService).deleteAll(any(Query.class),any(UserDetail.class));
 		}
 		@Test
@@ -1347,7 +1347,7 @@ public class MetadataInstancesServiceImplTest {
 			meta.setId(mock(ObjectId.class));
 			meta.setTransformUuid("333");
 			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid,true);
+			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid);
 			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(),any(UserDetail.class),anyString());
 		}
 		@Test
@@ -1356,7 +1356,7 @@ public class MetadataInstancesServiceImplTest {
 			uuid = "111";
 			taskId = "222";
 			saveHistory = true;
-			int actual = metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid,true);
+			int actual = metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
 			assertEquals(0,actual);
 		}
 		@Test
@@ -1375,25 +1375,8 @@ public class MetadataInstancesServiceImplTest {
 			meta.setId(id);
 			metadataInstancesDtos.add(meta);
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid,true);
+			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid);
 			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(),any(UserDetail.class),anyString());
-		}
-
-		@Test
-		@DisplayName("test bulkSave method when insertMetaDataDtos is null and updateMetaMap is not null ")
-		void test5(){
-			uuid = "111";
-			saveHistory = false;
-			updateMetaMap = new HashMap<>();
-			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
-			metadataInstancesDto.setQualifiedName("qualifiedName");
-			updateMetaMap.put("test_updateMap",metadataInstancesDto);
-			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
-			MetadataInstancesDto meta = new MetadataInstancesDto();
-			meta.setId(mock(ObjectId.class));
-			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid,false);
-			verify(metadataInstancesService,times(0)).deleteAll(any(Query.class),any(UserDetail.class));
 		}
 	}
 	@Nested

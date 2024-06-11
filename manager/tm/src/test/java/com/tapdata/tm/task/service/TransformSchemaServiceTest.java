@@ -413,50 +413,32 @@ class TransformSchemaServiceTest {
                 verify(taskService).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
             }
         }
-    }
+        @Nested
+        class transformSchemaTest{
+            @Test
+            void testOldVersion(){
+                when(workerService.checkEngineVersion(any())).thenReturn(false);
+                when(taskService.updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class))).thenAnswer(invocationOnMock -> {
+                    Update update = invocationOnMock.getArgument(1);
+                    Assertions.assertNotNull(update.getUpdateObject().get("transformed"));
+                    return null;
+                });
+                transformSchemaService.transformSchema(mock(TaskDto.class),mock(TransformerWsMessageDto.class),false,mock(UserDetail.class));
 
-    @Nested
-    class checkEngineTransformSchema{
-        @Test
-        void testSameAgentId(){
-            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
-            TaskDto taskDto = new TaskDto();
-            taskDto.setAgentId("agentId");
-            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
-            Assertions.assertTrue(transformSchemaService.checkEngineTransformSchema("taskId","agentId"));
-        }
+            }
 
-        @Test
-        void testTaskIdIsNull(){
-            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
-            Assertions.assertFalse(transformSchemaService.checkEngineTransformSchema(null,"agentId"));
-        }
+            @Test
+            void testNewVersion(){
+                when(workerService.checkEngineVersion(any())).thenReturn(true);
+                when(taskService.updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class))).thenAnswer(invocationOnMock -> {
+                    Update update = invocationOnMock.getArgument(1);
+                    Assertions.assertNull(update.getUpdateObject().get("transformed"));
+                    return null;
+                });
+                transformSchemaService.transformSchema(mock(TaskDto.class),mock(TransformerWsMessageDto.class),false,mock(UserDetail.class));
 
-        @Test
-        void testNotSameAgentId(){
-            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
-            TaskDto taskDto = new TaskDto();
-            taskDto.setAgentId("agentId1");
-            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
-            Assertions.assertFalse(transformSchemaService.checkEngineTransformSchema("taskId","agentId"));
-        }
-
-        @Test
-        void testAgentIdIsNull(){
-            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
-            TaskDto taskDto = new TaskDto();
-            taskDto.setAgentId("agentId1");
-            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
-            Assertions.assertTrue(transformSchemaService.checkEngineTransformSchema("taskId",null));
-        }
-
-        @Test
-        void testTaskAgentIdIsNull(){
-            doCallRealMethod().when(transformSchemaService).checkEngineTransformSchema(any(),any());
-            TaskDto taskDto = new TaskDto();
-            taskDto.setAgentId(null);
-            when(taskService.findByTaskId(any(),any())).thenReturn(taskDto);
-            Assertions.assertTrue(transformSchemaService.checkEngineTransformSchema("taskId","agentId"));
+            }
         }
     }
+
 }

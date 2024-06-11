@@ -70,7 +70,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		long start = System.currentTimeMillis();
 		Map<String, List<Message>> transformSchema = request.getTaskDto().getDag().transformSchema(null, dagDataService, request.getOptions());
 		logger.info("transformed cons={}", System.currentTimeMillis() - start + "ms");
-		dagDataService.uploadModel(transformSchema,true);
+		dagDataService.uploadModel(transformSchema);
 
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DEDUCE_SCHEMA, true);
 	}

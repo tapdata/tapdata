@@ -19,13 +19,13 @@ public class DatabaseNodeTest {
         databaseNode = mock(DatabaseNode.class);
     }
     @Nested
-    class transformSchemaTest{
+    class transformSchemaTest {
         @DisplayName("test transformSchema main process ")
         @Test
-        void test(){
+        void test() {
             DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
-            ReflectionTestUtils.setField(databaseNode,"tableNames",new ArrayList<>());
-            ReflectionTestUtils.setField(databaseNode,"service",dagDataService);
+            ReflectionTestUtils.setField(databaseNode, "tableNames", new ArrayList<>());
+            ReflectionTestUtils.setField(databaseNode, "service", dagDataService);
             DAG.Options options = new DAG.Options();
             options.setBatchNum(1);
             doCallRealMethod().when(databaseNode).transformSchema(options);
@@ -36,15 +36,16 @@ public class DatabaseNodeTest {
             when(graph.predecessors(any())).thenReturn(new ArrayList<>());
             when(databaseNode.getSourceNodeTableNames(any())).thenReturn(tableNames);
             databaseNode.transformSchema(options);
-            verify(dagDataService,times(0)).initializeModel(any());
+            verify(dagDataService, times(0)).initializeModel();
 
         }
+
         @DisplayName("test transformSchema initializeModel ")
         @Test
-        void test1(){
+        void test1() {
             DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
-            ReflectionTestUtils.setField(databaseNode,"tableNames",new ArrayList<>());
-            ReflectionTestUtils.setField(databaseNode,"service",dagDataService);
+            ReflectionTestUtils.setField(databaseNode, "tableNames", new ArrayList<>());
+            ReflectionTestUtils.setField(databaseNode, "service", dagDataService);
             DAG.Options options = new DAG.Options();
             options.setBatchNum(1);
             doCallRealMethod().when(databaseNode).transformSchema(options);
@@ -56,37 +57,7 @@ public class DatabaseNodeTest {
             when(databaseNode.getSourceNodeTableNames(any())).thenReturn(tableNames);
             when(dagDataService.whetherEngineDeduction()).thenReturn(true);
             databaseNode.transformSchema(options);
-            verify(dagDataService,times(1)).initializeModel(any());
-
-        }
-        @DisplayName("test transformSchema initializeModel batch ")
-        @Test
-        void test2(){
-            DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
-            ReflectionTestUtils.setField(databaseNode,"tableNames",new ArrayList<>());
-            ReflectionTestUtils.setField(databaseNode,"service",dagDataService);
-            DAG.Options options = new DAG.Options();
-            options.setBatchNum(1);
-            doCallRealMethod().when(databaseNode).transformSchema(options);
-            List<String> tableNames = new ArrayList<>();
-            tableNames.add("test1");
-            tableNames.add("test2");
-            Graph graph = mock(Graph.class);
-            when(databaseNode.getGraph()).thenReturn(graph);
-            when(graph.predecessors(any())).thenReturn(new ArrayList<>());
-            when(databaseNode.getSourceNodeTableNames(any())).thenReturn(tableNames);
-            when(dagDataService.whetherEngineDeduction()).thenReturn(true);
-            doAnswer(invocationOnMock -> {
-                Boolean isLastBatch = invocationOnMock.getArgument(0);
-                Assertions.assertFalse(isLastBatch);
-                return null;
-            }).doAnswer(invocationOnMock -> {
-                Boolean isLastBatch = invocationOnMock.getArgument(0);
-                Assertions.assertTrue(isLastBatch);
-                return null;
-            }).when(dagDataService).initializeModel(any());
-            databaseNode.transformSchema(options);
-            verify(dagDataService,times(2)).initializeModel(any());
+            verify(dagDataService, times(1)).initializeModel();
 
         }
     }

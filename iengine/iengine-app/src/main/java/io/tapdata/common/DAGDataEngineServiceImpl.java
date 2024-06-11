@@ -126,7 +126,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         return taskClient;
     }
     @Override
-    public void initializeModel(Boolean isLastBatch) {
+    public void initializeModel() {
         Map<String, List<MetadataInstancesDto>> updateMetadataInstancesDtos = getBatchMetadataUpdateMap().values().stream()
                 .filter(metadataInstancesDto -> SourceTypeEnum.VIRTUAL.name().equals(metadataInstancesDto.getSourceType()))
                 .collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
@@ -152,8 +152,16 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                 }
             });
         }
-
-       CommonUtils.ignoreAnyError(()-> uploadModel(new HashMap<>(),isLastBatch),"Failed to upload deduction model");
+        if (taskDto.getDag() != null) {
+            List<Node> nodes = taskDto.getDag().getNodes();
+            if (CollectionUtils.isNotEmpty(nodes)) {
+                nodes.forEach(f -> {
+                    f.setSchema(null);
+                    f.setOutputSchema(null);
+                });
+            }
+        }
+        clearTransformer();
     }
 
     @Override
@@ -166,11 +174,10 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         MetadataInstancesDto.filterMetadataInstancesFields(item);
         return PdkSchemaConvert.toPdk(item);
     }
+
     @Override
-    public void uploadModel(Map<String, List<Message>> transformSchema,Boolean isLastBatch){
-        String agentId = (String) BeanUtil.getBean(ConfigurationCenter.class).getConfig(ConfigurationCenter.AGENT_ID);
+    public void uploadModel(Map<String, List<Message>> transformSchema){
         TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
-        wsMessageResult.setAgentId(agentId);
         wsMessageResult.setBatchMetadataUpdateMap(getBatchMetadataUpdateMap());
         wsMessageResult.setBatchInsertMetaDataList(getBatchInsertMetaDataList());
         wsMessageResult.setUpsertItems(getUpsertItems());
@@ -178,7 +185,6 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         wsMessageResult.setTransformSchema(transformSchema);
         wsMessageResult.setTaskId(taskDto.getId().toHexString());
         wsMessageResult.setTransformUuid(uuid);
-        wsMessageResult.setIsLastBatch(isLastBatch);
         if (taskDto.getDag() != null) {
             List<Node> nodes = taskDto.getDag().getNodes();
             if (CollectionUtils.isNotEmpty(nodes)) {
@@ -194,6 +200,5 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         byte[] encode = Base64.getEncoder().encode(gzip);
         String dataString = new String(encode, StandardCharsets.UTF_8);
         clientMongoOperator.insertOne(dataString, ConnectorConstant.TASK_COLLECTION + "/transformer/resultV2");
-        clearTransformer();
     }
 }

@@ -1127,9 +1127,7 @@ public class TaskController extends BaseController {
         byte[] resultByte = GZIPUtil.unGzip(Base64.getDecoder().decode(result));
         String json = new String(resultByte, StandardCharsets.UTF_8);
         TransformerWsMessageResult transformerWsMessageResult = JsonUtil.parseJsonUseJackson(json, TransformerWsMessageResult.class);
-        if(transformSchemaService.checkEngineTransformSchema(transformerWsMessageResult.getTaskId(),transformerWsMessageResult.getAgentId())){
-            transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, false);
-        }
+        transformSchemaService.transformerResult(getLoginUser(), transformerWsMessageResult, false);
         return success();
     }
     @Operation(summary = "模型推演结果推送")
