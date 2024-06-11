@@ -3274,6 +3274,12 @@ public class TaskServiceImpl extends TaskService{
             contents.put(cpuFlameGraphFileName, e.toString().getBytes(StandardCharsets.UTF_8));
         }
 
+        // 寻找 async-profiler 路径, 可能在当前路径, 也可能在父路径
+        String asyncProfilerPath = "./async-profiler";
+        if (!new File(asyncProfilerPath).exists()) {
+            asyncProfilerPath = "../async-profiler";
+        }
+
         // 导出管理端的 cpu 火焰图
         String tmCpuFlameGraphFileName = "tm_cpu.html";
         try {
@@ -3282,7 +3288,7 @@ public class TaskServiceImpl extends TaskService{
             // 提取 PID
             String pid = name.split("@")[0];
             // 1. 执行命令:
-            String command = "./async-profiler/bin/asprof -e cpu -d " + 15 + " -f ./tm_cpu.html " + pid;
+            String command = asyncProfilerPath + "/bin/asprof -e cpu -d " + 15 + " -f ./tm_cpu.html " + pid;
             Process process = Runtime.getRuntime().exec(command);
 
             byte[] content = null;
@@ -3310,7 +3316,7 @@ public class TaskServiceImpl extends TaskService{
             // 提取 PID
             String pid = name.split("@")[0];
             // 1. 执行命令:
-            String command = "./async-profiler/bin/asprof -e alloc -d " + 15 + " -f ./tm_memory.html " + pid;
+            String command = asyncProfilerPath + "/bin/asprof -e alloc -d " + 15 + " -f ./tm_memory.html " + pid;
             Process process = Runtime.getRuntime().exec(command);
 
             byte[] content = null;

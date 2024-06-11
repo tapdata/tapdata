@@ -21,6 +21,15 @@ public class FlameGraphService {
 
 	public static final String TAG = FlameGraphService.class.getSimpleName();
 
+	private String asyncProfilerPath = "./async-profiler";
+
+	FlameGraphService() {
+		// 寻找 async-profiler 路径, 可能在当前路径, 也可能在父路径
+		if (!new File(asyncProfilerPath).exists()) {
+			asyncProfilerPath = "../async-profiler";
+		}
+	}
+
 	@Data
 	private static class Request {
 	}
@@ -42,7 +51,7 @@ public class FlameGraphService {
 		// 提取 PID
 		String pid = name.split("@")[0];
 		// 1. 执行命令:
-		String command = "./async-profiler/bin/asprof -e alloc -d " + 15 + " -f ./memory.html " + pid;
+		String command = asyncProfilerPath+"/bin/asprof -e alloc -d " + 15 + " -f ./memory.html " + pid;
 		Process process = Runtime.getRuntime().exec(command);
 
 		byte[] content = null;
@@ -63,7 +72,7 @@ public class FlameGraphService {
 		// 提取 PID
 		String pid = name.split("@")[0];
 		// 1. 执行命令:
-		String command = "./async-profiler/bin/asprof -e cpu -d " + 15 + " -f ./cpu.html " + pid;
+		String command = asyncProfilerPath+"/bin/asprof -e cpu -d " + 15 + " -f ./cpu.html " + pid;
 		Process process = Runtime.getRuntime().exec(command);
 
 		byte[] content = null;
