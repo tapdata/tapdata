@@ -113,6 +113,7 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
 
     private String inspectResultId;     // 重新校验功能
     private List<String> taskIds;       // 重新校验要执行的任务id
+    private Boolean enableRecovery; // 启用数据恢复逻辑（不存库，传递给引擎启动）
 
 		private List<AlarmSettingVO> alarmSettings;
 		private List<AlarmRuleVO> alarmRules;

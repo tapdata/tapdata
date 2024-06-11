@@ -35,6 +35,7 @@ public class Inspect extends BaseEntity implements Serializable {
 	 * 差异结果模式：All,OnSourceExists
 	 */
 	private String inspectDifferenceMode;
+	private Boolean enableRecovery;
 
 	private InspectTiming timing;
 	private InspectLimit limit;

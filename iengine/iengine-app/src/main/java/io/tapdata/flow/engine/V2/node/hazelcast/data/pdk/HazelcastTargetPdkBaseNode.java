@@ -42,7 +42,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
-import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -62,6 +61,7 @@ import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
+import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -149,6 +149,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected Boolean unwindProcess = false;
 	protected boolean illegalDateAcceptable = false;
+    private AutoRecovery autoRecovery;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -178,6 +179,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
+        this.autoRecovery = AutoRecovery.get(getNode().getTaskId());
 	}
 
 	@Override
@@ -626,6 +628,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				} else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
 					handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
 				} else {
+                    TapdataRecoveryEvent recoveryEvent = null;
+                    if (tapdataEvent instanceof TapdataRecoveryEvent) {
+                        recoveryEvent= (TapdataRecoveryEvent) tapdataEvent;
+                    }
+
 					if (tapdataEvent.isDML()) {
 						TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
 						if (null == tapRecordEvent) {
@@ -656,6 +663,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 						}
 					}
+
+                    if (null != recoveryEvent) {
+                        autoRecovery.completed(recoveryEvent);
+                    }
 				}
 			} catch (Throwable throwable) {
 				throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);

@@ -1,0 +1,61 @@
+package com.tapdata.entity;
+
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.util.Map;
+
+/**
+ * 修复事件
+ *
+ * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
+ * @version v1.0 2024/6/7 11:01 Create
+ */
+@Setter
+@Getter
+public class TapdataRecoveryEvent extends TapdataEvent {
+
+    public static final String EVENT_INFO_AUTO_RECOVERY_TASK = "AUTO_RECOVERY_TASK";
+
+    public static final String RECOVERY_TYPE_BEGIN = "BEGIN";
+    public static final String RECOVERY_TYPE_DATA = "DATA";
+    public static final String RECOVERY_TYPE_END = "END";
+
+    private String taskId;
+    private String recoveryType;
+
+    public TapdataRecoveryEvent() {
+    }
+
+    public TapdataRecoveryEvent(String taskId, String recoveryType) {
+        this.taskId = taskId;
+        this.recoveryType = recoveryType;
+    }
+
+    @Override
+    public boolean isConcurrentWrite() {
+        return RECOVERY_TYPE_DATA.equals(recoveryType);
+    }
+
+    public static TapdataRecoveryEvent createBegin(String inspectTaskId) {
+        return new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_BEGIN);
+    }
+
+    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String tableId, Map<String, Object> after) {
+        TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
+        TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
+        insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
+        tapdataEvent.setTapEvent(insertRecordEvent);
+        return tapdataEvent;
+    }
+
+    public static TapdataRecoveryEvent createEnd(String inspectTaskId) {
+        return new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_END);
+    }
+
+    public static boolean isRecoveryEvent(TapEvent tapEvent) {
+        return tapEvent.getInfo().containsKey(EVENT_INFO_AUTO_RECOVERY_TASK);
+    }
+}

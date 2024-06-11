@@ -19,6 +19,7 @@ import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
+import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -59,6 +60,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private long lastRetryTimeMillis;
 	private final AtomicInteger retryCounter;
 	private AtomicBoolean retrying;
+	private final AutoRecovery autoRecovery;
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
@@ -79,6 +81,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
 		this.retrying = new AtomicBoolean(false);
+        this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
 	}
 
 	@Override
@@ -159,6 +162,15 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 						obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 					}
 			);
+            CommonUtils.handleAnyError(
+                () -> {
+                    autoRecovery.close();
+                    obsLogger.info(String.format("Closed task auto recovery instance\n%s", autoRecovery));
+                },
+                err -> {
+                    obsLogger.warn(String.format("Closed task auto recovery instance failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+                }
+            );
 			CommonUtils.handleAnyError(
 					() -> {
 						AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));

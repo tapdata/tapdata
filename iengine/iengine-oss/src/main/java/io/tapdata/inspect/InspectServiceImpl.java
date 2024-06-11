@@ -31,7 +31,7 @@ public class InspectServiceImpl implements InspectService{
     }
 
     @Override
-    public InspectResult getLastDifferenceInspectResult(String firstCheckId) {
+    public InspectResult getLastDifferenceInspectResult(String inspectId, String firstCheckId) {
         throw new TapOssNonsupportFunctionException();
     }
 

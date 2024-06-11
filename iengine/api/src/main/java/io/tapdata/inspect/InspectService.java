@@ -20,7 +20,7 @@ public interface InspectService {
     void updateStatus(String id, InspectStatus status, String msg);
     void upsertInspectResult(InspectResult inspectResult, boolean excludeInspect);
     void upsertInspectResult(InspectResult inspectResult);
-    InspectResult getLastDifferenceInspectResult(String firstCheckId);
+    InspectResult getLastDifferenceInspectResult(String inspectId, String firstCheckId);
     InspectResult getLastInspectResult(String inspectId);
     InspectResult getInspectResultById(String inspectResultId);
     List<Connections> getInspectConnectionsById(Inspect inspect);

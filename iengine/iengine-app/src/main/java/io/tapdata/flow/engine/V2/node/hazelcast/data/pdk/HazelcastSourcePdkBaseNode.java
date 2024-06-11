@@ -68,6 +68,7 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
@@ -182,6 +183,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+        AutoRecovery.computeIfPresent(getNode().getTaskId(), autoRecovery -> autoRecovery.setEnqueueConsumer(this::enqueue));
 		if (needCdcDelay()) {
 			this.cdcDelayCalculation = new CdcDelay();
 		} else {
