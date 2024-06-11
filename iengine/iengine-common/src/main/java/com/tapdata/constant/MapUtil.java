@@ -4,10 +4,6 @@ import com.tapdata.entity.RelateDatabaseField;
 import com.tapdata.exception.MapUtilException;
 import io.tapdata.annotation.Ignore;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
-import jdk.nashorn.internal.objects.NativeBoolean;
-import jdk.nashorn.internal.objects.NativeNumber;
-import jdk.nashorn.internal.objects.NativeString;
-import jdk.nashorn.internal.runtime.ScriptObject;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.SerializationUtils;
@@ -297,18 +293,6 @@ public class MapUtil {
 				ListUtil.copyList(list, newObject);
 				newMap.put(key, newObject);
 			} else if (value instanceof Map) {
-				if (value instanceof ScriptObjectMirror) {
-					try {
-						ScriptObject sobj = (ScriptObject) FieldUtils.readField(value, "sobj", true);
-						if (sobj instanceof NativeNumber || sobj instanceof NativeBoolean || sobj instanceof NativeString) {
-							Object newObject = FieldUtils.readField(sobj, "value", true);
-							newMap.put(key, newObject);
-							continue;
-						}
-					} catch (IllegalAccessException e) {
-						logger.warn("get new obj error, skip it...", e);
-					}
-				}
 				Map newObject = mapInstance((Map<String, Object>) value);
 				copyToNewMap((Map) value, newObject);
 				newMap.put(key, newObject);
