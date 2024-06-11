@@ -413,32 +413,6 @@ class TransformSchemaServiceTest {
                 verify(taskService).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
             }
         }
-        @Nested
-        class transformSchemaTest{
-            @Test
-            void testOldVersion(){
-                when(workerService.checkEngineVersion(any())).thenReturn(false);
-                when(taskService.updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class))).thenAnswer(invocationOnMock -> {
-                    Update update = invocationOnMock.getArgument(1);
-                    Assertions.assertNotNull(update.getUpdateObject().get("transformed"));
-                    return null;
-                });
-                transformSchemaService.transformSchema(mock(TaskDto.class),mock(TransformerWsMessageDto.class),false,mock(UserDetail.class));
-
-            }
-
-            @Test
-            void testNewVersion(){
-                when(workerService.checkEngineVersion(any())).thenReturn(true);
-                when(taskService.updateById(any(ObjectId.class),any(Update.class),any(UserDetail.class))).thenAnswer(invocationOnMock -> {
-                    Update update = invocationOnMock.getArgument(1);
-                    Assertions.assertNull(update.getUpdateObject().get("transformed"));
-                    return null;
-                });
-                transformSchemaService.transformSchema(mock(TaskDto.class),mock(TransformerWsMessageDto.class),false,mock(UserDetail.class));
-
-            }
-        }
     }
 
 }

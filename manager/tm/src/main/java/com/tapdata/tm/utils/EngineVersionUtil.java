@@ -3,6 +3,9 @@ package com.tapdata.tm.utils;
 import org.apache.commons.lang3.StringUtils;
 
 public class EngineVersionUtil {
+    private EngineVersionUtil() {
+        throw new IllegalStateException("Utility class");
+    }
     public static final String VERSION_3_8_0 = "3.8.0";
 
     public static boolean checkEngineTransFormSchema(String version) {

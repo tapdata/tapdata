@@ -361,11 +361,7 @@ public class TransformSchemaService {
     }
 
     protected void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
-        if (workerService.checkEngineVersion(user)){
-            taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()),user);
-        }else{
-            taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
-        }
+        taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
 
         boolean taskContainJs = checkTaskContainJs(taskDto);
 
