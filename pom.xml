@@ -30,7 +30,9 @@
             iengine/iengine-common/src/main/java/com/tapdata/exception/**,
             manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
             manager/tm/src/main/java/com/tapdata/tm/init/patches/daas/*,
-            manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*
+            manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*,
+            **/*Entity.java,
+            **/*VO.java,
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
