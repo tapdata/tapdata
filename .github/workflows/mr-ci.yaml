@@ -125,7 +125,7 @@ jobs:
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
 
   Scan-Tapdata:
-    runs-on: office-scan-test
+    runs-on: office-scan
     needs:
       - Get-Stable-Branch
       - Push-Code-To-GOGS
