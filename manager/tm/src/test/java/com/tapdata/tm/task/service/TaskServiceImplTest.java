@@ -3732,19 +3732,20 @@ class TaskServiceImplTest {
     class downloadAnalyzeTest {
         @Test
         void testDownloadAnalyze() throws ExecutionException, InterruptedException, IOException {
+            TaskRepository repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
             HttpServletRequest request = mock(HttpServletRequest.class);
             HttpServletResponse response = mock(HttpServletResponse.class);
             TaskDto taskDto = new TaskDto();
             taskDto.setAgentId("362b27e0-0679-4e50-b418-389fbe70d7df");
             String taskId = "665f28cb65481e5a8ce96849";
-            when(taskService.findByTaskId(any(), any())).thenReturn(taskDto);
-            when(taskService.exportTask(any(), any())).thenReturn("mock export task json");
+            doReturn(taskDto).when(taskService).findByTaskId(new ObjectId(taskId), AGENT_ID);
+            doReturn("mock export task json").when(taskService).exportTask(anyList(), any());
             Page<TaskRecordListVo> recordsPage = new Page<>(0, Collections.emptyList());
-            when(taskRecordService.queryRecords(any())).thenReturn(recordsPage);
             when(taskRecordService.queryRecords(any())).thenReturn(recordsPage);
             when(monitoringLogsService.query(any())).thenReturn(new Page<>(0, Collections.emptyList()));
             when(batchService.batch(any(), any())).thenReturn(new HashMap<>());
-            when(taskService.callEngineRpc(any(), any(), any(), any())).thenReturn(new byte[]{});
+            doReturn(new byte[]{}).when(taskService).callEngineRpc(any(), any(), any(), any());
             ResponseEntity<InputStreamResource> res = taskService.analyzeTask(request, response, taskId, user);
             assert (res.getStatusCode().is2xxSuccessful());
         }
