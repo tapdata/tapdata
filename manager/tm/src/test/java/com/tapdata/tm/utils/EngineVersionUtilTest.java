@@ -3,8 +3,7 @@ package com.tapdata.tm.utils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class EngineVersionUtilTest {
     @Test
@@ -59,5 +58,10 @@ public class EngineVersionUtilTest {
     public void testCheckEngineTransformSchemaWithStartsWith380AdditionalIdentifiers() {
         assertTrue(EngineVersionUtil.checkEngineTransFormSchema("v3.8.0-alpha1"), "Expected true for version starting with 3.8.0 and having additional identifiers");
         assertFalse(EngineVersionUtil.checkEngineTransFormSchema("v3.8.0+build.123"), "Expected true for version 3.8.0 with build metadata");
+    }
+
+    @Test
+    public void testEngineVersionUtilConstructor() {
+        assertThrows(IllegalStateException.class, EngineVersionUtil::new);
     }
 }
