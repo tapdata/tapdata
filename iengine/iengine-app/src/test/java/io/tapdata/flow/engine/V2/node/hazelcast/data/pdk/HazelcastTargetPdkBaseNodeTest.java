@@ -37,9 +37,12 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -661,6 +664,60 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				verify(flushOffsetExecutor).scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
 				assertTrue(Thread.currentThread().getName().startsWith("Target-Process"));
 				verify(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
+			}
+		}
+		@Nested
+		class handleTapTablePrimaryKeysTest{
+			private TapTable tapTable;
+			private ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
+			private String writeStrategy = "updateOrInsert";
+			protected Map<String, List<String>> updateConditionFieldsMap;
+			private List<String> updateConditionFields;
+			@BeforeEach
+			void beforeEach(){
+				everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
+				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"everHandleTapTablePrimaryKeysMap",everHandleTapTablePrimaryKeysMap);
+				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeStrategy",writeStrategy);
+				updateConditionFieldsMap = new HashMap<>();
+				tapTable = new TapTable();
+				tapTable.setId("test");
+				LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
+				TapField primary = new TapField();
+				primary.setPrimaryKey(true);
+				nameFieldMap.put("primary",primary);
+				tapTable.setNameFieldMap(nameFieldMap);
+				updateConditionFields = new ArrayList<>();
+				updateConditionFields.add("field");
+				updateConditionFieldsMap.put("test",updateConditionFields);
+				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"updateConditionFieldsMap",updateConditionFieldsMap);
+
+			}
+			@Test
+			@DisplayName("test handleTapTablePrimaryKeys method when everHandleTapTablePrimaryKeysMap not contains tapTable")
+			void test1(){
+				try (MockedStatic<HazelcastTargetPdkBaseNode> mb = Mockito
+						.mockStatic(HazelcastTargetPdkBaseNode.class)) {
+					mb.when(()->HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields)).thenAnswer(invocationOnMock -> {return null;});
+					doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapTablePrimaryKeys(tapTable);
+					hazelcastTargetPdkBaseNode.handleTapTablePrimaryKeys(tapTable);
+					assertTrue(everHandleTapTablePrimaryKeysMap.containsKey("test"));
+					assertTrue(everHandleTapTablePrimaryKeysMap.get("test"));
+					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields),new Times(1));
+				}
+			}
+			@Test
+			@DisplayName("test handleTapTablePrimaryKeys method when everHandleTapTablePrimaryKeysMap contains tapTable")
+			void test2(){
+				try (MockedStatic<HazelcastTargetPdkBaseNode> mb = Mockito
+						.mockStatic(HazelcastTargetPdkBaseNode.class)) {
+					mb.when(()->HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields)).thenAnswer(invocationOnMock -> {return null;});
+					everHandleTapTablePrimaryKeysMap.put("test",true);
+					doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapTablePrimaryKeys(tapTable);
+					hazelcastTargetPdkBaseNode.handleTapTablePrimaryKeys(tapTable);
+					assertTrue(everHandleTapTablePrimaryKeysMap.containsKey("test"));
+					assertTrue(everHandleTapTablePrimaryKeysMap.get("test"));
+					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields),new Times(0));
+				}
 			}
 		}
 	}

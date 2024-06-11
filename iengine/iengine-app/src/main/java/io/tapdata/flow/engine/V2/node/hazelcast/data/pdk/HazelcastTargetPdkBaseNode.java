@@ -149,6 +149,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected Boolean unwindProcess = false;
 	protected boolean illegalDateAcceptable = false;
+	protected ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -178,6 +179,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
+		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -187,6 +189,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			createPdkAndInit(context);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
+		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
 	protected void initExactlyOnceWriteIfNeed() {
@@ -1038,6 +1041,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
+		Boolean everHandle = everHandleTapTablePrimaryKeysMap.get(tapTable.getId());
+		if (null != everHandle && everHandle) return;
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
 			List<String> updateConditionFields = updateConditionFieldsMap.get(tapTable.getId());
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
@@ -1058,6 +1063,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			// 没有关联条件，清空主键信息
 			ignorePksAndIndices(tapTable, null);
 		}
+		everHandleTapTablePrimaryKeysMap.putIfAbsent(tapTable.getId(), true);
 	}
 
 	protected static void ignorePksAndIndices(TapTable tapTable, List<String> logicPrimaries) {
