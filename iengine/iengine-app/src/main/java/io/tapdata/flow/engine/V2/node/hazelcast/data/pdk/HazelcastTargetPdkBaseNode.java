@@ -149,7 +149,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected Boolean unwindProcess = false;
 	protected boolean illegalDateAcceptable = false;
-    private AutoRecovery autoRecovery;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -179,7 +178,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
-        this.autoRecovery = AutoRecovery.get(getNode().getTaskId());
 	}
 
 	@Override
@@ -628,9 +626,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				} else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
 					handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
 				} else {
-                    TapdataRecoveryEvent recoveryEvent = null;
+                    AtomicReference<TapdataRecoveryEvent> recoveryEvent = new AtomicReference<>();
                     if (tapdataEvent instanceof TapdataRecoveryEvent) {
-                        recoveryEvent= (TapdataRecoveryEvent) tapdataEvent;
+                        recoveryEvent.set((TapdataRecoveryEvent) tapdataEvent);
                     }
 
 					if (tapdataEvent.isDML()) {
@@ -664,8 +662,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					}
 
-                    if (null != recoveryEvent) {
-                        autoRecovery.completed(recoveryEvent);
+                    if (null != recoveryEvent.get()) {
+                        AutoRecovery.computeIfPresent(getNode().getTaskId(), autoRecovery -> autoRecovery.completed(recoveryEvent.get()));
                     }
 				}
 			} catch (Throwable throwable) {
