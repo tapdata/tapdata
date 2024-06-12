@@ -4,11 +4,13 @@ import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import org.bson.types.ObjectId;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -99,4 +101,15 @@ public interface DAGDataService {
     ObjectId getTaskId();
 
     List<MetadataInstancesDto> findByNodeId(String id);
+
+    default void initializeModel(){
+        return;
+    }
+
+    default Boolean whetherEngineDeduction(){
+        return false;
+    }
+
+    default void uploadModel(Map<String, List<Message>> transformSchema) {
+    }
 }

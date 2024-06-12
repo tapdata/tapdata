@@ -3,15 +3,13 @@ package com.tapdata.tm.commons.dag;
 import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.internal.stubbing.answers.CallsRealMethods;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -21,11 +19,7 @@ import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 class DAGDataServiceImplTest {
@@ -90,6 +84,17 @@ class DAGDataServiceImplTest {
                 verify(service, times(1)).processFieldToDB(any(Schema.class), any(MetadataInstancesDto.class), any(DataSourceConnectionDto.class), anyBoolean());
                 mockedStatic.verify(() -> ChangeRuleStage.changeStart(any(MetadataInstancesDto.class), any(DAG.Options.class)), times(0));
             }
+        }
+    }
+    @Nested
+    class clearTransformerTest{
+        DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(mock(TransformerWsMessageDto.class));
+        @Test
+        void test(){
+            dagDataService.clearTransformer();
+            Assertions.assertTrue(dagDataService.getBatchMetadataUpdateMap().isEmpty());
+            Assertions.assertTrue(dagDataService.getBatchInsertMetaDataList().isEmpty());
+            Assertions.assertTrue(dagDataService.getUpsertItems().isEmpty());
         }
     }
 

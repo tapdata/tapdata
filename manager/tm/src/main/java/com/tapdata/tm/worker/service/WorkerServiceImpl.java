@@ -37,13 +37,11 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import com.tapdata.tm.worker.dto.WorkSchedule;
-import com.tapdata.tm.worker.dto.WorkerDto;
-import com.tapdata.tm.worker.dto.WorkerExpireDto;
-import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.dto.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
@@ -888,5 +886,18 @@ public class WorkerServiceImpl extends WorkerService{
             }
         }
         return simpleDateFormat.format(new Date());
+    }
+
+    public Boolean checkEngineVersion(UserDetail userDetail){
+        boolean isCloud = settingsService.isCloud();
+        if(isCloud){
+            List<Worker> workers = findAvailableAgent(userDetail);
+            if(CollectionUtils.isEmpty(workers)) return false;
+            List<Worker> oldWorkers = workers.stream().filter(worker -> StringUtils.isBlank(worker.getVersion())
+                    || !EngineVersionUtil.checkEngineTransFormSchema(worker.getVersion())).collect(Collectors.toList());
+            return CollectionUtils.isEmpty(oldWorkers);
+        }else{
+            return true;
+        }
     }
 }

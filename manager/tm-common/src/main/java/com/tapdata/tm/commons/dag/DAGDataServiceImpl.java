@@ -1270,4 +1270,12 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         return metadataMap.values().stream().filter(m -> nodeId.equals(m.getNodeId())).distinct().collect(Collectors.toList());
     }
+
+    public void clearTransformer() {
+        upsertTransformer.clear();
+        batchMetadataUpdateMap.clear();
+        batchInsertMetaDataList.clear();
+        batchRemoveMetaDataList.clear();
+        upsertItems.clear();
+    }
 }
