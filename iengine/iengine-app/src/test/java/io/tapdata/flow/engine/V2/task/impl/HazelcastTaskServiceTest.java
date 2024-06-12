@@ -21,10 +21,8 @@ import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
-import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
-import io.tapdata.aspect.taskmilestones.EngineDeductionAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
@@ -46,7 +44,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
-import java.sql.Connection;
+
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
