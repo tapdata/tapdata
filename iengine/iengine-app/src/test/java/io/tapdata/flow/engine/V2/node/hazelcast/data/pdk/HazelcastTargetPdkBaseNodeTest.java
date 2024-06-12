@@ -24,6 +24,9 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
+import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
+import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.entity.Capability;
@@ -31,10 +34,13 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -42,6 +48,7 @@ import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -276,6 +283,26 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(dataProcessorContext.getTargetConn()).thenReturn(connections);
 			boolean result = hazelcastTargetPdkBaseNode.createTable(tapTable, atomicBoolean);
 			Assertions.assertTrue(result);
+		}
+		@Test
+		void testCreateTableForBuildErrorConsumer(){
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"unwindProcess",false);
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			AtomicBoolean succeed = new AtomicBoolean(true);
+			Node node = mock(Node.class);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
+			when(node.disabledNode()).thenReturn(false);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getCreateTableFunction()).thenReturn(mock(CreateTableFunction.class));
+			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable,succeed);
+			hazelcastTargetPdkBaseNode.createTable(tapTable, succeed);
+			verify(hazelcastTargetPdkBaseNode,new Times(1)).buildErrorConsumer("test");
 		}
 	}
 
@@ -718,6 +745,42 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 					assertTrue(everHandleTapTablePrimaryKeysMap.get("test"));
 					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields),new Times(0));
 				}
+			}
+		}
+	}
+	@Nested
+	class InitExactlyOnceWriteIfNeedTest{
+		@BeforeEach
+		void beforeEach(){
+			List<String> exactlyOnceWriteTables = new ArrayList<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"exactlyOnceWriteTables",exactlyOnceWriteTables);
+			List<ExactlyOnceWriteCleanerEntity> exactlyOnceWriteCleanerEntities = new ArrayList<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"exactlyOnceWriteCleanerEntities",exactlyOnceWriteCleanerEntities);
+			dataProcessorContext = mock(DataProcessorContext.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"obsLogger",mockObsLogger);
+		}
+		@Test
+		@DisplayName("test initExactlyOnceWriteIfNeed method for createTable is true")
+		void test1(){
+			try (MockedStatic<ExactlyOnceUtil> mb = Mockito
+					.mockStatic(ExactlyOnceUtil.class)) {
+				TapTable exactlyOnceTable = mock(TapTable.class);
+				when(exactlyOnceTable.getId()).thenReturn("test");
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+				mb.when(()->ExactlyOnceUtil.generateExactlyOnceTable(connectorNode)).thenReturn(exactlyOnceTable);
+				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = mock(CheckExactlyOnceWriteEnableResult.class);
+				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
+				when(checkExactlyOnceWriteEnableResult.getEnable()).thenReturn(true);
+				ConnectorFunctions functions = mock(ConnectorFunctions.class);
+				when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+				when(hazelcastTargetPdkBaseNode.createTable(any(TapTable.class), any(AtomicBoolean.class))).thenReturn(true);
+				when(functions.getCreateIndexFunction()).thenReturn(mock(CreateIndexFunction.class));
+				when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) mock(TableNode.class));
+				doCallRealMethod().when(hazelcastTargetPdkBaseNode).initExactlyOnceWriteIfNeed();
+				hazelcastTargetPdkBaseNode.initExactlyOnceWriteIfNeed();
+				verify(hazelcastTargetPdkBaseNode, new Times(1)).buildErrorConsumer("test");
 			}
 		}
 	}
