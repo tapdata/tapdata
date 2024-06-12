@@ -53,10 +53,6 @@ public class FlameGraphService {
 		// 1. 执行命令:
 		String command = asyncProfilerPath+"/bin/asprof -e alloc -d " + 15 + " -f ./memory.html " + pid;
 
-		if (!new File(asyncProfilerPath).exists()) {
-			return new Response("async-profiler not found".getBytes());
-		}
-
 		byte[] content = null;
 		try {
 			Process process = Runtime.getRuntime().exec(command);
@@ -77,9 +73,6 @@ public class FlameGraphService {
 		String pid = name.split("@")[0];
 		// 1. 执行命令:
 		String command = asyncProfilerPath+"/bin/asprof -e cpu -d " + 15 + " -f ./cpu.html " + pid;
-		if (!new File(asyncProfilerPath).exists()) {
-			return new Response("async-profiler not found".getBytes());
-		}
 
 		byte[] content = null;
 		try {
