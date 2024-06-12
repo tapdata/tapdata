@@ -892,21 +892,12 @@ public class WorkerServiceImpl extends WorkerService{
         boolean isCloud = settingsService.isCloud();
         if(isCloud){
             List<Worker> workers = findAvailableAgent(userDetail);
-            if(CollectionUtils.isNotEmpty(workers)){
-                for(Worker worker : workers){
-                    if(StringUtils.isNotBlank(worker.getVersion())){
-                        String version = worker.getVersion();
-                        if(!EngineVersionUtil.checkEngineTransFormSchema(version)){
-                            return false;
-                        }
-                    }else{
-                        return false;
-                    }
-                }
-                return true;
-            }
-            return false;
+            if(CollectionUtils.isEmpty(workers)) return false;
+            List<Worker> oldWorkers = workers.stream().filter(worker -> StringUtils.isBlank(worker.getVersion())
+                    || !EngineVersionUtil.checkEngineTransFormSchema(worker.getVersion())).collect(Collectors.toList());
+            return CollectionUtils.isEmpty(oldWorkers);
+        }else{
+            return true;
         }
-        return true;
     }
 }
