@@ -435,12 +435,12 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
 		}
 
-		@Test
+		@RepeatedTest(10)
 		@DisplayName("Call setThreadName method and check thread name is correct")
 		void testSetThreadName() {
 			hazelcastBaseNode.setThreadName();
 			String actual = Thread.currentThread().getName();
-			assertEquals("HazelcastBaseNode-dummy2dummy(6555b257407e2d16ae88c5ad)-dummy_test(2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4)", actual);
+			assertEquals("HazelcastBaseNode-dummy2dummy(6555b257407e2d16ae88c5ad)-dummy_test(0c0bf03b-2800-48ed-befa-d10035ed2456)", actual);
 		}
 	}
 
