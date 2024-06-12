@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -10,6 +11,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.schema.bean.*;
 import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.result.ResultItem;
+import io.tapdata.entity.schema.type.TapType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -150,5 +152,6 @@ public class MetadataInstancesDto extends BaseDto {
             fields.sort(Comparator.comparing(Field::getColumnPosition));
         }
     }
+
 }
 
