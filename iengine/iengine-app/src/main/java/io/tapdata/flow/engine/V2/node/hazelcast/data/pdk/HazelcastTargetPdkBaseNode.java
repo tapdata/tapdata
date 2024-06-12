@@ -1041,8 +1041,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
-		Boolean everHandle = everHandleTapTablePrimaryKeysMap.get(tapTable.getId());
-		if (null != everHandle && everHandle) return;
+		everHandleTapTablePrimaryKeysMap.computeIfAbsent(tapTable.getId(), (value) -> {
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
 			List<String> updateConditionFields = updateConditionFieldsMap.get(tapTable.getId());
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
@@ -1063,7 +1062,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			// 没有关联条件，清空主键信息
 			ignorePksAndIndices(tapTable, null);
 		}
-		everHandleTapTablePrimaryKeysMap.putIfAbsent(tapTable.getId(), true);
+		return true;
+		});
 	}
 
 	protected static void ignorePksAndIndices(TapTable tapTable, List<String> logicPrimaries) {
