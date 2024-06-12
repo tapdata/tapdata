@@ -11,20 +11,25 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.QueryIndexesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -555,6 +560,194 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			assertNotNull(tapEventException.getEvents());
 			assertEquals(1, tapEventException.getEvents().size());
 			assertEquals(tapCreateIndexEvent, tapEventException.getEvents().get(0));
+		}
+	}
+	@Nested
+	class createTargetIndexTest{
+		private List<String> updateConditionFields;
+		private boolean createUnique;
+		private String tableId;
+		private TapTable tapTable;
+		private boolean createdTable;
+		@BeforeEach
+		void beforeEach(){
+			updateConditionFields = new ArrayList<>();
+			updateConditionFields.add("field");
+			tableId = "table";
+			tapTable = mock(TapTable.class);
+			ArrayList<String> pks = new ArrayList<>();
+			when(tapTable.primaryKeys()).thenReturn(pks);
+			when(hazelcastTargetPdkDataNode.usePkAsUpdateConditions(updateConditionFields,pks)).thenReturn(false);
+			createdTable = true;
+			String writeStrategy = "updateOrInsert";
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"writeStrategy",writeStrategy);
+			Boolean unwindProcess = false;
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"unwindProcess",unwindProcess);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+		}
+		@Test
+		@DisplayName("test createTargetIndex method for build error consumer")
+		void test1(){
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getCreateIndexFunction()).thenReturn(mock(CreateIndexFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
+		}
+	}
+	@Nested
+	class clearDataTest{
+		private ExistsDataProcessEnum existsDataProcessEnum;
+		private String tableId = "test";
+		@Test
+		@DisplayName("test clearData method for build error consumer")
+		void test1(){
+			SyncTypeEnum syncType = SyncTypeEnum.INITIAL_SYNC;
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"syncType",syncType);
+			existsDataProcessEnum = ExistsDataProcessEnum.REMOVE_DATE;
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getClearTableFunction()).thenReturn(mock(ClearTableFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).clearData(existsDataProcessEnum,tableId);
+			hazelcastTargetPdkDataNode.clearData(existsDataProcessEnum,tableId);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
+		}
+	}
+	@Nested
+	class dropTableTest{
+		private ExistsDataProcessEnum existsDataProcessEnum;
+		private String tableId = "test";
+		@Test
+		@DisplayName("test dropTable method for build error consumer")
+		void test1(){
+			SyncTypeEnum syncType = SyncTypeEnum.INITIAL_SYNC;
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"syncType",syncType);
+			existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getDropTableFunction()).thenReturn(mock(DropTableFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,tableId);
+			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,tableId);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
+		}
+	}
+	@Nested
+	class executeNewFieldFunctionTest{
+		private TapNewFieldEvent tapNewFieldEvent;
+		private TapTable tapTable;
+		@BeforeEach
+		void beforeEach(){
+			tapNewFieldEvent = new TapNewFieldEvent();
+			tapNewFieldEvent.setTableId("test");
+			List<TapField> fields = new ArrayList<>();
+			TapField newField = new TapField();
+			newField.setName("newField");
+			fields.add(newField);
+			tapNewFieldEvent.setNewFields(fields);
+			dataProcessorContext = mock(DataProcessorContext.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"dataProcessorContext",dataProcessorContext);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			tapTable = new TapTable();
+			tapTable.setId("table");
+			LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
+			nameFieldMap.put("field1",mock(TapField.class));
+			nameFieldMap.put("newField",newField);
+			tapTable.setNameFieldMap(nameFieldMap);
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+		}
+		@Test
+		@DisplayName("test executeNewFieldFunction method for build error consumer")
+		void test1(){
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getNewFieldFunction()).thenReturn(mock(NewFieldFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeNewFieldFunction(tapNewFieldEvent);
+			hazelcastTargetPdkDataNode.executeNewFieldFunction(tapNewFieldEvent);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer("table");
+		}
+	}
+	@Nested
+	class executeAlterFieldNameFunctionTest{
+		private TapAlterFieldNameEvent tapAlterFieldNameEvent;
+		@Test
+		@DisplayName("test executeAlterFieldNameFunction method for build error consumer")
+		void test1(){
+			tapAlterFieldNameEvent = mock(TapAlterFieldNameEvent.class);
+			when(tapAlterFieldNameEvent.getTableId()).thenReturn("test");
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getAlterFieldNameFunction()).thenReturn(mock(AlterFieldNameFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeAlterFieldNameFunction(tapAlterFieldNameEvent);
+			hazelcastTargetPdkDataNode.executeAlterFieldNameFunction(tapAlterFieldNameEvent);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer("test");
+		}
+	}
+	@Nested
+	class executeAlterFieldAttrFunctionTest{
+		private TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent;
+		private TapTable tapTable;
+		@BeforeEach
+		void beforeEach(){
+			tapAlterFieldAttributesEvent = mock(TapAlterFieldAttributesEvent.class);
+			when(tapAlterFieldAttributesEvent.getTableId()).thenReturn("test");
+			dataProcessorContext = mock(DataProcessorContext.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"dataProcessorContext",dataProcessorContext);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			tapTable = new TapTable();
+			tapTable.setId("table");
+			LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
+			nameFieldMap.put("field1",mock(TapField.class));
+			tapTable.setNameFieldMap(nameFieldMap);
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+		}
+		@Test
+		@DisplayName("test executeAlterFieldAttrFunction method for build error consumer")
+		void test1(){
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getAlterFieldAttributesFunction()).thenReturn(mock(AlterFieldAttributesFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeAlterFieldAttrFunction(tapAlterFieldAttributesEvent);
+			hazelcastTargetPdkDataNode.executeAlterFieldAttrFunction(tapAlterFieldAttributesEvent);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer("table");
+		}
+	}
+	@Nested
+	class executeDropFieldFunctionTest{
+		private TapDropFieldEvent tapDropFieldEvent;
+		@Test
+		@DisplayName("test executeDropFieldFunction method for build error consumer")
+		void test1(){
+			tapDropFieldEvent = mock(TapDropFieldEvent.class);
+			when(tapDropFieldEvent.getTableId()).thenReturn("test");
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getDropFieldFunction()).thenReturn(mock(DropFieldFunction.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDropFieldFunction(tapDropFieldEvent);
+			hazelcastTargetPdkDataNode.executeDropFieldFunction(tapDropFieldEvent);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer("test");
 		}
 	}
 }

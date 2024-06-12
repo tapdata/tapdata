@@ -221,7 +221,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable, boolean createdTable) {
+	protected void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable, boolean createdTable) {
 
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
 			return;
@@ -412,7 +412,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return false;
 	}
 
-	private void clearData(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+	protected void clearData(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.REMOVE_DATE) return;
 
 		AtomicReference<TapClearTableEvent> tapClearTableEvent = new AtomicReference<>();
@@ -438,7 +438,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.DROP_TABLE) return;
 
 		AtomicReference<TapDropTableEvent> tapDropTableEvent = new AtomicReference<>();
@@ -536,7 +536,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		uploadDagService.compareAndSet(false, true);
 	}
 
-	private boolean executeNewFieldFunction(TapNewFieldEvent tapNewFieldEvent) {
+	protected boolean executeNewFieldFunction(TapNewFieldEvent tapNewFieldEvent) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tapNewFieldEvent.getTableId());
 		if (null == tapTable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.ADD_NEW_FIELD_GET_TAP_TABLE_FAILED, "Table id: " + tapNewFieldEvent.getTableId())
@@ -597,7 +597,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return fields;
 	}
 
-	private boolean executeAlterFieldNameFunction(TapAlterFieldNameEvent tapAlterFieldNameEvent) {
+	protected boolean executeAlterFieldNameFunction(TapAlterFieldNameEvent tapAlterFieldNameEvent) {
 		// 字段名变更
 		Optional.ofNullable(tapAlterFieldNameEvent.getNameChange()
 		).ifPresent(nameChange -> {
@@ -642,7 +642,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	private boolean executeAlterFieldAttrFunction(TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent) {
+	protected boolean executeAlterFieldAttrFunction(TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tapAlterFieldAttributesEvent.getTableId());
 		if (null == tapTable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.ALTER_FIELD_ATTR_CANNOT_GET_TAP_TABLE, String.format("Table id: %s", tapAlterFieldAttributesEvent.getTableId()))
@@ -689,7 +689,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	private boolean executeDropFieldFunction(TapDropFieldEvent tapDropFieldEvent) {
+	protected boolean executeDropFieldFunction(TapDropFieldEvent tapDropFieldEvent) {
 		ConnectorNode connectorNode = getConnectorNode();
 		DropFieldFunction function = connectorNode.getConnectorFunctions().getDropFieldFunction();
 		PDKMethod pdkMethod = PDKMethod.DROP_FIELD;
