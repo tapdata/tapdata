@@ -1,11 +1,14 @@
 package com.tapdata.tm.monitor.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
+import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
@@ -34,7 +37,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 @RestController
-@RequestMapping(value = "/api/measurement")
+@RequestMapping({"/api/measurement","/api/AgentMeasurementV2"})
 @Slf4j
 @Tag(name = "可观测性")
 @Setter(onMethod_ = {@Autowired})
@@ -95,4 +98,15 @@ public class MeasureController extends BaseController {
 		) {
 			return success(measurementServiceV2.queryTableSyncStatusStatistics(new SyncStatusStatisticsParam(taskId, taskRecordId)));
 		}
+
+
+    @Operation(summary = "任务分钟级延迟查询")
+    @GetMapping()
+    public ResponseMessage<MeasurementEntity> findLastMinuteByTaskId(@RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+
+        Where where = filter.getWhere();
+        String taskId = where.get("taskId").toString();
+        return success(measurementServiceV2.findLastMinuteByTaskId(taskId));
+    }
 }
