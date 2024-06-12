@@ -2013,48 +2013,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         tapTablePage.setTotal(list.getTotal());
         List<TapTable> tapTables = new ArrayList<>();
         List<MetadataInstancesDto> items = list.getItems();
-        for (MetadataInstancesDto item : items) {
-            List<Field> fields = item.getFields();
-            if (null == fields) continue;
 
-            //fields not support : dataTypes null
-            Map<String, PossibleDataTypes> dataTypes = item.getFindPossibleDataTypes();
-            if (Objects.nonNull(dataTypes)) {
-                fields.forEach(field -> {
-                    if (Objects.nonNull(dataTypes.get(field.getFieldName())) && CollectionUtils.isEmpty(dataTypes.get(field.getFieldName()).getDataTypes())) {
-                        field.setDeleted(true);
-                    }
-                    TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
-                    if (TapType.TYPE_RAW == tapType.getType()) {
-                        field.setDeleted(true);
-                    }
-                });
-            }
+        items.forEach(FilterMetadataInstanceUtil::filterMetadataInstancesFields);
 
-            List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
-            item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
-            List<TableIndex> indices = item.getIndices();
-            List<TableIndex> newIndices = new ArrayList<>();
-
-            if(indices != null) {
-                for (TableIndex index : indices) {
-                    List<TableIndexColumn> columns = index.getColumns();
-                    List<TableIndexColumn> newIndexColums = new ArrayList<>();
-                    for (TableIndexColumn column : columns) {
-                        if (!deleteFieldNames.contains(column.getColumnName())) {
-                            newIndexColums.add(column);
-                        }
-                    }
-                    if (newIndexColums.size() > 0) {
-                        index.setColumns(newIndexColums);
-                        newIndices.add(index);
-                    }
-                }
-            }
-
-            item.setIndices(newIndices);
-
-        }
         if (CollectionUtils.isNotEmpty(items)) {
             tapTables = items.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());
         }

@@ -47,6 +47,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -485,12 +486,15 @@ public class DAG implements Serializable, Cloneable {
     public Map<String, List<Message>> transformSchema(String nodeId, DAGDataService dagDataService) {
         return transformSchema(nodeId, dagDataService, null);
     }
+    public Map<String, List<Message>> transformSchema(String nodeId, DAGDataService dagDataService, Options options) {
+        return transformSchema(nodeId, dagDataService, options,null);
+    }
     /**
      * 模型推演入口
      * @param nodeId 节点id，不指定默认全部推演一遍
      * @return 错误消息列表，推演成功返回 0 长度map，推演失败返回错误消息列表
      */
-    public Map<String, List<Message>> transformSchema(String nodeId, DAGDataService dagDataService, Options options) {
+    public Map<String, List<Message>> transformSchema(String nodeId, DAGDataService dagDataService, Options options, Consumer<Exception> consumer) {
         try {
 
             long start = System.currentTimeMillis();
@@ -598,6 +602,7 @@ public class DAG implements Serializable, Cloneable {
             logger.debug("Transform schema cost {}ms", System.currentTimeMillis() - start);
         } catch (Exception e) {
             logger.error("transformSchema error:" + ThrowableUtils.getStackTraceByPn(e));
+            if(consumer != null)consumer.accept(e);
             Map<String, List<Message>> msg = Maps.newHashMap();
             msg.put(taskId.toHexString(), Lists.newArrayList(new Message("error", e.getMessage(), JSON.toJSONString(e.getStackTrace()), null)));
             return msg;

@@ -45,4 +45,6 @@ public class InspectResult extends BaseEntity implements Serializable {
 	private String parentId; // 父校验结果编号，表示此校验基于 parentId 结果做的二次校验
 
 	private boolean partStats;  // 标识是否只上报了一部分 stats 信息
+
+	private boolean repeat;
 }

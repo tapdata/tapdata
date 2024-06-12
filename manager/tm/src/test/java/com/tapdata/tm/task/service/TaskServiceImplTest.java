@@ -675,6 +675,8 @@ class TaskServiceImplTest {
         private DateNodeService dateNodeService;
         private TaskSaveService taskSaveService;
         private TransformSchemaAsyncService transformSchemaAsyncService;
+        private TransformSchemaService transformSchemaService;
+        private WorkerService workerService;
         @BeforeEach
         void setUp() {
             taskDto = mock(TaskDto.class);
@@ -683,10 +685,14 @@ class TaskServiceImplTest {
             dateNodeService = mock(DateNodeService.class);
             taskSaveService = mock(TaskSaveService.class);
             transformSchemaAsyncService = mock(TransformSchemaAsyncService.class);
+            transformSchemaService = mock(TransformSchemaService.class);
+            workerService = mock(WorkerService.class);
             ReflectionTestUtils.setField(taskService, "dateNodeService",dateNodeService);
             ReflectionTestUtils.setField(taskService, "measurementServiceV2", measurementServiceV2);
             ReflectionTestUtils.setField(taskService, "taskSaveService", taskSaveService);
+            ReflectionTestUtils.setField(taskService, "transformSchemaService", transformSchemaService);
             ReflectionTestUtils.setField(taskService, "transformSchemaAsyncService", transformSchemaAsyncService);
+            ReflectionTestUtils.setField(taskService, "workerService", workerService);
         }
         @Test
         @DisplayName("test updateById method when cron expression occur error")
@@ -752,6 +758,59 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).create(taskDto, user);
+        }
+
+        @Test
+        @DisplayName("test Old version engine ")
+        void test5(){
+            doNothing().when(taskService).checkTaskInspectFlag(taskDto);
+            ObjectId taskId = mock(ObjectId.class);
+            when(taskDto.getId()).thenReturn(taskId);
+            TaskDto oldTask = mock(TaskDto.class);
+            when(taskService.findById(taskId)).thenReturn(oldTask);
+            when(taskDto.getSyncType()).thenReturn("sync");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            DAG newDag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(newDag);
+            when(oldTask.getTaskRecordId()).thenReturn("111");
+            List<String> runTables = new ArrayList<>();
+            runTables.add("test_table");
+            when(workerService.checkEngineVersion(any())).thenReturn(false);
+            doNothing().when(transformSchemaService).transformSchema(any(), any(), any());
+            when(measurementServiceV2.findRunTable(taskId.toHexString(),"111")).thenReturn(runTables);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList();
+            newSourceNode.add(mock(DatabaseNode.class));
+            when(newDag.getSourceNode()).thenReturn(newSourceNode);
+            doCallRealMethod().when(taskService).updateById(taskDto, user);
+            taskService.updateById(taskDto,user);
+            verify(taskService, new Times(1)).save(taskDto, user);
+            verify(transformSchemaService,times(1)).transformSchema(any(),any(),any());
+        }
+        @Test
+        @DisplayName("test new version engine ")
+        void test6(){
+            doNothing().when(taskService).checkTaskInspectFlag(taskDto);
+            ObjectId taskId = mock(ObjectId.class);
+            when(taskDto.getId()).thenReturn(taskId);
+            TaskDto oldTask = mock(TaskDto.class);
+            when(taskService.findById(taskId)).thenReturn(oldTask);
+            when(taskDto.getSyncType()).thenReturn("sync");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            DAG newDag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(newDag);
+            when(oldTask.getTaskRecordId()).thenReturn("111");
+            List<String> runTables = new ArrayList<>();
+            runTables.add("test_table");
+            when(workerService.checkEngineVersion(any())).thenReturn(true);
+            doNothing().when(transformSchemaAsyncService).transformSchema(any(DAG.class), any(), any());
+            when(measurementServiceV2.findRunTable(taskId.toHexString(),"111")).thenReturn(runTables);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList();
+            newSourceNode.add(mock(DatabaseNode.class));
+            when(newDag.getSourceNode()).thenReturn(newSourceNode);
+            doCallRealMethod().when(taskService).updateById(taskDto, user);
+            taskService.updateById(taskDto,user);
+            verify(taskService, new Times(1)).save(taskDto, user);
+            verify(transformSchemaAsyncService,times(1)).transformSchema(any(DAG.class),any(),any());
         }
     }
     @Nested
