@@ -1,9 +1,5 @@
 package com.tapdata.tm.inspect.vo;
 
-import com.tapdata.tm.inspect.constant.InspectMethod;
-import com.tapdata.tm.inspect.constant.InspectResultEnum;
-import com.tapdata.tm.inspect.constant.InspectStatusEnum;
-import com.tapdata.tm.inspect.dto.InspectDto;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -31,16 +27,20 @@ public class InspectRecoveryStartVerifyVo implements Serializable {
     private String flowType;
     /** 任务状态 */
     private String flowStatus;
-    /** 任务同步阶段 */
-    private String flowSyncStatus;
+    /** 任务里程碑阶段 */
+    private String flowMilestoneStage;
     /** 任务延迟（毫秒） */
     private Long flowDelay;
     /** 差异阈值 */
     private Integer diffLimit;
     /** 差异总数 */
-    private Integer diffTotals;
+    private Long diffTotals;
+    /** 源多数据 */
+    private Long sourceOnly;
+    /** 目标多数据 */
+    private Long targetOnly;
     /** 恢复数据量 */
-    private Integer recoveryDataTotals;
+    private Long recoveryDataTotals;
     /** 恢复表数量 */
     private Integer recoveryTableTotals;
 
@@ -48,21 +48,4 @@ public class InspectRecoveryStartVerifyVo implements Serializable {
     private Boolean canRecovery;
     /** 校验项错误码 */
     private List<String> errorCodes;
-
-
-    public void setCanRecoveryWithDto(InspectDto inspectDto) {
-        setCanRecovery(true);
-        if (!InspectMethod.FIELD.getValue().equals(inspectDto.getInspectMethod())) {
-            errorCodes.add("Inspect.Recovery.NotFieldMethod");
-            setCanRecovery(false);
-        }
-        if (!InspectStatusEnum.DONE.getValue().equals(inspectDto.getStatus())) {
-            errorCodes.add("Inspect.Recovery.StatusNotDone");
-            setCanRecovery(false);
-        }
-        if (!InspectResultEnum.FAILED.getValue().equals(inspectDto.getResult())) {
-            errorCodes.add("Inspect.Recovery.ResultNotFound");
-            setCanRecovery(false);
-        }
-    }
 }
