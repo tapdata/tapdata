@@ -2014,7 +2014,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         List<TapTable> tapTables = new ArrayList<>();
         List<MetadataInstancesDto> items = list.getItems();
 
-        items.forEach(MetadataInstancesDto::filterMetadataInstancesFields);
+        items.forEach(FilterMetadataInstanceUtil::filterMetadataInstancesFields);
 
         if (CollectionUtils.isNotEmpty(items)) {
             tapTables = items.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());

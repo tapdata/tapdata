@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.FilterMetadataInstanceUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.conversion.PossibleDataTypes;
@@ -171,7 +172,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
 
     protected TapTable convertTapTable(MetadataInstancesDto item){
-        MetadataInstancesDto.filterMetadataInstancesFields(item);
+        FilterMetadataInstanceUtil.filterMetadataInstancesFields(item);
         return PdkSchemaConvert.toPdk(item);
     }
 
