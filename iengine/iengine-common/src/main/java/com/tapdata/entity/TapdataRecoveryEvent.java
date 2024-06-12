@@ -56,6 +56,9 @@ public class TapdataRecoveryEvent extends TapdataEvent {
     }
 
     public static boolean isRecoveryEvent(TapEvent tapEvent) {
-        return tapEvent.getInfo().containsKey(EVENT_INFO_AUTO_RECOVERY_TASK);
+        if (null != tapEvent.getInfo()) {
+            return tapEvent.getInfo().containsKey(EVENT_INFO_AUTO_RECOVERY_TASK);
+        }
+        return false;
     }
 }
