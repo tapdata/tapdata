@@ -31,8 +31,10 @@ PACKAGE_COMPONENTS=""
 OUTPUT_TYPE=""
 # filter connectors list
 CONNECTORS_LIST=$(cat $SCRIPT_BASE_DIR/.connectors_list)
+# platform
+PLATFORM=$(uname -m)
 
-while getopts 'c:l:u:p:t:o:' OPT; do
+while getopts 'c:l:u:p:t:o:m:' OPT; do
 	case "$OPT" in
 	c)
     COMPONENT_NAME="$OPTARG"
@@ -52,6 +54,9 @@ while getopts 'c:l:u:p:t:o:' OPT; do
   o)
     OUTPUT_TYPE="$OPTARG"
     ;;
+  m)
+    PLATFORM="$OPTARG"
+    ;;
   esac
 done
 
@@ -63,6 +68,7 @@ cat <<EOF
   BUILD_ARGS:         $BUILD_ARGS
   TAG_NAME:           $TAG_NAME
   OUTPUT_TYPE:        $OUTPUT_TYPE
+  PLATFORM:           $PLATFORM
 EOF
 
 IFS=" " read -r -a COMPONENTS <<<"$(echo "$COMPONENT_NAME" | tr -d ' ' | tr ',' ' ')"
@@ -144,6 +150,14 @@ make_tar() {
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh ./start.sh
   rsync -a $TAPDATA_DIR/build/image/bin/ ./
   rsync -a $TAPDATA_DIR/build/image/supervisor ./
+  # download async-profile
+  if [[ $PLATFORM == "x86_64" ]]; then
+    wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-x64.tar.gz -O async-profiler.tar.gz
+  else
+    wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz -O async-profiler.tar.gz
+  fi
+  tar -xzf async-profiler.tar.gz -C ./components/
+  mv ./components/async-profiler-* ./components/async-profiler
   chmod +x start.sh stop.sh status.sh
   tar cfz tapdata-$TAG_NAME.tar.gz *
 }
