@@ -7,8 +7,6 @@ import java.lang.management.ManagementFactory;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.io.FileUtils;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
@@ -16,11 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 @RemoteService
 public class FlameGraphService {
-
-	private final Logger log = LogManager.getLogger(FlameGraphService.class);
-
 	public static final String TAG = FlameGraphService.class.getSimpleName();
-
 	private String asyncProfilerPath = "./async-profiler";
 
 	FlameGraphService() {
@@ -59,7 +53,7 @@ public class FlameGraphService {
 			process.waitFor( 20, TimeUnit.SECONDS);
 			content = FileUtils.readFileToByteArray(new File("memory.html"));
 		} catch (Exception e) {
-			return new Response(e.getMessage().getBytes());
+			content = e.getMessage().getBytes();
 		}
 		return new Response(content);
 	}
@@ -80,7 +74,7 @@ public class FlameGraphService {
 			process.waitFor(20, TimeUnit.SECONDS);
 			content = FileUtils.readFileToByteArray(new File("cpu.html"));
 		} catch (Exception e) {
-			return new Response(e.getMessage().getBytes());
+			content = e.getMessage().getBytes();
 		}
 		return new Response(content);
 	}
