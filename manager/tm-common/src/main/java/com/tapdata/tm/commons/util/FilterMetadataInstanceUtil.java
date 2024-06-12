@@ -16,6 +16,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class FilterMetadataInstanceUtil {
+
+    private FilterMetadataInstanceUtil() {
+        throw new IllegalStateException("Utility class");
+    }
     public static void filterMetadataInstancesFields(MetadataInstancesDto metadataInstancesDto) {
         List<Field> fields = metadataInstancesDto.getFields();
         if (CollectionUtils.isNotEmpty(fields)){
