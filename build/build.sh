@@ -159,7 +159,7 @@ make_tar() {
   tar -xzf async-profiler.tar.gz -C ./components/
   mv ./components/async-profiler-* ./components/async-profiler
   chmod +x start.sh stop.sh status.sh
-  tar cfz tapdata-$TAG_NAME.tar.gz *
+  tar cfz tapdata-$PLATFORM-$TAG_NAME.tar.gz *
 }
 
 # make output
