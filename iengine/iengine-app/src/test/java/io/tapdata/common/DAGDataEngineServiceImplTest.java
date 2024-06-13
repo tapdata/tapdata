@@ -8,6 +8,8 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -267,21 +269,24 @@ public class DAGDataEngineServiceImplTest {
         void testInitializeModel(){
             MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
             metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto1.setNodeId("test1");
-            metadataInstancesDto1.setOriginalName("test1");
+            metadataInstancesDto1.setNodeId("node1");
+            metadataInstancesDto1.setOriginalName("name1");
             metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
             MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
             metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto2.setNodeId("test2");
-            metadataInstancesDto2.setOriginalName("test2");
+            metadataInstancesDto2.setNodeId("node2");
+            metadataInstancesDto2.setOriginalName("name2");
             metadataInstancesDto2.setQualifiedName("test2");
-            batchMetadataUpdateMap.put("test1",metadataInstancesDto1);
-            batchMetadataUpdateMap.put("test2",metadataInstancesDto2);
+            metadataInstancesDto2.setMetaType("table");
+            batchMetadataUpdateMap.put("node1",metadataInstancesDto1);
+            batchMetadataUpdateMap.put("node2",metadataInstancesDto2);
             MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
             metadataInstancesDto3.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto3.setNodeId("test2");
-            metadataInstancesDto3.setOriginalName("test3");
+            metadataInstancesDto3.setNodeId("node2");
+            metadataInstancesDto3.setOriginalName("name3");
             metadataInstancesDto3.setQualifiedName("test3");
+            metadataInstancesDto3.setMetaType("processor_node");
             batchInsertMetaDataList.add(metadataInstancesDto3);
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
@@ -299,10 +304,10 @@ public class DAGDataEngineServiceImplTest {
                 ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
                 beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
                 when(configurationCenter.getConfig(any())).thenReturn("agentId");
-                dagDataEngineService.initializeModel();
-                Assertions.assertTrue(tapTableMapHashMap.get("test1").containsKey("test1"));
-                Assertions.assertTrue(tapTableMapHashMap.get("test2").containsKey("test2"));
-                Assertions.assertTrue(tapTableMapHashMap.get("test2").containsKey("test3"));
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertTrue(tapTableMapHashMap.get("node1").containsKey("name1"));
+                Assertions.assertTrue(tapTableMapHashMap.get("node2").containsKey("name2"));
+                Assertions.assertTrue(tapTableMapHashMap.get("node2").containsKey("node2"));
             }
         }
 
@@ -325,8 +330,68 @@ public class DAGDataEngineServiceImplTest {
                 ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
                 beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
                 when(configurationCenter.getConfig(any())).thenReturn("agentId");
-                dagDataEngineService.initializeModel();
+                dagDataEngineService.initializeModel(false);
                 Assertions.assertTrue(tapTableMapHashMap.isEmpty());
+            }
+        }
+
+        @Test
+        @DisplayName("InitializeModel Test main process")
+        void testInitializeModelMergeNode(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("node1");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("node2");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            batchMetadataUpdateMap.put("node1",metadataInstancesDto1);
+            batchMetadataUpdateMap.put("node2",metadataInstancesDto2);
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            metadataInstancesDto3.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto3.setNodeId("mergeNode");
+            metadataInstancesDto3.setOriginalName("name3");
+            metadataInstancesDto3.setQualifiedName("test3");
+            metadataInstancesDto3.setMetaType("processor_node");
+            batchInsertMetaDataList.add(metadataInstancesDto3);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG mocDag = mock(DAG.class);
+            taskDto.setDag(mocDag);
+            transformerWsMessageDto.setTaskDto(taskDto);
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
+                ReflectionTestUtils.setField(dagDataEngineService,"batchMetadataUpdateMap",batchMetadataUpdateMap);
+                ReflectionTestUtils.setField(dagDataEngineService,"batchInsertMetaDataList",batchInsertMetaDataList);
+                ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
+                beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
+                when(configurationCenter.getConfig(any())).thenReturn("agentId");
+                List<Node> nodes = new ArrayList<>();
+                MergeTableNode mergeTableNode = new MergeTableNode();
+                mergeTableNode.setId("mergeNode");
+                nodes.add(mergeTableNode);
+                when(mocDag.getNodes()).thenReturn(nodes);
+                List<Node> predecessors = new ArrayList<>();
+                TableNode tableNode1 = new TableNode();
+                tableNode1.setId("node1");
+                TableNode tableNode2 = new TableNode();
+                tableNode2.setId("node2");
+                predecessors.add(tableNode1);
+                predecessors.add(tableNode2);
+                when(mocDag.predecessors("mergeNode")).thenReturn(predecessors);
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertEquals(3,tapTableMapHashMap.get("mergeNode").size());
             }
         }
 

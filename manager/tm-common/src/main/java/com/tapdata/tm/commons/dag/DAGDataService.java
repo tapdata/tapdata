@@ -102,7 +102,7 @@ public interface DAGDataService {
 
     List<MetadataInstancesDto> findByNodeId(String id);
 
-    default void initializeModel(){
+    default void initializeModel(Boolean isSync){
         return;
     }
 

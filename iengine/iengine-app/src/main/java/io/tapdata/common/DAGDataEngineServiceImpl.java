@@ -9,6 +9,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -127,7 +128,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         return taskClient;
     }
     @Override
-    public void initializeModel() {
+    public void initializeModel(Boolean isSync) {
         Map<String, List<MetadataInstancesDto>> updateMetadataInstancesDtos = getBatchMetadataUpdateMap().values().stream()
                 .filter(metadataInstancesDto -> SourceTypeEnum.VIRTUAL.name().equals(metadataInstancesDto.getSourceType()))
                 .collect(Collectors.groupingBy(MetadataInstancesDto::getNodeId));
@@ -149,7 +150,11 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             filteredList.forEach(metadataInstancesDto -> {
                 TapTable tapTable = convertTapTable(metadataInstancesDto);
                 if (tapTable != null) {
-                    tapTableMap.putNew(metadataInstancesDto.getOriginalName(), tapTable, metadataInstancesDto.getQualifiedName());
+                    if(isSync && metadataInstancesDto.getMetaType().equals("processor_node")){
+                        tapTableMap.putNew(metadataInstancesDto.getNodeId(), tapTable, metadataInstancesDto.getQualifiedName());
+                    }else{
+                        tapTableMap.putNew(metadataInstancesDto.getOriginalName(), tapTable, metadataInstancesDto.getQualifiedName());
+                    }
                 }
             });
         }
@@ -157,6 +162,14 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             List<Node> nodes = taskDto.getDag().getNodes();
             if (CollectionUtils.isNotEmpty(nodes)) {
                 nodes.forEach(f -> {
+                    if(f instanceof MergeTableNode){
+                        List<Node> predecessors = taskDto.getDag().predecessors(f.getId());
+                        TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.get(f.getId());
+                        predecessors.forEach(node -> {
+                            TapTableMap<String, TapTable> preTapTableMap = tapTableMapHashMap.get(node.getId());
+                            mergeTableMap(tapTableMap,preTapTableMap);
+                        });
+                    }
                     f.setSchema(null);
                     f.setOutputSchema(null);
                 });
@@ -201,5 +214,11 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         byte[] encode = Base64.getEncoder().encode(gzip);
         String dataString = new String(encode, StandardCharsets.UTF_8);
         clientMongoOperator.insertOne(dataString, ConnectorConstant.TASK_COLLECTION + "/transformer/resultV2");
+    }
+
+    protected void mergeTableMap(TapTableMap<String, TapTable> tapTableMap , TapTableMap<String, TapTable> preTapTableMap) {
+        for(String key : preTapTableMap.keySet()){
+            tapTableMap.putNew(key,preTapTableMap.get(key),preTapTableMap.getQualifiedName(key));
+        }
     }
 }

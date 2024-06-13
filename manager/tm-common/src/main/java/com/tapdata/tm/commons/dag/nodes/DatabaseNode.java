@@ -233,7 +233,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 this.setSchema(null);
                 super.transformSchema(options);
                 if(service.whetherEngineDeduction()){
-                    service.initializeModel();
+                    service.initializeModel(false);
                 }
             }
         }

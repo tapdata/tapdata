@@ -36,7 +36,7 @@ public class DatabaseNodeTest {
             when(graph.predecessors(any())).thenReturn(new ArrayList<>());
             when(databaseNode.getSourceNodeTableNames(any())).thenReturn(tableNames);
             databaseNode.transformSchema(options);
-            verify(dagDataService, times(0)).initializeModel();
+            verify(dagDataService, times(0)).initializeModel(false);
 
         }
 
@@ -57,7 +57,7 @@ public class DatabaseNodeTest {
             when(databaseNode.getSourceNodeTableNames(any())).thenReturn(tableNames);
             when(dagDataService.whetherEngineDeduction()).thenReturn(true);
             databaseNode.transformSchema(options);
-            verify(dagDataService, times(1)).initializeModel();
+            verify(dagDataService, times(1)).initializeModel(false);
 
         }
     }
