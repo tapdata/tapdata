@@ -258,6 +258,7 @@ jobs:
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
+          echo '${{ secrets.HARBOR_PASS }}' | docker login harbor.internal.tapdata.io --username=${{ secrets.HARBOR_USER }} --password-stdin
           bash build/build.sh -o docker -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Print Image Info
         run: |
@@ -310,8 +311,11 @@ jobs:
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
           mkdir -p output
           rsync -r --links --progress --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/temp/${{ needs.Set-Branch.outputs.TAG_NAME }}/ output/
-          bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
-          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
+          bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m x86_64
+          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
+          rm -rf output/tapdata-x86_64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz
+          bash build/build.sh -o tar -t ${{ needs.Set-Branch.outputs.TAG_NAME }} -m arm64
+          rsync -r --progress --password-file=/tmp/rsync.passwd output/tapdata-arm64-${{ needs.Set-Branch.outputs.TAG_NAME }}.tar.gz rsync://root@58.251.34.123:873/data/enterprise-artifact/gz/
 
   Clean-Build-Temp:
     runs-on: office-scan
