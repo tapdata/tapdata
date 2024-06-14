@@ -17,7 +17,7 @@ public class FlameGraphService {
 	public static final String TAG = FlameGraphService.class.getSimpleName();
 	private String asyncProfilerPath = "./async-profiler";
 
-	FlameGraphService() {
+	public FlameGraphService() {
 		// 寻找 async-profiler 路径, 可能在当前路径, 也可能在父路径
 		if (!new File(asyncProfilerPath).exists()) {
 			asyncProfilerPath = "../async-profiler";
