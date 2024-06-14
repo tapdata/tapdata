@@ -33,8 +33,8 @@ public class AutoRecovery implements AutoCloseable {
     @Override
     @SuppressWarnings("resource")
     public void close() throws Exception {
-        logger.info("Releasing auto-recovery instance '{}'", taskId);
-        instances.remove(taskId);
+        logger.info("Releasing auto-recovery instance '{}'", getTaskId());
+        instances.remove(getTaskId());
     }
 
     public static AutoRecovery init(String taskId) {
@@ -54,7 +54,7 @@ public class AutoRecovery implements AutoCloseable {
         });
         return autoRecovery.clients.compute(inspectTaskId, (id, client) -> {
             if (null != client) {
-                throw AutoRecoveryException.notFoundInstance(id);
+                throw AutoRecoveryException.clientExists(id);
             }
             return new AutoRecoveryClient(taskId, id, autoRecovery.enqueueConsumer, completedConsumer) {
                 @Override

@@ -31,9 +31,12 @@ public interface TaskInspectExCode_27 {
 	@TapExCode
 	String AUTO_RECOVERY_NOT_EXISTS = "27007";
 
-	@TapExCode
-	String AUTO_RECOVERY_TIMEOUT = "27008";
+    @TapExCode
+    String AUTO_RECOVERY_CLIENT_DUPLICATE = "27008";
 
 	@TapExCode
-	String AUTO_RECOVERY_NOT_FOUND_RECOVERY_TYPE = "27009";
+	String AUTO_RECOVERY_TIMEOUT = "27009";
+
+	@TapExCode
+	String AUTO_RECOVERY_NOT_FOUND_RECOVERY_TYPE = "27010";
 }

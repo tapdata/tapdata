@@ -27,7 +27,7 @@ public abstract class AutoRecoveryClient implements AutoCloseable {
         this.inspectTaskId = inspectTaskId;
         this.enqueueConsumer = enqueueConsumer;
         this.completedConsumer = completedConsumer;
-        logger.info("Init auto-recovery client: '{}-{}'", taskId, inspectTaskId);
+        logger.info("Init auto-recovery client: '{}-{}'", getTaskId(), getInspectTaskId());
     }
 
     public void enqueue(TapdataRecoveryEvent event) {

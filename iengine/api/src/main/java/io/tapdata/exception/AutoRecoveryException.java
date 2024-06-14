@@ -22,18 +22,22 @@ public class AutoRecoveryException extends TapCodeException {
     }
 
     public static AutoRecoveryException instanceExists(String taskId) {
-        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_DUPLICATE, String.format("Task %s auto recovery instance already exists.", taskId));
+        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_DUPLICATE, String.format("Task %s auto-recovery instance already exists.", taskId));
+    }
+
+    public static AutoRecoveryException clientExists(String taskId) {
+        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_CLIENT_DUPLICATE, String.format("Task %s auto-recovery client already exists.", taskId));
     }
 
     public static AutoRecoveryException notFoundInstance(String taskId) {
-        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_NOT_EXISTS, String.format("Not found auto recovery instance by taskId: %s", taskId));
+        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_NOT_EXISTS, String.format("Not found auto-recovery instance by taskId: %s", taskId));
     }
 
     public static AutoRecoveryException fixedTimeout() {
-        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_TIMEOUT, "Auto recovery timeout");
+        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_TIMEOUT, "Auto-recovery timeout");
     }
 
     public static AutoRecoveryException notFoundRecoveryType(String recoveryType) {
-        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_NOT_FOUND_RECOVERY_TYPE, String.format("Not found recovery type for auto recovery: %s", recoveryType));
+        return new AutoRecoveryException(TaskInspectExCode_27.AUTO_RECOVERY_NOT_FOUND_RECOVERY_TYPE, String.format("Not found recovery type for auto-recovery: %s", recoveryType));
     }
 }
