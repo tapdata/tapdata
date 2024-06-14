@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.BaseTaskTest;
 import com.tapdata.constant.ConnectorContext;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -11,10 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -748,6 +746,18 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDropFieldFunction(tapDropFieldEvent);
 			hazelcastTargetPdkDataNode.executeDropFieldFunction(tapDropFieldEvent);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer("test");
+		}
+	}
+	@Nested
+	class updateDagTest{
+		@DisplayName("test update Dag when create table Event")
+		@Test
+		void test1(){
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapCreateTableEvent);
+			hazelcastTargetPdkDataNode.updateDAG(tapdataEvent);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).updateDAG(tapdataEvent);
 		}
 	}
 }
