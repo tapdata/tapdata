@@ -1278,4 +1278,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         batchRemoveMetaDataList.clear();
         upsertItems.clear();
     }
+
+    public List<MetadataInstancesDto> getLogCollectorMetadataInstancesDto(){
+        HashMap<String,MetadataInstancesDto> metadataInstancesDtos = new HashMap<>();
+        Collection<MetadataInstancesDto> values = metadataMap.values();
+        if (CollectionUtils.isEmpty(values)) {
+            return Lists.newArrayList();
+        }
+        for(MetadataInstancesDto metadataInstancesDto : values){
+            metadataInstancesDtos.put(metadataInstancesDto.getQualifiedName(),metadataInstancesDto);
+        }
+        return new ArrayList<>(metadataInstancesDtos.values());
+    }
 }

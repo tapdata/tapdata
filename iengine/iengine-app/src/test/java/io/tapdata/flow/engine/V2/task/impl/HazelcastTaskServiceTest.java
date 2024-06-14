@@ -708,35 +708,5 @@ public class HazelcastTaskServiceTest {
             }
 
         }
-        @DisplayName("test logCollector Task")
-        @Test
-        void test4() {
-            TaskDto taskDto = new TaskDto();
-            taskDto.setId(new ObjectId());
-            DAG dag = mock(DAG.class);
-            taskDto.setDag(dag);
-            taskDto.setSyncType("logCollector");
-            Assertions.assertTrue(hazelcastTaskService.engineTransformSchema(taskDto).isEmpty());
-        }
-        @DisplayName("test connHeartbeat Task")
-        @Test
-        void test5() {
-            TaskDto taskDto = new TaskDto();
-            taskDto.setId(new ObjectId());
-            DAG dag = mock(DAG.class);
-            taskDto.setDag(dag);
-            taskDto.setSyncType("connHeartbeat");
-            Assertions.assertTrue(hazelcastTaskService.engineTransformSchema(taskDto).isEmpty());
-        }
-        @DisplayName("test mem_cache Task")
-        @Test
-        void test6() {
-            TaskDto taskDto = new TaskDto();
-            taskDto.setId(new ObjectId());
-            DAG dag = mock(DAG.class);
-            taskDto.setDag(dag);
-            taskDto.setSyncType("mem_cache");
-            Assertions.assertTrue(hazelcastTaskService.engineTransformSchema(taskDto).isEmpty());
-        }
     }
 }

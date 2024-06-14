@@ -4,11 +4,14 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
@@ -19,6 +22,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.FilterMetadataInstanceUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
@@ -27,14 +31,16 @@ import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.websocket.handler.DeduceSchemaHandler;
 import org.apache.commons.collections.CollectionUtils;
+import org.springframework.data.mongodb.core.query.Query;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 
 public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
@@ -165,10 +171,36 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                     if(f instanceof MergeTableNode){
                         List<Node> predecessors = taskDto.getDag().predecessors(f.getId());
                         TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.get(f.getId());
+                        if(tapTableMap == null)return;
                         predecessors.forEach(node -> {
                             TapTableMap<String, TapTable> preTapTableMap = tapTableMapHashMap.get(node.getId());
                             mergeTableMap(tapTableMap,preTapTableMap);
                         });
+                    }else if(f instanceof LogCollectorNode){
+                        LogCollectorNode logCollectorNode = (LogCollectorNode) f;
+                        Map<String, LogCollecotrConnConfig> connConfigs = logCollectorNode.getLogCollectorConnConfigs();
+                        TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.computeIfAbsent(f.getId(), key -> TapTableMap.create(null, f.getId(), new HashMap<>(),taskDto.getTmCurrentTime()));
+                        Map<String,MetadataInstancesDto> metadataInstancesDtoHashMap = getLogCollectorMetadataInstancesDto().stream()
+                                .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
+                                        , metadataInstancesDto -> metadataInstancesDto, (m1, m2) -> m1));;
+                        if (null != connConfigs && !connConfigs.isEmpty()) {
+                            Map<String,List<String>> connections = ShareCdcUtil.getConnectionIds(f, ids -> {
+                                Query connectionQuery = new Query(where("_id").in(ids));
+                                connectionQuery.fields().include("_id").include("namespace");
+                                return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+                            }).stream().collect(Collectors.toMap(Connections::getId,Connections::getNamespace,(value1, value2) -> value1));
+                            metadataInstancesDtoHashMap.values().forEach(metadataInstancesDto -> {
+                                if(null != connections.get(metadataInstancesDto.getSource().get_id())){
+                                    String namespace =String.join(".",connections.get(metadataInstancesDto.getSource().get_id()));
+                                    String originalName = String.join(".", namespace, metadataInstancesDto.getOriginalName());
+                                    tapTableMap.putNew(originalName,convertTapTable(metadataInstancesDto),metadataInstancesDto.getQualifiedName());
+                                }
+                            });
+                        }else{
+                            for(MetadataInstancesDto metadataInstancesDto :metadataInstancesDtoHashMap.values()){
+                                tapTableMap.putNew(metadataInstancesDto.getOriginalName(),convertTapTable(metadataInstancesDto),metadataInstancesDto.getQualifiedName());
+                            }
+                        }
                     }
                     f.setSchema(null);
                     f.setOutputSchema(null);

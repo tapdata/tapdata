@@ -421,7 +421,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			if(tapTableMapHashMap.containsKey(node.getId())){
 				tapTableMap = tapTableMapHashMap.get(node.getId());
 			}else{
-				tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
+				tapTableMap = TapTableMap.create(node.getId());
 			}
 
 		}
@@ -943,7 +943,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	protected Map<String,TapTableMap<String, TapTable>> engineTransformSchema(TaskDto taskDto){
 		AspectUtils.executeAspect(new EngineDeductionAspect().start());
 		Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
-		if(StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_CONN_HEARTBEAT,TaskDto.SYNC_TYPE_MEM_CACHE))return tapTableMapHashMap;
 		try {
 			com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
 			TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
