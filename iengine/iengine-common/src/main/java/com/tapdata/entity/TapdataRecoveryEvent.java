@@ -23,14 +23,14 @@ public class TapdataRecoveryEvent extends TapdataEvent {
     public static final String RECOVERY_TYPE_DATA = "DATA";
     public static final String RECOVERY_TYPE_END = "END";
 
-    private String taskId;
+    private String inspectTaskId;
     private String recoveryType;
 
     public TapdataRecoveryEvent() {
     }
 
-    public TapdataRecoveryEvent(String taskId, String recoveryType) {
-        this.taskId = taskId;
+    public TapdataRecoveryEvent(String inspectTaskId, String recoveryType) {
+        this.inspectTaskId = inspectTaskId;
         this.recoveryType = recoveryType;
     }
 

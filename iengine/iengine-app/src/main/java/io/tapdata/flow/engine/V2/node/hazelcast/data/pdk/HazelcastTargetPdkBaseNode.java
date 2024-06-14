@@ -595,7 +595,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			codecsFilterManager = getConnectorNode().getCodecsFilterManager();
 		}
 		initAndGetExactlyOnceWriteLookupList();
-		boolean hasExactlyOnceWriteCache = false;
+        AtomicBoolean hasExactlyOnceWriteCache = new AtomicBoolean(false);
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			if (!isRunning()) return;
 			try {
@@ -626,44 +626,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				} else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
 					handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
 				} else {
-                    AtomicReference<TapdataRecoveryEvent> recoveryEvent = new AtomicReference<>();
+                    handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
                     if (tapdataEvent instanceof TapdataRecoveryEvent) {
-                        recoveryEvent.set((TapdataRecoveryEvent) tapdataEvent);
-                    }
-
-					if (tapdataEvent.isDML()) {
-						TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
-						if (null == tapRecordEvent) {
-							continue;
-						}
-						hasExactlyOnceWriteCache = handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache);
-						List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
-						String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
-						if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-							if (obsLogger.isDebugEnabled()) {
-								obsLogger.debug("Event check exactly once write exists, will ignore it: {}" + JSONUtil.obj2Json(tapRecordEvent));
-							}
-							continue;
-						} else {
-							if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
-								obsLogger.info("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
-								lookupTables.remove(tgtTableNameFromTapEvent);
-							}
-						}
-						tapEvents.add(tapRecordEvent);
-						if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
-							lastTapdataEvent.set(tapdataEvent);
-						}
-					} else if (tapdataEvent.isDDL()) {
-						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
-					} else {
-						if (null != tapdataEvent.getTapEvent()) {
-							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-						}
-					}
-
-                    if (null != recoveryEvent.get()) {
-                        AutoRecovery.computeIfPresent(getNode().getTaskId(), autoRecovery -> autoRecovery.completed(recoveryEvent.get()));
+                        AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
                     }
 				}
 			} catch (Throwable throwable) {
@@ -673,16 +638,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
 			try {
 				try {
-					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache.get()) {
 						transactionBegin();
 					}
 					processEvents(tapEvents);
-					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache.get()) {
 						processExactlyOnceWriteCache(tapdataEvents);
 						transactionCommit();
 					}
 				} catch (Exception e) {
-					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache) {
+					if (checkExactlyOnceWriteEnableResult.getEnable() && hasExactlyOnceWriteCache.get()) {
 						transactionRollback();
 					}
 					throw e;
@@ -704,6 +669,43 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
 		}
 	}
+
+    private void handleTapdataEvent(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
+        if (tapdataEvent.isDML()) {
+            handleTapdataEventDML(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+        } else if (tapdataEvent.isDDL()) {
+            handleTapdataDDLEvent(tapdataEvent, tapEvents, lastTapdataEvent::set);
+        } else {
+            if (null != tapdataEvent.getTapEvent()) {
+                obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+            }
+        }
+    }
+
+    private void handleTapdataEventDML(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
+        TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
+        if (null == tapRecordEvent) {
+            return;
+        }
+        hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
+        List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
+        String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
+        if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
+            if (obsLogger.isDebugEnabled()) {
+                obsLogger.debug("Event check exactly once write exists, will ignore it: {}" + JSONUtil.obj2Json(tapRecordEvent));
+            }
+            return;
+        } else {
+            if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
+                obsLogger.info("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+                lookupTables.remove(tgtTableNameFromTapEvent);
+            }
+        }
+        tapEvents.add(tapRecordEvent);
+        if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
+            lastTapdataEvent.set(tapdataEvent);
+        }
+    }
 
 	private void handleTapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent tapdataEvent) {
 		try {

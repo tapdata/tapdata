@@ -183,7 +183,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
-        AutoRecovery.computeIfPresent(getNode().getTaskId(), autoRecovery -> autoRecovery.setEnqueueConsumer(this::enqueue));
+        AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
 		if (needCdcDelay()) {
 			this.cdcDelayCalculation = new CdcDelay();
 		} else {
