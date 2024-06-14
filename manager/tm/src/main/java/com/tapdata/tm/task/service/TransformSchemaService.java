@@ -73,6 +73,7 @@ public class TransformSchemaService {
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private LdpService ldpService;
+    private static final String IS_DELETED = "is_deleted";
     @Autowired
     private AgentGroupService agentGroupService;
 
@@ -281,7 +282,7 @@ public class TransformSchemaService {
             }
         } else {
             Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())
-                    .and("is_deleted").ne(true)
+                    .and(IS_DELETED).ne(true)
                     .and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
             Query query1 = new Query(criteria);
             query1.fields().exclude("histories");
@@ -316,7 +317,7 @@ public class TransformSchemaService {
                         criteriaList.add(Criteria.where("source._id").is(config.getConnectionId())
                                 .and("originalName").in(config.getTableNames()));
                     }
-                    criteriaTable.and("is_deleted").ne(true).orOperator(criteriaList);
+                    criteriaTable.and(IS_DELETED).ne(true).orOperator(criteriaList);
                     queryMetadata.addCriteria(criteriaTable);
                     metadataInstancesDtoList.addAll(metadataInstancesService.findAllDto(queryMetadata, user));
                 } else {
@@ -325,7 +326,7 @@ public class TransformSchemaService {
                         String connectionId = logConnectionIds.get(0);
                         queryMetadata.addCriteria(criteriaTable);
                         criteriaTable.and("source._id").is(connectionId)
-                                .and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
+                                .and("originalName").in(logNode.getTableNames()).and(IS_DELETED).ne(true);
                         metadataInstancesDtoList.addAll(metadataInstancesService.findAllDto(queryMetadata, user));
                     }
                 }
