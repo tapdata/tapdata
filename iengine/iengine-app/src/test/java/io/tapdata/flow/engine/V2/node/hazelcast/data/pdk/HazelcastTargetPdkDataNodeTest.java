@@ -756,6 +756,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapCreateTableEvent);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).updateDAG(tapdataEvent);
 			hazelcastTargetPdkDataNode.updateDAG(tapdataEvent);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).updateDAG(tapdataEvent);
 		}
