@@ -285,6 +285,26 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertTrue(result);
 		}
 		@Test
+		void testCreateTableIsNull(){
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"unwindProcess",false);
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			AtomicBoolean succeed = new AtomicBoolean(true);
+			Node node = mock(Node.class);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
+			when(node.disabledNode()).thenReturn(false);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getCreateTableFunction()).thenReturn(null);
+			when(functions.getCreateTableV2Function()).thenReturn(null);
+			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable,succeed);
+			hazelcastTargetPdkBaseNode.createTable(tapTable, succeed);
+			verify(hazelcastTargetPdkBaseNode,new Times(0)).buildErrorConsumer("test");
+		}
+		@Test
 		void testCreateTableForBuildErrorConsumer(){
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"unwindProcess",false);
 			TapTable tapTable = new TapTable();
