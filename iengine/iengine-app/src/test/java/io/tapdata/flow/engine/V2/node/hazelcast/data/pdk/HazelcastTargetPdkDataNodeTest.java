@@ -2,19 +2,20 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.BaseTaskTest;
 import com.tapdata.constant.ConnectorContext;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.Ref;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -748,6 +750,61 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDropFieldFunction(tapDropFieldEvent);
 			hazelcastTargetPdkDataNode.executeDropFieldFunction(tapDropFieldEvent);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer("test");
+		}
+	}
+	@Nested
+	class updateDagTest{
+		@DisplayName("test update Dag when create table Event")
+		@Test
+		void test1(){
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapCreateTableEvent);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).updateDAG(tapdataEvent);
+			hazelcastTargetPdkDataNode.updateDAG(tapdataEvent);
+			verify(hazelcastTargetPdkDataNode,new Times(1)).updateDAG(tapdataEvent);
+		}
+		@DisplayName("test update Dag when tapAlterFieldNameEvent Event when Data Transformation")
+		@Test
+		void test2(){
+			allSetup();
+			Map<String, List<String>> updateConditionFieldsMap = new HashMap<>();
+			List<String> updateConditionFields = new ArrayList<>();
+			updateConditionFields.add("id");
+			updateConditionFieldsMap.put("dummy_test",updateConditionFields);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"updateConditionFieldsMap",updateConditionFieldsMap);
+			TapAlterFieldNameEvent tapAlterFieldNameEvent=new TapAlterFieldNameEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapAlterFieldNameEvent);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).updateDAG(tapdataEvent);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).getNode();
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"processorBaseContext",processorBaseContext);
+			hazelcastTargetPdkDataNode.updateDAG(tapdataEvent);
+			TableNode node = (TableNode) processorBaseContext.getNode();
+			List<String> updateConditionFields1 = node.getUpdateConditionFields();
+			assertEquals(updateConditionFields,updateConditionFields1);
+		}
+		@DisplayName("test update Dag when tapAlterFieldNameEvent Event when Data Replications")
+		@Test
+		void test3(){
+			setUpDatabaseNode();
+			Map<String, List<String>> concurrentWritePartitionMap =new HashMap<>();
+			List<String> list=new ArrayList<>();
+			list.add("partition1");
+			concurrentWritePartitionMap.put("dummyTest",list);
+			TapAlterFieldNameEvent tapAlterFieldNameEvent=new TapAlterFieldNameEvent();
+			tapAlterFieldNameEvent.setTableId("dummyTest");
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapAlterFieldNameEvent);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).updateDAG(tapdataEvent);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).getNode();
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"processorBaseContext",processorBaseContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"concurrentWritePartitionMap",concurrentWritePartitionMap);
+			hazelcastTargetPdkDataNode.updateDAG(tapdataEvent);
+			DatabaseNode node = (DatabaseNode) processorBaseContext.getNode();
+			assertEquals(node.getConcurrentWritePartitionMap().size(),concurrentWritePartitionMap.size());
 		}
 	}
 }

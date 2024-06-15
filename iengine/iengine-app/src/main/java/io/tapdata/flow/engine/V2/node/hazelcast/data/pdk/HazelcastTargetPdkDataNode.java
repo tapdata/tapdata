@@ -1015,6 +1015,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void updateDAG(TapdataEvent tapdataEvent) {
+		super.updateDAG(tapdataEvent);
 		final TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (tapEvent instanceof TapAlterFieldNameEvent) {
 			TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
