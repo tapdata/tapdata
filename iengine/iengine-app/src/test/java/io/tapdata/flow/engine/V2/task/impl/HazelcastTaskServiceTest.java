@@ -617,6 +617,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setId(new ObjectId());
             DAG dag = mock(DAG.class);
             taskDto.setDag(dag);
+            taskDto.setSyncType("sync");
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
             try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
                 MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
@@ -655,6 +656,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setId(new ObjectId());
             DAG dag = mock(DAG.class);
             taskDto.setDag(dag);
+            taskDto.setSyncType("migrate");
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
             try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
                 MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
@@ -692,6 +694,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setId(new ObjectId());
             DAG dag = mock(DAG.class);
             taskDto.setDag(dag);
+            taskDto.setSyncType("migrate");
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
             try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
                 MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){

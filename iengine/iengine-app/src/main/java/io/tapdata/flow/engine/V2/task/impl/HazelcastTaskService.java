@@ -421,7 +421,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			if(tapTableMapHashMap.containsKey(node.getId())){
 				tapTableMap = tapTableMapHashMap.get(node.getId());
 			}else{
-				tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
+				tapTableMap = TapTableMap.create(node.getId());
 			}
 
 		}
@@ -953,6 +953,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions(),(e)->{
 				throw new RuntimeException(e);
             });
+			dagDataService.initializeModel((StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_SYNC)));
 			AspectUtils.executeAspect(new EngineDeductionAspect().end());
 		}catch (Exception e){
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));

@@ -3,13 +3,19 @@ package io.tapdata.common;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.conversion.PossibleDataTypes;
@@ -28,6 +34,7 @@ import io.tapdata.schema.TapTableMap;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -262,26 +269,30 @@ public class DAGDataEngineServiceImplTest {
     class initializeModelTest{
         Map<String, MetadataInstancesDto> batchMetadataUpdateMap = new LinkedHashMap<>();
         List<MetadataInstancesDto> batchInsertMetaDataList = new ArrayList<>();
+        Map<String, MetadataInstancesDto> metadataMap = new HashMap<>();
         @Test
         @DisplayName("InitializeModel Test main process")
         void testInitializeModel(){
             MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
             metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto1.setNodeId("test1");
-            metadataInstancesDto1.setOriginalName("test1");
+            metadataInstancesDto1.setNodeId("node1");
+            metadataInstancesDto1.setOriginalName("name1");
             metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
             MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
             metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto2.setNodeId("test2");
-            metadataInstancesDto2.setOriginalName("test2");
+            metadataInstancesDto2.setNodeId("node2");
+            metadataInstancesDto2.setOriginalName("name2");
             metadataInstancesDto2.setQualifiedName("test2");
-            batchMetadataUpdateMap.put("test1",metadataInstancesDto1);
-            batchMetadataUpdateMap.put("test2",metadataInstancesDto2);
+            metadataInstancesDto2.setMetaType("table");
+            batchMetadataUpdateMap.put("node1",metadataInstancesDto1);
+            batchMetadataUpdateMap.put("node2",metadataInstancesDto2);
             MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
             metadataInstancesDto3.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto3.setNodeId("test2");
-            metadataInstancesDto3.setOriginalName("test3");
+            metadataInstancesDto3.setNodeId("node2");
+            metadataInstancesDto3.setOriginalName("name3");
             metadataInstancesDto3.setQualifiedName("test3");
+            metadataInstancesDto3.setMetaType("processor_node");
             batchInsertMetaDataList.add(metadataInstancesDto3);
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
@@ -299,10 +310,10 @@ public class DAGDataEngineServiceImplTest {
                 ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
                 beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
                 when(configurationCenter.getConfig(any())).thenReturn("agentId");
-                dagDataEngineService.initializeModel();
-                Assertions.assertTrue(tapTableMapHashMap.get("test1").containsKey("test1"));
-                Assertions.assertTrue(tapTableMapHashMap.get("test2").containsKey("test2"));
-                Assertions.assertTrue(tapTableMapHashMap.get("test2").containsKey("test3"));
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertTrue(tapTableMapHashMap.get("node1").containsKey("name1"));
+                Assertions.assertTrue(tapTableMapHashMap.get("node2").containsKey("name2"));
+                Assertions.assertTrue(tapTableMapHashMap.get("node2").containsKey("node2"));
             }
         }
 
@@ -325,8 +336,227 @@ public class DAGDataEngineServiceImplTest {
                 ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
                 beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
                 when(configurationCenter.getConfig(any())).thenReturn("agentId");
-                dagDataEngineService.initializeModel();
+                dagDataEngineService.initializeModel(false);
                 Assertions.assertTrue(tapTableMapHashMap.isEmpty());
+            }
+        }
+
+        @Test
+        @DisplayName("InitializeModel Test main process")
+        void testInitializeModelMergeNode(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("node1");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("node2");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            batchMetadataUpdateMap.put("node1",metadataInstancesDto1);
+            batchMetadataUpdateMap.put("node2",metadataInstancesDto2);
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            metadataInstancesDto3.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto3.setNodeId("mergeNode");
+            metadataInstancesDto3.setOriginalName("name3");
+            metadataInstancesDto3.setQualifiedName("test3");
+            metadataInstancesDto3.setMetaType("processor_node");
+            batchInsertMetaDataList.add(metadataInstancesDto3);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG mocDag = mock(DAG.class);
+            taskDto.setDag(mocDag);
+            transformerWsMessageDto.setTaskDto(taskDto);
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
+                ReflectionTestUtils.setField(dagDataEngineService,"batchMetadataUpdateMap",batchMetadataUpdateMap);
+                ReflectionTestUtils.setField(dagDataEngineService,"batchInsertMetaDataList",batchInsertMetaDataList);
+                ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
+                beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
+                when(configurationCenter.getConfig(any())).thenReturn("agentId");
+                List<Node> nodes = new ArrayList<>();
+                MergeTableNode mergeTableNode = new MergeTableNode();
+                mergeTableNode.setId("mergeNode");
+                nodes.add(mergeTableNode);
+                when(mocDag.getNodes()).thenReturn(nodes);
+                List<Node> predecessors = new ArrayList<>();
+                TableNode tableNode1 = new TableNode();
+                tableNode1.setId("node1");
+                TableNode tableNode2 = new TableNode();
+                tableNode2.setId("node2");
+                predecessors.add(tableNode1);
+                predecessors.add(tableNode2);
+                when(mocDag.predecessors("mergeNode")).thenReturn(predecessors);
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertEquals(3,tapTableMapHashMap.get("mergeNode").size());
+            }
+        }
+
+        @Test
+        void testInitializeModelLogCollectorNode(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("test");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            metadataMap.put("node1",metadataInstancesDto1);
+            metadataMap.put("node2",metadataInstancesDto2);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG mocDag = mock(DAG.class);
+            taskDto.setDag(mocDag);
+            transformerWsMessageDto.setTaskDto(taskDto);
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
+                ReflectionTestUtils.setField(dagDataEngineService,"metadataMap",metadataMap);
+                ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
+                beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
+                when(configurationCenter.getConfig(any())).thenReturn("agentId");
+                List<Node> nodes = new ArrayList<>();
+                LogCollectorNode logCollectorNode = new LogCollectorNode();
+                logCollectorNode.setId("LogCollectorNode");
+                nodes.add(logCollectorNode);
+                when(mocDag.getNodes()).thenReturn(nodes);
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertEquals(2,tapTableMapHashMap.get("LogCollectorNode").size());
+            }
+        }
+
+        @Test
+        void testInitializeModelLogCollectorNodeConnConfigsIsNotNull(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            SourceDto sourceDto1 = new SourceDto();
+            sourceDto1.set_id("s_1");
+            metadataInstancesDto1.setSource(sourceDto1);
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("test");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            SourceDto sourceDto2 = new SourceDto();
+            sourceDto2.set_id("s_2");
+            metadataInstancesDto2.setSource(sourceDto2);
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            metadataInstancesDto3.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto3.setNodeId("test3");
+            metadataInstancesDto3.setOriginalName("name3");
+            metadataInstancesDto3.setQualifiedName("test3");
+            metadataInstancesDto3.setMetaType("table");
+            SourceDto sourceDto3 = new SourceDto();
+            sourceDto3.set_id("s_3");
+            metadataInstancesDto3.setSource(sourceDto3);
+            metadataMap.put("node1",metadataInstancesDto1);
+            metadataMap.put("node2",metadataInstancesDto2);
+            metadataMap.put("node3",metadataInstancesDto3);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG mocDag = mock(DAG.class);
+            taskDto.setDag(mocDag);
+            transformerWsMessageDto.setTaskDto(taskDto);
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
+                ReflectionTestUtils.setField(dagDataEngineService,"metadataMap",metadataMap);
+                ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
+                beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
+                when(configurationCenter.getConfig(any())).thenReturn("agentId");
+                List<Node> nodes = new ArrayList<>();
+                LogCollectorNode logCollectorNode = new LogCollectorNode();
+                logCollectorNode.setId("LogCollectorNode");
+                Map<String, LogCollecotrConnConfig> connConfigs = new HashMap<>();
+                connConfigs.put("test1",new LogCollecotrConnConfig());
+                logCollectorNode.setLogCollectorConnConfigs(connConfigs);
+                Connections connections1 = new Connections();
+                connections1.setId("s_1");
+                connections1.setNamespace(Arrays.asList("C##Test1"));
+                Connections connections2 = new Connections();
+                connections2.setId("s_2");
+                connections2.setNamespace(Arrays.asList("C##Test2"));
+                connections2.setNamespace(Arrays.asList("C##Test2"));
+                List<Connections>connections = new ArrayList<>();
+                connections.add(connections1);
+                connections.add(connections2);
+                nodes.add(logCollectorNode);
+                when(clientMongoOperator.find(any(Query.class),any(),any())).thenReturn(new ArrayList<>(connections));
+                when(mocDag.getNodes()).thenReturn(nodes);
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertEquals(2,tapTableMapHashMap.get("LogCollectorNode").size());
+            }
+        }
+        @Test
+        void testInitializeModelLogCollectorNodeConnConfigsIsEmpt(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("test");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            metadataMap.put("node1",metadataInstancesDto1);
+            metadataMap.put("node2",metadataInstancesDto2);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG mocDag = mock(DAG.class);
+            taskDto.setDag(mocDag);
+            transformerWsMessageDto.setTaskDto(taskDto);
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,tapTableMapHashMap,clientMongoOperator);
+                ReflectionTestUtils.setField(dagDataEngineService,"metadataMap",metadataMap);
+                ConfigurationCenter configurationCenter = mock(ConfigurationCenter.class);
+                beanUtilMockedStatic.when(()->BeanUtil.getBean(any())).thenReturn(configurationCenter);
+                when(configurationCenter.getConfig(any())).thenReturn("agentId");
+                List<Node> nodes = new ArrayList<>();
+                LogCollectorNode logCollectorNode = new LogCollectorNode();
+                logCollectorNode.setId("LogCollectorNode");
+                logCollectorNode.setLogCollectorConnConfigs(new HashMap<>());
+                nodes.add(logCollectorNode);
+                when(mocDag.getNodes()).thenReturn(nodes);
+                dagDataEngineService.initializeModel(true);
+                Assertions.assertEquals(2,tapTableMapHashMap.get("LogCollectorNode").size());
             }
         }
 
