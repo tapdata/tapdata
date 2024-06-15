@@ -2,10 +2,12 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.google.common.collect.Lists;
+import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DmlPolicy;
@@ -24,6 +26,8 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.entity.Capability;
@@ -35,11 +39,13 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.utils.UnitTestUtils;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -664,4 +670,27 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			}
 		}
 	}
+
+    @Nested
+    class HandleTapdataEventsTest {
+        @Test
+        void testHandleTapdataEvents() {
+            List<TapdataEvent> tapdataEvents = new ArrayList<>();
+            doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEvents(any());
+            JetJobStatusMonitor jobStatusMonitor = mock(JetJobStatusMonitor.class);
+            when(jobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+
+            UnitTestUtils.injectField(HazelcastBaseNode.class, hazelcastTargetPdkBaseNode, "running", new AtomicBoolean(true));
+            UnitTestUtils.injectField(HazelcastBaseNode.class, hazelcastTargetPdkBaseNode, "jetJobStatusMonitor", jobStatusMonitor);
+            UnitTestUtils.injectField(HazelcastTargetPdkBaseNode.class, hazelcastTargetPdkBaseNode, "firstStreamEvent", new AtomicBoolean(false));
+            UnitTestUtils.injectField(HazelcastTargetPdkBaseNode.class, hazelcastTargetPdkBaseNode, "exactlyOnceWriteNeedLookupTables", new ConcurrentHashMap<>());
+            when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(mock(ConnectorNode.class));
+
+//            hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents);
+
+            tapdataEvents.add(TapdataStartedCdcEvent.create());
+            hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents);
+
+        }
+    }
 }
