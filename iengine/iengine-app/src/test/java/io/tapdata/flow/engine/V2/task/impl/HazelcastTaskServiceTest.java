@@ -727,5 +727,33 @@ public class HazelcastTaskServiceTest {
                 HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
             }
         }
+
+        @Test
+        void testNormalTask(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            try(MockedStatic<TapTableMap> tableMapMockedStatic = mockStatic(TapTableMap.class)){
+                tableMapMockedStatic.when(()->TapTableMap.create(anyString())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+                    return null;
+                });
+                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+            }
+        }
+
+        @Test
+        void testNormalTaskTapTableMapHashMapIsNotNull(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+            TapTableMap<String, TapTable> except =  TapTableMap.create("databaseNode");
+            tapTableMapHashMap.put("databaseNode",except);
+            TapTableMap<String, TapTable> result = HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,tapTableMapHashMap);
+            Assertions.assertEquals(except,result);
+        }
     }
 }
