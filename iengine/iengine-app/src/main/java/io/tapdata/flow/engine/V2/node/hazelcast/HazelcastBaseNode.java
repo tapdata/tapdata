@@ -928,18 +928,18 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return obsLogger;
 	}
 	public Consumer<RuntimeException> buildErrorConsumer(String tableName){
-		return error -> {
-			Throwable pdkBaseThrowable = CommonUtils.matchThrowable(error, TapPdkBaseException.class);
+		return err -> {
+			Throwable pdkBaseThrowable = CommonUtils.matchThrowable(err, TapPdkBaseException.class);
 			if (null != pdkBaseThrowable) {
-				((TapPdkBaseException)error).setTableName(tableName);
-				throw error;
+				((TapPdkBaseException)err).setTableName(tableName);
+				throw err;
 			}
-			Throwable pdkUnknownThrowable = CommonUtils.matchThrowable(error, TapPdkRunnerUnknownException.class);
+			Throwable pdkUnknownThrowable = CommonUtils.matchThrowable(err, TapPdkRunnerUnknownException.class);
 			if (null != pdkUnknownThrowable) {
-				((TapPdkRunnerUnknownException)error).setTableName(tableName);
-				throw error;
+				((TapPdkRunnerUnknownException)err).setTableName(tableName);
+				throw err;
 			}
-			throw error;
+			throw err;
 		};
 	}
 }
