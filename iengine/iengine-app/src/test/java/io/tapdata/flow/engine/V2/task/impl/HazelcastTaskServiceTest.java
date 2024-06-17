@@ -37,6 +37,7 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -707,6 +708,52 @@ public class HazelcastTaskServiceTest {
                 });
             }
 
+        }
+    }
+
+    @Nested
+    class GetTapTableMapTest{
+        @Test
+        void testTaskTypeIsTestRun(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("testRun");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            try(MockedStatic<TapTableUtil> tapTableUtilMockedStatic = mockStatic(TapTableUtil.class)){
+                tapTableUtilMockedStatic.when(()->TapTableUtil.getTapTableMapByNodeId(anyString(),any())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+                    return null;
+                });
+                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+            }
+        }
+
+        @Test
+        void testNormalTask(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            try(MockedStatic<TapTableMap> tableMapMockedStatic = mockStatic(TapTableMap.class)){
+                tableMapMockedStatic.when(()->TapTableMap.create(anyString())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+                    return null;
+                });
+                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+            }
+        }
+
+        @Test
+        void testNormalTaskTapTableMapHashMapIsNotNull(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+            TapTableMap<String, TapTable> except =  TapTableMap.create("databaseNode");
+            tapTableMapHashMap.put("databaseNode",except);
+            TapTableMap<String, TapTable> result = HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,tapTableMapHashMap);
+            Assertions.assertEquals(except,result);
         }
     }
 }
