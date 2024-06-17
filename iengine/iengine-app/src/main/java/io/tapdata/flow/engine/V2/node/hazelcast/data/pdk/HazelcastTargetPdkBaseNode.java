@@ -298,15 +298,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
 							}
 						}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId()))));
+				clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
+						ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 			} else {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new CreateTableFuncAspect()
 						.createTableEvent(tapCreateTableEvent.get())
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
+				clientMongoOperator.insertOne(Collections.singletonList(tapTable),
+						ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 			}
-			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
-					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+
 		} catch (Throwable throwable) {
 			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 			if (null != matched) {
