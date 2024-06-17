@@ -91,33 +91,29 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
 		}
 	}
-	public void startIMClient(List<String> baseURLs, String accessToken) {
+	public synchronized void startIMClient(List<String> baseURLs, String accessToken) {
 		if(imClient == null) {
-			synchronized (this) {
-				if(imClient == null) {
-					List<String> newBaseUrls = new ArrayList<>();
-					for(String baseUrl : baseURLs) {
-						if(!baseUrl.endsWith("/"))
-							baseUrl = baseUrl + "/";
-						newBaseUrls.add(baseUrl + "proxy");//?access_token=" + accessToken);
-					}
-					imClient = new IMClientBuilder()
-							.withBaseUrl(newBaseUrls)
-							.withService("engine")
-							.withPrefix("e")
-							.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
-							.withTerminal(1)
-							.withToken(accessToken)
-							.build();
-					imClient.start();
-					EventManager eventManager = EventManager.getInstance();
-					eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
-					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
-				}
+			List<String> newBaseUrls = new ArrayList<>();
+			for(String baseUrl : baseURLs) {
+				if(!baseUrl.endsWith("/"))
+					baseUrl = baseUrl + "/";
+				newBaseUrls.add(baseUrl + "proxy");//?access_token=" + accessToken);
 			}
+			imClient = new IMClientBuilder()
+					.withBaseUrl(newBaseUrls)
+					.withService("engine")
+					.withPrefix("e")
+					.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
+					.withTerminal(1)
+					.withToken(accessToken)
+					.build();
+			imClient.start();
+			EventManager eventManager = EventManager.getInstance();
+			eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
+			//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
+			eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
+			eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
+			eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
 		}
 	}
 

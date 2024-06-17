@@ -18,6 +18,8 @@ import org.voovan.network.tcp.TcpSocket;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -357,9 +359,18 @@ public class CustomTcp {
 	 * @author lidi
 	 * @date 2021/5/18 11:49
 	 */
-	private static String getStringRandom(int length) {
+	private static Random random;
+
+    static {
+        try {
+            random = SecureRandom.getInstanceStrong();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static String getStringRandom(int length) {
 		String val = "";
-		Random random = new Random();
 		//参数length，表示生成几位随机数
 		for (int i = 0; i < length; i++) {
 			String charOrNum = random.nextInt(2) % 2 == 0 ? "char" : "num";

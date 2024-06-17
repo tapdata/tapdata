@@ -280,6 +280,9 @@ public class TapdataTaskScheduler {
 		while (true) {
 			System.out.println(schedule.isDone());
 			Thread.sleep(1000);
+			if (Thread.currentThread().isInterrupted()){
+				break;
+			}
 		}
 	}
 
