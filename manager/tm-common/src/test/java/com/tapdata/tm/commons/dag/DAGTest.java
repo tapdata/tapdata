@@ -2,10 +2,14 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.task.dto.Message;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -253,5 +257,26 @@ public class DAGTest {
             verify(options, times(0)).setIsomorphismTask(anyBoolean());
         }
 
+    }
+    @Nested
+    class TransformSchemaTest{
+        @BeforeEach
+        void setUp(){
+            ReflectionTestUtils.setField(dag,"taskId",new ObjectId());
+        }
+        @Test
+        void testConsumerIsNotNull(){
+            doCallRealMethod().when(dag).transformSchema(any(),any(DAGDataService.class),any(DAG.Options.class),any());
+            Assertions.assertThrows(RuntimeException.class,()->{
+                dag.transformSchema("test",mock(DAGDataServiceImpl.class),mock(DAG.Options.class),(e) -> {throw new RuntimeException(e);});
+            });
+        }
+
+        @Test
+        void testConsumerIsNull(){
+            doCallRealMethod().when(dag).transformSchema(any(),any(DAGDataService.class),any(DAG.Options.class),any());
+            Map<String,List<Message>> result = dag.transformSchema("test",mock(DAGDataServiceImpl.class),mock(DAG.Options.class),null);
+            Assertions.assertEquals(1,result.size());
+        }
     }
 }

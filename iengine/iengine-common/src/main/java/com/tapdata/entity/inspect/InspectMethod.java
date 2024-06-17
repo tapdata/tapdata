@@ -19,22 +19,26 @@ public enum InspectMethod {
 	HASH("hash")
 	;
 
-	private final String name;
+	private final String code;
 
-	InspectMethod(String name) {
-		this.name = name;
+	InspectMethod(String code) {
+		this.code = code;
 	}
 
 	private static Map<String, InspectMethod> map = new HashMap<>();
 
 	static {
 		for (InspectMethod value : InspectMethod.values()) {
-			map.put(value.name, value);
+			map.put(value.code, value);
 		}
 	}
 
-	public boolean equalsString(String name) {
-		return this.name.equals(name);
+    public String getCode() {
+        return code;
+    }
+
+    public boolean equalsString(String name) {
+		return this.code.equals(name);
 	}
 
 	public static InspectMethod get(String name) {

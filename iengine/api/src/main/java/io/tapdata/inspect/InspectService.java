@@ -30,4 +30,6 @@ public interface InspectService {
     void inspectHeartBeat(String id);
     Inspect getInspectById(String id);
 
+    void handleDiffInspect(Inspect inspect,long syncTaskDelay,InspectResult inspectResult);
+
 }

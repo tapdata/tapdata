@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.task.impl;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.mongodb.MongoClientException;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
@@ -11,17 +12,21 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
@@ -30,24 +35,23 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProc
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.sql.Connection;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
+
 
 public class HazelcastTaskServiceTest {
     @Nested
@@ -464,7 +468,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto,true);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -480,8 +484,37 @@ public class HazelcastTaskServiceTest {
                 TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testNodeId", tableNameAndQualifiedNameMap);
                 tapTableMap.put("testNodeId", new TapTable());
 
-                when(hazelcastTaskService.getTapTableMap(any(), any(), any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto);
+                when(hazelcastTaskService.getTapTableMap(any(), any(), any(),any())).thenReturn(tapTableMap);
+                hazelcastTaskService.task2HazelcastDAG(taskDto,true);
+                verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
+            }
+        }
+
+        @DisplayName("test task2HazelcastDAG method when node is tableNode")
+        @Test
+        void test2() {
+            try (MockedStatic<HazelcastTaskService> hazelcastTaskServiceMockedStatic = mockStatic(HazelcastTaskService.class);
+                 MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
+
+                TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto,false);
+
+                when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
+                Connections connections = new Connections();
+                connections.setPdkHash("dummy");
+                when(hazelcastTaskService.getConnection(anyString())).thenReturn(connections);
+                DatabaseTypeEnum.DatabaseType databaseType = mock(DatabaseTypeEnum.DatabaseType.class);
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(any(), any())).thenReturn(databaseType);
+
+                HashMap<String, String> stringStringHashMap = new HashMap<>();
+                stringStringHashMap.put("testNodeId", "testQualifiedName");
+                HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap();
+                tableNameAndQualifiedNameMap.put("testNodeId", "1234");
+                TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testNodeId", tableNameAndQualifiedNameMap);
+                tapTableMap.put("testNodeId", new TapTable());
+
+                when(hazelcastTaskService.getTapTableMap(any(), any(), any(),any())).thenReturn(tapTableMap);
+                hazelcastTaskService.task2HazelcastDAG(taskDto,false);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
@@ -566,5 +599,114 @@ public class HazelcastTaskServiceTest {
         }
 
 
+    }
+    @Nested
+    class EngineTransformSchemaTest{
+        HazelcastTaskService hazelcastTaskService;
+        ClientMongoOperator clientMongoOperator;
+        @BeforeEach
+        void init(){
+            clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+        }
+
+        @DisplayName("test initializeModel main process")
+        @Test
+        void test1() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            taskDto.setSyncType("sync");
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
+                obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                TransformerWsMessageDto transformerWsMessageDto = new TransformerWsMessageDto();
+                transformerWsMessageDto.setMetadataInstancesDtoList(new ArrayList<>());
+                transformerWsMessageDto.setUserId("test");
+                DAG.Options options = new DAG.Options();
+                options.setUuid("test");
+                transformerWsMessageDto.setOptions(options);
+                transformerWsMessageDto.setDefinitionDtoMap(new HashMap<>());
+                transformerWsMessageDto.setDataSourceMap(new HashMap<>());
+                transformerWsMessageDto.setTransformerDtoMap(new HashMap<>());
+                transformerWsMessageDto.setTaskDto(taskDto);
+                mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
+                when(clientMongoOperator.findOne(any(Query.class),any(),any())).thenReturn(transformerWsMessageDto);
+                DAG cloneDag = mock(DAG.class);
+
+                when(dag.clone()).thenReturn(cloneDag);
+                when(cloneDag.transformSchema(any(),any(),any())).thenReturn(new HashMap<>());
+                Map<String,TapTableMap<String, TapTable>> result = hazelcastTaskService.engineTransformSchema(taskDto);
+                Assertions.assertNotNull(result);
+            } catch (CloneNotSupportedException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
+
+
+        @DisplayName("test initializeModel Deduction error")
+        @Test
+        void test2() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            taskDto.setSyncType("migrate");
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
+                obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                TransformerWsMessageDto transformerWsMessageDto = new TransformerWsMessageDto();
+                transformerWsMessageDto.setMetadataInstancesDtoList(new ArrayList<>());
+                transformerWsMessageDto.setUserId("test");
+                DAG.Options options = new DAG.Options();
+                options.setUuid("test");
+                transformerWsMessageDto.setOptions(options);
+                transformerWsMessageDto.setDefinitionDtoMap(new HashMap<>());
+                transformerWsMessageDto.setDataSourceMap(new HashMap<>());
+                transformerWsMessageDto.setTransformerDtoMap(new HashMap<>());
+                transformerWsMessageDto.setTaskDto(taskDto);
+                mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
+                when(clientMongoOperator.findOne(any(Query.class),any(),any())).thenReturn(transformerWsMessageDto);
+                DAG cloneDag = mock(DAG.class);
+                when(dag.clone()).thenReturn(cloneDag);
+                doThrow(new MongoClientException("")).when(cloneDag).transformSchema(any(),any(),any(),any());
+                Assertions.assertThrows(TapCodeException.class,()->{
+                    hazelcastTaskService.engineTransformSchema(taskDto);
+                });
+            } catch (CloneNotSupportedException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
+
+        @DisplayName("test initializeModel get TransformerWsMessageDto error")
+        @Test
+        void test3() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            taskDto.setSyncType("migrate");
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
+                mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
+                obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                Assertions.assertThrows(TapCodeException.class,()->{
+                    hazelcastTaskService.engineTransformSchema(taskDto);
+                });
+            }
+
+        }
     }
 }

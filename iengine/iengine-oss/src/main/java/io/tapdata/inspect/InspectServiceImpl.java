@@ -74,4 +74,9 @@ public class InspectServiceImpl implements InspectService{
     public Inspect getInspectById(String id) {
         throw new TapOssNonsupportFunctionException();
     }
+
+    @Override
+    public void handleDiffInspect(Inspect inspect, long syncTaskDelay,InspectResult inspectResult) {
+        throw new TapOssNonsupportFunctionException();
+    }
 }

@@ -149,6 +149,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected Boolean unwindProcess = false;
 	protected boolean illegalDateAcceptable = false;
+	protected ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -178,6 +179,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
+		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -187,6 +189,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			createPdkAndInit(context);
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
+		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
 	protected void initExactlyOnceWriteIfNeed() {
@@ -211,7 +214,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			TapCreateIndexEvent indexEvent = createIndexEvent(exactlyOnceTable.getId(), exactlyOnceTable.getIndexList());
 			PDKInvocationMonitor.invoke(
 					getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX,
-					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG);
+					() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), exactlyOnceTable, indexEvent), TAG, buildErrorConsumer(exactlyOnceTable.getId()));
 		}
 		Node node = getNode();
 		if (node instanceof TableNode) {
@@ -268,12 +271,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
 			createdTable = createTableV2Function != null || createTableFunction != null;
 			TapTable finalTapTable = new TapTable();
-			BeanUtil.copyProperties(tapTable,finalTapTable);
-			if(unwindProcess){
-				ignorePksAndIndices(finalTapTable, null);
-			}
 			if (createdTable) {
-				handleTapTablePrimaryKeys(finalTapTable);
+				handleTapTablePrimaryKeys(tapTable);
+				BeanUtil.copyProperties(tapTable,finalTapTable);
+				if(unwindProcess){
+					ignorePksAndIndices(finalTapTable, null);
+				}
 				tapCreateTableEvent.set(createTableEvent(finalTapTable));
 				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 						.createTableEvent(tapCreateTableEvent.get())
@@ -289,7 +292,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 							} else {
 								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
 							}
-						}, TAG)));
+						}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId()))));
 			} else {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new CreateTableFuncAspect()
@@ -1068,6 +1071,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
+		everHandleTapTablePrimaryKeysMap.computeIfAbsent(tapTable.getId(), (value) -> {
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
 			List<String> updateConditionFields = updateConditionFieldsMap.get(tapTable.getId());
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
@@ -1088,6 +1092,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			// 没有关联条件，清空主键信息
 			ignorePksAndIndices(tapTable, null);
 		}
+		return true;
+		});
 	}
 
 	protected static void ignorePksAndIndices(TapTable tapTable, List<String> logicPrimaries) {

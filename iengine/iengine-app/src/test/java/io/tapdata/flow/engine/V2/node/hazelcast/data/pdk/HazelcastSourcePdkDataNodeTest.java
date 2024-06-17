@@ -1,10 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -12,12 +9,14 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -47,6 +46,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -54,12 +54,14 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -1591,5 +1593,51 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 		}
 
+	}
+
+	@Nested
+	class createTargetIndexTest{
+		private List<String> updateConditionFields;
+		private boolean createUnique;
+		private String tableId;
+		private TapTable tapTable;
+		private ClientMongoOperator clientMongoOperator;
+		@BeforeEach
+		void beforeEach(){
+			updateConditionFields = new ArrayList<>();
+			updateConditionFields.add("field");
+			createUnique = true;
+			tableId = "test";
+			tapTable = mock(TapTable.class);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"obsLogger",mockObsLogger);
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"clientMongoOperator",clientMongoOperator);
+		}
+		@Test
+		@DisplayName("test createTargetIndex method for build error consumer")
+		void test1(){
+			try (MockedStatic<TapInterfaceUtil> mb = Mockito
+					.mockStatic(TapInterfaceUtil.class)) {
+				Connections connections = mock(Connections.class);
+				when(dataProcessorContext.getConnections()).thenReturn(connections);
+				when(connections.getDatabase_type()).thenReturn("test");
+				mb.when(()->TapInterfaceUtil.getTapInterface("test",null)).thenReturn(null);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(hazelcastSourcePdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+				ConnectorFunctions functions = mock(ConnectorFunctions.class);
+				when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+				when(functions.getCreateIndexFunction()).thenReturn(mock(CreateIndexFunction.class));
+				ArrayList<String> pks = new ArrayList<>();
+				when(tapTable.primaryKeys()).thenReturn(pks);
+				when(hazelcastSourcePdkDataNode.usePkAsUpdateConditions(updateConditionFields,pks)).thenReturn(false);
+				doCallRealMethod().when(hazelcastSourcePdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+				try (MockedStatic<SchemaProxy> schemaProxyMockedStatic = Mockito
+						.mockStatic(SchemaProxy.class)) {
+					schemaProxyMockedStatic.when(SchemaProxy::getSchemaProxy).thenReturn(mock(SchemaProxy.class));
+					hazelcastSourcePdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable);
+					verify(hazelcastSourcePdkDataNode,new Times(1)).buildErrorConsumer(tableId);
+				}
+			}
+		}
 	}
 }

@@ -307,4 +307,76 @@ class WorkerServiceTest {
         }
 
     }
+    @Nested
+    class checkEngineVersionTest{
+        @DisplayName("Test main process")
+        @Test
+        void test(){
+            when(settingsService.isCloud()).thenReturn(true);
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setVersion("v3.7.0-65db776b");
+            Worker worker2 = new Worker();
+            worker2.setVersion("v3.5.11-65db776b");
+            workers.add(worker1);
+            workers.add(worker2);
+            doReturn(workers).when(workerService).findAvailableAgent(any());
+            Assertions.assertFalse(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+
+        @DisplayName("Test version matching")
+        @Test
+        void testEngineVersionIsCloud(){
+            when(settingsService.isCloud()).thenReturn(true);
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setVersion("v3.8.0-65db776b");
+            workers.add(worker1);
+            doReturn(workers).when(workerService).findAvailableAgent(any());
+            Assertions.assertTrue(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+
+        @DisplayName("Test version mismatch")
+        @Test
+        void testEngineVersionMismatch(){
+            when(settingsService.isCloud()).thenReturn(true);
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setVersion("v3.8.0-65db776b");
+            Worker worker2 = new Worker();
+            worker2.setVersion("v3.5.11-65db776b");
+            workers.add(worker1);
+            workers.add(worker2);
+            doReturn(workers).when(workerService).findAvailableAgent(any());
+            Assertions.assertFalse(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+
+        @DisplayName("Test version Worker is Null")
+        @Test
+        void testWorkerIsNull(){
+            when(settingsService.isCloud()).thenReturn(true);
+            List<Worker> workers = new ArrayList<>();
+            doReturn(workers).when(workerService).findAvailableAgent(any());
+            Assertions.assertFalse(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+
+        @DisplayName("Test version Worker version is null")
+        @Test
+        void testWorkerVersionIsNull(){
+            when(settingsService.isCloud()).thenReturn(true);
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setVersion(null);
+            workers.add(worker1);
+            doReturn(workers).when(workerService).findAvailableAgent(any());
+            Assertions.assertFalse(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+
+        @DisplayName("Test version is DASS")
+        @Test
+        void testEngineVersionDASS(){
+            when(settingsService.isCloud()).thenReturn(false);
+            Assertions.assertTrue(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+    }
 }

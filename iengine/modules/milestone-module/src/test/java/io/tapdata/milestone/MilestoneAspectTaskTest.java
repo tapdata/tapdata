@@ -20,18 +20,7 @@ import io.tapdata.aspect.TableInitFuncAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
-import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
-import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
-import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.logger.Log;
@@ -69,6 +58,7 @@ import java.util.function.Function;
 import static io.tapdata.aspect.DataFunctionAspect.STATE_END;
 import static io.tapdata.aspect.DataFunctionAspect.STATE_START;
 import static io.tapdata.aspect.TableInitFuncAspect.STATE_PROCESS;
+import static io.tapdata.aspect.taskmilestones.EngineDeductionAspect.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -1333,6 +1323,35 @@ class MilestoneAspectTaskTest {
 			snapshot.setStatus(MilestoneStatus.FINISH);
 			cdc.setStatus(MilestoneStatus.FINISH);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_CDC, milestoneAspectTask.getTaskSyncStatus());
+		}
+	}
+	@Nested
+	class handleEngineDeductionTest{
+		EngineDeductionAspect aspect;
+		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+		@BeforeEach
+		void init() {
+			aspect = mock(EngineDeductionAspect.class);
+			when(aspect.getState()).thenReturn(DEDUCTION_START);
+			when(milestoneAspectTask.handleEngineDeduction(aspect)).thenCallRealMethod();
+		}
+
+
+		@Test
+		void testDEDUCTION_START() {
+			Assertions.assertNull(milestoneAspectTask.handleEngineDeduction(aspect));
+		}
+
+		@Test
+		void testDEDUCTION_END() {
+			when(aspect.getState()).thenReturn(DEDUCTION_END);
+			Assertions.assertNull(milestoneAspectTask.handleEngineDeduction(aspect));
+		}
+
+		@Test
+		void testDEDUCTION_ERROR() {
+			when(aspect.getState()).thenReturn(DEDUCTION_ERROR);
+			Assertions.assertNull(milestoneAspectTask.handleEngineDeduction(aspect));
 		}
 	}
 
