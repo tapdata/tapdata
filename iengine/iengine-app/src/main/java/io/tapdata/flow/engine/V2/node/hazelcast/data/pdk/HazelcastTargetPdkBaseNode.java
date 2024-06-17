@@ -182,7 +182,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
-	@Override
+    @Override
+    protected boolean isRunning() {
+        return super.isRunning();
+    }
+
+    @Override
 	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInitWithDisableNode(context);
@@ -622,7 +627,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-    private void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents
+    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents
         , AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache
         , List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
         try {
@@ -655,7 +660,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    private void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
+    protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
@@ -673,7 +678,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    private void handleAspectWithSyncStage(SyncStage syncStage) {
+    protected void handleAspectWithSyncStage(SyncStage syncStage) {
         switch (syncStage) {
             case INITIAL_SYNC:
                 if (firstBatchEvent.compareAndSet(false, true)) {
@@ -692,7 +697,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    private void handleTapdataEvent(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
+    protected void handleTapdataEvent(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
         if (tapdataEvent.isDML()) {
             handleTapdataEventDML(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
         } else if (tapdataEvent.isDDL()) {
@@ -704,7 +709,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    private void handleTapdataEventDML(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
+    protected void handleTapdataEventDML(List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache, List<TapRecordEvent> exactlyOnceWriteCache, AtomicReference<TapdataEvent> lastTapdataEvent, TapdataEvent tapdataEvent) throws JsonProcessingException {
         TapRecordEvent tapRecordEvent = handleTapdataRecordEvent(tapdataEvent);
         if (null == tapRecordEvent) {
             return;

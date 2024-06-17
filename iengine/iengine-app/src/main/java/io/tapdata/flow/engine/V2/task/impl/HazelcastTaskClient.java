@@ -165,7 +165,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
             CommonUtils.handleAnyError(
                 () -> {
                     autoRecovery.close();
-                    obsLogger.info(String.format("Closed task auto recovery instance\n%s", autoRecovery));
+                    obsLogger.info(String.format("Closed task auto recovery instance\n  %s", autoRecovery));
                 },
                 err -> {
                     obsLogger.warn(String.format("Closed task auto recovery instance failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
