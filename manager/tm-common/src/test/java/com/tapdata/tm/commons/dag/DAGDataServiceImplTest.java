@@ -3,29 +3,22 @@ package com.tapdata.tm.commons.dag;
 import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.mockito.internal.stubbing.answers.CallsRealMethods;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
+import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 
 class DAGDataServiceImplTest {
@@ -90,6 +83,74 @@ class DAGDataServiceImplTest {
                 verify(service, times(1)).processFieldToDB(any(Schema.class), any(MetadataInstancesDto.class), any(DataSourceConnectionDto.class), anyBoolean());
                 mockedStatic.verify(() -> ChangeRuleStage.changeStart(any(MetadataInstancesDto.class), any(DAG.Options.class)), times(0));
             }
+        }
+    }
+    @Nested
+    class clearTransformerTest{
+        DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(mock(TransformerWsMessageDto.class));
+        @Test
+        void test(){
+            dagDataService.clearTransformer();
+            Assertions.assertTrue(dagDataService.getBatchMetadataUpdateMap().isEmpty());
+            Assertions.assertTrue(dagDataService.getBatchInsertMetaDataList().isEmpty());
+            Assertions.assertTrue(dagDataService.getUpsertItems().isEmpty());
+        }
+    }
+    @Nested
+    class logCollectorMetadataInstancesDtoTest{
+        DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(mock(TransformerWsMessageDto.class));
+        Map<String, MetadataInstancesDto> metadataMap = new HashMap<>();
+        @Test
+        void test(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("test");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            metadataMap.put("node1",metadataInstancesDto1);
+            metadataMap.put("node2",metadataInstancesDto2);
+            ReflectionTestUtils.setField(dagDataService,"metadataMap",metadataMap);
+            Assertions.assertEquals(2,dagDataService.getLogCollectorMetadataInstancesDto().size());
+        }
+
+        @Test
+        void testMetaDataMapIsNull(){
+            ReflectionTestUtils.setField(dagDataService,"metadataMap",metadataMap);
+            Assertions.assertEquals(0,dagDataService.getLogCollectorMetadataInstancesDto().size());
+        }
+
+        @Test
+        void testQualifiedNameIsNullOne(){
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto2.setNodeId("test");
+            metadataInstancesDto2.setOriginalName("name2");
+            metadataInstancesDto2.setQualifiedName("test2");
+            metadataInstancesDto2.setMetaType("table");
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            metadataInstancesDto3.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto3.setNodeId("test");
+            metadataInstancesDto3.setOriginalName("name2");
+            metadataInstancesDto3.setQualifiedName("test2");
+            metadataInstancesDto3.setMetaType("table");
+            metadataMap.put("node1",metadataInstancesDto1);
+            metadataMap.put("node2",metadataInstancesDto2);
+            metadataMap.put("node3",metadataInstancesDto3);
+            ReflectionTestUtils.setField(dagDataService,"metadataMap",metadataMap);
+            Assertions.assertEquals(2,dagDataService.getLogCollectorMetadataInstancesDto().size());
         }
     }
 

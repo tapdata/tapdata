@@ -53,6 +53,11 @@ public class Inspect extends BaseEntity implements Serializable {
 
 	private String inspectResultId;     // 重新校验时，指定 inspect result id
 
+	private Integer diffInspectTimes;
+
+
+
+
 	/**
 	 * Inspect mode
 	 */

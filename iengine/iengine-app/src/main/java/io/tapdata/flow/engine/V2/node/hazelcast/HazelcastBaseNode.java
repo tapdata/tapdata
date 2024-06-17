@@ -48,6 +48,7 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.TapPdkBaseException;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -62,6 +63,8 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.error.TapPdkRunnerExCode_18;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skipError.SkipError;
@@ -80,6 +83,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -922,5 +926,20 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public ObsLogger getObsLogger() {
 		return obsLogger;
+	}
+	public Consumer<RuntimeException> buildErrorConsumer(String tableName){
+		return error -> {
+			Throwable pdkBaseThrowable = CommonUtils.matchThrowable(error, TapPdkBaseException.class);
+			if (null != pdkBaseThrowable) {
+				((TapPdkBaseException)error).setTableName(tableName);
+				throw error;
+			}
+			Throwable pdkUnknownThrowable = CommonUtils.matchThrowable(error, TapPdkRunnerUnknownException.class);
+			if (null != pdkUnknownThrowable) {
+				((TapPdkRunnerUnknownException)error).setTableName(tableName);
+				throw error;
+			}
+			throw error;
+		};
 	}
 }

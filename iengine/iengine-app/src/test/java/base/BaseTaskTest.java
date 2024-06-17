@@ -3,6 +3,7 @@ package base;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -20,6 +21,7 @@ public abstract class BaseTaskTest extends BaseTest {
 	protected DataProcessorContext dataProcessorContext;
 	protected TableNode tableNode;
 	protected TaskDto taskDto;
+	protected DatabaseNode databaseNode;
 
 	protected void allSetup() {
 		setupTaskAndNode();
@@ -42,6 +44,22 @@ public abstract class BaseTaskTest extends BaseTest {
 		dataProcessorContext = mock(DataProcessorContext.class);
 		when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
 		when(dataProcessorContext.getNode()).thenReturn((Node) tableNode);
+		when(dataProcessorContext.getEdges()).thenReturn(taskDto.getDag().getEdges());
+		when(dataProcessorContext.getNodes()).thenReturn(taskDto.getDag().getNodes());
+	}
+	protected void setUpDatabaseNode() {
+		taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("migrationdummy2dummy.json");
+		databaseNode = (DatabaseNode) taskDto.getDag().getNodes().get(1);
+
+		processorBaseContext = mock(ProcessorBaseContext.class);
+		when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+		when(processorBaseContext.getNode()).thenReturn((Node) databaseNode);
+		when(processorBaseContext.getEdges()).thenReturn(taskDto.getDag().getEdges());
+		when(processorBaseContext.getNodes()).thenReturn(taskDto.getDag().getNodes());
+
+		dataProcessorContext = mock(DataProcessorContext.class);
+		when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+		when(dataProcessorContext.getNode()).thenReturn((Node) databaseNode);
 		when(dataProcessorContext.getEdges()).thenReturn(taskDto.getDag().getEdges());
 		when(dataProcessorContext.getNodes()).thenReturn(taskDto.getDag().getNodes());
 	}

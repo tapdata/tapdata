@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import static io.tapdata.aspect.TableInitFuncAspect.STATE_END;
 import static io.tapdata.aspect.TableInitFuncAspect.STATE_START;
 import static io.tapdata.aspect.TableInitFuncAspect.STATE_PROCESS;
+import static io.tapdata.aspect.taskmilestones.EngineDeductionAspect.*;
 
 /**
  * 设计要点：
@@ -66,6 +67,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     protected static final String KPI_SNAPSHOT_WRITE = "SNAPSHOT_WRITE";
     protected static final String KPI_CDC_WRITE = "CDC_WRITE";
     protected static final String KPI_TABLE_INIT = "TABLE_INIT";
+    protected static final String KPI_DEDUCTION = "DEDUCTION";
 
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
     private final Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
@@ -88,7 +90,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         observerHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessNodeInit);
         observerHandlers.register(ProcessorNodeCloseAspect.class, this::handleProcessNodeClose);
         observerHandlers.register(TableInitFuncAspect.class, this::handleTableInit);
-
+        observerHandlers.register(EngineDeductionAspect.class,this::handleEngineDeduction);
         nodeRegister(SnapshotReadBeginAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
             m.setProgress(0L);
             m.setTotals((long) aspect.getTables().size());
@@ -155,6 +157,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     public void onStart(TaskStartAspect startAspect) {
         log.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
         taskMilestone(KPI_TASK, this::setFinish);
+        taskMilestone(KPI_DEDUCTION,null);
         if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
             taskMilestone(KPI_TABLE_INIT, null);
         }
@@ -269,6 +272,23 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                 } else {
                     nodeMilestones(nodeId, KPI_TABLE_INIT, getErrorConsumer(error.getMessage()));
                 }
+                break;
+            default:
+                break;
+        }
+        return null;
+    }
+
+    protected Void handleEngineDeduction(EngineDeductionAspect aspect) {
+        switch (aspect.getState()){
+            case DEDUCTION_START:
+                taskMilestone(KPI_DEDUCTION, this::setRunning);
+                break;
+            case DEDUCTION_END:
+                taskMilestone(KPI_DEDUCTION, this::setFinish);
+                break;
+            case DEDUCTION_ERROR:
+                taskMilestone(KPI_DEDUCTION, (m)->{setError(aspect,m);});
                 break;
             default:
                 break;
@@ -445,6 +465,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected <T extends AbsDataNodeErrorAspect<T>> void setError(T aspect, MilestoneEntity m) {
+        m.setEnd(System.currentTimeMillis());
+        m.setStatus(MilestoneStatus.ERROR);
+        m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
+    }
+    protected <T extends EngineDeductionAspect> void setError(T aspect, MilestoneEntity m) {
         m.setEnd(System.currentTimeMillis());
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));

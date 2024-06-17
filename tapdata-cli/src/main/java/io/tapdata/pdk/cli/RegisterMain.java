@@ -88,8 +88,10 @@ public class RegisterMain {
 		YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
 		Ali1688(BASE_PATH + "connectors/dist/ali1688-connector-v1.0-SNAPSHOT.jar", "all", "ali1688"),
         Temu(BASE_PATH + "connectors/dist/temu-connector-v1.0-SNAPSHOT.jar", "all", "temu"),
-        GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
-        ;
+
+		GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
+
+		;
 
 		private final String path;
 		private final Set<String> tags = new HashSet<>();

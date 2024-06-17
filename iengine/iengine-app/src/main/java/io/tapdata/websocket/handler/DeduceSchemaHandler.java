@@ -1,10 +1,7 @@
 package io.tapdata.websocket.handler;
 
-import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
@@ -13,29 +10,20 @@ import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.Message;
-import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
+import io.tapdata.common.DAGDataEngineServiceImpl;
 import io.tapdata.common.SettingService;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
-import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
 import lombok.Data;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -44,7 +32,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @EventHandlerAnnotation(type = "deduceSchema")
 public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEventResult> {
@@ -75,115 +62,20 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 		DAG dagAgo = request.getTaskDto().getDag();
 		request.getTaskDto().setDag(dagAgo);
-		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
-				request.getMetadataInstancesDtoList(),
-				request.getDataSourceMap(),
-				request.getDefinitionDtoMap(),
-				request.getUserId(),
-				request.getUserName(),
-				request.getTaskDto(),
-				request.getTransformerDtoMap()
-		) {
-
-			@Override
-			public TapTable loadTapTable(String nodeId, String virtualId, TaskDto taskDto) {
-				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
-				try {
-					// 跑任务加载js模型
-					String schemaKey = taskDto.getId() + "-" + virtualId;
-					long startTs = System.currentTimeMillis();
-					TaskClient<TaskDto> taskClient = execTask(taskDto);
-
-					obsLogger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-					//成功
-					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
-					if (obsLogger.isDebugEnabled()) {
-						obsLogger.debug("derivation results: {}", JSON.toJSONString(tapTable));
-					}
-					return tapTable;
-				} catch (Exception e) {
-					obsLogger.error("An error occurred while obtaining the results of model deduction", e);
-				}
-				return null;
-			}
-
-			@Override
-			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto taskDto) {
-				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
-				try {
-					String schemaKey = taskDto.getId() + "-" + virtualTargetId;
-					long startTs = System.currentTimeMillis();
-
-					TaskClient<TaskDto> taskClient = execTask(taskDto);
-
-					obsLogger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-					//成功
-					List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
-					if (obsLogger.isDebugEnabled()) {
-						obsLogger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
-					}
-
-					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
-						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(), s.getFieldName(), s.getTapField(), s.getTapIndex()))
-								.collect(Collectors.toList());
-					}
-				} catch (Exception e) {
-					obsLogger.error("An error occurred while obtaining the results of model deduction", e);
-				}
-				return null;
-			}
-
-			private TaskClient<TaskDto> execTask(TaskDto taskDto) {
-				taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-				TaskClient<TaskDto> taskClient = taskService.startTestTask(taskDto);
-				taskClient.join();
-				return taskClient;
-			}
-		};
-
+		DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(
+				request,
+				taskService,
+				clientMongoOperator
+		);
 		long start = System.currentTimeMillis();
 		Map<String, List<Message>> transformSchema = request.getTaskDto().getDag().transformSchema(null, dagDataService, request.getOptions());
 		logger.info("transformed cons={}", System.currentTimeMillis() - start + "ms");
-
-		TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
-		wsMessageResult.setBatchMetadataUpdateMap(dagDataService.getBatchMetadataUpdateMap());
-		wsMessageResult.setBatchInsertMetaDataList(dagDataService.getBatchInsertMetaDataList());
-		wsMessageResult.setUpsertItems(dagDataService.getUpsertItems());
-		wsMessageResult.setUpsertTransformer(dagDataService.getUpsertTransformer());
-		wsMessageResult.setTransformSchema(transformSchema);
-		wsMessageResult.setTaskId(request.getTaskDto().getId().toHexString());
-		wsMessageResult.setTransformUuid(request.getOptions().getUuid());
-		UpdateTaskDagDto updateTaskDagDto = new UpdateTaskDagDto();
-		updateTaskDagDto.setId(request.getTaskDto().getId());
-		updateTaskDagDto.setDag(request.getTaskDto().getDag());
-		if (dagAgo != null) {
-			List<Node> nodes = dagAgo.getNodes();
-			if (CollectionUtils.isNotEmpty(nodes)) {
-				nodes.forEach(f -> {
-					f.setOutputSchema(null);
-					f.setSchema(null);
-				});
-			}
-		}
-
-		wsMessageResult.setDag(dagAgo);
-
-		String jsonResult = JsonUtil.toJsonUseJackson(wsMessageResult);
-		byte[] gzip = GZIPUtil.gzip(jsonResult.getBytes());
-		byte[] encode = Base64.getEncoder().encode(gzip);
-		String dataString = new String(encode, StandardCharsets.UTF_8);
-
-		//返回结果调用接口返回
-		clientMongoOperator.insertOne(dataString, ConnectorConstant.TASK_COLLECTION + "/transformer/resultV2");
-
-		// Update task's dag
-
-		//clientMongoOperator.insertOne(updateTaskDagDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
+		dagDataService.uploadModel(transformSchema);
 
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.DEDUCE_SCHEMA, true);
 	}
 
-	private static class DeduceSchemaRequest {
+	public static class DeduceSchemaRequest {
 
 		private TaskDto taskDto;
 

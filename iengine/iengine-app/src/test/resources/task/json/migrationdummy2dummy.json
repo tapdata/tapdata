@@ -1,0 +1,397 @@
+{
+  "id": "666c1bf713485e58d071fa69",
+  "attrs": {},
+  "crontabExpressionFlag": false,
+  "deduplicWriteMode": "intelligent",
+  "desc": "",
+  "increHysteresis": false,
+  "increOperationMode": false,
+  "increSyncConcurrency": false,
+  "processorThreadNum": 1,
+  "increaseReadSize": 1,
+  "readBatchSize": 500,
+  "writeBatchSize": 0,
+  "writeBatchWaitMs": 0,
+  "isAutoCreateIndex": true,
+  "isFilter": false,
+  "isOpenAutoDDL": false,
+  "isSchedule": false,
+  "isStopOnError": true,
+  "name": "Duplicate-dummy-dummy",
+  "shareCdcEnable": false,
+  "statuses": [],
+  "status": "edit",
+  "syncStatus": "",
+  "type": "initial_sync+cdc",
+  "writeThreadSize": 8,
+  "editVersion": "1718361095826",
+  "syncPoints": [
+    {
+      "nodeId": "0f1bf113-ba08-4afe-a6c4-8054816d0166",
+      "nodeName": "dummy",
+      "connectionId": "659d126ab39d4c6d9e9a2eaa",
+      "connectionName": "dummy",
+      "pointType": "current",
+      "timeZone": "+8"
+    }
+  ],
+  "syncType": "migrate",
+  "transformProcess": 0.0,
+  "planStartDateFlag": false,
+  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
+  "accessNodeProcessIdList": [],
+  "transformUuid": "1718361095829",
+  "transformed": true,
+  "transformDagHash": 0,
+  "enforceShareCdc": true,
+  "pageVersion": "1718361057362",
+  "dag": {
+    "edges": [
+      {
+        "disabled": false,
+        "source": "0f1bf113-ba08-4afe-a6c4-8054816d0166",
+        "target": "403c670a-8cc3-4009-a8b7-c0f5e63374ab"
+      }
+    ],
+    "nodes": [
+      {
+        "existDataProcessMode": "keepData",
+        "syncObjects": [
+          {
+            "type": "table",
+            "objectNames": [
+              "dummy_test"
+            ],
+            "tableNameRelation": {
+              "dummy_test": "dummy_test"
+            }
+          }
+        ],
+        "migrateTableSelectType": "custom",
+        "nodeConfig": {},
+        "updateConditionFieldMap": {},
+        "connectionId": "666c1bf313485e58d071fa62",
+        "databaseType": "Dummy",
+        "dmlPolicy": {
+          "insertPolicy": "update_on_exists",
+          "updatePolicy": "ignore_on_nonexists"
+        },
+        "readBatchSize": 500,
+        "increaseReadSize": 1,
+        "writeBatchSize": 100,
+        "writeBatchWaitMs": 500,
+        "writeStrategy": "updateOrInsert",
+        "type": "database",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "403c670a-8cc3-4009-a8b7-c0f5e63374ab",
+        "name": "targetDummy",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            109,
+            23
+          ],
+          "connectionName": "targetDummy",
+          "connectionType": "source_and_target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      },
+      {
+        "existDataProcessMode": "keepData",
+        "tableNames": [
+          "dummy_test"
+        ],
+        "migrateTableSelectType": "custom",
+        "tableExpression": ".*",
+        "noPrimaryKeyTableSelectType": "All",
+        "nodeConfig": {},
+        "connectionId": "659d126ab39d4c6d9e9a2eaa",
+        "databaseType": "Dummy",
+        "ddlConfiguration": "FILTER",
+        "readBatchSize": 100,
+        "increaseReadSize": 1,
+        "writeStrategy": "updateOrInsert",
+        "type": "database",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "0f1bf113-ba08-4afe-a6c4-8054816d0166",
+        "name": "dummy",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            -487,
+            34
+          ],
+          "connectionName": "dummy",
+          "connectionType": "source_and_target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      }
+    ]
+  },
+  "shareCache": false,
+  "canOpenInspect": false,
+  "isAutoInspect": false,
+  "skipErrorEvent": {
+    "errorMode": "Disable",
+    "limitMode": "SkipByLimit",
+    "limitModeEnum": "SkipByLimit",
+    "errorModeEnum": "Disable"
+  },
+  "showInspectTips": false,
+  "alarmSettings": [
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_STATUS_ERROR",
+      "sort": 1,
+      "notify": [
+        "SYSTEM",
+        "EMAIL"
+      ],
+      "interval": 1,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_FULL_COMPLETE",
+      "sort": 3,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 1,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_INCREMENT_START",
+      "sort": 4,
+      "notify": [
+        "SYSTEM",
+        "EMAIL"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_INCREMENT_DELAY",
+      "sort": 6,
+      "notify": [
+        "SYSTEM",
+        "EMAIL"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    }
+  ],
+  "alarmRules": [
+    {
+      "key": "TASK_INCREMENT_DELAY",
+      "point": 60,
+      "equalsFlag": 1,
+      "ms": 60000
+    }
+  ],
+  "testTaskId": "666c1bf713485e58d071fa67",
+  "transformTaskId": "666c1bf713485e58d071fa68",
+  "stopRetryTimes": 0,
+  "dynamicAdjustMemoryUsage": false,
+  "doubleActive": false,
+  "autoInspect": false,
+  "snapShotInterrupt": false,
+  "testTask": false,
+  "deduceSchemaTask": false,
+  "normalTask": true,
+  "_deleted": false,
+  "createTime": 1718361079551,
+  "last_updated": 1718361177988
+}
