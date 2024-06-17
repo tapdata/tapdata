@@ -37,6 +37,7 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -707,6 +708,31 @@ public class HazelcastTaskServiceTest {
                 });
             }
 
+        }
+    }
+
+    @Nested
+    class GetTapTableMapTest{
+        HazelcastTaskService hazelcastTaskService;
+        ClientMongoOperator clientMongoOperator;
+        @BeforeEach
+        void init(){
+            clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+        }
+        @Test
+        void testTaskTypeIsTestRun(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("testRun");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            try(MockedStatic<TapTableUtil> tapTableUtilMockedStatic = mockStatic(TapTableUtil.class)){
+                tapTableUtilMockedStatic.when(()->TapTableUtil.getTapTableMapByNodeId(anyString(),any())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+                    return null;
+                });
+                hazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+            }
         }
     }
 }
