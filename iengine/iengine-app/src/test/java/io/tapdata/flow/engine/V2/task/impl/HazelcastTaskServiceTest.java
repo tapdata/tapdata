@@ -713,13 +713,6 @@ public class HazelcastTaskServiceTest {
 
     @Nested
     class GetTapTableMapTest{
-        HazelcastTaskService hazelcastTaskService;
-        ClientMongoOperator clientMongoOperator;
-        @BeforeEach
-        void init(){
-            clientMongoOperator = mock(ClientMongoOperator.class);
-            hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
-        }
         @Test
         void testTaskTypeIsTestRun(){
             TaskDto taskDto = new TaskDto();
@@ -731,7 +724,7 @@ public class HazelcastTaskServiceTest {
                     Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
                     return null;
                 });
-                hazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
             }
         }
     }
