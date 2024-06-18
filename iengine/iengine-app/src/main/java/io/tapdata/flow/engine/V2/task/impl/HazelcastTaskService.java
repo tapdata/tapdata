@@ -113,7 +113,6 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -201,10 +200,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient) {
 		Job job;
 		try {
-			try {
-				TimeUnit.MINUTES.sleep(4L);
-			} catch (InterruptedException ignored) {
-			}
 			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
 			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			job = jet.newJob(jetDag.getDag(), jobConfig);
