@@ -198,12 +198,16 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					TaskDto taskDto = startTaskOperation.getTaskDto();
-					taskLock.run(taskId, ()-> startTask(taskDto));
+					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto), 1L, TimeUnit.SECONDS)) {
+						logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
+					}
 				} else if (taskOperation instanceof StopTaskOperation) {
 					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
 					Thread.currentThread().setName(String.format("Stop-Task-Operation-Handler-%s", stopTaskOperation.getTaskId()));
 					taskId = stopTaskOperation.getTaskId();
-					taskLock.run(taskId, () -> stopTask(taskId));
+					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {
+						logger.warn("Stop task {} failed because of task lock, will retry later", taskId);
+					}
 				}
 				logger.info("Handled task operation: {}", taskOperation);
 			} catch (Exception e) {
@@ -402,17 +406,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					continue;
 				}
 				if (!taskClient.isRunning()) {
-					try {
-						taskLock.lock(taskId);
-
+					taskLock.tryRun(taskId, () -> {
 						StopTaskResource stopTaskResource = null;
 						TerminalMode terminalMode = taskClient.getTerminalMode();
 						if (TerminalMode.STOP_GRACEFUL == terminalMode) {
 							stopTaskResource = StopTaskResource.STOPPED;
 						} else if (TerminalMode.COMPLETE == terminalMode) {
 							stopTaskResource = StopTaskResource.COMPLETE;
-						} else if(TerminalMode.INTERNAL_STOP == terminalMode){
-							if(taskClient.stop()){
+						} else if (TerminalMode.INTERNAL_STOP == terminalMode) {
+							if (taskClient.stop()) {
 								clearTaskCacheAfterStopped(taskClient);
 								clearTaskRetryCache(taskId);
 							}
@@ -429,7 +431,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
-										taskRetryTimeMap.put(taskId,retryStartTime);
+										taskRetryTimeMap.put(taskId, retryStartTime);
 									}
 								} else {
 									stopTaskResource = StopTaskResource.RUN_ERROR;
@@ -446,9 +448,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 							taskClient.getTask().setSnapShotInterrupt(true);
 							stopTaskAndClear(taskClient, stopTaskResource, taskId);
 						}
-					} finally {
-						taskLock.unlock(taskId);
-					}
+					}, 1L, TimeUnit.SECONDS);
 				}
 			}
 		} catch (Exception e) {
