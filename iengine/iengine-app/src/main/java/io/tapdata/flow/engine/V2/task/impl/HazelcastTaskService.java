@@ -185,10 +185,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
-			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
-			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
-			Job job = jet.newJob(jetDag.getDag(), jobConfig);
-			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			Job job;
+			try {
+				final JetDag jetDag = task2HazelcastDAG(taskDto,true);
+				obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
+				job = jet.newJob(jetDag.getDag(), jobConfig);
+			} catch (Exception e) {
+				hazelcastTaskClient.close();
+				throw e;
+			}
+			hazelcastTaskClient.setJob(job);
+			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
