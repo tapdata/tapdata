@@ -105,6 +105,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
@@ -112,6 +113,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -186,15 +188,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
 			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
-			Job job;
-			try {
-				final JetDag jetDag = task2HazelcastDAG(taskDto,true);
-				obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
-				job = jet.newJob(jetDag.getDag(), jobConfig);
-			} catch (Exception e) {
-				hazelcastTaskClient.close();
-				throw e;
-			}
+			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
 			hazelcastTaskClient.setJob(job);
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
@@ -202,6 +196,23 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
+	}
+
+	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient) {
+		Job job;
+		try {
+			try {
+				TimeUnit.MINUTES.sleep(4L);
+			} catch (InterruptedException ignored) {
+			}
+			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
+			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
+			job = jet.newJob(jetDag.getDag(), jobConfig);
+		} catch (Exception e) {
+			hazelcastTaskClient.close();
+			throw e;
+		}
+		return job;
 	}
 
 	protected void cleanAllUnselectedError(TaskDto taskDto, ObsLogger obsLogger) {

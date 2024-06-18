@@ -38,10 +38,13 @@ public class SingleLockWithKey {
         long timeoutMills = timeUnit.toMillis(timeout);
         long s = System.currentTimeMillis();
         while (!Thread.interrupted()) {
-            AtomicBoolean lock;
+            AtomicBoolean locked = new AtomicBoolean(false);
             synchronized (locks) {
-                lock = locks.get(key);
-                if (null == lock) {
+                locks.computeIfAbsent(key, k -> {
+                    locked.compareAndSet(false, true);
+                    return new AtomicBoolean(true);
+                });
+                if (Boolean.TRUE.equals(locked.get())) {
                     locks.put(key, new AtomicBoolean(true));
                     return true;
                 }
