@@ -62,6 +62,10 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private AtomicBoolean retrying;
 	private final AutoRecovery autoRecovery;
 
+	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
+		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+	}
+
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
 		this.taskDto = taskDto;
@@ -133,8 +137,11 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public synchronized boolean stop() {
+		if(null == job) {
+			return false;
+		}
 		for (int i = 0; i < WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME; i++) {
-			if (job.getStatus() == JobStatus.STARTING) {
+			if (getJetStatus() == JobStatus.STARTING) {
 				try {
 					TimeUnit.SECONDS.sleep(1L);
 				} catch (InterruptedException e) {
@@ -152,16 +159,23 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		}
 
 		if (job.getStatus().isTerminal()) {
-			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
-			CommonUtils.handleAnyError(
-					() -> {
-						monitorManager.close();
-						obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
-					},
-					err -> {
-						obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
-					}
-			);
+			close();
+			return true;
+		}
+		return false;
+	}
+
+	public void close() {
+		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+		CommonUtils.handleAnyError(
+				() -> {
+					monitorManager.close();
+					obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
+				},
+				err -> {
+					obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+				}
+		);
             CommonUtils.handleAnyError(
                 () -> {
                     autoRecovery.close();
@@ -171,27 +185,24 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
                     obsLogger.warn(String.format("Closed task auto recovery instance failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
                 }
             );
-			CommonUtils.handleAnyError(
-					() -> {
-						AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));
-						obsLogger.info("Stopped task aspect(s)");
-					},
-					err -> {
-						obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+		CommonUtils.handleAnyError(
+				() -> {
+					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));
+					obsLogger.info("Stopped task aspect(s)");
+				},
+				err -> {
+					obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
+				}
+		);
+		CommonUtils.handleAnyError(
+				() -> {
+					if (SnapshotOrderService.getInstance().removeController(taskDto.getId().toHexString())) {
+						obsLogger.info("Snapshot order controller have been removed");
 					}
-			);
-			CommonUtils.handleAnyError(
-					() -> {
-						if (SnapshotOrderService.getInstance().removeController(taskDto.getId().toHexString())) {
-							obsLogger.info("Snapshot order controller have been removed");
-						}
-					},
-					error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
-			);
-			CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
-			return true;
-		}
-		return false;
+				},
+				error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
+		);
+		CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
 	}
 
 	@Override
@@ -260,5 +271,9 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	@Override
 	public int getRetryTime() {
 		return retryCounter.get();
+	}
+
+	public void setJob(Job job) {
+		this.job = job;
 	}
 }

@@ -342,7 +342,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			}});
 			hazelcastMergeNode.transformDateTime(after);
 			assertEquals(4, after.size());
-			assertInstanceOf(Date.class, after.get("create_time"));
+			assertInstanceOf(Instant.class, after.get("create_time"));
 		}
 	}
 

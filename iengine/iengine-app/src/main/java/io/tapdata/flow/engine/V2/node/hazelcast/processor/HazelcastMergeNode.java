@@ -25,10 +25,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
@@ -1234,7 +1231,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	protected void transformDateTime(Map<String, Object> after) {
 		mapIterator.iterate(after, (key, value, recursive) -> {
 			if (value instanceof DateTime) {
-				return ((DateTime) value).toDate();
+				return ((DateTime) value).toInstant();
 			}
 			return value;
 		});
@@ -1569,7 +1566,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		String tableName = getTableName(getPreNode(childMergeProperty.getId()));
 		TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		nameFieldMap.keySet().forEach(key -> lookupMap.put(key, null));
+		while (isRunning()) {
+			try {
+				nameFieldMap.keySet().forEach(key -> lookupMap.put(key, null));
+				break;
+			} catch (ConcurrentModificationException ignored) {
+			}
+		}
 		return lookupMap;
 	}
 
@@ -2148,8 +2151,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 						return new TapStringValue(value.toString())
 								.tapType(new TapString(24L, true))
 								.originType(BsonType.OBJECT_ID.name());
-					} else if (value instanceof Document) {
-						return new TapMapValue((Document) value);
+					} else if (value instanceof Map) {
+						return new TapMapValue((Map<String, Object>) value);
 					} else if (value instanceof List) {
 						return new TapArrayValue((List<Object>) value);
 					}

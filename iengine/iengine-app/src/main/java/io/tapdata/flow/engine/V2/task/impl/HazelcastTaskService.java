@@ -105,6 +105,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
@@ -185,15 +186,28 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
-			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
-			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
-			Job job = jet.newJob(jetDag.getDag(), jobConfig);
-			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
+			hazelcastTaskClient.setJob(job);
+			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
+	}
+
+	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient) {
+		Job job;
+		try {
+			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
+			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
+			job = jet.newJob(jetDag.getDag(), jobConfig);
+		} catch (Exception e) {
+			hazelcastTaskClient.close();
+			throw e;
+		}
+		return job;
 	}
 
 	protected void cleanAllUnselectedError(TaskDto taskDto, ObsLogger obsLogger) {
