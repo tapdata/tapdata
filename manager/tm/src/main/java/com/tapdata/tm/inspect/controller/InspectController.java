@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
@@ -129,12 +130,17 @@ public class InspectController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<InspectDto> save(@RequestBody InspectDto inspect) {
-        List task = inspect.getTasks();
+        List<Task> task = inspect.getTasks();
         PlatformInfo platformInfo = inspect.getPlatformInfo();
         if (CollectionUtils.isEmpty(task)) {
             throw new BizException("Inspect.task.null");
         }
-        inspectService.fieldHandler(task,getLoginUser());
+
+        if(StringUtils.isNotEmpty(inspect.getInspectMethod()) &&
+                (inspect.getInspectMethod().equals("field") || inspect.getInspectMethod().equals("jointField"))){
+            inspectService.fieldHandler(task,getLoginUser());
+        }
+
         if (null == platformInfo || StringUtils.isEmpty(platformInfo.getAgentType())) {
             throw new BizException("Inspect.agentTag.null");
         }

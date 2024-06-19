@@ -5,6 +5,8 @@ import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -71,6 +73,7 @@ public class TransformSchemaService {
     private WorkerService workerService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private LdpService ldpService;
+    private static final String IS_DELETED = "is_deleted";
     @Autowired
     private AgentGroupService agentGroupService;
 
@@ -279,15 +282,14 @@ public class TransformSchemaService {
             }
         } else {
             Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())
-                    .and("is_deleted").ne(true)
+                    .and(IS_DELETED).ne(true)
                     .and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
             Query query1 = new Query(criteria);
             query1.fields().exclude("histories");
             metadataList = metadataInstancesService.findAllDto(query1, user);
 
         }
-
-
+        getLogCollectorMetadataInstancesDto(dag,user,metadataList);
         List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseSchemeNoHistory(connectionIds, user);
         metadataList.addAll(databaseSchemes);
 
@@ -300,6 +302,36 @@ public class TransformSchemaService {
                 , user.getUsername(), metadataTransformerDtoMap, MessageType.TRANSFORMER.getType());
         return transformerWsMessageDto;
 
+    }
+
+    protected void getLogCollectorMetadataInstancesDto(DAG dag,UserDetail user,List<MetadataInstancesDto> metadataInstancesDtoList) {
+        dag.getNodes().forEach(node -> {
+            if(node instanceof LogCollectorNode){
+                LogCollectorNode logNode = (LogCollectorNode) node;
+                Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
+                Query queryMetadata = new Query();
+                Map<String, LogCollecotrConnConfig> connConfigs = logNode.getLogCollectorConnConfigs();
+                if (null != connConfigs && !connConfigs.isEmpty()) {
+                    List<Criteria> criteriaList = new ArrayList<>();
+                    for (LogCollecotrConnConfig config : connConfigs.values()) {
+                        criteriaList.add(Criteria.where("source._id").is(config.getConnectionId())
+                                .and("originalName").in(config.getTableNames()));
+                    }
+                    criteriaTable.and(IS_DELETED).ne(true).orOperator(criteriaList);
+                    queryMetadata.addCriteria(criteriaTable);
+                    metadataInstancesDtoList.addAll(metadataInstancesService.findAllDto(queryMetadata, user));
+                } else {
+                    List<String> logConnectionIds = logNode.getConnectionIds();
+                    if (CollectionUtils.isNotEmpty(logConnectionIds)) {
+                        String connectionId = logConnectionIds.get(0);
+                        queryMetadata.addCriteria(criteriaTable);
+                        criteriaTable.and("source._id").is(connectionId)
+                                .and("originalName").in(logNode.getTableNames()).and(IS_DELETED).ne(true);
+                        metadataInstancesDtoList.addAll(metadataInstancesService.findAllDto(queryMetadata, user));
+                    }
+                }
+            }
+        });
     }
 
     public void transformSchema(TaskDto taskDto, UserDetail user) {
@@ -578,4 +610,5 @@ public class TransformSchemaService {
             taskService.updateById(taskId, update, user);
         }
     }
+
 }

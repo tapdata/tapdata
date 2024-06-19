@@ -4,6 +4,9 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.ResponseEntity;
+
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -62,7 +65,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -320,6 +323,21 @@ public class TaskController extends BaseController {
         TaskDto taskDto = taskService.confirmStart(task, user, confirm);
 
         return success(taskDto);
+    }
+
+    /**
+     * collect task info to do performance analyze
+     *
+     * @param taskId taskId
+     * @return tar file
+     */
+    @Operation(summary = "collect task info to do performance analyze")
+    @PostMapping("analyze/{id}")
+    public ResponseEntity<InputStreamResource> analyzeTask(
+            HttpServletRequest request,
+            @PathVariable("id") String taskId,
+            HttpServletResponse response) throws IOException {
+        return taskService.analyzeTask(request, response, taskId, getLoginUser());
     }
 
     /**

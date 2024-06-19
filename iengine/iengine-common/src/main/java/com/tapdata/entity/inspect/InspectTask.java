@@ -52,4 +52,13 @@ public class InspectTask implements Serializable {
 	 * 是否开启高级校验
 	 */
 	private boolean showAdvancedVerification;
+
+
+	private String flowId;
+
+	private String id;
+
+	private boolean repeat;
+
+	private String mode;
 }

@@ -102,4 +102,6 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
     public abstract Long getLastCheckAvailableAgentCount();
 
     public abstract String getWorkerCurrentTime(UserDetail userDetail);
+
+    public abstract Boolean checkEngineVersion(UserDetail userDetail);
 }

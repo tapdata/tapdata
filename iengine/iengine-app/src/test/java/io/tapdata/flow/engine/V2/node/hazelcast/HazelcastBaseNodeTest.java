@@ -48,9 +48,7 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
-import io.tapdata.exception.ManagementException;
-import io.tapdata.exception.MongodbException;
-import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.*;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -62,6 +60,7 @@ import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skipError.SkipErrorStrategy;
@@ -75,6 +74,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -440,7 +440,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		void testSetThreadName() {
 			hazelcastBaseNode.setThreadName();
 			String actual = Thread.currentThread().getName();
-			assertEquals("HazelcastBaseNode-dummy2dummy(6555b257407e2d16ae88c5ad)-dummy_test(2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4)", actual);
+			assertEquals(String.format("HazelcastBaseNode-dummy2dummy(6555b257407e2d16ae88c5ad)-dummy_test(%s)",tableNode.getId()), actual);
 		}
 	}
 
@@ -1935,5 +1935,28 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(httpClientMongoOperator,times(0)).insertOne(any(),any());
 		}
 
+	}
+	@Nested
+	class BuildErrorConsumerTest{
+		private String tableName = "table";
+		@Test
+		@DisplayName("test buildErrorConsumer method for TapPdkBaseException")
+		void test1(){
+			TapPdkWriteMissingPrivilegesEx ex = new TapPdkWriteMissingPrivilegesEx("mysql","createTable",null,new RuntimeException("test exception"));
+			assertThrows(TapPdkBaseException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(ex));
+			assertEquals(tableName,ex.getTableName());
+		}
+		@Test
+		@DisplayName("test buildErrorConsumer method for TapPdkRunnerUnknownException")
+		void test2(){
+			TapPdkRunnerUnknownException ex = new TapPdkRunnerUnknownException(new RuntimeException("test exception"));
+			assertThrows(TapPdkRunnerUnknownException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(ex));
+			assertEquals(tableName,ex.getTableName());
+		}
+		@Test
+		@DisplayName("test buildErrorConsumer method for RuntimeException")
+		void test3(){
+			assertThrows(RuntimeException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(mock(RuntimeException.class)));
+		}
 	}
 }

@@ -49,6 +49,7 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
+import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -74,10 +75,7 @@ import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.task.service.utils.TaskServiceUtil;
-import com.tapdata.tm.task.vo.ShareCacheDetailVo;
-import com.tapdata.tm.task.vo.ShareCacheVo;
-import com.tapdata.tm.task.vo.TaskDetailVo;
-import com.tapdata.tm.task.vo.TaskStatsDto;
+import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
@@ -99,11 +97,13 @@ import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.quartz.CronScheduleBuilder;
 import org.springframework.beans.BeanUtils;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -118,10 +118,12 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static com.tapdata.tm.task.service.TaskServiceImpl.AGENT_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.*;
@@ -130,6 +132,9 @@ import static org.springframework.beans.BeanUtils.copyProperties;
 
 class TaskServiceImplTest {
     TaskServiceImpl taskService;
+    TaskRecordService taskRecordService;
+    BatchService batchService;
+    MonitoringLogsService monitoringLogsService;
     AgentGroupService agentGroupService;
     WorkerService workerService;
     TaskDto taskDto;
@@ -138,6 +143,9 @@ class TaskServiceImplTest {
     @BeforeEach
     void init() {
         taskService = mock(TaskServiceImpl.class);
+        taskRecordService = mock(TaskRecordService.class);
+        monitoringLogsService = mock(MonitoringLogsService.class);
+        batchService = mock(BatchService.class);
         agentGroupService = mock(AgentGroupService.class);
         ReflectionTestUtils.setField(taskService, "agentGroupService", agentGroupService);
         workerService = mock(WorkerService.class);
@@ -562,17 +570,14 @@ class TaskServiceImplTest {
     }
     @Nested
     class CreateTest{
-        private CustomSqlService customSqlService;
         private DateNodeService dateNodeService;
         private TransformSchemaService transformSchemaService;
         @BeforeEach
         void setUp(){
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
-            customSqlService = mock(CustomSqlService.class);
             dateNodeService = mock(DateNodeService.class);
             transformSchemaService = mock(TransformSchemaService.class);
-            ReflectionTestUtils.setField(taskService, "customSqlService",customSqlService);
             ReflectionTestUtils.setField(taskService, "dateNodeService",dateNodeService);
             ReflectionTestUtils.setField(taskService, "transformSchemaService",transformSchemaService);
         }
@@ -590,7 +595,6 @@ class TaskServiceImplTest {
             ObjectId taskId = mock(ObjectId.class);
             when(taskDto.getId()).thenReturn(taskId);
             doNothing().when(taskService).checkTaskName("test", user, taskId);
-            doNothing().when(customSqlService).checkCustomSqlTask(taskDto, user);
             doNothing().when(dateNodeService).checkTaskDateNode(taskDto, user);
             when(taskService.save(taskDto,user)).thenReturn(taskDto);
             doNothing().when(transformSchemaService).transformSchema(dag, user, taskId);
@@ -676,24 +680,27 @@ class TaskServiceImplTest {
     @Nested
     class UpdateByIdTest{
         private MeasurementServiceV2 measurementServiceV2;
-        private CustomSqlService customSqlService;
         private DateNodeService dateNodeService;
         private TaskSaveService taskSaveService;
         private TransformSchemaAsyncService transformSchemaAsyncService;
+        private TransformSchemaService transformSchemaService;
+        private WorkerService workerService;
         @BeforeEach
         void setUp() {
             taskDto = mock(TaskDto.class);
             user = mock(UserDetail.class);
             measurementServiceV2 = mock(MeasurementServiceV2.class);
-            customSqlService = mock(CustomSqlService.class);
             dateNodeService = mock(DateNodeService.class);
             taskSaveService = mock(TaskSaveService.class);
             transformSchemaAsyncService = mock(TransformSchemaAsyncService.class);
-            ReflectionTestUtils.setField(taskService, "customSqlService",customSqlService);
+            transformSchemaService = mock(TransformSchemaService.class);
+            workerService = mock(WorkerService.class);
             ReflectionTestUtils.setField(taskService, "dateNodeService",dateNodeService);
             ReflectionTestUtils.setField(taskService, "measurementServiceV2", measurementServiceV2);
             ReflectionTestUtils.setField(taskService, "taskSaveService", taskSaveService);
+            ReflectionTestUtils.setField(taskService, "transformSchemaService", transformSchemaService);
             ReflectionTestUtils.setField(taskService, "transformSchemaAsyncService", transformSchemaAsyncService);
+            ReflectionTestUtils.setField(taskService, "workerService", workerService);
         }
         @Test
         @DisplayName("test updateById method when cron expression occur error")
@@ -759,6 +766,59 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).updateById(taskDto, user);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).create(taskDto, user);
+        }
+
+        @Test
+        @DisplayName("test Old version engine ")
+        void test5(){
+            doNothing().when(taskService).checkTaskInspectFlag(taskDto);
+            ObjectId taskId = mock(ObjectId.class);
+            when(taskDto.getId()).thenReturn(taskId);
+            TaskDto oldTask = mock(TaskDto.class);
+            when(taskService.findById(taskId)).thenReturn(oldTask);
+            when(taskDto.getSyncType()).thenReturn("sync");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            DAG newDag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(newDag);
+            when(oldTask.getTaskRecordId()).thenReturn("111");
+            List<String> runTables = new ArrayList<>();
+            runTables.add("test_table");
+            when(workerService.checkEngineVersion(any())).thenReturn(false);
+            doNothing().when(transformSchemaService).transformSchema(any(), any(), any());
+            when(measurementServiceV2.findRunTable(taskId.toHexString(),"111")).thenReturn(runTables);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList();
+            newSourceNode.add(mock(DatabaseNode.class));
+            when(newDag.getSourceNode()).thenReturn(newSourceNode);
+            doCallRealMethod().when(taskService).updateById(taskDto, user);
+            taskService.updateById(taskDto,user);
+            verify(taskService, new Times(1)).save(taskDto, user);
+            verify(transformSchemaService,times(1)).transformSchema(any(),any(),any());
+        }
+        @Test
+        @DisplayName("test new version engine ")
+        void test6(){
+            doNothing().when(taskService).checkTaskInspectFlag(taskDto);
+            ObjectId taskId = mock(ObjectId.class);
+            when(taskDto.getId()).thenReturn(taskId);
+            TaskDto oldTask = mock(TaskDto.class);
+            when(taskService.findById(taskId)).thenReturn(oldTask);
+            when(taskDto.getSyncType()).thenReturn("sync");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            DAG newDag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(newDag);
+            when(oldTask.getTaskRecordId()).thenReturn("111");
+            List<String> runTables = new ArrayList<>();
+            runTables.add("test_table");
+            when(workerService.checkEngineVersion(any())).thenReturn(true);
+            doNothing().when(transformSchemaAsyncService).transformSchema(any(DAG.class), any(), any());
+            when(measurementServiceV2.findRunTable(taskId.toHexString(),"111")).thenReturn(runTables);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList();
+            newSourceNode.add(mock(DatabaseNode.class));
+            when(newDag.getSourceNode()).thenReturn(newSourceNode);
+            doCallRealMethod().when(taskService).updateById(taskDto, user);
+            taskService.updateById(taskDto,user);
+            verify(taskService, new Times(1)).save(taskDto, user);
+            verify(transformSchemaAsyncService,times(1)).transformSchema(any(DAG.class),any(),any());
         }
     }
     @Nested
@@ -2824,6 +2884,16 @@ class TaskServiceImplTest {
             verify(taskService).update(any(Query.class),any(Update.class));
         }
     }
+    @Nested
+    class UpdateDelayTimeTest{
+        @Test
+        void testUpdateDelayTimeNormal(){
+            ObjectId id = mock(ObjectId.class);
+            doCallRealMethod().when(taskService).updateDelayTime(id, 0);
+            taskService.updateDelayTime(id, 0);
+            verify(taskService,new Times(1)).update(any(Query.class), any(Update.class));
+        }
+    }
 
     @Test
     void testFindRunningTasksByAgentIdWithoutId() {
@@ -3716,6 +3786,31 @@ class TaskServiceImplTest {
             taskService.findByConId(sourceConnectionId,targetConnectionId,syncType,status,where,user);
         }
     }
+
+    @Nested
+    class downloadAnalyzeTest {
+        @Test
+        void testDownloadAnalyze() throws ExecutionException, InterruptedException, IOException {
+            TaskRepository repository = mock(TaskRepository.class);
+            taskService = spy(new TaskServiceImpl(repository));
+            HttpServletRequest request = mock(HttpServletRequest.class);
+            HttpServletResponse response = mock(HttpServletResponse.class);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setAgentId("362b27e0-0679-4e50-b418-389fbe70d7df");
+            String taskId = "665f28cb65481e5a8ce96849";
+            doReturn(taskDto).when(taskService).findByTaskId(new ObjectId(taskId), AGENT_ID);
+            doReturn("mock export task json").when(taskService).exportTask(anyList(), any());
+            Page<TaskRecordListVo> recordsPage = new Page<>(0, Collections.emptyList());
+            when(taskRecordService.queryRecords(any())).thenReturn(recordsPage);
+            when(monitoringLogsService.query(any())).thenReturn(new Page<>(0, Collections.emptyList()));
+            when(batchService.batch(any(), any())).thenReturn(new HashMap<>());
+            doReturn(new byte[]{}).when(taskService).callEngineRpc(any(), any(), any(), any());
+            ResponseEntity<InputStreamResource> res = taskService.analyzeTask(request, response, taskId, user);
+            assert (res.getStatusCode().is2xxSuccessful());
+        }
+    }
+
+
     @Nested
     class importRmProjectTest {
         ParseRelMigFile parseRelMigFile;
@@ -3889,8 +3984,6 @@ class TaskServiceImplTest {
 
         @Test
         void testImportRmProject() throws IOException {
-            CustomSqlService customSqlService = mock(CustomSqlService.class);
-            taskService.setCustomSqlService(customSqlService);
             DateNodeService dataNodeService = mock(DateNodeService.class);
             taskService.setDateNodeService(dataNodeService);
             ParseParam param = new ParseParam()

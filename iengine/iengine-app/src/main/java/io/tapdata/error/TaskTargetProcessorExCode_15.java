@@ -109,4 +109,14 @@ public interface TaskTargetProcessorExCode_15 {
 			recoverable = true
 	)
 	String WRITE_RECORD_COMMON_FAILED = "15019";
+	@TapExCode(
+			describe = "Create index event's tableId cannot be empty",
+			describeCN = "创建索引事件的tableId不能为空"
+	)
+	String CREATE_INDEX_EVENT_TABLE_ID_EMPTY = "15020";
+	@TapExCode(
+			describe = "When creating an index, checking if the index exists fails",
+			describeCN = "创建索引时，检查索引是否存在失败"
+	)
+	String CREATE_INDEX_QUERY_EXISTS_INDEX_FAILED = "15021";
 }

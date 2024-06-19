@@ -1,5 +1,7 @@
 package com.tapdata.tm.task.service;
 
+import cn.hutool.http.server.HttpServerRequest;
+import cn.hutool.http.server.HttpServerResponse;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.service.BaseService;
@@ -29,8 +31,10 @@ import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
@@ -178,6 +182,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user);
 
+    public abstract ResponseEntity<InputStreamResource> analyzeTask(HttpServletRequest request, HttpServletResponse response, String taskId, UserDetail user) throws IOException;
+
     public abstract void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException;
 
     public abstract void checkJsProcessorTestRun(UserDetail user, List<TaskDto> tpTasks);
@@ -287,6 +293,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract int runningTaskNum(UserDetail userDetail);
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
+    public abstract void updateDelayTime(ObjectId taskId, long delayTime);
 
     @Data
     @AllArgsConstructor

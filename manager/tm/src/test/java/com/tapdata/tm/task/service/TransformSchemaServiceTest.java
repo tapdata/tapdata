@@ -6,13 +6,17 @@ import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
@@ -37,11 +41,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.mockito.Mockito.*;
@@ -413,5 +413,95 @@ class TransformSchemaServiceTest {
                 verify(taskService).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
             }
         }
+        @Nested
+        class getLogCollectorMetadataInstancesDtoTest{
+            @Test
+            void testConnConfigMapIsNotNull(){
+                DAG dag1 = mock(DAG.class);
+                List<Node> nodes = new ArrayList<>();
+                LogCollectorNode logCollectorNode = new LogCollectorNode();
+                logCollectorNode.setId("LogCollectorNode");
+                Map<String, LogCollecotrConnConfig> connConfigMap = new HashMap<>();
+                LogCollecotrConnConfig logCollecotrConnConfig1 = new LogCollecotrConnConfig();
+                logCollecotrConnConfig1.setConnectionId("c_1");
+                logCollecotrConnConfig1.setTableNames(Arrays.asList("test1"));
+                LogCollecotrConnConfig logCollecotrConnConfig2 = new LogCollecotrConnConfig();
+                logCollecotrConnConfig2.setConnectionId("c_2");
+                logCollecotrConnConfig2.setTableNames(Arrays.asList("test2"));
+                connConfigMap.put("c_1",logCollecotrConnConfig1);
+                connConfigMap.put("c_2",logCollecotrConnConfig2);
+                logCollectorNode.setLogCollectorConnConfigs(connConfigMap);
+                nodes.add(logCollectorNode);
+                when(dag1.getNodes()).thenReturn(nodes);
+                MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+                metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+                metadataInstancesDto1.setNodeId("LogCollectorNode");
+                metadataInstancesDto1.setOriginalName("name1");
+                metadataInstancesDto1.setQualifiedName("test1");
+                metadataInstancesDto1.setMetaType("table");
+                MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+                metadataInstancesDto2.setSourceType(SourceTypeEnum.VIRTUAL.name());
+                metadataInstancesDto2.setNodeId("test");
+                metadataInstancesDto2.setOriginalName("name2");
+                metadataInstancesDto2.setQualifiedName("test2");
+                metadataInstancesDto2.setMetaType("table");
+                when(metadataInstancesService.findAllDto(any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2));
+                List<MetadataInstancesDto> result = new ArrayList<>();
+                UserDetail userDetail = mock(UserDetail.class);
+                doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+                transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+                Assertions.assertEquals(2,result.size());
+            }
+        }
+
+        @Test
+        void testConnConfigMapIsNull(){
+            DAG dag1 = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            LogCollectorNode logCollectorNode = new LogCollectorNode();
+            logCollectorNode.setId("LogCollectorNode");
+            logCollectorNode.setConnectionIds(Arrays.asList("c_1"));
+            logCollectorNode.setTableNames(Arrays.asList("test1"));
+            nodes.add(logCollectorNode);
+            when(dag1.getNodes()).thenReturn(nodes);
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            when(metadataInstancesService.findAllDto(any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1));
+            List<MetadataInstancesDto> result = new ArrayList<>();
+            UserDetail userDetail = mock(UserDetail.class);
+            doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+            transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+            Assertions.assertEquals(1,result.size());
+        }
+        @Test
+        void testConnConfigMapIsEmpty(){
+            DAG dag1 = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            LogCollectorNode logCollectorNode = new LogCollectorNode();
+            logCollectorNode.setId("LogCollectorNode");
+            List<String> connectionIds = new ArrayList<>();
+            logCollectorNode.setConnectionIds(connectionIds);
+            logCollectorNode.setTableNames(Arrays.asList("test1"));
+            logCollectorNode.setLogCollectorConnConfigs(new HashMap<>());
+            nodes.add(logCollectorNode);
+            when(dag1.getNodes()).thenReturn(nodes);
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
+            metadataInstancesDto1.setNodeId("LogCollectorNode");
+            metadataInstancesDto1.setOriginalName("name1");
+            metadataInstancesDto1.setQualifiedName("test1");
+            metadataInstancesDto1.setMetaType("table");
+            when(metadataInstancesService.findAllDto(any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1));
+            List<MetadataInstancesDto> result = new ArrayList<>();
+            UserDetail userDetail = mock(UserDetail.class);
+            doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+            transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+            Assertions.assertEquals(0,result.size());
+        }
     }
+
 }

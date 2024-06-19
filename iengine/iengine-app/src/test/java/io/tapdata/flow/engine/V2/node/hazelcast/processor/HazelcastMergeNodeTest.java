@@ -4,6 +4,8 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
@@ -1556,6 +1558,12 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> data = new HashMap<String, Object>() {{
 				put("_id", id);
 				put("name", "test");
+				put("subDoc", new Document("subId", id));
+				put("subList", new ArrayList<Object>() {{
+					add(new HashMap<String, Object>() {{
+						put("sub_id", id);
+					}});
+				}});
 			}};
 			mergeLookupResult.setData(data);
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties mergeTableProperties = new io.tapdata.pdk.apis.entity.merge.MergeTableProperties();
@@ -1590,6 +1598,8 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertTrue(tapType.getFixed());
 			assertEquals(BsonType.OBJECT_ID.name(), tapStringValue.getOriginType());
 			assertNull(tapStringValue.getOriginValue());
+			assertInstanceOf(TapMapValue.class, data.get("subDoc"));
+			assertInstanceOf(TapArrayValue.class, data.get("subList"));
 		}
 
 		@Test
