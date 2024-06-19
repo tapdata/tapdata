@@ -1,8 +1,12 @@
 package io.tapdata.flow.engine.V2.util;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -12,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SingleLockWithKey {
     private final Map<String, AtomicBoolean> locks = new HashMap<>();
 
-    public void lock(String key) throws InterruptedException {
+    private void lock(String key) throws InterruptedException {
         while (!Thread.interrupted()) {
             AtomicBoolean lock;
             synchronized (locks) {
@@ -30,11 +34,34 @@ public class SingleLockWithKey {
         }
     }
 
-    public void unlock(String key) {
+    private boolean tryLock(String key, long timeout, TimeUnit timeUnit) throws InterruptedException {
+        long timeoutMills = timeUnit.toMillis(timeout);
+        long s = System.currentTimeMillis();
+        while (!Thread.interrupted()) {
+            AtomicBoolean locked = new AtomicBoolean(false);
+            synchronized (locks) {
+                locks.computeIfAbsent(key, k -> {
+                    locked.compareAndSet(false, true);
+                    return new AtomicBoolean(true);
+                });
+                if (Boolean.TRUE.equals(locked.get())) {
+                    locks.put(key, new AtomicBoolean(true));
+                    return true;
+                }
+            }
+            if ((System.currentTimeMillis() - s) > timeoutMills) {
+                break;
+            }
+			TimeUnit.MILLISECONDS.sleep(1L);
+        }
+        return false;
+    }
+
+    private void unlock(String key) {
         AtomicBoolean lock;
         synchronized (locks) {
             lock = locks.remove(key);
-            if (null == lock) return;
+			if (null == lock) return;
         }
         synchronized (lock) {
             lock.set(false);
@@ -60,43 +87,28 @@ public class SingleLockWithKey {
         }
     }
 
+    public boolean tryRun(String key, Runnable runnable, long timeout, TimeUnit timeUnit) throws InterruptedException {
+        if (tryLock(key, timeout, timeUnit)) {
+            try {
+                runnable.run();
+                return true;
+            } finally {
+                unlock(key);
+            }
+        }
+        return false;
+    }
+
     public Runnable wrap(String key, Runnable runnable) {
         return () -> {
             try {
                 lock(key);
                 runnable.run();
             } catch (InterruptedException ignore) {
+                Thread.currentThread().interrupt();
             } finally {
                 unlock(key);
             }
         };
     }
-
-//    public static void main(String[] args) throws Exception {
-//        int dataSize = 100000, keySize = 10, threadCounts = 10, interval = 10;
-//
-//        SingleLockWithKey singleLockWithKey = new SingleLockWithKey();
-//        ExecutorService executorService = Executors.newFixedThreadPool(threadCounts);
-//
-//        CountDownLatch countDownLatch = new CountDownLatch(dataSize);
-//        for (int i = 0; i < dataSize; i++) {
-//            int finalIndex = i;
-//            executorService.execute(() -> {
-//                try {
-//                    singleLockWithKey.call("task-" + (finalIndex % keySize), () -> {
-////                        TimeUnit.MILLISECONDS.sleep(interval);
-//                        logger.info("run {} with key: {}", finalIndex, (finalIndex % keySize));
-//                        return null;
-//                    });
-//                } catch (Exception e) {
-//                    logger.warn("return with interrupted: {}", finalIndex, e);
-//                } finally {
-//                    countDownLatch.countDown();
-//                }
-//            });
-//        }
-//
-//        countDownLatch.await();
-//        executorService.shutdown();
-//    }
 }
