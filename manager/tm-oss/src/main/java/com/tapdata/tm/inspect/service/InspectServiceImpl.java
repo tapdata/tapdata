@@ -12,7 +12,6 @@ import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.repository.InspectRepository;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.webhook.enums.ConstVariable;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +72,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findByTaskIdList(List<String> taskIdList) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        return new ArrayList<>();
     }
 
     @Override
@@ -93,7 +92,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findByName(String name) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        return new ArrayList<>();
     }
 
     @Override
@@ -123,12 +122,12 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findByStatus(InspectStatusEnum inspectStatusEnum) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        return new ArrayList<>();
     }
 
     @Override
     public List<InspectDto> findByResult(boolean passed) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);    }
+        return new ArrayList<>();    }
 
     @Override
     public void cleanDeadInspect() {
@@ -142,7 +141,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findAllByIds(List<String> inspectIds) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        return new ArrayList<>();
     }
 
     @Override
