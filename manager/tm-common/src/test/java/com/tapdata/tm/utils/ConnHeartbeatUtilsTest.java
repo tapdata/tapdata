@@ -49,5 +49,15 @@ public class ConnHeartbeatUtilsTest {
         void testLogCollectorTask_initial_sync(){
             Assertions.assertFalse(ConnHeartbeatUtils.checkTask(ParentTaskDto.TYPE_INITIAL_SYNC, TaskDto.SYNC_TYPE_LOG_COLLECTOR));
         }
+
+        @Test
+        void testConnHeartbeatTask(){
+            Assertions.assertFalse(ConnHeartbeatUtils.checkTask(ParentTaskDto.TYPE_INITIAL_SYNC_CDC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT));
+        }
+
+        @Test
+        void testTestRunTask(){
+            Assertions.assertFalse(ConnHeartbeatUtils.checkTask(ParentTaskDto.TYPE_INITIAL_SYNC_CDC, TaskDto.SYNC_TYPE_TEST_RUN));
+        }
     }
 }
