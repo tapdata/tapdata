@@ -2,6 +2,7 @@ package com.tapdata.tm.discovery.service;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.apiServer.dto.ApiServerDto;
 import com.tapdata.tm.apiServer.service.ApiServerService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.dag.Edge;
@@ -64,7 +65,6 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class DiscoveryServiceImpl implements DiscoveryService {
 
-    private final LiveDataPlatformService liveDataPlatformService;
     private MetadataInstancesService metadataInstancesService;
 
     private MetadataInstancesRepository metaDataRepository;
@@ -85,9 +85,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     private LdpService ldpService;
 
-    public DiscoveryServiceImpl(LiveDataPlatformService liveDataPlatformService) {
-        this.liveDataPlatformService = liveDataPlatformService;
-    }
+    private LiveDataPlatformService liveDataPlatformService;
 
     /**
      * 查询对象概览列表
@@ -1024,9 +1022,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             metadataCriteria.and("meta_type").is("table");
         }
 
-        LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(Query.query(Criteria.where("user_id").is(user.getUserId())));
-        String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
-        metadataCriteria.and("source._id").is(mdmStorageConnectionId);
+        addMetadataCriteriaMDMConnId(user, metadataCriteria);
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
 
@@ -1075,14 +1071,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     }
                     List<String> tagIds = andChild.stream().map(t->t.getId().toHexString()).collect(Collectors.toList());
                     if (StringUtils.isBlank(param.getQueryKey())) {
-                        if (isMDMRoot(definitionDto)) {
-                            List<Criteria> metaOr = new ArrayList<>();
-                            metaOr.add(Criteria.where("listtags.id").exists(false));
-                            metaOr.add(Criteria.where("listtags.id").in(tagIds));
-                            metadataCriteria.orOperator(metaOr);
-                        } else {
-                            metadataCriteria.and("listtags.id").in(tagIds);
-                        }
+                        addMetadataCriteriaListTags(definitionDto, tagIds, metadataCriteria);
                     }
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
@@ -1287,7 +1276,34 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         return page;
     }
 
-    private static boolean isMDMRoot(MetadataDefinitionDto definitionDto) {
+    protected void addMetadataCriteriaListTags(MetadataDefinitionDto definitionDto, List<String> tagIds, Criteria metadataCriteria) {
+        if (isMDMRoot(definitionDto)) {
+            List<Criteria> metaOr = new ArrayList<>();
+            metaOr.add(Criteria.where("listtags.id").exists(false));
+            if (null != tagIds) {
+                metaOr.add(Criteria.where("listtags.id").in(tagIds));
+            }
+            metadataCriteria.orOperator(metaOr);
+        } else {
+            if (null != tagIds) {
+                metadataCriteria.and("listtags.id").in(tagIds);
+            }
+        }
+    }
+
+    protected void addMetadataCriteriaMDMConnId(UserDetail user, Criteria metadataCriteria) {
+        LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(Query.query(Criteria.where("user_id").is(user.getUserId())));
+        if (null == liveDataPlatformDto) {
+			throw new BizException("Ldp.not.exists", "Please create a data platform first, user: " + user.getUserId());
+        }
+        String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
+        metadataCriteria.and("source._id").is(mdmStorageConnectionId);
+    }
+
+    protected boolean isMDMRoot(MetadataDefinitionDto definitionDto) {
+        if (null == definitionDto) {
+            return false;
+        }
         return StringUtils.isBlank(definitionDto.getParent_id()) && definitionDto.getItemType().contains(MetadataDefinitionDto.LDP_ITEM_MDM);
     }
 
