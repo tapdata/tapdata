@@ -25,6 +25,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
+import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
@@ -62,6 +64,7 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class DiscoveryServiceImpl implements DiscoveryService {
 
+    private final LiveDataPlatformService liveDataPlatformService;
     private MetadataInstancesService metadataInstancesService;
 
     private MetadataInstancesRepository metaDataRepository;
@@ -81,6 +84,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private ApiServerService apiServerService;
 
     private LdpService ldpService;
+
+    public DiscoveryServiceImpl(LiveDataPlatformService liveDataPlatformService) {
+        this.liveDataPlatformService = liveDataPlatformService;
+    }
 
     /**
      * 查询对象概览列表
@@ -1012,11 +1019,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getObjType())) {
             metadataCriteria.and("meta_type").is(param.getObjType());
-            //taskCriteria.and("syncType").is(param.getObjType());
             apiCriteria.and("apiType").is(param.getObjType());
         } else {
             metadataCriteria.and("meta_type").is("table");
         }
+
+        LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(Query.query(Criteria.where("user_id").is(user.getUserId())));
+        String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
+        metadataCriteria.and("source._id").is(mdmStorageConnectionId);
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
 
@@ -1064,7 +1074,16 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                         taskCriteria.and("syncType").is(param.getObjType());
                     }
                     List<String> tagIds = andChild.stream().map(t->t.getId().toHexString()).collect(Collectors.toList());
-                    metadataCriteria.and("listtags.id").in(tagIds);
+                    if (StringUtils.isBlank(param.getQueryKey())) {
+                        if (isMDMRoot(definitionDto)) {
+                            List<Criteria> metaOr = new ArrayList<>();
+                            metaOr.add(Criteria.where("listtags.id").exists(false));
+                            metaOr.add(Criteria.where("listtags.id").in(tagIds));
+                            metadataCriteria.orOperator(metaOr);
+                        } else {
+                            metadataCriteria.and("listtags.id").in(tagIds);
+                        }
+                    }
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
                 } else {
@@ -1266,6 +1285,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setTotal(total);
 
         return page;
+    }
+
+    private static boolean isMDMRoot(MetadataDefinitionDto definitionDto) {
+        return StringUtils.isBlank(definitionDto.getParent_id()) && definitionDto.getItemType().contains(MetadataDefinitionDto.LDP_ITEM_MDM);
     }
 
     //@Override
