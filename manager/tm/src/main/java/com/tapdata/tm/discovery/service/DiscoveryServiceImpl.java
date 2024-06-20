@@ -1294,7 +1294,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     protected void addMetadataCriteriaMDMConnId(UserDetail user, Criteria metadataCriteria) {
         LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(Query.query(Criteria.where("user_id").is(user.getUserId())));
         if (null == liveDataPlatformDto) {
-			throw new BizException("Ldp.not.exists", "Please create a data platform first, user: " + user.getUserId());
+			throw new BizException("Ldp.not.exists", "Live data platform not exists, user: " + user.getUserId());
         }
         String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
         metadataCriteria.and("source._id").is(mdmStorageConnectionId);
