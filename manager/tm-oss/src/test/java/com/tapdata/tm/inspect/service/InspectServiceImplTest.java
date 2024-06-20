@@ -151,13 +151,8 @@ public class InspectServiceImplTest {
         when(impl.findByTaskIdList(anyList())).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.findByTaskIdList(mock(List.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
+            Assertions.assertDoesNotThrow(() -> {
+                impl.findByTaskIdList(mock(List.class));
             });
         }
     }
@@ -215,13 +210,8 @@ public class InspectServiceImplTest {
         when(impl.findByName(anyString())).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.findByName("id");
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
+            Assertions.assertDoesNotThrow(() -> {
+                impl.findByName("id");
             });
         }
     }
@@ -311,13 +301,8 @@ public class InspectServiceImplTest {
         when(impl.findByStatus(any(InspectStatusEnum.class))).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.findByStatus(mock(InspectStatusEnum.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
+            Assertions.assertDoesNotThrow(() -> {
+                impl.findByStatus(mock(InspectStatusEnum.class));
             });
         }
     }
@@ -327,14 +312,7 @@ public class InspectServiceImplTest {
         when(impl.findByResult(anyBoolean())).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.findByResult(true);
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
+            Assertions.assertDoesNotThrow(() -> impl.findByResult(true));
         }
     }
 
@@ -375,13 +353,8 @@ public class InspectServiceImplTest {
         when(impl.findAllByIds(anyList())).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.findAllByIds(mock(List.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
+            Assertions.assertDoesNotThrow(() -> {
+                impl.findAllByIds(mock(List.class));
             });
         }
     }
