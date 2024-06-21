@@ -12,11 +12,12 @@ import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.repository.InspectRepository;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.webhook.enums.ConstVariable;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -73,12 +74,13 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findByTaskIdList(List<String> taskIdList) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        Query query = Query.query(Criteria.where("flowId").in(taskIdList).and("is_deleted").ne(true));
+        return findAll(query);
     }
 
     @Override
     public UpdateResult deleteByTaskId(String taskId) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        return null;
     }
 
     @Override
@@ -103,7 +105,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public void setRepeatInspectTask() {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        // do nothing
     }
 
     @Override
@@ -132,7 +134,7 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public void cleanDeadInspect() {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+        //do nothing
     }
 
     @Override
