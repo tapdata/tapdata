@@ -139,6 +139,7 @@ public class TaskController extends BaseController {
         UserDetail user = getLoginUser();
 
         task.setId(null);
+        taskSaveService.supplementAlarm(task, user);
         return success(taskService.create(task, user));
     }
 
