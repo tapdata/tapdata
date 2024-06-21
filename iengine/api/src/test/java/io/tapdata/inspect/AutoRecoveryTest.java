@@ -30,57 +30,37 @@ class AutoRecoveryTest {
 
     @Test
     void testDuplicateServer() {
-        DuplicateAutoRecoveryException recoveryException = null;
-        try (
-            AutoRecovery ignore1 = AutoRecovery.init(taskId);
-            AutoRecovery ignore2 = AutoRecovery.init(taskId)
-        ) {
-        } catch (Exception e) {
-            if (e instanceof DuplicateAutoRecoveryException) {
-                recoveryException = (DuplicateAutoRecoveryException) e;
-            } else {
-                Assertions.fail(e);
+        Assertions.assertNotNull(Assertions.assertThrows(DuplicateAutoRecoveryException.class, () -> {
+            try (AutoRecovery ignore1 = AutoRecovery.init(taskId);
+                 AutoRecovery ignore2 = AutoRecovery.init(taskId)) {
+                // do nothing
             }
-        } finally {
-            Assertions.assertNotNull(recoveryException);
-        }
+        }), "Duplicate auto-recovery detected");
     }
 
     @Test
     void testClientFailedOfServerNotExists() {
-        NotfoundAutoRecoveryException recoveryException = null;
-        try (AutoRecoveryClient ignoreClient = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
-        })) {
-        } catch (Exception e) {
-            if (e instanceof NotfoundAutoRecoveryException) {
-                recoveryException = (NotfoundAutoRecoveryException) e;
-            } else {
-                Assertions.fail(e);
+        Assertions.assertNotNull(Assertions.assertThrows(NotfoundAutoRecoveryException.class, () -> {
+            try (AutoRecoveryClient ignoreClient = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
+            })) {
+                // do nothing
             }
-        } finally {
-            Assertions.assertNotNull(recoveryException);
-        }
+        }), "Auto-recovery detected");
     }
 
     @Test
     void testDuplicateClient() {
-        DuplicateClientAutoRecoveryException recoveryException = null;
-        try (
-            AutoRecovery ignoreServer = AutoRecovery.init(taskId);
-            AutoRecoveryClient ignoreClient1 = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
-            });
-            AutoRecoveryClient ignoreClient2 = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
-            })
-        ) {
-        } catch (Exception e) {
-            if (e instanceof DuplicateClientAutoRecoveryException) {
-                recoveryException = (DuplicateClientAutoRecoveryException) e;
-            } else {
-                Assertions.fail(e);
+        Assertions.assertNotNull(Assertions.assertThrows(DuplicateClientAutoRecoveryException.class, () -> {
+            try (
+                AutoRecovery ignoreServer = AutoRecovery.init(taskId);
+                AutoRecoveryClient ignoreClient1 = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
+                });
+                AutoRecoveryClient ignoreClient2 = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
+                })
+            ) {
+                // do nothing
             }
-        } finally {
-            Assertions.assertNotNull(recoveryException);
-        }
+        }), "Duplicate auto-recovery client detected");
     }
 
     @Test
