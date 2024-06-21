@@ -1,7 +1,9 @@
 package io.tapdata.inspect;
 
 import com.tapdata.entity.TapdataRecoveryEvent;
-import io.tapdata.exception.AutoRecoveryException;
+import io.tapdata.inspect.exception.DuplicateAutoRecoveryException;
+import io.tapdata.inspect.exception.DuplicateClientAutoRecoveryException;
+import io.tapdata.inspect.exception.NotfoundAutoRecoveryException;
 import lombok.Getter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,9 +41,7 @@ public class AutoRecovery implements AutoCloseable {
 
     public static AutoRecovery init(String taskId) {
         return instances.compute(taskId, (id, ins) -> {
-            if (null != ins) {
-                throw AutoRecoveryException.instanceExists(id);
-            }
+            DuplicateAutoRecoveryException.assertNull(ins);
             logger.info("Init auto-recovery instance '{}'", taskId);
             return new AutoRecovery(taskId);
         });
@@ -49,13 +49,9 @@ public class AutoRecovery implements AutoCloseable {
 
     @SuppressWarnings("resource")
     public static AutoRecoveryClient initClient(String taskId, String inspectTaskId, Consumer<TapdataRecoveryEvent> completedConsumer) {
-        AutoRecovery autoRecovery = instances.computeIfAbsent(taskId, id -> {
-            throw AutoRecoveryException.notFoundInstance(id);
-        });
+        AutoRecovery autoRecovery = instances.computeIfAbsent(taskId, NotfoundAutoRecoveryException::failed);
         return autoRecovery.clients.compute(inspectTaskId, (id, client) -> {
-            if (null != client) {
-                throw AutoRecoveryException.clientExists(id);
-            }
+            DuplicateClientAutoRecoveryException.assertNull(client);
             return new AutoRecoveryClient(taskId, id, autoRecovery.enqueueConsumer, completedConsumer) {
                 @Override
                 public void close() throws Exception {

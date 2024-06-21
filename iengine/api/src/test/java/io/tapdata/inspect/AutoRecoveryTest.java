@@ -1,8 +1,9 @@
 package io.tapdata.inspect;
 
 import com.tapdata.entity.TapdataRecoveryEvent;
-import io.tapdata.error.TaskInspectExCode_27;
-import io.tapdata.exception.AutoRecoveryException;
+import io.tapdata.inspect.exception.DuplicateAutoRecoveryException;
+import io.tapdata.inspect.exception.DuplicateClientAutoRecoveryException;
+import io.tapdata.inspect.exception.NotfoundAutoRecoveryException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -29,43 +30,41 @@ class AutoRecoveryTest {
 
     @Test
     void testDuplicateServer() {
-        AutoRecoveryException recoveryException = null;
+        DuplicateAutoRecoveryException recoveryException = null;
         try (
             AutoRecovery ignore1 = AutoRecovery.init(taskId);
             AutoRecovery ignore2 = AutoRecovery.init(taskId)
         ) {
         } catch (Exception e) {
-            if (e instanceof AutoRecoveryException) {
-                recoveryException = (AutoRecoveryException) e;
+            if (e instanceof DuplicateAutoRecoveryException) {
+                recoveryException = (DuplicateAutoRecoveryException) e;
             } else {
                 Assertions.fail(e);
             }
         } finally {
             Assertions.assertNotNull(recoveryException);
-            Assertions.assertEquals(TaskInspectExCode_27.AUTO_RECOVERY_DUPLICATE, recoveryException.getCode());
         }
     }
 
     @Test
     void testClientFailedOfServerNotExists() {
-        AutoRecoveryException recoveryException = null;
+        NotfoundAutoRecoveryException recoveryException = null;
         try (AutoRecoveryClient ignoreClient = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
         })) {
         } catch (Exception e) {
-            if (e instanceof AutoRecoveryException) {
-                recoveryException = (AutoRecoveryException) e;
+            if (e instanceof NotfoundAutoRecoveryException) {
+                recoveryException = (NotfoundAutoRecoveryException) e;
             } else {
                 Assertions.fail(e);
             }
         } finally {
             Assertions.assertNotNull(recoveryException);
-            Assertions.assertEquals(TaskInspectExCode_27.AUTO_RECOVERY_NOT_EXISTS, recoveryException.getCode());
         }
     }
 
     @Test
     void testDuplicateClient() {
-        AutoRecoveryException recoveryException = null;
+        DuplicateClientAutoRecoveryException recoveryException = null;
         try (
             AutoRecovery ignoreServer = AutoRecovery.init(taskId);
             AutoRecoveryClient ignoreClient1 = AutoRecovery.initClient(taskId, inspectTaskId, tapdataRecoveryEvent -> {
@@ -74,14 +73,13 @@ class AutoRecoveryTest {
             })
         ) {
         } catch (Exception e) {
-            if (e instanceof AutoRecoveryException) {
-                recoveryException = (AutoRecoveryException) e;
+            if (e instanceof DuplicateClientAutoRecoveryException) {
+                recoveryException = (DuplicateClientAutoRecoveryException) e;
             } else {
                 Assertions.fail(e);
             }
         } finally {
             Assertions.assertNotNull(recoveryException);
-            Assertions.assertEquals(TaskInspectExCode_27.AUTO_RECOVERY_CLIENT_DUPLICATE, recoveryException.getCode());
         }
     }
 
