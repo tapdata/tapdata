@@ -5,6 +5,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.vo.MetaDataDefinitionVo;
 import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -134,11 +135,17 @@ class DiscoveryServiceImplTest {
 			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
 			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
 			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
-			liveDataPlatformDto.setMdmStorageConnectionId("conn1");
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
 			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
-			discoveryService.addMetadataCriteriaMDMConnId(user, criteria);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_FDM);
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_MDM);
+			metadataDefinitionDto.setItemType(itemType);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
 
-			assertEquals("{\"source._id\": \"conn1\"}", criteria.getCriteriaObject().toJson());
+			assertEquals("{\"source._id\": {\"$in\": [\"fdm_conn_id\", \"mdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
 		}
 
 		@Test
@@ -149,9 +156,163 @@ class DiscoveryServiceImplTest {
 			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
 			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
 			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(null);
-			BizException bizException = assertThrows(BizException.class, () -> discoveryService.addMetadataCriteriaMDMConnId(user, criteria));
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_FDM);
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_MDM);
+			metadataDefinitionDto.setItemType(itemType);
+			BizException bizException = assertThrows(BizException.class, () -> discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto));
 
 			assertEquals("Ldp.not.exists", bizException.getErrorCode());
+		}
+
+		@Test
+		@DisplayName("test metadataDefinitionDto is null")
+		void test3() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+
+			assertDoesNotThrow(()-> discoveryService.addMetadataCriteriaMDMConnId(user, criteria, null));
+
+			assertTrue(criteria.getCriteriaObject().isEmpty());
+		}
+
+		@Test
+		@DisplayName("test itemType only have fdm")
+		void test4() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_FDM);
+			metadataDefinitionDto.setItemType(itemType);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertEquals("{\"source._id\": {\"$in\": [\"fdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
+		}
+
+		@Test
+		@DisplayName("test itemType only have mdm")
+		void test5() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_MDM);
+			metadataDefinitionDto.setItemType(itemType);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertEquals("{\"source._id\": {\"$in\": [\"mdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
+		}
+
+		@Test
+		@DisplayName("test itemType don't have fdm and mdm")
+		void test6() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
+			metadataDefinitionDto.setItemType(itemType);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertTrue(criteria.getCriteriaObject().isEmpty());
+		}
+
+		@Test
+		@DisplayName("test itemType is null")
+		void test7() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			metadataDefinitionDto.setItemType(null);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertTrue(criteria.getCriteriaObject().isEmpty());
+		}
+
+		@Test
+		@DisplayName("test fdm connection id is blank")
+		void test8() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId(null);
+			liveDataPlatformDto.setMdmStorageConnectionId("mdm_conn_id");
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_FDM);
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_MDM);
+			metadataDefinitionDto.setItemType(itemType);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertEquals("{\"source._id\": {\"$in\": [\"mdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
+
+			criteria = new Criteria();
+			liveDataPlatformDto.setFdmStorageConnectionId("");
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertEquals("{\"source._id\": {\"$in\": [\"mdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
+		}
+
+		@Test
+		@DisplayName("test mdm connection id is blank")
+		void test9() {
+			UserDetail user = mock(UserDetail.class);
+			Criteria criteria = new Criteria();
+			LiveDataPlatformService liveDataPlatformService = mock(LiveDataPlatformService.class);
+			ReflectionTestUtils.setField(discoveryService, "liveDataPlatformService", liveDataPlatformService);
+			LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
+			liveDataPlatformDto.setFdmStorageConnectionId("fdm_conn_id");
+			liveDataPlatformDto.setMdmStorageConnectionId(null);
+			when(liveDataPlatformService.findOne(any(Query.class))).thenReturn(liveDataPlatformDto);
+			MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+			List<String> itemType = new ArrayList<>();
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_FDM);
+			itemType.add(MetadataDefinitionDto.LDP_ITEM_MDM);
+			metadataDefinitionDto.setItemType(itemType);
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertEquals("{\"source._id\": {\"$in\": [\"fdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
+
+			criteria = new Criteria();
+			liveDataPlatformDto.setMdmStorageConnectionId("");
+			discoveryService.addMetadataCriteriaMDMConnId(user, criteria, metadataDefinitionDto);
+
+			assertEquals("{\"source._id\": {\"$in\": [\"fdm_conn_id\"]}}", criteria.getCriteriaObject().toJson());
 		}
 	}
 }

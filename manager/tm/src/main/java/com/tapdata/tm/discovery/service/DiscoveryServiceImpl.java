@@ -53,6 +53,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Meta;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
@@ -1023,8 +1024,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             metadataCriteria.and("meta_type").is("table");
         }
 
-        addMetadataCriteriaMDMConnId(user, metadataCriteria);
-
         if (StringUtils.isNotBlank(param.getQueryKey())) {
 
             if (param.getRegUnion()) {
@@ -1050,6 +1049,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         MetadataDefinitionDto definitionDto = null;
         if (StringUtils.isNotBlank(param.getTagId())) {
             definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
+            addMetadataCriteriaMDMConnId(user, metadataCriteria, definitionDto);
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
 
@@ -1292,13 +1292,34 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
     }
 
-    protected void addMetadataCriteriaMDMConnId(UserDetail user, Criteria metadataCriteria) {
+    protected void addMetadataCriteriaMDMConnId(UserDetail user, Criteria metadataCriteria, MetadataDefinitionDto metadataDefinitionDto) {
+        if (null == metadataDefinitionDto) {
+            return;
+        }
+        List<String> itemType = metadataDefinitionDto.getItemType();
+        if (null == itemType || (!itemType.contains(MetadataDefinitionDto.LDP_ITEM_FDM) && !itemType.contains(MetadataDefinitionDto.LDP_ITEM_MDM))) {
+            return;
+        }
         LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(Query.query(Criteria.where("user_id").is(user.getUserId())));
         if (null == liveDataPlatformDto) {
 			throw new BizException("Ldp.not.exists", "Live data platform not exists, user: " + user.getUserId());
         }
-        String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
-        metadataCriteria.and(SOURCE_ID).is(mdmStorageConnectionId);
+        List<String> sourceIds = new ArrayList<>();
+        if (itemType.contains(MetadataDefinitionDto.LDP_ITEM_FDM)) {
+            String fdmStorageConnectionId = liveDataPlatformDto.getFdmStorageConnectionId();
+            if(StringUtils.isNotBlank(fdmStorageConnectionId)){
+                sourceIds.add(fdmStorageConnectionId);
+            }
+        }
+        if (itemType.contains(MetadataDefinitionDto.LDP_ITEM_MDM)) {
+            String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
+            if(StringUtils.isNotBlank(mdmStorageConnectionId)){
+                sourceIds.add(mdmStorageConnectionId);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(sourceIds)) {
+            metadataCriteria.and(SOURCE_ID).in(sourceIds);
+        }
     }
 
     protected boolean isMDMRoot(MetadataDefinitionDto definitionDto) {
