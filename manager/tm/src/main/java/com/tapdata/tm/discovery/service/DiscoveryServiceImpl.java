@@ -1378,7 +1378,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                                 apiCriteria.and("_id").is("1231231231");
                                 List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
                                 if (CollectionUtils.isNotEmpty(linkIds)) {
-                                    metadataCriteria.and("source._id").in(linkIds);
+                                    metadataCriteria.and(SOURCE_ID).in(linkIds);
                                 } else {
                                     return page;
                                 }
