@@ -564,11 +564,19 @@ public class FieldProcessUtil {
 		return result;
 	}
 
-	private static  <T> T convertNumber(Object value, Function<String, T> fn) {
+	protected static  <T> T convertNumber(Object value, Function<String, T> fn) {
+		value = handleDateTime(value);
 		String str = String.valueOf(value);
 		if (StringUtils.isBlank(str)) {
 			return null;
 		}
 		return fn.apply(str);
+	}
+
+	protected static Object handleDateTime(Object value) {
+		if (value instanceof DateTime) {
+			value = ((DateTime) value).toLong();
+		}
+		return value;
 	}
 }
