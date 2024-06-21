@@ -65,6 +65,7 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class DiscoveryServiceImpl implements DiscoveryService {
 
+    public static final String SOURCE_ID = "source._id";
     private MetadataInstancesService metadataInstancesService;
 
     private MetadataInstancesRepository metaDataRepository;
@@ -1084,7 +1085,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                                 apiCriteria.and("_id").is("1231231231");
                                 List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
                                 if (CollectionUtils.isNotEmpty(linkIds)) {
-                                    metadataCriteria.and("source._id").in(linkIds);
+                                    metadataCriteria.and(SOURCE_ID).in(linkIds);
                                 } else {
                                     return page;
                                 }
@@ -1297,7 +1298,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 			throw new BizException("Ldp.not.exists", "Live data platform not exists, user: " + user.getUserId());
         }
         String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
-        metadataCriteria.and("source._id").is(mdmStorageConnectionId);
+        metadataCriteria.and(SOURCE_ID).is(mdmStorageConnectionId);
     }
 
     protected boolean isMDMRoot(MetadataDefinitionDto definitionDto) {
@@ -1548,9 +1549,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true)
                 .and("meta_type").is("table")
-                .and("source._id").ne(null);
+                .and(SOURCE_ID).ne(null);
         MatchOperation match = Aggregation.match(criteria1);
-        GroupOperation g = Aggregation.group("source._id").count().as("count");
+        GroupOperation g = Aggregation.group(SOURCE_ID).count().as("count");
 
 
         Aggregation aggregation = Aggregation.newAggregation(match, g);
