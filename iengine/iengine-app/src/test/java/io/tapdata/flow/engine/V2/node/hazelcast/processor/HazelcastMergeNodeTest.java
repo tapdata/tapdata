@@ -4,6 +4,7 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.utils.AppType;
@@ -2206,5 +2207,64 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertTrue(mergeLookupResult.getMergeLookupResults().isEmpty());
 			verify(nodeLogger, times(1)).warn(eq("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}"), any(Object[].class));
 		}
+	}
+	@Nested
+	class InitSourcePkOrUniqueFieldMapTest{
+		ProcessorBaseContext processorBaseContextTest;
+		private Map<String, List<String>> sourcePkOrUniqueFieldMap;
+		@BeforeEach
+		void setUp(){
+			sourcePkOrUniqueFieldMap = new HashMap<>();
+			processorBaseContextTest = mock(ProcessorBaseContext.class);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "processorBaseContext", processorBaseContextTest);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "sourcePkOrUniqueFieldMap", sourcePkOrUniqueFieldMap);
+		}
+
+
+		@Test
+		void testNodeIsDisabled(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			attrs.put("disabled",true);
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			Assertions.assertEquals(0,sourcePkOrUniqueFieldMap.size());
+		}
+
+		@Test
+		void testNodeIsNotDisabled(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setTableName("test");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContextTest.getTapTableMap()).thenReturn(tapTableMap);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTableMap.get(any())).thenReturn(tapTable);
+			when(tapTable.primaryKeys(true)).thenReturn(Arrays.asList("id"));
+			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			Assertions.assertEquals(1,sourcePkOrUniqueFieldMap.size());
+		}
+
 	}
 }

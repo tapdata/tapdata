@@ -841,7 +841,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void initSourcePkOrUniqueFieldMap(List<MergeTableProperties> mergeTableProperties) {
+	protected void initSourcePkOrUniqueFieldMap(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.sourcePkOrUniqueFieldMap = new HashMap<>();
 			Node<?> node = this.processorBaseContext.getNode();
@@ -855,32 +855,34 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (null == preNode) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NODE_NOT_FOUND, String.format("- Node ID: %s", sourceNodeId));
 			}
-			String nodeName = preNode.getName();
-			String tableName = getTableName(preNode);
-			TapTable tapTable = tapTableMap.get(tableName);
-			MergeTableProperties.MergeType mergeType = mergeProperty.getMergeType();
-			List<String> arrayKeys = mergeProperty.getArrayKeys();
-			Collection<String> primaryKeys = tapTable.primaryKeys(true);
-			List<String> fieldNames;
-			switch (mergeType) {
-				case appendWrite:
-				case updateOrInsert:
-				case updateWrite:
-					if (CollectionUtils.isEmpty(primaryKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
-					}
-					fieldNames = new ArrayList<>(primaryKeys);
-					break;
-				case updateIntoArray:
-					if (CollectionUtils.isEmpty(arrayKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
-					}
-					fieldNames = arrayKeys;
-					break;
-				default:
-					throw new RuntimeException("Unrecognized merge type: " + mergeType);
+			if(!preNode.disabledNode()){
+				String nodeName = preNode.getName();
+				String tableName = getTableName(preNode);
+				TapTable tapTable = tapTableMap.get(tableName);
+				MergeTableProperties.MergeType mergeType = mergeProperty.getMergeType();
+				List<String> arrayKeys = mergeProperty.getArrayKeys();
+				Collection<String> primaryKeys = tapTable.primaryKeys(true);
+				List<String> fieldNames;
+				switch (mergeType) {
+					case appendWrite:
+					case updateOrInsert:
+					case updateWrite:
+						if (CollectionUtils.isEmpty(primaryKeys)) {
+							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
+						}
+						fieldNames = new ArrayList<>(primaryKeys);
+						break;
+					case updateIntoArray:
+						if (CollectionUtils.isEmpty(arrayKeys)) {
+							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
+						}
+						fieldNames = arrayKeys;
+						break;
+					default:
+						throw new RuntimeException("Unrecognized merge type: " + mergeType);
+				}
+				this.sourcePkOrUniqueFieldMap.put(sourceNodeId, fieldNames);
 			}
-			this.sourcePkOrUniqueFieldMap.put(sourceNodeId, fieldNames);
 			initSourcePkOrUniqueFieldMap(mergeProperty.getChildren());
 		}
 	}
