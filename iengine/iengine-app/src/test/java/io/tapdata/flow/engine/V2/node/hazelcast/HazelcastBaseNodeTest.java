@@ -202,6 +202,65 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		@SneakyThrows
+		@DisplayName("Init when disable node test")
+		void testInitDisableNodeTestRunTask() {
+			Map<String, Object> attrs = new HashMap<>();
+			attrs.put("disabled", true);
+			tableNode.setAttrs(attrs);
+			TaskDto task = mock(TaskDto.class);
+			when(processorBaseContext.getTaskDto()).thenReturn(task);
+			DAG dag = mock(DAG.class);
+			when(task.getDag()).thenReturn(dag);
+			when(dag.getSourceNode()).thenReturn(new LinkedList<>());
+			when(task.getSyncType()).thenReturn("testRun");
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			mockHazelcastBaseNode.init(jetContext);
+			verify(mockHazelcastBaseNode, new Times(1)).doInit(jetContext);
+			verify(mockHazelcastBaseNode, new Times(0)).doInitWithDisableNode(jetContext);
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Init when disable node test")
+		void testInitDisableNodedDeduceSchemaTask() {
+			Map<String, Object> attrs = new HashMap<>();
+			attrs.put("disabled", true);
+			tableNode.setAttrs(attrs);
+			TaskDto task = mock(TaskDto.class);
+			when(processorBaseContext.getTaskDto()).thenReturn(task);
+			DAG dag = mock(DAG.class);
+			when(task.getDag()).thenReturn(dag);
+			when(dag.getSourceNode()).thenReturn(new LinkedList<>());
+			when(task.getSyncType()).thenReturn("deduceSchema");
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			mockHazelcastBaseNode.init(jetContext);
+			verify(mockHazelcastBaseNode, new Times(1)).doInit(jetContext);
+			verify(mockHazelcastBaseNode, new Times(0)).doInitWithDisableNode(jetContext);
+		}
+
+		@Test
+		@SneakyThrows
+		@DisplayName("Init when disable node test")
+		void testInitDisableNodedSyncTask() {
+			Map<String, Object> attrs = new HashMap<>();
+			attrs.put("disabled", true);
+			tableNode.setAttrs(attrs);
+			TaskDto task = mock(TaskDto.class);
+			when(processorBaseContext.getTaskDto()).thenReturn(task);
+			DAG dag = mock(DAG.class);
+			when(task.getDag()).thenReturn(dag);
+			when(dag.getSourceNode()).thenReturn(new LinkedList<>());
+			when(task.getSyncType()).thenReturn("sync");
+			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
+			mockHazelcastBaseNode.init(jetContext);
+			verify(mockHazelcastBaseNode, new Times(0)).doInit(jetContext);
+			verify(mockHazelcastBaseNode, new Times(1)).doInitWithDisableNode(jetContext);
+		}
+
+
+
+		@Test
+		@SneakyThrows
 		@DisplayName("Init occur error test")
 		void testInitHaveError() {
 			TapCodeException mockTapEx = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR);

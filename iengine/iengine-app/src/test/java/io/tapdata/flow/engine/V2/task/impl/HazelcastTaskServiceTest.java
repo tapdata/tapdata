@@ -396,6 +396,68 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
         }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for add date field processor")
+        void testCreateNodeTestRunTask(){
+            node = mock(AddDateFieldProcessorNode.class);
+            when(node.getType()).thenReturn("add_date_field_processor");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("testRun");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for add date field processor")
+        void testCreateNodeDeduceSchemaTask(){
+            node = mock(AddDateFieldProcessorNode.class);
+            when(node.getType()).thenReturn("add_date_field_processor");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("deduceSchema");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for add date field processor")
+        void testCreateNodeSyncTask(){
+            node = mock(AddDateFieldProcessorNode.class);
+            when(node.getType()).thenReturn("add_date_field_processor");
+            when(node.disabledNode()).thenReturn(true);
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("sync");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastBlank.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate js processor")
+        void testCreateNodeMigrateTask(){
+            node = mock(MigrateJsProcessorNode.class);
+            when(node.getType()).thenReturn("migrate_js_processor");
+            when(node.disabledNode()).thenReturn(true);
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastBlank.class, actual.getClass());
+        }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate js processor")
+        void testCreateNodeMigrateTaskDisableIsFalse(){
+            node = mock(MigrateJsProcessorNode.class);
+            when(node.getType()).thenReturn("migrate_js_processor");
+            when(node.disabledNode()).thenReturn(false);
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastJavaScriptProcessorNode.class, actual.getClass());
+        }
     }
 
     @Nested
