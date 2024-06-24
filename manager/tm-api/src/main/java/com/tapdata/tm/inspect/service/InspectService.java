@@ -80,7 +80,6 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
 
     public abstract List<InspectDto> findAllByIds(List<String> inspectIds);
 
-    public abstract void fieldHandler(List<Task> tasks,UserDetail userDetail);
 
     public InspectRecoveryStartVerifyVo recoveryStartVerity(InspectDto inspectDto) {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
