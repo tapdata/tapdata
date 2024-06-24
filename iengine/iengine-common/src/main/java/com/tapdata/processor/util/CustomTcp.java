@@ -359,15 +359,7 @@ public class CustomTcp {
 	 * @author lidi
 	 * @date 2021/5/18 11:49
 	 */
-	private static Random random;
-
-    static {
-        try {
-            random = SecureRandom.getInstanceStrong();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
+	private static Random random = new Random();
 
     private static String getStringRandom(int length) {
 		String val = "";

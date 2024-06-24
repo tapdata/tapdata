@@ -148,6 +148,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 								((Closeable) engine).close();
 							}
 						} catch (Exception ignored) {
+							// nothing to do
 						}
 					}
 				};
