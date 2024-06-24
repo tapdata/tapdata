@@ -19,7 +19,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Query;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -29,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class InspectServiceImplTest {
@@ -148,17 +151,12 @@ public class InspectServiceImplTest {
 
     @Test
     void findByTaskIdList() {
+        when(impl.findAll(any(Query.class))).thenReturn(new ArrayList<>());
         when(impl.findByTaskIdList(anyList())).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.findByTaskIdList(mock(List.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
+            Assertions.assertDoesNotThrow(() -> impl.findByTaskIdList(mock(List.class)));
+            verify(impl).findAll(any(Query.class));
         }
     }
 
@@ -167,14 +165,7 @@ public class InspectServiceImplTest {
         when(impl.deleteByTaskId(anyString())).thenCallRealMethod();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.deleteByTaskId("id");
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
+            Assertions.assertDoesNotThrow(() -> impl.deleteByTaskId("id"));
         }
     }
 
@@ -247,14 +238,7 @@ public class InspectServiceImplTest {
         doCallRealMethod().when(impl).setRepeatInspectTask();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.setRepeatInspectTask();
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
+            Assertions.assertDoesNotThrow(impl::setRepeatInspectTask);
         }
     }
 
@@ -343,14 +327,7 @@ public class InspectServiceImplTest {
         doCallRealMethod().when(impl).cleanDeadInspect();
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
             messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.cleanDeadInspect();
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
+            Assertions.assertDoesNotThrow(impl::cleanDeadInspect);
         }
     }
 

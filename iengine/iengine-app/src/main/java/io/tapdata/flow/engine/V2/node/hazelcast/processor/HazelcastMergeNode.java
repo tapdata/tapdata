@@ -25,10 +25,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
@@ -844,7 +841,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void initSourcePkOrUniqueFieldMap(List<MergeTableProperties> mergeTableProperties) {
+	protected void initSourcePkOrUniqueFieldMap(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.sourcePkOrUniqueFieldMap = new HashMap<>();
 			Node<?> node = this.processorBaseContext.getNode();
@@ -858,32 +855,34 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (null == preNode) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NODE_NOT_FOUND, String.format("- Node ID: %s", sourceNodeId));
 			}
-			String nodeName = preNode.getName();
-			String tableName = getTableName(preNode);
-			TapTable tapTable = tapTableMap.get(tableName);
-			MergeTableProperties.MergeType mergeType = mergeProperty.getMergeType();
-			List<String> arrayKeys = mergeProperty.getArrayKeys();
-			Collection<String> primaryKeys = tapTable.primaryKeys(true);
-			List<String> fieldNames;
-			switch (mergeType) {
-				case appendWrite:
-				case updateOrInsert:
-				case updateWrite:
-					if (CollectionUtils.isEmpty(primaryKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
-					}
-					fieldNames = new ArrayList<>(primaryKeys);
-					break;
-				case updateIntoArray:
-					if (CollectionUtils.isEmpty(arrayKeys)) {
-						throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
-					}
-					fieldNames = arrayKeys;
-					break;
-				default:
-					throw new RuntimeException("Unrecognized merge type: " + mergeType);
+			if(!preNode.disabledNode()){
+				String nodeName = preNode.getName();
+				String tableName = getTableName(preNode);
+				TapTable tapTable = tapTableMap.get(tableName);
+				MergeTableProperties.MergeType mergeType = mergeProperty.getMergeType();
+				List<String> arrayKeys = mergeProperty.getArrayKeys();
+				Collection<String> primaryKeys = tapTable.primaryKeys(true);
+				List<String> fieldNames;
+				switch (mergeType) {
+					case appendWrite:
+					case updateOrInsert:
+					case updateWrite:
+						if (CollectionUtils.isEmpty(primaryKeys)) {
+							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
+						}
+						fieldNames = new ArrayList<>(primaryKeys);
+						break;
+					case updateIntoArray:
+						if (CollectionUtils.isEmpty(arrayKeys)) {
+							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
+						}
+						fieldNames = arrayKeys;
+						break;
+					default:
+						throw new RuntimeException("Unrecognized merge type: " + mergeType);
+				}
+				this.sourcePkOrUniqueFieldMap.put(sourceNodeId, fieldNames);
 			}
-			this.sourcePkOrUniqueFieldMap.put(sourceNodeId, fieldNames);
 			initSourcePkOrUniqueFieldMap(mergeProperty.getChildren());
 		}
 	}
@@ -1234,7 +1233,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	protected void transformDateTime(Map<String, Object> after) {
 		mapIterator.iterate(after, (key, value, recursive) -> {
 			if (value instanceof DateTime) {
-				return ((DateTime) value).toDate();
+				return ((DateTime) value).toInstant();
 			}
 			return value;
 		});
@@ -1569,7 +1568,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		String tableName = getTableName(getPreNode(childMergeProperty.getId()));
 		TapTable tapTable = processorBaseContext.getTapTableMap().get(tableName);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		nameFieldMap.keySet().forEach(key -> lookupMap.put(key, null));
+		while (isRunning()) {
+			try {
+				nameFieldMap.keySet().forEach(key -> lookupMap.put(key, null));
+				break;
+			} catch (ConcurrentModificationException ignored) {
+			}
+		}
 		return lookupMap;
 	}
 
@@ -2148,8 +2153,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 						return new TapStringValue(value.toString())
 								.tapType(new TapString(24L, true))
 								.originType(BsonType.OBJECT_ID.name());
-					} else if (value instanceof Document) {
-						return new TapMapValue((Document) value);
+					} else if (value instanceof Map) {
+						return new TapMapValue((Map<String, Object>) value);
 					} else if (value instanceof List) {
 						return new TapArrayValue((List<Object>) value);
 					}

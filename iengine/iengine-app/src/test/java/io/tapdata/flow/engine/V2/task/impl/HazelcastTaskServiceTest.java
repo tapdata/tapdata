@@ -37,6 +37,7 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -395,6 +396,68 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
         }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for add date field processor")
+        void testCreateNodeTestRunTask(){
+            node = mock(AddDateFieldProcessorNode.class);
+            when(node.getType()).thenReturn("add_date_field_processor");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("testRun");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for add date field processor")
+        void testCreateNodeDeduceSchemaTask(){
+            node = mock(AddDateFieldProcessorNode.class);
+            when(node.getType()).thenReturn("add_date_field_processor");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("deduceSchema");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastAddDateFieldProcessNode.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for add date field processor")
+        void testCreateNodeSyncTask(){
+            node = mock(AddDateFieldProcessorNode.class);
+            when(node.getType()).thenReturn("add_date_field_processor");
+            when(node.disabledNode()).thenReturn(true);
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("sync");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastBlank.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate js processor")
+        void testCreateNodeMigrateTask(){
+            node = mock(MigrateJsProcessorNode.class);
+            when(node.getType()).thenReturn("migrate_js_processor");
+            when(node.disabledNode()).thenReturn(true);
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastBlank.class, actual.getClass());
+        }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate js processor")
+        void testCreateNodeMigrateTaskDisableIsFalse(){
+            node = mock(MigrateJsProcessorNode.class);
+            when(node.getType()).thenReturn("migrate_js_processor");
+            when(node.disabledNode()).thenReturn(false);
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastJavaScriptProcessorNode.class, actual.getClass());
+        }
     }
 
     @Nested
@@ -707,6 +770,52 @@ public class HazelcastTaskServiceTest {
                 });
             }
 
+        }
+    }
+
+    @Nested
+    class GetTapTableMapTest{
+        @Test
+        void testTaskTypeIsTestRun(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("testRun");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            try(MockedStatic<TapTableUtil> tapTableUtilMockedStatic = mockStatic(TapTableUtil.class)){
+                tapTableUtilMockedStatic.when(()->TapTableUtil.getTapTableMapByNodeId(anyString(),any())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+                    return null;
+                });
+                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+            }
+        }
+
+        @Test
+        void testNormalTask(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            try(MockedStatic<TapTableMap> tableMapMockedStatic = mockStatic(TapTableMap.class)){
+                tableMapMockedStatic.when(()->TapTableMap.create(anyString())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+                    return null;
+                });
+                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+            }
+        }
+
+        @Test
+        void testNormalTaskTapTableMapHashMapIsNotNull(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("sync");
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setId("databaseNode");
+            Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
+            TapTableMap<String, TapTable> except =  TapTableMap.create("databaseNode");
+            tapTableMapHashMap.put("databaseNode",except);
+            TapTableMap<String, TapTable> result = HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,tapTableMapHashMap);
+            Assertions.assertEquals(except,result);
         }
     }
 }

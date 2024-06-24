@@ -119,4 +119,9 @@ public interface TaskTargetProcessorExCode_15 {
 			describeCN = "创建索引时，检查索引是否存在失败"
 	)
 	String CREATE_INDEX_QUERY_EXISTS_INDEX_FAILED = "15021";
+	@TapExCode(
+			describe = "Failed to process events",
+			describeCN = "数据源处理失败"
+	)
+	String PROCESS_EVENTS_FAILED = "15022";
 }

@@ -11,6 +11,7 @@ import com.tapdata.tm.livedataplatform.repository.LiveDataPlatformRepository;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +37,8 @@ public class LiveDataPlatformService extends BaseService<LiveDataPlatformDto, Li
     public LiveDataPlatformDto save(LiveDataPlatformDto dto, UserDetail user) {
         Query query = new Query();
         query.fields().include("_id");
-        LiveDataPlatformDto old = findOne(new Query(), user);
+        query.addCriteria(Criteria.where("user_id").is(user.getUserId()));
+        LiveDataPlatformDto old = findOne(query, user);
         if (old != null) {
             dto.setId(old.getId());
         }

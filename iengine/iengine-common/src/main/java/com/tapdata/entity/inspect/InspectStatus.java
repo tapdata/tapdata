@@ -10,6 +10,7 @@ public enum InspectStatus {
 	PAUSE("pause"),
 	SCHEDULING("scheduling"),
 	RUNNING("running"),
+	RECOVERING("recovering"),
 	ERROR("error"),
 	DONE("done"),
 	WAITING("waiting"),

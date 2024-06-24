@@ -42,11 +42,7 @@ import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
@@ -105,6 +101,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
@@ -185,15 +182,28 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
-			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
-			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
-			Job job = jet.newJob(jetDag.getDag(), jobConfig);
-			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
+			hazelcastTaskClient.setJob(job);
+			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
+	}
+
+	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient) {
+		Job job;
+		try {
+			final JetDag jetDag = task2HazelcastDAG(taskDto,true);
+			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
+			job = jet.newJob(jetDag.getDag(), jobConfig);
+		} catch (Exception e) {
+			hazelcastTaskClient.close();
+			throw e;
+		}
+		return job;
 	}
 
 	protected void cleanAllUnselectedError(TaskDto taskDto, ObsLogger obsLogger) {
@@ -417,6 +427,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
 		} else if (node instanceof VirtualTargetNode) {
 			tapTableMap = TapTableMap.create(node.getId());
+		} else if(StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),TaskDto.SYNC_TYPE_TEST_RUN)){
+			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 		} else {
 			if(tapTableMapHashMap.containsKey(node.getId())){
 				tapTableMap = tapTableMapHashMap.get(node.getId());
@@ -443,7 +455,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TaskConfig taskConfig
 	) throws Exception {
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
-		if ((node instanceof ProcessorNode || node instanceof MigrateDateProcessorNode) && node.disabledNode()) {
+		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),TaskDto.SYNC_TYPE_TEST_RUN,TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
+				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
 			HazelcastBlank newNode = new HazelcastBlank(
 					DataProcessorContext.newBuilder()
 							.withTaskDto(taskDto)
