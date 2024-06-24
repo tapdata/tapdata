@@ -17,6 +17,7 @@ import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.inspect.service.InspectTaskService;
+import com.tapdata.tm.inspect.vo.InspectRecoveryStartVerifyVo;
 import com.tapdata.tm.inspect.vo.InspectTaskVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
@@ -37,15 +38,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.Date;
@@ -387,4 +380,45 @@ public class InspectController extends BaseController {
         return success(inspect);
     }
 
+
+    @Operation(summary = "启动差异修复")
+    @PutMapping("/{id}/recovery/start")
+    public ResponseMessage<InspectRecoveryStartVerifyVo> recoveryStart(HttpServletRequest request, @PathVariable String id) {
+        InspectDto inspectDto = dataPermissionCheckOfId(
+            request,
+            getLoginUser(),
+            MongoUtils.toObjectId(id),
+            DataPermissionActionEnums.Start,
+            Lists.newArrayList(DataPermissionActionEnums.Start),
+            () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
+        );
+
+        if (null == inspectDto) {
+            throw new BizException("Inspect.NotFound");
+        }
+
+        UserDetail userDetail = getLoginUser();
+        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.recoveryStart(inspectDto, userDetail);
+        return success(startVerifyVo);
+    }
+
+    @Operation(summary = "差异修复-验证信息")
+    @GetMapping("/{id}/recovery/start-verify")
+    public ResponseMessage<InspectRecoveryStartVerifyVo> recoveryStartVerify(HttpServletRequest request, @PathVariable String id) {
+        InspectDto inspectDto = dataPermissionCheckOfId(
+            request,
+            getLoginUser(),
+            MongoUtils.toObjectId(id),
+            DataPermissionActionEnums.Start,
+            Lists.newArrayList(DataPermissionActionEnums.Start),
+            () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
+        );
+
+        if (null == inspectDto) {
+            throw new BizException("Inspect.NotFound");
+        }
+
+        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.recoveryStartVerity(inspectDto);
+        return success(startVerifyVo);
+    }
 }

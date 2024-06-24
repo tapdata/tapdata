@@ -1,9 +1,13 @@
 package com.tapdata.tm.inspect.constant;
 
 public enum InspectMethod {
+    ROW_COUNT("row_count"),
     FIELD("field"),
-    ROW_COUNT("row_count") ,
-    HASH("hash")  ;
+    JOINTFIELD("jointField"),
+    CDC_COUNT("cdcCount"),
+    JUNIT_TEST("junitTest"),
+    HASH("hash"),
+    ;
 
     private final String value;
 
