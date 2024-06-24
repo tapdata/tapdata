@@ -169,7 +169,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		CommonUtils.handleAnyError(
 				() -> {
-					monitorManager.close();
+					if (monitorManager != null) monitorManager.close();
 					obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
 				},
 				err -> {
@@ -178,7 +178,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		);
             CommonUtils.handleAnyError(
                 () -> {
-                    autoRecovery.close();
+					if(null != autoRecovery) autoRecovery.close();
                     obsLogger.info(String.format("Closed task auto recovery instance\n  %s", autoRecovery));
                 },
                 err -> {
