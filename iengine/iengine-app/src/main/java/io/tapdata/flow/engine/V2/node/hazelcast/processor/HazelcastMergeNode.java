@@ -1000,7 +1000,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
-		if (op.equals(OperationType.DELETE.getOp())) {
+		if (op.equals(OperationType.DELETE.getOp()) || op.equals(OperationType.UPDATE.getOp())) {
 			return false;
 		}
 		String preNodeId = getPreNodeId(tapdataEvent);
