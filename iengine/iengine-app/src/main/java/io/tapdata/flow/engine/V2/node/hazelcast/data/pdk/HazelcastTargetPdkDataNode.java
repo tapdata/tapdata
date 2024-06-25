@@ -146,7 +146,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					if (!isRunning()) {
 						return;
 					}
-					createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId);
+					createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId,true);
 				}
 			}
 
@@ -174,7 +174,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										if (!isRunning()) {
 											return;
 										}
-										createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId);
+										createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId,true);
 									}
 								}
 							}
@@ -185,7 +185,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}));
 	}
 
-	protected void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+	protected void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId,boolean init) {
 		TapTable tapTable = tapTableMap.get(tableId);
 		List<String> updateConditionFields = getUpdateConditionFields(node, tapTable);
 		if (null == tapTable) {
@@ -196,11 +196,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
 			return;
 		}
-		dropTable(existsDataProcessEnum, tableId);
+		dropTable(existsDataProcessEnum, tableId, init);
 //		boolean createUnique = tapTable.getIndexList() != null && tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
 //				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));
 		AtomicBoolean succeed = new AtomicBoolean(false);
-		boolean createdTable = createTable(tapTable, succeed);
+		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
 //		createUnique &= succeed.get();
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
@@ -438,7 +438,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
+	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId, boolean init) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.DROP_TABLE) return;
 
 		AtomicReference<TapDropTableEvent> tapDropTableEvent = new AtomicReference<>();
@@ -447,6 +447,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (dropTableFunction != null) {
 				tapDropTableEvent.set(dropTableEvent(tableId));
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
+						.setInit(init)
 						.dropTableEvent(tapDropTableEvent.get())
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext)
@@ -726,7 +727,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
 		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
 		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-		return createTable(tgtTapTable, new AtomicBoolean());
+		return createTable(tgtTapTable, new AtomicBoolean(),false);
 	}
 
 	protected boolean executeCreateIndexFunction(TapCreateIndexEvent tapCreateIndexEvent) {

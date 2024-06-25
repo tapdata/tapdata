@@ -207,7 +207,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (null != dataProcessorContext.getTapTableMap()) {
 			dataProcessorContext.getTapTableMap().putNew(exactlyOnceTable.getId(), exactlyOnceTable, exactlyOnceTable.getId());
 		}
-		boolean create = createTable(exactlyOnceTable, new AtomicBoolean());
+		boolean create = createTable(exactlyOnceTable, new AtomicBoolean(),true);
 		if (create) {
 			obsLogger.info("Create exactly once write cache table: {}", exactlyOnceTable);
 			CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
@@ -259,7 +259,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed) {
+	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed,boolean init) {
 		if (getNode().disabledNode()) {
 			obsLogger.info("Target node has been disabled, task will skip: create table");
 			return false;
@@ -280,6 +280,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				tapCreateTableEvent.set(createTableEvent(finalTapTable));
 				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 						.createTableEvent(tapCreateTableEvent.get())
+						.setInit(init)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext)
 						.start(), (createTableFuncAspect ->
