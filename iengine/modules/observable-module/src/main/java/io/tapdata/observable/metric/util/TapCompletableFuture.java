@@ -74,6 +74,7 @@ public class TapCompletableFuture extends CompletableFuture {
                 try {
                     list = completableFutureQueue.poll(1, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     break;
                 }
                 if (CollectionUtils.isNotEmpty(list)) {
@@ -110,14 +111,14 @@ public class TapCompletableFuture extends CompletableFuture {
 
     public void clearAll() {
         start = false;
-        long start = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
 
         new Thread(() -> {
             clearData();
         }).start();
 
         while (true) {
-            if (System.currentTimeMillis() - start > timeout) {
+            if (System.currentTimeMillis() - startTime > timeout) {
                 return;
             }
             if (pollDataComplete && clearAllDataComplete) {
@@ -135,13 +136,15 @@ public class TapCompletableFuture extends CompletableFuture {
     }
 
     public int getFreeMapList() {
-        for (Integer key : mapList.keySet()) {
-            if (CollectionUtils.isEmpty(mapList.get(key))) {
-                indexUse = key;
-                return key;
+        for (Map.Entry<Integer, List> entry : mapList.entrySet()) {
+            if (CollectionUtils.isEmpty(entry.getValue())) {
+                indexUse = entry.getKey();
+                return indexUse;
             }
         }
-        return indexUse = -1;
+        indexUse = -1;
+        return indexUse;
+
     }
 
     public CompletableFuture<Void> getCompletableFuture() {
