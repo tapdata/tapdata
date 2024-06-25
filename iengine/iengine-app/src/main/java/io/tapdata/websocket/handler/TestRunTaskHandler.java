@@ -11,15 +11,18 @@ import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @EventHandlerAnnotation(type = "testRun")
 public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventResult> {
+	public static final String TAG = TestRunTaskHandler.class.getSimpleName();
 	private ClientMongoOperator clientMongoOperator;
 
 	private TaskService<TaskDto> taskService;
@@ -67,6 +70,8 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 			}
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, throwable.getMessage());
 		} finally {
+			TaskClient<TaskDto> finalTaskClient = taskClient;
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(finalTaskClient).ifPresent(TaskClient::close), TAG + "-closeTaskClient");
 			taskDtoMap.remove(taskId);
 		}
 

@@ -31,6 +31,7 @@ import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.websocket.handler.DeduceSchemaHandler;
 import org.apache.commons.collections.CollectionUtils;
@@ -44,6 +45,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 
 public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
+    public static final String TAG = DAGDataEngineServiceImpl.class.getSimpleName();
     private final ObsLogger obsLogger;
     private final TaskService<TaskDto> taskService;
     private final TaskDto taskDto;
@@ -82,12 +84,12 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
     @Override
     public TapTable loadTapTable(String nodeId, String virtualId, TaskDto taskDto) {
-        
+        TaskClient<TaskDto> taskClient = null;
         try {
             // 跑任务加载js模型
             String schemaKey = taskDto.getId() + "-" + virtualId;
             long startTs = System.currentTimeMillis();
-            TaskClient<TaskDto> taskClient = execTask(taskDto);
+            taskClient = execTask(taskDto);
 
             obsLogger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
             //成功
@@ -98,17 +100,21 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             return tapTable;
         } catch (Exception e) {
             obsLogger.error("An error occurred while obtaining the results of model deduction", e);
+        } finally {
+            TaskClient<TaskDto> finalTaskClient = taskClient;
+            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(finalTaskClient).ifPresent(TaskClient::close), TAG + "-closeTaskClient");
         }
         return null;
     }
 
     @Override
     public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto taskDto) {
+        TaskClient<TaskDto> taskClient = null;
         try {
             String schemaKey = taskDto.getId() + "-" + virtualTargetId;
             long startTs = System.currentTimeMillis();
 
-            TaskClient<TaskDto> taskClient = execTask(taskDto);
+            taskClient = execTask(taskDto);
 
             obsLogger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
             //成功
@@ -123,6 +129,9 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             }
         } catch (Exception e) {
             obsLogger.error("An error occurred while obtaining the results of model deduction", e);
+        } finally {
+            TaskClient<TaskDto> finalTaskClient = taskClient;
+            CommonUtils.ignoreAnyError(() -> Optional.ofNullable(finalTaskClient).ifPresent(TaskClient::close), TAG + "-closeTaskClient");
         }
         return new ArrayList<>();
     }
