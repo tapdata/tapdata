@@ -1,5 +1,6 @@
 package io.tapdata.observable.metric.util;
 
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 public class TapCompletableFuture extends CompletableFuture {
     volatile boolean start;
-    int maxList = 1000;
+    int maxList;
     Map<Integer, List> mapList = new HashMap<>();
     private LinkedBlockingQueue<List<CompletableFuture>> completableFutureQueue;
 
@@ -20,25 +21,26 @@ public class TapCompletableFuture extends CompletableFuture {
 
     private CompletableFuture<Void> completableFuture;
 
-    private long timeout = 6000L;
+    private long timeout;
 
     private boolean pollDataComplete = false;
 
     private boolean clearAllDataComplete = false;
+
+    private TaskDto task;
 
     public CompletableFuture<Void> add(CompletableFuture completableFuture) {
         List<CompletableFuture> completableFutureList = mapList.get(indexUse);
         if (completableFutureList.size() >= maxList) {
             while (true) {
                 List<CompletableFuture> completableFutures = completableFutureList;
-                if (completableFutureQueue.offer(completableFutures)) {
-                    break;
-                }
                 try {
-                    Thread.sleep(50L);
-                } catch (InterruptedException interruptedException) {
+                    if (completableFutureQueue.offer(completableFutures,50,TimeUnit.MILLISECONDS)) {
+                        break;
+                    }
+                } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
+                    return null;
                 }
             }
             while (true) {
@@ -49,7 +51,7 @@ public class TapCompletableFuture extends CompletableFuture {
                     Thread.sleep(50L);
                 } catch (InterruptedException interruptedException) {
                     Thread.currentThread().interrupt();
-                    break;
+                    return null;
                 }
             }
             mapList.get(indexUse).add(completableFuture);
@@ -59,7 +61,10 @@ public class TapCompletableFuture extends CompletableFuture {
         return completableFuture;
     }
 
-    public TapCompletableFuture(int queueSize) {
+    public TapCompletableFuture(int queueSize, long timeout, int maxList, TaskDto task) {
+        this.maxList = maxList;
+        this.timeout = timeout;
+        this.task = task;
         completableFuture = CompletableFuture.runAsync(() -> {});
         completableFutureQueue = new LinkedBlockingQueue(queueSize);
         for (int index = 0; index < queueSize; index++) {
@@ -75,7 +80,7 @@ public class TapCompletableFuture extends CompletableFuture {
                     list = completableFutureQueue.poll(1, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
+                    return;
                 }
                 if (CollectionUtils.isNotEmpty(list)) {
                     CompletableFuture.allOf(list.toArray(new CompletableFuture[0])).join();
@@ -86,7 +91,7 @@ public class TapCompletableFuture extends CompletableFuture {
                 }
 
             }
-        }).start();
+        },"CompletableFutureQueuePoll-Thread-taskId-"+task.getId()).start();
     }
 
     public void clearData() {
@@ -100,10 +105,12 @@ public class TapCompletableFuture extends CompletableFuture {
                 pollCompletableFutureList.clear();
             }
         }
-        List<CompletableFuture> completableFutureList = mapList.get(indexUse);
-        if(CollectionUtils.isNotEmpty(completableFutureList)) {
-            CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
-            completableFutureList.clear();
+        for (Map.Entry<Integer, List> entry : mapList.entrySet()) {
+            if (CollectionUtils.isNotEmpty(entry.getValue())) {
+                List<CompletableFuture> completableFutureList = entry.getValue();
+                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
+                completableFutureList.clear();
+            }
         }
         clearAllDataComplete = true;
     }
@@ -115,7 +122,7 @@ public class TapCompletableFuture extends CompletableFuture {
 
         new Thread(() -> {
             clearData();
-        }).start();
+        },"CompletableFutureClearData-Thread-taskId-"+task.getId()).start();
 
         while (true) {
             if (System.currentTimeMillis() - startTime > timeout) {
