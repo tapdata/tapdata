@@ -47,6 +47,9 @@ public class MeasureController extends BaseController {
 
     @PostMapping("points/v2")
     public ResponseMessage<Void> pointsV2(@RequestBody BulkRequest bulkRequest) {
+        if("665822b45ab28a79cc0117ee".equals(getLoginUser().getUserId())){
+            return success();
+        }
 //        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
         List<SampleRequest> samples = bulkRequest.getSamples();
         //List statistics = bulkRequest.getStatistics();
@@ -58,12 +61,18 @@ public class MeasureController extends BaseController {
 
     @PostMapping("points/aggregate")
     public ResponseMessage<Void> pointsAggregate(@RequestBody AggregateMeasurementParam aggregateMeasurementParam) {
+        if("665822b45ab28a79cc0117ee".equals(getLoginUser().getUserId())){
+            return success();
+        }
         measurementServiceV2.aggregateMeasurement(aggregateMeasurementParam);
         return success();
     }
 
     @PostMapping("query/v2")
     public ResponseMessage<Object> queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
+//        if("62bc5008d4958d013d97c7a6".equals(getLoginUser().getUserId())){
+//            return success(new Object());
+//        }
         Object data = measurementServiceV2.getSamples(measurementQueryParam);
         return success(data);
     }
@@ -74,6 +83,13 @@ public class MeasureController extends BaseController {
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto,
                                                       HttpServletRequest request) throws ExecutionException, InterruptedException {
+        if ("665822b45ab28a79cc0117ee".equals(getLoginUser().getUserId())) {
+            batchRequestDto.remove("totalData");
+            batchRequestDto.remove("dagData");
+            batchRequestDto.remove("lineChartData");
+            batchRequestDto.remove("agentData");
+            batchRequestDto.remove("barChartData");
+        }
         Locale locale = WebUtils.getLocale(request);
         Map<String, Object> data = batchService.batch(batchRequestDto, locale);
         return success(data);
