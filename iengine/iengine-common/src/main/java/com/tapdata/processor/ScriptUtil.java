@@ -214,7 +214,8 @@ public class ScriptUtil {
 			Connections targetConn,
 			Job job,
 			Map<String, Object> context,
-			Logger logger
+			Logger logger,
+			String tag
 	) throws Exception {
 		ProcessContext processContext = message.getProcessContext();
 		if (message.getProcessContext() == null) {
@@ -256,6 +257,15 @@ public class ScriptUtil {
 
 		Object o;
 		Map<String, Object> record = MapUtils.isNotEmpty(message.getAfter()) ? message.getAfter() : message.getBefore();
+		if (null != tag){
+			switch (tag) {
+				case "before":
+					record = message.getBefore();
+					break;
+				case "after":
+					record = message.getAfter();
+			}
+		}
 		try {
 			if (engine instanceof GraalJSScriptEngine) {
 				o = engine.invokeFunction(functionName, ProxyObject.fromMap(record));
