@@ -47,7 +47,6 @@ public class InspectFactory {
                     }
                     inspectServicePrivate.init(clientMongoOperator,settingService);
                     inspectService = inspectServicePrivate;
-                    return inspectService;
                 }
             }
         }
