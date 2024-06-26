@@ -160,8 +160,8 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform, deleteAllFields);
 					message.setAfter(after);
 				}
-				fieldScript(message, before);
-				fieldScript(message, after);
+				fieldScript(message, before, "before");
+				fieldScript(message, after, "after");
 			} else if (CollectionUtils.isNotEmpty(cloneFieldProcesses)) {
 				// cluster clone field process
 				CloneFieldProcess cloneFieldProcess = cloneFieldProcesses.parallelStream()
@@ -239,7 +239,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 	}
 
 
-	private void fieldScript(MessageEntity message, Map<String, Object> record) {
+	protected void fieldScript(MessageEntity message, Map<String, Object> record, String tag) {
 		if (MapUtils.isNotEmpty(fieldScriptEngine)) {
 			for (Map.Entry<String, Invocable> entry : fieldScriptEngine.entrySet()) {
 				try {
@@ -257,7 +257,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 								o -> {
 									try {
 										return ScriptUtil.invokeScript(engine, ScriptUtil.FUNCTION_NAME, finalMessage, context.getSourceConn(),
-												context.getTargetConn(), context.getJob(), processContext, logger);
+												context.getTargetConn(), context.getJob(), processContext, logger, tag);
 									} catch (Exception e) {
 										context.getJob().jobError(e, false, OffsetUtil.getSyncStage(finalMessage.getOffset()), logger, ConnectorConstant.WORKER_TYPE_CONNECTOR,
 												TapLog.PROCESSOR_ERROR_0005.getMsg(), null, finalRecord, e.getMessage());
@@ -268,7 +268,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 						MapUtilV2.putValueInMap(record, fieldName, valueByKey);
 					} else {
 						Object o = ScriptUtil.invokeScript(engine, ScriptUtil.FUNCTION_NAME, message, context.getSourceConn(),
-								context.getTargetConn(), context.getJob(), processContext, logger);
+								context.getTargetConn(), context.getJob(), processContext, logger, tag);
 						MapUtilV2.putValueInMap(record, fieldName, o);
 					}
 				} catch (Exception e) {
