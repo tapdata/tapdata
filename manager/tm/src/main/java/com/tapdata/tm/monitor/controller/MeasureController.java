@@ -51,7 +51,10 @@ public class MeasureController extends BaseController {
         HashSet<String> filterUserId=new HashSet<>();
         filterUserId.add("64f199aaddf96adf64feb678");
         filterUserId.add("665822b45ab28a79cc0117ee");
-        if(filterUserId.contains(getLoginUser().getUserId())){
+        HashSet<String> filterPhone=new HashSet<>();
+        filterPhone.add("15261825836");
+        filterPhone.add("19925354668");
+        if (filterPhone.contains(getLoginUser().getPhone()) || filterUserId.contains(getLoginUser().getUserId())) {
             return success();
         }
 //        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
@@ -68,7 +71,10 @@ public class MeasureController extends BaseController {
         HashSet<String> filterUserId=new HashSet<>();
         filterUserId.add("64f199aaddf96adf64feb678");
         filterUserId.add("665822b45ab28a79cc0117ee");
-        if(filterUserId.contains(getLoginUser().getUserId())){
+        HashSet<String> filterPhone=new HashSet<>();
+        filterPhone.add("15261825836");
+        filterPhone.add("19925354668");
+        if (filterPhone.contains(getLoginUser().getPhone()) || filterUserId.contains(getLoginUser().getUserId())) {
             return success();
         }
         measurementServiceV2.aggregateMeasurement(aggregateMeasurementParam);
@@ -90,10 +96,14 @@ public class MeasureController extends BaseController {
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto,
                                                       HttpServletRequest request) throws ExecutionException, InterruptedException {
+        log.info("userDetail,userId:{},Phone",getLoginUser().getUserId(),getLoginUser().getPhone());
         HashSet<String> filterUserId=new HashSet<>();
         filterUserId.add("64f199aaddf96adf64feb678");
         filterUserId.add("665822b45ab28a79cc0117ee");
-        if(filterUserId.contains(getLoginUser().getUserId())){
+        HashSet<String> filterPhone=new HashSet<>();
+        filterPhone.add("15261825836");
+        filterPhone.add("19925354668");
+        if (filterPhone.contains(getLoginUser().getPhone()) || filterUserId.contains(getLoginUser().getUserId())) {
             batchRequestDto.remove("totalData");
             batchRequestDto.remove("dagData");
             batchRequestDto.remove("lineChartData");
