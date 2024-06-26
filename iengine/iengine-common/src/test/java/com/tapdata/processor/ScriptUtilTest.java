@@ -77,10 +77,20 @@ public class ScriptUtilTest {
         @Test
         @SneakyThrows
         public void testInvokeScriptWithBefore(){
+            when(message.getBefore()).thenReturn(mock(HashMap.class));
             when(message.getAfter()).thenReturn(mock(HashMap.class));
             ScriptUtil.invokeScript(engine,"process", message
                     , mock(Connections.class), mock(Connections.class), mock(Job.class),input, mock(Logger.class), "before");
             verify(message,new Times(2)).getAfter();
+            verify(message,new Times(3)).getBefore();
+        }
+        @Test
+        @SneakyThrows
+        public void testInvokeScriptWithoutBefore(){
+            when(message.getAfter()).thenReturn(mock(HashMap.class));
+            ScriptUtil.invokeScript(engine,"process", message
+                    , mock(Connections.class), mock(Connections.class), mock(Job.class),input, mock(Logger.class), "before");
+            verify(message,new Times(3)).getAfter();
             verify(message,new Times(2)).getBefore();
         }
         @Test
@@ -89,7 +99,7 @@ public class ScriptUtilTest {
             ScriptUtil.invokeScript(engine,"process", message
                     , mock(Connections.class), mock(Connections.class), mock(Job.class),input, mock(Logger.class), "after");
             verify(message,new Times(2)).getBefore();
-            verify(message,new Times(2)).getAfter();
+            verify(message,new Times(1)).getAfter();
         }
         @Test
         @SneakyThrows

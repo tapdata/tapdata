@@ -160,8 +160,12 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform, deleteAllFields);
 					message.setAfter(after);
 				}
-				fieldScript(message, before, "before");
-				fieldScript(message, after, "after");
+				if (null != before){
+					fieldScript(message, before, "before");
+				}
+				if (null != after){
+					fieldScript(message, after, "after");
+				}
 			} else if (CollectionUtils.isNotEmpty(cloneFieldProcesses)) {
 				// cluster clone field process
 				CloneFieldProcess cloneFieldProcess = cloneFieldProcesses.parallelStream()
