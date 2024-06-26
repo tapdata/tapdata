@@ -6,6 +6,7 @@ import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 public class CreateTableFuncAspect extends DataFunctionAspect<CreateTableFuncAspect> {
 	private CreateTableOptions createTableOptions;
+	private boolean init;
 	public CreateTableFuncAspect createTableOptions(CreateTableOptions createTableOptions) {
 		this.createTableOptions = createTableOptions;
 		return this;
@@ -44,5 +45,14 @@ public class CreateTableFuncAspect extends DataFunctionAspect<CreateTableFuncAsp
 
 	public void setCreateTableOptions(CreateTableOptions createTableOptions) {
 		this.createTableOptions = createTableOptions;
+	}
+
+	public boolean isInit() {
+		return init;
+	}
+
+	public CreateTableFuncAspect setInit(boolean init) {
+		this.init = init;
+		return this;
 	}
 }

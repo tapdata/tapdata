@@ -12,11 +12,15 @@ import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
+import io.tapdata.observable.metric.util.TapCompletableFuture;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -33,6 +37,7 @@ public class ObservableAspectTask extends AspectTask {
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
+	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
 		// data node aspects
@@ -67,7 +72,7 @@ public class ObservableAspectTask extends AspectTask {
 	CompletableFuture<Void> batchProcessFuture;
 	CompletableFuture<Void> streamReadFuture;
 	CompletableFuture<Void> streamProcessFuture;
-	CompletableFuture<Void> writeRecordFuture;
+	TapCompletableFuture writeRecordFuture;
 	/**
 	 * The task started
 	 */
@@ -83,15 +88,19 @@ public class ObservableAspectTask extends AspectTask {
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
-		writeRecordFuture = CompletableFuture.runAsync(()->{});
+		writeRecordFuture = new TapCompletableFuture(6,6000,1000,task);
 	}
 
 	protected void closeCompletableFuture() {
-		if (null != batchReadFuture) batchReadFuture.cancel(true);
-		if (null != batchProcessFuture) batchProcessFuture.cancel(true);
-		if (null != streamReadFuture) streamReadFuture.cancel(true);
-		if (null != streamProcessFuture) streamProcessFuture.cancel(true);
-		if (null != writeRecordFuture) writeRecordFuture.cancel(true);
+		if (null != batchReadFuture) batchReadFuture.cancel(false);
+		if (null != batchProcessFuture) batchProcessFuture.cancel(false);
+		if (null != streamReadFuture) streamReadFuture.cancel(false);
+		if (null != streamProcessFuture) streamProcessFuture.cancel(false);
+		try {
+			if (null != writeRecordFuture) writeRecordFuture.clearAll();
+		}catch (Exception e){
+			TapLogger.info(TAG,"Close writeRecordFuture fail:{}",e.getMessage());
+		}
 	}
 
 	/**
@@ -118,8 +127,8 @@ public class ObservableAspectTask extends AspectTask {
 			}
 		}
 
-		taskSampleHandler.close();
 		closeCompletableFuture();
+		taskSampleHandler.close();
 	}
 
 	// data node related
@@ -307,6 +316,9 @@ public class ObservableAspectTask extends AspectTask {
 	// target data node related
 
 	public Void handleCreateTableFunc(CreateTableFuncAspect aspect) {
+		if(aspect.isInit()){
+			return null;
+		}
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		switch (aspect.getState()) {
 			case CreateTableFuncAspect.STATE_START:
@@ -323,6 +335,9 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleDropTableFunc(DropTableFuncAspect aspect) {
+		if(aspect.isInit()){
+			return null;
+		}
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		switch (aspect.getState()) {
 			case DropTableFuncAspect.STATE_START:
@@ -423,7 +438,7 @@ public class ObservableAspectTask extends AspectTask {
 						}
 				);
 				aspect.consumer((events, result) -> {
-					writeRecordFuture.thenRunAsync(() -> {
+					CompletableFuture<Void> completableFuture=	writeRecordFuture.getCompletableFuture().thenRunAsync(() -> {
 					if (null == events || events.size() == 0) {
 						return;
 					}
@@ -454,6 +469,11 @@ public class ObservableAspectTask extends AspectTask {
 
 					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
 					});
+					try {
+						writeRecordFuture.add(completableFuture);
+					}catch (Exception e){
+						TapLogger.info(TAG,"add writeRecordFuture fail:{}",e.getMessage());
+					}
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

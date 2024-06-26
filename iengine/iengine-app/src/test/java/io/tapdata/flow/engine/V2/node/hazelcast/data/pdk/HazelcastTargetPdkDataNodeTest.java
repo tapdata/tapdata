@@ -124,20 +124,20 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			node = mock(TableNode.class);
 			existsDataProcessEnum = mock(ExistsDataProcessEnum.class);
 			tableId = "test";
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
 		}
 		@Test
 		@DisplayName("test createTable method when tapTable is null")
 		void testCreateTable1(){
-			assertThrows(TapCodeException.class, ()->hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId));
+			assertThrows(TapCodeException.class, ()->hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true));
 		}
 		@Test
 		@DisplayName("test createTable method when tableId equals TAP_EXACTLY_ONCE_CACHE")
 		void testCreateTable2(){
 			tableId = "_TAP_EXACTLY_ONCE_CACHE";
 			when(tapTableMap.get(tableId)).thenReturn(mock(TapTable.class));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId);
-			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
+			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
 			verify(hazelcastTargetPdkDataNode,new Times(0)).syncIndex(anyString(),any(TapTable.class),anyBoolean());
 		}
 		@Test
@@ -146,7 +146,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(tapTableMap.get(tableId)).thenReturn(mock(TapTable.class));
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"writeStrategy","appendWrite");
 			when(funcAspect.state(TableInitFuncAspect.STATE_PROCESS)).thenReturn(mock(TableInitFuncAspect.class));
-			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId);
+			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).syncIndex(anyString(),any(TapTable.class),anyBoolean());
 		}
 	}
@@ -637,8 +637,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
 			when(functions.getDropTableFunction()).thenReturn(mock(DropTableFunction.class));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,tableId);
-			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,tableId);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,tableId,true);
+			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,tableId,true);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
 		}
 	}
