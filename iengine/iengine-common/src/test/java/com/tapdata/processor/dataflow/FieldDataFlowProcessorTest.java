@@ -53,6 +53,34 @@ public class FieldDataFlowProcessorTest {
             verify(fieldDataFlowProcessor, new Times(1)).fieldScript(message,before,"before");
             verify(fieldDataFlowProcessor, new Times(1)).fieldScript(message,after,"after");
         }
+        @Test
+        @SneakyThrows
+        void testSimpleWithoutBefore(){
+            when(message.getOp()).thenReturn("u");
+            Map<String, Object> before = mock(HashMap.class);
+            Map<String, Object> after = mock(HashMap.class);
+            when(message.getBefore()).thenReturn(null);
+            when(message.getAfter()).thenReturn(after);
+            doNothing().when(fieldDataFlowProcessor).fieldScript(any(MessageEntity.class),any(Map.class),anyString());
+            doCallRealMethod().when(fieldDataFlowProcessor).process(message);
+            fieldDataFlowProcessor.process(message);
+            verify(fieldDataFlowProcessor, new Times(0)).fieldScript(message,before,"before");
+            verify(fieldDataFlowProcessor, new Times(1)).fieldScript(message,after,"after");
+        }
+        @Test
+        @SneakyThrows
+        void testSimpleWithoutAfter(){
+            when(message.getOp()).thenReturn("u");
+            Map<String, Object> before = mock(HashMap.class);
+            Map<String, Object> after = mock(HashMap.class);
+            when(message.getBefore()).thenReturn(before);
+            when(message.getAfter()).thenReturn(null);
+            doNothing().when(fieldDataFlowProcessor).fieldScript(any(MessageEntity.class),any(Map.class),anyString());
+            doCallRealMethod().when(fieldDataFlowProcessor).process(message);
+            fieldDataFlowProcessor.process(message);
+            verify(fieldDataFlowProcessor, new Times(1)).fieldScript(message,before,"before");
+            verify(fieldDataFlowProcessor, new Times(0)).fieldScript(message,after,"after");
+        }
     }
     @Nested
     class fieldScriptTest{

@@ -260,12 +260,9 @@ public class ScriptUtil {
 		if (null != tag){
 			switch (tag) {
 				case "before":
-					record = message.getBefore();
+					record = MapUtils.isNotEmpty(message.getBefore()) ? message.getBefore() : message.getAfter();
 					break;
-				case "after":
-					record = message.getAfter();
-					break;
-				default:
+                default:
 					break;
             }
 		}
