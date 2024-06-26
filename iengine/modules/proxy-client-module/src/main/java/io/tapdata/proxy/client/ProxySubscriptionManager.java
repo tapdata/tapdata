@@ -101,14 +101,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							baseUrl = baseUrl + "/";
 						newBaseUrls.add(baseUrl + "proxy");//?access_token=" + accessToken);
 					}
-					imClient = new IMClientBuilder()
-							.withBaseUrl(newBaseUrls)
-							.withService("engine")
-							.withPrefix("e")
-							.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
-							.withTerminal(1)
-							.withToken(accessToken)
-							.build();
+					imClient = buildImClient(accessToken, newBaseUrls);
 					imClient.start();
 					EventManager eventManager = EventManager.getInstance();
 					eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
@@ -119,6 +112,17 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 				}
 			}
 		}
+	}
+
+	private static IMClient buildImClient(String accessToken, List<String> newBaseUrls) {
+		return new IMClientBuilder()
+				.withBaseUrl(newBaseUrls)
+				.withService("engine")
+				.withPrefix("e")
+				.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
+				.withTerminal(1)
+				.withToken(accessToken)
+				.build();
 	}
 
 	private void handleServiceCallerReceived(String contentType, OutgoingData outgoingData) {
