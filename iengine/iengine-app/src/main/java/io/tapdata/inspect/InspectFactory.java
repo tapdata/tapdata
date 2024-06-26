@@ -27,23 +27,27 @@ public class InspectFactory {
 //                .setClientMongoOperator(clientMongoOperator)
 //                .setSettingService(settingService);
 //    }
-    private static InspectService inspectService;
+    private static volatile InspectService inspectService;
 
 
-    public static synchronized InspectService getInstance(ClientMongoOperator clientMongoOperator, SettingService settingService) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
+    public static InspectService getInstance(ClientMongoOperator clientMongoOperator, SettingService settingService) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException {
         if (inspectService == null) {
-            io.tapdata.factory.InspectType inspectType = InspectType.INSPECT_SERVICE_IMPL;
-            String clazz = inspectType.getClazz();
-            Constructor<?> declaredConstructor = Class.forName(clazz).getDeclaredConstructor(inspectType.getClasses());
-            declaredConstructor.setAccessible(true);
-            Object instance = declaredConstructor.newInstance();
-            if (instance instanceof InspectService) {
-                inspectService = (InspectService) instance;
-            } else {
-                throw new IllegalArgumentException("Implementation class must be InspectImpl: " + clazz);
+            synchronized (InspectFactory.class) {
+                if (inspectService == null) {
+                    io.tapdata.factory.InspectType inspectType = InspectType.INSPECT_SERVICE_IMPL;
+                    String clazz = inspectType.getClazz();
+                    Constructor<?> declaredConstructor = Class.forName(clazz).getDeclaredConstructor(inspectType.getClasses());
+                    declaredConstructor.setAccessible(true);
+                    Object instance = declaredConstructor.newInstance();
+                    if (instance instanceof InspectService) {
+                        inspectService = (InspectService) instance;
+                    } else {
+                        throw new IllegalArgumentException("Implementation class must be InspectImpl: " + clazz);
+                    }
+                    inspectService.init(clientMongoOperator,settingService);
+                    return inspectService;
+                }
             }
-            inspectService.init(clientMongoOperator,settingService);
-            return inspectService;
         }
         return inspectService;
     }

@@ -148,7 +148,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 								((Closeable) engine).close();
 							}
 						} catch (Exception ignored) {
-							// nothing to do
+							obsLogger.warn("Resource cannot be released of {} Node, message: {}", isPythonNode ? "Python" : "JavaScript", ignored.getMessage());
 						}
 					}
 				};
