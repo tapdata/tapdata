@@ -165,6 +165,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		return false;
 	}
 
+	@Override
 	public void close() {
 		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		CommonUtils.handleAnyError(
