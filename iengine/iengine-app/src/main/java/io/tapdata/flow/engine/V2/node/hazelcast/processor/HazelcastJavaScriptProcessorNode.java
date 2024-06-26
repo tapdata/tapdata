@@ -64,7 +64,6 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 	private static final Logger logger = LogManager.getLogger(HazelcastJavaScriptProcessorNode.class);
 	public static final String TAG = HazelcastJavaScriptProcessorNode.class.getSimpleName();
-	public static final String BEFORE = "before";
 
 	private Invocable engine;
 
@@ -229,7 +228,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
 		Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
 		contextMap.put("event", eventMap);
-		contextMap.put(BEFORE, before);
+		contextMap.put("before", before);
 		contextMap.put("info", tapEvent.getInfo());
 		contextMap.put("global", this.globalTaskContent);
 		Map<String, Object> context = this.processContextThreadLocal.get();
@@ -265,10 +264,6 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		} else {
 			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
-			// handle before
-			if (null != context.get(BEFORE)){
-				engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get(BEFORE));
-			}
 		}
 
 		if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
