@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 public class DiscoveryServiceImpl implements DiscoveryService {
 
     public static final String SOURCE_ID = "source._id";
+    public static final String COUNT = "count";
     private MetadataInstancesService metadataInstancesService;
 
     private MetadataInstancesRepository metaDataRepository;
@@ -1441,7 +1442,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("meta_type").is("table")
                 .and(SOURCE_ID).ne(null);
         MatchOperation match = Aggregation.match(criteria1);
-        GroupOperation g = Aggregation.group(SOURCE_ID).count().as("count");
+        GroupOperation g = Aggregation.group(SOURCE_ID).count().as(COUNT);
 
 
         Aggregation aggregation = Aggregation.newAggregation(match, g);
@@ -1464,7 +1465,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             criteriaSyncTask.and("user_id").is(user.getUserId());
         }
         MatchOperation matchTask = Aggregation.match(criteriaSyncTask);
-        GroupOperation gTask = Aggregation.group("user_id").count().as("count");
+        GroupOperation gTask = Aggregation.group("user_id").count().as(COUNT);
 
 
         Aggregation aggregationTask = Aggregation.newAggregation(matchTask, gTask);
@@ -1486,7 +1487,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             criteriaMigrateTask.and("user_id").is(user.getUserId());
         }
         MatchOperation matchMigrateTask = Aggregation.match(criteriaMigrateTask);
-        GroupOperation gMigrateTask = Aggregation.group("user_id").count().as("count");
+        GroupOperation gMigrateTask = Aggregation.group("user_id").count().as(COUNT);
 
 
         Aggregation aggregationMigrateTask = Aggregation.newAggregation(matchMigrateTask, gMigrateTask);

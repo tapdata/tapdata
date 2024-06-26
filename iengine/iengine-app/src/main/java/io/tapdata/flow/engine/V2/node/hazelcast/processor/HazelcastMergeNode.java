@@ -1573,6 +1573,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				nameFieldMap.keySet().forEach(key -> lookupMap.put(key, null));
 				break;
 			} catch (ConcurrentModificationException ignored) {
+				// nothing to do
 			}
 		}
 		return lookupMap;
