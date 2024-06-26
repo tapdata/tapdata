@@ -12,6 +12,7 @@ import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
@@ -36,6 +37,7 @@ public class ObservableAspectTask extends AspectTask {
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
+	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
 		// data node aspects
@@ -86,7 +88,7 @@ public class ObservableAspectTask extends AspectTask {
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
-		writeRecordFuture = new TapCompletableFuture(6);
+		writeRecordFuture = new TapCompletableFuture(6,6000,1000);
 	}
 
 	protected void closeCompletableFuture() {
@@ -94,7 +96,11 @@ public class ObservableAspectTask extends AspectTask {
 		if (null != batchProcessFuture) batchProcessFuture.cancel(false);
 		if (null != streamReadFuture) streamReadFuture.cancel(false);
 		if (null != streamProcessFuture) streamProcessFuture.cancel(false);
-		if (null != writeRecordFuture) writeRecordFuture.clearAll();
+		try {
+			if (null != writeRecordFuture) writeRecordFuture.clearAll();
+		}catch (Exception e){
+			TapLogger.info(TAG,"Close writeRecordFuture fail:{}",e.getMessage());
+		}
 	}
 
 	/**
@@ -463,7 +469,11 @@ public class ObservableAspectTask extends AspectTask {
 
 					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
 					});
-					writeRecordFuture.add(completableFuture);
+					try {
+						writeRecordFuture.add(completableFuture);
+					}catch (Exception e){
+						TapLogger.info(TAG,"add writeRecordFuture fail:{}",e.getMessage());
+					}
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

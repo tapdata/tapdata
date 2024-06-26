@@ -19,7 +19,7 @@ public class TapCompletableFutureTest {
     @Test
     void testTapCompletableFuture() {
         int queueSize = 6;
-        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(queueSize);
+        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(queueSize,6000,1000);
         Assertions.assertTrue(tapCompletableFuture.getCompletableFuture() != null);
         Map<Integer, List> mapList = (Map<Integer, List>) ReflectionTestUtils.getField(tapCompletableFuture, "mapList");
         Assertions.assertTrue(mapList.size() == 6);
@@ -31,7 +31,7 @@ public class TapCompletableFutureTest {
     @Test
     void testGetFreeMapList() {
         int queueSize = 1;
-        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(queueSize);
+        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(queueSize,6000,1000);
         Map<Integer, List> mapList = new HashMap<>();
         List list = new ArrayList();
         list.add(1);
@@ -48,7 +48,7 @@ public class TapCompletableFutureTest {
 
         @Test
         void testClearTimeout() {
-            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6);
+            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6,1000,1000);
             ReflectionTestUtils.setField(tapCompletableFuture, "timeout", 1000);
             CompletableFuture completableFutureTmo =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
                 try {
@@ -64,7 +64,7 @@ public class TapCompletableFutureTest {
         }
         @Test
         void testClearClearAllComplete() {
-            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6);
+            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6,6000,1000);
             ReflectionTestUtils.setField(tapCompletableFuture, "timeout", 1000);
             CompletableFuture completableFutureTmo =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
                 try {
@@ -84,7 +84,7 @@ public class TapCompletableFutureTest {
 
         @Test
         void testClearPollDataComplete() {
-            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6);
+            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6,6000,1000);
             ReflectionTestUtils.setField(tapCompletableFuture, "timeout", 1000);
             ReflectionTestUtils.setField(tapCompletableFuture, "maxList", 1);
 
@@ -103,7 +103,7 @@ public class TapCompletableFutureTest {
 
         @Test
         void testClearInterruptedException() throws InterruptedException {
-            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6);
+            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6,1000,1000);
             ReflectionTestUtils.setField(tapCompletableFuture, "timeout", 1000);
             ReflectionTestUtils.setField(tapCompletableFuture, "maxList", 1);
 
@@ -186,7 +186,7 @@ public class TapCompletableFutureTest {
 
         @Test
         void testAdd() {
-            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6);
+            TapCompletableFuture tapCompletableFuture =new TapCompletableFuture(6,6000,1000);
             CompletableFuture completableFutureTmp =CompletableFuture.runAsync(()->{}).thenRunAsync(()->{
 
             });
@@ -271,4 +271,60 @@ public class TapCompletableFutureTest {
         }
 
     }
+
+    @Test
+    void testThreadAdd() throws InterruptedException{
+        long startTime = System.currentTimeMillis();
+        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(5,6000,10000);
+        Thread thread1 = new Thread(() -> {
+            for (int index =0;index<10000;index++){
+                CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            tapCompletableFuture.add(completableFutureTmp);
+            }
+        });
+
+        Thread thread2 = new Thread(() -> {
+            for (int index =0;index<10000;index++){
+                CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                tapCompletableFuture.add(completableFutureTmp);
+            }
+        });
+
+        Thread thread3 = new Thread(() -> {
+            for (int index =0;index<10000;index++){
+                CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                tapCompletableFuture.add(completableFutureTmp);
+            }
+        });
+
+        thread1.join();
+        thread2.join();
+        thread3.join();
+        tapCompletableFuture.clearAll();
+        System.out.println(System.currentTimeMillis()-startTime);
+        boolean clearAllDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "clearAllDataComplete");
+        boolean pollDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "pollDataComplete");
+
+        Assertions.assertTrue(clearAllDataComplete);
+        Assertions.assertTrue(pollDataComplete);
+    }
+
 }
