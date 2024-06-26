@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,7 +48,10 @@ public class MeasureController extends BaseController {
 
     @PostMapping("points/v2")
     public ResponseMessage<Void> pointsV2(@RequestBody BulkRequest bulkRequest) {
-        if("665822b45ab28a79cc0117ee".equals(getLoginUser().getUserId())){
+        HashSet<String> filterUserId=new HashSet<>();
+        filterUserId.add("64f199aaddf96adf64feb678");
+        filterUserId.add("665822b45ab28a79cc0117ee");
+        if(filterUserId.contains(getLoginUser().getUserId())){
             return success();
         }
 //        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
@@ -61,7 +65,10 @@ public class MeasureController extends BaseController {
 
     @PostMapping("points/aggregate")
     public ResponseMessage<Void> pointsAggregate(@RequestBody AggregateMeasurementParam aggregateMeasurementParam) {
-        if("665822b45ab28a79cc0117ee".equals(getLoginUser().getUserId())){
+        HashSet<String> filterUserId=new HashSet<>();
+        filterUserId.add("64f199aaddf96adf64feb678");
+        filterUserId.add("665822b45ab28a79cc0117ee");
+        if(filterUserId.contains(getLoginUser().getUserId())){
             return success();
         }
         measurementServiceV2.aggregateMeasurement(aggregateMeasurementParam);
@@ -83,7 +90,10 @@ public class MeasureController extends BaseController {
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto,
                                                       HttpServletRequest request) throws ExecutionException, InterruptedException {
-        if ("665822b45ab28a79cc0117ee".equals(getLoginUser().getUserId())) {
+        HashSet<String> filterUserId=new HashSet<>();
+        filterUserId.add("64f199aaddf96adf64feb678");
+        filterUserId.add("665822b45ab28a79cc0117ee");
+        if(filterUserId.contains(getLoginUser().getUserId())){
             batchRequestDto.remove("totalData");
             batchRequestDto.remove("dagData");
             batchRequestDto.remove("lineChartData");
