@@ -190,21 +190,10 @@ public class DAG implements Serializable, Cloneable {
             LinkedList<Node> nodeLists = parseLinkedNode(beforeDAG);
 
             if (CollectionUtils.isNotEmpty(nodeLists)) {
-                Map<String, TableRenameTableInfo> originalMap = new LinkedHashMap<>();
                 for (Node nodeList : nodeLists) {
                     if (nodeList instanceof TableRenameProcessNode) {
-                        Map<String, TableRenameTableInfo> tableRenameTableInfoMap = ((TableRenameProcessNode) nodeList).originalMap();
-                        originalMap.putAll(tableRenameTableInfoMap);
+                        generateTableNameRelation((TableRenameProcessNode) nodeList, objectNames, tableNameRelation);
                     }
-                }
-                for (int i = 0; i < tableNamesList.size(); i++) {
-                    String tableName = tableNamesList.get(i);
-                    String currentTableName = tableName;
-                    if (originalMap.containsKey(tableName)) {
-                        currentTableName = originalMap.get(tableName).getCurrentTableName();
-                        objectNames.set(i, currentTableName);
-                    }
-                    tableNameRelation.put(tableName, currentTableName);
                 }
             }
 
@@ -240,7 +229,15 @@ public class DAG implements Serializable, Cloneable {
 
         return dag;
     }
-
+    public static void generateTableNameRelation(TableRenameProcessNode nodeList, ArrayList<String> tableNames, LinkedHashMap<String, String> tableNameRelation) {
+        Map<String, TableRenameTableInfo> tableRenameTableInfoMap = nodeList.originalMap();
+        for (int i = 0; i < tableNames.size(); i++) {
+            String originalName = tableNames.get(i);
+            String currentTableName = nodeList.convertTableName(tableRenameTableInfoMap, originalName, false);
+            tableNameRelation.put(originalName, currentTableName);
+            tableNames.set(i, currentTableName);
+        }
+    }
     private static List<Node> filterDisabledNode(List<Node> nodes, Set<String> nodeIds) {
         return nodes.stream().filter(next -> {
             Map<String, Object> attrs = next.getAttrs();

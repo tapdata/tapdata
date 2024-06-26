@@ -87,7 +87,7 @@ public class RowFilterProcessor implements DataFlowProcessor {
 			Map<String, Object> record = MapUtils.isNotEmpty(message.getAfter()) ? message.getAfter() : message.getBefore();
 			try {
 				if (MapUtils.isNotEmpty(record)) {
-					Object o = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger);
+					Object o = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, null);
 					if (o instanceof Boolean) {
 						Boolean result = (Boolean) o;
 						// 满足条件处理

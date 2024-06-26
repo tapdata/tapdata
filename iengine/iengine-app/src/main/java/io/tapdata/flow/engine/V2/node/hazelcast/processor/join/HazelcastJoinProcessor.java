@@ -12,6 +12,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.construct.constructImpl.BytesIMap;
+import io.tapdata.entity.codec.filter.EntryFilter;
+import io.tapdata.entity.codec.filter.MapIteratorEx;
+import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -19,6 +22,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -36,15 +40,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -79,6 +75,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	private List<String> leftPrimaryKeys;
 	private List<String> rightPrimaryKeys;
 	private TapTable tapTable;
+	private MapIteratorEx mapIterator;
 
 	public HazelcastJoinProcessor(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
@@ -106,6 +103,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	public void doInit(@Nonnull Context context) throws TapCodeException {
 		super.doInit(context);
 		this.context = context;
+		this.mapIterator = new AllLayerMapIterator();
 		initNode();
 	}
 
@@ -151,7 +149,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		});
 	}
 
-	private void initNode() throws TapCodeException {
+	public void initNode() throws TapCodeException {
 		Node<?> node = processorBaseContext.getNode();
 		if (verifyJoinNode(node)) {
 			vatidate(node);
@@ -269,7 +267,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			consumer.accept(tapdataEvent, null);
 			return;
 		}
-
+		transformDateTime(before,after);
 		List<JoinResult> joinResults;
 		if (tapdataEvent.getNodeIds().contains(leftNodeId)) {
 			joinResults = leftJoinLeftProcess(before, after, opType);
@@ -738,6 +736,17 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			key[i] = record.get(fields.get(i));
 		}
 		return Arrays.deepToString(key);
+	}
+
+	public void transformDateTime(Map<String, Object> before,Map<String, Object> after) {
+		EntryFilter entryFilter = (key, value, recursive) -> {
+			if (value instanceof DateTime) {
+				return ((DateTime) value).toDate();
+			}
+			return value;
+		};
+		mapIterator.iterate(before,entryFilter);
+		mapIterator.iterate(after, entryFilter);
 	}
 
 	public class JoinResult {
