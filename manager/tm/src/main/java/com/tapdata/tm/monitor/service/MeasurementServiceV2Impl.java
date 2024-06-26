@@ -58,16 +58,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -83,8 +74,11 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
     private Map<String, Long> taskDelayTimeMap;
+    public List<String> filterTasks;
 
     public MeasurementServiceV2Impl(@Qualifier(value = "obsMongoTemplate") CompletableFuture<MongoTemplate> mongoTemplateCompletableFuture, MetadataInstancesService metadataInstancesService, TaskService taskService) throws ExecutionException, InterruptedException {
+        filterTasks= Arrays.asList("66797f2de9bc7d0be6b5bb8e","6677808ae9bc7d0be6b08504","6676360b002fee4565e7c854",
+                "66763794e9bc7d0be6ab93f4","6673d13ad2647b073a71e482","64b7723d77ad903f078cd9da","64d30bb81dee946a934349e5","64edba3b15145a520abaa683","646cc4bd435c6d3a515a8622");
         this.mongoOperations = mongoTemplateCompletableFuture.get();
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
@@ -753,6 +747,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         // get the sample data in [start, end)
         Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE).gte(new Date(start)).lt(new Date(end));
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
+        criteria.and(String.format(TAG_FORMAT,TASK_ID)).nin(filterTasks);
         for (Map.Entry<String, String> entry : queryTags.entrySet()) {
             criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
         }
