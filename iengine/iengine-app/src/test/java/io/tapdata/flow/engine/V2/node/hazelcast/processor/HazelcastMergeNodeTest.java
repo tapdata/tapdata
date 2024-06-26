@@ -1720,11 +1720,27 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			TapdataEvent tapdataEvent = new TapdataEvent();
 			tapdataEvent.addNodeId("123");
 			tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
-			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
-			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create().init();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
 			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
 			boolean result = mockHazelcastMergeNode.needLookup(tapdataEvent);
 			assertEquals(true, result);
+		}
+
+		@Test
+		@DisplayName("test cdc task, update and delete TapEvent, expect return false")
+		void test3() {
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.CDC.getSyncType());
+			doReturn(false).when(mockHazelcastMergeNode).isSubTableFirstMode();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
+			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+			assertFalse(mockHazelcastMergeNode.needLookup(tapdataEvent));
+
+			TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create().init();
+			tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
+			assertFalse(mockHazelcastMergeNode.needLookup(tapdataEvent));
 		}
 	}
 
