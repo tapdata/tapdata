@@ -85,7 +85,7 @@ public class ScriptDataFlowProcessor implements DataFlowProcessor {
 			try {
 				if (MapUtils.isNotEmpty(record)) {
 
-					Object o = ScriptUtil.invokeScript(engine, ScriptUtil.FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger);
+					Object o = ScriptUtil.invokeScript(engine, ScriptUtil.FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, null);
 
 					if (o == null) {
 						return null;
