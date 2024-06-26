@@ -1,6 +1,10 @@
 
 package com.tapdata.tm.commons.schema.bean;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
+import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
@@ -19,7 +23,8 @@ public class SourceDto {
 
     public static final String STATUS_INVALID = "invalid";
     public static final String STATUS_READY = "ready";
-
+    @JsonDeserialize(using = ObjectIdDeserialize.class)
+    @JsonSerialize(using = ObjectIdSerialize.class)
     @Field("id")
     @Indexed
     private ObjectId id;

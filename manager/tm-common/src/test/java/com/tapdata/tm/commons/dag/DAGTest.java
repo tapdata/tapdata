@@ -2,18 +2,17 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.task.dto.Message;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -39,6 +38,26 @@ public class DAGTest {
 
             when(dag.getTaskDtoIsomorphism(anyList())).thenCallRealMethod();
             when(dag.getTaskDtoIsomorphism(null)).thenCallRealMethod();
+        }
+        @Nested
+        class GenerateTableNameRelationTest{
+            TableRenameProcessNode tableRenameProcessNode;
+            @BeforeEach
+            void setUp(){
+                tableRenameProcessNode = mock(TableRenameProcessNode.class);
+            }
+            @Test
+            void test1(){
+                LinkedHashMap<String, String> tableNameRelation =new LinkedHashMap<>();
+                String tableName="beforeTableName";
+                ArrayList<String> tableNames=new ArrayList<>();
+                tableNames.add(tableName);
+                Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
+                when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
+                when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
+                DAG.generateTableNameRelation(tableRenameProcessNode,tableNames,tableNameRelation);
+                assertEquals("convertNewTableName",tableNames.get(0));
+            }
         }
 
         @Test
