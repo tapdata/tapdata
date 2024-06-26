@@ -243,17 +243,17 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 	}
 
 
-	protected void fieldScript(MessageEntity message, Map<String, Object> record, String tag) {
+	protected void fieldScript(MessageEntity message, Map<String, Object> originRecord, String tag) {
 		if (MapUtils.isNotEmpty(fieldScriptEngine)) {
 			for (Map.Entry<String, Invocable> entry : fieldScriptEngine.entrySet()) {
 				try {
 					String fieldName = entry.getKey();
 					// 字段在源记录里不存在不做处理（兼容脏数据）
 
-					Object valueByKey = MapUtilV2.getValueByKeyV2(record, fieldName);
+					Object valueByKey = MapUtilV2.getValueByKeyV2(originRecord, fieldName);
 					Invocable engine = entry.getValue();
 					if (valueByKey instanceof TapList) {
-						Map<String, Object> finalRecord = record;
+						Map<String, Object> finalRecord = originRecord;
 						MessageEntity finalMessage = new MessageEntity();
 						BeanUtils.copyProperties(message, finalMessage);
 						finalMessage.setAfter(finalRecord);
@@ -269,15 +269,15 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 										return o;
 									}
 								});
-						MapUtilV2.putValueInMap(record, fieldName, valueByKey);
+						MapUtilV2.putValueInMap(originRecord, fieldName, valueByKey);
 					} else {
 						Object o = ScriptUtil.invokeScript(engine, ScriptUtil.FUNCTION_NAME, message, context.getSourceConn(),
 								context.getTargetConn(), context.getJob(), processContext, logger, tag);
-						MapUtilV2.putValueInMap(record, fieldName, o);
+						MapUtilV2.putValueInMap(originRecord, fieldName, o);
 					}
 				} catch (Exception e) {
 					context.getJob().jobError(e, false, OffsetUtil.getSyncStage(message.getOffset()), logger, ConnectorConstant.WORKER_TYPE_CONNECTOR,
-							TapLog.PROCESSOR_ERROR_0005.getMsg(), null, record, e.getMessage());
+							TapLog.PROCESSOR_ERROR_0005.getMsg(), null, originRecord, e.getMessage());
 				}
 			}
 		}
