@@ -264,7 +264,10 @@ public class ScriptUtil {
 					break;
 				case "after":
 					record = message.getAfter();
-			}
+					break;
+				default:
+					break;
+            }
 		}
 		try {
 			if (engine instanceof GraalJSScriptEngine) {
