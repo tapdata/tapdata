@@ -32,6 +32,9 @@ public class ObservableAspectTaskTest {
     @BeforeEach
     void init() {
         observableAspectTask = new ObservableAspectTask();
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(ObjectId.get());
+        ReflectionTestUtils.setField(observableAspectTask,"task",taskDto);
     }
 
     @Nested
