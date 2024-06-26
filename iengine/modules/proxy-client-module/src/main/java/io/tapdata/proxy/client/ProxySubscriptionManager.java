@@ -101,28 +101,26 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							baseUrl = baseUrl + "/";
 						newBaseUrls.add(baseUrl + "proxy");//?access_token=" + accessToken);
 					}
-					imClient = buildImClient(accessToken, newBaseUrls);
-					imClient.start();
+
+					IMClient imClientPrivate = new IMClientBuilder()
+							.withBaseUrl(newBaseUrls)
+							.withService("engine")
+							.withPrefix("e")
+							.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
+							.withTerminal(1)
+							.withToken(accessToken)
+							.build();
+					imClientPrivate.start();
 					EventManager eventManager = EventManager.getInstance();
-					eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + ".status", this::handleStatus);
 					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
+					this.imClient = imClientPrivate;
 				}
 			}
 		}
-	}
-
-	private static IMClient buildImClient(String accessToken, List<String> newBaseUrls) {
-		return new IMClientBuilder()
-				.withBaseUrl(newBaseUrls)
-				.withService("engine")
-				.withPrefix("e")
-				.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
-				.withTerminal(1)
-				.withToken(accessToken)
-				.build();
 	}
 
 	private void handleServiceCallerReceived(String contentType, OutgoingData outgoingData) {
