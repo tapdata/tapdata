@@ -323,51 +323,23 @@ public class TapCompletableFutureTest {
             }
         });
         thread3.start();
+        Thread thread4 = new Thread(() -> {
+            for (int index =0;index<10000;index++){
+                CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                tapCompletableFuture.add(completableFutureTmp);
+            }
+        });
+        thread4.start();
         thread1.join();
         thread2.join();
         thread3.join();
-        tapCompletableFuture.clearAll();
-        System.out.println(System.currentTimeMillis()-startTime);
-        boolean clearAllDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "clearAllDataComplete");
-        boolean pollDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "pollDataComplete");
-
-        Assertions.assertTrue(clearAllDataComplete);
-        Assertions.assertTrue(pollDataComplete);
-    }
-
-    @Test
-    void testThreadAddMax(){
-        long startTime = System.currentTimeMillis();
-        List<Thread> threads =  new ArrayList<>();
-        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(6,6000,10000,taskDto);
-        for(int i = 0;i < 4;i++){
-            Thread thread = new Thread(() -> {
-                for (int index =0;index < 10000;index++){
-                    CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
-                        try {
-                            Thread.sleep(1);
-                        } catch (InterruptedException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                    try {
-                        tapCompletableFuture.add(completableFutureTmp);
-                    }catch (Exception e){
-                        TapLogger.info("TAG","add writeRecordFuture fail:{}",e.getMessage());
-                    }
-
-                }
-            });
-            thread.start();
-            threads.add(thread);
-        }
-        threads.forEach(thread -> {
-            try {
-                thread.join();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        thread4.join();
         tapCompletableFuture.clearAll();
         System.out.println(System.currentTimeMillis()-startTime);
         boolean clearAllDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "clearAllDataComplete");
