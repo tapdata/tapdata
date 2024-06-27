@@ -96,7 +96,6 @@ public class MeasureController extends BaseController {
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto,
                                                       HttpServletRequest request) throws ExecutionException, InterruptedException {
-        log.info("userDetail,userId:{},Phone",getLoginUser().getUserId(),getLoginUser().getPhone());
         HashSet<String> filterUserId=new HashSet<>();
         filterUserId.add("64f199aaddf96adf64feb678");
         filterUserId.add("665822b45ab28a79cc0117ee");
