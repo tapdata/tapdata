@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 public class ObservableAspectTask extends AspectTask {
 	public static final int TAP_COMPLETABLE_FUTURE_QUEUE_SIZE = 6;
 	public static final long TAP_COMPLETABLE_FUTURE_TIME_OUT = 6000L;
-	public static final int TAP_COMPLETABLE_FUTURE_MAX_LIST = 10000;
+	public static final int TAP_COMPLETABLE_FUTURE_MAX_LIST = 1000;
 	public static final String TAP_COMPLETABLE_FUTURE_QUEUE_SIZE_KEY = "TAP_COMPLETABLE_FUTURE_QUEUE_SIZE";
 	public static final String TAP_COMPLETABLE_FUTURE_TIME_OUT_KEY = "TAP_COMPLETABLE_FUTURE_TIME_OUT";
 	public static final String TAP_COMPLETABLE_FUTURE_MAX_LIST_KEY = "TAP_COMPLETABLE_FUTURE_MAX_LIST";
