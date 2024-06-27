@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric.util;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.logger.TapLogger;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.mockito.Mockito.*;
@@ -41,10 +44,8 @@ public class TapCompletableFutureTest {
     void testGetFreeMapList() {
         int queueSize = 1;
         TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(queueSize,6000,1000,taskDto);
-        Map<Integer, List> mapList = new HashMap<>();
-        List list = new ArrayList();
-        list.add(1);
-        mapList.put(1,list);
+        ConcurrentHashMap<Integer, List> mapList = new ConcurrentHashMap<>();
+        CopyOnWriteArrayList<CompletableFuture<?>> list = new CopyOnWriteArrayList<>();
         ReflectionTestUtils.setField(tapCompletableFuture, "mapList",mapList);
         tapCompletableFuture.getFreeMapList();
         int indexUse = (int) ReflectionTestUtils.getField(tapCompletableFuture, "indexUse");
@@ -145,13 +146,13 @@ public class TapCompletableFutureTest {
         @Test
         void testClearDataPoll() {
             TapCompletableFuture tapCompletableFuture =mock(TapCompletableFuture.class);
-            LinkedBlockingQueue<List<CompletableFuture>> completableFutureQueue = new LinkedBlockingQueue(6);
+            LinkedBlockingQueue<CopyOnWriteArrayList<CompletableFuture<?>> > completableFutureQueue = new LinkedBlockingQueue(6);
             CompletableFuture completableFutureTmp =CompletableFuture.runAsync(()->{}).thenRunAsync(()->{
 
             });
-            Map<Integer, List> mapList = new HashMap<>();
+            ConcurrentHashMap<Integer, List> mapList = new ConcurrentHashMap<>();
             ReflectionTestUtils.setField(tapCompletableFuture, "mapList",mapList);
-            List<CompletableFuture> list = spy(ArrayList.class);
+            CopyOnWriteArrayList<CompletableFuture<?>> list = spy(CopyOnWriteArrayList.class);
             list.add(completableFutureTmp);
             completableFutureQueue.offer(list);
             ReflectionTestUtils.setField(tapCompletableFuture, "completableFutureQueue", completableFutureQueue);
@@ -165,8 +166,8 @@ public class TapCompletableFutureTest {
         @Test
         void testClearPollMapList() {
             TapCompletableFuture tapCompletableFuture =mock(TapCompletableFuture.class);
-            Map<Integer, List> mapList = new HashMap<>();
-            List list = spy(ArrayList.class);
+            ConcurrentHashMap<Integer, List> mapList = new ConcurrentHashMap<>();
+            CopyOnWriteArrayList<CompletableFuture<?>> list = spy(CopyOnWriteArrayList.class);
             CompletableFuture completableFutureTmp =CompletableFuture.runAsync(()->{}).thenRunAsync(()->{
 
             });
@@ -208,8 +209,8 @@ public class TapCompletableFutureTest {
             CompletableFuture completableFutureTmp =CompletableFuture.runAsync(()->{}).thenRunAsync(()->{
 
             });
-            Map<Integer, List> mapList = new HashMap<>();
-            List list = spy(ArrayList.class);
+            ConcurrentHashMap<Integer, List> mapList = new ConcurrentHashMap<>();
+            CopyOnWriteArrayList<CompletableFuture<?>> list = new CopyOnWriteArrayList<>();
             mapList.put(0,list);
             ReflectionTestUtils.setField(tapCompletableFuture, "mapList",mapList);
             ReflectionTestUtils.setField(tapCompletableFuture, "maxList", 1);
@@ -226,8 +227,8 @@ public class TapCompletableFutureTest {
         @Test
         void testCompletableFutureQueueNotOffer() throws InterruptedException {
             TapCompletableFuture tapCompletableFuture =mock(TapCompletableFuture.class);
-            Map<Integer, List> mapList = new HashMap<>();
-            List list = spy(ArrayList.class);
+            ConcurrentHashMap<Integer, List> mapList = new ConcurrentHashMap<>();
+            CopyOnWriteArrayList<CompletableFuture<?>> list = new CopyOnWriteArrayList<>();
             CompletableFuture completableFutureTmp =CompletableFuture.runAsync(()->{}).thenRunAsync(()->{
 
             });
@@ -236,7 +237,7 @@ public class TapCompletableFutureTest {
             ReflectionTestUtils.setField(tapCompletableFuture, "maxList", 1);
             ReflectionTestUtils.setField(tapCompletableFuture, "mapList",mapList);
             doCallRealMethod().when(tapCompletableFuture).clearData();
-            LinkedBlockingQueue<List<CompletableFuture>> completableFutureQueue = new LinkedBlockingQueue<>(1);
+            LinkedBlockingQueue<CopyOnWriteArrayList<CompletableFuture<?>>> completableFutureQueue = new LinkedBlockingQueue<>(1);
             completableFutureQueue.offer(list);
             ReflectionTestUtils.setField(tapCompletableFuture, "completableFutureQueue", completableFutureQueue);
             ReflectionTestUtils.setField(tapCompletableFuture, "indexUse", 0);
@@ -252,8 +253,8 @@ public class TapCompletableFutureTest {
         @Test
         void testCompletableGetFreeMapListNoUse() throws InterruptedException {
             TapCompletableFuture tapCompletableFuture =mock(TapCompletableFuture.class);
-            Map<Integer, List> mapList = new HashMap<>();
-            List list = spy(ArrayList.class);
+            ConcurrentHashMap<Integer, List> mapList = new ConcurrentHashMap<>();
+            CopyOnWriteArrayList<CompletableFuture<?>> list = new CopyOnWriteArrayList<>();
             CompletableFuture completableFutureTmp =CompletableFuture.runAsync(()->{}).thenRunAsync(()->{
 
             });
@@ -280,7 +281,7 @@ public class TapCompletableFutureTest {
     @Test
     void testThreadAdd() throws InterruptedException{
         long startTime = System.currentTimeMillis();
-        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(5,6000,10000,taskDto);
+        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(6,6000,1000,taskDto);
         Thread thread1 = new Thread(() -> {
             for (int index =0;index<10000;index++){
                 CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
@@ -293,6 +294,7 @@ public class TapCompletableFutureTest {
             tapCompletableFuture.add(completableFutureTmp);
             }
         });
+        thread1.start();
 
         Thread thread2 = new Thread(() -> {
             for (int index =0;index<10000;index++){
@@ -306,6 +308,7 @@ public class TapCompletableFutureTest {
                 tapCompletableFuture.add(completableFutureTmp);
             }
         });
+        thread2.start();
 
         Thread thread3 = new Thread(() -> {
             for (int index =0;index<10000;index++){
@@ -319,10 +322,52 @@ public class TapCompletableFutureTest {
                 tapCompletableFuture.add(completableFutureTmp);
             }
         });
-
+        thread3.start();
         thread1.join();
         thread2.join();
         thread3.join();
+        tapCompletableFuture.clearAll();
+        System.out.println(System.currentTimeMillis()-startTime);
+        boolean clearAllDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "clearAllDataComplete");
+        boolean pollDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "pollDataComplete");
+
+        Assertions.assertTrue(clearAllDataComplete);
+        Assertions.assertTrue(pollDataComplete);
+    }
+
+    @Test
+    void testThreadAddMax(){
+        long startTime = System.currentTimeMillis();
+        List<Thread> threads =  new ArrayList<>();
+        TapCompletableFuture tapCompletableFuture = new TapCompletableFuture(6,6000,10000,taskDto);
+        for(int i = 0;i < 4;i++){
+            Thread thread = new Thread(() -> {
+                for (int index =0;index < 10000;index++){
+                    CompletableFuture completableFutureTmp =tapCompletableFuture.getCompletableFuture().thenRunAsync(()->{
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                    try {
+                        tapCompletableFuture.add(completableFutureTmp);
+                    }catch (Exception e){
+                        TapLogger.info("TAG","add writeRecordFuture fail:{}",e.getMessage());
+                    }
+
+                }
+            });
+            thread.start();
+            threads.add(thread);
+        }
+        threads.forEach(thread -> {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
         tapCompletableFuture.clearAll();
         System.out.println(System.currentTimeMillis()-startTime);
         boolean clearAllDataComplete = (boolean) ReflectionTestUtils.getField(tapCompletableFuture, "clearAllDataComplete");

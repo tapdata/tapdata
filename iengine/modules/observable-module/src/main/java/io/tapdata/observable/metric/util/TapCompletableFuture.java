@@ -3,19 +3,14 @@ package io.tapdata.observable.metric.util;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 
 public class TapCompletableFuture extends CompletableFuture {
     volatile boolean start;
     int maxList;
-    Map<Integer, List> mapList = new HashMap<>();
-    private LinkedBlockingQueue<List<CompletableFuture>> completableFutureQueue;
+    ConcurrentHashMap<Integer, CopyOnWriteArrayList<CompletableFuture<?>>> mapList = new ConcurrentHashMap<>();
+    private LinkedBlockingQueue<CopyOnWriteArrayList<CompletableFuture<?>>> completableFutureQueue;
 
     private volatile int indexUse;
 
@@ -30,10 +25,10 @@ public class TapCompletableFuture extends CompletableFuture {
     private TaskDto task;
 
     public CompletableFuture<Void> add(CompletableFuture completableFuture) {
-        List<CompletableFuture> completableFutureList = mapList.get(indexUse);
+        CopyOnWriteArrayList<CompletableFuture<?>> completableFutureList = mapList.get(indexUse);
         if (completableFutureList.size() >= maxList) {
             while (true) {
-                List<CompletableFuture> completableFutures = completableFutureList;
+                CopyOnWriteArrayList<CompletableFuture<?>> completableFutures = completableFutureList;
                 try {
                     if (completableFutureQueue.offer(completableFutures,50,TimeUnit.MILLISECONDS)) {
                         break;
@@ -68,14 +63,14 @@ public class TapCompletableFuture extends CompletableFuture {
         completableFuture = CompletableFuture.runAsync(() -> {});
         completableFutureQueue = new LinkedBlockingQueue(queueSize);
         for (int index = 0; index < queueSize; index++) {
-            List<CompletableFuture> list = new ArrayList<>();
+            CopyOnWriteArrayList<CompletableFuture<?>> list = new CopyOnWriteArrayList<>();
             mapList.put(index, list);
         }
         getFreeMapList();
         start = true;
         new Thread(() -> {
             while (start) {
-                List<CompletableFuture> list;
+                CopyOnWriteArrayList<CompletableFuture<?>> list;
                 try {
                     list = completableFutureQueue.poll(1, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
@@ -83,7 +78,11 @@ public class TapCompletableFuture extends CompletableFuture {
                     return;
                 }
                 if (CollectionUtils.isNotEmpty(list)) {
-                    CompletableFuture.allOf(list.toArray(new CompletableFuture[0])).join();
+                    CompletableFuture<?>[] futures = list.stream()
+                            .filter(Objects::nonNull)
+                            .toArray(CompletableFuture<?>[]::new);
+
+                    CompletableFuture.allOf(futures).join();
                     list.clear();
                 }
                 if (!start) {
@@ -96,7 +95,7 @@ public class TapCompletableFuture extends CompletableFuture {
 
     public void clearData() {
         while (true) {
-            List<CompletableFuture> pollCompletableFutureList = completableFutureQueue.poll();
+            CopyOnWriteArrayList<CompletableFuture<?>> pollCompletableFutureList = completableFutureQueue.poll();
             if (CollectionUtils.isEmpty(pollCompletableFutureList)) {
                 break;
             }
@@ -105,9 +104,9 @@ public class TapCompletableFuture extends CompletableFuture {
                 pollCompletableFutureList.clear();
             }
         }
-        for (Map.Entry<Integer, List> entry : mapList.entrySet()) {
+        for (Map.Entry<Integer, CopyOnWriteArrayList<CompletableFuture<?>>> entry : mapList.entrySet()) {
             if (CollectionUtils.isNotEmpty(entry.getValue())) {
-                List<CompletableFuture> completableFutureList = entry.getValue();
+                CopyOnWriteArrayList<CompletableFuture<?>> completableFutureList = entry.getValue();
                 CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
                 completableFutureList.clear();
             }
@@ -143,8 +142,8 @@ public class TapCompletableFuture extends CompletableFuture {
     }
 
     public int getFreeMapList() {
-        for (Map.Entry<Integer, List> entry : mapList.entrySet()) {
-            if (CollectionUtils.isEmpty(entry.getValue())) {
+        for (Map.Entry<Integer, CopyOnWriteArrayList<CompletableFuture<?>>> entry : mapList.entrySet()) {
+            if (CollectionUtils.isEmpty(entry.getValue()) ||  entry.getValue().size() < maxList) {
                 indexUse = entry.getKey();
                 return indexUse;
             }

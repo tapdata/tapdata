@@ -19,6 +19,7 @@ import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
 import io.tapdata.observable.metric.util.TapCompletableFuture;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,6 +32,12 @@ import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
 public class ObservableAspectTask extends AspectTask {
+	public static final int TAP_COMPLETABLE_FUTURE_QUEUE_SIZE = 6;
+	public static final long TAP_COMPLETABLE_FUTURE_TIME_OUT = 6000L;
+	public static final int TAP_COMPLETABLE_FUTURE_MAX_LIST = 10000;
+	public static final String TAP_COMPLETABLE_FUTURE_QUEUE_SIZE_KEY = "TAP_COMPLETABLE_FUTURE_QUEUE_SIZE";
+	public static final String TAP_COMPLETABLE_FUTURE_TIME_OUT_KEY = "TAP_COMPLETABLE_FUTURE_TIME_OUT";
+	public static final String TAP_COMPLETABLE_FUTURE_MAX_LIST_KEY = "TAP_COMPLETABLE_FUTURE_MAX_LIST";
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
 	private TaskSampleHandler taskSampleHandler;
@@ -88,7 +95,9 @@ public class ObservableAspectTask extends AspectTask {
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
-		writeRecordFuture = new TapCompletableFuture(6,6000,1000,task);
+		writeRecordFuture = new TapCompletableFuture(CommonUtils.getPropertyInt(TAP_COMPLETABLE_FUTURE_QUEUE_SIZE_KEY, TAP_COMPLETABLE_FUTURE_QUEUE_SIZE),
+				CommonUtils.getPropertyLong(TAP_COMPLETABLE_FUTURE_TIME_OUT_KEY, TAP_COMPLETABLE_FUTURE_TIME_OUT),
+				CommonUtils.getPropertyInt(TAP_COMPLETABLE_FUTURE_MAX_LIST_KEY, TAP_COMPLETABLE_FUTURE_MAX_LIST),task);
 	}
 
 	protected void closeCompletableFuture() {
