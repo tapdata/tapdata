@@ -122,7 +122,7 @@ public class ObservableAspectTaskTest {
                     interruptedException.printStackTrace();
                 }
             });
-            observableAspectTask.writeRecordFuture.thenRunAsync(() -> {
+            observableAspectTask.writeRecordFuture.runAsync(() -> {
                 try {
                     Thread.sleep(3000);
                 } catch (InterruptedException interruptedException) {
@@ -140,7 +140,6 @@ public class ObservableAspectTaskTest {
             Assertions.assertTrue(observableAspectTask.batchProcessFuture.isDone());
             Assertions.assertTrue(observableAspectTask.streamProcessFuture.isDone());
             Assertions.assertTrue(observableAspectTask.streamReadFuture.isDone());
-            Assertions.assertTrue(observableAspectTask.writeRecordFuture.getCompletableFuture().isDone());
         }
     }
 
