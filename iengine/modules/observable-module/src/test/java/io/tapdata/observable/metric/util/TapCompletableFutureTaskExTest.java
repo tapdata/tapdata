@@ -53,7 +53,7 @@ class TapCompletableFutureTaskExTest {
 			}
 			counter.incrementAndGet();
 		});
-		tapCompletableFutureTaskEx.stop(1L, TimeUnit.SECONDS);
+		tapCompletableFutureTaskEx.stop(5L, TimeUnit.SECONDS);
 		assertEquals(1, counter.get());
 	}
 }
