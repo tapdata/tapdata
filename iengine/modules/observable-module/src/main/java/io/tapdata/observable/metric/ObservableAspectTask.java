@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric;
 
 import com.google.common.collect.HashBiMap;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -18,19 +19,24 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
-import io.tapdata.observable.metric.util.TapCompletableFuture;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import io.tapdata.observable.metric.util.TapCompletableFutureEx;
+import io.tapdata.observable.metric.util.TapCompletableFutureTaskEx;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
 public class ObservableAspectTask extends AspectTask {
+	public static final String TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_PROP_KEY = String.join("_", TapCompletableFutureEx.TAG, "QUEUE", "SIZE");
+	public static final int TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_DEFAULT_VALUE = 500000;
+	public static final String TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_PROP_KEY = String.join("_", TapCompletableFutureEx.TAG, "JOIN", "WATERMARK");
+	public static final int TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_DEFAULT_VALUE = 500000;
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
 	private TaskSampleHandler taskSampleHandler;
@@ -72,7 +78,7 @@ public class ObservableAspectTask extends AspectTask {
 	CompletableFuture<Void> batchProcessFuture;
 	CompletableFuture<Void> streamReadFuture;
 	CompletableFuture<Void> streamProcessFuture;
-	TapCompletableFuture writeRecordFuture;
+	TapCompletableFutureEx writeRecordFuture;
 	/**
 	 * The task started
 	 */
@@ -88,7 +94,11 @@ public class ObservableAspectTask extends AspectTask {
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
-		writeRecordFuture = new TapCompletableFuture(6,6000,1000,task);
+		writeRecordFuture = TapCompletableFutureTaskEx.create(
+				CommonUtils.getPropertyInt(TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_PROP_KEY, TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_DEFAULT_VALUE),
+				CommonUtils.getPropertyInt(TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_PROP_KEY, TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_DEFAULT_VALUE),
+				task
+		).start();
 	}
 
 	protected void closeCompletableFuture() {
@@ -97,9 +107,9 @@ public class ObservableAspectTask extends AspectTask {
 		if (null != streamReadFuture) streamReadFuture.cancel(false);
 		if (null != streamProcessFuture) streamProcessFuture.cancel(false);
 		try {
-			if (null != writeRecordFuture) writeRecordFuture.clearAll();
+			if (null != writeRecordFuture) writeRecordFuture.stop(15L, TimeUnit.SECONDS);
 		}catch (Exception e){
-			TapLogger.info(TAG,"Close writeRecordFuture fail:{}",e.getMessage());
+			TapLogger.info(TAG, "Stop writeRecordFuture fail: {}", Log4jUtil.getStackString(e));
 		}
 	}
 
@@ -424,6 +434,7 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
+
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		String nodeId = node.getId();
@@ -438,41 +449,40 @@ public class ObservableAspectTask extends AspectTask {
 						}
 				);
 				aspect.consumer((events, result) -> {
-					CompletableFuture<Void> completableFuture=	writeRecordFuture.getCompletableFuture().thenRunAsync(() -> {
-					if (null == events || events.size() == 0) {
-						return;
-					}
-
-					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events, recorder.getMemorySize());
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
-							}
-					);
-
-					taskSampleHandler.handleWriteRecordAccept(result, events, inner);
-
-					Optional.ofNullable(tableSampleHandlers)
-							.flatMap(handlers -> {
-								// source >> target table name maybe change
-
-								String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
-								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
-									return handlers.values().stream().findFirst();
-								} else {
-									LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
-									String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
-									return Optional.ofNullable(handlers.get(targetTableName));
-								}
-							})
-							.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
-
-					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
-					});
 					try {
-						writeRecordFuture.add(completableFuture);
-					}catch (Exception e){
-						TapLogger.info(TAG,"add writeRecordFuture fail:{}",e.getMessage());
+						writeRecordFuture.runAsync(() -> {
+							if (null == events || events.isEmpty()) {
+								return;
+							}
+
+							HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events, recorder.getMemorySize());
+							Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+									handler -> {
+										handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
+									}
+							);
+
+							taskSampleHandler.handleWriteRecordAccept(result, events, inner);
+
+							Optional.ofNullable(tableSampleHandlers)
+									.flatMap(handlers -> {
+										// source >> target table name maybe change
+
+										String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
+										if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
+											return handlers.values().stream().findFirst();
+										} else {
+											LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
+											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
+											return Optional.ofNullable(handlers.get(targetTableName));
+										}
+									})
+									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
+
+							pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
+						});
+					} catch (Exception e) {
+						TapLogger.info("Run async writeRecordFuture fail: {}", Log4jUtil.getStackString(e));
 					}
 				});
 				break;
