@@ -14,6 +14,8 @@ public class SaveShareCacheParam {
     private Map dag;
 
     private List edges;
+    private Boolean shareCdcEnable;
+    private Boolean enforceShareCdc;
 
 
 }
