@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
@@ -13,11 +14,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class DAGTest {
@@ -40,24 +37,67 @@ public class DAGTest {
             when(dag.getTaskDtoIsomorphism(null)).thenCallRealMethod();
         }
         @Nested
-        class GenerateTableNameRelationTest{
+        class getConvertTableNameMapTest{
             TableRenameProcessNode tableRenameProcessNode;
             @BeforeEach
             void setUp(){
                 tableRenameProcessNode = mock(TableRenameProcessNode.class);
             }
+            @DisplayName("test get convert table name map")
             @Test
             void test1(){
-                LinkedHashMap<String, String> tableNameRelation =new LinkedHashMap<>();
                 String tableName="beforeTableName";
                 ArrayList<String> tableNames=new ArrayList<>();
                 tableNames.add(tableName);
                 Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
                 when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
                 when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
-                DAG.generateTableNameRelation(tableRenameProcessNode,tableNames,tableNameRelation);
+                Map<String, String> convertTableNameMap = DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames);
+                assertEquals("convertNewTableName",convertTableNameMap.get("beforeTableName"));
+            }
+        }
+        @Nested
+        class GenerateTableNameRelationTest{
+            DatabaseNode sourceNode;
+            DatabaseNode targetNode;
+
+            @BeforeEach
+            void setUp(){
+                sourceNode=mock(DatabaseNode.class);
+                targetNode=mock(DatabaseNode.class);
+            }
+            @DisplayName("test generateTableNameRelation when hava rename node")
+            @Test
+            void test1(){
+                String tableName="beforeTableName";
+                ArrayList<String> tableNames=new ArrayList<>();
+                tableNames.add(tableName);
+                TableRenameProcessNode tableRenameProcessNode = mock(TableRenameProcessNode.class);
+                Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
+                when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
+                when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
+                LinkedList<Node> nodes=new LinkedList<>();
+                nodes.add(sourceNode);
+                nodes.add(targetNode);
+                nodes.add(tableRenameProcessNode);
+                LinkedHashMap<String, String> tableNameRelation = DAG.generateTableNameRelation(nodes, tableNames);
+                assertEquals("convertNewTableName",tableNameRelation.get("beforeTableName"));
                 assertEquals("convertNewTableName",tableNames.get(0));
             }
+            @DisplayName("test generateTableNameRelation when not hava rename node")
+            @Test
+            void test2(){
+                String tableName="beforeTableName";
+                ArrayList<String> tableNames=new ArrayList<>();
+                tableNames.add(tableName);
+                LinkedList<Node> nodes=new LinkedList<>();
+                nodes.add(sourceNode);
+                nodes.add(targetNode);
+                LinkedHashMap<String, String> tableNameRelation = DAG.generateTableNameRelation(nodes, tableNames);
+                assertEquals("beforeTableName",tableNameRelation.get("beforeTableName"));
+                assertEquals("beforeTableName",tableNames.get(0));
+            }
+
         }
 
         @Test
