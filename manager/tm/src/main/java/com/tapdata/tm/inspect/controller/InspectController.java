@@ -136,10 +136,6 @@ public class InspectController extends BaseController {
             throw new BizException("Inspect.task.null");
         }
 
-        if(StringUtils.isNotEmpty(inspect.getInspectMethod()) &&
-                (inspect.getInspectMethod().equals("field") || inspect.getInspectMethod().equals("jointField"))){
-            inspectService.fieldHandler(task,getLoginUser());
-        }
 
         if (null == platformInfo || StringUtils.isEmpty(platformInfo.getAgentType())) {
             throw new BizException("Inspect.agentTag.null");

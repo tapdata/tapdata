@@ -363,31 +363,6 @@ public class InspectServiceImplTest {
         }
     }
 
-    @Test
-    void fieldHandler() {
-        doCallRealMethod().when(impl).fieldHandler(anyList(), any(UserDetail.class));
-        try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)) {
-            messageUtilMockedStatic.when(() -> MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    impl.fieldHandler(mock(List.class), mock(UserDetail.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION, e.getErrorCode());
-                    throw e;
-                }
-            });
-        }
-    }
 
-    @Nested
-    class FieldHandler{
-        @Test
-        void test(){
-            try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)){
-                messageUtilMockedStatic.when(()->MessageUtil.getMessage(anyString())).thenReturn("error");
-                InspectServiceImpl inspectService = new InspectServiceImpl(mock(InspectRepository.class));
-                Assertions.assertThrows(BizException.class,()->inspectService.fieldHandler(null,null));
-            }
-        }
-    }
+
 }

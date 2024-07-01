@@ -147,8 +147,4 @@ public class InspectServiceImpl extends InspectService {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
-    @Override
-    public void fieldHandler(List<Task> tasks,UserDetail userDetail) {
-        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
-    }
 }
