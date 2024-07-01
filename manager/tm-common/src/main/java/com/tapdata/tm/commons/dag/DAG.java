@@ -186,16 +186,9 @@ public class DAG implements Serializable, Cloneable {
                     .forEach(resource -> tableNamesList.addAll(((DatabaseNode) resource).getTableNames()));
 
             ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
-            LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
             LinkedList<Node> nodeLists = parseLinkedNode(beforeDAG);
 
-            if (CollectionUtils.isNotEmpty(nodeLists)) {
-                for (Node nodeList : nodeLists) {
-                    if (nodeList instanceof TableRenameProcessNode) {
-                        generateTableNameRelation((TableRenameProcessNode) nodeList, objectNames, tableNameRelation);
-                    }
-                }
-            }
+            LinkedHashMap<String, String> tableNameRelation = generateTableNameRelation(nodeLists, objectNames);
 
             for (Node<?> node : nodes) {
                 if (node == null) {
@@ -229,14 +222,39 @@ public class DAG implements Serializable, Cloneable {
 
         return dag;
     }
-    public static void generateTableNameRelation(TableRenameProcessNode nodeList, ArrayList<String> tableNames, LinkedHashMap<String, String> tableNameRelation) {
-        Map<String, TableRenameTableInfo> tableRenameTableInfoMap = nodeList.originalMap();
+
+    public static LinkedHashMap<String, String> generateTableNameRelation(LinkedList<Node> nodeLists, ArrayList<String> tableNames) {
+        Map<String, String> renameNodeConvertTableName = new HashMap<>();
+        LinkedHashMap<String, String> tableNameRelation = new LinkedHashMap<>();
+        if (CollectionUtils.isNotEmpty(nodeLists)) {
+            for (Node nodeList : nodeLists) {
+                if (nodeList instanceof TableRenameProcessNode) {
+                    renameNodeConvertTableName = getConvertTableNameMap((TableRenameProcessNode) nodeList, tableNames);
+                }
+            }
+        }
         for (int i = 0; i < tableNames.size(); i++) {
             String originalName = tableNames.get(i);
-            String currentTableName = nodeList.convertTableName(tableRenameTableInfoMap, originalName, false);
-            tableNameRelation.put(originalName, currentTableName);
-            tableNames.set(i, currentTableName);
+            if (renameNodeConvertTableName.containsKey(originalName)) {
+                String currentTableName = renameNodeConvertTableName.get(originalName);
+                tableNameRelation.put(originalName, currentTableName);
+                tableNames.set(i, currentTableName);
+            } else {
+                tableNameRelation.put(originalName, originalName);
+            }
         }
+        return tableNameRelation;
+    }
+
+    public static Map<String, String> getConvertTableNameMap(TableRenameProcessNode renameProcessNode, List<String> tableNames) {
+        Map<String, String> tableRenameTableMap = new HashMap<>();
+        Map<String, TableRenameTableInfo> originalMap = renameProcessNode.originalMap();
+        for (int i = 0; i < tableNames.size(); i++) {
+            String originalName = tableNames.get(i);
+            String currentTableName = renameProcessNode.convertTableName(originalMap, originalName, false);
+            tableRenameTableMap.put(originalName, currentTableName);
+        }
+        return tableRenameTableMap;
     }
     private static List<Node> filterDisabledNode(List<Node> nodes, Set<String> nodeIds) {
         return nodes.stream().filter(next -> {
