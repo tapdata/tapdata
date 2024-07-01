@@ -1,16 +1,19 @@
 package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.task.dto.Message;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -225,6 +228,69 @@ public class DAGTest {
             verify(nodeList, times(1)).get(0);
             verify(nodeList, times(0)).get(1);
         }
+    }
+    @Nested
+    class getConvertTableNameMapTest{
+        TableRenameProcessNode tableRenameProcessNode;
+        @BeforeEach
+        void setUp(){
+            tableRenameProcessNode = mock(TableRenameProcessNode.class);
+        }
+        @DisplayName("test get convert table name map")
+        @Test
+        void test1(){
+            String tableName="beforeTableName";
+            ArrayList<String> tableNames=new ArrayList<>();
+            tableNames.add(tableName);
+            Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
+            when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
+            when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
+            Map<String, String> convertTableNameMap = DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames);
+            assertEquals("convertNewTableName",convertTableNameMap.get("beforeTableName"));
+        }
+    }
+    @Nested
+    class GenerateTableNameRelationTest{
+        DatabaseNode sourceNode;
+        DatabaseNode targetNode;
+
+        @BeforeEach
+        void setUp(){
+            sourceNode=mock(DatabaseNode.class);
+            targetNode=mock(DatabaseNode.class);
+        }
+        @DisplayName("test generateTableNameRelation when hava rename node")
+        @Test
+        void test1(){
+            String tableName="beforeTableName";
+            ArrayList<String> tableNames=new ArrayList<>();
+            tableNames.add(tableName);
+            TableRenameProcessNode tableRenameProcessNode = mock(TableRenameProcessNode.class);
+            Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
+            when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
+            when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
+            LinkedList<Node> nodes=new LinkedList<>();
+            nodes.add(sourceNode);
+            nodes.add(targetNode);
+            nodes.add(tableRenameProcessNode);
+            LinkedHashMap<String, String> tableNameRelation = DAG.generateTableNameRelation(nodes, tableNames);
+            assertEquals("convertNewTableName",tableNameRelation.get("beforeTableName"));
+            assertEquals("convertNewTableName",tableNames.get(0));
+        }
+        @DisplayName("test generateTableNameRelation when not hava rename node")
+        @Test
+        void test2(){
+            String tableName="beforeTableName";
+            ArrayList<String> tableNames=new ArrayList<>();
+            tableNames.add(tableName);
+            LinkedList<Node> nodes=new LinkedList<>();
+            nodes.add(sourceNode);
+            nodes.add(targetNode);
+            LinkedHashMap<String, String> tableNameRelation = DAG.generateTableNameRelation(nodes, tableNames);
+            assertEquals("beforeTableName",tableNameRelation.get("beforeTableName"));
+            assertEquals("beforeTableName",tableNames.get(0));
+        }
+
     }
 
     @Nested
