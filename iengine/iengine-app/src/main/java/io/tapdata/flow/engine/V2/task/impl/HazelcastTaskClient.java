@@ -204,6 +204,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
 		);
 		CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
+		AspectUtils.executeAspect(new TaskStopAspect().task(taskDto));
 	}
 
 	@Override
