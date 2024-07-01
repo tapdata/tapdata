@@ -33,5 +33,7 @@ public class ShareCacheDetailVo extends BaseVo {
   private Integer maxMemory;
 
   private String externalStorageId;
+  private Boolean shareCdcEnable;
+  private Boolean enforceShareCdc;
 
 }

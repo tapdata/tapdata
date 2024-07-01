@@ -2021,6 +2021,8 @@ public class TaskServiceImpl extends TaskService{
         shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
         shareCacheDetailVo.setTtl(TimeUtil.parseSecondsToDay(targetNode.getTtl()));
         shareCacheDetailVo.setExternalStorageId(targetNode.getExternalStorageId());
+        shareCacheDetailVo.setShareCdcEnable(taskDto.getShareCdcEnable());
+        shareCacheDetailVo.setEnforceShareCdc(taskDto.getEnforceShareCdc());
 
         return shareCacheDetailVo;
     }
@@ -2032,7 +2034,8 @@ public class TaskServiceImpl extends TaskService{
         taskDto.setShareCache(true);
         taskDto.setLastUpdAt(new Date());
         taskDto.setName(saveShareCacheParam.getName());
-        taskDto.setShareCdcEnable(false);
+        taskDto.setShareCdcEnable(saveShareCacheParam.getShareCdcEnable());
+        taskDto.setEnforceShareCdc(saveShareCacheParam.getEnforceShareCdc());
 
         DAG dag = taskDto.getDag();
         String sourceId;
