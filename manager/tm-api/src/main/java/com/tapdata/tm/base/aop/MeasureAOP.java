@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 @Aspect
 @Component
 public class MeasureAOP {
+    public static final String GREATER = "GREATER";
+    public static final String LESS = "LESS";
 
     private final TaskService taskService;
     private final AlarmService alarmService;
@@ -181,7 +183,7 @@ public class MeasureAOP {
         }
     }
 
-    private void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto, UserDetail userDetail) {
+    protected void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto, UserDetail userDetail) {
         // check task start cdc
         if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag)) {
             return;
@@ -198,7 +200,7 @@ public class MeasureAOP {
             infoMap = Maps.newHashMap();
         }
 
-        String flag = alarmRuleDto.getEqualsFlag() == -1 ? "小于" : "大于";
+        String flag = alarmRuleDto.getEqualsFlag() == -1 ? LESS : GREATER;
 
         boolean b;
         if (alarmRuleDto.getEqualsFlag() == -1) {
