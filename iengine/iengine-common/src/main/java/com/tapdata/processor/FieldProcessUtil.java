@@ -575,7 +575,7 @@ public class FieldProcessUtil {
 
 	protected static Object handleDateTime(Object value) {
 		if (value instanceof DateTime) {
-			value = ((DateTime) value).toLong();
+			value = ((DateTime) value).toEpochMilli();
 		}
 		return value;
 	}
