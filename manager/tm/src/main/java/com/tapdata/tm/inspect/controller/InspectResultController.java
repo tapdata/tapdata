@@ -16,7 +16,6 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.param.SaveInspectResultParam;
 import com.tapdata.tm.inspect.param.UpdateInspectResultParam;
 import com.tapdata.tm.inspect.service.InspectResultService;
-import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
