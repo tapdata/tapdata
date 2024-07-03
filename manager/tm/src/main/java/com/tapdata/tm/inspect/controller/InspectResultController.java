@@ -135,7 +135,7 @@ public class InspectResultController extends BaseController {
         }
         Object inspectIdObject = filter.getWhere().get("inspect_id");
         if (inspectIdObject instanceof Map) {
-            List<String> idList = inspectId(filter.getWhere());
+            List<String> idList = filterViewPermissionNotInspectId(filter.getWhere());
             if (idList.isEmpty()) return success(new Page<>(0, Lists.newArrayList()));
             Where w = filter.getWhere();
             Map<String, Object> in = new HashMap<>();
@@ -156,7 +156,7 @@ public class InspectResultController extends BaseController {
         return success(inspectResultService.find(filter, getLoginUser(), inspectGroupByFirstCheckId));
     }
 
-    protected List<String> inspectId(Where where) {
+    protected List<String> filterViewPermissionNotInspectId(Where where) {
         List<InspectResultDto> all = inspectResultService.findAll(Where.where("inspect_id", where.get("inspect_id")));
         if (null == all) return new ArrayList<>();
         Set<String> ids = new HashSet<>();
