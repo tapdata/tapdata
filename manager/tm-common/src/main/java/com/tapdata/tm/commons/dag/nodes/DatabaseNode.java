@@ -5,9 +5,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
-import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -277,6 +275,13 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 LinkedList<TableRenameProcessNode> collect = preNodes.stream().filter(node -> node instanceof TableRenameProcessNode)
                         .map(node -> (TableRenameProcessNode) node)
                         .collect(Collectors.toCollection(LinkedList::new));
+
+                LinkedList<MigrateUnionProcessorNode> migrateUnionProcessorNodes = preNodes.stream().filter(node -> node instanceof MigrateUnionProcessorNode)
+                        .map(node -> (MigrateUnionProcessorNode) node)
+                        .collect(Collectors.toCollection(LinkedList::new));
+                if(CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)){
+                    return null;
+                }
                 if (CollectionUtils.isNotEmpty(collect)) {
                     Map<String, TableRenameTableInfo> namesMapping = collect.getLast().originalMap();
                     if (!namesMapping.isEmpty()) {

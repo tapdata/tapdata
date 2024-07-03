@@ -35,6 +35,7 @@ public enum NodeEnum {
     migrate_python_processor("Python节点"),
     standard_migrate_js_processor("标准JS节点"),
     union_processor("Union节点"),
+    migrate_union_processor("数据复制Union节点"),
     migrate_field_mod_type_filter_processor("类型过滤节点"),
     unwind_processor("Unwind节点"),
     ADD_DATE_FIELD_PROCESSOR("增加时间字段节点"),

@@ -2,11 +2,14 @@ package com.tapdata.tm.commons.dag.nodes;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import io.github.openlg.graphlib.Graph;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
@@ -59,6 +62,34 @@ public class DatabaseNodeTest {
             databaseNode.transformSchema(options);
             verify(dagDataService, times(1)).initializeModel(false);
 
+        }
+    }
+
+    @Nested
+    class LoadSchemaTest {
+        @Test
+        void test_hasMigrateUnionNode(){
+            DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+            ReflectionTestUtils.setField(databaseNode, "service", dagDataService);
+            List<String> includes = new ArrayList<>();
+            includes.add("test");
+            when(databaseNode.getSyncType()).thenReturn("migrate");
+            LinkedList<Node<?>> nodes = new LinkedList<>();
+            nodes.add(new MigrateUnionProcessorNode());
+            when(databaseNode.getPreNodes(any())).thenReturn(nodes);
+            doCallRealMethod().when(databaseNode).loadSchema(includes);
+            Assertions.assertNull(databaseNode.loadSchema(includes));
+        }
+        @Test
+        void test_main(){
+            DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+            ReflectionTestUtils.setField(databaseNode, "service", dagDataService);
+            List<String> includes = new ArrayList<>();
+            includes.add("test");
+            when(databaseNode.getSyncType()).thenReturn("migrate");
+            when(dagDataService.loadSchema(any(),any(),any(),any())).thenReturn(new ArrayList<>());
+            doCallRealMethod().when(databaseNode).loadSchema(includes);
+            Assertions.assertEquals(0,databaseNode.loadSchema(includes).size());
         }
     }
 }

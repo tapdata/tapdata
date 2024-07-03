@@ -2,9 +2,17 @@ package com.tapdata.tm.task.service.impl;
 
 
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.worker.entity.Worker;
@@ -15,10 +23,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -104,6 +109,61 @@ class TaskNodeServiceImplTest {
             Assertions.assertNotNull(map);
             Assertions.assertEquals(HashMap.class.getName(), map.getClass().getName());
             verify(taskNodeService, times(1)).sendMessageAfterFindAgent(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class));
+        }
+    }
+    @Nested
+    class GetNodeInfoByMigrate{
+        @BeforeEach
+        void init() {
+            ReflectionTestUtils.setField(taskNodeService, "dataSourceService", mock(DataSourceService.class));
+        }
+        @Test
+        void test_main(){
+            DAG dag = mock(DAG.class);
+            DatabaseNode sourceNode = new DatabaseNode();
+            List<String> tables = new ArrayList<>();
+            tables.add("table1");
+            sourceNode.setTableNames(tables);
+            sourceNode.setMigrateTableSelectType("all");
+            when(dag.getSourceNode(any())).thenReturn(sourceNode);
+            DatabaseNode targetNode = new DatabaseNode();
+            targetNode.setConnectionId("connectionId");
+            when(dag.getTargetNode(any())).thenReturn(targetNode);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(new MigrateDateProcessorNode());
+            when(dag.getPreNodes(any())).thenReturn(preNodes);
+            when(taskNodeService.getMetadataTransformerItemDtoPage(any(),any(),any(),any(),any(),any(),any(),any(),any(),any())).thenAnswer(invocationOnMock -> {
+                List<String> tableNames = invocationOnMock.getArgument(4);
+                Assertions.assertEquals("table1",tableNames.get(0));
+                return null;
+            });
+            doCallRealMethod().when(taskNodeService).getNodeInfoByMigrate(any(),any(),any(),any(),any(),any(),any(),any());
+            taskNodeService.getNodeInfoByMigrate("taskId","nodeId",null,1,1,mock(UserDetail.class),new Page<>(),dag);
+        }
+        @Test
+        void test_hashUnionNode(){
+            DAG dag = mock(DAG.class);
+            DatabaseNode sourceNode = new DatabaseNode();
+            List<String> tables = new ArrayList<>();
+            tables.add("table1");
+            sourceNode.setTableNames(tables);
+            sourceNode.setMigrateTableSelectType("all");
+            when(dag.getSourceNode(any())).thenReturn(sourceNode);
+            DatabaseNode targetNode = new DatabaseNode();
+            targetNode.setConnectionId("connectionId");
+            when(dag.getTargetNode(any())).thenReturn(targetNode);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            MigrateUnionProcessorNode migrateUnionProcessorNode = new MigrateUnionProcessorNode();
+            migrateUnionProcessorNode.setTableName("union_test");
+            preNodes.add(migrateUnionProcessorNode);
+            when(dag.getPreNodes(any())).thenReturn(preNodes);
+            when(taskNodeService.getMetadataTransformerItemDtoPage(any(),any(),any(),any(),any(),any(),any(),any(),any(),any())).thenAnswer(invocationOnMock -> {
+                List<String> tableNames = invocationOnMock.getArgument(4);
+                Assertions.assertEquals("union_test",tableNames.get(0));
+                return null;
+            });
+            doCallRealMethod().when(taskNodeService).getNodeInfoByMigrate(any(),any(),any(),any(),any(),any(),any(),any());
+            taskNodeService.getNodeInfoByMigrate("taskId","nodeId",null,1,1,mock(UserDetail.class),new Page<>(),dag);
         }
     }
 }

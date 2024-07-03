@@ -10,10 +10,7 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.MigrateScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
@@ -153,13 +150,23 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, Integer page, Integer pageSize, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
+    protected Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, Integer page, Integer pageSize, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
         DatabaseNode sourceNode = dag.getSourceNode(nodeId);
         if (Objects.isNull(sourceNode)) {
             return result;
         }
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
         List<String> tableNames = sourceNode.getTableNames();
+        LinkedList<Node<?>> preNodes = dag.getPreNodes(nodeId);
+        if(CollectionUtils.isNotEmpty(preNodes)){
+            LinkedList<MigrateUnionProcessorNode> migrateUnionProcessorNodes = dag.getPreNodes(nodeId).stream().filter(node -> node instanceof MigrateUnionProcessorNode)
+                    .map(node -> (MigrateUnionProcessorNode) node)
+                    .collect(Collectors.toCollection(LinkedList::new));
+            if(CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)){
+                tableNames.clear();
+                tableNames.add(migrateUnionProcessorNodes.get(0).getTableName());
+            }
+        }
         if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
 //            if (CollectionUtils.isEmpty(metaInstances)) {
@@ -379,7 +386,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
+    protected Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
             , Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode
             , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
             , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
