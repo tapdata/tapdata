@@ -65,7 +65,7 @@ public class MeasureAOPTest {
                 assertEquals("TASK_INCREMENT_DELAY_RECOVER",alarmInfo.getSummary());
                 return null;
             }).when(alarmService).save(any());
-            measureAOP.taskIncrementDelayAlarm(taskDto,taskId,10,alarmRuleDto,null);
+            measureAOP.taskIncrementDelayAlarm(taskDto,taskId,10,alarmRuleDto);
 
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is greater and replicateLag greater alarmRule ms and taskReplicateLagCount is greater than alarmRule point")
@@ -86,7 +86,7 @@ public class MeasureAOPTest {
                 assertEquals(MeasureAOP.GREATER,flag);
                 return null;
             }).when(alarmService).save(any());
-            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 500000, alarmRuleDto, null);
+            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 500000, alarmRuleDto);
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is greater and replicateLag greater alarmRule ms and and info map is null ,so taskReplicateLagCount is less than alarmRule point")
         @Test
@@ -103,7 +103,7 @@ public class MeasureAOPTest {
                 assertEquals("TASK_INCREMENT_DELAY_RECOVER",alarmInfo.getSummary());
                 return null;
             }).when(alarmService).save(any());
-            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 500000, alarmRuleDto, null);
+            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 500000, alarmRuleDto);
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is less and replicateLag less alarmRule ms and and info map is not null ,so taskReplicateLagCount is greater than alarmRule point")
         @Test
@@ -124,7 +124,7 @@ public class MeasureAOPTest {
                 assertEquals(MeasureAOP.LESS,flag);
                 return null;
             }).when(alarmService).save(any());
-            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 3, alarmRuleDto, null);
+            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 3, alarmRuleDto);
         }
         @DisplayName("test taskIncrementDelayAlarm method when equalsFlag is less and replicateLag less alarmRule ms and and info map is not null ,so taskReplicateLagCount is greater than alarmRule point and continueTime greater 1 MINUTE")
         @Test
@@ -148,7 +148,7 @@ public class MeasureAOPTest {
                 assertEquals("TASK_INCREMENT_DELAY_ALWAYS",alarmInfo.getSummary());
                 return null;
             }).when(alarmService).save(any());
-            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 3, alarmRuleDto, null);
+            measureAOP.taskIncrementDelayAlarm(taskDto, taskId, 3, alarmRuleDto);
         }
     }
 

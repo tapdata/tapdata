@@ -78,7 +78,7 @@ public class MeasureAOP {
                             Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
                                 Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
                                 if (!collect.isEmpty()) {
-                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY), userDetail);
+                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
                                 }
                             });
                         }
@@ -183,7 +183,7 @@ public class MeasureAOP {
         }
     }
 
-    protected void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto, UserDetail userDetail) {
+    protected void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto) {
         // check task start cdc
         if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag)) {
             return;
