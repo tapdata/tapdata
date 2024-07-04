@@ -280,7 +280,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                         .map(node -> (MigrateUnionProcessorNode) node)
                         .collect(Collectors.toCollection(LinkedList::new));
                 if(CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)){
-                    return null;
+                    return Collections.emptyList();
                 }
                 if (CollectionUtils.isNotEmpty(collect)) {
                     Map<String, TableRenameTableInfo> namesMapping = collect.getLast().originalMap();
