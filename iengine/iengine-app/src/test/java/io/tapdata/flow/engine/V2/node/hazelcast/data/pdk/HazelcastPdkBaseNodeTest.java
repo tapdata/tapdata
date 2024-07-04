@@ -12,10 +12,13 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
+import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
@@ -30,10 +33,13 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -536,5 +542,41 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertTrue(nodeConfig.containsKey(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 			assertFalse((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 		}
+	}
+
+	@Test
+	void name() {
+		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+		TapCodecsFilterManager tapCodecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+		Map<String, Object> value = new HashMap<>();
+		for (int i = 0; i < 30; i++) {
+			value.put("_number" + i, 1111);
+		}
+		for (int i = 0; i < 20; i++) {
+			value.put("_string" + i, "xxxxxxxx");
+		}
+		TapTable tapTable = new TapTable("test");
+		for (int i = 0; i < 30; i++) {
+			TapField tapField = new TapField("_number" + i, "rnumber").tapType(new TapNumber());
+			tapTable.putField(tapField.getName(), tapField);
+		}
+		for (int i = 0; i < 20; i++) {
+			TapField tapField = new TapField("_string" + i, "rstring").tapType(new TapString());
+			tapTable.putField(tapField.getName(), tapField);
+		}
+		int time = 10000000;
+		long start = System.currentTimeMillis();
+		for (int i = 0; i < time; i++) {
+			tapCodecsFilterManager.transformToTapValueMap(value, tapTable.getNameFieldMap());
+			tapCodecsFilterManager.transformFromTapValueMap(value, tapTable.getNameFieldMap());
+		}
+		long end = System.currentTimeMillis();
+		long costMs = end - start;
+		BigDecimal costSec = BigDecimal.valueOf(costMs).divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
+		BigDecimal qps = BigDecimal.valueOf(time);
+		if (costSec.compareTo(BigDecimal.ZERO) > 0) {
+			qps = BigDecimal.valueOf(time).divide(costSec, 2, RoundingMode.HALF_UP);
+		}
+		System.out.printf("qps: %s, cost ms: %s ms%n", qps.toPlainString(), costMs);
 	}
 }

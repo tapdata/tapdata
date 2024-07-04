@@ -718,7 +718,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == tapRecordEvent) {
             return;
         }
-        hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
+//        hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
         List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
         String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
         if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
@@ -924,7 +924,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
 		replaceIllegalDateWithNullIfNeed(tapRecordEvent);
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
-		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
+//		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		fromTapValueMergeInfo(tapdataEvent);
 		return tapRecordEvent;
 	}

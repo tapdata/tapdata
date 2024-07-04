@@ -644,7 +644,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						// the event is considered been output to the next node.
 						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
 						TapEvent tapEvent = dataEvent.getTapEvent();
-						tapRecordToTapValue(tapEvent, codecsFilterManager);
+//						tapRecordToTapValue(tapEvent, codecsFilterManager);
 					}
 				}
 			}
@@ -973,13 +973,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
-					Map<String, Object> newMap = new HashMap<>();
-					try {
-						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-					} catch (Exception e) {
-						throw new TapCodeException(TaskProcessorExCode_11.SOURCE_CLONE_BATCH_OFFSET_FAILED, e);
-					}
-					tapdataEvent.setBatchOffset(newMap);
+//					Map<String, Object> newMap = new HashMap<>();
+//					try {
+//						MapUtil.deepCloneMap(batchOffsetObj, newMap);
+//					} catch (Exception e) {
+//						throw new TapCodeException(TaskProcessorExCode_11.SOURCE_CLONE_BATCH_OFFSET_FAILED, e);
+//					}
+					tapdataEvent.setBatchOffset(batchOffsetObj);
 					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
