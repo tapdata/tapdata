@@ -36,10 +36,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.OEMReplaceUtil;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -72,7 +69,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
@@ -329,50 +325,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     protected List<String> getMigrateTableNames(DatabaseNode sourceNode, UserDetail userDetail){
         if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
-            Function<MetadataInstancesDto, Boolean> filterTableByNoPrimaryKey = Optional
-                    .of(NoPrimaryKeyTableSelectType.parse(sourceNode.getNoPrimaryKeyTableSelectType()))
-                    .map(type -> {
-                        switch (type) {
-                            case HasKeys:
-                                return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
-                                    if (null != metadataInstancesDto.getFields()) {
-                                        for (Field field : metadataInstancesDto.getFields()) {
-                                            if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
-                                        }
-                                    }
-                                    return true;
-                                };
-                            case NoKeys:
-                                return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
-                                    if (null != metadataInstancesDto.getFields()) {
-                                        for (Field field : metadataInstancesDto.getFields()) {
-                                            if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
-                                        }
-                                    }
-                                    return false;
-                                };
-                            default:
-                        }
-                        return null;
-                    }).orElse(metadataInstancesDto -> false);
-
-            return metaInstances.stream()
-                    .map(metadataInstancesDto -> {
-                        if (filterTableByNoPrimaryKey.apply(metadataInstancesDto)) {
-                            return null;
-                        }
-                        return metadataInstancesDto.getOriginalName();
-                    })
-                    .filter(originalName -> {
-                        if (null == originalName) {
-                            return false;
-                        } else if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
-                            return false;
-                        } else {
-                            return Pattern.matches(sourceNode.getTableExpression(), originalName);
-                        }
-                    })
-                    .collect(Collectors.toList());
+            return MetadataInstancesFilterUtil.getFilteredOriginalNames(metaInstances,sourceNode);
         }else{
             return sourceNode.getTableNames();
         }
@@ -386,8 +339,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .collect(Collectors.toCollection(LinkedList::new));
             if(CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)){
                 tableNames.clear();
-                tableNames.addAll(migrateUnionProcessorNodes.stream().map(MigrateUnionProcessorNode::getTableName)
-                        .filter(StringUtils::isNotEmpty).collect(Collectors.toList()));
+                tableNames.add(migrateUnionProcessorNodes.getLast().getTableName());
             }
         }
     }
