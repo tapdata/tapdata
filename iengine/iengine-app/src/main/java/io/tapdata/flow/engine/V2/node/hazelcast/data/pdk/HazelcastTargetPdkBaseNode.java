@@ -54,6 +54,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
@@ -358,7 +361,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
 				this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
 				if (initialConcurrentInConfig) {
-					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum, partitionKeyFunction);
+					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(
+							initialConcurrentWriteNum,
+							tapEvent -> Collections.emptyList(),
+							new Partitioner<TapdataEvent, List<Object>>() {
+								final Random random = new Random();
+								@Override
+								public PartitionResult<TapdataEvent> partition(int partitionSize, TapdataEvent event, List<Object> partitionValue) {
+									return new PartitionResult<>(random.nextInt(partitionSize), event);
+								}
+							}
+					);
 					this.initialPartitionConcurrentProcessor.start();
 				}
 			}
@@ -718,7 +731,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (null == tapRecordEvent) {
             return;
         }
-//        hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
+        hasExactlyOnceWriteCache.set(handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache));
         List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
         String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
         if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
@@ -924,7 +937,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent);
 		replaceIllegalDateWithNullIfNeed(tapRecordEvent);
 		fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
-//		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
+		fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 		fromTapValueMergeInfo(tapdataEvent);
 		return tapRecordEvent;
 	}
@@ -1277,6 +1290,35 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				batchSize,
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(partitionKeyFunction),
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext.getTaskDto()
+		);
+	}
+
+	private PartitionConcurrentProcessor initConcurrentProcessor(
+			int cdcConcurrentWriteNum,
+			Function<TapEvent, List<String>> partitionKeyFunction,
+			Partitioner<TapdataEvent, List<Object>> partitioner
+	) {
+		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		return new PartitionConcurrentProcessor(
+				cdcConcurrentWriteNum,
+				batchSize,
+				partitioner,
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.emptyList();
+					}
+
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return Collections.emptyList();
+					}
+				},
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,
