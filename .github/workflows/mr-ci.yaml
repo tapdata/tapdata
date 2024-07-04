@@ -154,8 +154,12 @@ jobs:
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
             -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+          if [[ $? -ne 0 ]]; then
+            ret_code=$?
+          fi
           update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
           export JAVA_HOME=/usr/java/jdk1.8.0_361
+          exit $ret_code
       - name: Prevent Skip Unittest
         run: |
           cd tapdata
