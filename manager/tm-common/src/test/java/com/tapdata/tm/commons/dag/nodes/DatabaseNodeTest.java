@@ -78,7 +78,7 @@ public class DatabaseNodeTest {
             nodes.add(new MigrateUnionProcessorNode());
             when(databaseNode.getPreNodes(any())).thenReturn(nodes);
             doCallRealMethod().when(databaseNode).loadSchema(includes);
-            Assertions.assertNull(databaseNode.loadSchema(includes));
+            Assertions.assertEquals(0,databaseNode.loadSchema(includes).size());
         }
         @Test
         void test_main(){
