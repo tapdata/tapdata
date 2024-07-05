@@ -25,6 +25,7 @@ import java.util.Set;
 @EqualsAndHashCode
 @ToString
 public class BaseDto implements Serializable {
+    public static final String FIELD_USER_ID = "user_id";
 
 	@JsonSerialize( using = ObjectIdSerialize.class)
 	@JsonDeserialize( using = ObjectIdDeserialize.class)

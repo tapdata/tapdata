@@ -118,8 +118,7 @@ public class ConnectionValidator {
 	}
 
 	public static boolean validateHostPort(String databaseHost, Integer databasePort) {
-		try {
-			Socket s = new Socket();
+		try (Socket s = new Socket()) {
 			s.connect(new InetSocketAddress(databaseHost, databasePort), 10000);
 			s.close();
 			return true;

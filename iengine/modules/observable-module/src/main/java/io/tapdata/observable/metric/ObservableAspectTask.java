@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric;
 
 import com.google.common.collect.HashBiMap;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -12,27 +13,37 @@ import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
+import io.tapdata.observable.metric.util.TapCompletableFutureEx;
+import io.tapdata.observable.metric.util.TapCompletableFutureTaskEx;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_CONN_HEARTBEAT, TaskDto.SYNC_TYPE_LOG_COLLECTOR,TaskDto.SYNC_TYPE_MEM_CACHE})
 public class ObservableAspectTask extends AspectTask {
+	public static final String TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_PROP_KEY = String.join("_", TapCompletableFutureEx.TAG, "QUEUE", "SIZE");
+	public static final int TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_DEFAULT_VALUE = 500000;
+	public static final String TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_PROP_KEY = String.join("_", TapCompletableFutureEx.TAG, "JOIN", "WATERMARK");
+	public static final int TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_DEFAULT_VALUE = 500000;
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
 	private TaskSampleHandler taskSampleHandler;
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
+	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
 		// data node aspects
@@ -67,7 +78,7 @@ public class ObservableAspectTask extends AspectTask {
 	CompletableFuture<Void> batchProcessFuture;
 	CompletableFuture<Void> streamReadFuture;
 	CompletableFuture<Void> streamProcessFuture;
-	CompletableFuture<Void> writeRecordFuture;
+	TapCompletableFutureEx writeRecordFuture;
 	/**
 	 * The task started
 	 */
@@ -83,15 +94,23 @@ public class ObservableAspectTask extends AspectTask {
 		batchProcessFuture = CompletableFuture.runAsync(()->{});
 		streamReadFuture = CompletableFuture.runAsync(()->{});
 		streamProcessFuture = CompletableFuture.runAsync(()->{});
-		writeRecordFuture = CompletableFuture.runAsync(()->{});
+		writeRecordFuture = TapCompletableFutureTaskEx.create(
+				CommonUtils.getPropertyInt(TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_PROP_KEY, TAPCOMPLETABLEFUTUREEX_QUEUE_SIZE_DEFAULT_VALUE),
+				CommonUtils.getPropertyInt(TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_PROP_KEY, TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_DEFAULT_VALUE),
+				task
+		).start();
 	}
 
 	protected void closeCompletableFuture() {
-		if (null != batchReadFuture) batchReadFuture.cancel(true);
-		if (null != batchProcessFuture) batchProcessFuture.cancel(true);
-		if (null != streamReadFuture) streamReadFuture.cancel(true);
-		if (null != streamProcessFuture) streamProcessFuture.cancel(true);
-		if (null != writeRecordFuture) writeRecordFuture.cancel(true);
+		if (null != batchReadFuture) batchReadFuture.cancel(false);
+		if (null != batchProcessFuture) batchProcessFuture.cancel(false);
+		if (null != streamReadFuture) streamReadFuture.cancel(false);
+		if (null != streamProcessFuture) streamProcessFuture.cancel(false);
+		try {
+			if (null != writeRecordFuture) writeRecordFuture.stop(15L, TimeUnit.SECONDS);
+		}catch (Exception e){
+			TapLogger.info(TAG, "Stop writeRecordFuture fail: {}", Log4jUtil.getStackString(e));
+		}
 	}
 
 	/**
@@ -118,8 +137,8 @@ public class ObservableAspectTask extends AspectTask {
 			}
 		}
 
-		taskSampleHandler.close();
 		closeCompletableFuture();
+		taskSampleHandler.close();
 	}
 
 	// data node related
@@ -307,6 +326,9 @@ public class ObservableAspectTask extends AspectTask {
 	// target data node related
 
 	public Void handleCreateTableFunc(CreateTableFuncAspect aspect) {
+		if(aspect.isInit()){
+			return null;
+		}
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		switch (aspect.getState()) {
 			case CreateTableFuncAspect.STATE_START:
@@ -323,6 +345,9 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleDropTableFunc(DropTableFuncAspect aspect) {
+		if(aspect.isInit()){
+			return null;
+		}
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		switch (aspect.getState()) {
 			case DropTableFuncAspect.STATE_START:
@@ -409,6 +434,7 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
+
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		String nodeId = node.getId();
@@ -423,37 +449,41 @@ public class ObservableAspectTask extends AspectTask {
 						}
 				);
 				aspect.consumer((events, result) -> {
-					writeRecordFuture.thenRunAsync(() -> {
-					if (null == events || events.size() == 0) {
-						return;
-					}
-
-					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events, recorder.getMemorySize());
-					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
+					try {
+						writeRecordFuture.runAsync(() -> {
+							if (null == events || events.isEmpty()) {
+								return;
 							}
-					);
 
-					taskSampleHandler.handleWriteRecordAccept(result, events, inner);
+							HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events, recorder.getMemorySize());
+							Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+									handler -> {
+										handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
+									}
+							);
 
-					Optional.ofNullable(tableSampleHandlers)
-							.flatMap(handlers -> {
-								// source >> target table name maybe change
+							taskSampleHandler.handleWriteRecordAccept(result, events, inner);
 
-								String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
-								if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
-									return handlers.values().stream().findFirst();
-								} else {
-									LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
-									String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
-									return Optional.ofNullable(handlers.get(targetTableName));
-								}
-							})
-							.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
+							Optional.ofNullable(tableSampleHandlers)
+									.flatMap(handlers -> {
+										// source >> target table name maybe change
 
-					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
-					});
+										String syncType = aspect.getDataProcessorContext().getTaskDto().getSyncType();
+										if (TaskDto.SYNC_TYPE_SYNC.equals(syncType) || TaskDto.SYNC_TYPE_CONN_HEARTBEAT.equals(syncType)) {
+											return handlers.values().stream().findFirst();
+										} else {
+											LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
+											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
+											return Optional.ofNullable(handlers.get(targetTableName));
+										}
+									})
+									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
+
+							pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
+						});
+					} catch (Exception e) {
+						TapLogger.info("Run async writeRecordFuture fail: {}", Log4jUtil.getStackString(e));
+					}
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

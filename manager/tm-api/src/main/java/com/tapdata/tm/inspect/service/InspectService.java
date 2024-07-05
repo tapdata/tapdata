@@ -5,6 +5,7 @@ import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -13,6 +14,8 @@ import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.inspect.repository.InspectRepository;
+import com.tapdata.tm.inspect.vo.InspectRecoveryStartVerifyVo;
+import com.tapdata.tm.webhook.enums.ConstVariable;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,5 +80,12 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
 
     public abstract List<InspectDto> findAllByIds(List<String> inspectIds);
 
-    public abstract void fieldHandler(List<Task> tasks,UserDetail userDetail);
+
+    public InspectRecoveryStartVerifyVo recoveryStartVerity(InspectDto inspectDto) {
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+    }
+
+    public InspectRecoveryStartVerifyVo recoveryStart(InspectDto inspectDto, UserDetail userDetail) {
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+    }
 }

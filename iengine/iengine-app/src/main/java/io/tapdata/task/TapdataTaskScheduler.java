@@ -269,18 +269,4 @@ public class TapdataTaskScheduler {
 		taskExecuteInfo.getScheduleTask().setStatus("paused");
 	}
 
-	public static void main(String[] args) throws InterruptedException {
-		ScheduledExecutorService executorService = Executors.newScheduledThreadPool(20);
-		ConcurrentTaskScheduler taskScheduler = new ConcurrentTaskScheduler(executorService);
-//        PeriodicTrigger trigger = new PeriodicTrigger(5000);
-		Future<?> schedule = taskScheduler.submit(() -> {
-			System.out.println("Already done.");
-		});
-
-		while (true) {
-			System.out.println(schedule.isDone());
-			Thread.sleep(1000);
-		}
-	}
-
 }

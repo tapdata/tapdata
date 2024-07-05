@@ -65,4 +65,8 @@ public interface TaskClient<T> {
 	default boolean resume() {
 		throw new UnsupportedOperationException();
 	}
+
+	default void close() {
+		throw new UnsupportedOperationException();
+	}
 }

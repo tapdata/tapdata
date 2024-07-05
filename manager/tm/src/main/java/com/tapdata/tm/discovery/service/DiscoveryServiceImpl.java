@@ -2,6 +2,7 @@ package com.tapdata.tm.discovery.service;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.apiServer.dto.ApiServerDto;
 import com.tapdata.tm.apiServer.service.ApiServerService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.dag.Edge;
@@ -25,6 +26,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.livedataplatform.dto.LiveDataPlatformDto;
+import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
@@ -50,6 +53,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Meta;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
@@ -62,6 +66,8 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class DiscoveryServiceImpl implements DiscoveryService {
 
+    public static final String SOURCE_ID = "source._id";
+    public static final String COUNT = "count";
     private MetadataInstancesService metadataInstancesService;
 
     private MetadataInstancesRepository metaDataRepository;
@@ -81,6 +87,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private ApiServerService apiServerService;
 
     private LdpService ldpService;
+
+    private LiveDataPlatformService liveDataPlatformService;
 
     /**
      * 查询对象概览列表
@@ -1012,7 +1020,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getObjType())) {
             metadataCriteria.and("meta_type").is(param.getObjType());
-            //taskCriteria.and("syncType").is(param.getObjType());
             apiCriteria.and("apiType").is(param.getObjType());
         } else {
             metadataCriteria.and("meta_type").is("table");
@@ -1043,6 +1050,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         MetadataDefinitionDto definitionDto = null;
         if (StringUtils.isNotBlank(param.getTagId())) {
             definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
+            addMetadataCriteriaMDMConnId(user, metadataCriteria, definitionDto);
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
 
@@ -1064,7 +1072,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                         taskCriteria.and("syncType").is(param.getObjType());
                     }
                     List<String> tagIds = andChild.stream().map(t->t.getId().toHexString()).collect(Collectors.toList());
-                    metadataCriteria.and("listtags.id").in(tagIds);
+                    if (StringUtils.isBlank(param.getQueryKey())) {
+                        addMetadataCriteriaListTags(definitionDto, tagIds, metadataCriteria);
+                    }
                     taskCriteria.and("listtags.id").in(tagIds);
                     apiCriteria.and("listtags.id").in(tagIds);
                 } else {
@@ -1076,7 +1086,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                                 apiCriteria.and("_id").is("1231231231");
                                 List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
                                 if (CollectionUtils.isNotEmpty(linkIds)) {
-                                    metadataCriteria.and("source._id").in(linkIds);
+                                    metadataCriteria.and(SOURCE_ID).in(linkIds);
                                 } else {
                                     return page;
                                 }
@@ -1268,136 +1278,57 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         return page;
     }
 
-    //@Override
-    public Page<DataDirectoryDto> findDataDirectory1(DirectoryQueryParam param, UserDetail user) {
-        if (param.getPage() == null) {
-            param.setPage(1);
-        }
-
-        if (param.getPageSize() == null) {
-            param.setPageSize(20);
-        }
-
-        Page<DataDirectoryDto> page = new Page<>();
-        page.setItems(Lists.newArrayList());
-        page.setTotal(0);
-
-        Criteria taskCriteria = Criteria.where("is_deleted").ne(true);
-        Criteria apiCriteria = Criteria.where("status").is("active");
-
-        Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
-                .and("taskId").exists(false)
-                .and("is_deleted").ne(true);
-        if (StringUtils.isNotBlank(param.getObjType())) {
-            metadataCriteria.and("meta_type").is(param.getObjType());
-            taskCriteria.and("syncType").is(param.getObjType());
-            apiCriteria.and("apiType").is(param.getObjType());
+    protected void addMetadataCriteriaListTags(MetadataDefinitionDto definitionDto, List<String> tagIds, Criteria metadataCriteria) {
+        if (isMDMRoot(definitionDto)) {
+            List<Criteria> metaOr = new ArrayList<>();
+            metaOr.add(Criteria.where("listtags.id").exists(false));
+            if (null != tagIds) {
+                metaOr.add(Criteria.where("listtags.id").in(tagIds));
+            }
+            metadataCriteria.orOperator(metaOr);
         } else {
-            metadataCriteria.and("meta_type").is("table");
-        }
-
-        if (StringUtils.isNotBlank(param.getQueryKey())) {
-            metadataCriteria.orOperator(
-                    Criteria.where("original_name").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
-
-            taskCriteria.orOperator(
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("desc").regex(param.getQueryKey()));
-
-            apiCriteria.orOperator(
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("tableName").regex(param.getQueryKey()));
-        }
-
-
-        if (StringUtils.isNotBlank(param.getTagId())) {
-            MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
-            if (definitionDto != null) {
-                List<String> itemTypes = definitionDto.getItemType();
-                boolean isDefault = itemTypes.contains("default");
-                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
-                if (!isDefault) {
-
-                    if (StringUtils.isBlank(param.getObjType())) {
-                        taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
-                    }
-                    List<String> tagIds = andChild.stream().map(t->t.getId().toHexString()).collect(Collectors.toList());
-                    metadataCriteria.and("listtags.id").in(tagIds);
-                    taskCriteria.and("listtags.id").in(tagIds);
-                    apiCriteria.and("listtags.id").in(tagIds);
-                } else {
-                    if (!definitionDto.getValue().equals("Root")) {
-                        DataObjCategoryEnum defaultObjEnum = getDefaultObjEnum(null, definitionDto.getId());
-                        switch (defaultObjEnum) {
-                            case storage:
-                                taskCriteria.and("_id").is("1231231231");
-                                apiCriteria.and("_id").is("1231231231");
-                                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                                if (CollectionUtils.isNotEmpty(linkIds)) {
-                                    metadataCriteria.and("source._id").in(linkIds);
-                                } else {
-                                    return page;
-                                }
-                                break;
-                            case job:
-                                metadataCriteria.and("_id").is("1231231231");
-                                apiCriteria.and("_id").is("1231231231");
-                                if ("sync".equals(definitionDto.getValue())) {
-                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_SYNC);
-                                } else if ("migrate".equals(definitionDto.getValue())) {
-                                    taskCriteria.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE);
-                                } else {
-                                    taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
-                                }
-                                break;
-                            case api:
-                                metadataCriteria.and("_id").is("1231231231");
-                                taskCriteria.and("_id").is("1231231231");
-                                break;
-                        }
-                    }
-                }
+            if (null != tagIds) {
+                metadataCriteria.and("listtags.id").in(tagIds);
             }
         }
-
-        UnionWithOperation taskUnion = UnionWithOperation.unionWith("TaskCollectionObj")
-                .pipeline(
-                        Aggregation.project("createTime", "_id", "listtags", "syncType", "name", "agentId", "is_deleted"),
-                        Aggregation.match(taskCriteria)
-                );
-
-        UnionWithOperation apiUnion = UnionWithOperation.unionWith("Modules")
-                .pipeline(
-                        Aggregation.project("createTime", "_id", "listtags", "name", "apiType", "tableName", "status"),
-                        Aggregation.match(apiCriteria)
-                );
-        MatchOperation match = Aggregation.match(metadataCriteria);
-        ProjectionOperation project = Aggregation.project("createTime", "_id", "listtags", "meta_type", "original_name"
-                , "source", "syncType", "name", "agentId", "apiType", "tableName", "comment", "desc");
-        LimitOperation limitOperation = Aggregation.limit(param.getPageSize());
-        SkipOperation skipOperation = Aggregation.skip((long) (param.getPage() - 1) * param.getPageSize());
-        SortOperation sortOperation = Aggregation.sort(Sort.Direction.DESC, "createTime");
-
-        long count1 = metadataInstancesService.count(new Query(metadataCriteria), user);
-        long count2 = taskRepository.count(new Query(taskCriteria), user);
-        long count3 = modulesService.count(new Query(apiCriteria), user);
-        long total = count1 + count2 + count3;
-        Aggregation aggregation = Aggregation.newAggregation(match, taskUnion, apiUnion, project, sortOperation, skipOperation, limitOperation);
-        AggregationResults<UnionQueryResult> results = metaDataRepository.getMongoOperations().aggregate(aggregation, "MetadataInstances", UnionQueryResult.class);
-        List<UnionQueryResult> unionQueryResults = results.getMappedResults();
-        List<DataDirectoryDto> items = unionQueryResults.stream().map(this::convertToDataDirectory).collect(Collectors.toList());
-
-        page.setItems(items);
-        page.setTotal(total);
-        return page;
     }
 
+    protected void addMetadataCriteriaMDMConnId(UserDetail user, Criteria metadataCriteria, MetadataDefinitionDto metadataDefinitionDto) {
+        if (null == metadataDefinitionDto) {
+            return;
+        }
+        List<String> itemType = metadataDefinitionDto.getItemType();
+        if (null == itemType || (!itemType.contains(MetadataDefinitionDto.LDP_ITEM_FDM) && !itemType.contains(MetadataDefinitionDto.LDP_ITEM_MDM))) {
+            return;
+        }
+        LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(Query.query(Criteria.where("user_id").is(user.getUserId())));
+        if (null == liveDataPlatformDto) {
+			throw new BizException("Ldp.not.exists", "Live data platform not exists, user: " + user.getUserId());
+        }
+        List<String> sourceIds = new ArrayList<>();
+        if (itemType.contains(MetadataDefinitionDto.LDP_ITEM_FDM)) {
+            String fdmStorageConnectionId = liveDataPlatformDto.getFdmStorageConnectionId();
+            if(StringUtils.isNotBlank(fdmStorageConnectionId)){
+                sourceIds.add(fdmStorageConnectionId);
+            }
+        }
+        if (itemType.contains(MetadataDefinitionDto.LDP_ITEM_MDM)) {
+            String mdmStorageConnectionId = liveDataPlatformDto.getMdmStorageConnectionId();
+            if(StringUtils.isNotBlank(mdmStorageConnectionId)){
+                sourceIds.add(mdmStorageConnectionId);
+            }
+        }
+        if (CollectionUtils.isNotEmpty(sourceIds)) {
+            metadataCriteria.and(SOURCE_ID).in(sourceIds);
+        }
+    }
 
-
+    protected boolean isMDMRoot(MetadataDefinitionDto definitionDto) {
+        if (null == definitionDto) {
+            return false;
+        }
+        return StringUtils.isBlank(definitionDto.getParent_id()) && definitionDto.getItemType().contains(MetadataDefinitionDto.LDP_ITEM_MDM);
+    }
 
     private List<String> objCategoryFilterList() {
         return Arrays.stream(DataObjCategoryEnum.values()).map(Enum::name).collect(Collectors.toList());
@@ -1509,9 +1440,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true)
                 .and("meta_type").is("table")
-                .and("source._id").ne(null);
+                .and(SOURCE_ID).ne(null);
         MatchOperation match = Aggregation.match(criteria1);
-        GroupOperation g = Aggregation.group("source._id").count().as("count");
+        GroupOperation g = Aggregation.group(SOURCE_ID).count().as(COUNT);
 
 
         Aggregation aggregation = Aggregation.newAggregation(match, g);
@@ -1534,7 +1465,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             criteriaSyncTask.and("user_id").is(user.getUserId());
         }
         MatchOperation matchTask = Aggregation.match(criteriaSyncTask);
-        GroupOperation gTask = Aggregation.group("user_id").count().as("count");
+        GroupOperation gTask = Aggregation.group("user_id").count().as(COUNT);
 
 
         Aggregation aggregationTask = Aggregation.newAggregation(matchTask, gTask);
@@ -1556,7 +1487,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             criteriaMigrateTask.and("user_id").is(user.getUserId());
         }
         MatchOperation matchMigrateTask = Aggregation.match(criteriaMigrateTask);
-        GroupOperation gMigrateTask = Aggregation.group("user_id").count().as("count");
+        GroupOperation gMigrateTask = Aggregation.group("user_id").count().as(COUNT);
 
 
         Aggregation aggregationMigrateTask = Aggregation.newAggregation(matchMigrateTask, gMigrateTask);

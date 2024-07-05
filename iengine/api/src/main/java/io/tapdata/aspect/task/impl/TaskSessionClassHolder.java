@@ -206,12 +206,14 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 	public synchronized void ensureTaskSessionStopped(String taskId, TaskStopAspect stopAspect) {
 		if(taskId == null)
 			return;
-		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
+		AspectTaskEx aspectTask = aspectTaskMap.get(taskId);
 		if (aspectTask != null) {
 			if(ignoreErrors)
 				CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
 			else
 				CommonUtils.handleAnyError(() -> aspectTask.aspectTask.onStop(stopAspect));
+
+		    aspectTaskMap.remove(taskId);
 
 			List<Class<? extends Aspect>> observerClasses = aspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);

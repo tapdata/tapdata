@@ -42,11 +42,7 @@ import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
@@ -459,7 +455,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TaskConfig taskConfig
 	) throws Exception {
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
-		if ((node instanceof ProcessorNode || node instanceof MigrateDateProcessorNode) && node.disabledNode()) {
+		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),TaskDto.SYNC_TYPE_TEST_RUN,TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
+				(node instanceof ProcessorNode || node instanceof MigrateProcessorNode) && node.disabledNode()) {
 			HazelcastBlank newNode = new HazelcastBlank(
 					DataProcessorContext.newBuilder()
 							.withTaskDto(taskDto)

@@ -5,6 +5,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 public class DropTableFuncAspect extends DataFunctionAspect<DropTableFuncAspect> {
 	private TapDropTableEvent dropTableEvent;
+	private boolean init;
 	public DropTableFuncAspect dropTableEvent(TapDropTableEvent dropTableEvent) {
 		this.dropTableEvent = dropTableEvent;
 		return this;
@@ -30,5 +31,14 @@ public class DropTableFuncAspect extends DataFunctionAspect<DropTableFuncAspect>
 
 	public void setDropTableEvent(TapDropTableEvent dropTableEvent) {
 		this.dropTableEvent = dropTableEvent;
+	}
+
+	public boolean isInit() {
+		return init;
+	}
+
+	public DropTableFuncAspect setInit(boolean init) {
+		this.init = init;
+		return this;
 	}
 }

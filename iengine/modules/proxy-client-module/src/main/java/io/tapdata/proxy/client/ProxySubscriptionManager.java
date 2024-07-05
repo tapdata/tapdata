@@ -61,7 +61,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 	private final ConcurrentHashMap<String, TaskSubscribeInfo> taskIdTaskSubscribeInfoMap = new ConcurrentHashMap<>();
 //	private ScheduledFuture<?> workingFuture;
 //	private final AtomicBoolean needSync = new AtomicBoolean(false);
-	private IMClient imClient;
+	private volatile IMClient imClient;
 
 	private MaxFrequencyLimiter maxFrequencyLimiter;
 
@@ -101,7 +101,8 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							baseUrl = baseUrl + "/";
 						newBaseUrls.add(baseUrl + "proxy");//?access_token=" + accessToken);
 					}
-					imClient = new IMClientBuilder()
+
+					IMClient imClientPrivate = new IMClientBuilder()
 							.withBaseUrl(newBaseUrls)
 							.withService("engine")
 							.withPrefix("e")
@@ -109,13 +110,14 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							.withTerminal(1)
 							.withToken(accessToken)
 							.build();
-					imClient.start();
+					imClientPrivate.start();
 					EventManager eventManager = EventManager.getInstance();
-					eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + ".status", this::handleStatus);
 					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
-					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
+					eventManager.registerEventListener(imClientPrivate.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
+					this.imClient = imClientPrivate;
 				}
 			}
 		}

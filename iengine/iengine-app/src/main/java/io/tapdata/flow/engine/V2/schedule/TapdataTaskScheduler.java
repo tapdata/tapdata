@@ -648,7 +648,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		taskDtoTaskClient.terminalMode(TerminalMode.STOP_GRACEFUL);
 		taskDtoTaskClient.getTask().setSnapShotInterrupt(true);
 		stopTaskAndClear(taskDtoTaskClient, StopTaskResource.STOPPED, taskId);
-		AspectUtils.executeAspect(new TaskStopAspect().task(taskDtoTaskClient.getTask()));
 	}
 
 	private void stopTaskAndClear(TaskClient<TaskDto> taskDtoTaskClient, StopTaskResource stopped, String taskId) {
