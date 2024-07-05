@@ -361,9 +361,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
 				this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
 				if (initialConcurrentInConfig) {
-					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(
+					this.initialPartitionConcurrentProcessor = initInitialConcurrentProcessor(
 							initialConcurrentWriteNum,
-							tapEvent -> Collections.emptyList(),
 							new Partitioner<TapdataEvent, List<Object>>() {
 								final Random random = new Random();
 								@Override
@@ -380,7 +379,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
 				this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
 				if (this.cdcConcurrent) {
-					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum, partitionKeyFunction);
+					this.cdcPartitionConcurrentProcessor = initCDCConcurrentProcessor(cdcConcurrentWriteNum, partitionKeyFunction);
 					this.cdcPartitionConcurrentProcessor.start();
 				}
 			}
@@ -1283,10 +1282,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@NotNull
-	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum, Function<TapEvent, List<String>> partitionKeyFunction) {
-		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+	private PartitionConcurrentProcessor initCDCConcurrentProcessor(int concurrentWriteNum, Function<TapEvent, List<String>> partitionKeyFunction) {
+		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
 		return new PartitionConcurrentProcessor(
-				cdcConcurrentWriteNum,
+				concurrentWriteNum,
 				batchSize,
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(partitionKeyFunction),
@@ -1298,14 +1297,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		);
 	}
 
-	private PartitionConcurrentProcessor initConcurrentProcessor(
-			int cdcConcurrentWriteNum,
-			Function<TapEvent, List<String>> partitionKeyFunction,
+	private PartitionConcurrentProcessor initInitialConcurrentProcessor(
+			int concurrentWriteNum,
 			Partitioner<TapdataEvent, List<Object>> partitioner
 	) {
-		int batchSize = Math.max(this.targetBatch / cdcConcurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-		return new PartitionConcurrentProcessor(
-				cdcConcurrentWriteNum,
+		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		PartitionConcurrentProcessor partitionConcurrentProcessor = new PartitionConcurrentProcessor(
+				concurrentWriteNum,
 				batchSize,
 				partitioner,
 				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
@@ -1325,6 +1323,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::isRunning,
 				dataProcessorContext.getTaskDto()
 		);
+		return partitionConcurrentProcessor;
 	}
 
 	@Override

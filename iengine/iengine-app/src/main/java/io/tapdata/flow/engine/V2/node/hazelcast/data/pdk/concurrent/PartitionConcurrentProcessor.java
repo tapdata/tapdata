@@ -161,9 +161,8 @@ public class PartitionConcurrentProcessor {
 			while (isRunning()) {
 				try {
 					List<PartitionEvent<TapdataEvent>> events = new ArrayList<>();
-					Queues.drain(linkedBlockingQueue, events, batchSize, 3, TimeUnit.SECONDS);
+					Queues.drain(linkedBlockingQueue, events, batchSize / 2, 3, TimeUnit.SECONDS);
 					if (events.isEmpty()) continue;
-
 					processPartitionEvents(finalPartition, processEvents, events);
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
