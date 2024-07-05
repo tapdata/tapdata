@@ -2391,6 +2391,69 @@ class TaskServiceImplTest {
             assertEquals(true,actual);
             assertEquals(null,taskDto.getAgentId());
         }
+        @Test
+        @DisplayName("test findAgent MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP")
+        void test6(){
+            List<Worker> list = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work_2");
+            list.add(worker1);
+            list.add(worker2);
+            when(workerService.findAvailableAgent(user)).thenReturn(list);
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setPriorityProcessId("work_2");
+            doAnswer(invocationOnMock -> {
+                List<String> accessNodeProcessIdList = invocationOnMock.getArgument(1);
+                accessNodeProcessIdList.addAll(Arrays.asList("work_1","work_2"));
+                return false;
+            }).when(taskService).findProcessNodeListWithGroup(any(),anyList(),any());
+            doCallRealMethod().when(taskService).findAgent(taskDto,user);
+            taskService.findAgent(taskDto, user);
+            assertEquals("work_2",taskDto.getAgentId());
+        }
+        @Test
+        @DisplayName("test findAgent MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP,PriorityProcess Work lose effectiveness")
+        void test7(){
+            List<Worker> list = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            list.add(worker1);
+            when(workerService.findAvailableAgent(user)).thenReturn(list);
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setPriorityProcessId("work_2");
+            doAnswer(invocationOnMock -> {
+                List<String> accessNodeProcessIdList = invocationOnMock.getArgument(1);
+                accessNodeProcessIdList.addAll(Arrays.asList("work_1","work_2"));
+                return false;
+            }).when(taskService).findProcessNodeListWithGroup(any(),anyList(),any());
+            doCallRealMethod().when(taskService).findAgent(taskDto,user);
+            taskService.findAgent(taskDto, user);
+            assertEquals("work_1",taskDto.getAgentId());
+        }
+        @Test
+        @DisplayName("test findAgent MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP,PriorityProcessID is Null")
+        void test8(){
+            List<Worker> list = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work_2");
+            list.add(worker1);
+            list.add(worker2);
+            when(workerService.findAvailableAgent(user)).thenReturn(list);
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setPriorityProcessId(null);
+            doAnswer(invocationOnMock -> {
+                List<String> accessNodeProcessIdList = invocationOnMock.getArgument(1);
+                accessNodeProcessIdList.addAll(Arrays.asList("work_1","work_2"));
+                return false;
+            }).when(taskService).findProcessNodeListWithGroup(any(),anyList(),any());
+            doCallRealMethod().when(taskService).findAgent(taskDto,user);
+            taskService.findAgent(taskDto, user);
+            assertEquals("work_1",taskDto.getAgentId());
+        }
     }
     @Nested
     class StartTest{

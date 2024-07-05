@@ -3872,10 +3872,14 @@ public class TaskServiceImpl extends TaskService{
 
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             String agentId = null;
-            for (String p : accessNodeProcessIdList) {
-                if (processIds.contains(p)) {
-                    agentId = p;
-                    break;
+            if(StringUtils.isNotEmpty(taskDto.getPriorityProcessId()) && processIds.contains(taskDto.getPriorityProcessId())){
+                agentId = taskDto.getPriorityProcessId();
+            }else{
+                for (String p : accessNodeProcessIdList) {
+                    if (processIds.contains(p)) {
+                        agentId = p;
+                        break;
+                    }
                 }
             }
             if (StringUtils.isBlank(agentId)) {

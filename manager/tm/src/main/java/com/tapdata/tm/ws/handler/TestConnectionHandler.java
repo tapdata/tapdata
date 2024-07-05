@@ -179,9 +179,12 @@ public class TestConnectionHandler implements WebSocketHandler {
 						Object accessNodeProcessId = data.get("accessNodeProcessId");
 						FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
 							String processId = accessNodeProcessId.toString();
-
-
+							String priorityProcessId = (String) data.get("priorityProcessId");
 							List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, agentGroupService.getProcessNodeListByGroupId(Lists.newArrayList(processId), String.valueOf(accessNodeType), userDetail));
+							List<String> processIds = availableAgents.stream().map(Worker::getProcessId).collect(Collectors.toList());
+							if(org.apache.commons.lang3.StringUtils.isNotEmpty(priorityProcessId) && processIds.contains(priorityProcessId)){
+								availableAgents = availableAgents.stream().filter(worker -> worker.getProcessId().equals(priorityProcessId)).collect(Collectors.toList());
+							}
 							if (CollectionUtils.isEmpty(availableAgents)) {
 								data.put("status", "error");
 								data.put("msg", "Worker " + processId + " not available, receiver is blank");
@@ -213,7 +216,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 		handleData(agentId, context);
 	}
-		private void handleData(String receiver, WebSocketContext context) {
+		protected void handleData(String receiver, WebSocketContext context) {
 			Map<String, Object> data = context.getMessageInfo().getData();
 			String database_type = MapUtils.getAsString(data, "database_type");
 			String database_uri = MapUtils.getAsString(data, "database_uri");

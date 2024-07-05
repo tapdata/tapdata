@@ -271,6 +271,8 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
 
         private String accessNodeProcessId;
 
+        private String priorityProcessId;
+
         private List<String> accessNodeProcessIdList;
 
         private boolean accessNodeTypeEmpty;
