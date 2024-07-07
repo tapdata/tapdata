@@ -468,7 +468,7 @@ public class UserServiceImpl extends UserService{
         User user = findOneByEmail(email);
         if (null != user) {
             String validateCode = RandomUtil.randomNumbers(6);
-            SendStatus sendStatus = mailUtils.sendValidateCode(email, user.getUsername(), validateCode);
+            SendStatus sendStatus = mailUtils.sendValidateCodeForResetPWD(email, user.getUsername(), validateCode);
             if ("true".equals(sendStatus.getStatus())) {
                 Date validateCodeSendTime = new Date();
                 Update update = new Update();
