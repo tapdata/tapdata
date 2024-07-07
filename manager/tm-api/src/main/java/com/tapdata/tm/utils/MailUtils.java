@@ -437,7 +437,7 @@ public class MailUtils {
      * IMAP 端口号
      * 993
      */
-    private void initMailConfig() {
+    protected void initMailConfig() {
         String host = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.host"));
         String port = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.port"));
         String username = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.user"));
