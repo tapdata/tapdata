@@ -9,21 +9,27 @@ import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
+import io.tapdata.entity.error.CoreException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
@@ -180,4 +186,120 @@ class MailUtilsTest {
     }
 
 
+
+    @Nested
+    class SendValidateCodeForResetPWDTest {
+        private String host;
+        private Integer port;
+
+        private String user;
+        private String sendAddress;
+
+        private String password;
+        Transport transport;
+
+        MailUtils mu;
+        @BeforeEach
+        void init() throws MessagingException {
+            host = "127.0.0.1";
+            port = 9999;
+            user = "tapdata";
+            sendAddress = "127.0.0.1";
+            password = "123456";
+
+            mu = mock(MailUtils.class);
+            ReflectionTestUtils.setField(mu, "host", host);
+            ReflectionTestUtils.setField(mu, "port", port);
+            ReflectionTestUtils.setField(mu, "user", user);
+            ReflectionTestUtils.setField(mu, "sendAddress", sendAddress);
+            ReflectionTestUtils.setField(mu, "password", password);
+
+            transport = mock(Transport.class);
+            doNothing().when(transport).connect(anyString(), anyInt(), anyString(), anyString());
+
+            doNothing().when(mu).initMailConfig();
+            when(mu.sendValidateCodeForResetPWD(anyString(), anyString(), anyString())).thenCallRealMethod();
+        }
+
+        @Test
+        void testSendValidateCodeForResetPWD() throws MessagingException {
+            doNothing().when(transport).close();
+            doNothing().when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+            Session session = mock(Session.class);
+            InternetAddress[] internetAddressList = new InternetAddress[0];
+            Address[] addresses = new Address[0];
+
+            doNothing().when(session).setDebug(true);
+            when(session.getTransport("smtp")).thenReturn(transport);
+            try(MockedStatic<Session> s = mockStatic(Session.class);
+                MockedConstruction<InternetAddress> i = mockConstruction(InternetAddress.class, (ic, c) -> {});
+                MockedConstruction<MimeMessage> m = mockConstruction(MimeMessage.class, (mk,c) -> {
+                    doNothing().when(mk).setFrom(any(InternetAddress.class));
+                    doNothing().when(mk).setRecipients(Message.RecipientType.TO, internetAddressList);
+                    doNothing().when(mk).setContent(anyString(), anyString());
+                    doNothing().when(mk).setSentDate(any(Date.class));
+                    doNothing().when(mk).saveChanges();
+                    when(mk.getAllRecipients()).thenReturn(addresses);
+                })) {
+                s.when(() -> Session.getDefaultInstance(any(Properties.class))).thenReturn(session);
+                SendStatus sendStatus = mu.sendValidateCodeForResetPWD("", "", "");
+                Assertions.assertNotNull(sendStatus);
+            }
+        }
+
+        @Test
+        void testSendValidateCodeForResetPWDException() throws MessagingException {
+            doNothing().when(transport).close();
+            Session session = mock(Session.class);
+            InternetAddress[] internetAddressList = new InternetAddress[0];
+            Address[] addresses = new Address[0];
+
+            doAnswer(a -> {
+                throw new IOException("");
+            }).when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+
+            doNothing().when(session).setDebug(true);
+            when(session.getTransport("smtp")).thenReturn(transport);
+            try(MockedStatic<Session> s = mockStatic(Session.class);
+                MockedConstruction<InternetAddress> i = mockConstruction(InternetAddress.class, (ic, c) -> {});
+                MockedConstruction<MimeMessage> m = mockConstruction(MimeMessage.class, (mk,c) -> {
+                    doNothing().when(mk).setFrom(any(InternetAddress.class));
+                    doNothing().when(mk).setRecipients(Message.RecipientType.TO, internetAddressList);
+                    doNothing().when(mk).setContent(anyString(), anyString());
+                    doNothing().when(mk).setSentDate(any(Date.class));
+                    doNothing().when(mk).saveChanges();
+                    when(mk.getAllRecipients()).thenReturn(addresses);
+                })) {
+                s.when(() -> Session.getDefaultInstance(any(Properties.class))).thenReturn(session);
+                SendStatus sendStatus = mu.sendValidateCodeForResetPWD("", "", "");
+                Assertions.assertNotNull(sendStatus);
+            }
+        }
+        @Test
+        void testSendValidateCodeForResetPWDCloseException() throws MessagingException {
+            doAnswer(a -> {
+                throw new MessagingException("");
+            }).when(transport).close();
+            doNothing().when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+            Session session = mock(Session.class);
+            InternetAddress[] internetAddressList = new InternetAddress[0];
+            Address[] addresses = new Address[0];
+            doNothing().when(session).setDebug(true);
+            when(session.getTransport("smtp")).thenReturn(transport);
+            try(MockedStatic<Session> s = mockStatic(Session.class);
+                MockedConstruction<InternetAddress> i = mockConstruction(InternetAddress.class, (ic, c) -> {});
+                MockedConstruction<MimeMessage> m = mockConstruction(MimeMessage.class, (mk,c) -> {
+                    doNothing().when(mk).setFrom(any(InternetAddress.class));
+                    doNothing().when(mk).setRecipients(Message.RecipientType.TO, internetAddressList);
+                    doNothing().when(mk).setContent(anyString(), anyString());
+                    doNothing().when(mk).setSentDate(any(Date.class));
+                    doNothing().when(mk).saveChanges();
+                    when(mk.getAllRecipients()).thenReturn(addresses);
+                })) {
+                s.when(() -> Session.getDefaultInstance(any(Properties.class))).thenReturn(session);
+                SendStatus sendStatus = mu.sendValidateCodeForResetPWD("", "", "");
+                Assertions.assertNotNull(sendStatus);
+            }
+        }
+    }
 }
