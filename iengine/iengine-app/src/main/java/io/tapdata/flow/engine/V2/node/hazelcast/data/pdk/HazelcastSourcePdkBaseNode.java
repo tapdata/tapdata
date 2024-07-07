@@ -353,7 +353,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		this.increaseReadSize = DEFAULT_INCREASE_BATCH_SIZE;
 		if (getNode() instanceof DataParentNode) {
 			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
-			this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_READ_BATCH_SIZE);
+			this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
 		}
 		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
@@ -701,14 +701,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 
 			if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-				List<TapdataEvent> offeredEvents = new ArrayList<>();
-				for (TapdataEvent tapdataEvent : tapdataEvents) {
+				for (int i = 0; i < tapdataEvents.size(); i++) {
+					TapdataEvent tapdataEvent = tapdataEvents.get(i);
 					if (!offer(tapdataEvent)) {
-						tapdataEvents.removeAll(offeredEvents);
-						pendingEvents = tapdataEvents;
+						pendingEvents = new ArrayList<>(tapdataEvents.subList(i, tapdataEvents.size() - 1));
 						return false;
 					}
-					offeredEvents.add(tapdataEvent);
 				}
 			}
 

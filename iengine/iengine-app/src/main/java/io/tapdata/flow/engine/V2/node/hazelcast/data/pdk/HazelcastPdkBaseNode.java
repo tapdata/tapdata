@@ -69,7 +69,7 @@ import java.util.concurrent.TimeUnit;
  * @create 2022-05-10 16:57
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
-	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
+	public static final int DEFAULT_READ_BATCH_SIZE = 100;
 	public static final int DEFAULT_INCREASE_BATCH_SIZE = 1;
 	public static final String OLD_VERSION_TIMEZONE = "oldVersionTimezone";
 	public static final String OLD_VERSION_TIME_ZONE_PROP_KEY = "OLD_VERSION_TIME_ZONE";
