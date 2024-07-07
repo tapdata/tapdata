@@ -671,4 +671,64 @@ public class MailUtils {
         return addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
     }
 
+    /**
+     * 发送html形式的邮件,重置密码
+     */
+    public SendStatus sendValidateCodeForResetPWD(String to, String username, String validateCode) {
+        SendStatus sendStatus = new SendStatus(SEND_STATUS_FALSE, "");
+        // 读取html模板
+        String html = readHtmlToString("resetPasswordTemplate.html");
+
+        // 写入模板内容xx
+        Document doc = Jsoup.parse(html);
+        doc.getElementById("username").html("Hi, " + username + ": ");
+        doc.getElementById("code").html(validateCode);
+
+        String result = doc.toString();
+        Properties props = new Properties();
+        props.put("mail.smtp.host", "");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.socketFactory.fallback", "true");
+        Session session = Session.getDefaultInstance(props);
+        session.setDebug(true);
+
+        Transport transport = null;
+        MimeMessage message = new MimeMessage(session);
+        try {
+            //初始化发送邮件配置
+            this.initMailConfig();
+            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
+            InternetAddress[] internetAddressList = getInternetAddress(Lists.newArrayList(to));
+            message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
+
+            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
+            message.setSentDate(new Date());// 设置发信时间
+            message.saveChanges();// 存储邮件信息
+
+            // 发送邮件
+            transport = session.getTransport("smtp");
+            if (null != port) {
+                transport.connect(host, port, user, password);
+            } else {
+                transport.connect(host, user, password);
+            }
+            transport.sendMessage(message, message.getAllRecipients());
+
+            //发送邮件成功，status置为true
+            sendStatus.setStatus("true");
+        } catch (Exception e) {
+            log.error("邮件发送异常", e);
+            sendStatus.setErrorMessage(e.getMessage());
+        } finally {
+            if (null != transport) {
+                try {
+                    transport.close();//关闭连接
+                } catch (MessagingException e) {
+                    log.error("发送邮件 ，transport 关闭异常", e);
+                }
+            }
+        }
+        return sendStatus;
+    }
 }
