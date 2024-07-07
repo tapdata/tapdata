@@ -463,12 +463,12 @@ public class UserServiceImpl extends UserService{
      *
      * @return
      */
-    public Boolean sendValidateCde(String email) {
-        Boolean sendResult = false;
+    public SendStatus sendValidateCde(String email) {
+        SendStatus sendStatus = new SendStatus();
         User user = findOneByEmail(email);
         if (null != user) {
             String validateCode = RandomUtil.randomNumbers(6);
-            SendStatus sendStatus = mailUtils.sendValidateCodeForResetPWD(email, user.getUsername(), validateCode);
+            sendStatus = mailUtils.sendValidateCodeForResetPWD(email, user.getUsername(), validateCode);
             if ("true".equals(sendStatus.getStatus())) {
                 Date validateCodeSendTime = new Date();
                 Update update = new Update();
@@ -476,13 +476,15 @@ public class UserServiceImpl extends UserService{
                 update.set("validateCodeSendTime", validateCodeSendTime);
 
                 Query query = Query.query(Criteria.where("_id").is(user.getId()));
-                repository.getMongoOperations().updateFirst(query, update, "user");
-                sendResult = true;
+                repository.getMongoOperations().updateFirst(query, update, "User");
             } else {
-                log.error("重置密码，邮件发送失败： msg", sendStatus.getErrorMessage());
+                log.error("重置密码，邮件发送失败： " + sendStatus.getErrorMessage());
             }
+        } else {
+            sendStatus.setStatus("false");
+            sendStatus.setErrorMessage("User not find: " + email);
         }
-        return sendResult;
+        return sendStatus;
     }
 
     /**
