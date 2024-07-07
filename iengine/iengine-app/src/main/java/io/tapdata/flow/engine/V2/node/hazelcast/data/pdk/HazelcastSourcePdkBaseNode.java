@@ -662,37 +662,40 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} else {
 				if (null != eventQueue) {
 					try {
-						Queues.drain(eventQueue, tapdataEvents, readBatchSize, 500L, TimeUnit.MILLISECONDS);
+						int drain = Queues.drain(eventQueue, tapdataEvents, readBatchSize, 500L, TimeUnit.MILLISECONDS);
+
+						if (drain > 0) {
+							// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+							// the event is considered been output to the next node.
+							TapCodecsFilterManager tapCodecsFilterManager;
+							if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
+								tapCodecsFilterManager = codecsFilterManager;
+							} else {
+								tapCodecsFilterManager = codecsFilterManagerForBatchRead;
+							}
+							if (toTapValueConcurrent) {
+								List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueThreadNum);
+								List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
+								for (List<TapdataEvent> events : partition) {
+									completableFutures.add(
+											CompletableFuture.runAsync(() -> {
+												for (TapdataEvent event : events) {
+													TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(event.getTapEvent(), tapCodecsFilterManager);
+													event.setTransformToTapValueResult(transformToTapValueResult);
+												}
+											})
+									);
+								}
+								CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
+							} else {
+								for (TapdataEvent tapdataEvent : tapdataEvents) {
+									TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), tapCodecsFilterManager);
+									tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
+								}
+							}
+						}
 					} catch (InterruptedException ignored) {
 						Thread.currentThread().interrupt();
-					}
-					if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-						// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-						// the event is considered been output to the next node.
-						TapCodecsFilterManager tapCodecsFilterManager;
-						if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
-							tapCodecsFilterManager = codecsFilterManager;
-						} else {
-							tapCodecsFilterManager = codecsFilterManagerForBatchRead;
-						}
-						if (toTapValueConcurrent) {
-							List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueThreadNum);
-							List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
-							for (List<TapdataEvent> events : partition) {
-								completableFutures.add(
-										CompletableFuture.runAsync(() -> {
-											for (TapdataEvent event : events) {
-												tapRecordToTapValue(event.getTapEvent(), tapCodecsFilterManager);
-											}
-										})
-								);
-							}
-							CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
-						} else {
-							for (TapdataEvent tapdataEvent : tapdataEvents) {
-								tapRecordToTapValue(tapdataEvent.getTapEvent(), tapCodecsFilterManager);
-							}
-						}
 					}
 				}
 			}
@@ -731,11 +734,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		return false;
-	}
-
-	@Override
-	protected void tapRecordToTapValue(TapEvent tapEvent, TapCodecsFilterManager codecsFilterManager) {
-		super.tapRecordToTapValue(tapEvent, codecsFilterManager);
 	}
 
 	protected void handleTableMonitorResult() {
