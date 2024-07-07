@@ -215,14 +215,14 @@ class MailUtilsTest {
             ReflectionTestUtils.setField(mu, "password", password);
 
             transport = mock(Transport.class);
-            doNothing().when(transport).connect(anyString(), anyInt(), anyString(), anyString());
 
-            doNothing().when(mu).initMailConfig();
             when(mu.sendValidateCodeForResetPWD(anyString(), anyString(), anyString())).thenCallRealMethod();
         }
 
         @Test
         void testSendValidateCodeForResetPWD() throws MessagingException {
+            doNothing().when(transport).connect(anyString(), anyInt(), anyString(), anyString());
+            doNothing().when(mu).initMailConfig();
             doNothing().when(transport).close();
             doNothing().when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
             Session session = mock(Session.class);
@@ -249,6 +249,8 @@ class MailUtilsTest {
 
         @Test
         void testSendValidateCodeForResetPWDException() throws MessagingException {
+            doNothing().when(transport).connect(anyString(), anyInt(), anyString(), anyString());
+            doNothing().when(mu).initMailConfig();
             doNothing().when(transport).close();
             Session session = mock(Session.class);
             InternetAddress[] internetAddressList = new InternetAddress[0];
@@ -277,6 +279,8 @@ class MailUtilsTest {
         }
         @Test
         void testSendValidateCodeForResetPWDCloseException() throws MessagingException {
+            doNothing().when(transport).connect(anyString(), anyInt(), anyString(), anyString());
+            doNothing().when(mu).initMailConfig();
             doAnswer(a -> {
                 throw new MessagingException("");
             }).when(transport).close();
@@ -299,6 +303,33 @@ class MailUtilsTest {
                 s.when(() -> Session.getDefaultInstance(any(Properties.class))).thenReturn(session);
                 SendStatus sendStatus = mu.sendValidateCodeForResetPWD("", "", "");
                 Assertions.assertNotNull(sendStatus);
+            }
+        }
+        @Test
+        void testSendValidateCodeForResetPWDTransportIsNull() throws MessagingException {
+            doNothing().when(mu).initMailConfig();
+            //doNothing().when(transport).sendMessage(any(MimeMessage.class), any(Address[].class));
+            Session session = mock(Session.class);
+            InternetAddress[] internetAddressList = new InternetAddress[0];
+            Address[] addresses = new Address[0];
+            doNothing().when(session).setDebug(true);
+            try(MockedStatic<Session> s = mockStatic(Session.class);
+                MockedConstruction<InternetAddress> i = mockConstruction(InternetAddress.class, (ic, c) -> {});
+                MockedConstruction<MimeMessage> m = mockConstruction(MimeMessage.class, (mk,c) -> {
+                    doNothing().when(mk).setFrom(any(InternetAddress.class));
+                    doNothing().when(mk).setRecipients(Message.RecipientType.TO, internetAddressList);
+                    doNothing().when(mk).setContent(anyString(), anyString());
+                    doNothing().when(mk).setSentDate(any(Date.class));
+                    doAnswer(a -> {
+                        throw new Exception("");
+                    }).when(mk).saveChanges();
+                    when(mk.getAllRecipients()).thenReturn(addresses);
+                })) {
+                s.when(() -> Session.getDefaultInstance(any(Properties.class))).thenReturn(session);
+                SendStatus sendStatus = mu.sendValidateCodeForResetPWD("", "", "");
+                Assertions.assertNotNull(sendStatus);
+            } catch (Exception e) {
+
             }
         }
     }

@@ -691,6 +691,7 @@ public class MailUtils {
         props.put("mail.smtp.host", "");
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.ssl.checkserveridentity", "true");
         props.put("mail.smtp.socketFactory.fallback", "true");
         Session session = Session.getDefaultInstance(props);
         session.setDebug(true);
