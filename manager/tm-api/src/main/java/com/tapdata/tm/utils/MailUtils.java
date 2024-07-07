@@ -681,8 +681,10 @@ public class MailUtils {
 
         // 写入模板内容xx
         Document doc = Jsoup.parse(html);
-        doc.getElementById("username").html("Hi, " + username + ": ");
+        doc.getElementById("username").html(username);
         doc.getElementById("code").html(validateCode);
+        doc.getElementById("account").html(to);
+        doc.getElementById("validateTimes").html("5");
 
         String result = doc.toString();
         Properties props = new Properties();
@@ -705,6 +707,7 @@ public class MailUtils {
             message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
             message.setSentDate(new Date());// 设置发信时间
             message.saveChanges();// 存储邮件信息
+            message.setSubject("修改密码-验证码");
 
             // 发送邮件
             transport = session.getTransport("smtp");
