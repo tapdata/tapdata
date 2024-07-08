@@ -17,7 +17,7 @@ public class CdcDelayDisable implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer,String syncType) {
         return tapEvent;
     }
 }

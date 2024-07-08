@@ -24,5 +24,5 @@ public interface ICdcDelay {
      * @param tapEvent TapEvent
      * @return TapEvent
      */
-    TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer);
+    TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer,String taskSyncType);
 }
