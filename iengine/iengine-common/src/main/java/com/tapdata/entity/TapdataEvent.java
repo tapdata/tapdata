@@ -193,6 +193,10 @@ public class TapdataEvent implements Serializable, Cloneable {
 				throw new RuntimeException("Clone tap event failed: " + e.getMessage(), e);
 			}
 		}
+
+		if (null != transformToTapValueResult) {
+			tapdataEvent.transformToTapValueResult = this.transformToTapValueResult;
+		}
 	}
 
 	public String getFromNodeId() {

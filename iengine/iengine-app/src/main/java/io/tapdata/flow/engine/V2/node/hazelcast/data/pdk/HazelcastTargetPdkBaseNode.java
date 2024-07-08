@@ -868,6 +868,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			snapshotOrderController.finish(srcNode);
 			snapshotOrderController.flush();
 		}
+		flushOffsetByTapdataEventForNoConcurrent(new AtomicReference<>(tapdataEvent));
 		executeAspect(new SnapshotWriteTableCompleteAspect().sourceNodeId(srcNodeId).sourceTableName(tapdataEvent.getSourceTableName()).dataProcessorContext(dataProcessorContext));
 	}
 
@@ -1090,11 +1091,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Node<?> node = processorBaseContext.getNode();
 		if (CollectionUtils.isEmpty(tapdataEvent.getNodeIds())) return;
 		String progressKey = tapdataEvent.getNodeIds().get(0) + "," + node.getId();
-		SyncProgress syncProgress = this.syncProgressMap.get(progressKey);
-		if (null == syncProgress) {
-			syncProgress = new SyncProgress();
-			this.syncProgressMap.put(progressKey, syncProgress);
-		}
+		SyncProgress syncProgress = this.syncProgressMap.computeIfAbsent(progressKey, k -> new SyncProgress());
 		if (tapdataEvent instanceof TapdataStartingCdcEvent) {
 			if (null == tapdataEvent.getSyncStage()) return;
 			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
@@ -1110,12 +1107,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
 			syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
+		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
+			if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
+				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+			}
 		} else {
 			if (null == tapdataEvent.getSyncStage()) return;
 			if (null == tapdataEvent.getBatchOffset() && null == tapdataEvent.getStreamOffset()) return;
 			if (SyncStage.CDC == tapdataEvent.getSyncStage() && null == tapdataEvent.getSourceTime()) return;
 			if (null != tapdataEvent.getBatchOffset()) {
-				syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent && syncProgress.getBatchOffsetObj() instanceof Map) {
+					((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId(), tapdataEvent.getBatchOffset());
+				} else {
+					syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+				}
 			}
 			if (null != tapdataEvent.getStreamOffset()) {
 				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());

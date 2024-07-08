@@ -267,7 +267,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	protected Set<String> toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
 		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName) {
-			return new HashSet<>();
+			return null;
 		}
 		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerForBatchRead) {
 			return ((TapCodecsFilterManagerForBatchRead) tapCodecsFilterManager).transformToTapValueMap(data, dataProcessorContext.getTapTableMap().get(tableName), getSkipDetector());

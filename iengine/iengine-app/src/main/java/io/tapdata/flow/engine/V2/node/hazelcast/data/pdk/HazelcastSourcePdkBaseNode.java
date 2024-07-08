@@ -667,31 +667,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						if (drain > 0) {
 							// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
 							// the event is considered been output to the next node.
-							TapCodecsFilterManager tapCodecsFilterManager;
-							if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
-								tapCodecsFilterManager = codecsFilterManager;
-							} else {
-								tapCodecsFilterManager = codecsFilterManagerForBatchRead;
-							}
 							if (toTapValueConcurrent) {
 								List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueThreadNum);
 								List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
 								for (List<TapdataEvent> events : partition) {
 									completableFutures.add(
-											CompletableFuture.runAsync(() -> {
-												for (TapdataEvent event : events) {
-													TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(event.getTapEvent(), tapCodecsFilterManager);
-													event.setTransformToTapValueResult(transformToTapValueResult);
-												}
-											})
+											CompletableFuture.runAsync(() -> batchTransformToTapValue(events))
 									);
 								}
 								CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
 							} else {
-								for (TapdataEvent tapdataEvent : tapdataEvents) {
-									TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), tapCodecsFilterManager);
-									tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
-								}
+								batchTransformToTapValue(tapdataEvents);
 							}
 						}
 					} catch (InterruptedException ignored) {
@@ -732,6 +718,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		return false;
+	}
+
+	private void batchTransformToTapValue(List<TapdataEvent> tapdataEvents) {
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			TapCodecsFilterManager tapCodecsFilterManager;
+			if (SyncStage.CDC.equals(tapdataEvent.getSyncStage())) {
+				tapCodecsFilterManager = codecsFilterManager;
+			} else {
+				tapCodecsFilterManager = codecsFilterManagerForBatchRead;
+			}
+			TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), tapCodecsFilterManager);
+			tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
+		}
 	}
 
 	protected void handleTableMonitorResult() {
@@ -1026,14 +1025,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
-					Map<String, Object> newMap = new HashMap<>();
-					try {
-						MapUtil.deepCloneMap(batchOffsetObj, newMap);
-					} catch (Exception e) {
-						throw new TapCodeException(TaskProcessorExCode_11.SOURCE_CLONE_BATCH_OFFSET_FAILED, e);
-					}
-					tapdataEvent.setBatchOffset(newMap);
+					tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, ((TapRecordEvent) tapEvent).getTableId()));
 					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
