@@ -1,5 +1,6 @@
 package com.tapdata.tm.ws.handler;
 
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -7,23 +8,20 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.map.HashedMap;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,6 +35,8 @@ public class TestConnectionHandlerTest {
     private DataSourceService dataSourceService;
     private MessageQueueService messageQueueService;
     private DataSourceDefinitionService dataSourceDefinitionService;
+    private AgentGroupService agentGroupService;
+    private WorkerService workerService;
     @BeforeEach
     void buildTestConnectionHandler(){
         testConnectionHandler = mock(TestConnectionHandler.class);
@@ -52,6 +52,10 @@ public class TestConnectionHandlerTest {
         ReflectionTestUtils.setField(testConnectionHandler,"messageQueueService",messageQueueService);
         dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
         ReflectionTestUtils.setField(testConnectionHandler,"dataSourceDefinitionService",dataSourceDefinitionService);
+        agentGroupService = mock(AgentGroupService.class);
+        ReflectionTestUtils.setField(testConnectionHandler,"agentGroupService",agentGroupService);
+        workerService = mock(WorkerService.class);
+        ReflectionTestUtils.setField(testConnectionHandler,"workerService",workerService);
     }
     @Nested
     class HandleMessageTest{
@@ -180,5 +184,50 @@ public class TestConnectionHandlerTest {
             Map config1 = (Map)data.get("config");
             assertEquals(dataSourceConfig.get("password"),config1.get("password"));
         }
+    }
+    @Nested
+    class CheckPriorityEngineTest{
+        @Test
+        void test_main(){
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work2");
+            workers.add(worker1);
+            workers.add(worker2);
+            doCallRealMethod().when(testConnectionHandler).checkPriorityEngine(workers,"work2");
+            List<Worker> result = testConnectionHandler.checkPriorityEngine(workers,"work2");
+            Assertions.assertTrue(result.contains(worker2));
+        }
+        @Test
+        void test_priorityProcessIsNull(){
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work2");
+            workers.add(worker1);
+            workers.add(worker2);
+            doCallRealMethod().when(testConnectionHandler).checkPriorityEngine(workers,null);
+            List<Worker> result = testConnectionHandler.checkPriorityEngine(workers,null);
+            Assertions.assertTrue(result.contains(worker1));
+            Assertions.assertTrue(result.contains(worker2));
+        }
+        @Test
+        void test_priorityProcessIsNotExist(){
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work2");
+            workers.add(worker1);
+            workers.add(worker2);
+            doCallRealMethod().when(testConnectionHandler).checkPriorityEngine(workers,"work3");
+            List<Worker> result = testConnectionHandler.checkPriorityEngine(workers,"work3");
+            Assertions.assertTrue(result.contains(worker1));
+            Assertions.assertTrue(result.contains(worker2));
+        }
+
     }
 }
