@@ -45,6 +45,7 @@ import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -922,13 +923,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
+	protected TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		TapdataEvent tapdataEvent = null;
 		switch (sourceMode) {
 			case NORMAL:
 				tapdataEvent = new TapdataEvent();
 				break;
 			case LOG_COLLECTOR:
+				if (tapEvent instanceof TapDDLUnknownEvent) {
+					obsLogger.warn("DDL unknown event: " + tapEvent);
+					return null;
+				}
 				tapdataEvent = new TapdataShareLogEvent();
 				Connections connections = dataProcessorContext.getConnections();
 				Node<?> node = getNode();
