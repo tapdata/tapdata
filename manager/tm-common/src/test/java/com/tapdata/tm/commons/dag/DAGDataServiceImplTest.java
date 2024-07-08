@@ -1,24 +1,38 @@
 package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
-import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
-import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.mockito.internal.stubbing.answers.CallsRealMethods;
 import org.springframework.test.util.ReflectionTestUtils;
 
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 
 class DAGDataServiceImplTest {
@@ -153,5 +167,136 @@ class DAGDataServiceImplTest {
             Assertions.assertEquals(2,dagDataService.getLogCollectorMetadataInstancesDto().size());
         }
     }
+    @Nested
+    class GetSchemaByNodeAndTableNameTest {
+        TaskDto taskDto;
+        DAG dag;
+        com.tapdata.tm.commons.dag.Node node;
+        List<MetadataInstancesDto> batchInsertMetaDataList;
+        MetadataInstancesDto d1;
+        Map<String, DataSourceConnectionDto> dataSourceMap;
+        DataSourceConnectionDto t1;
+        @BeforeEach
+        void init() {
+            dataSourceMap = new HashMap<>();
+            t1 = mock(DataSourceConnectionDto.class);
+            dataSourceMap.put("id", t1);
 
+            batchInsertMetaDataList = new ArrayList<>();
+            d1 = mock(MetadataInstancesDto.class);
+            when(d1.getQualifiedName()).thenReturn("");
+            batchInsertMetaDataList.add(d1);
+
+            dag = mock(DAG.class);
+
+            taskDto = mock(TaskDto.class);
+            when(taskDto.getDag()).thenReturn(dag);
+
+
+            ReflectionTestUtils.setField(service, "dataSourceMap", dataSourceMap);
+            ReflectionTestUtils.setField(service, "batchInsertMetaDataList", batchInsertMetaDataList);
+            ReflectionTestUtils.setField(service, "taskId", "id");
+            when(service.getTaskById(anyString())).thenReturn(taskDto);
+            when(service.getMetadata(anyString())).thenReturn(mock(MetadataInstancesDto.class));
+            when(service.getSchemaByNodeAndTableName(anyString(), anyString())).thenCallRealMethod();
+        }
+
+        @Test
+        void testTableRenameNode() {
+            node = mock(com.tapdata.tm.commons.dag.process.ProcessorNode.class);
+            when(dag.getNode(anyString())).thenReturn(node);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNotNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto).getDag();
+            }
+        }
+
+        @Test
+        void testTaskDtoIsNull() {
+            when(service.getTaskById(anyString())).thenReturn(null);
+            node = mock(com.tapdata.tm.commons.dag.process.ProcessorNode.class);
+            when(dag.getNode(anyString())).thenReturn(node);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service, times(0)).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto, times(0)).getDag();
+            }
+        }
+
+        @Test
+        void testDagIsNull() {
+            node = mock(com.tapdata.tm.commons.dag.process.ProcessorNode.class);
+            when(dag.getNode(anyString())).thenReturn(node);
+            when(taskDto.getDag()).thenReturn(null);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service, times(0)).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto).getDag();
+            }
+        }
+        @Test
+        void testDatabaseNode() {
+            node = mock(DatabaseNode.class);
+            when(((DatabaseNode)node).getConnectionId()).thenReturn("id");
+            when(dag.getNode(anyString())).thenReturn(node);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNotNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto).getDag();
+            }
+        }
+        @Test
+        void testMigrateProcessorNode() {
+            node = mock(MigrateProcessorNode.class);
+            when(dag.getNode(anyString())).thenReturn(node);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNotNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto).getDag();
+            }
+        }
+        @Test
+        void testMigrateProcessorNode1() {
+            when(d1.getQualifiedName()).thenReturn("qualifiedName");
+            node = mock(MigrateProcessorNode.class);
+            when(dag.getNode(anyString())).thenReturn(node);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNotNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service, times(0)).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto).getDag();
+            }
+        }
+        @Test
+        void testOtherNode() {
+            node = mock(CacheNode.class);
+            when(dag.getNode(anyString())).thenReturn(node);
+            try (MockedStatic<MetaDataBuilderUtils> m = mockStatic(MetaDataBuilderUtils.class)) {
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), anyString(), anyString())).thenReturn("qualifiedName");
+                m.when(() -> MetaDataBuilderUtils.generateQualifiedName(anyString(), any(DataSourceConnectionDto.class), anyString(), anyString())).thenReturn("qualifiedName");
+                Assertions.assertNull(service.getSchemaByNodeAndTableName("", ""));
+                verify(service, times(0)).getMetadata(anyString());
+                verify(service).getTaskById(anyString());
+                verify(taskDto).getDag();
+            }
+        }
+    }
 }
