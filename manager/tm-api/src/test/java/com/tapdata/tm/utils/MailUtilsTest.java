@@ -7,6 +7,7 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
+import org.jsoup.nodes.Document;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -60,7 +61,7 @@ class MailUtilsTest {
 
     @BeforeEach
     void setup(){
-
+        //doCallRealMethod().when(mailUtils).sendEmail(any(Document.class), any(SendStatus.class), anyList(), anyString(), anyString());
     }
 
     @Test
@@ -235,6 +236,7 @@ class MailUtilsTest {
 
             when(mu.emailSession()).thenCallRealMethod();
             when(mu.message(any(Session.class), anyList(), anyString(), anyString())).thenCallRealMethod();
+            doCallRealMethod().when(mu).sendEmail(any(Document.class), any(SendStatus.class), anyList(), anyString(), anyString());
             when(mu.sendValidateCodeForResetPWD(anyString(), anyString(), anyString())).thenCallRealMethod();
         }
 
