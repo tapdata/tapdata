@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.cdcdelay;
 
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
@@ -48,13 +49,13 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer,String syncType) {
         if (tapEvent instanceof TapRecordEvent) {
             Long sourceTimes;
             TapRecordEvent tapRecordEvent = ((TapRecordEvent) tapEvent);
             if (ConnHeartbeatUtils.TABLE_NAME.equals(tapRecordEvent.getTableId())) {
                 sourceTimes = parseTs(tapRecordEvent);
-                if (isFilter) {
+                if (isFilter && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(syncType)) {
                     HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
                     tapEvent.clone(heartbeatEvent);
                     heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());

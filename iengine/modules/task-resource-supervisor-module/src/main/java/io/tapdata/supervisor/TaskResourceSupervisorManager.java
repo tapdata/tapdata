@@ -24,7 +24,39 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     private String userId;
     private String processId;
 
+    private Long lastCleanThreadGroupTime = null;
+    private final Long checkThreadGroupInterval = 5 * 60 *1000L;
+    public void cleanThreadGroup(){
+        if (Objects.isNull(lastCleanThreadGroupTime)){
+            lastCleanThreadGroupTime = System.currentTimeMillis();
+        }
+        if (System.currentTimeMillis() - lastCleanThreadGroupTime > checkThreadGroupInterval * 1000||disposableThreadGroupMap.size() > 1000){
+            Iterator<Map.Entry<ThreadGroup, DisposableNodeInfo>> iterator = disposableThreadGroupMap.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<ThreadGroup, DisposableNodeInfo> infoEntry = iterator.next();
+                DisposableNodeInfo info = infoEntry.getValue();
+                if (Objects.isNull(info)) {
+                    return;
+                }
+                if (info.isHasLaked()) {
+                    try {
+                        info.getNodeThreadGroup().destroy();
+                        info.setHasLaked(Boolean.FALSE);
+                        info.setAspectConnector(null);
+                        info.setNodeThreadGroup(null);
+                        iterator.remove();
+                        return;
+                    } catch (Exception e1) {
+                        info.setHasLaked(Boolean.TRUE);
+                    }
+                }
+            }
+            lastCleanThreadGroupTime = System.currentTimeMillis();
+        }
+    }
+
     public TaskResourceSupervisorManager() {
+
     }
 
     private void start() {
@@ -178,6 +210,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
             }
         }
     }
+
 
     public String getUserId() {
         return userId;
