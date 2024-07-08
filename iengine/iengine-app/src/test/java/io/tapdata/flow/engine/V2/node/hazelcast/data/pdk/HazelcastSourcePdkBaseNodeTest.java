@@ -1212,5 +1212,29 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				excepted,tableName,consumer);
 	}
 
+	@Nested
+	@DisplayName("Method wrapSingleTapdataEvent test")
+	class wrapSingleTapdataEventTest {
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+			ReflectionTestUtils.setField(instance, "obsLogger", mockObsLogger);
+		}
+
+		@Test
+		@DisplayName("test source mode=LOG_COLLECTOR, TapEvent is a TapDDLUnknownEvent, expect return null")
+		void test1() {
+			HazelcastSourcePdkBaseNode.SourceMode sourceMode = HazelcastSourcePdkBaseNode.SourceMode.LOG_COLLECTOR;
+			ReflectionTestUtils.setField(instance, "sourceMode", sourceMode);
+			TapDDLUnknownEvent tapDDLUnknownEvent = new TapDDLUnknownEvent();
+			tapDDLUnknownEvent.setReferenceTime(System.currentTimeMillis());
+			tapDDLUnknownEvent.setTime(System.currentTimeMillis());
+			tapDDLUnknownEvent.setOriginDDL("alter table xxx add new_field number(8,0)");
+			TapdataEvent tapdataEvent = instance.wrapSingleTapdataEvent(tapDDLUnknownEvent, SyncStage.CDC, null, true);
+			assertNull(tapdataEvent);
+			verify(mockObsLogger).warn(any());
+		}
+	}
+
 
 }
