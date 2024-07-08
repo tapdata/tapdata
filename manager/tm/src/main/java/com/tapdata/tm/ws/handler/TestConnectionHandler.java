@@ -179,12 +179,10 @@ public class TestConnectionHandler implements WebSocketHandler {
 						Object accessNodeProcessId = data.get("accessNodeProcessId");
 						FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
 							String processId = accessNodeProcessId.toString();
-							String priorityProcessId = (String) data.get("priorityProcessId");
+
+
 							List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, agentGroupService.getProcessNodeListByGroupId(Lists.newArrayList(processId), String.valueOf(accessNodeType), userDetail));
-							List<String> processIds = availableAgents.stream().map(Worker::getProcessId).collect(Collectors.toList());
-							if(org.apache.commons.lang3.StringUtils.isNotEmpty(priorityProcessId) && processIds.contains(priorityProcessId)){
-								availableAgents = availableAgents.stream().filter(worker -> worker.getProcessId().equals(priorityProcessId)).collect(Collectors.toList());
-							}
+							availableAgents = checkPriorityEngine(availableAgents,(String) data.get("priorityProcessId"));
 							if (CollectionUtils.isEmpty(availableAgents)) {
 								data.put("status", "error");
 								data.put("msg", "Worker " + processId + " not available, receiver is blank");
@@ -359,5 +357,13 @@ public class TestConnectionHandler implements WebSocketHandler {
 				{"result", result},
 				{"status", "SUCCESS"},
 		}).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
+	}
+
+	protected List<Worker> checkPriorityEngine(List<Worker> availableAgents,String priorityProcessId){
+		List<String> processIds = availableAgents.stream().map(Worker::getProcessId).collect(Collectors.toList());
+		if(org.apache.commons.lang3.StringUtils.isNotEmpty(priorityProcessId) && processIds.contains(priorityProcessId)){
+			return availableAgents.stream().filter(worker -> worker.getProcessId().equals(priorityProcessId)).collect(Collectors.toList());
+		}
+		return availableAgents;
 	}
 }
