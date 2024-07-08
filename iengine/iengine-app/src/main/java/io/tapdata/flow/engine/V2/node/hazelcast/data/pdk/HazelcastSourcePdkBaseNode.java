@@ -690,7 +690,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				for (int i = 0; i < tapdataEvents.size(); i++) {
 					TapdataEvent tapdataEvent = tapdataEvents.get(i);
 					if (!offer(tapdataEvent)) {
-						pendingEvents = new ArrayList<>(tapdataEvents.subList(i, tapdataEvents.size() - 1));
+						pendingEvents = new ArrayList<>(tapdataEvents.subList(i, tapdataEvents.size()));
 						return false;
 					}
 				}
