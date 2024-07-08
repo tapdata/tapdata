@@ -622,8 +622,8 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto> {
             case KeyWords.EMBEDDED_DOCUMENT_ARRAY:
                 final String embeddedPath = String.valueOf(setting.get(KeyWords.EMBEDDED_PATH));
                 targetPath = KeyWords.EMPTY.equals(parentTargetPath) ?
-                        String.format(KeyWords.FROMAT, parentTargetPath, embeddedPath)
-                        : embeddedPath;
+                        embeddedPath
+                        : String.format(KeyWords.FROMAT, parentTargetPath, embeddedPath);
                 mergeType = KeyWords.UPDATE_INTO_ARRAY;
                 Map<String, Object> fields = parseMap(getFromMap(map, KeyWords.FIELDS));
                 scanAllFieldKeys(currentRenameFields, childNode, fields);
@@ -744,9 +744,9 @@ public abstract class ParseRelMigFile implements ParseRelMig<TaskDto> {
     }
 
     public Map<String, Object> getTableSchema(Map<String, Object> full, TablePathInfo tableInfo) {
-        Map<String, Object> databasesLayer = parseMap(getFromMap(full, KeyWords.DATABASE));
+        Map<String, Object> databasesLayer = parseMap(getFromMap(full, KeyWords.DATABASES));
         Map<String, Object> currentDatabaseSchema = parseMap(getFromMap(databasesLayer, tableInfo.getDatabase()));
-        Map<String, Object> schemasLayer = parseMap(getFromMap(currentDatabaseSchema, KeyWords.SCHEMA));
+        Map<String, Object> schemasLayer = parseMap(getFromMap(currentDatabaseSchema, KeyWords.SCHEMAS));
         Map<String, Object> currentSchema = parseMap(getFromMap(schemasLayer, tableInfo.getSchema()));
         return parseMap(getFromMap(currentSchema, KeyWords.TABLES));
     }
