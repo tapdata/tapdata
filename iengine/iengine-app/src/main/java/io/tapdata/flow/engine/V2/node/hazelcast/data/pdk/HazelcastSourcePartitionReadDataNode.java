@@ -566,7 +566,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //        return cast;
 //    }
 
-	public void handleStreamEventsReceived(List<TapEvent> events, Object offsetObj) {
+	public void handleStreamEventsReceived(List<TapEvent> tapEvents, Object offsetObj) {
 		try {
 //			while (isRunning()) {
 //				try {
@@ -577,9 +577,9 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //					break;
 //				}
 //			}
-			if (events != null && !events.isEmpty()) {
+			if (tapEvents != null && !tapEvents.isEmpty()) {
 				String taskSyncType = this.dataProcessorContext.getTaskDto().getSyncType();
-				events = events.stream().map(event -> {
+				tapEvents = tapEvents.stream().map(event -> {
 					if (null == event.getTime()) {
 						throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 					}
@@ -588,12 +588,12 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				}).collect(Collectors.toList());
 
 				if (streamReadFuncAspect != null) {
-					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
+					AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapEvents);
 				}
 
-				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
+				List<TapdataEvent> tapdataEvents = wrapTapdataEvent(tapEvents, SyncStage.CDC, offsetObj);
 				if (logger.isDebugEnabled()) {
-					logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+					logger.debug("Stream read {} of events, {}", tapEvents.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 				}
 
 				if (streamReadFuncAspect != null)
