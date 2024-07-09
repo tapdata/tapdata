@@ -55,6 +55,7 @@
             manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
             manager/tm/src/main/java/com/tapdata/tm/init/patches/daas/*,
             manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*
+            iengine/api/src/main/java/io/tapdata/flow/engine/V2/sharecdc/ShareCdcContext.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
