@@ -263,15 +263,6 @@ public class MeasureAOP {
             alarmInfo.setLevel(Level.WARNING);
             alarmInfo.setSummary(summary);
             alarmService.save(alarmInfo);
-
-            if (needInspect) {
-                // excute inspect task
-//                CommonUtils.ignoreAnyError(() -> {
-//                    InspectDto inspectDto = inspectService.createCheckByTask(task, userDetail);
-//
-//                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
-//                }, "excute inspect task");
-            }
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {
