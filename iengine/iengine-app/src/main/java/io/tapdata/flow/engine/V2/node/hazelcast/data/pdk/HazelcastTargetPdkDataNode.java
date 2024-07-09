@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -34,6 +35,9 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
+import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
+import io.tapdata.flow.engine.V2.policy.WritePolicyRunner;
+import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -77,6 +81,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	public static final int CREATE_INDEX_THRESHOLD = 5000000;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
+	private WritePolicyService writePolicyService;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -101,6 +106,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
 			initTargetDB();
+			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 		} catch (Exception e) {
 			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 			if (null != matched) {
@@ -844,12 +850,26 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													.tapRecordEvents(tapRecordEvents)
 													.pdkMethodInvoker(pdkMethodInvoker)
 													.writeOneFunction((subTapRecordEvents) -> {
-														writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), subTapRecordEvents, tapTable, resultConsumer);
+														writePolicyService.writeRecordWithPolicyControl(
+																tapTable.getId(),
+																subTapRecordEvents,
+																writeRecords -> {
+																	writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), writeRecords, tapTable, resultConsumer);
+																	return null;
+																}
+														);
 														return null;
 													}));
 											if (!pdkMethodInvoker.isEnableSkipErrorEvent()) {
 												try {
-													writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+													writePolicyService.writeRecordWithPolicyControl(
+															tapTable.getId(),
+															tapRecordEvents,
+															writeRecords -> {
+																writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+																return null;
+															}
+													);
 												} catch (Exception e) {
 													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 													if (null != matched) {
