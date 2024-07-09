@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 @Aspect
 @Component
 public class MeasureAOP {
+    public static final String GREATER = "GREATER";
+    public static final String LESS = "LESS";
 
     private final TaskService taskService;
     private final AlarmService alarmService;
@@ -76,7 +78,7 @@ public class MeasureAOP {
                             Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
                                 Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
                                 if (!collect.isEmpty()) {
-                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY), userDetail);
+                                    taskIncrementDelayAlarm(taskDto, taskId, vs.get("replicateLag"), collect.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
                                 }
                             });
                         }
@@ -181,7 +183,7 @@ public class MeasureAOP {
         }
     }
 
-    private void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto, UserDetail userDetail) {
+    protected void taskIncrementDelayAlarm(TaskDto task, String taskId, Number replicateLag, AlarmRuleDto alarmRuleDto) {
         // check task start cdc
         if (Objects.isNull(task.getCurrentEventTimestamp()) || Objects.isNull(replicateLag)) {
             return;
@@ -198,7 +200,7 @@ public class MeasureAOP {
             infoMap = Maps.newHashMap();
         }
 
-        String flag = alarmRuleDto.getEqualsFlag() == -1 ? "小于" : "大于";
+        String flag = alarmRuleDto.getEqualsFlag() == -1 ? LESS : GREATER;
 
         boolean b;
         if (alarmRuleDto.getEqualsFlag() == -1) {
@@ -261,15 +263,6 @@ public class MeasureAOP {
             alarmInfo.setLevel(Level.WARNING);
             alarmInfo.setSummary(summary);
             alarmService.save(alarmInfo);
-
-            if (needInspect) {
-                // excute inspect task
-//                CommonUtils.ignoreAnyError(() -> {
-//                    InspectDto inspectDto = inspectService.createCheckByTask(task, userDetail);
-//
-//                    inspectService.executeInspect(Where.where("id", inspectDto.getId().toHexString()), inspectDto, userDetail);
-//                }, "excute inspect task");
-            }
         } else {
             Optional<AlarmInfo> first = alarmInfos.stream().filter(info -> AlarmStatusEnum.ING.equals(info.getStatus()) || AlarmStatusEnum.RECOVER.equals(info.getStatus())).findFirst();
             if (first.isPresent()) {
