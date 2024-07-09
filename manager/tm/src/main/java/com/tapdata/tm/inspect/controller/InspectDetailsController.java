@@ -4,6 +4,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.inspect.dto.InspectDetailsDto;
 import com.tapdata.tm.inspect.service.InspectDetailsService;
+import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,8 +14,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 /**
@@ -29,6 +36,9 @@ public class InspectDetailsController extends BaseController {
 
     @Autowired
     private InspectDetailsService inspectDetailsService;
+
+    @Autowired
+    private InspectResultService inspectResultService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -205,6 +215,34 @@ public class InspectDetailsController extends BaseController {
     public ResponseMessage<InspectDetailsDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody InspectDetailsDto inspectDetails) {
         Where where = parseWhere(whereJson);
         return success(inspectDetailsService.upsertByWhere(where, inspectDetails, getLoginUser()));
+    }
+
+
+    /**
+     * Export different data from the inspectDetail.
+     *
+     * @return
+     */
+    @Operation(summary = "Export different data from the inspectDetail.")
+    @PostMapping("export")
+    public void export(@RequestBody InspectDetailsDto inspectDetails,
+                       HttpServletResponse response) throws IOException {
+        String date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        String filename = inspectDetails.getInspectResultId() + "-" + date + "-json";
+
+        response.setContentType("application/zip");
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + ".zip\"");
+        ZipOutputStream zipOutputStream = new ZipOutputStream(response.getOutputStream());
+        zipOutputStream.putNextEntry(new ZipEntry(filename + ".json"));
+        try {
+            inspectDetailsService.export(inspectDetails, zipOutputStream, getLoginUser(), inspectResultService);
+        } catch (Exception e) {
+            log.error("Export inspectDetails  failed", e);
+        } finally {
+            zipOutputStream.closeEntry();
+            zipOutputStream.flush();
+            zipOutputStream.close();
+        }
     }
 
 }
