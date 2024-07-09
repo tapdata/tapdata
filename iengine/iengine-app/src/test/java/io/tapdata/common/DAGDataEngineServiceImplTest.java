@@ -590,4 +590,81 @@ public class DAGDataEngineServiceImplTest {
             }
         }
     }
+    @Nested
+    class CheckTableNodeSameMetadataInstancesDto{
+        @Test
+        void test_main(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            transformerWsMessageDto.setTaskDto(taskDto);
+            Map<String,List<String>> tableNodeSameMetadataInstances = new HashMap<>();
+            List<String> nodes = new ArrayList<>();
+            nodes.add("node_1");
+            nodes.add("node_2");
+            tableNodeSameMetadataInstances.put("qualifiedName_test",nodes);
+            transformerWsMessageDto.setTableNodeSameMetadataInstances(tableNodeSameMetadataInstances);
+            MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+            metadataInstancesDto.setOriginalName("test");
+            metadataInstancesDto.setQualifiedName("qualifiedName_test");
+            metadataInstancesDto.setNodeId("node_1");
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class)){
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,new ConcurrentHashMap<>(),clientMongoOperator);
+                dagDataEngineService.checkTableNodeSameMetadataInstancesDto(metadataInstancesDto,new TapTable());
+                Map<String,TapTableMap<String, TapTable>> result = (Map<String, TapTableMap<String, TapTable>>) ReflectionTestUtils.getField(dagDataEngineService,"tapTableMapHashMap");
+                Assertions.assertEquals(1,result.size());
+            }
+        }
+        @Test
+        void test_notSameMetadataInstances(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            transformerWsMessageDto.setTaskDto(taskDto);
+            Map<String,List<String>> tableNodeSameMetadataInstances = new HashMap<>();
+            List<String> nodes = new ArrayList<>();
+            nodes.add("node_1");
+            nodes.add("node_2");
+            tableNodeSameMetadataInstances.put("qualifiedName_test1",nodes);
+            transformerWsMessageDto.setTableNodeSameMetadataInstances(tableNodeSameMetadataInstances);
+            MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+            metadataInstancesDto.setOriginalName("test");
+            metadataInstancesDto.setQualifiedName("qualifiedName_test2");
+            metadataInstancesDto.setNodeId("node_1");
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class)){
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,new ConcurrentHashMap<>(),clientMongoOperator);
+                dagDataEngineService.checkTableNodeSameMetadataInstancesDto(metadataInstancesDto,new TapTable());
+                Map<String,TapTableMap<String, TapTable>> result = (Map<String, TapTableMap<String, TapTable>>) ReflectionTestUtils.getField(dagDataEngineService,"tapTableMapHashMap");
+                Assertions.assertEquals(0,result.size());
+            }
+        }
+
+        @Test
+        void test_tableNodeSameMetadataInstancesIsNull(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            transformerWsMessageDto.setTaskDto(taskDto);
+            transformerWsMessageDto.setTableNodeSameMetadataInstances(null);
+            MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+            metadataInstancesDto.setOriginalName("test");
+            metadataInstancesDto.setQualifiedName("qualifiedName_test2");
+            metadataInstancesDto.setNodeId("node_1");
+            ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+            try(MockedStatic<ObsLoggerFactory> mockedStatic = mockStatic(ObsLoggerFactory.class)){
+                mockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+                ObsLogger obsLogger = mock(ObsLogger.class);
+                when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+                dagDataEngineService = new DAGDataEngineServiceImpl(transformerWsMessageDto,taskService,new ConcurrentHashMap<>(),clientMongoOperator);
+                dagDataEngineService.checkTableNodeSameMetadataInstancesDto(metadataInstancesDto,new TapTable());
+                Map<String,TapTableMap<String, TapTable>> result = (Map<String, TapTableMap<String, TapTable>>) ReflectionTestUtils.getField(dagDataEngineService,"tapTableMapHashMap");
+                Assertions.assertEquals(0,result.size());
+            }
+        }
+    }
 }
