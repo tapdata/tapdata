@@ -10,9 +10,11 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.supervisor.entity.MemoryLevel;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import static org.python.netty.util.concurrent.FastThreadLocal.size;
 
 @Bean
 @MainMethod("start")
@@ -21,10 +23,45 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     private final ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = new ConcurrentHashSet<>();
     private final Map<ThreadGroup, DisposableNodeInfo> disposableThreadGroupMap = new ConcurrentHashMap<>();
+    private static final ScheduledExecutorService cleanTaskNodeThreadGroupPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "clean-taskNode-threadGroup-thread"));
     private String userId;
     private String processId;
+    private Long lastCleanThreadGroupTime = null;
+    public final Long CHECK_THREAD_GROUP_POOL_PERIOD = 5 * 60L;
+
+    public final Long CHECK_THREAD_GROUP_POOL_INITIAL_DELAY = 30L;
+
+    public String CLEAN_LEAKED_THREAD_GROUP_MINUTES = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_MINUTES", "30");
+
+    public String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "1000");
+
+
+    public void cleanThreadGroup() {
+        if (Objects.isNull(lastCleanThreadGroupTime)) {
+            lastCleanThreadGroupTime = System.currentTimeMillis();
+        }
+        List<TaskNodeInfo> leakedList = taskNodeInfos.stream().filter(TaskNodeInfo::hasLaked).collect(Collectors.toList());
+        int leakedSize = leakedList.size();
+        if (System.currentTimeMillis() - lastCleanThreadGroupTime > TimeUnit.MINUTES.toMillis(Long.parseLong(CLEAN_LEAKED_THREAD_GROUP_MINUTES))
+                || leakedSize >= Integer.parseInt(CLEAN_LEAKED_THREAD_GROUP_THRESHOLD)) {
+            for (TaskNodeInfo taskNodeInfo : leakedList) {
+                try {
+                    taskNodeInfo.getNodeThreadGroup().destroy();
+                    taskNodeInfo.setHasLeaked(Boolean.FALSE);
+                    this.removeTaskSubscribeInfo(taskNodeInfo);
+                } catch (Exception e) {
+                    taskNodeInfo.setHasLeaked(Boolean.TRUE);
+                }
+
+            }
+            lastCleanThreadGroupTime = System.currentTimeMillis();
+        }
+    }
 
     public TaskResourceSupervisorManager() {
+        cleanTaskNodeThreadGroupPool.scheduleAtFixedRate(() -> {
+            this.cleanThreadGroup();
+        }, CHECK_THREAD_GROUP_POOL_INITIAL_DELAY, CHECK_THREAD_GROUP_POOL_PERIOD, TimeUnit.SECONDS);
     }
 
     private void start() {
