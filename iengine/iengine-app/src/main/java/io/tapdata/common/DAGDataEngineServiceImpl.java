@@ -57,6 +57,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
     private final String uuid ;
 
     private final Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap;
+    private Map<String, List<String>> tableNodeSameMetadataInstances = new HashMap<>();
 
     public DAGDataEngineServiceImpl(TransformerWsMessageDto transformerWsMessageDto, TaskService<TaskDto> taskService,
                                     Map<String,TapTableMap<String, TapTable>> tapTableMapHashMap,ClientMongoOperator clientMongoOperator) {
@@ -68,6 +69,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         this.clientMongoOperator = clientMongoOperator;
         this.uuid = transformerWsMessageDto.getOptions().getUuid();
         this.tapTableMapHashMap = tapTableMapHashMap;
+        this.tableNodeSameMetadataInstances = transformerWsMessageDto.getTableNodeSameMetadataInstances();
 
     }
 
@@ -170,6 +172,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                     }else{
                         tapTableMap.putNew(metadataInstancesDto.getOriginalName(), tapTable, metadataInstancesDto.getQualifiedName());
                     }
+                    checkTableNodeSameMetadataInstancesDto(metadataInstancesDto,tapTable);
                 }
             });
         }
@@ -262,4 +265,16 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             tapTableMap.putNew(key,preTapTableMap.get(key),preTapTableMap.getQualifiedName(key));
         }
     }
+
+    protected void checkTableNodeSameMetadataInstancesDto(MetadataInstancesDto metadataInstancesDto,TapTable tapTable){
+         if(null != tableNodeSameMetadataInstances && tableNodeSameMetadataInstances.containsKey(metadataInstancesDto.getQualifiedName())){
+             tableNodeSameMetadataInstances.get(metadataInstancesDto.getQualifiedName()).forEach(n -> {
+                 if(!metadataInstancesDto.getNodeId().equals(n)){
+                     TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.computeIfAbsent(n, key -> TapTableMap.create(null, n, new HashMap<>(),taskDto.getTmCurrentTime()));
+                     tapTableMap.putNew(metadataInstancesDto.getOriginalName(), tapTable, metadataInstancesDto.getQualifiedName());
+                 }
+         });
+         }
+    }
+
 }
