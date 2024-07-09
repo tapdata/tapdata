@@ -227,8 +227,8 @@ public class InspectDetailsController extends BaseController {
     @PostMapping("export")
     public void export(@RequestBody InspectDetailsDto inspectDetails,
                        HttpServletResponse response) throws IOException {
-        String date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
-        String filename = inspectDetails.getInspectResultId() + "-" + date + "-json";
+        String date = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        String filename = inspectDetails.getInspectResultId() + "-" + date;
 
         response.setContentType("application/zip");
         response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + ".zip\"");
