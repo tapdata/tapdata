@@ -806,8 +806,13 @@ public class TaskServiceImpl extends TaskService{
             if (CollectionUtils.isEmpty(nodes)) {
                 return;
             }
+            List<String> alreadyRequestConnectionId = new ArrayList();
             nodes.forEach(node -> {
                 DataParentNode dataParentNode = (DataParentNode) node;
+                if (alreadyRequestConnectionId.contains(dataParentNode.getConnectionId())) {
+                    return;
+                }
+                alreadyRequestConnectionId.add(dataParentNode.getConnectionId());
                 DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(dataParentNode.getConnectionId()));
                 if (Lists.of("Dummy").contains(connectionDto.getDatabase_type())) {
                     return;
