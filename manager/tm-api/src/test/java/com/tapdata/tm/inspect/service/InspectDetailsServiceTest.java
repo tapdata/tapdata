@@ -27,7 +27,7 @@ public class InspectDetailsServiceTest {
 
         @Test
         void testExport() throws IOException {
-            InspectDetailsService inspectDetailsService = mock(InspectDetailsServiceImpl.class);
+            InspectDetailsService inspectDetailsService = mock(InspectDetailsService.class);
             InspectDetailsDto inspectDetails = new InspectDetailsDto();
             String inspectResultId = ObjectId.get().toHexString();
             inspectDetails.setInspectResultId(inspectResultId);
