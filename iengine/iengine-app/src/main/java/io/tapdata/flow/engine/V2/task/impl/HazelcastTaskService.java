@@ -848,6 +848,19 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
+			case MIGRATE_UNION_PROCESSOR:
+				hazelcastNode = new HazelcastMigrateUnionProcessorNode(
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.withTaskConfig(taskConfig)
+								.build()
+				);
+				break;
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()

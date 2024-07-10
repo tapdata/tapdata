@@ -171,4 +171,10 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
         return taskDto;
     }
+
+    @Override
+    public void cleanTaskRecord(String taskId) {
+        Query query = new Query(Criteria.where("taskId").is(taskId));
+        mongoTemplate.remove(query, TaskRecord.class);
+    }
 }

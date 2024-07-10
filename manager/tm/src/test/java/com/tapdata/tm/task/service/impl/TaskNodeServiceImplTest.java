@@ -2,11 +2,23 @@ package com.tapdata.tm.task.service.impl;
 
 
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.junit.jupiter.api.Assertions;
@@ -15,10 +27,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -35,6 +44,7 @@ class TaskNodeServiceImplTest {
     MessageQueueService messageQueueService;
 
     UserDetail userDetail;
+    MetadataInstancesService metadataInstancesService;
 
     @BeforeEach
     void init() {
@@ -45,6 +55,9 @@ class TaskNodeServiceImplTest {
         ReflectionTestUtils.setField(taskNodeService, "workerService", workerService);
         messageQueueService = mock(MessageQueueService.class);
         ReflectionTestUtils.setField(taskNodeService, "messageQueueService", messageQueueService);
+        ReflectionTestUtils.setField(taskNodeService, "dataSourceService", mock(DataSourceService.class));
+        metadataInstancesService = mock(MetadataInstancesService.class);
+        ReflectionTestUtils.setField(taskNodeService, "metadataInstancesService", metadataInstancesService);
 
         userDetail = mock(UserDetail.class);
     }
@@ -104,6 +117,150 @@ class TaskNodeServiceImplTest {
             Assertions.assertNotNull(map);
             Assertions.assertEquals(HashMap.class.getName(), map.getClass().getName());
             verify(taskNodeService, times(1)).sendMessageAfterFindAgent(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class));
+        }
+    }
+    @Nested
+    class CheckMigrateTableSelectType{
+        @Test
+        void test_type_all(){
+            doCallRealMethod().when(taskNodeService).getMigrateTableNames(any(),any());
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setMigrateTableSelectType("all");
+            databaseNode.setTableNames(Arrays.asList("table1","table2"));
+            List<String> result = taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            Assertions.assertEquals(2,result.size());
+        }
+
+        @Test
+        void test_type_expression_main(){
+            doCallRealMethod().when(taskNodeService).getMigrateTableNames(any(),any());
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setMigrateTableSelectType("expression");
+            databaseNode.setTableExpression("test.*");
+            taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setOriginalName("test1");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setOriginalName("test2");
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            when(metadataInstancesService.findSourceSchemaBySourceId(any(),any(),any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3));
+            List<String> result = taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            Assertions.assertEquals(2,result.size());
+        }
+
+        @Test
+        void test_type_expression_tableExpression_isNull(){
+            doCallRealMethod().when(taskNodeService).getMigrateTableNames(any(),any());
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setMigrateTableSelectType("expression");
+            taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setOriginalName("test1");
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            metadataInstancesDto2.setOriginalName("test2");
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            when(metadataInstancesService.findSourceSchemaBySourceId(any(),any(),any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3));
+            List<String> result = taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            Assertions.assertEquals(0,result.size());
+        }
+
+        @Test
+        void test_type_expression_NoPrimaryKeyTableSelectType_is_HasKeys(){
+            doCallRealMethod().when(taskNodeService).getMigrateTableNames(any(),any());
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setMigrateTableSelectType("expression");
+            databaseNode.setTableExpression("test.*");
+            databaseNode.setNoPrimaryKeyTableSelectType("HasKeys");
+            taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setOriginalName("test1");
+            Field field1 = new Field();
+            field1.setPrimaryKey(true);
+            metadataInstancesDto1.setFields(Arrays.asList(field1));
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            Field field2 = new Field();
+            field2.setPrimaryKey(false);
+            metadataInstancesDto2.setOriginalName("test2");
+            metadataInstancesDto2.setFields(Arrays.asList(field2));
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            when(metadataInstancesService.findSourceSchemaBySourceId(any(),any(),any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3));
+            List<String> result = taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            Assertions.assertEquals(1,result.size());
+        }
+
+        @Test
+        void test_type_expression_NoPrimaryKeyTableSelectType_is_NoKeys(){
+            doCallRealMethod().when(taskNodeService).getMigrateTableNames(any(),any());
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setMigrateTableSelectType("expression");
+            databaseNode.setTableExpression("test.*");
+            databaseNode.setNoPrimaryKeyTableSelectType("NoKeys");
+            taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setOriginalName("test1");
+            Field field1 = new Field();
+            field1.setPrimaryKey(true);
+            metadataInstancesDto1.setFields(Arrays.asList(field1));
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            Field field2 = new Field();
+            field2.setPrimaryKey(false);
+            metadataInstancesDto2.setOriginalName("test2");
+            metadataInstancesDto2.setFields(Arrays.asList(field2));
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            when(metadataInstancesService.findSourceSchemaBySourceId(any(),any(),any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3));
+            List<String> result = taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            Assertions.assertEquals(1,result.size());
+        }
+        @Test
+        void test_type_expression_NoPrimaryKeyTableSelectType_is_All(){
+            doCallRealMethod().when(taskNodeService).getMigrateTableNames(any(),any());
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setMigrateTableSelectType("expression");
+            databaseNode.setTableExpression("test.*");
+            databaseNode.setNoPrimaryKeyTableSelectType("All");
+            taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setOriginalName("test1");
+            Field field1 = new Field();
+            field1.setPrimaryKey(true);
+            metadataInstancesDto1.setFields(Arrays.asList(field1));
+            MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+            Field field2 = new Field();
+            field2.setPrimaryKey(false);
+            metadataInstancesDto2.setOriginalName("test2");
+            metadataInstancesDto2.setFields(Arrays.asList(field2));
+            MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
+            when(metadataInstancesService.findSourceSchemaBySourceId(any(),any(),any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3));
+            List<String> result = taskNodeService.getMigrateTableNames(databaseNode,mock(UserDetail.class));
+            Assertions.assertEquals(2,result.size());
+        }
+
+    }
+    @Nested
+    class CheckUnionProcess{
+        @Test
+        void test_main(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(new MigrateDateProcessorNode());
+            when(dag.getPreNodes(any())).thenReturn(preNodes);
+            doCallRealMethod().when(taskNodeService).checkUnionProcess(any(),any(),any());
+            List<String> exceptTableNames = new ArrayList<>();
+            taskNodeService.checkUnionProcess(dag,"nodeId",exceptTableNames);
+            Assertions.assertEquals(0,exceptTableNames.size());
+        }
+        @Test
+        void test_hashUnionNode(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            MigrateUnionProcessorNode migrateUnionProcessorNode = new MigrateUnionProcessorNode();
+            migrateUnionProcessorNode.setTableName("union_test");
+            preNodes.add(migrateUnionProcessorNode);
+            when(dag.getPreNodes(any())).thenReturn(preNodes);
+            doCallRealMethod().when(taskNodeService).checkUnionProcess(any(),any(),any());
+            List<String> exceptTableNames = new ArrayList<>();
+            taskNodeService.checkUnionProcess(dag,"nodeId",exceptTableNames);
+            Assertions.assertEquals("union_test",exceptTableNames.get(0));
         }
     }
 }

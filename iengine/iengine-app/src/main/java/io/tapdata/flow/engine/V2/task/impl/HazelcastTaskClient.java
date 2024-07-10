@@ -80,12 +80,14 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			}
+			this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
+		}else{
+			this.autoRecovery = null;
 		}
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
 		this.retrying = new AtomicBoolean(false);
-        this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
 	}
 
 	@Override

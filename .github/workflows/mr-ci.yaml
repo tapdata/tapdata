@@ -126,6 +126,7 @@ jobs:
 
   Scan-Tapdata:
     runs-on: office-scan
+    if: ${{ !startsWith(github.base_ref, 'release-v') }}
     needs:
       - Get-Stable-Branch
       - Push-Code-To-GOGS

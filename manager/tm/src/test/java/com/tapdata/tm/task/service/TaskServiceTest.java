@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
 import static org.springframework.beans.BeanUtils.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -1661,6 +1662,7 @@ public class TaskServiceTest {
             doNothing().when(taskService).checkTaskInspectFlag(any());
             doNothing().when(taskService).checkDagAgentConflict(taskDto,userDetail,true);
             doNothing().when(taskService).checkDDLConflict(any());
+            doNothing().when(taskService).checkSourceCdcSupport(taskDto);
             doAnswer(invocationOnMock -> {
                 Update set = invocationOnMock.getArgument(1);
                 Document result = (Document) set.getUpdateObject().get("$unset");

@@ -1269,9 +1269,13 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
 
         List<Worker> availableAgent;
-        if (StringUtils.isBlank(connectionDto.getAccessNodeType())
+        if (StringUtils.isNotEmpty(connectionDto.getAccessNodeType())
                 && AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
             availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto, user));
+            List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+            if(StringUtils.isNotEmpty(connectionDto.getPriorityProcessId()) && processIds.contains(connectionDto.getPriorityProcessId())){
+                availableAgent = availableAgent.stream().filter(worker -> worker.getProcessId().equals(connectionDto.getPriorityProcessId())).collect(Collectors.toList());
+            }
         } else {
             availableAgent = workerService.findAvailableAgent(user);
         }

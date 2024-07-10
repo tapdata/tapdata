@@ -1199,48 +1199,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         Node<?> node = dag.getNode(nodeId);
         String qualifiedName = null;
         if (node instanceof DatabaseNode) {
-//            List<Node> sources = node.getDag().getSources();
-//            Node source = sources.get(0);
-//            LinkedList<TableRenameProcessNode> linkedList = new LinkedList<>();
-//            while (!source.getId().equals(node.getId())) {
-//                if (source instanceof TableRenameProcessNode) {
-//                    linkedList.add((TableRenameProcessNode) source);
-//                }
-//                List successors = source.successors();
-//                if (CollectionUtils.isEmpty(successors)) {
-//                    break;
-//                }
-//                source = (Node) successors.get(0);
-//            }
-//            TableRenameTableInfo tableInfo = null;
-//            if (CollectionUtils.isNotEmpty(linkedList)) {
-//                for (TableRenameProcessNode node1 : linkedList) {
-//                    Map<String, TableRenameTableInfo> tableRenameTableInfoMap = node1.originalMap();
-//                    TableRenameTableInfo tableInfo1 = tableRenameTableInfoMap.get(tableName);
-//                    if (tableInfo1 != null) {
-//                        tableInfo = tableInfo1;
-//                    }
-//                }
-//            }
-//
-//            if (tableInfo != null) {
-//                tableName = tableInfo.getCurrentTableName();
-//            }
             String connectionId = ((DatabaseNode) node).getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
             qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName, taskId);
         } else if (node instanceof ProcessorNode || node instanceof MigrateProcessorNode) {
-//            if (node instanceof TableRenameProcessNode) {
-//                LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
-//                if (CollectionUtils.isNotEmpty(tableNames)) {
-//                    for (TableRenameTableInfo name : tableNames) {
-//                        if (name.getOriginTableName().equals(tableName)) {
-//                            tableName = name.getCurrentTableName();
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
             qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
         }
 
@@ -1253,7 +1215,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 return metadataInstancesDto;
             }
         }
-        return null;
+        return getMetadata(qualifiedName);
     }
 
 
