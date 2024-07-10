@@ -388,15 +388,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             metaMap = list.stream()
                     .filter(t -> currentTableList.contains(t.getAncestorsName()))
                     .map(meta -> {
-                        // source & target not same database type and query from source
-                        if (finalQueryFormSource && currentNode instanceof DatabaseNode
-                                && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
-                            Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
-                            return processFieldToDB(schema, meta, targetDataSource, userDetail);
-                        } else {
-                            return meta;
-                        }
-                    }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
+                // source & target not same database type and query from source
+                if (finalQueryFormSource && currentNode instanceof DatabaseNode
+                        && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                    Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
+                    return processFieldToDB(schema, meta, targetDataSource, userDetail);
+                } else {
+                    return meta;
+                }
+            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
         }
 
         if (metaMap.isEmpty()) {
@@ -632,7 +632,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
             Node<?> node = dtoDag.getNode(nodeId);
             if (!(node instanceof MigrateScriptProcessNode)) {
-                throw new BizException("Processor node is not of expected type. error type: {}", null == node ? "null" : node.getClass().getName());
+               throw new BizException("Processor node is not of expected type. error type: {}", null == node ? "null" : node.getClass().getName());
             }
             MigrateScriptProcessNode jsNode = (MigrateScriptProcessNode) node;
             jsType = Optional.ofNullable(jsNode.getJsType()).orElse(jsType);
@@ -896,7 +896,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
             return false;
         }).map(Node::getId)
-                .collect(Collectors.toList());
+        .collect(Collectors.toList());
 
         if (CollectionUtils.isNotEmpty(collect) && CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             collect.forEach(nodeId -> {
