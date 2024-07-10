@@ -72,6 +72,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -893,13 +894,14 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@SneakyThrows
 		@DisplayName("test connection timezone sync point")
 		void testConnTZSyncPoint() {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("connTZ");
 			long syncDateTime = System.currentTimeMillis();
-			syncPoint.setDateTime(System.currentTimeMillis());
+			syncPoint.setDateTime(syncDateTime);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);

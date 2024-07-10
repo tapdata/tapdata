@@ -3,6 +3,7 @@ package com.tapdata.tm.inspect.controller;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -25,7 +26,6 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -40,8 +40,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -129,17 +133,46 @@ public class InspectResultController extends BaseController {
                 inspectGroupByFirstCheckId = filter.getInspectGroupByFirstCheckId();
             }
         }
-        String inspectId = String.valueOf(filter.getWhere().get("inspect_id"));
-        if (null == MongoUtils.toObjectId(inspectId)) {
-            InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(String.valueOf(filter.getWhere().get("id"))))));
-            if (null == one || null == one.getInspect_id()) {
-                throw new BizException("inspect.result.not.exists", filter.getWhere().get("id"));
+        Object inspectIdObject = filter.getWhere().get("inspect_id");
+        if (inspectIdObject instanceof Map) {
+            List<String> idList = filterViewPermissionNotInspectId(filter.getWhere());
+            if (idList.isEmpty()) return success(new Page<>(0, Lists.newArrayList()));
+            Where w = filter.getWhere();
+            Map<String, Object> in = new HashMap<>();
+            w.put("inspect_id", in);
+            in.put("$in", idList);
+            filter.setWhere(w);
+        } else {
+            String inspectId = String.valueOf(inspectIdObject);
+            if (null == MongoUtils.toObjectId(inspectId)) {
+                InspectResultDto one = inspectResultService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(String.valueOf(filter.getWhere().get("id"))))));
+                if (null == one || null == one.getInspect_id()) {
+                    throw new BizException("inspect.result.not.exists", filter.getWhere().get("id"));
+                }
+                inspectId = one.getInspect_id();
             }
-            inspectId = one.getInspect_id();
+            checkInspect(inspectId, DataPermissionActionEnums.View);
         }
-        checkInspect(inspectId, DataPermissionActionEnums.View);
         return success(inspectResultService.find(filter, getLoginUser(), inspectGroupByFirstCheckId));
     }
+
+    protected List<String> filterViewPermissionNotInspectId(Where where) {
+        List<InspectResultDto> all = inspectResultService.findAll(Where.where("inspect_id", where.get("inspect_id")));
+        if (null == all) return new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        all.stream().filter(Objects::nonNull).forEach(dto -> {
+            try {
+                String inspectId = dto.getInspect_id();
+                //过滤掉没有权限校验任务
+                checkInspect(inspectId, DataPermissionActionEnums.View);
+                ids.add(inspectId);
+            } catch (Exception e) {
+                log.warn(e.getMessage());
+            }
+        });
+        return new ArrayList<>(ids);
+    }
+
 
     /**
      *  Replace an existing model instance or insert a new one into the data source
