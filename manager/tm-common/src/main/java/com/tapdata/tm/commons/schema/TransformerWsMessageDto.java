@@ -23,4 +23,5 @@ public class TransformerWsMessageDto {
     private String userName;
     private Map<String, MetadataTransformerDto> transformerDtoMap;
     private String type;
+    private Map<String, List<String>> tableNodeSameMetadataInstances;
 }
