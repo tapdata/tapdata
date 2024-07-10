@@ -1,7 +1,6 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.alibaba.fastjson.JSON;
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
@@ -11,7 +10,6 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
@@ -54,7 +52,6 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MetadataUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
-import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.TypeExprResult;
 import io.tapdata.entity.mapping.type.TapStringMapping;
@@ -108,6 +105,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     private DAGService dagService;
     private MetaDataHistoryService metaDataHistoryService;
     private MongoTemplate mongoTemplate;
+    public static final String IS_DELETED ="is_deleted";
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -152,7 +150,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         if (sourceId != null) {
             where.put("source._id", sourceId);
         }
-        where.put("is_deleted", ImmutableMap.of("$ne", true));
+        where.put(IS_DELETED, ImmutableMap.of("$ne", true));
 
         if (null != where.get("classifications.id")) {
             Map<String, List> classficitionIn = (Map) where.get("classifications.id");
@@ -242,7 +240,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
             where.put("source._id", sourceId);
         }
-        where.put("is_deleted", false);
+        where.put(IS_DELETED, false);
         MetadataInstancesDto metadata = findOne(filter, user);
         afterFindOne(metadata, user);
         afterFind(metadata);
@@ -297,8 +295,8 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public List<MetadataInstancesDto> lienage(String id) {
 
-        Criteria criteria = Criteria.where("is_deleted").exists(false);
-        Criteria criteria1 = Criteria.where("is_deleted").is(false);
+        Criteria criteria = Criteria.where(IS_DELETED).exists(false);
+        Criteria criteria1 = Criteria.where(IS_DELETED).is(false);
         Criteria deleteCriteria = new Criteria().orOperator(criteria, criteria1);
 
         GraphLookupOperation graphLookupOperation = GraphLookupOperation.builder().
@@ -651,7 +649,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<MetadataInstancesDto> tableConnection(String name, UserDetail user) {
         Criteria criteria = Criteria.where("original_name").regex(name, "i")
                 .and("meta_type").in(MetaType.table.name(), MetaType.collection.name(), MetaType.view.name())
-                .and("is_deleted").is(false);
+                .and(IS_DELETED).is(false);
 
 
         List<MetadataInstancesDto> metaArr = findAllDto(new Query(criteria), user);
@@ -667,7 +665,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
             Criteria criteria1 = Criteria.where("source.id").in(connId)
                     .and("meta_type").is(MetaType.database.name()).
-                    and("is_deleted").ne(true);
+                    and(IS_DELETED).ne(true);
             Query query = new Query(criteria1);
             query.fields().include("id", "name", "meta_type", "original_name", "source");
             List<MetadataInstancesDto> connObj = findAllDto(query, user);
@@ -718,7 +716,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         Criteria criteria = Criteria
                 .where("meta_type").in("table", "collection", "view")
                 .and("original_name").is(tableName)
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("source._id").is(sourceId)
                 .and("taskId").is(taskId);
 
@@ -728,7 +726,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<MetadataInstancesDto> findSourceSchemaBySourceId(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("source._id").is(sourceId)
                 .and("sourceType").is(SourceTypeEnum.SOURCE.name())
                 .and("taskId").exists(false);
@@ -746,7 +744,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("source._id").is(sourceId)
                 .and("taskId").is(taskId);
 
@@ -760,7 +758,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("source._id").is(sourceId)
                 .and("taskId").exists(false);
 
@@ -774,7 +772,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<MetadataInstancesEntity> findEntityBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("source._id").is(sourceId)
                 .and("taskId").is(taskId);
 
@@ -795,7 +793,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     }
 
     public MetadataInstancesDto findByQualifiedNameNotDelete(String qualifiedName, UserDetail user, String... fieldName) {
-        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName).and("is_deleted").ne(true);
+        Criteria criteria = Criteria.where("qualified_name").is(qualifiedName).and(IS_DELETED).ne(true);
 
         Query query = new Query(criteria);
         return findOne(query);
@@ -803,7 +801,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public List<MetadataInstancesDto> findByQualifiedNameList(List<String> qualifiedNames, String taskId) {
         Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames)
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("taskId").is(taskId);
 
         Query query = new Query(criteria);
@@ -813,7 +811,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
 
     public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... excludeFiled) {
-        Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
+        Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and(IS_DELETED).ne(true);
 
         Query query = new Query(criteria);
         query.fields().exclude(excludeFiled);
@@ -821,7 +819,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     }
 
     public List<MetadataInstancesDto> findDatabaseSchemeNoHistory(List<String> databaseIds, UserDetail user) {
-        Criteria criteria = Criteria.where("source._id").in(databaseIds).and("meta_type").is("database").and("is_deleted").ne(true);
+        Criteria criteria = Criteria.where("source._id").in(databaseIds).and("meta_type").is("database").and(IS_DELETED).ne(true);
 
         Query query = new Query(criteria);
         query.fields().exclude("histories");
@@ -929,7 +927,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 update.push("histories", basicDBObject);
                 update.set("fields", metadataInstancesDto.getFields());
                 update.set("indices", metadataInstancesDto.getIndices());
-                update.set("is_deleted", false);
+                update.set(IS_DELETED, false);
                 update.set("createSource", metadataInstancesDto.getCreateSource());
                 update.set("original_name", metadataInstancesDto.getOriginalName());
                 update.set("name", metadataInstancesDto.getName());
@@ -1014,7 +1012,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             String insertUuid = uuid;
             if (saveHistory) {
                 Query query = new Query(Criteria.where("taskId").is(taskId)
-                        .and("is_deleted").ne(true)
+                        .and(IS_DELETED).ne(true)
                         .and("transformUuid").exists(true));
                 query.fields().include("transformUuid");
                 MetadataInstancesDto one = findOne(query);
@@ -1165,7 +1163,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<String> tables(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("taskId").exists(false)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
@@ -1178,7 +1176,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<Map<String, String>> tableValues(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("taskId").exists(false)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
@@ -1200,7 +1198,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
 			Criteria criteria = Criteria.where("source._id").is(connectId)
 				.and("sourceType").is(sourceType)
-				.and("is_deleted").ne(true)
+				.and(IS_DELETED).ne(true)
 				.and("taskId").exists(false)
 				.and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
 
@@ -1268,7 +1266,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public TableSupportInspectVo tableSupportInspect(String connectId, String tableName) {
         TableSupportInspectVo tableSupportInspectVo = new TableSupportInspectVo();
         Criteria criteria = Criteria.where("source._id").is(connectId)
-                .and("is_deleted").is(false)
+                .and(IS_DELETED).is(false)
                 .and("original_name").is(tableName)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
@@ -1284,7 +1282,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<TableSupportInspectVo> tablesSupportInspect(TablesSupportInspectParam tablesSupportInspectParam) {
         List<TableSupportInspectVo> tableSupportInspectVoList = new ArrayList<>();
         Criteria criteria = Criteria.where("source._id").is(tablesSupportInspectParam.getConnectionId())
-                .and("is_deleted").is(false)
+                .and(IS_DELETED).is(false)
                 .and("original_name").in(tablesSupportInspectParam.getTableNames())
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
@@ -1469,7 +1467,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             // get heartbeat task dag of the connection node
             Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid);
             criteria.and("status").ne("deleting");
-            criteria.and("is_deleted").ne(true);
+            criteria.and(IS_DELETED).ne(true);
             Query query = new Query(criteria);
             query.fields().include("_id", "dag");
             return taskService.findOne(query, user);
@@ -1587,7 +1585,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail) {
         Criteria criteria = Criteria
-                .where("is_deleted").ne(true)
+                .where(IS_DELETED).ne(true)
                 .and("nodeId").is(nodeId);
 
         return findAllDto(Query.query(criteria), userDetail);
@@ -1595,7 +1593,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail, String taskId, String... fields) {
         Criteria criteria = Criteria
-                .where("is_deleted").ne(true)
+                .where(IS_DELETED).ne(true)
                 .and("nodeId").is(nodeId)
                 .and("taskId").is(taskId);
 
@@ -1604,7 +1602,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
         Criteria criteria = Criteria
-                .where("is_deleted").ne(true)
+                .where(IS_DELETED).ne(true)
                 .and("taskId").is(taskId);
 
         return findAllDto(Query.query(criteria), userDetail);
@@ -1677,7 +1675,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof MigrateProcessorNode) {
-                    Criteria criteria = Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true);
+                    Criteria criteria = Criteria.where("nodeId").is(nodeId).and(IS_DELETED).ne(true);
                     if (StringUtils.isNotBlank(tableFilter)) {
                         Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
                         criteria.and("originalName").regex(pattern);
@@ -1712,7 +1710,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
                     queryMetadata.addCriteria(criteriaNode);
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
-                    criteriaNode.and("qualified_name").is(qualifiedName).and("is_deleted").ne(true);
+                    criteriaNode.and("qualified_name").is(qualifiedName).and(IS_DELETED).ne(true);
                     MetadataInstancesDto one = findOne(queryMetadata, user);
                     if (one != null) {
                         metadatas.add(one);
@@ -1724,7 +1722,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                         return new Page<>(0, new ArrayList<>());
                     }
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                            .and("original_name").is(tableNode.getTableName()).and("taskId").is(taskId).and("is_deleted").ne(true);
+                            .and("original_name").is(tableNode.getTableName()).and("taskId").is(taskId).and(IS_DELETED).ne(true);
                     MetadataInstancesDto one = findOne(queryMetadata, user);
                     if (one != null) {
                         metadatas.add(one);
@@ -1758,7 +1756,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     } else{
                         criteriaTable.and("nodeId").is(nodeId)
                                 .and("taskId").is(taskId)
-                                .and("is_deleted").ne(true);
+                                .and(IS_DELETED).ne(true);
 
                         if (StringUtils.isNotBlank(tableFilter)) {
                             Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
@@ -1779,7 +1777,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 							criteriaList.add(Criteria.where("source._id").is(config.getConnectionId())
 								.and("originalName").in(config.getTableNames()));
 						}
-						criteriaTable.and("is_deleted").ne(true).orOperator(criteriaList);
+						criteriaTable.and(IS_DELETED).ne(true).orOperator(criteriaList);
 						queryMetadata.addCriteria(criteriaTable);
 						metadatas = findAllDto(queryMetadata, user);
 						totals = count(queryMetadata, user);
@@ -1789,7 +1787,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 							String connectionId = connectionIds.get(0);
 							queryMetadata.addCriteria(criteriaTable);
 							criteriaTable.and("source._id").is(connectionId)
-								.and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
+								.and("originalName").in(logNode.getTableNames()).and(IS_DELETED).ne(true);
 							metadatas = findAllDto(queryMetadata, user);
 							totals = count(queryMetadata, user);
 						}
@@ -1808,7 +1806,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         queryMetadata.addCriteria(criteriaNode);
         String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), "857f7321-8198-44d1-a73b-ea575897b304", null, "taskId");
         criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
-                .and("is_deleted").ne(true);
+                .and(IS_DELETED).ne(true);
 
         System.out.println(queryMetadata);
     }
@@ -1831,7 +1829,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         if (StringUtils.isNotBlank(lastId)) {
             criteria.and("_id").gt(MongoUtils.toObjectId(lastId));
         }
-        criteria.and("is_deleted").ne(true);
+        criteria.and(IS_DELETED).ne(true);
         Query query = new Query(criteria);
         query.with(Sort.by("_id").ascending());
         query.limit(pageSize);
@@ -1883,7 +1881,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public List<MetaTableVo> tableSearch(String connectionId, String keyword, String lastId, Integer pageSize, UserDetail user) {
         Criteria criteria =
                 Criteria.where("source._id").is(connectionId)
-                        .and("is_deleted").ne(true)
+                        .and(IS_DELETED).ne(true)
                         .and("meta_type").in(MetaType.collection.name(), MetaType.table.name())
                         .orOperator(Criteria.where("original_name").regex(keyword), Criteria.where("name").regex(keyword)
                                 , Criteria.where("comment").regex(keyword));
@@ -1918,7 +1916,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public MetaTableCheckVo checkTableNames(String connectionId, List<String> names, UserDetail user) {
         List<String> metaTypes = Lists.newArrayList(MetaType.table.name());
         Criteria criteria = Criteria.where("source._id").is(connectionId)
-                .and("is_deleted").is(false)
+                .and(IS_DELETED).is(false)
                 .and("meta_type").in(metaTypes)
                 .and("original_name").in(names);
         Query query = new Query(criteria);
@@ -1954,25 +1952,8 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
 
     public TableListVo findTablesById(String id) {
-//        List<Map<String, String>> collections = new ArrayList<>();
         MetadataInstancesDto metadataInstancesDto = findById(MongoUtils.toObjectId(id));
-        if (null != metadataInstancesDto.getSource()) {
-//            String databaseId = metadataInstancesDto.getSource().get_id();
-
-      /*         List<MetadataInstancesDto> metadataInstancesTable = findAll(Query.query(Criteria.where("source._id").is(databaseId)
-                    .and("is_deleted").ne(true)
-                    .orOperator(Criteria.where("meta_type").is(MetaType.table.toString()), Criteria.where("meta_type").is(MetaType.collection.toString()))));
-         if (CollectionUtils.isNotEmpty(metadataInstancesTable)) {
-                metadataInstancesTable.forEach(singleTable -> {
-                    Map collectionMap = new HashMap();
-                    collectionMap.put("id", singleTable.getId().toString());
-                    collectionMap.put("name", singleTable.getOriginalName());
-                    collections.add(collectionMap);
-                });
-            }*/
-        }
         TableListVo tableListVo = BeanUtil.copyProperties(metadataInstancesDto, TableListVo.class);
-//        tableListVo.setCollections(collections);
         return tableListVo;
     }
 
@@ -2145,7 +2126,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 //查询得到所有的关联的逻辑模型表
                 Criteria criteria = Criteria.where("meta_type").is(metadataInstancesDto.getMetaType()).and("original_name").is(metadataInstancesDto.getOriginalName())
                         .and("source._id").is(metadataInstancesDto.getSource().get_id())
-                        .and("is_deleted").ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+                        .and(IS_DELETED).ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
 
                 if (StringUtils.isNotBlank(taskId)) {
                     criteria.and("taskId").is(taskId);
@@ -2160,7 +2141,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
                     //对于正在运行中的任务的模型，不需要做下面的合并物理表的操作。
                     //下面这个过滤的逻辑，可能存在任务刚好点启动的时候，会被漏掉
-                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and("is_deleted").ne(true);
+                    Criteria criteriaTask = Criteria.where("_id").in(taskIds).and(IS_DELETED).ne(true);
                     if (StringUtils.isBlank(taskId)) {
                         criteriaTask.and("status").in(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
                     }
@@ -2240,7 +2221,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public boolean checkTableExist(String connectionId, String tableName, UserDetail user) {
         Criteria criteria = Criteria.where("original_name").is(tableName)
-                .and("is_deleted").ne(true)
+                .and(IS_DELETED).ne(true)
                 .and("source._id").is(connectionId)
                 .and("sourceType").is(SourceTypeEnum.SOURCE.name())
                 .and("taskId").exists(false);
@@ -2257,7 +2238,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public long countUpdateExNum(String nodeId) {
         Criteria criteria = Criteria
-                .where("is_deleted").ne(true)
+                .where(IS_DELETED).ne(true)
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL)
                 .and("hasPrimaryKey").is(false)
@@ -2268,7 +2249,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public long countTransformExNum(String nodeId) {
         Criteria criteria = Criteria
-                .where("is_deleted").ne(true)
+                .where(IS_DELETED).ne(true)
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL)
                 .and("resultItems").is(true);
@@ -2277,7 +2258,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     public long countTotalNum(String nodeId) {
         Criteria criteria = Criteria
-                .where("is_deleted").ne(true)
+                .where(IS_DELETED).ne(true)
                 .and("nodeId").is(nodeId)
                 .and("sourceType").is(SourceTypeEnum.VIRTUAL);
         return count(Query.query(criteria));
