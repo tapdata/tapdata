@@ -2,6 +2,7 @@ package com.tapdata.tm.inspect.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.inspect.dto.InspectDetailsDto;
 import com.tapdata.tm.inspect.service.InspectDetailsService;
 import com.tapdata.tm.inspect.service.InspectResultService;
@@ -237,7 +238,8 @@ public class InspectDetailsController extends BaseController {
         try {
             inspectDetailsService.export(inspectDetails, zipOutputStream, getLoginUser(), inspectResultService);
         } catch (Exception e) {
-            log.error("Export inspectDetails  failed", e);
+            log.error("Export inspectDetails failed", e);
+            throw new BizException("export.inspectDetails.failed",e.getMessage());
         } finally {
             zipOutputStream.closeEntry();
             zipOutputStream.flush();
