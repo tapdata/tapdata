@@ -6,7 +6,6 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -14,9 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,10 +31,11 @@ public class HazelcastSourcePartitionReadDataNodeTest extends BaseHazelcastNodeT
         Logger logger = mock(Logger.class);
         cdcDelay = mock(CdcDelay.class);
         hazelcastSourcePartitionReadDataNode = mock(HazelcastSourcePartitionReadDataNode.class);
-        streamReadFuncAspect = mock(StreamReadFuncAspect.class);
+        streamReadFuncAspect=new StreamReadFuncAspect();
         ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "logger", logger);
         ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "cdcDelayCalculation", cdcDelay);
         ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "dataProcessorContext", dataProcessorContext);
+        ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "streamReadFuncAspect", streamReadFuncAspect);
     }
 
     @DisplayName("test filterAndCalcDelay table is heartBeat")
