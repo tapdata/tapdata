@@ -61,6 +61,7 @@ import io.tapdata.entity.mapping.type.TapStringMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.constants.SystemConstants;
@@ -2334,6 +2335,43 @@ public class MetadataInstancesServiceImplTest {
 	}
 	@Nested
 	class LinkLogicTest{
+		@DisplayName("test linkLogic method normal update")
+		@Test
+		void test1() {
+			try (
+					MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class);
+					MockedStatic<TapSimplify> tapSimplifyMockedStatic = mockStatic(TapSimplify.class);
+					MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)
+			) {
+				tapSimplifyMockedStatic.when(() -> TapSimplify.toJson(any())).thenReturn("test");
+				com.tapdata.tm.commons.schema.Schema schema = new com.tapdata.tm.commons.schema.Schema();
+				schema.setDatabase("test");
+				schemaUtilsMockedStatic.when(() -> {
+					SchemaUtils.mergeSchema(any(List.class), any(com.tapdata.tm.commons.schema.Schema.class), anyBoolean());
+				}).thenReturn(schema);
+				MetadataInstancesService metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
+				TaskService taskService = mock(TaskService.class);
+				ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+				List<TaskDto> taskDtos = new ArrayList<>();
+				TaskDto taskDto = new TaskDto();
+				taskDto.setId(new ObjectId("65d31d426a7c0d7571db82a7"));
+				taskDtos.add(taskDto);
+				doReturn(taskDtos).when(taskService).findAllDto(any(Query.class), any(UserDetail.class));
+				doCallRealMethod().when(metadataInstancesService).linkLogic(any(), any(), any());
+				List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+				MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+				metadataInstancesDto.setMetaType("source");
+				metadataInstancesDto.setOriginalName("testOriginalName");
+				metadataInstancesDto.setQualifiedName("testQualifiedName");
+				SourceDto sourceDto = new SourceDto();
+				sourceDto.set_id("test_Id");
+				metadataInstancesDto.setSource(sourceDto);
+				metadataInstancesDtos.add(metadataInstancesDto);
+				doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
+				metadataInstancesService.linkLogic(metadataInstancesDtos, userDetail, "65d31d426a7c0d7571db82a7");
+				verify(metadataInstancesService,times(1)).bulkUpsetByWhere(any(List.class),any(UserDetail.class));
+			}
+		}
 	}
 	@Nested
 	class DeleteTaskMetadataTest{
