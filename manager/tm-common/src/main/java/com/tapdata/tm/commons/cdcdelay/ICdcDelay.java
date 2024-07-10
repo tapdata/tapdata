@@ -4,7 +4,7 @@ import io.tapdata.entity.event.TapEvent;
 import org.springframework.lang.NonNull;
 
 import java.util.List;
-import java.util.function.LongConsumer;
+import java.util.function.Consumer;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -24,5 +24,5 @@ public interface ICdcDelay {
      * @param tapEvent TapEvent
      * @return TapEvent
      */
-    TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull LongConsumer delayConsumer, String taskSyncType);
+    TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer,String taskSyncType);
 }
