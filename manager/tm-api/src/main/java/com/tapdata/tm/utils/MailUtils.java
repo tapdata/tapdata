@@ -18,19 +18,29 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
-import javax.mail.*;
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
 
 
 /**
- * todo Setting表的邮箱配置，是怎么样初始化进去的  邮箱已经变 了，应该怎么修改
+ * Setting表的邮箱配置，是怎么样初始化进去的  邮箱已经变 了，应该怎么修改
  * SMTP 地址
  * smtp.feishu.cn
  * IMAP/SMTP 密码
@@ -47,29 +57,35 @@ import java.util.stream.Collectors;
 @Slf4j
 @Component
 public class MailUtils {
-
     private String host;
     private Integer port;
-
     private String user;
     private String sendAddress;
-
     private String password;
 
-    public final static Integer CLOUD_MAIL_LIMIT = 10;
+    public static final Integer CLOUD_MAIL_LIMIT = 10;
+
     @Autowired
     SettingsService settingsService;
-
     @Autowired
     BlacklistService blacklistService;
 
     private static List<String> productList;
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
     private void setProductList(List<String> versionList){
-        productList = versionList;
+        this.productList = versionList;
     }
 
-    public final static String SEND_STATUS_FALSE = "false";
+    public static final String SEND_STATUS_FALSE = "false";
+    public static final String MAIL_TEMPLATE = "mailTemplate.html";
+    public static final String USER_NAME = "username";
+    public static final String SYS_NAME = "sysName";
+    public static final String SYS_NAME_AGENT = "Your Agent：";
+    public static final String SYS_NAME_TASK = "Your Task：";
+    public static final String AGENT_NAME = "agentName";
+    public static final String MAIL_CONTENT = "mailContent";
+    public static final String CLICK_HREF = "clickHref";
+    public static final String EMAIL_SEND_EXCEPTION = "邮件发送异常";
     /**
      * 发送html形式的邮件
      */
@@ -80,66 +96,21 @@ public class MailUtils {
             return sendStatus;
         }
         // 读取html模板
-        String html = readHtmlToString("mailTemplate.html");
+        String html = readHtmlToString(MAIL_TEMPLATE);
 
         // 写入模板内容
         Document doc = Jsoup.parse(html);
-        doc.getElementById("username").html(username);
+        doc.getElementById(USER_NAME).html(username);
 
         if (StringUtils.isEmpty(agentName)) {
             sendStatus.setErrorMessage("agentName 为空");
             return sendStatus;
         }
-        doc.getElementById("sysName").html("Your Agent：");
-        doc.getElementById("agentName").html(agentName);
-        doc.getElementById("mailContent").html(maiContent);
-        doc.getElementById("clickHref").attr("href", emailHref);
-
-        String result = doc.toString();
-        Properties props = new Properties();
-        props.put("mail.smtp.host", "");
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
-        props.put("mail.smtp.socketFactory.fallback", "true");
-        Session session = Session.getDefaultInstance(props);
-        session.setDebug(true);
-
-        Transport transport = null;
-        MimeMessage message = new MimeMessage(session);
-        try {
-            //初始化发送邮件配置
-            this.initMailConfig();
-            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            InternetAddress[] internetAddressList = getInternetAddress(notInBlacklistAddress);
-            message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
-            message.setSubject(subject);// 设置标题
-            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
-            message.setSentDate(new Date());// 设置发信时间
-            message.saveChanges();// 存储邮件信息
-
-            // 发送邮件
-            transport = session.getTransport("smtp");
-            if (null != port) {
-                transport.connect(host, port, user, password);
-            } else {
-                transport.connect(host, user, password);
-            }
-            transport.sendMessage(message, message.getAllRecipients());
-
-            //发送邮件成功，status置为true
-            sendStatus.setStatus("true");
-        } catch (Exception e) {
-            log.error("邮件发送异常", e);
-            sendStatus.setErrorMessage(e.getMessage());
-        } finally {
-            if (null != transport) {
-                try {
-                    transport.close();//关闭连接
-                } catch (MessagingException e) {
-                    log.error("发送邮件 ，transport 关闭异常", e);
-                }
-            }
-        }
+        doc.getElementById(SYS_NAME).html(SYS_NAME_AGENT);
+        doc.getElementById(AGENT_NAME).html(agentName);
+        doc.getElementById(MAIL_CONTENT).html(maiContent);
+        doc.getElementById(CLICK_HREF).attr("href", emailHref);
+        sendEmail(doc, sendStatus, notInBlacklistAddress, subject, EMAIL_SEND_EXCEPTION);
         return sendStatus;
     }
 
@@ -154,70 +125,24 @@ public class MailUtils {
             return sendStatus;
         }
         // 读取html模板
-        String html = readHtmlToString("mailTemplate.html");
+        String html = readHtmlToString(MAIL_TEMPLATE);
 
         // 写入模板内容
         Document doc = Jsoup.parse(html);
-        doc.getElementById("username").html(username);
-        doc.getElementById("agentName").html(agentName);
+        doc.getElementById(USER_NAME).html(username);
+        doc.getElementById(AGENT_NAME).html(agentName);
 
         if (SystemEnum.AGENT.equals(systemEnum)) {
-            doc.getElementById("sysName").html("Your Agent：");
+            doc.getElementById(SYS_NAME).html(SYS_NAME_AGENT);
         } else if (SystemEnum.DATAFLOW.equals(systemEnum) || SystemEnum.SYNC.equals(systemEnum) || SystemEnum.MIGRATION.equals(systemEnum)) {
-            doc.getElementById("sysName").html("Your Task：");
+            doc.getElementById(SYS_NAME).html(SYS_NAME_TASK);
         }
 
         String mailContent = getMailContent(systemEnum, msgTypeEnum);
-        doc.getElementById("mailContent").html(mailContent);
-        doc.getElementById("clickHref").attr("href", emailHref);
+        doc.getElementById(MAIL_CONTENT).html(mailContent);
+        doc.getElementById(CLICK_HREF).attr("href", emailHref);
 
-        String result = doc.toString();
-        Properties props = new Properties();
-        props.put("mail.smtp.host", "");
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
-        props.put("mail.smtp.socketFactory.fallback", "true");
-        Session session = Session.getDefaultInstance(props);
-        session.setDebug(true);
-
-        Transport transport = null;
-        MimeMessage message = new MimeMessage(session);
-        try {
-            //初始化发送邮件配置
-            this.initMailConfig();
-            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            InternetAddress[] internetAddressList = getInternetAddress(notInBlacklistAddress);
-            message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
-
-            String title = getMailTitle(systemEnum, msgTypeEnum);
-            message.setSubject(title);// 设置标题
-            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
-            message.setSentDate(new Date());// 设置发信时间
-            message.saveChanges();// 存储邮件信息
-
-            // 发送邮件
-            transport = session.getTransport("smtp");
-            if (null != port) {
-                transport.connect(host, port, user, password);
-            } else {
-                transport.connect(host, user, password);
-            }
-            transport.sendMessage(message, message.getAllRecipients());
-
-            //发送邮件成功，status置为true
-            sendStatus.setStatus("true");
-        } catch (Exception e) {
-            log.error("邮件发送异常", e);
-            sendStatus.setErrorMessage(e.getMessage());
-        } finally {
-            if (null != transport) {
-                try {
-                    transport.close();//关闭连接
-                } catch (MessagingException e) {
-                    log.error("发送邮件 ，transport 关闭异常", e);
-                }
-            }
-        }
+        sendEmail(doc, sendStatus, notInBlacklistAddress, getMailTitle(systemEnum, msgTypeEnum), EMAIL_SEND_EXCEPTION);
         return sendStatus;
     }
 
@@ -232,73 +157,26 @@ public class MailUtils {
             return sendStatus;
         }
         // 读取html模板
-        String html = readHtmlToString("mailTemplate.html");
+        String html = readHtmlToString(MAIL_TEMPLATE);
 
         // 写入模板内容
         Document doc = Jsoup.parse(html);
-        doc.getElementById("username").html(username);
-        doc.getElementById("agentName").html(agentName);
+        doc.getElementById(USER_NAME).html(username);
+        doc.getElementById(AGENT_NAME).html(agentName);
 
         if (SystemEnum.AGENT.equals(systemEnum)) {
-            doc.getElementById("sysName").html("Your Agent：");
+            doc.getElementById(SYS_NAME).html(SYS_NAME_AGENT);
         } else if (SystemEnum.DATAFLOW.equals(systemEnum) || SystemEnum.SYNC.equals(systemEnum) || SystemEnum.MIGRATION.equals(systemEnum)) {
-            doc.getElementById("sysName").html("Your Task：");
+            doc.getElementById(SYS_NAME).html(SYS_NAME_TASK);
         }
 
         String mailContent = getMailContent(systemEnum, msgTypeEnum);
-        doc.getElementById("mailContent").html(mailContent);
+        doc.getElementById(MAIL_CONTENT).html(mailContent);
 
         String emailHref = getHrefClick(sourceId, systemEnum, msgTypeEnum);
 
-        doc.getElementById("clickHref").attr("href", emailHref);
-
-        String result = doc.toString();
-        Properties props = new Properties();
-        props.put("mail.smtp.host", "");
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
-        props.put("mail.smtp.socketFactory.fallback", "true");
-        Session session = Session.getDefaultInstance(props);
-        session.setDebug(true);
-
-        Transport transport = null;
-        MimeMessage message = new MimeMessage(session);
-        try {
-            //初始化发送邮件配置
-            this.initMailConfig();
-            message.setFrom(new InternetAddress(this.sendAddress));// 设置发件人的地址
-            InternetAddress[] internetAddressList = getInternetAddress(notInBlacklistAddress);
-            message.setRecipients(Message.RecipientType.TO, internetAddressList);// 设置收件人,并设置其接收类型为TO
-
-            String title = getMailTitle(systemEnum, msgTypeEnum);
-            message.setSubject(title);// 设置标题
-            message.setContent(result, "text/html;charset=UTF-8"); // 设置邮件内容类型为html
-            message.setSentDate(new Date());// 设置发信时间
-            message.saveChanges();// 存储邮件信息
-
-            // 发送邮件
-            transport = session.getTransport("smtp");
-            if (null != port) {
-                transport.connect(host, port, user, password);
-            } else {
-                transport.connect(host, user, password);
-            }
-            transport.sendMessage(message, message.getAllRecipients());
-
-            //发送邮件成功，status置为true
-            sendStatus.setStatus("true");
-        } catch (Exception e) {
-            log.error("邮件发送异常", e);
-            sendStatus.setErrorMessage(e.getMessage());
-        } finally {
-            if (null != transport) {
-                try {
-                    transport.close();//关闭连接
-                } catch (MessagingException e) {
-                    log.error("发送邮件 ，transport 关闭异常", e);
-                }
-            }
-        }
+        doc.getElementById(CLICK_HREF).attr("href", emailHref);
+        sendEmail(doc, sendStatus, notInBlacklistAddress, getMailTitle(systemEnum, msgTypeEnum), EMAIL_SEND_EXCEPTION);
         return sendStatus;
     }
 
@@ -437,20 +315,20 @@ public class MailUtils {
      * IMAP 端口号
      * 993
      */
-    private void initMailConfig() {
-        String host = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.host"));
-        String port = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.port"));
-        String username = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.user"));
-        String sendAddress = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "email.send.address"));
-        String password = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.password"));
+    protected void initMailConfig() {
+        String hostFromDB = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.host"));
+        String portFromDB = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.port"));
+        String usernameFromDB = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.user"));
+        String sendAddressFromDB = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "email.send.address"));
+        String passwordFromDB = String.valueOf(settingsService.getByCategoryAndKey("SMTP", "smtp.server.password"));
 
-        this.host = host;
-        if (StringUtils.isNotEmpty(port)) {
-            this.port = Integer.valueOf(port);
+        this.host = hostFromDB;
+        if (StringUtils.isNotEmpty(portFromDB)) {
+            this.port = Integer.valueOf(portFromDB);
         }
-        this.sendAddress = sendAddress;
-        this.user = username;
-        this.password = password;
+        this.sendAddress = sendAddressFromDB;
+        this.user = usernameFromDB;
+        this.password = passwordFromDB;
 
     }
 
@@ -671,4 +549,81 @@ public class MailUtils {
         return addressList.toArray(new InternetAddress[notInBlacklistAddress.size()]);
     }
 
+    /**
+     * 发送html形式的邮件, 重置密码
+     */
+    public SendStatus sendValidateCodeForResetPWD(String to, String username, String validateCode) {
+        SendStatus sendStatus = new SendStatus(SEND_STATUS_FALSE, "");
+        String html = readHtmlToString("resetPasswordTemplate.html");
+        Document doc = Jsoup.parse(html);
+        doc.getElementById(USER_NAME).html(username);
+        doc.getElementById("code").html(validateCode);
+        doc.getElementById("account").html(to);
+        doc.getElementById("validateTimes").html("5");
+        sendEmail(doc, sendStatus, Lists.newArrayList(to), "修改密码-验证码", "Send validate code email failed before reset password");
+        return sendStatus;
+    }
+
+    protected Transport connectSMTP(Session session) throws MessagingException {
+        Transport transport = session.getTransport("smtp");
+        if (null != port) {
+            transport.connect(host, port, user, password);
+        } else {
+            transport.connect(host, user, password);
+        }
+        return transport;
+    }
+
+    protected MimeMessage message(Session session, List<String> internetAddress, String emailContent, String emailSubject) throws MessagingException, UnsupportedEncodingException {
+        MimeMessage message = new MimeMessage(session);
+        this.initMailConfig();
+        message.setFrom(new InternetAddress(this.sendAddress));
+        InternetAddress[] internetAddressList = getInternetAddress(internetAddress);
+        message.setRecipients(Message.RecipientType.TO, internetAddressList);
+
+        message.setContent(emailContent, "text/html;charset=UTF-8");
+        message.setSentDate(new Date());
+        message.saveChanges();
+        message.setSubject(emailSubject);
+        return message;
+    }
+
+    protected void closeTransport(Transport transport) {
+        if (null != transport) {
+            try {
+                transport.close();//关闭连接
+            } catch (MessagingException e) {
+                log.error("发送邮件 ，transport 关闭异常", e);
+            }
+        }
+    }
+
+    protected Session emailSession() {
+        Properties props = new Properties();
+        props.put("mail.smtp.host", "");
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+        props.put("mail.smtp.ssl.checkserveridentity", "true");
+        props.put("mail.smtp.socketFactory.fallback", "true");
+        Session session = Session.getDefaultInstance(props);
+        session.setDebug(true);
+        return session;
+    }
+
+    protected void sendEmail(Document doc, SendStatus sendStatus, List<String> list, String subject, String errorMessage) {
+        String result = doc.toString();
+        Session session = emailSession();
+        Transport transport = null;
+        try {
+            MimeMessage message = message(session, list, result, subject);
+            transport = connectSMTP(session);
+            transport.sendMessage(message, message.getAllRecipients());
+            sendStatus.setStatus("true");
+        } catch (Exception e) {
+            log.error(errorMessage, e);
+            sendStatus.setErrorMessage(e.getMessage());
+        } finally {
+            closeTransport(transport);
+        }
+    }
 }

@@ -458,6 +458,17 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastJavaScriptProcessorNode.class, actual.getClass());
         }
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate union processor")
+        void testCreateNodeMigrateUnionProcessorNode(){
+            node = mock(MigrateUnionProcessorNode.class);
+            when(node.getType()).thenReturn("migrate_union_processor");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastMigrateUnionProcessorNode.class, actual.getClass());
+        }
     }
 
     @Nested

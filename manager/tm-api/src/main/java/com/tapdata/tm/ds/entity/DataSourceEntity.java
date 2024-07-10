@@ -312,6 +312,8 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
 
     private String accessNodeProcessId;
 
+    private String priorityProcessId;
+
     private TimeZone timeZone;
 
     private String connectionString;

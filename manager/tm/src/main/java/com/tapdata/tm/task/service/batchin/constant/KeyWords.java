@@ -6,6 +6,8 @@ public class KeyWords {
     public static final String VERSION = "version";
     public static final String DATABASE = "database";
     public static final String SCHEMA = "schema";
+    public static final String DATABASES = "databases";
+    public static final String SCHEMAS = "schemas";
     public static final String TABLE = "table";
     public static final String TABLES = "tables";
     public static final String PROJECT = "project";

@@ -25,10 +25,15 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.vo.*;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
@@ -789,8 +794,48 @@ public class TaskServiceImpl extends TaskService{
 
         checkShareCdcStatus(taskDto, user);
 
+        checkSourceCdcSupport(taskDto);
+
         return confirmById(taskDto, user, confirm, false);
     }
+
+    protected void checkSourceCdcSupport(TaskDto taskDto) {
+
+        if (taskDto.getType().contains("cdc")) {
+            List<Node> nodes = taskDto.getDag().getSourceNodes();
+            if (CollectionUtils.isEmpty(nodes)) {
+                return;
+            }
+            List<String> alreadyRequestConnectionId = new ArrayList();
+            nodes.forEach(node -> {
+                DataParentNode dataParentNode = (DataParentNode) node;
+                if (alreadyRequestConnectionId.contains(dataParentNode.getConnectionId())) {
+                    return;
+                }
+                alreadyRequestConnectionId.add(dataParentNode.getConnectionId());
+                DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(dataParentNode.getConnectionId()));
+                if (Lists.of("Dummy").contains(connectionDto.getDatabase_type())) {
+                    return;
+                }
+                List<String> capList = connectionDto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
+                if (capList.contains("stream_read_function")) {
+                    ResponseBody responseBody = connectionDto.getResponse_body();
+                    if (responseBody != null) {
+                        List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+                        Map<String, ValidateDetail> map = new HashMap<>();
+                        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
+                            map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
+                        }
+                        if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                            throw new BizException("source.setting.check.cdc");
+                        }
+                    }
+                }
+            });
+
+        }
+    }
+
 
     protected void checkShareCdcStatus(TaskDto taskDto,UserDetail user){
         if( null != taskDto.getShareCdcEnable() && !taskDto.getShareCdcEnable() &&  null != taskDto.getShareCdcStop() && StringUtils.isNotBlank(taskDto.getShareCdcStopMessage())){
@@ -1066,6 +1111,7 @@ public class TaskServiceImpl extends TaskService{
 
         //删除收集的对象
         taskCollectionObjService.deleteById(taskDto.getId());
+        taskRecordService.cleanTaskRecord(taskDto.getId().toHexString());
     }
 
     /**
@@ -3872,10 +3918,14 @@ public class TaskServiceImpl extends TaskService{
 
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             String agentId = null;
-            for (String p : accessNodeProcessIdList) {
-                if (processIds.contains(p)) {
-                    agentId = p;
-                    break;
+            if(StringUtils.isNotEmpty(taskDto.getPriorityProcessId()) && processIds.contains(taskDto.getPriorityProcessId())){
+                agentId = taskDto.getPriorityProcessId();
+            }else{
+                for (String p : accessNodeProcessIdList) {
+                    if (processIds.contains(p)) {
+                        agentId = p;
+                        break;
+                    }
                 }
             }
             if (StringUtils.isBlank(agentId)) {

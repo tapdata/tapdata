@@ -9,6 +9,7 @@ import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.repository.UserRepository;
+import com.tapdata.tm.utils.SendStatus;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -49,7 +50,7 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
 
     public abstract UserDto updateEmail(UserDetail loginUser, BindEmailReq bindEmailReq);
 
-    public abstract Boolean sendValidateCde(String email);
+    public abstract SendStatus sendValidateCde(String email);
 
     public abstract Long reset(ResetPasswordParam resetPasswordParam);
 
