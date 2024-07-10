@@ -20,6 +20,8 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -86,6 +88,8 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonValue;
@@ -4966,5 +4970,116 @@ class TaskServiceImplTest {
             assertEquals(3,actual);
             verify(taskService,new Times(2)).findByTaskId(any(ObjectId.class),anyString());
         }
+    }
+
+    @Nested
+    class checkSourceCdcSupportTest{
+        TaskDto taskDto;
+        DataSourceServiceImpl dataSourceService;
+        DAG dag;
+        @BeforeEach
+        void init(){
+            taskDto =mock(TaskDto.class);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            doCallRealMethod().when(taskService).checkSourceCdcSupport(taskDto);
+            dag =mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+            ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
+
+        }
+
+        @Test
+        void testSourceNodeIsNull(){
+            when(taskDto.getType()).thenReturn("cdc");
+            when(dag.getSourceNode()).thenReturn(new LinkedList<>());
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService,times(0)).findByIdByCheck(any());
+
+        }
+
+        @Test
+        void testSourceTypeNotCdc(){
+            when(taskDto.getType()).thenReturn("initial_sync");
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService,times(0)).findByIdByCheck(any());
+
+        }
+
+
+        @Test
+        void testSourceDataTypeIsDummy(){
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setDatabaseType("Dummy");
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Dummy");
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService,times(1)).findByIdByCheck(any());
+        }
+
+        @Test
+        void testSourceNotSupport(){
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Mysql");
+            List<Capability> capabilities = new ArrayList<>();
+            Capability capability = new Capability();
+            capability.setId("stream_read_function");
+            capability.setType(11);
+            capabilities.add(capability);
+            dataSourceConnectionDto.setCapabilities(capabilities);
+            ResponseBody responseBody = new ResponseBody();
+            List<ValidateDetail> validateDetails = new ArrayList<>();
+            ValidateDetail validateDetail = new ValidateDetail();
+            validateDetail.setShowMsg("Binlog is close");
+            validateDetail.setStatus("failed");
+            validateDetails.add(validateDetail);
+            responseBody.setValidateDetails(validateDetails);
+            dataSourceConnectionDto.setResponse_body(responseBody);
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            try {
+                taskService.checkSourceCdcSupport(taskDto);
+            }catch (Exception e){
+                Assertions.assertTrue(((BizException)e).getErrorCode().equals("source.setting.check.cdc"));
+            }
+        }
+
+        @Test
+        void testSourceSupport() {
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Mysql");
+            List<Capability> capabilities = new ArrayList<>();
+            Capability capability = new Capability();
+            capability.setId("stream_read_function");
+            capability.setType(11);
+            capabilities.add(capability);
+            dataSourceConnectionDto.setCapabilities(capabilities);
+            ResponseBody responseBody = new ResponseBody();
+            List<ValidateDetail> validateDetails = new ArrayList<>();
+            ValidateDetail validateDetail = new ValidateDetail();
+            validateDetail.setShowMsg(TestItem.ITEM_READ_LOG);
+            validateDetail.setStatus("passed");
+            validateDetails.add(validateDetail);
+            responseBody.setValidateDetails(validateDetails);
+            dataSourceConnectionDto.setResponse_body(responseBody);
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService, times(1)).findByIdByCheck(any());
+
+        }
+
     }
 }
