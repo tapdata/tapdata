@@ -1,17 +1,22 @@
 package com.tapdata.tm.modules.service;
 
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.mockito.Mockito.*;
 
@@ -61,5 +66,42 @@ public class ModulesServiceTest {
             Assertions.assertThrows(BizException.class,()->modulesService.updateTags(modulesTagsDto,mock(UserDetail.class)));
         }
 
+    }
+    @Nested
+    class BeforeSaveTest{
+        @Test
+        void test_main(){
+            ModulesDto modules = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Field> fields = new ArrayList<>();
+            fields.add(new Field());
+            fields.add(null);
+            path.setFields(fields);
+            paths.add(path);
+            modules.setPaths(paths);
+            modulesService.beforeSave(modules,mock(UserDetail.class));
+            Assertions.assertEquals(1,modules.getPaths().get(0).getFields().size());
+        }
+        @Test
+        void test_paths_isNull(){
+            ModulesDto modules = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            modules.setPaths(paths);
+            modulesService.beforeSave(modules,mock(UserDetail.class));
+            Assertions.assertEquals(0,modules.getPaths().size());
+        }
+        @Test
+        void test_paths_fields_isNull(){
+            ModulesDto modules = new ModulesDto();
+            List<Path> paths = new ArrayList<>();
+            Path path = new Path();
+            List<Field> fields = new ArrayList<>();
+            path.setFields(fields);
+            paths.add(path);
+            modules.setPaths(paths);
+            modulesService.beforeSave(modules,mock(UserDetail.class));
+            Assertions.assertEquals(0,modules.getPaths().get(0).getFields().size());
+        }
     }
 }
