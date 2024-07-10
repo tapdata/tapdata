@@ -12,6 +12,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -30,7 +31,7 @@ public class CdcDelayTest {
         after.put("id","recordId");
         tapUpdateRecordEvent.setAfter(after);
         tapUpdateRecordEvent.setTableId(ConnHeartbeatUtils.TABLE_NAME);
-        Consumer<Long> consumer=(time)->{
+        LongConsumer consumer=(time)->{
         };
         List<String> tables=new ArrayList<>();
         tables.add("testTableId");
@@ -47,7 +48,7 @@ public class CdcDelayTest {
         after.put("id","recordId");
         tapUpdateRecordEvent.setAfter(after);
         tapUpdateRecordEvent.setTableId(ConnHeartbeatUtils.TABLE_NAME);
-        Consumer<Long> consumer=(time)->{
+        LongConsumer consumer=(time)->{
         };
         List<String> tables=new ArrayList<>();
         tables.add("testTableId");
@@ -66,9 +67,17 @@ public class CdcDelayTest {
         tapUpdateRecordEvent.setReferenceTime(System.currentTimeMillis());
         tapUpdateRecordEvent.setAfter(after);
         tapUpdateRecordEvent.setTableId("testTable");
-        Consumer<Long> consumer=(time)->{
+        LongConsumer consumer=(time)->{
         };
         TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer, TaskDto.SYNC_TYPE_LOG_COLLECTOR);
         assertEquals(tapUpdateRecordEvent,tapEvent);
+    }
+    @DisplayName("test CdcDelayDisable filterAndCalcDelay")
+    @Test
+    void test4(){
+        CdcDelayDisable delayDisable=new CdcDelayDisable();
+        TapEvent tapEvent=new TapUpdateRecordEvent();
+        TapEvent resultEvent = delayDisable.filterAndCalcDelay(tapEvent, null, null);
+        assertEquals(tapEvent,resultEvent);
     }
 }

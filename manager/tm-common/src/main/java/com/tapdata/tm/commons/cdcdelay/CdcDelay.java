@@ -18,7 +18,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -49,7 +49,7 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer,String syncType) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull LongConsumer delayConsumer, String syncType) {
         if (tapEvent instanceof TapRecordEvent) {
             Long sourceTimes;
             TapRecordEvent tapRecordEvent = ((TapRecordEvent) tapEvent);
