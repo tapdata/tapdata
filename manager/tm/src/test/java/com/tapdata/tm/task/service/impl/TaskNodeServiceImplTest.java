@@ -7,6 +7,7 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
@@ -261,6 +262,82 @@ class TaskNodeServiceImplTest {
             List<String> exceptTableNames = new ArrayList<>();
             taskNodeService.checkUnionProcess(dag,"nodeId",exceptTableNames);
             Assertions.assertEquals("union_test",exceptTableNames.get(0));
+        }
+    }
+    @Nested
+    class GetNodeIdIfContainsMigrateUnionNodeTest {
+        DatabaseNode sourceNode;
+        DAG dag;
+        List<Node> nodes;
+        Node node1;
+        Node node2;
+        @BeforeEach
+        void init() {
+            sourceNode = mock(DatabaseNode.class);
+            dag = mock(DAG.class);
+            nodes = new ArrayList<>();
+            node1 = mock(Node.class);
+            node2 = mock(Node.class);
+            nodes.add(node1);
+            nodes.add(null);
+            nodes.add(node2);
+            when(node1.getType()).thenReturn("type");
+            when(node2.getType()).thenReturn(NodeEnum.migrate_union_processor.name());
+            when(sourceNode.getDag()).thenReturn(dag);
+            when(sourceNode.getId()).thenReturn("id");
+            when(dag.getNodes()).thenReturn(nodes);
+            when(node1.getId()).thenReturn("id");
+            when(node2.getId()).thenReturn("id");
+            when(taskNodeService.getNodeIdIfContainsMigrateUnionNode(any(DatabaseNode.class))).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            Assertions.assertNotNull(taskNodeService.getNodeIdIfContainsMigrateUnionNode(sourceNode));
+            verify(node1, times(1)).getType();
+            verify(node2, times(1)).getType();
+            verify(sourceNode, times(1)).getDag();
+            verify(sourceNode, times(0)).getId();
+            verify(node1, times(0)).getId();
+            verify(node2, times(1)).getId();
+            verify(dag, times(1)).getNodes();
+        }
+        @Test
+        void testDAGIsNull() {
+            when(sourceNode.getDag()).thenReturn(null);
+            Assertions.assertNotNull(taskNodeService.getNodeIdIfContainsMigrateUnionNode(sourceNode));
+            verify(node1, times(0)).getType();
+            verify(node2, times(0)).getType();
+            verify(sourceNode, times(1)).getDag();
+            verify(sourceNode, times(1)).getId();
+            verify(node1, times(0)).getId();
+            verify(node2, times(0)).getId();
+            verify(dag, times(0)).getNodes();
+        }
+        @Test
+        void testNodesIsEmpty() {
+            nodes.clear();
+            Assertions.assertNotNull(taskNodeService.getNodeIdIfContainsMigrateUnionNode(sourceNode));
+            verify(node1, times(0)).getType();
+            verify(node2, times(0)).getType();
+            verify(sourceNode, times(1)).getDag();
+            verify(sourceNode, times(1)).getId();
+            verify(node1, times(0)).getId();
+            verify(node2, times(0)).getId();
+            verify(dag, times(1)).getNodes();
+        }
+        @Test
+        void testNotContainsUnionNode() {
+            nodes.clear();
+            nodes.add(node1);
+            Assertions.assertNotNull(taskNodeService.getNodeIdIfContainsMigrateUnionNode(sourceNode));
+            verify(node1, times(1)).getType();
+            verify(node2, times(0)).getType();
+            verify(sourceNode, times(1)).getDag();
+            verify(sourceNode, times(1)).getId();
+            verify(node1, times(0)).getId();
+            verify(node2, times(0)).getId();
+            verify(dag, times(1)).getNodes();
         }
     }
 }

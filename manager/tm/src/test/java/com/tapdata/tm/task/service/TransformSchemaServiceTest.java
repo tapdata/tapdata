@@ -503,5 +503,44 @@ class TransformSchemaServiceTest {
             Assertions.assertEquals(0,result.size());
         }
     }
+    @Nested
+    class GetTableNodeSameMetadataInstancesTest{
+        @Test
+        void test_main(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG dag = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            TableNode tableNode1 = new TableNode();
+            tableNode1.setId("tableNode1");
+            TableNode tableNode2 = new TableNode();
+            tableNode2.setId("tableNode2");
+            nodes.add(tableNode1);
+            nodes.add(tableNode2);
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            when(metadataInstancesService.getQualifiedNameByNodeId(any(),any(),any(),any(),any())).thenReturn("test");
+            taskDto.setDag(dag);
+            doCallRealMethod().when(transformSchemaService).getTableNodeSameMetadataInstances(any(),any());
+            Map<String,List<String>> result = transformSchemaService.getTableNodeSameMetadataInstances(taskDto,mock(UserDetail.class));
+            result.get("test").forEach(s -> Assertions.assertTrue(s.equals("tableNode1") || s.equals("tableNode2")));
+        }
+
+        @Test
+        void test_tableNodeIsEmpty(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            DAG dag = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            nodes.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            when(metadataInstancesService.getQualifiedNameByNodeId(any(),any(),any(),any(),any())).thenReturn("test");
+            taskDto.setDag(dag);
+            doCallRealMethod().when(transformSchemaService).getTableNodeSameMetadataInstances(any(),any());
+            Map<String,List<String>> result = transformSchemaService.getTableNodeSameMetadataInstances(taskDto,mock(UserDetail.class));
+            Assertions.assertEquals(0,result.size());
+        }
+
+    }
 
 }
