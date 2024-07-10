@@ -1111,6 +1111,7 @@ public class TaskServiceImpl extends TaskService{
 
         //删除收集的对象
         taskCollectionObjService.deleteById(taskDto.getId());
+        taskRecordService.cleanTaskRecord(taskDto.getId().toHexString());
     }
 
     /**

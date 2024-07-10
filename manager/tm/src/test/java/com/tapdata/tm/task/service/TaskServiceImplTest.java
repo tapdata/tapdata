@@ -1167,6 +1167,7 @@ class TaskServiceImplTest {
         private MetadataInstancesServiceImpl metadataInstancesService;
         private MetaDataHistoryService historyService;
         private TaskCollectionObjService taskCollectionObjService;
+        private TaskRecordService taskRecordService;
         @BeforeEach
         void setUp(){
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
@@ -1174,11 +1175,13 @@ class TaskServiceImplTest {
             metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
             historyService = mock(MetaDataHistoryService.class);
             taskCollectionObjService = mock(TaskCollectionObjService.class);
+            taskRecordService = mock(TaskRecordService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
             ReflectionTestUtils.setField(taskService,"messageService",messageService);
             ReflectionTestUtils.setField(taskService,"metadataInstancesService",metadataInstancesService);
             ReflectionTestUtils.setField(taskService,"historyService",historyService);
             ReflectionTestUtils.setField(taskService,"taskCollectionObjService",taskCollectionObjService);
+            ReflectionTestUtils.setField(taskService,"taskRecordService",taskRecordService);
         }
         @Test
         @DisplayName("test afterRemove method for migrate")
