@@ -1800,16 +1800,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         return new Page<>(Math.max(totals, metadatas.size()), metadatas);
     }
 
-    public static void main(String[] args) {
-        Criteria criteriaNode = Criteria.where("meta_type").is(MetaType.processor_node.name());
-        Query queryMetadata = new Query();
-        queryMetadata.addCriteria(criteriaNode);
-        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), "857f7321-8198-44d1-a73b-ea575897b304", null, "taskId");
-        criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
-                .and(IS_DELETED).ne(true);
 
-        System.out.println(queryMetadata);
-    }
 
     public List<Map<String, Object>> search(String type, String keyword, String lastId, Integer pageSize, UserDetail user) {
         List<String> metaTypes = Lists.newArrayList("table", "collection");
