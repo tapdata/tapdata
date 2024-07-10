@@ -1468,7 +1468,8 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         }).map(task -> task.getId().toHexString()).map(tid -> {
             // get heartbeat task dag of the connection node
             Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid);
-            criteria.and("status").is("running");
+            criteria.and("status").ne("deleting");
+            criteria.and("is_deleted").ne(true);
             Query query = new Query(criteria);
             query.fields().include("_id", "dag");
             return taskService.findOne(query, user);
