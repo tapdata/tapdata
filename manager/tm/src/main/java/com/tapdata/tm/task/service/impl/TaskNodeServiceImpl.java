@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Page;
@@ -244,7 +245,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         Map<String, String> sourceMetaMap = new HashMap<>();
         if (sourceNode != null && StringUtils.isNotBlank(sourceNode.getId())) {
-            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(sourceNode.getId(), user, taskId);
+            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(getNodeIdIfContainsMigrateUnionNode(sourceNode), user, taskId);
             if (CollectionUtils.isNotEmpty(sourceMetas)) {
                 sourceMetaMap = sourceMetas.stream().collect(Collectors.
                         toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getQualifiedName, (k1, k2) -> k1));
@@ -997,4 +998,27 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         return metadataInstancesDto;
     }
+
+    // TAP-3822 数据复制，字段编辑节点，变更了字段名，但是没法保存，模型推演也没有展示出来(字段编辑节点的 /getTapNodeInfo 结果中查不到源表的sourceQualifiedName)
+    protected String getNodeIdIfContainsMigrateUnionNode(DatabaseNode sourceNode) {
+        DAG dag = sourceNode.getDag();
+        if (null == dag) {
+            return sourceNode.getId();
+        }
+        List<Node> nodes = dag.getNodes();
+        if (CollUtil.isEmpty(nodes)) {
+            return sourceNode.getId();
+        }
+        Optional<Node> first = nodes.stream()
+                .filter(Objects::nonNull)
+                .filter(n -> NodeEnum.migrate_union_processor.name().equalsIgnoreCase(n.getType()))
+                .findFirst();
+        if (first.isPresent()) {
+            Node node = first.get();
+            return node.getId();
+        } else {
+            return sourceNode.getId();
+        }
+    }
+
 }
