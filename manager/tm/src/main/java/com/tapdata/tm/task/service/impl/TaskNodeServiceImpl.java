@@ -1,27 +1,45 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DAGDataService;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.FieldsMapping;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.process.script.MigrateScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.*;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -36,7 +54,11 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MetadataInstancesFilterUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -49,7 +71,12 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
+import okhttp3.Call;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -64,7 +91,20 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.StringJoiner;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -113,7 +153,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 return result;
             }
 
-            return getNodeInfoByMigrate(taskId, nodeId, searchTableName, new PageParameter(page,pageSize), userDetail, result, dag);
+            return getNodeInfoByMigrate(taskId, nodeId, searchTableName, new PageParameter(page, pageSize), userDetail, result, dag);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.get().getSyncType())) {
 
             List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, userDetail);
@@ -153,8 +193,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return result;
         }
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
-        List<String> tableNames = getMigrateTableNames(sourceNode,userDetail);
-        checkUnionProcess(dag,nodeId, tableNames);
+        List<String> tableNames = getMigrateTableNames(sourceNode, userDetail);
+        checkUnionProcess(dag, nodeId, tableNames);
         List<String> currentTableList = Lists.newArrayList();
         if (StringUtils.isNotBlank(searchTableName)) {
             currentTableList.add(searchTableName);
@@ -190,6 +230,28 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
+    // TAP-3822 数据复制，字段编辑节点，变更了字段名，但是没法保存，模型推演也没有展示出来(字段编辑节点的 /getTapNodeInfo 结果中查不到源表的sourceQualifiedName)
+    protected String getNodeIdIfContainsMigrateUnionNode(DatabaseNode sourceNode) {
+        DAG dag = sourceNode.getDag();
+        if (null == dag) {
+            return sourceNode.getId();
+        }
+        List<Node> nodes = dag.getNodes();
+        if (CollUtil.isEmpty(nodes)) {
+            return sourceNode.getId();
+        }
+        Optional<Node> first = nodes.stream()
+                .filter(Objects::nonNull)
+                .filter(n -> NodeEnum.migrate_union_processor.name().equalsIgnoreCase(n.getType()))
+                .findFirst();
+        if (first.isPresent()) {
+            Node node = first.get();
+            return node.getId();
+        } else {
+            return sourceNode.getId();
+        }
+    }
+
     private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId, UserDetail user) {
         // table rename
         LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors.stream()
@@ -203,7 +265,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         Node currentNode = null;
         Node previousNode = null;
-        if(CollectionUtils.isNotEmpty(predecessors)) {
+        if (CollectionUtils.isNotEmpty(predecessors)) {
             currentNode = predecessors.get(predecessors.size() - 1);
             if (predecessors.size() - 2 >= 0) {
                 previousNode = predecessors.get(predecessors.size() - 2);
@@ -244,7 +306,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         Map<String, String> sourceMetaMap = new HashMap<>();
         if (sourceNode != null && StringUtils.isNotBlank(sourceNode.getId())) {
-            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(sourceNode.getId(), user, taskId);
+            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(getNodeIdIfContainsMigrateUnionNode(sourceNode), user, taskId);
             if (CollectionUtils.isNotEmpty(sourceMetas)) {
                 sourceMetaMap = sourceMetas.stream().collect(Collectors.
                         toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getQualifiedName, (k1, k2) -> k1));
@@ -272,7 +334,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 MetadataTransformerItemDto item = new MetadataTransformerItemDto();
                 item.setSourceObjectName(instance.getAncestorsName());
                 String previousTableName = previousTableNameMap.get(instance.getAncestorsName());
-                item.setPreviousTableName( previousTableName == null ? instance.getAncestorsName() : previousTableName);
+                item.setPreviousTableName(previousTableName == null ? instance.getAncestorsName() : previousTableName);
                 item.setSinkObjectName(instance.getName());
                 item.setSinkQulifiedName(targetMetaMap.get(instance.getAncestorsName()));
                 item.setSourceQualifiedName(sourceMetaMap.get(instance.getAncestorsName()));
@@ -288,7 +350,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
 
-                        FieldsMapping mapping = new FieldsMapping(){{
+                        FieldsMapping mapping = new FieldsMapping() {{
                             setTargetFieldName(field.getFieldName());
                             setSourceFieldName(field.getOriginalFieldName());
                             setSourceFieldType(field.getDataType());
@@ -322,22 +384,22 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         return result;
     }
 
-    protected List<String> getMigrateTableNames(DatabaseNode sourceNode, UserDetail userDetail){
+    protected List<String> getMigrateTableNames(DatabaseNode sourceNode, UserDetail userDetail) {
         if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
-            return MetadataInstancesFilterUtil.getFilteredOriginalNames(metaInstances,sourceNode);
-        }else{
+            return MetadataInstancesFilterUtil.getFilteredOriginalNames(metaInstances, sourceNode);
+        } else {
             return sourceNode.getTableNames();
         }
     }
 
-    protected void checkUnionProcess(DAG dag, String nodeId, List<String> tableNames){
+    protected void checkUnionProcess(DAG dag, String nodeId, List<String> tableNames) {
         LinkedList<Node<?>> preNodes = dag.getPreNodes(nodeId);
-        if(CollectionUtils.isNotEmpty(preNodes)){
+        if (CollectionUtils.isNotEmpty(preNodes)) {
             LinkedList<MigrateUnionProcessorNode> migrateUnionProcessorNodes = dag.getPreNodes(nodeId).stream().filter(MigrateUnionProcessorNode.class::isInstance)
                     .map(MigrateUnionProcessorNode.class::cast)
                     .collect(Collectors.toCollection(LinkedList::new));
-            if(CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)){
+            if (CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)) {
                 tableNames.clear();
                 tableNames.add(migrateUnionProcessorNodes.getLast().getTableName());
             }
@@ -387,15 +449,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             metaMap = list.stream()
                     .filter(t -> currentTableList.contains(t.getAncestorsName()))
                     .map(meta -> {
-                // source & target not same database type and query from source
-                if (finalQueryFormSource && currentNode instanceof DatabaseNode
-                        && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
-                    Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
-                    return processFieldToDB(schema, meta, targetDataSource, userDetail);
-                } else {
-                    return meta;
-                }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
+                        // source & target not same database type and query from source
+                        if (finalQueryFormSource && currentNode instanceof DatabaseNode
+                                && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                            Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
+                            return processFieldToDB(schema, meta, targetDataSource, userDetail);
+                        } else {
+                            return meta;
+                        }
+                    }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1, e2) -> e2));
         }
 
         if (metaMap.isEmpty()) {
@@ -430,12 +492,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
 
             List<Field> fields = metadataInstancesDto.getFields().stream()
-                    .sorted((Field f1, Field f2) ->{
+                    .sorted((Field f1, Field f2) -> {
                         int f1pos = f1.getColumnPosition() == null ? -1 : f1.getColumnPosition();
                         int f2pos = f2.getColumnPosition() == null ? -1 : f2.getColumnPosition();
                         if (f1pos > f2pos) {
                             return 1;
-                        }else if(f1pos == f2pos){
+                        } else if (f1pos == f2pos) {
                             return 0;
                         }
                         return -1;
@@ -550,7 +612,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 edges.add(edge);
             }
 
-            Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+            Objects.requireNonNull(build).setNodes(new LinkedList<Node>() {{
+                addAll(nodes);
+            }});
             build.setEdges(edges);
 
             DAG temp = DAG.build(build);
@@ -570,7 +634,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 nodes = nodes.stream()
                         .peek(n -> {
                             if (n instanceof JsProcessorNode) {
-                                ((JsProcessorNode)n).setScript(script);
+                                ((JsProcessorNode) n).setScript(script);
                             }
                         })
                         .filter(n -> predIds.contains(n.getId()))
@@ -631,7 +695,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
             Node<?> node = dtoDag.getNode(nodeId);
             if (!(node instanceof MigrateScriptProcessNode)) {
-               throw new BizException("Processor node is not of expected type. error type: {}", null == node ? "null" : node.getClass().getName());
+                throw new BizException("Processor node is not of expected type. error type: {}", null == node ? "null" : node.getClass().getName());
             }
             MigrateScriptProcessNode jsNode = (MigrateScriptProcessNode) node;
             jsType = Optional.ofNullable(jsNode.getJsType()).orElse(jsType);
@@ -654,7 +718,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 edges.add(edge);
             }
 
-            Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+            Objects.requireNonNull(build).setNodes(new LinkedList<Node>() {{
+                addAll(nodes);
+            }});
             build.setEdges(edges);
 
             DAG temp = DAG.build(build);
@@ -665,7 +731,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             final List<String> predIds = new ArrayList<>();
             Node<?> node = dtoDag.getNode(nodeId);
-            if (node instanceof ScriptProcessNode){
+            if (node instanceof ScriptProcessNode) {
                 ScriptProcessNode processorNode = (ScriptProcessNode) node;
                 jsType = Optional.ofNullable(processorNode.getJsType()).orElse(jsType);
             }
@@ -682,7 +748,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 nodes = nodes.stream()
                         .peek(n -> {
                             if (n instanceof ScriptProcessNode) {
-                                ((ScriptProcessNode)n).setScript(script);
+                                ((ScriptProcessNode) n).setScript(script);
                             }
                         })
                         .filter(n -> predIds.contains(n.getId()))
@@ -715,25 +781,29 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         return jsType == 1 ? rpcTestRun(testTaskId, taskDtoCopy, logOutputCount, nodeIds.toString()) : wsTestRun(userDetail, taskDto, taskDtoCopy);
     }
 
-    private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId){
+    private Map<String, Object> rpcTestRun(String testTaskId, TaskDto taskDtoCopy, int logOutputCount, String nodeId) {
         // RPC
         String serverPort = CommonUtils.getProperty("tapdata_proxy_server_port", "3000");
         int port;
         try {
             port = Integer.parseInt(serverPort);
-        } catch (Exception exception){
+        } catch (Exception exception) {
             return resultMap(testTaskId, false, "Can't get server port.");
         }
         Map.Entry<String, Map<String, Object>> attributes = getLoginUserAttributes();
         String attributesKey = attributes.getKey();
         Map<String, Object> attributesValue = attributes.getValue();
         String url = "http://localhost:" +
-                port +"/api/proxy/call" +
-                ("Param".equals(attributesKey) ? "?access_token=" + attributesValue.get("access_token")  : "");
+                port + "/api/proxy/call" +
+                ("Param".equals(attributesKey) ? "?access_token=" + attributesValue.get("access_token") : "");
         Map<String, Object> paraMap = new HashMap<>();
         paraMap.put("className", "JSProcessNodeTestRunService");
         paraMap.put("method", "testRun");
-        paraMap.put("args", new ArrayList<Object>(){{ add(taskDtoCopy); add(nodeId); add(logOutputCount); }});
+        paraMap.put("args", new ArrayList<Object>() {{
+            add(taskDtoCopy);
+            add(nodeId);
+            add(logOutputCount);
+        }});
 
         try {
             OkHttpClient client = new OkHttpClient.Builder()
@@ -744,7 +814,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     .url(url)
                     .method("POST", RequestBody.create(MediaType.parse("application/json"), JsonUtil.toJsonUseJackson(paraMap)))
                     .addHeader("Content-Type", "application/json");
-            if ("Header".equals(attributesKey) && null != attributesValue && !attributesValue.isEmpty()){
+            if ("Header".equals(attributesKey) && null != attributesValue && !attributesValue.isEmpty()) {
                 for (Map.Entry<String, Object> entry : attributesValue.entrySet()) {
                     post.addHeader(entry.getKey(), String.valueOf(entry.getValue()));
                 }
@@ -756,7 +826,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return 200 >= code && code < 300 ?
                     (Map<String, Object>) fromJson(OEMReplaceUtil.replace(response.body().string(), "connector/replace.json"))
                     : resultMap(testTaskId, false, "Access remote service error, http code: " + code);
-        }catch (Exception e){
+        } catch (Exception e) {
             return resultMap(testTaskId, false, e.getMessage());
         }
     }
@@ -770,7 +840,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (!com.tapdata.manager.common.utils.StringUtils.isBlank(userIdFromHeader)) {
             ent.put("user_id", userIdFromHeader);
             return new AbstractMap.SimpleEntry<>("Header", ent);
-        } else if((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
+        } else if ((request.getQueryString() != null ? request.getQueryString() : "").contains("access_token")) {
             Map<String, String> queryMap = Arrays.stream(request.getQueryString().split("&"))
                     .filter(s -> s.startsWith("access_token"))
                     .map(s -> s.split("=")).collect(Collectors.toMap(a -> a[0], a -> {
@@ -806,12 +876,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         messageQueueService.sendMessage(queueDto);
     }
 
-    protected Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy){
+    protected Map<String, Object> wsTestRun(UserDetail userDetail, TaskDto taskDto, TaskDto taskDtoCopy) {
         // WS
         sendMessageAfterFindAgent(taskDto, taskDtoCopy, userDetail);
         return new HashMap<>();
     }
-    private Map<String,Object> resultMap(String testTaskId, boolean isSucceed, String message){
+
+    private Map<String, Object> resultMap(String testTaskId, boolean isSucceed, String message) {
         Map<String, Object> errorMap = new HashMap<>();
         errorMap.put("taskId", testTaskId);
         errorMap.put("ts", new Date().getTime());
@@ -836,13 +907,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             StringJoiner joiner = new StringJoiner(":");
             joiner.add(jsResultDto.getTaskId());
             joiner.add(jsResultDto.getVersion().toString());
-            CacheUtils.put(joiner.toString(),  jsResultDto);
+            CacheUtils.put(joiner.toString(), jsResultDto);
         }
     }
 
     /**
      * @deprecated 执行试运行后即可获取到试运行结果和试运行日志，无需使用此获取结果，不久的将来会移除这个function
-     * */
+     */
     @Override
     public ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version) {
         ResponseMessage<JsResultVo> res = new ResponseMessage<>();
@@ -875,7 +946,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     /**
      * The copy migrate task will have dirty data, which can only be processed in the request details interface
-     * @param taskDto taskDto
+     *
+     * @param taskDto    taskDto
      * @param userDetail userDetail
      */
     @Override
@@ -895,7 +967,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
             return false;
         }).map(Node::getId)
-        .collect(Collectors.toList());
+                .collect(Collectors.toList());
 
         if (CollectionUtils.isNotEmpty(collect) && CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             collect.forEach(nodeId -> {
@@ -912,14 +984,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     /**
      * 根据字段类型映射规则，将模型 schema中的通用字段类型转换为指定数据库字段类型
-     * @param schema 包含通用字段类型的模型
-     * @param metadataInstancesDto 将映射后的字段类型保存到这里
+     *
+     * @param schema                  包含通用字段类型的模型
+     * @param metadataInstancesDto    将映射后的字段类型保存到这里
      * @param dataSourceConnectionDto 数据库类型
      */
     private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, UserDetail user) {
 
         if (metadataInstancesDto == null || schema == null ||
-                metadataInstancesDto.getFields() == null || dataSourceConnectionDto == null){
+                metadataInstancesDto.getFields() == null || dataSourceConnectionDto == null) {
             log.error("Process field type mapping to db type failed, invalid params: schema={}, metadataInstanceDto={}, dataSourceConnectionsDto={}",
                     schema, metadataInstancesDto, dataSourceConnectionDto);
             return metadataInstancesDto;
@@ -970,7 +1043,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             BeanUtils.copyProperties(v, tapField);
         });
         tapTable.setNameFieldMap(nameFieldMap);
-
 
 
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
