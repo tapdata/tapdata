@@ -46,4 +46,52 @@ class QueryUtilTest {
             Assertions.assertEquals(3, sorts.size());
         }
     }
+
+    @Nested
+    class ParseOrderTest {
+        String sortKey = "createTime";
+
+        @Test
+        void testNotParse() {
+            String order = null;
+            Assertions.assertNull(QueryUtil.parseOrder(order));
+
+            order = "";
+            Assertions.assertNull(QueryUtil.parseOrder(order));
+
+            order = " ";
+            Assertions.assertNull(QueryUtil.parseOrder(order));
+        }
+
+        @Test
+        void testNoDirection() {
+            String order = String.format("%s", sortKey);
+            Sort sort = QueryUtil.parseOrder(order);
+            Assertions.assertNotNull(sort);
+            Sort.Order orderFor = sort.getOrderFor(sortKey);
+            Assertions.assertNotNull(orderFor);
+            Assertions.assertEquals(Sort.Direction.DESC, orderFor.getDirection());
+        }
+
+        @Test
+        void testAsc() {
+            String order = String.format("%s  asc ", sortKey);
+            Sort sort = QueryUtil.parseOrder(order);
+            Assertions.assertNotNull(sort);
+            Sort.Order orderFor = sort.getOrderFor(sortKey);
+            Assertions.assertNotNull(orderFor);
+            Assertions.assertEquals(Sort.Direction.ASC, orderFor.getDirection());
+        }
+
+        @Test
+        void testDesc() {
+            String order = String.format("%s desc", sortKey);
+            Sort sort = QueryUtil.parseOrder(order);
+            Assertions.assertNotNull(sort);
+            Sort.Order orderFor = sort.getOrderFor(sortKey);
+            Assertions.assertNotNull(orderFor);
+            Assertions.assertEquals(Sort.Direction.DESC, orderFor.getDirection());
+
+        }
+    }
 }

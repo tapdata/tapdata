@@ -1823,13 +1823,12 @@ public class TaskServiceImpl extends TaskService{
         tmPageable.setPage(page);
         tmPageable.setSize(filter.getLimit());
 
-        String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
-        String sortKey = order.contains(CURRENT_EVENT_TIMESTAMP) ? CURRENT_EVENT_TIMESTAMP : CREATE_TIME;
-        if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by(sortKey).ascending());
-        } else {
-            tmPageable.setSort(Sort.by(sortKey).descending());
-        }
+        tmPageable.setSort(Optional
+            .ofNullable(filter.getOrder())
+            .map(String::valueOf)
+            .map(QueryUtil::parseOrder)
+            .orElse(Sort.by(CREATE_TIME).descending())
+        );
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
         List<TaskEntity> taskEntityList = repository.getMongoOperations().find(query.with(tmPageable), TaskEntity.class);
