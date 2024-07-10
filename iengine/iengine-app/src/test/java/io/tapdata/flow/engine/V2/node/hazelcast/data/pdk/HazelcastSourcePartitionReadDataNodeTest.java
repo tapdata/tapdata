@@ -5,33 +5,41 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import static org.mockito.Mockito.*;
 
 public class HazelcastSourcePartitionReadDataNodeTest extends BaseHazelcastNodeTest {
     private HazelcastSourcePartitionReadDataNode hazelcastSourcePartitionReadDataNode;
     private CdcDelay cdcDelay;
+    StreamReadFuncAspect streamReadFuncAspect;
 
 
     @BeforeEach
     void setUp() {
         super.allSetup();
         Logger logger = mock(Logger.class);
-        cdcDelay=mock(CdcDelay.class);
-        hazelcastSourcePartitionReadDataNode=mock(HazelcastSourcePartitionReadDataNode.class);
+        cdcDelay = mock(CdcDelay.class);
+        hazelcastSourcePartitionReadDataNode = mock(HazelcastSourcePartitionReadDataNode.class);
+        streamReadFuncAspect = mock(StreamReadFuncAspect.class);
         ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "logger", logger);
         ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "cdcDelayCalculation", cdcDelay);
-        ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode,"dataProcessorContext", dataProcessorContext);
+        ReflectionTestUtils.setField(hazelcastSourcePartitionReadDataNode, "dataProcessorContext", dataProcessorContext);
     }
+
     @DisplayName("test filterAndCalcDelay table is heartBeat")
     @Test
     void test1() {
@@ -41,12 +49,19 @@ public class HazelcastSourcePartitionReadDataNodeTest extends BaseHazelcastNodeT
         tapUpdateRecordEvent.setTime(System.currentTimeMillis());
         tapEvents.add(tapUpdateRecordEvent);
         doCallRealMethod().when(hazelcastSourcePartitionReadDataNode).handleStreamEventsReceived(tapEvents, null);
-        List<TapdataEvent> tapdataEvents=new ArrayList<>();
-        TapdataHeartbeatEvent heartbeatEvent=new TapdataHeartbeatEvent();
+
+        List<TapdataEvent> tapdataEvents = new ArrayList<>();
+        TapdataHeartbeatEvent heartbeatEvent = new TapdataHeartbeatEvent();
         tapdataEvents.add(heartbeatEvent);
-        when(hazelcastSourcePartitionReadDataNode.wrapTapdataEvent(tapEvents, SyncStage.CDC, null)).thenReturn(tapdataEvents);
+
+        when(hazelcastSourcePartitionReadDataNode.wrapTapdataEvent(any(), any(), any())).thenReturn(tapdataEvents);
+        HeartbeatEvent heartbeatEvent2 = new HeartbeatEvent();
+        TapEvent tapEvent = tapUpdateRecordEvent;
+        tapEvent.clone(heartbeatEvent2);
+        when(cdcDelay.filterAndCalcDelay(tapEvent, null, null)).thenReturn(heartbeatEvent2);
         hazelcastSourcePartitionReadDataNode.handleStreamEventsReceived(tapEvents, null);
-        verify(cdcDelay,times(1)).filterAndCalcDelay(any(),any(),any());
+        verify(cdcDelay, times(1)).filterAndCalcDelay(any(), any(), any());
+
     }
 
 
