@@ -45,7 +45,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
 	private static final CacheMap<String, List<TapEvent>> sampleDataCacheMap = new CacheMap<>();
 
-
+	TapCodecsFilterManager codecsFilterManager;
 	static {
 		sampleDataCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
 	}
@@ -58,6 +58,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		startSourceRunner();
+		codecsFilterManager = initNode();
 	}
 
 	protected TapCodecsFilterManager initNode() {
@@ -80,7 +81,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 			} else if (node instanceof TableNode) {
 				rows = ((TableNode) node).getRows() == null ? 1 : ((TableNode) node).getRows();
 			}
-			TapCodecsFilterManager codecsFilterManager = initNode();
 
 			// 测试任务
 			long startTs = System.currentTimeMillis();
