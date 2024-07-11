@@ -45,4 +45,20 @@ public class QueryUtil {
         }
         return sortList;
     }
+
+    public static Sort parseOrder(String order) {
+        if (null != order && !order.trim().isEmpty()) {
+            String[] splits = order.trim().split(" +");
+            Sort sort = Sort.by(splits[0].trim());
+            if (splits.length == 1) {
+                return sort.descending();
+            }
+
+            if (Sort.Direction.ASC.name().equalsIgnoreCase(splits[1].trim())) {
+                return sort.ascending();
+            }
+            return sort.descending();
+        }
+        return null;
+    }
 }

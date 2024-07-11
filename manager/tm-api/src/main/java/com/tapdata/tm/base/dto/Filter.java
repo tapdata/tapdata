@@ -79,7 +79,7 @@ public class Filter extends DefaultPageable {
 
 	@Override
 	public List<String> getSort() {
-		List<String> sort = super.getSort();
+		List<String> sort = new ArrayList<>(super.getSort());
 		if (order != null) {
 			if (order instanceof String) {
 				if (StringUtils.isNotBlank((String)order)) {
