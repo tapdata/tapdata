@@ -10,11 +10,12 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.supervisor.entity.MemoryLevel;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
-import static org.python.netty.util.concurrent.FastThreadLocal.size;
 
 @Bean
 @MainMethod("start")
@@ -27,13 +28,14 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     private String userId;
     private String processId;
     private Long lastCleanThreadGroupTime = null;
-    public final Long CHECK_THREAD_GROUP_POOL_PERIOD = 5 * 60L;
+    public final Long CHECK_THREAD_GROUP_POOL_PERIOD = 1 * 60L;
 
     public final Long CHECK_THREAD_GROUP_POOL_INITIAL_DELAY = 30L;
 
+
     public String CLEAN_LEAKED_THREAD_GROUP_MINUTES = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_MINUTES", "30");
 
-    public String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "1000");
+    public String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "0");
 
 
     public void cleanThreadGroup() {
@@ -45,14 +47,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
         if (System.currentTimeMillis() - lastCleanThreadGroupTime > TimeUnit.MINUTES.toMillis(Long.parseLong(CLEAN_LEAKED_THREAD_GROUP_MINUTES))
                 || leakedSize >= Integer.parseInt(CLEAN_LEAKED_THREAD_GROUP_THRESHOLD)) {
             for (TaskNodeInfo taskNodeInfo : leakedList) {
-                try {
-                    taskNodeInfo.getNodeThreadGroup().destroy();
-                    taskNodeInfo.setHasLeaked(Boolean.FALSE);
-                    this.removeTaskSubscribeInfo(taskNodeInfo);
-                } catch (Exception e) {
-                    taskNodeInfo.setHasLeaked(Boolean.TRUE);
-                }
-
+                destroyTaskNodeInfo(taskNodeInfo);
             }
             lastCleanThreadGroupTime = System.currentTimeMillis();
         }
@@ -60,9 +55,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
 
     public TaskResourceSupervisorManager() {
-        cleanTaskNodeThreadGroupPool.scheduleAtFixedRate(() -> {
-            this.cleanThreadGroup();
-        }, CHECK_THREAD_GROUP_POOL_INITIAL_DELAY, CHECK_THREAD_GROUP_POOL_PERIOD, TimeUnit.SECONDS);
+        cleanTaskNodeThreadGroupPool.scheduleAtFixedRate(this::cleanThreadGroup, CHECK_THREAD_GROUP_POOL_INITIAL_DELAY, CHECK_THREAD_GROUP_POOL_PERIOD, TimeUnit.SECONDS);
     }
 
     private void start() {
@@ -73,6 +66,10 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
         if (Objects.nonNull(taskNodeInfo)){
             taskNodeInfos.add(taskNodeInfo);
         }
+    }
+
+    public ConcurrentHashSet<TaskNodeInfo> getTaskNodeInfos() {
+        return taskNodeInfos;
     }
 
     public void removeTaskSubscribeInfo(TaskNodeInfo taskNodeInfo) {
@@ -163,20 +160,9 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
                 .kv("msg", total > 0 ? "Succeed" :" The thread occupancy of the corresponding resource has been released normally, and the corresponding information cannot be provided temporarily. Retrieve the summary data. ");
     }
 
-    private void summary(Set<TaskNodeInfo> summarySet, Set<SupervisorAspectTask> aliveSet, Set<SupervisorAspectTask> leakedSet) {
+    protected void summary(Set<TaskNodeInfo> summarySet, Set<SupervisorAspectTask> aliveSet, Set<SupervisorAspectTask> leakedSet) {
         for (TaskNodeInfo taskNodeInfo : summarySet) {
-            if (taskNodeInfo.isHasLaked()) {
-                try {
-                    taskNodeInfo.getNodeThreadGroup().destroy();
-                    taskNodeInfo.setHasLeaked(Boolean.FALSE);
-                    taskNodeInfo.getSupervisorAspectTask().getThreadGroupMap().remove(taskNodeInfo.getNodeThreadGroup());
-                    taskNodeInfo.setSupervisorAspectTask(null);
-                    taskNodeInfo.setNodeThreadGroup(null);
-                    continue;
-                } catch (Exception e1) {
-                    taskNodeInfo.setHasLeaked(Boolean.TRUE);
-                }
-            }
+            if (destroyTaskNodeInfo(taskNodeInfo)) continue;
             SupervisorAspectTask aspectTask = taskNodeInfo.getSupervisorAspectTask();
             if (Objects.isNull(aspectTask)) {
                 continue;
@@ -187,6 +173,23 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
                 leakedSet.add(aspectTask);
             }
         }
+    }
+
+    public boolean destroyTaskNodeInfo(TaskNodeInfo taskNodeInfo) {
+        synchronized (taskNodeInfo){
+            if (taskNodeInfo.isHasLaked()) {
+                try {
+                    taskNodeInfo.getNodeThreadGroup().destroy();
+                    taskNodeInfo.setHasLeaked(Boolean.FALSE);
+                    taskNodeInfo.getSupervisorAspectTask().getThreadGroupMap().remove(taskNodeInfo.getNodeThreadGroup());
+                    this.removeTaskSubscribeInfo(taskNodeInfo);
+                    return true;
+                } catch (Exception e1) {
+                    taskNodeInfo.setHasLeaked(Boolean.TRUE);
+                }
+            }
+        }
+        return false;
     }
 
     private void summaryDisposable(Map<ThreadGroup, DisposableNodeInfo> disposableMap, Set<DisposableNodeInfo> aliveConnectorSet, Set<DisposableNodeInfo> leakedConnectorSet) {

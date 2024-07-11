@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-class TaskNodeInfo implements MemoryFetcher {
+public class TaskNodeInfo implements MemoryFetcher {
     public static final int STACK_LENGTH = 10;
     SupervisorAspectTask supervisorAspectTask;
     String associateId;

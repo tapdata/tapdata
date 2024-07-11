@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import cn.hutool.core.collection.ConcurrentHashSet;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
@@ -47,6 +48,8 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskNodeInfo;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -60,6 +63,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author samuel
@@ -383,5 +387,29 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			}
 			MapUtil.removeKey(data, notSupportField);
 		}
+	}
+
+	protected ThreadGroup getReuseOrNewThreadGroup(ConcurrentHashSet<TaskNodeInfo> taskNodeInfos) {
+		Optional<TaskNodeInfo> leakTaskNodeInfo = taskNodeInfos.stream().filter(
+						(taskNodeInfo) -> getNode().getId().equals(taskNodeInfo.getNode().getId())
+								&& taskNodeInfo.isHasLaked())
+				.findAny();
+		AtomicReference<ThreadGroup> connectorOnTaskThreadGroup = new AtomicReference<>();
+		leakTaskNodeInfo.ifPresent(taskNodeInfo -> {
+			synchronized (taskNodeInfo) {
+				if (!taskNodeInfo.isHasLaked()) return;
+				taskNodeInfo.setHasLeaked(false);
+				ThreadGroup nodeThreadGroup = taskNodeInfo.getNodeThreadGroup();
+				if (nodeThreadGroup instanceof ConnectorOnTaskThreadGroup) {
+					taskNodeInfo.setNode(getNode());
+					((ConnectorOnTaskThreadGroup) nodeThreadGroup).setDataProcessorContext(dataProcessorContext);
+					connectorOnTaskThreadGroup.set(nodeThreadGroup);
+				}
+			}
+		});
+		if (connectorOnTaskThreadGroup.get() == null) {
+			connectorOnTaskThreadGroup.set(new ConnectorOnTaskThreadGroup(dataProcessorContext));
+		}
+		return connectorOnTaskThreadGroup.get();
 	}
 }
