@@ -5,6 +5,8 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
+import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
+import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.dto.ModulesDto;
@@ -59,6 +61,20 @@ public class ModulesController extends BaseController {
   @PatchMapping()
   public ResponseMessage<ModulesDto> update(@RequestBody ModulesDto module) {
     return success(modulesService.updateModuleById(module, getLoginUser()));
+  }
+
+  @Operation(summary = "更新权限")
+  @PatchMapping("/updatePermissions")
+  public ResponseMessage<Void> updatePermissions(@RequestBody ModulesPermissionsDto permissions) {
+    modulesService.updatePermissions(permissions, getLoginUser());
+    return success();
+  }
+
+  @Operation(summary = "更新所属应用")
+  @PatchMapping("/updateTags")
+  public ResponseMessage<Void> updateTags(@RequestBody ModulesTagsDto modulesTagsDto) {
+    modulesService.updateTags(modulesTagsDto, getLoginUser());
+    return success();
   }
 
 

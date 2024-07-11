@@ -1,6 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.constant.CollectionUtil;
+import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -22,12 +22,12 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -60,6 +60,14 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 		startSourceRunner();
 	}
 
+	protected TapCodecsFilterManager initNode() {
+		HazelcastInstance hazelcastInstance = jetContext.hazelcastInstance();
+		createPdkConnectorNode(dataProcessorContext, hazelcastInstance);
+		connectorNodeInit(dataProcessorContext);
+		ConnectorNode connectorNode = getConnectorNode();
+		return connectorNode.getCodecsFilterManager();
+	}
+
 	public void startSourceRunner() {
 
 		try {
@@ -72,6 +80,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 			} else if (node instanceof TableNode) {
 				rows = ((TableNode) node).getRows() == null ? 1 : ((TableNode) node).getRows();
 			}
+			TapCodecsFilterManager codecsFilterManager = initNode();
 
 			// 测试任务
 			long startTs = System.currentTimeMillis();
@@ -88,10 +97,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				} else {
 					tapEventList = new ArrayList<>();
 				}
-				createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-				connectorNodeInit(dataProcessorContext);
-				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-
 				boolean isCache = true;
 				boolean needMock = false;
 				if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
