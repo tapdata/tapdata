@@ -2,36 +2,18 @@ package io.tapdata.supervisor;
 
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
-import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
-
-
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-
+import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 public class TaskResourceSupervisorManagerTest {
-    private static ThreadGroup spyThreadGroup;
 
-    @BeforeAll
-    static void beforeAll() {
-        spyThreadGroup = new ThreadGroup("123");
-        Thread[] threads = new Thread[1];
-        threads[0]=new Thread(spyThreadGroup,()->{
-            try {
-                Thread.sleep(TimeUnit.SECONDS.toMillis(5));
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-        threads[0].start();
-    }
     @Nested
     class CleanThreadGroupTest{
 
@@ -59,6 +41,13 @@ public class TaskResourceSupervisorManagerTest {
         @DisplayName("test cleanThreadGroup when destroy failed ")
         @Test
         void test2(){
+            ThreadGroup spyThreadGroup = new ThreadGroup("123");
+            Thread[] threads = new Thread[1];
+            AtomicBoolean atomicBoolean=new AtomicBoolean(false);
+            threads[0] = new Thread(spyThreadGroup, () -> {
+                while (!atomicBoolean.get()) {
+                }
+            });
             Node node = mock(Node.class);
             when(node.getId()).thenReturn("testId");
             DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
@@ -73,6 +62,7 @@ public class TaskResourceSupervisorManagerTest {
             ReflectionTestUtils.setField(taskResourceSupervisorManager,"CLEAN_LEAKED_THREAD_GROUP_THRESHOLD","0");
             taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
             taskResourceSupervisorManager.cleanThreadGroup();
+            atomicBoolean.set(true);
             assertEquals(Boolean.TRUE,taskNodeInfo.isHasLaked());
         }
     }
@@ -92,12 +82,15 @@ public class TaskResourceSupervisorManagerTest {
         @DisplayName("test summary when task is stop ,and thread group destroy success")
         @Test
         void test1(){
+            SupervisorAspectTask supervisorAspectTask = new SupervisorAspectTask();
             ThreadGroup threadGroup=mock(ThreadGroup.class);
             taskNodeInfo.setHasLeaked(true);
             taskNodeInfo.setNodeThreadGroup(threadGroup);
+            taskNodeInfo.setSupervisorAspectTask(supervisorAspectTask);
             Set<TaskNodeInfo> summarySet =new HashSet<>();
             summarySet.add(taskNodeInfo);
             taskResourceSupervisorManager.summary(summarySet,aliveSet,leakedSet);
+            assertEquals(Boolean.FALSE,taskNodeInfo.isHasLaked());
         }
         @DisplayName("test summary when task is alive")
         @Test
@@ -113,15 +106,22 @@ public class TaskResourceSupervisorManagerTest {
         }
         @DisplayName("test summary when task is stop,thread group destroy failed lead to leaked")
         @Test
-        void test4(){
-
+        void test3(){
+            ThreadGroup spyThreadGroup = new ThreadGroup("123");
+            Thread[] threads = new Thread[1];
+            AtomicBoolean atomicBoolean=new AtomicBoolean(false);
+            threads[0] = new Thread(spyThreadGroup, () -> {
+                while (!atomicBoolean.get()) {
+                }
+            });
+            threads[0].start();
             taskNodeInfo.setHasLeaked(true);
             taskNodeInfo.setNodeThreadGroup(spyThreadGroup);
-
             taskNodeInfo.setSupervisorAspectTask(new SupervisorAspectTask());
             Set<TaskNodeInfo> summarySet =new HashSet<>();
             summarySet.add(taskNodeInfo);
             taskResourceSupervisorManager.summary(summarySet,aliveSet,leakedSet);
+            atomicBoolean.set(true);
             assertEquals(1,leakedSet.size());
         }
     }
