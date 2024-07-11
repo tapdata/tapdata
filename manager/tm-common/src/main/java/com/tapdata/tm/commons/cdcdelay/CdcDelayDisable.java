@@ -4,7 +4,7 @@ import io.tapdata.entity.event.TapEvent;
 import org.springframework.lang.NonNull;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -17,7 +17,7 @@ public class CdcDelayDisable implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, LongConsumer delayConsumer, String syncType) {
         return tapEvent;
     }
 }

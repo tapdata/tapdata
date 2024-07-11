@@ -58,6 +58,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
         }
     }
 
+
     public TaskResourceSupervisorManager() {
         cleanTaskNodeThreadGroupPool.scheduleAtFixedRate(() -> {
             this.cleanThreadGroup();
@@ -215,6 +216,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
             }
         }
     }
+
 
     public String getUserId() {
         return userId;
