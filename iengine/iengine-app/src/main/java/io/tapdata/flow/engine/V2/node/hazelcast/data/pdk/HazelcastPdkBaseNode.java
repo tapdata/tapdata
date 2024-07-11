@@ -19,7 +19,7 @@ import io.tapdata.aspect.PDKNodeInitAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManagerForBatchRead;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -269,8 +269,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName) {
 			return null;
 		}
-		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerForBatchRead) {
-			return ((TapCodecsFilterManagerForBatchRead) tapCodecsFilterManager).transformToTapValueMap(data, dataProcessorContext.getTapTableMap().get(tableName), getSkipDetector());
+		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
+			return ((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformToTapValueMap(data, dataProcessorContext.getTapTableMap().get(tableName), getSkipDetector());
 		} else {
 			tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
 		}
@@ -312,8 +312,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			return;
 		}
 		LinkedHashMap<String, TapField> tableFiledMap = getTableFiledMap(targetTableName);
-		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerForBatchRead) {
-			((TapCodecsFilterManagerForBatchRead) tapCodecsFilterManager).transformFromTapValueMap(
+		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
+			((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformFromTapValueMap(
 					data,
 					tableFiledMap,
 					transformedToTapValueFieldNames

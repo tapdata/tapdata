@@ -52,7 +52,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private DelayHandler delayHandler;
 
 	protected SyncStage syncStage;
-	private boolean enableBatch = false;
 	protected EventBatchProcessor batchProcessor;
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
@@ -65,31 +64,24 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		Node<?> node = processorBaseContext.getNode();
 		String tag = node.getId() + "-" + node.getName();
 		this.delayHandler = new DelayHandler(obsLogger, tag);
-		initEnableInitialBatch();
 		initBatchProcessorIfNeed();
 	}
 
-	private void initEnableInitialBatch() {
-		Node node = getNode();
-		if (node instanceof MergeTableNode) {
-			enableBatch = true;
-		}
-	}
-
 	private void initBatchProcessorIfNeed() {
-		if (!this.enableBatch) {
+		if (!needBatchProcess()) {
 			return;
 		}
 		this.batchProcessor = new EventBatchProcessor(getNode(), ibp -> {
 			try {
 				List<TapdataEvent> tapdataEvents = new ArrayList<>();
+				List<BatchEventWrapper> drainEvents = new ArrayList<>();
 				List<BatchEventWrapper> cacheBatchEvents = new ArrayList<>();
 				while (isRunning()) {
-					List<BatchEventWrapper> batchEventWrappers = ibp.drainTo();
-					if (CollectionUtils.isEmpty(batchEventWrappers)) {
+					int drain = ibp.drainTo(drainEvents);
+					if (drain <= 0) {
 						continue;
 					}
-					for (BatchEventWrapper batchEventWrapper : batchEventWrappers) {
+					for (BatchEventWrapper batchEventWrapper : drainEvents) {
 						TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
 						if (null == tapdataEvent) {
 							continue;
@@ -110,7 +102,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 							}
 						}
 					}
-					tapdataEvents.clear();
+					drainEvents = new ArrayList<>();
+					tapdataEvents = new ArrayList<>();
 				}
 			} catch (Exception e) {
 				errorHandle(e);
@@ -151,10 +144,12 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 					}
 					try {
-						if (null != processResult.getTableId()) {
-							transformToTapValue(tapdataEvent, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform);
-						} else {
-							transformToTapValue(tapdataEvent, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform);
+						if (needTransformValue()) {
+							if (null != processResult.getTableId()) {
+								transformToTapValue(tapdataEvent, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform);
+							} else {
+								transformToTapValue(tapdataEvent, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform);
+							}
 						}
 					} catch (Exception e) {
 						if (isRunning()) {
@@ -217,7 +212,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						// Update memory from ddl event info map
 						updateMemoryFromDDLInfoMap(tapdataEvent);
 						AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
-						if (tapdataEvent.isDML()) {
+						if (tapdataEvent.isDML() && needTransformValue()) {
 							tapValueTransform.set(transformFromTapValue(tapdataEvent));
 						}
 						if (needBatchProcess()) {
@@ -243,10 +238,12 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 									if (processResult == null) {
 										processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 									}
-									if (null != processResult.getTableId()) {
-										transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
-									} else {
-										transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
+									if (needTransformValue()) {
+										if (null != processResult.getTableId()) {
+											transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
+										} else {
+											transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
+										}
 									}
 								}
 
@@ -293,7 +290,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	private boolean needBatchProcess() {
-		return enableBatch && null != batchProcessor;
+		return true;
 	}
 
 	private boolean waitBatchFinishIfNeed() {
@@ -428,13 +425,12 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			return tapdataEventQueue.offer(batchEventWrapper, TimeUnit.SECONDS.toMillis(1L), TimeUnit.MILLISECONDS);
 		}
 
-		List<BatchEventWrapper> drainTo() {
-			List<BatchEventWrapper> tapdataEvents = new ArrayList<>();
+		int drainTo(List<BatchEventWrapper> tapdataEvents) {
 			try {
-				Queues.drain(tapdataEventQueue, tapdataEvents, batchSize, batchTimeoutMs, TimeUnit.MILLISECONDS);
+				return Queues.drain(tapdataEventQueue, tapdataEvents, batchSize, batchTimeoutMs, TimeUnit.MILLISECONDS);
 			} catch (InterruptedException | NullPointerException ignored) {
 			}
-			return tapdataEvents;
+			return 0;
 		}
 
 		void shutdown() {
@@ -477,5 +473,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		public ProcessorNodeProcessAspect getProcessAspect() {
 			return processAspect;
 		}
+	}
+
+	public boolean needTransformValue() {
+		return true;
 	}
 }

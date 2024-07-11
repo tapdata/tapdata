@@ -317,4 +317,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			throw new RuntimeException(e);
 		}
 	}
+
+	@Override
+	public boolean needTransformValue() {
+		return false;
+	}
 }

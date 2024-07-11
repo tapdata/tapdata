@@ -49,6 +49,7 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
@@ -163,8 +164,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected DynamicAdjustMemoryService dynamicAdjustMemoryService;
 	private final ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
 	private int toTapValueThreadNum;
-	private TapCodecsFilterManager codecsFilterManagerForBatchRead;
+	private TapCodecsFilterManager codecsFilterManagerSchemaEnforced;
 	private boolean toTapValueConcurrent;
+	private boolean connectorNodeSchemaFree;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -233,13 +235,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initTapCodecsFilterManager() {
 		ConnectorNode connectorNode = getConnectorNode();
-		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
 		List<String> tags = connectorNode.getConnectorContext().getSpecification().getTags();
-		if (tags.contains("schema-free")) {
-			this.codecsFilterManagerForBatchRead = connectorNode.getCodecsFilterManager();
-		} else {
-			this.codecsFilterManagerForBatchRead = connectorNode.getCodecsFilterManagerForBatchRead();
-		}
+		this.connectorNodeSchemaFree = tags.contains("schema-free");
+		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
+		this.codecsFilterManagerSchemaEnforced = connectorNode.getCodecsFilterManagerSchemaEnforced();
 	}
 
 	private void initTapEventFilter() {
@@ -724,14 +723,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void batchTransformToTapValue(List<TapdataEvent> tapdataEvents) {
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			TapCodecsFilterManager tapCodecsFilterManager;
-			if (SyncStage.CDC.equals(tapdataEvent.getSyncStage())) {
-				tapCodecsFilterManager = codecsFilterManager;
-			} else {
-				tapCodecsFilterManager = codecsFilterManagerForBatchRead;
+			if (null == tapdataEvent.getTapEvent()) {
+				continue;
 			}
-			TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), tapCodecsFilterManager);
-			tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
+			if (SyncStage.CDC.equals(tapdataEvent.getSyncStage())
+					|| connectorNodeSchemaFree
+					|| TapInsertRecordEvent.TYPE != tapdataEvent.getTapEvent().getType()) {
+				tapRecordToTapValue(tapdataEvent.getTapEvent(), codecsFilterManager);
+			} else {
+				TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), codecsFilterManagerSchemaEnforced);
+				tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
+			}
 		}
 	}
 

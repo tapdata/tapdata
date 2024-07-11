@@ -192,7 +192,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initCodecsFilterManager() {
 		Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManager = connectorNode.getCodecsFilterManager());
-		Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManagerForBatchRead = connectorNode.getCodecsFilterManagerForBatchRead());
+		Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManagerForBatchRead = connectorNode.getCodecsFilterManagerSchemaEnforced());
 	}
 
 	@Override
