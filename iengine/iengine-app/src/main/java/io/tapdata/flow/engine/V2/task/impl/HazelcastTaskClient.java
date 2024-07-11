@@ -88,7 +88,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
 		this.retrying = new AtomicBoolean(false);
-        this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
 	}
 
 	@Override
