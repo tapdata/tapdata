@@ -10,6 +10,8 @@ import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -34,6 +36,8 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -57,6 +61,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
@@ -1640,4 +1645,103 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			}
 		}
 	}
+	@Nested
+	class DoShareCdcTest{
+		class HazelcastSourcePdkDataNodeTestNested extends HazelcastSourcePdkDataNode{
+			public HazelcastSourcePdkDataNodeTestNested(DataProcessorContext dataProcessorContext) {
+				super(dataProcessorContext);
+			}
+			@Override
+			public void doShareCdc() throws Exception {
+				super.doShareCdc();
+			}
+
+			@Override
+			protected boolean isRunning() {
+				return super.isRunning();
+			}
+		}
+		class TestTapTableMap extends TapTableMap<String, TapTable> {
+			public TestTapTableMap(String nodeId, long time, Map<String, String> tableNameAndQualifiedNameMap) {
+				super(nodeId, time, tableNameAndQualifiedNameMap);
+			}
+		}
+
+		private HazelcastSourcePdkDataNodeTestNested hazelcastSourcePdkDataNode;
+		private ICdcDelay cdcDelay;
+		@BeforeEach
+		void setUp(){
+			hazelcastSourcePdkDataNode = mock(HazelcastSourcePdkDataNodeTestNested.class);
+
+			Map<String, String> tableNameAndQualifiedNameMap =new HashMap<>();
+			tableNameAndQualifiedNameMap.put("testTable","QualifiedNameTestTable");
+			TapTableMap<String, TapTable> tapTableMap=new TestTapTableMap(",",System.currentTimeMillis(),tableNameAndQualifiedNameMap);
+			TapTable tapTable=new TapTable();
+			tapTableMap.put("testTable",tapTable);
+
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"dataProcessorContext",dataProcessorContext);
+			when(hazelcastSourcePdkDataNode.isRunning()).thenReturn(true);
+			cdcDelay=mock(CdcDelay.class);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"cdcDelayCalculation", cdcDelay);
+
+		}
+		@DisplayName("test do ShareCdc addHeartbeatTable")
+		@Test
+		void test1() throws Exception {
+			doCallRealMethod().when(hazelcastSourcePdkDataNode).doShareCdc();
+			ShareCdcTaskContext shareCdcTaskContext = mock(ShareCdcTaskContext.class);
+			when(hazelcastSourcePdkDataNode.createShareCDCTaskContext()).thenReturn(shareCdcTaskContext);
+			hazelcastSourcePdkDataNode.doShareCdc();
+			verify(cdcDelay,times(1)).addHeartbeatTable(any());
+		}
+	}
+
+	@Nested
+	class generateStreamReadConsumerTest{
+		class HazelcastSourceStreamReadNested extends HazelcastSourcePdkDataNode{
+			public HazelcastSourceStreamReadNested(DataProcessorContext dataProcessorContext) {
+				super(dataProcessorContext);
+			}
+
+			@Override
+			protected boolean isRunning() {
+				return super.isRunning();
+			}
+		}
+		private HazelcastSourceStreamReadNested hazelcastSourcePdkDataNode;
+		private CdcDelay cdcDelay;
+		private SyncProgress syncProgress;
+		@BeforeEach
+		void setUp(){
+			hazelcastSourcePdkDataNode = mock(HazelcastSourceStreamReadNested.class);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"dataProcessorContext",dataProcessorContext);
+			cdcDelay=mock(CdcDelay.class);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"cdcDelayCalculation", cdcDelay);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"logger",mock(Logger.class));
+			syncProgress=new SyncProgress();
+		}
+		@DisplayName("test generateStreamReadConsumer")
+		@Test
+		void test1() throws InterruptedException {
+			PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastSourcePdkDataNode.isRunning()).thenReturn(true);
+			ReentrantLock reentrantLock = mock(ReentrantLock.class);
+			when(reentrantLock.tryLock(1L, TimeUnit.SECONDS)).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"sourceRunnerLock",reentrantLock);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"cdcDelayCalculation", cdcDelay);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"syncProgress", syncProgress);
+			List<TapEvent> tapEvents = new ArrayList<>();
+			TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
+			tapUpdateRecordEvent.setTableId("testTableId");
+			tapUpdateRecordEvent.setTime(System.currentTimeMillis());
+			tapEvents.add(tapUpdateRecordEvent);
+			doCallRealMethod().when(hazelcastSourcePdkDataNode).generateStreamReadConsumer(any(),any());
+			StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode,pdkMethodInvoker);
+			streamReadConsumer.accept(tapEvents,null);
+			verify(cdcDelay,times(1)).filterAndCalcDelay(any(),any(),any());
+		}
+	}
+
 }
