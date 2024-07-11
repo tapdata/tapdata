@@ -51,6 +51,7 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 	public void writeRecordWithPolicyControl(String tableId, List<TapRecordEvent> tapRecordEvents, ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writePolicyRunner) throws Throwable {
 		if (CollectionUtils.isEmpty(tapRecordEvents) || null == settingInsertPolicy || !settingInsertPolicy.equals(DmlPolicyEnum.update_on_exists)) {
 			writePolicyRunner.apply(tapRecordEvents);
+			return;
 		}
 		WriteRecordTableResult writeRecordTableResult = writeRecordTableResultMap.computeIfAbsent(tableId, k -> new WriteRecordTableResult());
 		ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);

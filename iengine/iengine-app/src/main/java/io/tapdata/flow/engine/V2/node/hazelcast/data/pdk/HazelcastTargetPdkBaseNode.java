@@ -515,40 +515,31 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void processTargetEvents(List<TapdataEvent> tapdataEvents) {
-		dispatchTapdataEvents(
-				tapdataEvents,
-				consumeEvents -> {
-					if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
-						handleTapdataEvents(consumeEvents);
-						return;
-					}
-					for (TapdataEvent consumeEvent : consumeEvents) {
-						if (consumeEvent.getTapEvent() instanceof TapRecordEvent) {
-							TapRecordEvent tapRecordEvent = (TapRecordEvent) consumeEvent.getTapEvent();
-							String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent) ;
-							replaceIllegalDateWithNullIfNeed(tapRecordEvent);
-							TransformToTapValueResult transformToTapValueResult = consumeEvent.getTransformToTapValueResult();
-							if (null != transformToTapValueResult) {
-								fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManagerForBatchRead, targetTableName, transformToTapValueResult.getBeforeTransformedToTapValueFieldNames());
-								fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManagerForBatchRead, targetTableName, transformToTapValueResult.getAfterTransformedToTapValueFieldNames());
-							} else {
-								fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
-								fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
-							}
-							fromTapValueMergeInfo(consumeEvent);
-						}
-						while (isRunning()) {
-							try {
-								if (tapEventProcessQueue.offer(consumeEvent, 1, TimeUnit.SECONDS)) {
-									break;
-								}
-							} catch (InterruptedException ignored) {
-								Thread.currentThread().interrupt();
-							}
-						}
-					}
+		for (TapdataEvent consumeEvent : tapdataEvents) {
+			if (consumeEvent.getTapEvent() instanceof TapRecordEvent) {
+				TapRecordEvent tapRecordEvent = (TapRecordEvent) consumeEvent.getTapEvent();
+				String targetTableName = getTgtTableNameFromTapEvent(tapRecordEvent) ;
+				replaceIllegalDateWithNullIfNeed(tapRecordEvent);
+				TransformToTapValueResult transformToTapValueResult = consumeEvent.getTransformToTapValueResult();
+				if (null != transformToTapValueResult) {
+					fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManagerForBatchRead, targetTableName, transformToTapValueResult.getBeforeTransformedToTapValueFieldNames());
+					fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManagerForBatchRead, targetTableName, transformToTapValueResult.getAfterTransformedToTapValueFieldNames());
+				} else {
+					fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager, targetTableName);
+					fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 				}
-		);
+				fromTapValueMergeInfo(consumeEvent);
+			}
+			while (isRunning()) {
+				try {
+					if (tapEventProcessQueue.offer(consumeEvent, 1, TimeUnit.SECONDS)) {
+						break;
+					}
+				} catch (InterruptedException ignored) {
+					Thread.currentThread().interrupt();
+				}
+			}
+		}
 	}
 
 	private void queueConsume() {
@@ -573,33 +564,42 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void processQueueConsume() {
-		drainAndRun(tapEventProcessQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, events -> {
-			if (!inCdc) {
-				List<TapdataEvent> partialCdcEvents = new ArrayList<>();
-				final Iterator<TapdataEvent> iterator = events.iterator();
-				while (iterator.hasNext()) {
-					final TapdataEvent tapdataEvent = iterator.next();
-					if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
-						inCdc = true;
-						partialCdcEvents.add(tapdataEvent);
-						iterator.remove();
-					}
-				}
+		drainAndRun(tapEventProcessQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, tapdataEvents -> {
+			dispatchTapdataEvents(
+					tapdataEvents,
+					consumeEvents -> {
+						if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
+							handleTapdataEvents(consumeEvents);
+							return;
+						}
+						if (!inCdc) {
+							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+							final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
+							while (iterator.hasNext()) {
+								final TapdataEvent tapdataEvent = iterator.next();
+								if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
+									inCdc = true;
+									partialCdcEvents.add(tapdataEvent);
+									iterator.remove();
+								}
+							}
 
-				// initial events and cdc events both in the queue
-				if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
-					initialProcessEvents(events, false);
-					// process partial cdc event
-					if (this.initialPartitionConcurrentProcessor != null) {
-						this.initialPartitionConcurrentProcessor.stop();
+							// initial events and cdc events both in the queue
+							if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+								initialProcessEvents(consumeEvents, false);
+								// process partial cdc event
+								if (this.initialPartitionConcurrentProcessor != null) {
+									this.initialPartitionConcurrentProcessor.stop();
+								}
+								cdcProcessEvents(partialCdcEvents);
+							} else {
+								initialProcessEvents(consumeEvents, true);
+							}
+						} else {
+							cdcProcessEvents(consumeEvents);
+						}
 					}
-					cdcProcessEvents(partialCdcEvents);
-				} else {
-					initialProcessEvents(events, true);
-				}
-			} else {
-				cdcProcessEvents(events);
-			}
+			);
 		});
 	}
 

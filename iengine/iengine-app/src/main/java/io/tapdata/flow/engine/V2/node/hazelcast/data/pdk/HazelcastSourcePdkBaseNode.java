@@ -663,7 +663,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} else {
 				if (null != eventQueue) {
 					try {
-						int drain = Queues.drain(eventQueue, tapdataEvents, readBatchSize, 500L, TimeUnit.MILLISECONDS);
+						int drainSize = Math.max(1, readBatchSize / 2);
+						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
 
 						if (drain > 0) {
 							// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
