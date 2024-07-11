@@ -396,7 +396,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.findAny();
 		AtomicReference<ThreadGroup> connectorOnTaskThreadGroup = new AtomicReference<>();
 		leakTaskNodeInfo.ifPresent(taskNodeInfo -> {
-			synchronized (taskNodeInfo) {
+			synchronized (taskNodeInfo.getTaskNodeInfoLock()) {
 				if (!taskNodeInfo.isHasLaked()) return;
 				taskNodeInfo.setHasLeaked(false);
 				ThreadGroup nodeThreadGroup = taskNodeInfo.getNodeThreadGroup();

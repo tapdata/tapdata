@@ -86,7 +86,7 @@ public class SupervisorAspectTask extends AbstractAspectTask {
             for (Map.Entry<ThreadGroup, TaskNodeInfo> infoEntry : threadGroupMap.entrySet()) {
                 ThreadGroup group = infoEntry.getKey();
                 TaskNodeInfo info = infoEntry.getValue();
-                synchronized (info){
+                synchronized (info.getTaskNodeInfoLock()){
                     try {
                         group.destroy();
                         info.setHasLeaked(Boolean.FALSE);

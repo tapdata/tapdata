@@ -21,6 +21,7 @@ public class TaskNodeInfo implements MemoryFetcher {
     com.tapdata.tm.commons.dag.Node<?> node;
     private Map<String, List<Node>> typeConnectionIdPDKNodeMap = new ConcurrentHashMap<>();
     private ThreadGroup nodeThreadGroup;
+    private final Object taskNodeInfoLock = new Object();
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
@@ -152,6 +153,10 @@ public class TaskNodeInfo implements MemoryFetcher {
 
     public void setNodeThreadGroup(ThreadGroup nodeThreadGroup) {
         this.nodeThreadGroup = nodeThreadGroup;
+    }
+
+    public Object getTaskNodeInfoLock() {
+        return taskNodeInfoLock;
     }
 
     public String getAssociateId() {
