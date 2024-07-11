@@ -98,9 +98,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     public ModulesService(@NonNull ModulesRepository repository) {
         super(repository, ModulesDto.class, ModulesEntity.class);
     }
-
+    @Override
     protected void beforeSave(ModulesDto modules, UserDetail user) {
-
+        if(CollectionUtils.isNotEmpty(modules.getPaths())){
+            modules.getPaths().forEach(path -> {
+                if(CollectionUtils.isNotEmpty(path.getFields())){
+                    path.setFields(path.getFields().stream().filter(Objects::isNull).collect(Collectors.toList()));
+                }
+            });
+        }
     }
 
 
@@ -215,18 +221,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         return super.upsertByWhere(where, modulesDto, userDetail);
     }
 
-    public Map batchUpdateListtags(AttrsParam attrsParam, UserDetail userDetail) {
-        List ids = (List) attrsParam.getAttrs().get("ids");
-        List listTags = (List) attrsParam.getAttrs().get("listtags");
-        Query query = Query.query(Criteria.where("id").in(ids));
-        Update update = new Update();
-        update.set("listtags", listTags);
-        UpdateResult updateResult = update(query, update);
-        Map retMap = new HashMap();
-        retMap.put("rows", updateResult.getModifiedCount());
-        retMap.put("failed_ids", new ArrayList());
-        return retMap;
-    }
 
 
     /**
@@ -1456,5 +1450,19 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 () -> fileName.set(allModules.get(0).getName() + "-" + yyyymmdd)
         );
         fileService.viewWord(template,response,fileName.get());
+    }
+
+    public void updatePermissions(ModulesPermissionsDto permissions,UserDetail userDetail){
+        if(CollectionUtils.isEmpty(permissions.getAcl()))throw new BizException("Modules.Permission.Scope.Null");
+        Update update =  new Update();
+        update.set("paths.$[].acl",permissions.getAcl());
+        updateById(permissions.getModuleId(), update, userDetail);
+    }
+
+    public void updateTags(ModulesTagsDto modulesTagsDto,UserDetail userDetail){
+        if(CollectionUtils.isEmpty(modulesTagsDto.getListtags()))throw new BizException("Modules.Tags.Null");
+        Update update =  new Update();
+        update.set("listtags",modulesTagsDto.getListtags());
+        updateById(modulesTagsDto.getModuleId(), update, userDetail);
     }
 }
