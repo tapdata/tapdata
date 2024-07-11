@@ -152,9 +152,9 @@ make_tar() {
   rsync -a $TAPDATA_DIR/build/image/supervisor ./
   # download async-profile
   if [[ $PLATFORM == "x86_64" ]]; then
-    wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-x64.tar.gz -O async-profiler.tar.gz
+    wget http://58.251.34.123:5244/d/tools/async-profiler-3.0-linux-x64.tar.gz?sign=lwX2LlQGKO0Ph3M9AuygTGki9R_d76zTeRC5x_Gzzs8=:0 -O async-profiler.tar.gz
   else
-    wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz -O async-profiler.tar.gz
+    wget http://58.251.34.123:5244/d/tools/async-profiler-3.0-linux-arm64.tar.gz?sign=8jGp5W4yfHMMUAWwyctj5KMzyj8NHpC817hOycbSa0A=:0 -O async-profiler.tar.gz
   fi
   tar -xzf async-profiler.tar.gz -C ./components/
   mv ./components/async-profiler-* ./components/async-profiler
