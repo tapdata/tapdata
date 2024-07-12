@@ -1,5 +1,6 @@
 package com.tapdata.tm.roleMapping.service;
 
+import cn.hutool.core.collection.CollUtil;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.roleMapping.dto.PrincipleType;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public abstract class RoleMappingService extends BaseService<RoleMappingDto, RoleMappingEntity, ObjectId, RoleMappingRepository> {
     public RoleMappingService(@NonNull RoleMappingRepository repository) {
@@ -35,6 +37,7 @@ public abstract class RoleMappingService extends BaseService<RoleMappingDto, Rol
     public abstract void removeRoleFromUser(String roleMappingId);
 
     public List<RoleMappingDto> updateUserRoleMapping(List<RoleMappingDto> roleDto, UserDetail userDetail) {
+        if (CollUtil.isEmpty(roleDto)) return Lists.newArrayList();
         Criteria c = new Criteria();
         List<Criteria> or = Lists.newArrayList();
         roleDto.stream()
@@ -48,6 +51,6 @@ public abstract class RoleMappingService extends BaseService<RoleMappingDto, Rol
 
                 });
         c.orOperator(or);
-        return findAll(Query.query(c));
+        return Optional.ofNullable(findAll(Query.query(c))).orElse(Lists.newArrayList());
     }
 }
