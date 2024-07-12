@@ -7,7 +7,6 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
-import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.Job;
 import org.quartz.JobExecutionContext;
@@ -18,23 +17,11 @@ import org.springframework.stereotype.Component;
 @Component
 @Slf4j
 public class InspectCronJob implements Job {
-/*
-    @Resource
-    WorkerService workerService;
-
-    @Resource
-    InspectService inspectService;
-
-    @Resource
-    UserService userService;
-*/
-
-
     @Override
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
         InspectService inspectService = SpringContextHelper.getBean(InspectService.class);
+        InspectTaskService inspectTaskService = SpringContextHelper.getBean(InspectTaskService.class);
         UserService userService = SpringContextHelper.getBean(UserService.class);
-        WorkerService workerService = SpringContextHelper.getBean(WorkerService.class);
 
         JobKey jobKey = jobExecutionContext.getJobDetail().getKey();
         String inspectId = jobKey.getName();
@@ -42,16 +29,14 @@ public class InspectCronJob implements Job {
         InspectDto inspectDto = inspectService.findById(MongoUtils.toObjectId(inspectId));
 
         String status = inspectDto.getStatus();
-        if (InspectStatusEnum.SCHEDULING.getValue().equals(status)||InspectStatusEnum.RUNNING.getValue().equals(status)) {
-            log.info("inspect {},status:{}  不用在进行校验", inspectId,status);
-
+        if (InspectStatusEnum.SCHEDULING.getValue().equals(status) || InspectStatusEnum.RUNNING.getValue().equals(status)) {
+            log.info("inspect {},status:{}  不用在进行校验", inspectId, status);
         } else {
-            log.info("inspect {},status:{}  定时在进行校验", inspectId,status);
+            log.info("inspect {},status:{}  定时在进行校验", inspectId, status);
             UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(inspectDto.getUserId()));
-
-            Where where=new Where();
-            where.put("id",inspectId);
-            inspectService.doExecuteInspect(where,inspectDto,userDetail);
+            Where where = new Where();
+            where.put("id", inspectId);
+            inspectTaskService.executeInspect(where, inspectDto, userDetail);
         }
     }
 }
