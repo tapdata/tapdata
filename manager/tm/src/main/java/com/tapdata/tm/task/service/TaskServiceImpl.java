@@ -807,6 +807,7 @@ public class TaskServiceImpl extends TaskService{
                 return;
             }
             List<String> alreadyRequestConnectionId = new ArrayList();
+            List<String> noSupportConnectionName = new ArrayList<>();
             nodes.forEach(node -> {
                 DataParentNode dataParentNode = (DataParentNode) node;
                 if (alreadyRequestConnectionId.contains(dataParentNode.getConnectionId())) {
@@ -827,12 +828,14 @@ public class TaskServiceImpl extends TaskService{
                             map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
                         }
                         if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
-                            throw new BizException("source.setting.check.cdc");
+                            noSupportConnectionName.add(connectionDto.getName());
                         }
                     }
                 }
             });
-
+             if(CollectionUtils.isNotEmpty(noSupportConnectionName)){
+                 throw new BizException("source.setting.check.cdc",String.join(",",noSupportConnectionName));
+             }
         }
     }
 
