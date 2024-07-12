@@ -1,19 +1,18 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.MigrateScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
@@ -38,10 +37,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.utils.FunctionUtils;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.OEMReplaceUtil;
+import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -74,7 +70,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
@@ -119,7 +114,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 return result;
             }
 
-            return getNodeInfoByMigrate(taskId, nodeId, searchTableName, page, pageSize, userDetail, result, dag);
+            return getNodeInfoByMigrate(taskId, nodeId, searchTableName, new PageParameter(page,pageSize), userDetail, result, dag);
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(taskDto.get().getSyncType())) {
 
             List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(nodeId, userDetail);
@@ -153,64 +148,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, Integer page, Integer pageSize, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
+    private Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, PageParameter pageParameter, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
         DatabaseNode sourceNode = dag.getSourceNode(nodeId);
         if (Objects.isNull(sourceNode)) {
             return result;
         }
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
-        List<String> tableNames = sourceNode.getTableNames();
-        if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
-            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
-//            if (CollectionUtils.isEmpty(metaInstances)) {
-//                metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
-//            }
-					Function<MetadataInstancesDto, Boolean> filterTableByNoPrimaryKey = Optional
-						.of(NoPrimaryKeyTableSelectType.parse(sourceNode.getNoPrimaryKeyTableSelectType()))
-						.map(type -> {
-							switch (type) {
-								case HasKeys:
-									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
-										if (null != metadataInstancesDto.getFields()) {
-											for (Field field : metadataInstancesDto.getFields()) {
-												if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
-											}
-										}
-										return true;
-									};
-								case NoKeys:
-									return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
-										if (null != metadataInstancesDto.getFields()) {
-											for (Field field : metadataInstancesDto.getFields()) {
-												if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
-											}
-										}
-										return false;
-									};
-								default:
-							}
-							return null;
-						}).orElse(metadataInstancesDto -> false);
-
-            tableNames = metaInstances.stream()
-							.map(metadataInstancesDto -> {
-								if (filterTableByNoPrimaryKey.apply(metadataInstancesDto)) {
-									return null;
-								}
-								return metadataInstancesDto.getOriginalName();
-							})
-                    .filter(originalName -> {
-											if (null == originalName) {
-												return false;
-											} else if (StringUtils.isEmpty(sourceNode.getTableExpression())) {
-                            return false;
-                        } else {
-                            return Pattern.matches(sourceNode.getTableExpression(), originalName);
-                        }
-                    })
-                    .collect(Collectors.toList());
-        }
-
+        List<String> tableNames = getMigrateTableNames(sourceNode,userDetail);
+        checkUnionProcess(dag,nodeId, tableNames);
         List<String> currentTableList = Lists.newArrayList();
         if (StringUtils.isNotBlank(searchTableName)) {
             currentTableList.add(searchTableName);
@@ -221,7 +166,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return result;
         }
 
-        currentTableList = ListUtils.partition(tableNames, pageSize).get(page - 1);
+        currentTableList = ListUtils.partition(tableNames, pageParameter.getPageSize()).get(pageParameter.getPage() - 1);
 
         DataSourceConnectionDto targetDataSource;
         if (targetNode != null) {
@@ -300,7 +245,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         Map<String, String> sourceMetaMap = new HashMap<>();
         if (sourceNode != null && StringUtils.isNotBlank(sourceNode.getId())) {
-            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(sourceNode.getId(), user, taskId);
+            List<MetadataInstancesDto> sourceMetas = metadataInstancesService.findByNodeId(getNodeIdIfContainsMigrateUnionNode(sourceNode), user, taskId);
             if (CollectionUtils.isNotEmpty(sourceMetas)) {
                 sourceMetaMap = sourceMetas.stream().collect(Collectors.
                         toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getQualifiedName, (k1, k2) -> k1));
@@ -378,8 +323,32 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         return result;
     }
 
+    protected List<String> getMigrateTableNames(DatabaseNode sourceNode, UserDetail userDetail){
+        if (StringUtils.equals("expression", sourceNode.getMigrateTableSelectType())) {
+            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findSourceSchemaBySourceId(sourceNode.getConnectionId(), null, userDetail, "original_name");
+            return MetadataInstancesFilterUtil.getFilteredOriginalNames(metaInstances,sourceNode);
+        }else{
+            return sourceNode.getTableNames();
+        }
+    }
+
+    protected void checkUnionProcess(DAG dag, String nodeId, List<String> tableNames){
+        LinkedList<Node<?>> preNodes = dag.getPreNodes(nodeId);
+        Node<?> node = dag.getNode(nodeId);
+        if(!(node instanceof MigrateScriptProcessNode) && CollectionUtils.isNotEmpty(preNodes)){
+            LinkedList<MigrateUnionProcessorNode> migrateUnionProcessorNodes = dag.getPreNodes(nodeId).stream().filter(MigrateUnionProcessorNode.class::isInstance)
+                    .map(MigrateUnionProcessorNode.class::cast)
+                    .collect(Collectors.toCollection(LinkedList::new));
+            if(CollectionUtils.isNotEmpty(migrateUnionProcessorNodes)){
+                tableNames.clear();
+                tableNames.add(migrateUnionProcessorNodes.getLast().getTableName());
+            }
+        }
+    }
+
     @NotNull
     private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
+
             , Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode
             , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
             , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
@@ -1030,4 +999,27 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         return metadataInstancesDto;
     }
+
+    // TAP-3822 数据复制，字段编辑节点，变更了字段名，但是没法保存，模型推演也没有展示出来(字段编辑节点的 /getTapNodeInfo 结果中查不到源表的sourceQualifiedName)
+    protected String getNodeIdIfContainsMigrateUnionNode(DatabaseNode sourceNode) {
+        DAG dag = sourceNode.getDag();
+        if (null == dag) {
+            return sourceNode.getId();
+        }
+        List<Node> nodes = dag.getNodes();
+        if (CollUtil.isEmpty(nodes)) {
+            return sourceNode.getId();
+        }
+        Optional<Node> first = nodes.stream()
+                .filter(Objects::nonNull)
+                .filter(n -> NodeEnum.migrate_union_processor.name().equalsIgnoreCase(n.getType()))
+                .findFirst();
+        if (first.isPresent()) {
+            Node node = first.get();
+            return node.getId();
+        } else {
+            return sourceNode.getId();
+        }
+    }
+
 }

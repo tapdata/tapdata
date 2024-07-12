@@ -8,6 +8,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
@@ -24,6 +25,7 @@ import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -51,6 +53,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MetadataUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SchemaTransformUtils;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.TypeExprResult;
@@ -58,6 +61,7 @@ import io.tapdata.entity.mapping.type.TapStringMapping;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.constants.SystemConstants;
@@ -66,6 +70,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -2330,6 +2335,43 @@ public class MetadataInstancesServiceImplTest {
 	}
 	@Nested
 	class LinkLogicTest{
+		@DisplayName("test linkLogic method normal update")
+		@Test
+		void test1() {
+			try (
+					MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class);
+					MockedStatic<TapSimplify> tapSimplifyMockedStatic = mockStatic(TapSimplify.class);
+					MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)
+			) {
+				tapSimplifyMockedStatic.when(() -> TapSimplify.toJson(any())).thenReturn("test");
+				com.tapdata.tm.commons.schema.Schema schema = new com.tapdata.tm.commons.schema.Schema();
+				schema.setDatabase("test");
+				schemaUtilsMockedStatic.when(() -> {
+					SchemaUtils.mergeSchema(any(List.class), any(com.tapdata.tm.commons.schema.Schema.class), anyBoolean());
+				}).thenReturn(schema);
+				MetadataInstancesService metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
+				TaskService taskService = mock(TaskService.class);
+				ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+				List<TaskDto> taskDtos = new ArrayList<>();
+				TaskDto taskDto = new TaskDto();
+				taskDto.setId(new ObjectId("65d31d426a7c0d7571db82a7"));
+				taskDtos.add(taskDto);
+				doReturn(taskDtos).when(taskService).findAllDto(any(Query.class), any(UserDetail.class));
+				doCallRealMethod().when(metadataInstancesService).linkLogic(any(), any(), any());
+				List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+				MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+				metadataInstancesDto.setMetaType("source");
+				metadataInstancesDto.setOriginalName("testOriginalName");
+				metadataInstancesDto.setQualifiedName("testQualifiedName");
+				SourceDto sourceDto = new SourceDto();
+				sourceDto.set_id("test_Id");
+				metadataInstancesDto.setSource(sourceDto);
+				metadataInstancesDtos.add(metadataInstancesDto);
+				doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
+				metadataInstancesService.linkLogic(metadataInstancesDtos, userDetail, "65d31d426a7c0d7571db82a7");
+				verify(metadataInstancesService,times(1)).bulkUpsetByWhere(any(List.class),any(UserDetail.class));
+			}
+		}
 	}
 	@Nested
 	class DeleteTaskMetadataTest{
@@ -2729,5 +2771,108 @@ public class MetadataInstancesServiceImplTest {
 				assertEquals(false,actual);
 			}
 		}
+
+		@Nested
+		class FindHeartbeatQualifiedNameByNodeIdTest {
+			private MetadataInstancesServiceImpl metadataInstancesService;
+			private TaskService taskService;
+			private DataSourceService dataSourceService;
+
+			@BeforeEach
+			void beforeEach() {
+				taskService = mock(TaskService.class);
+				metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
+				dataSourceService = mock(DataSourceServiceImpl.class);
+				ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+				ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+			}
+
+			@DisplayName("test findHeartbeatQualifiedNameByNodeId method normal")
+			@Test
+			void test1() {
+				try (MockedStatic<MetaDataBuilderUtils> metaDataBuilderUtilsMockedStatic = mockStatic(MetaDataBuilderUtils.class);) {
+					TaskDto taskDto = new TaskDto();
+					taskDto.setId(new ObjectId("65ae2d427f580c320ec3bc65"));
+					taskDto.setName("testParentTask");
+					UserDetail userDetail = mock(UserDetail.class);
+					Where where = new Where();
+					where.put("nodeId", "testNodeId");
+					Filter filter = new Filter();
+					filter.setWhere(where);
+					Query query = new Query(Criteria.where("dag.nodes.id").is("testNodeId"));
+					query.fields().include("_id");
+					when(taskService.findOne(query, userDetail)).thenReturn(taskDto);
+
+					//mock HeartBeat task
+					TaskDto heartbeatTaskDto = new TaskDto();
+					heartbeatTaskDto.setId(new ObjectId("65ae40b097480b60d7d7f097"));
+					HashSet<String> heartbeatTasks = new HashSet<>();
+					heartbeatTasks.add("65ae2d427f580c320ec3bc65");
+					taskDto.setHeartbeatTasks(heartbeatTasks);
+
+					//build dag
+					DAG dag = getDag();
+
+
+					Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is("65ae2d427f580c320ec3bc65");
+					criteria.and("status").ne("deleting");
+					criteria.and("is_deleted").ne(true);
+					Query queryHeartBeat = new Query(criteria);
+					queryHeartBeat.fields().include("_id", "dag");
+					heartbeatTaskDto.setDag(dag);
+					when(taskService.findOne(queryHeartBeat, userDetail)).thenReturn(heartbeatTaskDto);
+					DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+					dataSourceConnectionDto.setDefinitionPdkId("pdkId");
+					dataSourceConnectionDto.setDefinitionGroup("definitionGroup");
+					dataSourceConnectionDto.setDefinitionVersion("version");
+
+					when(dataSourceService.findById(any())).thenReturn(dataSourceConnectionDto);
+					metaDataBuilderUtilsMockedStatic.when(() -> {
+						MetaDataBuilderUtils.generatePdkQualifiedName(anyString(), anyString(), eq(ConnHeartbeatUtils.TABLE_NAME), anyString(), anyString(), anyString(), any());
+					}).thenReturn("heartBeatQualifiedName");
+					doCallRealMethod().when(metadataInstancesService).findHeartbeatQualifiedNameByNodeId(any(), any());
+					String heartbeatQualifiedNameByNodeId = metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, userDetail);
+					assertEquals("heartBeatQualifiedName", heartbeatQualifiedNameByNodeId);
+				}
+			}
+
+			@DisplayName("test findHeartbeatQualifiedNameByNodeId method when where is null")
+			@Test
+			void test2() {
+				UserDetail userDetail = mock(UserDetail.class);
+				Filter filter = new Filter();
+				filter.setWhere(null);
+				String heartbeatQualifiedNameByNodeId = metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, userDetail);
+				assertEquals(null, heartbeatQualifiedNameByNodeId);
+			}
+		}
+	}
+
+	public static DAG getDag() {
+		Graph<Node, Edge> graph = new Graph<>();
+		Node sourceNode = new TableNode();
+		sourceNode.setName("sourceNode");
+		sourceNode.setId("sourceId");
+		sourceNode.setGraph(graph);
+
+		TableNode targetNode = new TableNode();
+		targetNode.setName("targetNode");
+		targetNode.setId("targetId");
+		targetNode.setConnectionId("testConnectionId");
+		targetNode.setGraph(graph);
+		targetNode.setType("testType");
+
+		Edge edge = new Edge();
+		edge.setSource(sourceNode.getId());
+		edge.setTarget(targetNode.getId());
+
+		edge.setGraph(graph);
+
+		graph.setNode(sourceNode.getId(), sourceNode);
+		graph.setNode(targetNode.getId(), targetNode);
+		graph.setEdge(sourceNode.getId(), targetNode.getId(), edge);
+
+		DAG dag = new DAG(graph);
+		return dag;
 	}
 }

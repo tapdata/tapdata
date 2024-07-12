@@ -47,6 +47,7 @@ import org.springframework.util.Assert;
 import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -164,11 +165,22 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 }
             }
         });
-
+        List<String> accessNodeProcessIdList = agentGroupService.getProcessNodeListWithGroup(taskDto, user);
         if (needCalculateAgent.get()) {
             if (AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name().equals(taskDto.getAccessNodeType())
                     && CollectionUtils.isNotEmpty(taskDto.getAccessNodeProcessIdList())) {
                 taskDto.setAgentId(taskDto.getAccessNodeProcessIdList().get(0));
+            } else if(AccessNodeTypeEnum.isGroupManually(taskDto.getAccessNodeType())
+                    && CollectionUtils.isNotEmpty(accessNodeProcessIdList)){
+                List<Worker> availableAgent = workerService.findAvailableAgentByAccessNode(user,accessNodeProcessIdList);
+                List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
+                String finalAgentId = null;
+                if(StringUtils.isNotEmpty(taskDto.getPriorityProcessId()) && processIds.contains(taskDto.getPriorityProcessId())){
+                    finalAgentId = taskDto.getPriorityProcessId();
+                }else{
+                    finalAgentId = processIds.get(0);
+                }
+                taskDto.setAgentId(finalAgentId);
             } else {
                 taskDto.setAgentId(null);
             }

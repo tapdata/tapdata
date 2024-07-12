@@ -24,6 +24,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     private String userId;
     private String processId;
 
+
     public TaskResourceSupervisorManager() {
     }
 
@@ -178,6 +179,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
             }
         }
     }
+
 
     public String getUserId() {
         return userId;

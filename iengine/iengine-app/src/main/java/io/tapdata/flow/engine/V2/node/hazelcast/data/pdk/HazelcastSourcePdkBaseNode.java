@@ -45,6 +45,7 @@ import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -891,7 +892,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapEvent.getTime()) {
 				throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
 			}
-			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
 			eventCache.add(tapEventCache);
 			boolean isLast = i == (size - 1);
 			TapdataEvent tapdataEvent;
@@ -922,13 +923,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
+	protected TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		TapdataEvent tapdataEvent = null;
 		switch (sourceMode) {
 			case NORMAL:
 				tapdataEvent = new TapdataEvent();
 				break;
 			case LOG_COLLECTOR:
+				if (tapEvent instanceof TapDDLUnknownEvent) {
+					obsLogger.warn("DDL unknown event: " + tapEvent);
+					return null;
+				}
 				tapdataEvent = new TapdataShareLogEvent();
 				Connections connections = dataProcessorContext.getConnections();
 				Node<?> node = getNode();

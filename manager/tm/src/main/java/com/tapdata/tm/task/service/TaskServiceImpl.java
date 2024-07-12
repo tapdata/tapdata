@@ -1116,6 +1116,7 @@ public class TaskServiceImpl extends TaskService{
 
         //删除收集的对象
         taskCollectionObjService.deleteById(taskDto.getId());
+        taskRecordService.cleanTaskRecord(taskDto.getId().toHexString());
     }
 
     /**
@@ -1827,13 +1828,12 @@ public class TaskServiceImpl extends TaskService{
         tmPageable.setPage(page);
         tmPageable.setSize(filter.getLimit());
 
-        String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
-        String sortKey = order.contains(CURRENT_EVENT_TIMESTAMP) ? CURRENT_EVENT_TIMESTAMP : CREATE_TIME;
-        if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by(sortKey).ascending());
-        } else {
-            tmPageable.setSort(Sort.by(sortKey).descending());
-        }
+        tmPageable.setSort(Optional
+            .ofNullable(filter.getOrder())
+            .map(String::valueOf)
+            .map(QueryUtil::parseOrder)
+            .orElse(Sort.by(CREATE_TIME).descending())
+        );
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
         List<TaskEntity> taskEntityList = repository.getMongoOperations().find(query.with(tmPageable), TaskEntity.class);
@@ -3922,10 +3922,14 @@ public class TaskServiceImpl extends TaskService{
 
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             String agentId = null;
-            for (String p : accessNodeProcessIdList) {
-                if (processIds.contains(p)) {
-                    agentId = p;
-                    break;
+            if(StringUtils.isNotEmpty(taskDto.getPriorityProcessId()) && processIds.contains(taskDto.getPriorityProcessId())){
+                agentId = taskDto.getPriorityProcessId();
+            }else{
+                for (String p : accessNodeProcessIdList) {
+                    if (processIds.contains(p)) {
+                        agentId = p;
+                        break;
+                    }
                 }
             }
             if (StringUtils.isBlank(agentId)) {

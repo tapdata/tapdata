@@ -14,6 +14,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 
 /**
  * @Date: 2021/10/15
@@ -40,9 +43,10 @@ public class ApiAppController extends BaseController {
     @PostMapping
     public ResponseMessage<MetadataDefinitionDto> save(@RequestBody MetadataDefinitionDto metadataDefinition) {
         metadataDefinition.setId(null);
+        List<String> itemType = new ArrayList<>();
+        itemType.add(MetadataDefinitionDto.ITEM_TYPE_APP);
+        metadataDefinition.setItemType(itemType);
         metadataDefinitionService.findByItemtypeAndValue(metadataDefinition,getLoginUser());
-
-
         return success(apiAppService.save(metadataDefinition, getLoginUser()));
     }
 

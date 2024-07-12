@@ -215,6 +215,8 @@ public class ParentTaskDto extends SchedulableDto {
      * */
     private String accessNodeProcessId;
 
+    private String priorityProcessId;
+
     private HashSet<String> heartbeatTasks;
 
 

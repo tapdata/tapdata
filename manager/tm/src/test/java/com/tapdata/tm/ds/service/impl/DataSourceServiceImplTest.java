@@ -2,6 +2,7 @@ package com.tapdata.tm.ds.service.impl;
 
 
 import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -11,9 +12,12 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.report.service.UserDataReportService;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -376,5 +380,90 @@ class DataSourceServiceImplTest {
             Assertions.assertEquals("test", dto.getConfig().get("uri"),
                     "MongoDB URI password should be masked");
         }
+    }
+    @Nested
+    @DisplayName("Method sendTestConnection test")
+    class sendTestConnectionTest{
+        private DataSourceServiceImpl dataSourceService;
+        private DataSourceRepository dataSourceRepository;
+        private WorkerService workerService;
+        private AgentGroupService agentGroupService;
+        private MessageQueueService messageQueueService;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            workerService = mock(WorkerService.class);
+            agentGroupService = mock(AgentGroupService.class);
+            messageQueueService = mock(MessageQueueService.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "workerService", workerService);
+            ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
+            ReflectionTestUtils.setField(dataSourceService, "messageQueueService", messageQueueService);
+        }
+        @Test
+        void test_MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP(){
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setName("test");
+            connectionDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            connectionDto.setPriorityProcessId("work_2");
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work_2");
+            workers.add(worker1);
+            workers.add(worker2);
+            when(workerService.findAvailableAgentByAccessNode(any(),any())).thenReturn(workers);
+            doAnswer(invocationOnMock -> {
+                MessageQueueDto queueDto = invocationOnMock.getArgument(0);
+                Assertions.assertEquals("work_2",queueDto.getReceiver());
+                return null;
+            }).when(messageQueueService).sendMessage(any());
+            dataSourceService.sendTestConnection(connectionDto,true,true,mock(UserDetail.class));
+        }
+
+        @Test
+        void test_MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP_PriorityProcessWorkIsInaction(){
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setName("test");
+            connectionDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            connectionDto.setPriorityProcessId("work_2");
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            workers.add(worker1);
+            when(workerService.findAvailableAgentByAccessNode(any(),any())).thenReturn(workers);
+            doAnswer(invocationOnMock -> {
+                MessageQueueDto queueDto = invocationOnMock.getArgument(0);
+                Assertions.assertEquals("work_1",queueDto.getReceiver());
+                return null;
+            }).when(messageQueueService).sendMessage(any());
+            dataSourceService.sendTestConnection(connectionDto,true,true,mock(UserDetail.class));
+        }
+
+
+
+        @Test
+        void test_MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP_PriorityProcessIdIsNull(){
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setName("test");
+            connectionDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            List<Worker> workers = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work_2");
+            workers.add(worker1);
+            workers.add(worker2);
+            when(workerService.findAvailableAgentByAccessNode(any(),any())).thenReturn(workers);
+            doAnswer(invocationOnMock -> {
+                MessageQueueDto queueDto = invocationOnMock.getArgument(0);
+                Assertions.assertEquals("work_1",queueDto.getReceiver());
+                return null;
+            }).when(messageQueueService).sendMessage(any());
+            dataSourceService.sendTestConnection(connectionDto,true,true,mock(UserDetail.class));
+        }
+
     }
 }
