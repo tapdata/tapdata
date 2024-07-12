@@ -103,7 +103,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         if(CollectionUtils.isNotEmpty(modules.getPaths())){
             modules.getPaths().forEach(path -> {
                 if(CollectionUtils.isNotEmpty(path.getFields())){
-                    path.setFields(path.getFields().stream().filter(Objects::isNull).collect(Collectors.toList()));
+                    path.setFields(path.getFields().stream().filter(Objects::nonNull).collect(Collectors.toList()));
                 }
             });
         }
