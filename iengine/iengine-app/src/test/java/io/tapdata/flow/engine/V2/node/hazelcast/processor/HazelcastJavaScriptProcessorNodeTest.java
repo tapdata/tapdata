@@ -1,17 +1,27 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.constant.JSEngineEnum;
+import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.script.Invocable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * @author samuel
@@ -51,6 +61,81 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(HashMap.class, ((ThreadLocal<?>) actualObj).get().getClass());
 			Map<String, Object> map = ((ThreadLocal<Map<String, Object>>) actualObj).get();
 			assertEquals(0, map.size());
+		}
+	}
+	@Nested
+	class tryProcessTest{
+		private TapdataEvent tapdataEvent;
+		private BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer;
+		private Invocable engine;
+		private TapUpdateRecordEvent tapEvent;
+		@BeforeEach
+		@SneakyThrows
+		void beforeEach(){
+			consumer = mock(BiConsumer.class);
+			ThreadLocal<Map<String, Object>> processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"processContextThreadLocal",processContextThreadLocal);
+			engine = spy(ScriptUtil.getScriptEngine(
+					JSEngineEnum.GRAALVM_JS.getEngineName(),
+					"",
+					null,
+					null,
+					null,
+					null,
+					null,
+					null,
+					true));
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"engine",engine);
+			tapdataEvent = mock(TapdataEvent.class);
+			tapEvent = mock(TapUpdateRecordEvent.class);
+			when(((TapBaseEvent) tapEvent).getTableId()).thenReturn("tableId");
+			when(tapdataEvent.getTapEvent()).thenReturn(tapEvent);
+		}
+		@Test
+		@SneakyThrows
+		void testForStandardJSHandleBefore(){
+			boolean standard = true;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			Map<String, Object> before = mock(HashMap.class);
+			when(tapEvent.getAfter()).thenReturn(after);
+			when(tapEvent.getBefore()).thenReturn(before);
+			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			verify(engine,new Times(2)).invokeFunction(anyString(),any());
+		}
+		@Test
+		@SneakyThrows
+		void testForStandardJSHandleWithoutBefore(){
+			boolean standard = true;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			when(tapEvent.getAfter()).thenReturn(after);
+			when(tapEvent.getBefore()).thenReturn(null);
+			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			verify(engine,new Times(1)).invokeFunction(anyString(),any());
+		}
+		@Test
+		@SneakyThrows
+		void testForFinalJsHandleBefore(){
+			boolean standard = false;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			Map<String, Object> before = mock(HashMap.class);
+			when(tapEvent.getAfter()).thenReturn(after);
+			when(tapEvent.getBefore()).thenReturn(before);
+			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			verify(engine,new Times(1)).invokeFunction(anyString(),any());
+		}
+		@Test
+		@SneakyThrows
+		void testForFinalJSHandleWithoutBefore(){
+			boolean standard = false;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			when(tapEvent.getAfter()).thenReturn(after);
+			when(tapEvent.getBefore()).thenReturn(null);
+			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			verify(engine,new Times(1)).invokeFunction(anyString(),any());
 		}
 	}
 }

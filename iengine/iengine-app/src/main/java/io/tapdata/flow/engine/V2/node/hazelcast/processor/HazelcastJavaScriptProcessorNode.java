@@ -264,6 +264,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		} else {
 			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
+			// handle before
+			if (standard && null != context.get("before")) {
+				engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get("before"));
+			}
 		}
 
 		if (StringUtils.isNotEmpty((CharSequence) context.get("op"))) {
