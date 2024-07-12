@@ -7,11 +7,15 @@ import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.entity.RoleMappingEntity;
 import com.tapdata.tm.roleMapping.repository.RoleMappingRepository;
 import com.tapdata.tm.user.entity.User;
+import com.tapdata.tm.utils.Lists;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 public abstract class RoleMappingService extends BaseService<RoleMappingDto, RoleMappingEntity, ObjectId, RoleMappingRepository> {
     public RoleMappingService(@NonNull RoleMappingRepository repository) {
@@ -27,4 +31,23 @@ public abstract class RoleMappingService extends BaseService<RoleMappingDto, Rol
 
     @Transactional
     public abstract List<RoleMappingDto> saveAll(List<RoleMappingDto> roleDtos, UserDetail userDetail);
+    
+    public abstract void removeRoleFromUser(String roleMappingId);
+
+    public List<RoleMappingDto> updateUserRoleMapping(List<RoleMappingDto> roleDto, UserDetail userDetail) {
+        Criteria c = new Criteria();
+        List<Criteria> or = Lists.newArrayList();
+        roleDto.stream()
+                .filter(Objects::nonNull)
+                .forEach(role -> {
+                    Criteria criteria = Criteria.where("roleId").is(role.getRoleId())
+                            .and("principalId").is(role.getPrincipalId())
+                            .and("principalType").is(role.getPrincipalType());
+                    upsert(Query.query(criteria), role, userDetail);
+                    or.add(criteria);
+
+                });
+        c.orOperator(or);
+        return findAll(Query.query(c));
+    }
 }
