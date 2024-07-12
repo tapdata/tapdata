@@ -238,6 +238,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
+		Object processedBefore = null;
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_TEST_RUN,
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
@@ -266,8 +267,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else {
 			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
 			// handle before
-			if (standard && null != context.get(BEFORE)) {
-				engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get(BEFORE));
+			if (standard && null != context.get(BEFORE) && !context.get(BEFORE).equals(afterMapInRecord)) {
+				processedBefore = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get(BEFORE));
 			}
 		}
 
@@ -288,6 +289,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
 				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
 				setRecordMap(returnTapEvent, op, recordMap);
+				flushBeforeIfNeed(processedBefore, returnTapEvent, recordMap);
 				cloneTapdataEvent.setTapEvent(returnTapEvent);
 				consumer.accept(cloneTapdataEvent, processResult);
 			}
@@ -296,8 +298,15 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
 			TapEvent returnTapEvent = getTapEvent(tapEvent, op);
 			setRecordMap(returnTapEvent, op, recordMap);
+			flushBeforeIfNeed(processedBefore, returnTapEvent, recordMap);
 			tapdataEvent.setTapEvent(returnTapEvent);
 			consumer.accept(tapdataEvent, processResult);
+		}
+	}
+
+	protected static void flushBeforeIfNeed(Object processedBefore, TapEvent returnTapEvent, Map<String, Object> recordMap) {
+		if (null != processedBefore){
+			TapEventUtil.setBefore(returnTapEvent, recordMap);
 		}
 	}
 
