@@ -668,6 +668,7 @@ public class LdpServiceImpl implements LdpService {
 				MetadataInstancesDto metadataInstancesDto = buildSourceMeta(conTag, metaData, oldMeta);
 				saveMetaDatas.add(metadataInstancesDto);
 			}
+			cleanLdpMeta(saveMetaDatas,user);
 			metadataInstancesService.bulkUpsetByWhere(saveMetaDatas, user);
 		} else {
 
@@ -721,6 +722,27 @@ public class LdpServiceImpl implements LdpService {
 			}
 
 		}
+	}
+	protected void cleanLdpMeta(List<MetadataInstancesDto> metadataInstancesDtos,UserDetail user){
+		MetadataInstancesDto metadataInstancesDto = metadataInstancesDtos.get(0);
+		String tagId = null;
+		ObjectId source_id = null;
+		if(CollectionUtils.isNotEmpty(metadataInstancesDto.getListtags()) && null != metadataInstancesDto.getSource()){
+			tagId = metadataInstancesDto.getListtags().stream().map(Tag::getId).findFirst().orElse(null);
+			source_id = metadataInstancesDto.getSource().getId();
+		}
+		Set<String> ancestorsNameSet = metadataInstancesDtos.stream().map(MetadataInstancesDto::getAncestorsName).filter(Objects::nonNull).collect(Collectors.toSet());
+		if(StringUtils.isNotBlank(tagId) && null != source_id && CollectionUtils.isNotEmpty(ancestorsNameSet)){
+			Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+					.and("taskId").exists(false)
+					.and("is_deleted").ne(true)
+					.and("meta_type").is("table")
+					.and("source.id").is(source_id)
+					.and("listtags.id").is(tagId)
+					.and("ancestorsName").in(ancestorsNameSet);
+			metadataInstancesService.deleteAll(new Query(metadataCriteria),user);
+		}
+
 	}
 
 	@Override
