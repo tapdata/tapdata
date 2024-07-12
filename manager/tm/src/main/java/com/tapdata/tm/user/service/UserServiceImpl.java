@@ -413,7 +413,7 @@ public class UserServiceImpl extends UserService{
                 return roleMappingDto;
             }).collect(Collectors.toList());
             if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
-                return roleMappingService.save(roleMappingDtos, userDetail);
+                return roleMappingService.updateUserRoleMapping(roleMappingDtos, userDetail);
             }
         }
         return null;
