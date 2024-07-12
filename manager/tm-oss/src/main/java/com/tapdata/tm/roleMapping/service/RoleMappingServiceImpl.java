@@ -57,4 +57,9 @@ public class RoleMappingServiceImpl extends RoleMappingService{
     public List<RoleMappingDto> saveAll(List<RoleMappingDto> roleDtos, UserDetail userDetail) {
         throw new BizException("TapOssNonSupportFunctionException");
     }
+
+    @Override
+    public void removeRoleFromUser(String roleMappingId) {
+        //do Nothing
+    }
 }

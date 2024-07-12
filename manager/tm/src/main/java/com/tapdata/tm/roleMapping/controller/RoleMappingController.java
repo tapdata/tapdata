@@ -30,6 +30,7 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -201,7 +202,7 @@ public class RoleMappingController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-        roleMappingService.deleteById(MongoUtils.toObjectId(id));
+        roleMappingService.removeRoleFromUser(id);
         return success();
     }
 
