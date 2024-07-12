@@ -13,6 +13,7 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.supervisor.util.TapTaskThreadGroupUtil;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 
 import java.util.*;
@@ -42,16 +43,21 @@ public class SupervisorAspectTask extends AbstractAspectTask {
         return this.addAspect(aspect);
     }
 
-    private Void addAspect(ThreadGroupAspect aspect){
+    protected Void addAspect(ThreadGroupAspect aspect) {
+        connectorId = aspect.getNode().getId();
         Optional.ofNullable(aspect).flatMap(a -> Optional.ofNullable(aspect.getThreadGroup())).ifPresent(t -> {
-            TaskNodeInfo info = new TaskNodeInfo();
-            info.setNodeThreadGroup(t);
-            info.setSupervisorAspectTask(this);
-            info.setNode(aspect.getNode());
-            info.setAssociateId(aspect.getAssociateId());
-            connectorId = aspect.getNode().getId();
-            taskResourceSupervisorManager.addTaskSubscribeInfo(info);
-            threadGroupMap.put(t, info);
+            TaskNodeInfo taskNodeInfo = taskResourceSupervisorManager.getTaskNodeInfos()
+                    .stream().filter(nodeInfo -> nodeInfo.getNodeThreadGroup().equals(aspect.getThreadGroup()))
+                    .findAny().orElse(null);
+            if (null == taskNodeInfo) {
+                taskNodeInfo = new TaskNodeInfo();
+                taskNodeInfo.setNodeThreadGroup(t);
+                taskNodeInfo.setNode(aspect.getNode());
+                taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
+            }
+            taskNodeInfo.setSupervisorAspectTask(this);
+            taskNodeInfo.setAssociateId(aspect.getAssociateId());
+            threadGroupMap.put(t, taskNodeInfo);
         });
         return null;
     }
@@ -75,25 +81,23 @@ public class SupervisorAspectTask extends AbstractAspectTask {
     @Override
     public void onStop(TaskStopAspect stopAspect) {
         super.onStop(stopAspect);
-        //ClassLifeCircleMonitor circleMonitor = InstanceFactory.instance(ClassLifeCircleMonitor.class);
-        //Map<Object, ClassOnThread> summary = circleMonitor.summary();
         isStarted = false;
         if (null != this.threadGroupMap && !this.threadGroupMap.isEmpty()) {
             for (Map.Entry<ThreadGroup, TaskNodeInfo> infoEntry : threadGroupMap.entrySet()) {
                 ThreadGroup group = infoEntry.getKey();
                 TaskNodeInfo info = infoEntry.getValue();
-                try {
-                    group.destroy();
-                    taskResourceSupervisorManager.removeTaskSubscribeInfo(info);
-                    info.setHasLeaked(Boolean.FALSE);
-                    info.setSupervisorAspectTask(null);
-                    info.setNodeThreadGroup(null);
-                    info.setNode(null);
-                    threadGroupMap.remove(group);
-                } catch (Exception e) {
-                    info.hasLaked = Boolean.TRUE;
-                    //@todo 延时30s再destroy后统计节点上泄露的线程
+                synchronized (info.getTaskNodeInfoLock()){
+                    try {
+                        group.destroy();
+                        info.setHasLeaked(Boolean.FALSE);
+                        taskResourceSupervisorManager.removeTaskSubscribeInfo(info);
+                        threadGroupMap.remove(group);
+                    } catch (Exception e) {
+                        info.hasLaked = Boolean.TRUE;
+                        //@todo 延时30s再destroy后统计节点上泄露的线程
+                    }
                 }
+
             }
         }
     }

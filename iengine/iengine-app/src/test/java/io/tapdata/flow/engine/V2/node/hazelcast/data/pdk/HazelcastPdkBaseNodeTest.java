@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -23,6 +24,8 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskNodeInfo;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -535,6 +538,43 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> nodeConfig = hazelcastPdkBaseNode.generateNodeConfig(node, taskDto);
 			assertTrue(nodeConfig.containsKey(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 			assertFalse((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
+		}
+	}
+	@Nested
+	class testGetLeakedOrThreadGroupClass{
+		@DisplayName("test ")
+		@Test
+		void test1(){
+			String nodeName = "leakNode";
+			Node leakNode = mock(Node.class);
+			when(leakNode.getId()).thenReturn(nodeName);
+			TaskNodeInfo taskNodeInfo = new TaskNodeInfo();
+			taskNodeInfo.setNode(leakNode);
+			taskNodeInfo.setHasLeaked(true);
+			ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+			taskNodeInfo.setNodeThreadGroup(connectorOnTaskThreadGroup);
+			ConcurrentHashSet<TaskNodeInfo> taskNodeInfos=new ConcurrentHashSet<>();
+			taskNodeInfos.add(taskNodeInfo);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(nodeName);
+			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
+			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
+		}
+		@Test
+		void test2(){
+			String nodeName = "leakNode";
+			Node leakNode = mock(Node.class);
+			when(leakNode.getId()).thenReturn(nodeName);
+			TaskNodeInfo taskNodeInfo = new TaskNodeInfo();
+			taskNodeInfo.setNode(leakNode);
+			ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+			taskNodeInfo.setNodeThreadGroup(connectorOnTaskThreadGroup);
+			ConcurrentHashSet<TaskNodeInfo> taskNodeInfos=new ConcurrentHashSet<>();
+			taskNodeInfos.add(taskNodeInfo);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(nodeName);
+			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
+			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
 		}
 	}
 }

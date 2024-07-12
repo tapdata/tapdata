@@ -58,6 +58,7 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
@@ -113,6 +114,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	class DoInitTest {
 		@BeforeEach
 		void beforeEach() {
+			TaskResourceSupervisorManager taskResourceSupervisorManager=new TaskResourceSupervisorManager();
+			ReflectionTestUtils.setField(mockInstance, "taskResourceSupervisorManager", taskResourceSupervisorManager);
 			doCallRealMethod().when(mockInstance).doInit(jetContext);
 		}
 
