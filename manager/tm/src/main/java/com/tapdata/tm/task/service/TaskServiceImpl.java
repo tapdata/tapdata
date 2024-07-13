@@ -541,6 +541,13 @@ public class TaskServiceImpl extends TaskService{
     protected void beforeSave(TaskDto task, UserDetail user) {
         //setDefault(task);
 
+        if (null != task.getId()) {
+            TaskDto existsTask = findByTaskId(task.getId(), "oldVersionTimezone");
+            if (null != existsTask) {
+                task.setOldVersionTimezone(existsTask.getOldVersionTimezone());
+            }
+        }
+
         DAG dag = task.getDag();
         if (dag == null) {
             return;
