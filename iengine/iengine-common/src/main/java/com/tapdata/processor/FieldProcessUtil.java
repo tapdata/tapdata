@@ -47,32 +47,6 @@ public class FieldProcessUtil {
 	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, String fieldsNameTransform, boolean deleteAllFields) throws Exception {
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
-		final Set<String> renameOpFields = CollectionUtils.isEmpty(fieldsProcess) ? new HashSet<>()
-				: fieldsProcess.stream()
-				.filter(p -> FieldProcess.FieldOp.fromOperation(p.getOp()).equals(FieldProcess.FieldOp.OP_RENAME))
-				.map(FieldProcess::getField).collect(Collectors.toSet());
-
-		if (StringUtils.isNotBlank(fieldsNameTransform)) {
-			Map<String, Object> newRecord = MapUtil.recursiveMap(record, (key, value, parentKey) -> {
-				String allPathKey;
-				String allPathNewKey;
-				if (renameOpFields.contains(key)) {
-					return new MapUtil.MapEntry(key, value);
-				}
-				String newKey = Capitalized.convert(key, fieldsNameTransform);
-				if (StringUtils.isNotBlank(parentKey)) {
-					allPathKey = parentKey + "." + key;
-					allPathNewKey = Capitalized.convert(parentKey, fieldsNameTransform) + "." + newKey;
-				} else {
-					allPathKey = key;
-					allPathNewKey = newKey;
-				}
-				renameMapping.put(allPathKey, allPathNewKey);
-				return new MapUtil.MapEntry(newKey, value);
-			});
-			record.clear();
-			record.putAll(newRecord);
-		}
 
 		Set<String> rollbackFields = CollectionUtils.isEmpty(fieldsProcess) ? new HashSet<>() : fieldsProcess.stream()
 				.filter(f -> FieldProcess.FieldOp.OP_REMOVE.equals(FieldProcess.FieldOp.fromOperation(f.getOp())) && f.getOperand().equals("false"))
