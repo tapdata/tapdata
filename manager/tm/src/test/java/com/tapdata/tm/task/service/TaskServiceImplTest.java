@@ -4903,6 +4903,7 @@ class TaskServiceImplTest {
             Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
                     .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                     .and("is_deleted").is(false)
+                    .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
             );
             doCallRealMethod().when(taskService).findHeartbeatByConnectionId(connectionId);
             taskService.findHeartbeatByConnectionId(connectionId);
@@ -4916,6 +4917,7 @@ class TaskServiceImplTest {
             Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
                     .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                     .and("is_deleted").is(false)
+                    .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
             );
             query.fields().include(includeFields);
             doCallRealMethod().when(taskService).findHeartbeatByConnectionId(connectionId,includeFields);

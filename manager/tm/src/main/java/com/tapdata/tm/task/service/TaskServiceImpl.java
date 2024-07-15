@@ -1079,7 +1079,6 @@ public class TaskServiceImpl extends TaskService{
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
             update.set("name", taskDto.getName() + "_" + nameSuffix);
             update.set("deleteName", taskDto.getName());
-            update.set(IS_DELETED,true);
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
             if (noAgent) {
@@ -1089,12 +1088,7 @@ public class TaskServiceImpl extends TaskService{
                     throw new BizException("Clear.Slot",connectionName);
                 }
             } else {
-                try{
-                    sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
-                }catch (Exception e){
-                    afterRemove(taskDto, user);
-                }
-
+                sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
             }
 
         }
@@ -4862,6 +4856,7 @@ public class TaskServiceImpl extends TaskService{
         Query query = Query.query(Criteria.where(DAG_NODES_CONNECTION_ID).is(connectionId)
                 .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                 .and(IS_DELETED).is(false)
+                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
         );
         if (null != includeFields && includeFields.length > 0) {
             query.fields().include(includeFields);
