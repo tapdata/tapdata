@@ -1079,6 +1079,7 @@ public class TaskServiceImpl extends TaskService{
             String nameSuffix = RandomStringUtils.randomAlphanumeric(6);
             update.set("name", taskDto.getName() + "_" + nameSuffix);
             update.set("deleteName", taskDto.getName());
+            update.set(IS_DELETED,true);
             this.update(new Query(Criteria.where("id").is(taskDto.getId())), update);
 
             if (noAgent) {
@@ -1088,11 +1089,15 @@ public class TaskServiceImpl extends TaskService{
                     throw new BizException("Clear.Slot",connectionName);
                 }
             } else {
-                sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+                try{
+                    sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+                }catch (Exception e){
+                    afterRemove(taskDto, user);
+                }
+
             }
 
         }
-        //afterRemove(taskDto, user);
 
         return taskDto;
     }

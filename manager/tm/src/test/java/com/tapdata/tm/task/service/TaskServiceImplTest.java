@@ -1159,6 +1159,21 @@ class TaskServiceImplTest {
             taskService.remove(id,user);
             verify(taskService, new Times(0)).afterRemove(dto,user);
         }
+
+        @Test
+        @DisplayName("test remove method when sendRenewMq error")
+        void test3(){
+            TaskDto dto = mock(TaskDto.class);
+            when(taskService.checkExistById(id,user)).thenReturn(dto);
+            StateMachineResult stateMachineResult = mock(StateMachineResult.class);
+            when(stateMachineService.executeAboutTask(dto,DataFlowEvent.DELETE, user)).thenReturn(stateMachineResult);
+            when(stateMachineResult.isOk()).thenReturn(true);
+            when(taskService.findAgent(dto,user)).thenReturn(false);
+            doThrow(new BizException("error")).when(taskService).sendRenewMq(dto,user, DataSyncMq.OP_TYPE_DELETE);
+            doCallRealMethod().when(taskService).remove(id,user);
+            taskService.remove(id,user);
+            verify(taskService, new Times(1)).afterRemove(dto,user);
+        }
     }
     @Nested
     class AfterRemove{
