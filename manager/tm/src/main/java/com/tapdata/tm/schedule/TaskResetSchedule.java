@@ -54,7 +54,7 @@ public class TaskResetSchedule {
 
     private static final String RESET_TIMES = "resetTimes";
 
-    private static final String _ID = "_id";
+    private static final String ID = "_id";
 
 
     @Scheduled(fixedDelay = 90000)
@@ -252,7 +252,7 @@ public class TaskResetSchedule {
                 continue;
             }
             Update update = Update.update(IS_DELETED,true);
-            Query queryTask = new Query(Criteria.where(_ID).is(taskDto.getId()));
+            Query queryTask = new Query(Criteria.where(ID).is(taskDto.getId()));
             taskService.update(queryTask, update);
         }
 
