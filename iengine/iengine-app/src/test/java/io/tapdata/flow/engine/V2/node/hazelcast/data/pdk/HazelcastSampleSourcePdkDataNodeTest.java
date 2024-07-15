@@ -3,6 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.junit.jupiter.api.Assertions;
@@ -11,10 +13,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.mockito.Mockito.*;
 
 class HazelcastSampleSourcePdkDataNodeTest {
     HazelcastSampleSourcePdkDataNode node;
@@ -59,6 +62,32 @@ class HazelcastSampleSourcePdkDataNodeTest {
             verify(node).getConnectorNode();
             verify(connectorNode).getCodecsFilterManager();
             verify(jetContext).hazelcastInstance();
+        }
+    }
+
+    @Nested
+    class GetSourceTablesTest {
+        @Test
+        void testNormal() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("testRun");
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setTableNames(Arrays.asList("test1"));
+            doCallRealMethod().when(node).getSourceTables(any(),anyList());
+            List<String> result = node.getSourceTables(databaseNode,new ArrayList<>());
+            Assertions.assertEquals(1,result.size());
+        }
+        @Test
+        void test_deduceSchema() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSyncType("deduceSchema");
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setTableNames(Arrays.asList("test1"));
+            doCallRealMethod().when(node).getSourceTables(any(),anyList());
+            List<String> result = node.getSourceTables(databaseNode,new ArrayList<>());
+            Assertions.assertEquals(0,result.size());
         }
     }
 }

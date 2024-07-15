@@ -10,7 +10,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
+import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -262,6 +264,18 @@ class TaskNodeServiceImplTest {
             List<String> exceptTableNames = new ArrayList<>();
             taskNodeService.checkUnionProcess(dag,"nodeId",exceptTableNames);
             Assertions.assertEquals("union_test",exceptTableNames.get(0));
+        }
+        @Test
+        void test_jsNode(){
+            DAG dag = mock(DAG.class);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(new MigrateUnionProcessorNode());
+            when(dag.getPreNodes(any())).thenReturn(preNodes);
+            when(dag.getNode(any())).thenReturn((Node)new StandardMigrateJsProcessorNode());
+            doCallRealMethod().when(taskNodeService).checkUnionProcess(any(),any(),any());
+            List<String> exceptTableNames = new ArrayList<>();
+            taskNodeService.checkUnionProcess(dag,"nodeId",exceptTableNames);
+            Assertions.assertEquals(0,exceptTableNames.size());
         }
     }
     @Nested

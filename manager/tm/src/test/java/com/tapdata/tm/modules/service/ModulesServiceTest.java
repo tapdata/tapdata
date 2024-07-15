@@ -77,6 +77,7 @@ public class ModulesServiceTest {
             List<Field> fields = new ArrayList<>();
             fields.add(new Field());
             fields.add(null);
+            fields.add(null);
             path.setFields(fields);
             paths.add(path);
             modules.setPaths(paths);

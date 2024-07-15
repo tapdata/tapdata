@@ -334,7 +334,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     protected void checkUnionProcess(DAG dag, String nodeId, List<String> tableNames){
         LinkedList<Node<?>> preNodes = dag.getPreNodes(nodeId);
-        if(CollectionUtils.isNotEmpty(preNodes)){
+        Node<?> node = dag.getNode(nodeId);
+        if(!(node instanceof MigrateScriptProcessNode) && CollectionUtils.isNotEmpty(preNodes)){
             LinkedList<MigrateUnionProcessorNode> migrateUnionProcessorNodes = dag.getPreNodes(nodeId).stream().filter(MigrateUnionProcessorNode.class::isInstance)
                     .map(MigrateUnionProcessorNode.class::cast)
                     .collect(Collectors.toCollection(LinkedList::new));

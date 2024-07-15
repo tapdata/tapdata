@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -26,6 +27,8 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskNodeInfo;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -543,40 +546,41 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertFalse((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 		}
 	}
-
-	@Test
-	void name() {
-		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		TapCodecsFilterManager tapCodecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-		Map<String, Object> value = new HashMap<>();
-		for (int i = 0; i < 30; i++) {
-			value.put("_number" + i, 1111);
+	@Nested
+	class testGetLeakedOrThreadGroupClass{
+		@DisplayName("test ")
+		@Test
+		void test1(){
+			String nodeName = "leakNode";
+			Node leakNode = mock(Node.class);
+			when(leakNode.getId()).thenReturn(nodeName);
+			TaskNodeInfo taskNodeInfo = new TaskNodeInfo();
+			taskNodeInfo.setNode(leakNode);
+			taskNodeInfo.setHasLeaked(true);
+			ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+			taskNodeInfo.setNodeThreadGroup(connectorOnTaskThreadGroup);
+			ConcurrentHashSet<TaskNodeInfo> taskNodeInfos=new ConcurrentHashSet<>();
+			taskNodeInfos.add(taskNodeInfo);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(nodeName);
+			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
+			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
 		}
-		for (int i = 0; i < 20; i++) {
-			value.put("_string" + i, "xxxxxxxx");
+		@Test
+		void test2(){
+			String nodeName = "leakNode";
+			Node leakNode = mock(Node.class);
+			when(leakNode.getId()).thenReturn(nodeName);
+			TaskNodeInfo taskNodeInfo = new TaskNodeInfo();
+			taskNodeInfo.setNode(leakNode);
+			ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
+			taskNodeInfo.setNodeThreadGroup(connectorOnTaskThreadGroup);
+			ConcurrentHashSet<TaskNodeInfo> taskNodeInfos=new ConcurrentHashSet<>();
+			taskNodeInfos.add(taskNodeInfo);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(nodeName);
+			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
+			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
 		}
-		TapTable tapTable = new TapTable("test");
-		for (int i = 0; i < 30; i++) {
-			TapField tapField = new TapField("_number" + i, "rnumber").tapType(new TapNumber());
-			tapTable.putField(tapField.getName(), tapField);
-		}
-		for (int i = 0; i < 20; i++) {
-			TapField tapField = new TapField("_string" + i, "rstring").tapType(new TapString());
-			tapTable.putField(tapField.getName(), tapField);
-		}
-		int time = 10000000;
-		long start = System.currentTimeMillis();
-		for (int i = 0; i < time; i++) {
-			tapCodecsFilterManager.transformToTapValueMap(value, tapTable.getNameFieldMap());
-			tapCodecsFilterManager.transformFromTapValueMap(value, tapTable.getNameFieldMap());
-		}
-		long end = System.currentTimeMillis();
-		long costMs = end - start;
-		BigDecimal costSec = BigDecimal.valueOf(costMs).divide(BigDecimal.valueOf(1000), 2, RoundingMode.HALF_UP);
-		BigDecimal qps = BigDecimal.valueOf(time);
-		if (costSec.compareTo(BigDecimal.ZERO) > 0) {
-			qps = BigDecimal.valueOf(time).divide(costSec, 2, RoundingMode.HALF_UP);
-		}
-		System.out.printf("qps: %s, cost ms: %s ms%n", qps.toPlainString(), costMs);
 	}
 }

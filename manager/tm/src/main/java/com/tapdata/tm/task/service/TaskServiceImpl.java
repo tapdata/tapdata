@@ -541,6 +541,13 @@ public class TaskServiceImpl extends TaskService{
     protected void beforeSave(TaskDto task, UserDetail user) {
         //setDefault(task);
 
+        if (null != task.getId()) {
+            TaskDto existsTask = findByTaskId(task.getId(), "oldVersionTimezone");
+            if (null != existsTask) {
+                task.setOldVersionTimezone(existsTask.getOldVersionTimezone());
+            }
+        }
+
         DAG dag = task.getDag();
         if (dag == null) {
             return;
@@ -807,32 +814,37 @@ public class TaskServiceImpl extends TaskService{
                 return;
             }
             List<String> alreadyRequestConnectionId = new ArrayList();
+            List<String> noSupportConnectionName = new ArrayList<>();
             nodes.forEach(node -> {
-                DataParentNode dataParentNode = (DataParentNode) node;
-                if (alreadyRequestConnectionId.contains(dataParentNode.getConnectionId())) {
-                    return;
-                }
-                alreadyRequestConnectionId.add(dataParentNode.getConnectionId());
-                DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(dataParentNode.getConnectionId()));
-                if (Lists.of("Dummy").contains(connectionDto.getDatabase_type())) {
-                    return;
-                }
-                List<String> capList = connectionDto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
-                if (capList.contains("stream_read_function")) {
-                    ResponseBody responseBody = connectionDto.getResponse_body();
-                    if (responseBody != null) {
-                        List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
-                        Map<String, ValidateDetail> map = new HashMap<>();
-                        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
-                            map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
-                        }
-                        if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
-                            throw new BizException("source.setting.check.cdc");
+                if(node instanceof DataParentNode) {
+                    DataParentNode dataParentNode = (DataParentNode) node;
+                    if (alreadyRequestConnectionId.contains(dataParentNode.getConnectionId())) {
+                        return;
+                    }
+                    alreadyRequestConnectionId.add(dataParentNode.getConnectionId());
+                    DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(dataParentNode.getConnectionId()));
+                    if (Lists.of("Dummy").contains(connectionDto.getDatabase_type())) {
+                        return;
+                    }
+                    List<String> capList = connectionDto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
+                    if (capList.contains("stream_read_function")) {
+                        ResponseBody responseBody = connectionDto.getResponse_body();
+                        if (responseBody != null) {
+                            List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+                            Map<String, ValidateDetail> map = new HashMap<>();
+                            if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
+                                map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
+                            }
+                            if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                                noSupportConnectionName.add(connectionDto.getName());
+                            }
                         }
                     }
                 }
             });
-
+             if(CollectionUtils.isNotEmpty(noSupportConnectionName)){
+                 throw new BizException("source.setting.check.cdc",String.join(",",noSupportConnectionName));
+             }
         }
     }
 

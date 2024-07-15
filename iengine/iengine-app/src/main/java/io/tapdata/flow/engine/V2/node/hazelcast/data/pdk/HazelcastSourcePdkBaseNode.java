@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -84,6 +85,8 @@ import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskNodeInfo;
+import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -162,7 +165,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private ExecutorService snapshotRowSizeThreadPool;
 	private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
 	protected DynamicAdjustMemoryService dynamicAdjustMemoryService;
-	private final ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
+	TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
 	private int toTapValueThreadNum;
 	private TapCodecsFilterManager codecsFilterManagerSchemaEnforced;
 	private boolean toTapValueConcurrent;
@@ -195,13 +199,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
         AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
+		ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
+		ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
 		if (needCdcDelay()) {
 			this.cdcDelayCalculation = new CdcDelay();
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
-		if (connectorOnTaskThreadGroup == null)
-			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
 		this.sourceRunner.submitSync(() -> {
 			super.doInit(context);
