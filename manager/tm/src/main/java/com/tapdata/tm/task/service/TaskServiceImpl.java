@@ -1092,7 +1092,6 @@ public class TaskServiceImpl extends TaskService{
             }
 
         }
-        //afterRemove(taskDto, user);
 
         return taskDto;
     }
@@ -4857,6 +4856,7 @@ public class TaskServiceImpl extends TaskService{
         Query query = Query.query(Criteria.where(DAG_NODES_CONNECTION_ID).is(connectionId)
                 .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                 .and(IS_DELETED).is(false)
+                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
         );
         if (null != includeFields && includeFields.length > 0) {
             query.fields().include(includeFields);
