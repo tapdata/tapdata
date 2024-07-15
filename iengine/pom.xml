@@ -36,7 +36,6 @@
 
         <!-- Databases -->
         <version.mysql.server>5.7</version.mysql.server>
-        <version.mysql.driver>8.0.23</version.mysql.driver>
         <version.hana.driver>2.3.58</version.hana.driver>
         <version.mysql.binlog>0.28.0</version.mysql.binlog>
         <version.mongo.server>3.2.12</version.mongo.server>
@@ -310,16 +309,6 @@
             </dependency>
 
             <!-- MySQL JDBC Driver, Binlog reader, Geometry support -->
-            <dependency>
-                <groupId>mysql</groupId>
-                <artifactId>mysql-connector-java</artifactId>
-                <version>${version.mysql.driver}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.dm</groupId>
-                <artifactId>dmjdbc7</artifactId>
-                <version>1.7.0</version>
-            </dependency>
             <dependency>
                 <groupId>com.zendesk</groupId>
                 <artifactId>mysql-binlog-connector-java</artifactId>
