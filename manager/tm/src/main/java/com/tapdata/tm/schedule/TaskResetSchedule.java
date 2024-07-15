@@ -38,7 +38,7 @@ public class TaskResetSchedule {
     @Autowired
     private UserService userService;
 
-    @Value("${task.reset.times: 2}")
+    @Value("${task.reset.times: 3}")
     private int resetAllTimes;
 
 
@@ -47,6 +47,14 @@ public class TaskResetSchedule {
 
     @Autowired
     private StateMachineService stateMachineService;
+
+    private static final String IS_DELETED = "is_deleted";
+
+    private static final String STATUS = "status";
+
+    private static final String RESET_TIMES = "resetTimes";
+
+    private static final String _ID = "_id";
 
 
     @Scheduled(fixedDelay = 90000)
@@ -189,6 +197,7 @@ public class TaskResetSchedule {
             Query query = new Query(criteria);
             List<TaskDto> taskDtos = taskService.findAll(query);
             if (CollectionUtils.isEmpty(taskDtos)) {
+                checkMoreThanResetTimes();
                 return;
             }
 
@@ -221,6 +230,32 @@ public class TaskResetSchedule {
         } catch (Exception e) {
             log.warn("all reset retry error");
         }
+    }
+
+    protected void checkMoreThanResetTimes(){
+        Criteria criteria = Criteria.where(STATUS).in(TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_DELETE_FAILED).and(IS_DELETED).ne(true)
+                .orOperator(Criteria.where(RESET_TIMES).exists(false), Criteria.where(RESET_TIMES).gte(resetAllTimes));
+        Query query = new Query(criteria);
+        List<TaskDto> taskDtos = taskService.findAll(query);
+
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+
+        List<String> userLists = taskDtos.stream().map(BaseDto::getUserId).collect(Collectors.toList());
+
+        Map<String, UserDetail> userDetailMap = userService.getUserMapByIdList(userLists);
+
+        for (TaskDto taskDto : taskDtos) {
+            UserDetail user = userDetailMap.get(taskDto.getUserId());
+            if (user == null) {
+                continue;
+            }
+            Update update = Update.update(IS_DELETED,true);
+            Query queryTask = new Query(Criteria.where(_ID).is(taskDto.getId()));
+            taskService.update(queryTask, update);
+        }
+
     }
 
     public void cleanTaskResetTimes() {
