@@ -267,8 +267,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else {
 			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
 			// handle before
-			if (standard && null != context.get(BEFORE) && !ConnectorConstant.MESSAGE_OPERATION_DELETE.equals(op)) {
-				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get(BEFORE)));
+			if (standard && TapUpdateRecordEvent.TYPE == tapEvent.getType() && MapUtils.isNotEmpty(before)) {
+				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
 			}
 		}
 
@@ -309,8 +309,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	protected void flushBeforeIfNeed (Object processedBefore, TapEvent returnTapEvent, Integer index) {
 		if (null == processedBefore) return;
 		if (processedBefore instanceof List && null != index) {
+			if (index >= ((List<?>) processedBefore).size()) return;
 			Object beforeMap = ((List<?>) processedBefore).get(index);
-			if (beforeMap instanceof Map){
+			if (beforeMap instanceof Map) {
 				TapEventUtil.setBefore(returnTapEvent, (Map<String, Object>) beforeMap);
 			}
 		} else if (processedBefore instanceof Map) {

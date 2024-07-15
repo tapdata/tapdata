@@ -101,6 +101,7 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> before = mock(HashMap.class);
 			when(tapEvent.getAfter()).thenReturn(after);
 			when(tapEvent.getBefore()).thenReturn(before);
+			when(tapEvent.getType()).thenReturn(302);
 			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
 			verify(engine,new Times(2)).invokeFunction(anyString(),any());
 		}
