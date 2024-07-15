@@ -238,7 +238,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
-		Object processedBefore = null;
+		AtomicReference<Object> scriptInvokeBeforeResult = new AtomicReference<>();
 		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_TEST_RUN,
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
@@ -267,8 +267,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		} else {
 			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
 			// handle before
-			if (standard && null != context.get(BEFORE) && !context.get(BEFORE).equals(afterMapInRecord)) {
-				processedBefore = engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get(BEFORE));
+			if (standard && null != context.get(BEFORE) && !ConnectorConstant.MESSAGE_OPERATION_DELETE.equals(op)) {
+				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, context.get(BEFORE)));
 			}
 		}
 
@@ -283,30 +283,38 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
 			}
 		} else if (scriptInvokeResult.get() instanceof List) {
+			Integer beforeIndex = 0;
 			for (Object o : (List) scriptInvokeResult.get()) {
 				Map<String, Object> recordMap = new HashMap<>();
 				MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
 				TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
 				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
 				setRecordMap(returnTapEvent, op, recordMap);
-				flushBeforeIfNeed(processedBefore, returnTapEvent, recordMap);
+				flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, beforeIndex);
 				cloneTapdataEvent.setTapEvent(returnTapEvent);
 				consumer.accept(cloneTapdataEvent, processResult);
+				beforeIndex++;
 			}
 		} else {
 			Map<String, Object> recordMap = new HashMap<>();
 			MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
 			TapEvent returnTapEvent = getTapEvent(tapEvent, op);
 			setRecordMap(returnTapEvent, op, recordMap);
-			flushBeforeIfNeed(processedBefore, returnTapEvent, recordMap);
+			flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, null);
 			tapdataEvent.setTapEvent(returnTapEvent);
 			consumer.accept(tapdataEvent, processResult);
 		}
 	}
 
-	protected static void flushBeforeIfNeed(Object processedBefore, TapEvent returnTapEvent, Map<String, Object> recordMap) {
-		if (null != processedBefore){
-			TapEventUtil.setBefore(returnTapEvent, recordMap);
+	protected void flushBeforeIfNeed (Object processedBefore, TapEvent returnTapEvent, Integer index) {
+		if (null == processedBefore) return;
+		if (processedBefore instanceof List && null != index) {
+			Object beforeMap = ((List<?>) processedBefore).get(index);
+			if (beforeMap instanceof Map){
+				TapEventUtil.setBefore(returnTapEvent, (Map<String, Object>) beforeMap);
+			}
+		} else if (processedBefore instanceof Map) {
+			TapEventUtil.setBefore(returnTapEvent, (Map<String, Object>) processedBefore);
 		}
 	}
 

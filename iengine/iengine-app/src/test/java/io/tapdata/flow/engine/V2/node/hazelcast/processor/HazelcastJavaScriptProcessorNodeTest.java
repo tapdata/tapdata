@@ -5,18 +5,19 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.script.Invocable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -113,6 +114,58 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			when(tapEvent.getBefore()).thenReturn(null);
 			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
 			verify(engine,new Times(1)).invokeFunction(anyString(),any());
+		}
+		@Test
+		@SneakyThrows
+		void testForDelEvent(){
+			boolean standard = true;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> before = mock(HashMap.class);
+			TapDeleteRecordEvent tapDelEvent = mock(TapDeleteRecordEvent.class);
+			when(tapDelEvent.getBefore()).thenReturn(before);
+			when(((TapBaseEvent) tapDelEvent).getTableId()).thenReturn("tableId");
+			when(tapdataEvent.getTapEvent()).thenReturn(tapDelEvent);
+			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			verify(engine,new Times(1)).invokeFunction(anyString(),any());
+		}
+		@Test
+		@SneakyThrows
+		void testForListResult(){
+			boolean standard = true;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			Map<String, Object> before = mock(HashMap.class);
+			tapEvent = new TapUpdateRecordEvent();
+			tapEvent.setAfter(after);
+			tapEvent.setBefore(before);
+			tapEvent.setTableId("tableId");
+			when(tapdataEvent.getTapEvent()).thenReturn(tapEvent);
+			List<Map<String ,Object>> listResult = new ArrayList<>();
+			Map<String, Object> mapRes1 = new HashMap<>();
+			mapRes1.put("col1",1);
+			mapRes1.put("col2",1);
+			Map<String, Object> mapRes2 = new HashMap<>();
+			mapRes2.put("col2",1);
+			mapRes2.put("col3",1);
+			listResult.add(mapRes1);
+			listResult.add(mapRes2);
+			List<Map<String ,Object>> beforeResult = new ArrayList<>();
+			Map<String, Object> mapRes3 = new HashMap<>();
+			mapRes3.put("col2",2);
+			mapRes3.put("col3",2);
+			beforeResult.add(mapRes1);
+			beforeResult.add(mapRes3);
+			doReturn(listResult).doReturn(beforeResult).when(engine).invokeFunction(anyString(),any());
+			when(tapdataEvent.clone()).thenReturn(tapdataEvent);
+			hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+
+			ArgumentCaptor<TapdataEvent> captor = ArgumentCaptor.forClass(TapdataEvent.class);
+			ArgumentCaptor<HazelcastProcessorBaseNode.ProcessResult> intCaptor = ArgumentCaptor.forClass(HazelcastProcessorBaseNode.ProcessResult.class);
+			verify(consumer, new Times(2)).accept(captor.capture(), intCaptor.capture());
+			TapdataEvent event = captor.getValue();
+			assertEquals(tapEvent,event.getTapEvent());
+			assertEquals(beforeResult.get(1),((TapUpdateRecordEvent) event.getTapEvent()).getBefore());
+			assertEquals(listResult.get(1),((TapUpdateRecordEvent) event.getTapEvent()).getAfter());
 		}
 		@Test
 		@SneakyThrows
