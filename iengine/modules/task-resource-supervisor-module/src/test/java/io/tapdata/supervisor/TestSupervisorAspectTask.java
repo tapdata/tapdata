@@ -13,6 +13,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -117,23 +118,29 @@ public class TestSupervisorAspectTask {
         ReflectionTestUtils.setField(supervisorAspectTask, "taskResourceSupervisorManager", taskResourceSupervisorManager);
 
         ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
-        ConnectorOnTaskThreadGroup spyThreadGroup = spy(connectorOnTaskThreadGroup);
-        doThrow(IllegalThreadStateException.class).when(spyThreadGroup).destroy();
+        Thread[] threads = new Thread[1];
+        AtomicBoolean atomicBoolean=new AtomicBoolean(false);
+        threads[0] = new Thread(connectorOnTaskThreadGroup, () -> {
+            while (!atomicBoolean.get()) {
+            }
+        });
+        threads[0].start();
         TaskNodeInfo taskNodeInfo = new TaskNodeInfo();
         taskNodeInfo.setNode(mockNode);
         taskNodeInfo.setSupervisorAspectTask(supervisorAspectTask);
         taskNodeInfo.setAssociateId(associateId);
-        taskNodeInfo.setNodeThreadGroup(spyThreadGroup);
+        taskNodeInfo.setNodeThreadGroup(connectorOnTaskThreadGroup);
 
         taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
 
         Map<ThreadGroup, TaskNodeInfo> threadGroupMap = new ConcurrentHashMap<>();
-        threadGroupMap.put(spyThreadGroup,taskNodeInfo);
+        threadGroupMap.put(connectorOnTaskThreadGroup,taskNodeInfo);
         ReflectionTestUtils.setField(supervisorAspectTask, "threadGroupMap", threadGroupMap);
 
         TaskStopAspect taskStopAspect=new TaskStopAspect();
         supervisorAspectTask.onStop(taskStopAspect);
         assertEquals(Boolean.TRUE,taskNodeInfo.isHasLaked());
         assertEquals(1,taskResourceSupervisorManager.getTaskNodeInfos().size());
+        atomicBoolean.set(true);
     }
 }
