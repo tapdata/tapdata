@@ -25,12 +25,13 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import com.tapdata.tm.commons.schema.bean.ValidateDetail;
-import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
-import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.vo.*;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -112,7 +113,6 @@ import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.monitor.service.impl.BatchServiceImpl;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -163,13 +163,10 @@ import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import lombok.AllArgsConstructor;
@@ -200,8 +197,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.AsyncContext;
@@ -218,7 +213,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -378,6 +372,7 @@ public class TaskServiceImpl extends TaskService{
     private ChartViewService chartViewService;
     private UserDataReportService userDataReportService;
     private BatchService batchService;
+    private ShareCdcTableMappingService shareCdcTableMappingService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -4072,6 +4067,7 @@ public class TaskServiceImpl extends TaskService{
             log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
             return;
         }
+        checkHeartTableInLogCollectorTaskTable(taskDto, user);
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
             log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
@@ -4103,6 +4099,45 @@ public class TaskServiceImpl extends TaskService{
         } else {
             run(taskDto, user);
         }
+    }
+
+    protected void checkHeartTableInLogCollectorTaskTable(TaskDto taskDto, UserDetail user) {
+        if (TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+            Node logCollectorTaskSourceNode = taskDto.getDag().getSourceNodes().get(0);
+            if ((logCollectorTaskSourceNode instanceof LogCollectorNode)) {
+                LogCollectorNode logCollectorNode = (LogCollectorNode) logCollectorTaskSourceNode;
+                List<String> connectionIds = logCollectorNode.getConnectionIds();
+                Set<String> tableNameSet = new HashSet<>(logCollectorNode.getTableNames());
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+                List<DataSourceConnectionDto> allDataSourceConnection = dataSourceService.findAllByIds(connectionIds);
+                boolean hasUpdate = addHeartBeatTable2LogCollector(allDataSourceConnection, logCollectorConnConfigs, tableNameSet);
+                if (hasUpdate) {
+                    List<String> finalTableNames = new ArrayList<>(tableNameSet);
+                    logCollectorNode.setTableNames(finalTableNames);
+                    shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(taskDto, false, user);
+                    updateById(taskDto, user);
+                }
+            }
+        }
+    }
+
+    protected boolean addHeartBeatTable2LogCollector(List<DataSourceConnectionDto> allDataSourceConnection, Map<String, LogCollecotrConnConfig> logCollectorConnConfigs, Set<String> tableNameSet) {
+        boolean updateConfig = false;
+        int beforeTableNamesSize = tableNameSet.size();
+        for (DataSourceConnectionDto dataSourceConnectionDto : allDataSourceConnection) {
+            if (Boolean.TRUE.equals(dataSourceConnectionDto.getHeartbeatEnable())) {
+                if (MapUtils.isNotEmpty(logCollectorConnConfigs) && null != logCollectorConnConfigs.get(dataSourceConnectionDto.getId().toHexString())) {
+                    LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(dataSourceConnectionDto.getId().toHexString());
+                    List<String> tableNames = logCollecotrConnConfig.getTableNames();
+                    if (tableNames.stream().noneMatch(ConnHeartbeatUtils.TABLE_NAME::equals)) {
+                        logCollecotrConnConfig.getTableNames().add(ConnHeartbeatUtils.TABLE_NAME);
+                        updateConfig = true;
+                    }
+                }
+                tableNameSet.add(ConnHeartbeatUtils.TABLE_NAME);
+            }
+        }
+        return updateConfig || beforeTableNamesSize < tableNameSet.size();
     }
 
 
