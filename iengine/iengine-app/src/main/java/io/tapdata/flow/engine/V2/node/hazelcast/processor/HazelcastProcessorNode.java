@@ -353,7 +353,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 			if (current instanceof Map) {
 				Map<String, Object> currentMap = (Map<String, Object>) current;
-				for (String key : currentMap.keySet()) {
+				List<String> keys = new ArrayList<>(currentMap.keySet());
+				for (String key : keys) {
 					String newKey = fieldsNameTransformMap.computeIfAbsent(key, k -> Capitalized.convert(key, capitalized));
 					Object value = currentMap.remove(key);
 					currentMap.put(newKey, value);

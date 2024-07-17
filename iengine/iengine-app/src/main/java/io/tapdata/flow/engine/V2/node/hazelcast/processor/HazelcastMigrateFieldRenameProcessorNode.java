@@ -1,9 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MapUtilV2;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -15,6 +16,9 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,16 +30,23 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 
 	private static final Logger logger = LogManager.getLogger(HazelcastMigrateFieldRenameProcessorNode.class);
 
-	private final MigrateFieldRenameProcessorNode.ApplyConfig applyConfig;
+	private final DataExecutor applyConfig;
 	private final MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>> dataOperator = new MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>>() {
 		@Override
 		public void renameField(Map<String, Object> param, String fromName, String toName) {
-			MapUtil.replaceKey(fromName, param, toName);
+			MapUtilV2.replaceKey(fromName, param, toName);
 		}
 
 		@Override
 		public void deleteField(Map<String, Object> param, String originalName) {
-			param.remove(originalName);
+			MapUtilV2.removeValueByKey(param, originalName);
+		}
+
+		@Override
+		public Object renameFieldWithReturn(Map<String, Object> param, String fromName, String toName) {
+			Object value = param.remove(fromName);
+			param.put(toName, value);
+			return value;
 		}
 	};
 	private final MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldAttributesEvent> alterFieldOperator = new MigrateFieldRenameProcessorNode.IOperator<TapAlterFieldAttributesEvent>() {
@@ -91,7 +102,7 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 	public HazelcastMigrateFieldRenameProcessorNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
 		MigrateFieldRenameProcessorNode nodeConfig = (MigrateFieldRenameProcessorNode) getNode();
-		applyConfig = new MigrateFieldRenameProcessorNode.ApplyConfig(nodeConfig);
+		applyConfig = new DataExecutor(nodeConfig);
 	}
 
 	@Override
@@ -105,11 +116,8 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		String tableId = TapEventUtil.getTableId(tapEvent);
 		if (tapEvent instanceof TapRecordEvent) {
 			//dml event
-			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-
-			TapEventUtil.setAfter(tapEvent, processData(after, tableId));
-			TapEventUtil.setBefore(tapEvent, processData(before, tableId));
+			applyConfig.apply(tableId, TapEventUtil.getAfter(tapEvent), dataOperator);
+			applyConfig.apply(tableId, TapEventUtil.getBefore(tapEvent), dataOperator);
 
 			processedEvent.set(tapdataEvent);
 		} else {
@@ -180,12 +188,128 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 	}
 
-	private Map<String, Object> processData(Map<String, Object> data, String tableName) {
-		if (null != data) {
-			for (String fieldName : new HashSet<>(data.keySet())) {
-				applyConfig.apply(tableName, fieldName, data, dataOperator);
+	protected static class DataExecutor extends MigrateFieldRenameProcessorNode.ApplyConfig {
+		private final Map<String, String> operationFieldMap;
+		private final Map<String, Boolean> needApplyCacheMap;
+		public DataExecutor(MigrateFieldRenameProcessorNode node) {
+			super(node);
+			this.operationFieldMap = new Object2ObjectOpenHashMap<>();
+			this.needApplyCacheMap = new Object2ObjectOpenHashMap<>();
+		}
+
+		protected boolean needApply(String tableName) {
+			if (StringUtils.isBlank(tableName)) {
+				return false;
+			}
+			return needApplyCacheMap.computeIfAbsent(
+					tableName,
+					key -> (null != fieldsOperation && !fieldsOperation.isEmpty())
+							|| (null != fieldInfoMaps && MapUtils.isNotEmpty(fieldInfoMaps.get(key)))
+			);
+		}
+
+		protected <T> void apply(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
+			if (!needApply(tableName)) {
+				return;
+			}
+			apply(
+					tableName, operatorParam, operator,
+					this::applyOperation,
+					this::applyFieldInfo
+			);
+		}
+
+		protected <T> void apply(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator,
+								 DataExecutorFunction<T>... applyFunctions) {
+			if (null == operatorParam || null == applyFunctions) {
+				return;
+			}
+			for (DataExecutorFunction<T> applyFunction : applyFunctions) {
+				if (null == applyFunction) {
+					continue;
+				}
+				if (applyFunction.apply(tableName, operatorParam, operator)) {
+					break;
+				}
 			}
 		}
-		return data;
+
+		protected <T> boolean applyOperation(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
+			if (fieldsOperation.isEmpty()) {
+				return false;
+			}
+			Map<String, FieldInfo> fieldInfoMap = null;
+			if (null != fieldInfoMaps) {
+				fieldInfoMap = fieldInfoMaps.get(tableName);
+			}
+			Queue<Object> queue = new LinkedList<>();
+			queue.add(operatorParam);
+
+			while (!queue.isEmpty()) {
+				Object poll = queue.poll();
+				if (poll instanceof Map) {
+					Map<String, Object> map = (Map<String, Object>) poll;
+					List<String> keys = new ArrayList<>(map.keySet());
+					for (String key : keys) {
+						if (null != fieldInfoMap && fieldInfoMap.containsKey(key)) {
+							// Field info operation
+							FieldInfo fieldInfo = fieldInfoMap.get(key);
+							if (Boolean.FALSE.equals(fieldInfo.getIsShow())) {
+								operator.deleteField((T) map, key);
+							}
+							if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
+								String newKey = fieldInfo.getTargetFieldName();
+								Object value = operator.renameFieldWithReturn((T) map, key, newKey);
+								if (value instanceof Map || value instanceof List) {
+									queue.add(value);
+								}
+							}
+						} else {
+							// Rule operation
+							String newKey = operationFieldMap.computeIfAbsent(key, k -> apply(fieldsOperation, k));
+							Object value = operator.renameFieldWithReturn((T) map, key, newKey);
+							if (value instanceof Map || value instanceof List) {
+								queue.add(value);
+							}
+						}
+					}
+				} else if (poll instanceof List) {
+					List<Object> list = (List<Object>) poll;
+					for (Object item : list) {
+						if (item instanceof Map || item instanceof List) {
+							queue.add(item);
+						}
+					}
+				}
+			}
+			return true;
+		}
+
+		protected <T> boolean applyFieldInfo(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
+			if (MapUtils.isEmpty(fieldInfoMaps) || !fieldInfoMaps.containsKey(tableName)) {
+				return false;
+			}
+			Map<String, FieldInfo> fieldInfoMap = fieldInfoMaps.get(tableName);
+			for (Map.Entry<String, FieldInfo> entry : fieldInfoMap.entrySet()) {
+				String key = entry.getKey();
+				FieldInfo fieldInfo = entry.getValue();
+				if (Boolean.FALSE.equals(fieldInfo.getIsShow())) {
+					operator.deleteField(operatorParam, key);
+				}
+				if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
+					operator.renameField(operatorParam, key, fieldInfo.getTargetFieldName());
+				}
+			}
+			return true;
+		}
+	}
+
+	protected interface DataExecutorFunction<T> {
+		boolean apply(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator);
+	}
+
+	@Override
+	public boolean needTransformValue() {
+		return false;
 	}
 }
