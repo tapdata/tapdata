@@ -1,6 +1,5 @@
 package io.tapdata.supervisor;
 
-import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -20,7 +19,7 @@ public class TaskResourceSupervisorManagerTest {
         @DisplayName("test cleanThreadGroup when destroy success ")
         @Test
         void test1(){
-            ThreadGroup threadGroup=mock(ThreadGroup.class);
+            ThreadGroup threadGroup=new ThreadGroup("testThreadGroup");
             SupervisorAspectTask supervisorAspectTask=new SupervisorAspectTask();
             Map<ThreadGroup, TaskNodeInfo> threadGroupMap = new ConcurrentHashMap<>();
 
@@ -50,9 +49,6 @@ public class TaskResourceSupervisorManagerTest {
             });
             Node node = mock(Node.class);
             when(node.getId()).thenReturn("testId");
-            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
-            when(dataProcessorContext.getNode()).thenReturn(node);
-
 
             TaskNodeInfo taskNodeInfo=new TaskNodeInfo();
             taskNodeInfo.setHasLeaked(true);
@@ -83,7 +79,7 @@ public class TaskResourceSupervisorManagerTest {
         @Test
         void test1(){
             SupervisorAspectTask supervisorAspectTask = new SupervisorAspectTask();
-            ThreadGroup threadGroup=mock(ThreadGroup.class);
+            ThreadGroup threadGroup=new ThreadGroup("test");
             taskNodeInfo.setHasLeaked(true);
             taskNodeInfo.setNodeThreadGroup(threadGroup);
             taskNodeInfo.setSupervisorAspectTask(supervisorAspectTask);
@@ -95,7 +91,7 @@ public class TaskResourceSupervisorManagerTest {
         @DisplayName("test summary when task is alive")
         @Test
         void test2(){
-            ThreadGroup threadGroup=mock(ThreadGroup.class);
+            ThreadGroup threadGroup=new ThreadGroup("test");
             taskNodeInfo.setHasLeaked(false);
             taskNodeInfo.setNodeThreadGroup(threadGroup);
             taskNodeInfo.setSupervisorAspectTask(new SupervisorAspectTask());
