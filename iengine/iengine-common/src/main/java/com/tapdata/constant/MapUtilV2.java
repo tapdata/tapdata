@@ -303,30 +303,24 @@ public class MapUtilV2 extends MapUtil {
 		if (needSplit(key)) {
 			String[] split = key.split("\\.");
 
-			if (split.length <= 0 && StringUtils.isAllBlank(split)) {
+			if (split.length == 0 && StringUtils.isAllBlank(split)) {
 				return false;
 			}
 
-			List<String> keys = Arrays.stream(split).filter(s -> StringUtils.isNotBlank(s)).collect(Collectors.toList());
+			List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
 
 			if (keys.size() <= 1) {
-				if (dataMap.containsKey(key)) {
-					dataMap.remove(key);
-					isRemoved = true;
-				}
+				isRemoved = null != dataMap.remove(key);
 			} else {
 				Object value = dataMap.getOrDefault(keys.get(0), null);
 
 				if (value == null) {
-					if (dataMap.containsKey(key)) {
-						dataMap.remove(key);
-						isRemoved = true;
-					}
+					isRemoved = null != dataMap.remove(key);
 					return isRemoved;
 				}
 
 				// 截取第一个，拼接成新的字段名，如a.b.c变为b.c，往里面递归
-				String recursiveKey = keys.subList(1, keys.size()).stream().collect(Collectors.joining("."));
+				String recursiveKey = String.join(".", keys.subList(1, keys.size()));
 
 				if (value instanceof Map) {
 					// 递归调用Map的移除方法
@@ -339,10 +333,7 @@ public class MapUtilV2 extends MapUtil {
 
 			removeEmptyMap(dataMap, keys.get(0));
 		} else {
-			if (dataMap.containsKey(key)) {
-				dataMap.remove(key);
-				isRemoved = true;
-			}
+			isRemoved = null != dataMap.remove(key);
 		}
 
 		return isRemoved;

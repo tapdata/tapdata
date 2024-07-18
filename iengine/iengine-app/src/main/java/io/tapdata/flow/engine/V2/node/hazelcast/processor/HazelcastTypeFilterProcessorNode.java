@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.constant.MapUtil;
+import com.tapdata.constant.MapUtilV2;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -141,10 +142,13 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
         }
 
         for (Map.Entry<String, FieldInfo> entry : fieldsMappingMap.entrySet()) {
-            if (MapUtil.containsKey(map, entry.getKey())) {
-                MapUtil.removeValueByKey(map, entry.getKey());
-            }
+            MapUtilV2.removeValueByKey(map, entry.getKey());
         }
         return map;
+    }
+
+    @Override
+    public boolean needTransformValue() {
+        return false;
     }
 }
