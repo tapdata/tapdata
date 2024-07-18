@@ -1000,10 +1000,14 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		if (isInvalidOperation(tapdataEvent)) return false;
 		String op = getOp(tapdataEvent);
-		if (op.equals(OperationType.DELETE.getOp()) || op.equals(OperationType.UPDATE.getOp())) {
+		if (op.equals(OperationType.DELETE.getOp())) {
 			return false;
 		}
 		String preNodeId = getPreNodeId(tapdataEvent);
+		EnableUpdateJoinKey enableUpdateJoinKey = enableUpdateJoinKeyMap.get(preNodeId);
+		if (op.equals(OperationType.UPDATE.getOp()) && Boolean.FALSE.equals(enableUpdateJoinKey.isEnableChildren())) {
+			return false;
+		}
 		boolean existsInLookupMap = this.lookupMap.containsKey(preNodeId);
 		if (existsInLookupMap && SyncStage.INITIAL_SYNC.equals(syncStage)
 				&& (isMainTableFirstMode() || (isSubTableFirstMode() && !isFirstMergeLevel(preNodeId)))) {
@@ -1966,7 +1970,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 			List<JoinKeyReference> childJoinKeyReferences = joinKeyReference.getChildJoinKeyReferences();
 			if (CollectionUtils.isNotEmpty(childJoinKeyReferences)) {
-				List<Map<String, String>> joinKeys = mergeTableProperties.getJoinKeys();
 				Map<String, Object> beforeJoinKey = buildParentBeforeJoinKeyValueMap(mergeTableProperties, before);
 				if (MapUtils.isNotEmpty(parentBeforeJoinKey)) {
 					beforeJoinKey.putAll(parentBeforeJoinKey);
