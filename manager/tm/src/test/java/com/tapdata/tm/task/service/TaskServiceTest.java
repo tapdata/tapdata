@@ -1662,7 +1662,6 @@ public class TaskServiceTest {
             doNothing().when(taskService).checkTaskInspectFlag(any());
             doNothing().when(taskService).checkDagAgentConflict(taskDto,userDetail,true);
             doNothing().when(taskService).checkDDLConflict(any());
-            doNothing().when(taskService).checkSourceCdcSupport(taskDto);
             doAnswer(invocationOnMock -> {
                 Update set = invocationOnMock.getArgument(1);
                 Document result = (Document) set.getUpdateObject().get("$unset");
