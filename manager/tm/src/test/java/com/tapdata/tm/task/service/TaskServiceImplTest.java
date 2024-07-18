@@ -5048,7 +5048,7 @@ class TaskServiceImplTest {
             ResponseBody responseBody = new ResponseBody();
             List<ValidateDetail> validateDetails = new ArrayList<>();
             ValidateDetail validateDetail = new ValidateDetail();
-            validateDetail.setShowMsg("Binlog is close");
+            validateDetail.setShowMsg("Read log");
             validateDetail.setStatus("failed");
             validateDetails.add(validateDetail);
             responseBody.setValidateDetails(validateDetails);
@@ -5060,6 +5060,7 @@ class TaskServiceImplTest {
                 Assertions.assertTrue(((BizException)e).getErrorCode().equals("source.setting.check.cdc"));
             }
         }
+
 
         @Test
         void testSourceSupport() {
@@ -5080,6 +5081,35 @@ class TaskServiceImplTest {
             List<ValidateDetail> validateDetails = new ArrayList<>();
             ValidateDetail validateDetail = new ValidateDetail();
             validateDetail.setShowMsg(TestItem.ITEM_READ_LOG);
+            validateDetail.setStatus("passed");
+            validateDetails.add(validateDetail);
+            responseBody.setValidateDetails(validateDetails);
+            dataSourceConnectionDto.setResponse_body(responseBody);
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService, times(1)).findByIdByCheck(any());
+
+        }
+
+        @Test
+        void testSourceSupport1() {
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Mysql");
+            List<Capability> capabilities = new ArrayList<>();
+            Capability capability = new Capability();
+            capability.setId("stream_read_function");
+            capability.setType(11);
+            capabilities.add(capability);
+            dataSourceConnectionDto.setCapabilities(capabilities);
+            ResponseBody responseBody = new ResponseBody();
+            List<ValidateDetail> validateDetails = new ArrayList<>();
+            ValidateDetail validateDetail = new ValidateDetail();
+            validateDetail.setShowMsg("write");
             validateDetail.setStatus("passed");
             validateDetails.add(validateDetail);
             responseBody.setValidateDetails(validateDetails);

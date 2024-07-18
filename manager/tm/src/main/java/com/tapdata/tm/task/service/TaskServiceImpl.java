@@ -830,7 +830,7 @@ public class TaskServiceImpl extends TaskService{
                             if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
                                 map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
                             }
-                            if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                            if (map.containsKey(TestItem.ITEM_READ_LOG) && !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
                                 noSupportConnectionName.add(connectionDto.getName());
                             }
                         }

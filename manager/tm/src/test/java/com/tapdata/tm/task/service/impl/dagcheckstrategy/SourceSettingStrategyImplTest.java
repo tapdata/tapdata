@@ -2,9 +2,14 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
@@ -12,11 +17,10 @@ import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.pdk.apis.entity.Capability;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -25,8 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class SourceSettingStrategyImplTest {
     @Nested
@@ -44,8 +47,8 @@ public class SourceSettingStrategyImplTest {
         @BeforeEach
         void beforeEach(){
             sourceSettingStrategy=spy(SourceSettingStrategyImpl.class);
-            dataSourceService= Mockito.mock(DataSourceService.class);
-            taskDagCheckLogService = Mockito.mock(TaskDagCheckLogService.class);
+            dataSourceService= mock(DataSourceService.class);
+            taskDagCheckLogService = mock(TaskDagCheckLogService.class);
             sourceSettingStrategy.setDataSourceService(dataSourceService);
             sourceSettingStrategy.setTaskDagCheckLogService(taskDagCheckLogService);
             locale = Locale.CHINA;
@@ -160,4 +163,80 @@ public class SourceSettingStrategyImplTest {
         }
     }
 
+
+    @Nested
+    class TestCheckSourceSupportCdcByTestConnectionResult {
+        private SourceSettingStrategyImpl sourceSettingStrategy;
+        private DataSourceService dataSourceService;
+
+        private TaskDagCheckLogService taskDagCheckLogService;
+        private String taskId;
+        private Locale locale;
+
+        private String userId;
+        private String name;
+
+        @BeforeEach
+        void beforeEach() {
+            sourceSettingStrategy = new SourceSettingStrategyImpl();
+            dataSourceService = mock(DataSourceService.class);
+            taskDagCheckLogService = mock(TaskDagCheckLogService.class);
+            sourceSettingStrategy.setDataSourceService(dataSourceService);
+            sourceSettingStrategy.setTaskDagCheckLogService(taskDagCheckLogService);
+            locale = Locale.CHINA;
+            taskId = "123";
+            userId = "userId";
+            name = "123";
+        }
+
+        @Test
+        void testCheckSourceSupportCdcByTestConnectionResult() {
+            List<TaskDagCheckLog> result = Lists.newArrayList();
+            TaskDto taskDto = new TaskDto();
+            taskDto.setType("cdc");
+            DataParentNode dataParentNode = new TableNode();
+            List<String> cap = new ArrayList<>();
+            cap.add("stream_read_function");
+            ResponseBody responseBody = new ResponseBody();
+            List<ValidateDetail> validateDetails = new ArrayList<>();
+            ValidateDetail validateDetail = new ValidateDetail();
+            validateDetail.setShowMsg("Read log");
+            validateDetail.setStatus("failed");
+            validateDetails.add(validateDetail);
+            responseBody.setValidateDetails(validateDetails);
+            DataSourceConnectionDto dto = new DataSourceConnectionDto();
+            dto.setResponse_body(responseBody);
+            TaskDagCheckLog log = new TaskDagCheckLog();
+            log.setLog("cdc check");
+            when(taskDagCheckLogService.createLog(any(),any(),any(),any(),any(),any(),any())).thenReturn(log);
+            ReflectionTestUtils.invokeMethod(sourceSettingStrategy, "checkSourceSupportCdcByTestConnectionResult",
+                    taskDto, locale, taskId, result, userId, dataParentNode, "test", dto, cap);
+            Assertions.assertTrue(result.size() == 1);
+        }
+
+    @Test
+    void testCheckSourceSupportCdcByTestConnectionResult1() {
+        List<TaskDagCheckLog> result = Lists.newArrayList();
+        TaskDto taskDto = new TaskDto();
+        taskDto.setType("cdc");
+        DataParentNode dataParentNode = new TableNode();
+        List<String> cap = new ArrayList<>();
+        cap.add("stream_read_function");
+        ResponseBody responseBody = new ResponseBody();
+        List<ValidateDetail> validateDetails = new ArrayList<>();
+        ValidateDetail validateDetail = new ValidateDetail();
+        validateDetail.setShowMsg("write");
+        validateDetail.setStatus("failed");
+        validateDetails.add(validateDetail);
+        responseBody.setValidateDetails(validateDetails);
+        DataSourceConnectionDto dto = new DataSourceConnectionDto();
+        dto.setResponse_body(responseBody);
+        TaskDagCheckLog log = new TaskDagCheckLog();
+        log.setLog("cdc check");
+        when(taskDagCheckLogService.createLog(any(),any(),any(),any(),any(),any(),any())).thenReturn(log);
+        ReflectionTestUtils.invokeMethod(sourceSettingStrategy, "checkSourceSupportCdcByTestConnectionResult",
+                taskDto, locale, taskId, result, userId, dataParentNode, "test", dto, cap);
+        Assertions.assertTrue(result.size() == 0);
+    }
+ }
 }
