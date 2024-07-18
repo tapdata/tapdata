@@ -1,5 +1,7 @@
 package com.tapdata.constant;
 
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapMapValue;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -46,7 +48,7 @@ public class MapUtilV2 extends MapUtil {
 				return null;
 			}
 
-			List<String> keys = Arrays.stream(split).filter(s -> StringUtils.isNotBlank(s)).collect(Collectors.toList());
+			List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
 
 			if (keys.size() <= 1) {
 				return dataMap.getOrDefault(key, notExistsNode);
@@ -58,16 +60,23 @@ public class MapUtilV2 extends MapUtil {
 				}
 
 				// 截掉第一层字段，例如：a.b.c -> b.c，用于递归
-				String recursiveKey = keys.subList(1, keys.size()).stream().collect(Collectors.joining("."));
+				String recursiveKey = String.join(".", keys.subList(1, keys.size()));
 
 				// 递归处理Map或者List
 				if (value instanceof Map) {
-					value = getValueByKey((Map) value, recursiveKey);
+					value = getValueByKey((Map<String, Object>) value, recursiveKey);
+					if (value instanceof NotExistsNode) {
+						value = dataMap.getOrDefault(key, notExistsNode);
+					}
+				} else if (value instanceof TapMapValue) {
+					value = getValueByKey(((TapMapValue) value).getValue(), recursiveKey);
 					if (value instanceof NotExistsNode) {
 						value = dataMap.getOrDefault(key, notExistsNode);
 					}
 				} else if (value instanceof List) {
 					value = CollectionUtil.getValueByKey((List) value, recursiveKey);
+				} else if (value instanceof TapArrayValue) {
+					value = CollectionUtil.getValueByKey(((TapArrayValue) value).getValue(), recursiveKey);
 				}
 			}
 		} else {

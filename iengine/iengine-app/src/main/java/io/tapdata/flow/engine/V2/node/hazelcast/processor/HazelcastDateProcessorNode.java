@@ -1,13 +1,13 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.tapdata.constant.MapUtilV2;
+import com.tapdata.constant.TapList;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.DateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.util.JsonUtil;
-import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
@@ -15,25 +15,17 @@ import io.tapdata.entity.mapping.TypeExprResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TaskDateProcessorExCode_17;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 
@@ -57,11 +49,13 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 	private int hours;
 
 	private DefaultExpressionMatchingMap matchingMap;
+	private final Map<String, List<String>> tableFieldMap;
 
 	@SneakyThrows
 	public HazelcastDateProcessorNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
 		initConfig();
+		this.tableFieldMap = new HashMap<>();
 	}
 
 	private void initConfig() {
@@ -98,81 +92,91 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 		}
 
 		Node node = getNode();
-		TapTable tapTable;
 		boolean syncTask;
+		String tableId;
 		if (node instanceof DateProcessorNode) {
-			tapTable = processorBaseContext.getTapTableMap().get(getNode().getId());
+			tableId = getNode().getId();
 			syncTask = true;
 		} else {
-			tapTable = processorBaseContext.getTapTableMap().get(tableName);
+			tableId = tableName;
 			syncTask = false;
 		}
 
-		if (tapTable == null) {
-			throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId());
-		}
+		List<String> addTimeFields = tableFieldMap.computeIfAbsent(tableId, key -> {
+			TapTable tapTable = processorBaseContext.getTapTableMap().get(key);
+			if (tapTable == null) {
+				throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId());
+			}
+			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+			List<String> result = new ArrayList<>();
 
-		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		List<String> addTimeFields = new ArrayList<>();
+			if (nameFieldMap != null) {
+				nameFieldMap.forEach((k, v) -> {
 
-		if (nameFieldMap != null) {
-			nameFieldMap.forEach((k, v) -> {
-
-				String dataType = v.getDataType();
-				if (!syncTask) {
-					TypeExprResult<DataMap> exprResult = matchingMap.get(v.getDataType());
-					if (exprResult != null) {
-						dataType = exprResult.getExpression();
+					String dataType = v.getDataType();
+					if (!syncTask) {
+						TypeExprResult<DataMap> exprResult = matchingMap.get(v.getDataType());
+						if (exprResult != null) {
+							dataType = exprResult.getExpression();
+						}
 					}
-				}
 
-				if (dataTypes.contains(dataType)) {
-					addTimeFields.add(k);
-				}
-			});
-		}
+					if (dataTypes.contains(dataType)) {
+						result.add(k);
+					}
+				});
+			}
+			return result;
+		});
 
-		final Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-
-		if (after != null) {
-			addTime(addTimeFields, after, tableName, null);
-		}
+		addTime(tapEvent, addTimeFields, tableName);
 		consumer.accept(tapdataEvent, processResult);
 	}
 
-	private void addTime(List<String> addTimeFields, final Map<String, Object> after, String tableName, String pre) {
-		Set<String> set = new HashSet<>(after.keySet());
-		for (String k : set) {
-			Object v = after.get(k);
-			String oldK = k;
-			if (StringUtils.isNotBlank(pre)) {
-				k = pre + "." + k;
-			}
-			if (v instanceof Map) {
-				addTime(addTimeFields, (Map) v, tableName, k);
+	private void addTime(TapEvent tapEvent, List<String> addTimeFields, String tableName) {
+		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+		if (null != before) {
+			addTime(addTimeFields, before, tableName);
+		}
+		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+		if (null != after) {
+			addTime(addTimeFields, after, tableName);
+		}
+	}
+
+	private void addTime(List<String> addTimeFields, final Map<String, Object> record, String tableName) {
+		for (String addTimeField : addTimeFields) {
+			Object valueByKeyV2 = MapUtilV2.getValueByKeyV2(record, addTimeField);
+			if (valueByKeyV2 instanceof TapList) {
+				((TapList) valueByKeyV2).forEachRealValue(v -> addTime(tableName, addTimeField, v));
 			} else {
-				addTime(addTimeFields, after, tableName, k, oldK, v);
+				addTime(tableName, addTimeField, valueByKeyV2);
 			}
 		}
 	}
 
-	protected void addTime(List<String> addTimeFields, Map<String, Object> after, String tableName, String k, String oldK, Object v) {
-		if (addTimeFields.contains(k)) {
-			if (v instanceof DateTime) {
-				if (((DateTime) v).isContainsIllegal()) {
-					return;
-				}
-				v = ((DateTime) v).toInstant();
-				if (add) {
-					v = ((Instant) v).plus(hours, ChronoUnit.HOURS);
-				} else {
-					v = ((Instant) v).minus(hours, ChronoUnit.HOURS);
-				}
-				after.replace(oldK, new DateTime((Instant) v));
-			} else if (v != null) {
-				throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME, "table: " + tableName
-						+ ", key: " + k + ", type: " + v.getClass().getName() + ", value: " + v);
-			}
+	protected void addTime(String tableName, String k, Object v) {
+		if (null == v) {
+			return;
 		}
+		DateTime dateTime;
+		if (v instanceof TapDateTimeValue) {
+			dateTime = ((TapDateTimeValue) v).getValue();
+		} else if (v instanceof DateTime) {
+			dateTime = (DateTime) v;
+		} else {
+			throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME, "table: " + tableName
+					+ ", key: " + k + ", type: " + v.getClass().getName() + ", value: " + v);
+		}
+		if (add) {
+			dateTime.plus(hours, ChronoUnit.HOURS);
+		} else {
+			dateTime.minus(hours, ChronoUnit.HOURS);
+		}
+	}
+
+	@Override
+	public boolean needTransformValue() {
+		return false;
 	}
 }

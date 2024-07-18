@@ -34,10 +34,7 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
 
 import javax.script.Invocable;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -69,15 +66,10 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 	private DatabaseTypeEnum targetDatabaseTypeEnum;
 
-	private String fieldsNameTransform;
-
 	private boolean deleteAllFields;
+	private Set<String> rollbackRemoveFields;
 
 	public FieldDataFlowProcessor() {
-	}
-
-	public FieldDataFlowProcessor(String fieldsNameTransform) {
-		this.fieldsNameTransform = fieldsNameTransform;
 	}
 
 	public FieldDataFlowProcessor(boolean deleteAllFields) {
@@ -125,6 +117,9 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 		processContext = new ConcurrentHashMap<>();
 		tableNames = new HashSet<>();
+		this.rollbackRemoveFields = CollectionUtils.isEmpty(fieldProcesses) ? new HashSet<>() : fieldProcesses.stream()
+				.filter(f -> FieldProcess.FieldOp.OP_REMOVE.equals(FieldProcess.FieldOp.fromOperation(f.getOp())) && f.getOperand().equals("false"))
+				.map(FieldProcess::getField).collect(Collectors.toSet());
 	}
 
 	@Override
@@ -152,12 +147,12 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				// so that it cat be get by mapping
 				Map<String, Object> before = message.getBefore();
 				if (MapUtils.isNotEmpty(before)) {
-					FieldProcessUtil.filedProcess(before, fieldProcesses, fieldsNameTransform, deleteAllFields);
+					FieldProcessUtil.filedProcess(before, fieldProcesses, rollbackRemoveFields, deleteAllFields);
 					message.setBefore(before);
 				}
 				Map<String, Object> after = message.getAfter();
 				if (MapUtils.isNotEmpty(after)) {
-					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform, deleteAllFields);
+					FieldProcessUtil.filedProcess(after, fieldProcesses, rollbackRemoveFields, deleteAllFields);
 					message.setAfter(after);
 				}
 				if (null != before){

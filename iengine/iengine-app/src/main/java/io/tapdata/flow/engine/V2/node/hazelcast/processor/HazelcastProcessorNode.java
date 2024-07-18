@@ -266,7 +266,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				stage.setScripts(fieldScripts);
 				stage.setOperations(fieldProcesses);
 				if (node instanceof FieldRenameProcessorNode) {
-					dataFlowProcessor = new FieldDataFlowProcessor(((FieldRenameProcessorNode) node).getFieldsNameTransform());
+					dataFlowProcessor = new FieldDataFlowProcessor();
 				} else if (node instanceof FieldAddDelProcessorNode) {
 					dataFlowProcessor = new FieldDataFlowProcessor(((FieldAddDelProcessorNode) node).isDeleteAllFields());
 				} else {
