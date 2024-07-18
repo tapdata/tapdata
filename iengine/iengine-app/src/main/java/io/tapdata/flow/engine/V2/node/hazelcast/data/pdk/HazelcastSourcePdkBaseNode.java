@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -45,6 +46,7 @@ import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -80,6 +82,8 @@ import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskNodeInfo;
+import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -156,6 +160,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private ConnectorOnTaskThreadGroup connectorOnTaskThreadGroup;
 	protected DynamicAdjustMemoryService dynamicAdjustMemoryService;
 	private ConcurrentHashMap<String, Connections> connectionMap = new ConcurrentHashMap<>();
+	TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -184,13 +189,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
         AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
+		ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
+		ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
 		if (needCdcDelay()) {
 			this.cdcDelayCalculation = new CdcDelay();
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
-		if (connectorOnTaskThreadGroup == null)
-			connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
 		this.sourceRunner.submitSync(() -> {
 			super.doInit(context);
@@ -891,7 +896,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapEvent.getTime()) {
 				throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
 			}
-			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
 			eventCache.add(tapEventCache);
 			boolean isLast = i == (size - 1);
 			TapdataEvent tapdataEvent;
@@ -922,13 +927,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
+	protected TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		TapdataEvent tapdataEvent = null;
 		switch (sourceMode) {
 			case NORMAL:
 				tapdataEvent = new TapdataEvent();
 				break;
 			case LOG_COLLECTOR:
+				if (tapEvent instanceof TapDDLUnknownEvent) {
+					obsLogger.warn("DDL unknown event: " + tapEvent);
+					return null;
+				}
 				tapdataEvent = new TapdataShareLogEvent();
 				Connections connections = dataProcessorContext.getConnections();
 				Node<?> node = getNode();

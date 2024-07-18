@@ -25,6 +25,7 @@ import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.RC4Util;
+import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -462,9 +463,9 @@ public class UserController extends BaseController {
         if (null == user) {
             throw new BizException("User.Not.Exist");
         }
-        Boolean sendResult = userService.sendValidateCde(email);
-        if (!sendResult){
-            throw new BizException("Email.Send.fail");
+        SendStatus sendResult = userService.sendValidateCde(email);
+        if (!"true".equals(sendResult.getStatus())){
+            throw new BizException("Email.verify.code.Send.fail", sendResult.getErrorMessage());
         }
         return success();
     }

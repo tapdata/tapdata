@@ -399,10 +399,8 @@ public class UserServiceImpl extends UserService{
     }
     private List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
         // delete old role mapping
-        if (!userDetail.getEmail().equals("admin@admin.com")) {
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
-        }
         // add new role mapping
         if (CollectionUtils.isNotEmpty(roleusers)) {
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
@@ -413,7 +411,7 @@ public class UserServiceImpl extends UserService{
                 return roleMappingDto;
             }).collect(Collectors.toList());
             if (CollectionUtils.isNotEmpty(roleMappingDtos)) {
-                return roleMappingService.save(roleMappingDtos, userDetail);
+                return roleMappingService.updateUserRoleMapping(roleMappingDtos, userDetail);
             }
         }
         return null;
@@ -463,12 +461,12 @@ public class UserServiceImpl extends UserService{
      *
      * @return
      */
-    public Boolean sendValidateCde(String email) {
-        Boolean sendResult = false;
+    public SendStatus sendValidateCde(String email) {
+        SendStatus sendStatus = new SendStatus();
         User user = findOneByEmail(email);
         if (null != user) {
             String validateCode = RandomUtil.randomNumbers(6);
-            SendStatus sendStatus = mailUtils.sendValidateCode(email, user.getUsername(), validateCode);
+            sendStatus = mailUtils.sendValidateCodeForResetPWD(email, user.getUsername(), validateCode);
             if ("true".equals(sendStatus.getStatus())) {
                 Date validateCodeSendTime = new Date();
                 Update update = new Update();
@@ -476,13 +474,15 @@ public class UserServiceImpl extends UserService{
                 update.set("validateCodeSendTime", validateCodeSendTime);
 
                 Query query = Query.query(Criteria.where("_id").is(user.getId()));
-                repository.getMongoOperations().updateFirst(query, update, "user");
-                sendResult = true;
+                repository.getMongoOperations().updateFirst(query, update, "User");
             } else {
-                log.error("重置密码，邮件发送失败： msg", sendStatus.getErrorMessage());
+                log.error("重置密码，邮件发送失败： " + sendStatus.getErrorMessage());
             }
+        } else {
+            sendStatus.setStatus("false");
+            sendStatus.setErrorMessage("User not find: " + email);
         }
-        return sendResult;
+        return sendStatus;
     }
 
     /**

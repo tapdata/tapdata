@@ -299,7 +299,7 @@ public class TransformSchemaService {
 
 
         TransformerWsMessageDto transformerWsMessageDto = new TransformerWsMessageDto(taskDto, options, metadataList, dataSourceMap, definitionDtoMap, user.getUserId()
-                , user.getUsername(), metadataTransformerDtoMap, MessageType.TRANSFORMER.getType());
+                , user.getUsername(), metadataTransformerDtoMap, MessageType.TRANSFORMER.getType(),getTableNodeSameMetadataInstances(taskDto,user));
         return transformerWsMessageDto;
 
     }
@@ -332,6 +332,14 @@ public class TransformSchemaService {
                 }
             }
         });
+    }
+
+    protected Map<String,List<String>> getTableNodeSameMetadataInstances(TaskDto taskDto,UserDetail user){
+
+        return taskDto.getDag().getSourceNodes().stream().filter(node -> node instanceof TableNode)
+                .collect(Collectors.groupingBy(node -> {
+                    return metadataInstancesService.getQualifiedNameByNodeId(node,user,null,null,taskDto.getId().toHexString());
+                },Collectors.mapping(Node::getId, Collectors.toList())));
     }
 
     public void transformSchema(TaskDto taskDto, UserDetail user) {

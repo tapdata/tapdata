@@ -12,6 +12,8 @@ import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
@@ -29,11 +31,13 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
@@ -54,6 +58,7 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
@@ -68,6 +73,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -108,6 +114,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	class DoInitTest {
 		@BeforeEach
 		void beforeEach() {
+			TaskResourceSupervisorManager taskResourceSupervisorManager=new TaskResourceSupervisorManager();
+			ReflectionTestUtils.setField(mockInstance, "taskResourceSupervisorManager", taskResourceSupervisorManager);
 			doCallRealMethod().when(mockInstance).doInit(jetContext);
 		}
 
@@ -889,13 +897,14 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@SneakyThrows
 		@DisplayName("test connection timezone sync point")
 		void testConnTZSyncPoint() {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("connTZ");
 			long syncDateTime = System.currentTimeMillis();
-			syncPoint.setDateTime(System.currentTimeMillis());
+			syncPoint.setDateTime(syncDateTime);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);
@@ -1211,6 +1220,65 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
 				excepted,tableName,consumer);
 	}
+
+	@Nested
+	@DisplayName("Method wrapSingleTapdataEvent test")
+	class wrapSingleTapdataEventTest {
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+			ReflectionTestUtils.setField(instance, "obsLogger", mockObsLogger);
+		}
+
+		@Test
+		@DisplayName("test source mode=LOG_COLLECTOR, TapEvent is a TapDDLUnknownEvent, expect return null")
+		void test1() {
+			HazelcastSourcePdkBaseNode.SourceMode sourceMode = HazelcastSourcePdkBaseNode.SourceMode.LOG_COLLECTOR;
+			ReflectionTestUtils.setField(instance, "sourceMode", sourceMode);
+			TapDDLUnknownEvent tapDDLUnknownEvent = new TapDDLUnknownEvent();
+			tapDDLUnknownEvent.setReferenceTime(System.currentTimeMillis());
+			tapDDLUnknownEvent.setTime(System.currentTimeMillis());
+			tapDDLUnknownEvent.setOriginDDL("alter table xxx add new_field number(8,0)");
+			TapdataEvent tapdataEvent = instance.wrapSingleTapdataEvent(tapDDLUnknownEvent, SyncStage.CDC, null, true);
+			assertNull(tapdataEvent);
+			verify(mockObsLogger).warn(any());
+		}
+	}
+
+	@Nested
+	class WrapTapdataEventTest {
+		private HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode;
+		private ICdcDelay cdcDelay;
+
+		@BeforeEach
+		void setUp() {
+			hazelcastSourcePdkDataNode = spy(new HazelcastSourcePdkDataNode(dataProcessorContext));
+			cdcDelay = mock(CdcDelay.class);
+		}
+
+		@DisplayName("test wrapTapdataEvent tapEventTime not null")
+		@Test
+		void test1() {
+			List<TapEvent> tapEvents = new ArrayList<>();
+			TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
+			tapUpdateRecordEvent.setTableId("testTableId");
+			tapUpdateRecordEvent.setTime(System.currentTimeMillis());
+			tapEvents.add(tapUpdateRecordEvent);
+			ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "cdcDelayCalculation", cdcDelay);
+			hazelcastSourcePdkDataNode.wrapTapdataEvent(tapEvents, null, null);
+		}
+
+		@DisplayName("test wrapTapdataEvent tapEventTime is null")
+		@Test
+		void test2() {
+			List<TapEvent> tapEvents = new ArrayList<>();
+			TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
+			tapUpdateRecordEvent.setTableId("testTableId");
+			tapEvents.add(tapUpdateRecordEvent);
+			assertThrows(NodeException.class, () -> hazelcastSourcePdkDataNode.wrapTapdataEvent(tapEvents, null, null));
+		}
+	}
+
 
 
 }

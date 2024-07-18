@@ -4,22 +4,28 @@ package com.tapdata.tm.task.service.impl;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 class LdpServiceImplTest {
 
@@ -28,6 +34,7 @@ class LdpServiceImplTest {
     WorkerService workerService;
 
     UserDetail user;
+    MetadataInstancesService metadataInstancesService;
 
     @BeforeEach
     void init() {
@@ -36,7 +43,8 @@ class LdpServiceImplTest {
         ReflectionTestUtils.setField(ldpService, "agentGroupService", agentGroupService);
         workerService = mock(WorkerService.class);
         ReflectionTestUtils.setField(ldpService, "workerService", workerService);
-
+        metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
+        ReflectionTestUtils.setField(ldpService, "metadataInstancesService", metadataInstancesService);
         user = mock(UserDetail.class);
     }
 
@@ -118,5 +126,63 @@ class LdpServiceImplTest {
             String nodeId = assertVerify(1, 1, 1);
             Assertions.assertNull(nodeId);
         }
+    }
+    @Nested
+    class CleanLdpMeta{
+        @Test
+        void test_main(){
+            List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setListtags(Arrays.asList(new Tag("id","test")));
+            metadataInstancesDto1.setAncestorsName("test");
+            SourceDto sourceDto = new SourceDto();
+            sourceDto.setId(new ObjectId());
+            metadataInstancesDto1.setSource(sourceDto);
+            metadataInstancesDtos.add(metadataInstancesDto1);
+            doCallRealMethod().when(ldpService).cleanLdpMeta(any(),any());
+            ldpService.cleanLdpMeta(metadataInstancesDtos,mock(UserDetail.class));
+            verify(metadataInstancesService,times(1)).deleteAll(any(),any());
+        }
+
+        @Test
+        void test_tagIdIsNull(){
+            List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setAncestorsName("test");
+            SourceDto sourceDto = new SourceDto();
+            sourceDto.setId(new ObjectId());
+            metadataInstancesDto1.setSource(sourceDto);
+            metadataInstancesDtos.add(metadataInstancesDto1);
+            doCallRealMethod().when(ldpService).cleanLdpMeta(any(),any());
+            ldpService.cleanLdpMeta(metadataInstancesDtos,mock(UserDetail.class));
+            verify(metadataInstancesService,times(0)).deleteAll(any(),any());
+        }
+
+        @Test
+        void test_SourceIdIsNull(){
+            List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setListtags(Arrays.asList(new Tag("id","test")));
+            metadataInstancesDto1.setAncestorsName("test");
+            metadataInstancesDtos.add(metadataInstancesDto1);
+            doCallRealMethod().when(ldpService).cleanLdpMeta(any(),any());
+            ldpService.cleanLdpMeta(metadataInstancesDtos,mock(UserDetail.class));
+            verify(metadataInstancesService,times(0)).deleteAll(any(),any());
+        }
+
+        @Test
+        void test_AncestorsNameIsNull(){
+            List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+            metadataInstancesDto1.setListtags(Arrays.asList(new Tag("id","test")));
+            SourceDto sourceDto = new SourceDto();
+            sourceDto.setId(new ObjectId());
+            metadataInstancesDto1.setSource(sourceDto);
+            metadataInstancesDtos.add(metadataInstancesDto1);
+            doCallRealMethod().when(ldpService).cleanLdpMeta(any(),any());
+            ldpService.cleanLdpMeta(metadataInstancesDtos,mock(UserDetail.class));
+            verify(metadataInstancesService,times(0)).deleteAll(any(),any());
+        }
+
     }
 }

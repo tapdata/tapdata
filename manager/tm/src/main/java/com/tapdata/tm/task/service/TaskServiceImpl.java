@@ -25,10 +25,16 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
@@ -107,7 +113,6 @@ import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.monitor.service.impl.BatchServiceImpl;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
@@ -158,13 +163,10 @@ import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import lombok.AllArgsConstructor;
@@ -195,8 +197,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.AsyncContext;
@@ -213,7 +213,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -373,6 +372,7 @@ public class TaskServiceImpl extends TaskService{
     private ChartViewService chartViewService;
     private UserDataReportService userDataReportService;
     private BatchService batchService;
+    private ShareCdcTableMappingService shareCdcTableMappingService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -535,6 +535,13 @@ public class TaskServiceImpl extends TaskService{
 
     protected void beforeSave(TaskDto task, UserDetail user) {
         //setDefault(task);
+
+        if (null != task.getId()) {
+            TaskDto existsTask = findByTaskId(task.getId(), "oldVersionTimezone");
+            if (null != existsTask) {
+                task.setOldVersionTimezone(existsTask.getOldVersionTimezone());
+            }
+        }
 
         DAG dag = task.getDag();
         if (dag == null) {
@@ -789,8 +796,53 @@ public class TaskServiceImpl extends TaskService{
 
         checkShareCdcStatus(taskDto, user);
 
+        checkSourceCdcSupport(taskDto);
+
         return confirmById(taskDto, user, confirm, false);
     }
+
+    protected void checkSourceCdcSupport(TaskDto taskDto) {
+
+        if (taskDto.getType().contains("cdc")) {
+            List<Node> nodes = taskDto.getDag().getSourceNodes();
+            if (CollectionUtils.isEmpty(nodes)) {
+                return;
+            }
+            List<String> alreadyRequestConnectionId = new ArrayList();
+            List<String> noSupportConnectionName = new ArrayList<>();
+            nodes.forEach(node -> {
+                if(node instanceof DataParentNode) {
+                    DataParentNode dataParentNode = (DataParentNode) node;
+                    if (alreadyRequestConnectionId.contains(dataParentNode.getConnectionId())) {
+                        return;
+                    }
+                    alreadyRequestConnectionId.add(dataParentNode.getConnectionId());
+                    DataSourceConnectionDto connectionDto = dataSourceService.findByIdByCheck(MongoUtils.toObjectId(dataParentNode.getConnectionId()));
+                    if (Lists.of("Dummy").contains(connectionDto.getDatabase_type())) {
+                        return;
+                    }
+                    List<String> capList = connectionDto.getCapabilities().stream().map(Capability::getId).collect(Collectors.toList());
+                    if (capList.contains("stream_read_function")) {
+                        ResponseBody responseBody = connectionDto.getResponse_body();
+                        if (responseBody != null) {
+                            List<ValidateDetail> validateDetails = responseBody.getValidateDetails();
+                            Map<String, ValidateDetail> map = new HashMap<>();
+                            if (org.apache.commons.collections.CollectionUtils.isNotEmpty(validateDetails)) {
+                                map = validateDetails.stream().collect(Collectors.toMap(ValidateDetail::getShowMsg, Function.identity(), (key1, key2) -> key2));
+                            }
+                            if (!map.containsKey(TestItem.ITEM_READ_LOG) || !"passed".equals(map.get(TestItem.ITEM_READ_LOG).getStatus())) {
+                                noSupportConnectionName.add(connectionDto.getName());
+                            }
+                        }
+                    }
+                }
+            });
+             if(CollectionUtils.isNotEmpty(noSupportConnectionName)){
+                 throw new BizException("source.setting.check.cdc",String.join(",",noSupportConnectionName));
+             }
+        }
+    }
+
 
     protected void checkShareCdcStatus(TaskDto taskDto,UserDetail user){
         if( null != taskDto.getShareCdcEnable() && !taskDto.getShareCdcEnable() &&  null != taskDto.getShareCdcStop() && StringUtils.isNotBlank(taskDto.getShareCdcStopMessage())){
@@ -1035,7 +1087,6 @@ public class TaskServiceImpl extends TaskService{
             }
 
         }
-        //afterRemove(taskDto, user);
 
         return taskDto;
     }
@@ -1066,6 +1117,7 @@ public class TaskServiceImpl extends TaskService{
 
         //删除收集的对象
         taskCollectionObjService.deleteById(taskDto.getId());
+        taskRecordService.cleanTaskRecord(taskDto.getId().toHexString());
     }
 
     /**
@@ -1777,13 +1829,12 @@ public class TaskServiceImpl extends TaskService{
         tmPageable.setPage(page);
         tmPageable.setSize(filter.getLimit());
 
-        String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
-        String sortKey = order.contains(CURRENT_EVENT_TIMESTAMP) ? CURRENT_EVENT_TIMESTAMP : CREATE_TIME;
-        if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by(sortKey).ascending());
-        } else {
-            tmPageable.setSort(Sort.by(sortKey).descending());
-        }
+        tmPageable.setSort(Optional
+            .ofNullable(filter.getOrder())
+            .map(String::valueOf)
+            .map(QueryUtil::parseOrder)
+            .orElse(Sort.by(CREATE_TIME).descending())
+        );
 
         long total = repository.getMongoOperations().count(query, TaskEntity.class);
         List<TaskEntity> taskEntityList = repository.getMongoOperations().find(query.with(tmPageable), TaskEntity.class);
@@ -3872,10 +3923,14 @@ public class TaskServiceImpl extends TaskService{
 
             List<String> processIds = availableAgent.stream().map(Worker::getProcessId).collect(Collectors.toList());
             String agentId = null;
-            for (String p : accessNodeProcessIdList) {
-                if (processIds.contains(p)) {
-                    agentId = p;
-                    break;
+            if(StringUtils.isNotEmpty(taskDto.getPriorityProcessId()) && processIds.contains(taskDto.getPriorityProcessId())){
+                agentId = taskDto.getPriorityProcessId();
+            }else{
+                for (String p : accessNodeProcessIdList) {
+                    if (processIds.contains(p)) {
+                        agentId = p;
+                        break;
+                    }
                 }
             }
             if (StringUtils.isBlank(agentId)) {
@@ -4012,6 +4067,7 @@ public class TaskServiceImpl extends TaskService{
             log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
             return;
         }
+        checkHeartTableInLogCollectorTaskTable(taskDto, user);
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
             log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
@@ -4043,6 +4099,45 @@ public class TaskServiceImpl extends TaskService{
         } else {
             run(taskDto, user);
         }
+    }
+
+    protected void checkHeartTableInLogCollectorTaskTable(TaskDto taskDto, UserDetail user) {
+        if (TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+            Node logCollectorTaskSourceNode = taskDto.getDag().getSourceNodes().get(0);
+            if ((logCollectorTaskSourceNode instanceof LogCollectorNode)) {
+                LogCollectorNode logCollectorNode = (LogCollectorNode) logCollectorTaskSourceNode;
+                List<String> connectionIds = logCollectorNode.getConnectionIds();
+                Set<String> tableNameSet = new HashSet<>(logCollectorNode.getTableNames());
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+                List<DataSourceConnectionDto> allDataSourceConnection = dataSourceService.findAllByIds(connectionIds);
+                boolean hasUpdate = addHeartBeatTable2LogCollector(allDataSourceConnection, logCollectorConnConfigs, tableNameSet);
+                if (hasUpdate) {
+                    List<String> finalTableNames = new ArrayList<>(tableNameSet);
+                    logCollectorNode.setTableNames(finalTableNames);
+                    shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(taskDto, false, user);
+                    updateById(taskDto, user);
+                }
+            }
+        }
+    }
+
+    protected boolean addHeartBeatTable2LogCollector(List<DataSourceConnectionDto> allDataSourceConnection, Map<String, LogCollecotrConnConfig> logCollectorConnConfigs, Set<String> tableNameSet) {
+        boolean updateConfig = false;
+        int beforeTableNamesSize = tableNameSet.size();
+        for (DataSourceConnectionDto dataSourceConnectionDto : allDataSourceConnection) {
+            if (Boolean.TRUE.equals(dataSourceConnectionDto.getHeartbeatEnable())) {
+                if (MapUtils.isNotEmpty(logCollectorConnConfigs) && null != logCollectorConnConfigs.get(dataSourceConnectionDto.getId().toHexString())) {
+                    LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(dataSourceConnectionDto.getId().toHexString());
+                    List<String> tableNames = logCollecotrConnConfig.getTableNames();
+                    if (tableNames.stream().noneMatch(ConnHeartbeatUtils.TABLE_NAME::equals)) {
+                        logCollecotrConnConfig.getTableNames().add(ConnHeartbeatUtils.TABLE_NAME);
+                        updateConfig = true;
+                    }
+                }
+                tableNameSet.add(ConnHeartbeatUtils.TABLE_NAME);
+            }
+        }
+        return updateConfig || beforeTableNamesSize < tableNameSet.size();
     }
 
 
@@ -4796,6 +4891,7 @@ public class TaskServiceImpl extends TaskService{
         Query query = Query.query(Criteria.where(DAG_NODES_CONNECTION_ID).is(connectionId)
                 .and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                 .and(IS_DELETED).is(false)
+                .and(STATUS).nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
         );
         if (null != includeFields && includeFields.length > 0) {
             query.fields().include(includeFields);

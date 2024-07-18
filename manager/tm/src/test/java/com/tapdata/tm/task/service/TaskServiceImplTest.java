@@ -14,12 +14,16 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -30,6 +34,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.inspect.bean.Source;
@@ -60,6 +65,7 @@ import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.service.ScheduleService;
+import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -86,6 +92,8 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonValue;
@@ -1163,6 +1171,7 @@ class TaskServiceImplTest {
         private MetadataInstancesServiceImpl metadataInstancesService;
         private MetaDataHistoryService historyService;
         private TaskCollectionObjService taskCollectionObjService;
+        private TaskRecordService taskRecordService;
         @BeforeEach
         void setUp(){
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
@@ -1170,11 +1179,13 @@ class TaskServiceImplTest {
             metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
             historyService = mock(MetaDataHistoryService.class);
             taskCollectionObjService = mock(TaskCollectionObjService.class);
+            taskRecordService = mock(TaskRecordService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
             ReflectionTestUtils.setField(taskService,"messageService",messageService);
             ReflectionTestUtils.setField(taskService,"metadataInstancesService",metadataInstancesService);
             ReflectionTestUtils.setField(taskService,"historyService",historyService);
             ReflectionTestUtils.setField(taskService,"taskCollectionObjService",taskCollectionObjService);
+            ReflectionTestUtils.setField(taskService,"taskRecordService",taskRecordService);
         }
         @Test
         @DisplayName("test afterRemove method for migrate")
@@ -2390,6 +2401,69 @@ class TaskServiceImplTest {
             boolean actual = taskService.findAgent(taskDto, user);
             assertEquals(true,actual);
             assertEquals(null,taskDto.getAgentId());
+        }
+        @Test
+        @DisplayName("test findAgent MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP")
+        void test6(){
+            List<Worker> list = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work_2");
+            list.add(worker1);
+            list.add(worker2);
+            when(workerService.findAvailableAgent(user)).thenReturn(list);
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setPriorityProcessId("work_2");
+            doAnswer(invocationOnMock -> {
+                List<String> accessNodeProcessIdList = invocationOnMock.getArgument(1);
+                accessNodeProcessIdList.addAll(Arrays.asList("work_1","work_2"));
+                return false;
+            }).when(taskService).findProcessNodeListWithGroup(any(),anyList(),any());
+            doCallRealMethod().when(taskService).findAgent(taskDto,user);
+            taskService.findAgent(taskDto, user);
+            assertEquals("work_2",taskDto.getAgentId());
+        }
+        @Test
+        @DisplayName("test findAgent MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP,PriorityProcess Work lose effectiveness")
+        void test7(){
+            List<Worker> list = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            list.add(worker1);
+            when(workerService.findAvailableAgent(user)).thenReturn(list);
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setPriorityProcessId("work_2");
+            doAnswer(invocationOnMock -> {
+                List<String> accessNodeProcessIdList = invocationOnMock.getArgument(1);
+                accessNodeProcessIdList.addAll(Arrays.asList("work_1","work_2"));
+                return false;
+            }).when(taskService).findProcessNodeListWithGroup(any(),anyList(),any());
+            doCallRealMethod().when(taskService).findAgent(taskDto,user);
+            taskService.findAgent(taskDto, user);
+            assertEquals("work_1",taskDto.getAgentId());
+        }
+        @Test
+        @DisplayName("test findAgent MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP,PriorityProcessID is Null")
+        void test8(){
+            List<Worker> list = new ArrayList<>();
+            Worker worker1 = new Worker();
+            worker1.setProcessId("work_1");
+            Worker worker2 = new Worker();
+            worker2.setProcessId("work_2");
+            list.add(worker1);
+            list.add(worker2);
+            when(workerService.findAvailableAgent(user)).thenReturn(list);
+            taskDto.setAccessNodeType("MANUALLY_SPECIFIED_BY_THE_USER_AGENT_GROUP");
+            taskDto.setPriorityProcessId(null);
+            doAnswer(invocationOnMock -> {
+                List<String> accessNodeProcessIdList = invocationOnMock.getArgument(1);
+                accessNodeProcessIdList.addAll(Arrays.asList("work_1","work_2"));
+                return false;
+            }).when(taskService).findProcessNodeListWithGroup(any(),anyList(),any());
+            doCallRealMethod().when(taskService).findAgent(taskDto,user);
+            taskService.findAgent(taskDto, user);
+            assertEquals("work_1",taskDto.getAgentId());
         }
     }
     @Nested
@@ -4818,6 +4892,7 @@ class TaskServiceImplTest {
             Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
                     .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                     .and("is_deleted").is(false)
+                    .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
             );
             doCallRealMethod().when(taskService).findHeartbeatByConnectionId(connectionId);
             taskService.findHeartbeatByConnectionId(connectionId);
@@ -4831,6 +4906,7 @@ class TaskServiceImplTest {
             Query query = Query.query(Criteria.where("dag.nodes.connectionId").is(connectionId)
                     .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
                     .and("is_deleted").is(false)
+                    .and("status").nin(TaskDto.STATUS_DELETING, TaskDto.STATUS_DELETE_FAILED)
             );
             query.fields().include(includeFields);
             doCallRealMethod().when(taskService).findHeartbeatByConnectionId(connectionId,includeFields);
@@ -4903,5 +4979,255 @@ class TaskServiceImplTest {
             assertEquals(3,actual);
             verify(taskService,new Times(2)).findByTaskId(any(ObjectId.class),anyString());
         }
+    }
+
+    @Nested
+    class checkSourceCdcSupportTest{
+        TaskDto taskDto;
+        DataSourceServiceImpl dataSourceService;
+        DAG dag;
+        @BeforeEach
+        void init(){
+            taskDto =mock(TaskDto.class);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            doCallRealMethod().when(taskService).checkSourceCdcSupport(taskDto);
+            dag =mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+            ReflectionTestUtils.setField(taskService,"dataSourceService",dataSourceService);
+
+        }
+
+        @Test
+        void testSourceNodeIsNull(){
+            when(taskDto.getType()).thenReturn("cdc");
+            when(dag.getSourceNode()).thenReturn(new LinkedList<>());
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService,times(0)).findByIdByCheck(any());
+
+        }
+
+        @Test
+        void testSourceTypeNotCdc(){
+            when(taskDto.getType()).thenReturn("initial_sync");
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService,times(0)).findByIdByCheck(any());
+
+        }
+
+
+        @Test
+        void testSourceDataTypeIsDummy(){
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setDatabaseType("Dummy");
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Dummy");
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService,times(1)).findByIdByCheck(any());
+        }
+
+        @Test
+        void testSourceNotSupport(){
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Mysql");
+            List<Capability> capabilities = new ArrayList<>();
+            Capability capability = new Capability();
+            capability.setId("stream_read_function");
+            capability.setType(11);
+            capabilities.add(capability);
+            dataSourceConnectionDto.setCapabilities(capabilities);
+            ResponseBody responseBody = new ResponseBody();
+            List<ValidateDetail> validateDetails = new ArrayList<>();
+            ValidateDetail validateDetail = new ValidateDetail();
+            validateDetail.setShowMsg("Binlog is close");
+            validateDetail.setStatus("failed");
+            validateDetails.add(validateDetail);
+            responseBody.setValidateDetails(validateDetails);
+            dataSourceConnectionDto.setResponse_body(responseBody);
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            try {
+                taskService.checkSourceCdcSupport(taskDto);
+            }catch (Exception e){
+                Assertions.assertTrue(((BizException)e).getErrorCode().equals("source.setting.check.cdc"));
+            }
+        }
+
+        @Test
+        void testSourceSupport() {
+            when(taskDto.getType()).thenReturn("cdc");
+            LinkedList<Node> list = new LinkedList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            list.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(list);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("Mysql");
+            List<Capability> capabilities = new ArrayList<>();
+            Capability capability = new Capability();
+            capability.setId("stream_read_function");
+            capability.setType(11);
+            capabilities.add(capability);
+            dataSourceConnectionDto.setCapabilities(capabilities);
+            ResponseBody responseBody = new ResponseBody();
+            List<ValidateDetail> validateDetails = new ArrayList<>();
+            ValidateDetail validateDetail = new ValidateDetail();
+            validateDetail.setShowMsg(TestItem.ITEM_READ_LOG);
+            validateDetail.setStatus("passed");
+            validateDetails.add(validateDetail);
+            responseBody.setValidateDetails(validateDetails);
+            dataSourceConnectionDto.setResponse_body(responseBody);
+            when(dataSourceService.findByIdByCheck(any())).thenReturn(dataSourceConnectionDto);
+            taskService.checkSourceCdcSupport(taskDto);
+            verify(dataSourceService, times(1)).findByIdByCheck(any());
+
+        }
+
+    }
+    @Nested
+    class checkHeartTableInLogCollectorTaskTableClass{
+        TaskDto taskDto;
+        UserDetail userDetail;
+        DAG dag;
+        DataSourceService dataSourceService;
+
+        ShareCdcTableMappingService shareCdcTableMappingService;
+        LogCollectorNode logCollectorNode;
+        List<Node> nodes=new ArrayList<>();
+        List<String> connectionIds=new ArrayList<>();
+        List<String> tableNames=new ArrayList<>();
+
+        @BeforeEach
+        void init() {
+            taskDto = mock(TaskDto.class);
+            dag = mock(DAG.class);
+            when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+            when(taskDto.getDag()).thenReturn(dag);
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+            userDetail = mock(UserDetail.class);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            shareCdcTableMappingService = mock(ShareCdcTableMappingService.class);
+            ReflectionTestUtils.setField(taskService, "shareCdcTableMappingService", shareCdcTableMappingService);
+            ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
+
+            logCollectorNode = new LogCollectorNode();
+
+            nodes.add(logCollectorNode);
+
+
+            connectionIds.add("665eb04d9e541e4fee4f87c5");
+            logCollectorNode.setConnectionIds(connectionIds);
+
+
+            tableNames.add("testTableName");
+            logCollectorNode.setTableNames(tableNames);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs=new HashMap<>();
+            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+        }
+        @DisplayName("test update task config when tableConfig update")
+        @Test
+        void test1(){
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            when(taskService.addHeartBeatTable2LogCollector(any(),any(),any())).thenReturn(false);
+            taskService.checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            verify(taskService,times(0)).updateById(taskDto,userDetail);
+        }
+        @DisplayName("test update task config when tableConfig not update")
+        @Test
+        void test2(){
+            LogCollectorNode logCollectorNode=new LogCollectorNode();
+            List<Node> nodes=new ArrayList<>();
+            nodes.add(logCollectorNode);
+
+            List<String> connectionIds=new ArrayList<>();
+            connectionIds.add("665eb04d9e541e4fee4f87c5");
+            logCollectorNode.setConnectionIds(connectionIds);
+
+            List<String> tableNames=new ArrayList<>();
+            tableNames.add("testTableName");
+            logCollectorNode.setTableNames(tableNames);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs=new HashMap<>();
+            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            when(taskService.addHeartBeatTable2LogCollector(any(),any(),any())).thenReturn(true);
+            taskService.checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            verify(taskService,times(1)).updateById(taskDto,userDetail);
+        }
+    }
+    @Nested
+    class testUpdateTableNameClass{
+        Set<String> tableNames;
+
+        @BeforeEach
+        void init() {
+            tableNames = new HashSet<>();
+            tableNames.add("testTable");
+        }
+        @DisplayName("test addHeartBeatTable2LogCollector method if connection enableHeartBeat")
+        @Test
+        void test1(){
+            List<DataSourceConnectionDto> dataSourceConnectionList=new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto=new DataSourceConnectionDto();
+            dataSourceConnectionDto.setId(MongoUtils.toObjectId("665eb04d9e541e4fee4f87c5"));
+            dataSourceConnectionDto.setHeartbeatEnable(true);
+            dataSourceConnectionList.add(dataSourceConnectionDto);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs =new HashMap<>();
+            doCallRealMethod().when(taskService).addHeartBeatTable2LogCollector(dataSourceConnectionList,logCollectorConnConfigs,tableNames);
+            boolean updateConfig = taskService.addHeartBeatTable2LogCollector(dataSourceConnectionList, logCollectorConnConfigs, tableNames);
+            assertEquals(true,updateConfig);
+            assertEquals(2,tableNames.size());
+        }
+        @DisplayName("test addHeartBeatTable2LogCollector method if connection disableHeartBeat")
+        @Test
+        void test2(){
+            List<DataSourceConnectionDto> dataSourceConnectionList=new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto=new DataSourceConnectionDto();
+            dataSourceConnectionDto.setId(MongoUtils.toObjectId("665eb04d9e541e4fee4f87c5"));
+            dataSourceConnectionDto.setHeartbeatEnable(false);
+            dataSourceConnectionList.add(dataSourceConnectionDto);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs =new HashMap<>();
+            doCallRealMethod().when(taskService).addHeartBeatTable2LogCollector(dataSourceConnectionList,logCollectorConnConfigs,tableNames);
+            boolean updateConfig = taskService.addHeartBeatTable2LogCollector(dataSourceConnectionList, logCollectorConnConfigs, tableNames);
+
+            assertEquals(false,updateConfig);
+            assertEquals(1,tableNames.size());
+        }
+        @Test
+        void test3(){
+            String connectionId="665eb04d9e541e4fee4f87c5";
+            List<DataSourceConnectionDto> dataSourceConnectionList=new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto=new DataSourceConnectionDto();
+            dataSourceConnectionDto.setId(MongoUtils.toObjectId(connectionId));
+            dataSourceConnectionDto.setHeartbeatEnable(true);
+            dataSourceConnectionList.add(dataSourceConnectionDto);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs =new HashMap<>();
+
+            List<String> tableNamesList=new ArrayList<>();
+            tableNamesList.add("testTable");
+            LogCollecotrConnConfig logCollecotrConnConfig=new LogCollecotrConnConfig(connectionId, tableNamesList);
+            logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+
+            doCallRealMethod().when(taskService).addHeartBeatTable2LogCollector(dataSourceConnectionList,logCollectorConnConfigs,tableNames);
+            boolean updateConfig = taskService.addHeartBeatTable2LogCollector(dataSourceConnectionList, logCollectorConnConfigs, tableNames);
+            assertEquals(true,updateConfig);
+            assertEquals(2,tableNames.size());
+            assertEquals(2,logCollecotrConnConfig.getTableNames().size());
+        }
+
     }
 }
