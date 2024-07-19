@@ -151,4 +151,9 @@ public class HazelcastTypeFilterProcessorNode extends HazelcastProcessorBaseNode
     public boolean needTransformValue() {
         return false;
     }
+
+    @Override
+    public boolean supportConcurrentProcess() {
+        return true;
+    }
 }

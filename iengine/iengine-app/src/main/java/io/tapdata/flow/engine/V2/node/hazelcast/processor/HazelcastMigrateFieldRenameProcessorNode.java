@@ -189,8 +189,8 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 	}
 
 	protected static class DataExecutor extends MigrateFieldRenameProcessorNode.ApplyConfig {
-		private final Map<String, String> operationFieldMap;
-		private final Map<String, Boolean> needApplyCacheMap;
+		private final Map<String, Map<String, String>> operationFieldMap;
+		private final Map<String, Map<String, Boolean>> needApplyCacheMap;
 		public DataExecutor(MigrateFieldRenameProcessorNode node) {
 			super(node);
 			this.operationFieldMap = new Object2ObjectOpenHashMap<>();
@@ -201,7 +201,9 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 			if (StringUtils.isBlank(tableName)) {
 				return false;
 			}
-			return needApplyCacheMap.computeIfAbsent(
+			return needApplyCacheMap
+					.computeIfAbsent(Thread.currentThread().getName(), k->new Object2ObjectOpenHashMap<>())
+					.computeIfAbsent(
 					tableName,
 					key -> (null != fieldsOperation && !fieldsOperation.isEmpty())
 							|| (null != fieldInfoMaps && MapUtils.isNotEmpty(fieldInfoMaps.get(key)))
@@ -209,6 +211,9 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 
 		protected <T> void apply(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
+			if (null == operatorParam) {
+				return;
+			}
 			if (!needApply(tableName)) {
 				return;
 			}
@@ -266,7 +271,9 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 							}
 						} else {
 							// Rule operation
-							String newKey = operationFieldMap.computeIfAbsent(key, k -> apply(fieldsOperation, k));
+							String newKey = operationFieldMap
+									.computeIfAbsent(Thread.currentThread().getName(), k->new Object2ObjectOpenHashMap<>())
+									.computeIfAbsent(key, k -> apply(fieldsOperation, k));
 							Object value = operator.renameFieldWithReturn((T) map, key, newKey);
 							if (value instanceof Map || value instanceof List) {
 								queue.add(value);
@@ -311,5 +318,10 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 	@Override
 	public boolean needTransformValue() {
 		return false;
+	}
+
+	@Override
+	public boolean supportConcurrentProcess() {
+		return true;
 	}
 }

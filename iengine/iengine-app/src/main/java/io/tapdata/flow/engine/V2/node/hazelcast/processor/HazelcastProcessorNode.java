@@ -35,6 +35,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -49,7 +50,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	private DataFlowProcessor dataFlowProcessor;
 	private FieldRenameProcessorNode fieldRenameProcessorNode;
 	private Capitalized capitalized;
-	private Map<String, String> fieldsNameTransformMap;
+	private Map<String, Map<String, String>> fieldsNameTransformMap;
 
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
@@ -355,7 +356,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				Map<String, Object> currentMap = (Map<String, Object>) current;
 				List<String> keys = new ArrayList<>(currentMap.keySet());
 				for (String key : keys) {
-					String newKey = fieldsNameTransformMap.computeIfAbsent(key, k -> Capitalized.convert(key, capitalized));
+					String newKey = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(key, k -> Capitalized.convert(key, capitalized));
 					Object value = currentMap.remove(key);
 					currentMap.put(newKey, value);
 					if (value instanceof Map || value instanceof List) {
@@ -371,5 +374,10 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				}
 			}
 		}
+	}
+
+	@Override
+	public boolean supportConcurrentProcess() {
+		return true;
 	}
 }

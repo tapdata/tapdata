@@ -49,7 +49,7 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 	private int hours;
 
 	private DefaultExpressionMatchingMap matchingMap;
-	private final Map<String, List<String>> tableFieldMap;
+	private final Map<String, Map<String, List<String>>> tableFieldMap;
 
 	@SneakyThrows
 	public HazelcastDateProcessorNode(ProcessorBaseContext processorBaseContext) {
@@ -102,7 +102,9 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 			syncTask = false;
 		}
 
-		List<String> addTimeFields = tableFieldMap.computeIfAbsent(tableId, key -> {
+		List<String> addTimeFields = tableFieldMap
+				.computeIfAbsent(Thread.currentThread().getName(), key -> new HashMap<>())
+				.computeIfAbsent(tableId, key -> {
 			TapTable tapTable = processorBaseContext.getTapTableMap().get(key);
 			if (tapTable == null) {
 				throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId());
@@ -178,5 +180,10 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 	@Override
 	public boolean needTransformValue() {
 		return false;
+	}
+
+	@Override
+	public boolean supportConcurrentProcess() {
+		return true;
 	}
 }

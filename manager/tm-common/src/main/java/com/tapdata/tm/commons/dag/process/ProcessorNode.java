@@ -1,7 +1,6 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
@@ -16,9 +15,8 @@ import java.util.List;
  */
 public abstract class ProcessorNode extends Node<Schema> {
 
-    @EqField
-    protected Integer processorThreadNum = 1;
-
+    protected Boolean enableConcurrentProcess;
+    protected int concurrentNum = 1;
 
     /**
      * 创建处理器节点
@@ -55,12 +53,19 @@ public abstract class ProcessorNode extends Node<Schema> {
         return SchemaUtils.cloneSchema(schema);
     }
 
-
-    public Integer getProcessorThreadNum() {
-        return processorThreadNum;
+    public Boolean getEnableConcurrentProcess() {
+        return enableConcurrentProcess;
     }
 
-    public void setProcessorThreadNum(Integer processorThreadNum) {
-        this.processorThreadNum = processorThreadNum;
+    public void setEnableConcurrentProcess(Boolean enableConcurrentProcess) {
+        this.enableConcurrentProcess = enableConcurrentProcess;
+    }
+
+    public int getConcurrentNum() {
+        return concurrentNum;
+    }
+
+    public void setConcurrentNum(int concurrentNum) {
+        this.concurrentNum = concurrentNum;
     }
 }

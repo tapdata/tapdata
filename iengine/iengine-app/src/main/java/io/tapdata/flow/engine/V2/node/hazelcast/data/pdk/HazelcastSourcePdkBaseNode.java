@@ -673,7 +673,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
 							// the event is considered been output to the next node.
 							if (toTapValueConcurrent) {
-								List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueThreadNum);
+								int partitionSize = Math.max(10, tapdataEvents.size() / toTapValueThreadNum);
+								List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, partitionSize);
 								List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
 								for (List<TapdataEvent> events : partition) {
 									completableFutures.add(

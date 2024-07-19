@@ -66,4 +66,9 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
     public boolean needTransformValue() {
         return false;
     }
+
+    @Override
+    public boolean supportConcurrentProcess() {
+        return true;
+    }
 }
