@@ -39,6 +39,8 @@ import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
+import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
@@ -171,6 +173,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private TapCodecsFilterManager codecsFilterManagerSchemaEnforced;
 	private boolean toTapValueConcurrent;
 	private boolean connectorNodeSchemaFree;
+	private SimpleConcurrentProcessorImpl<TapdataEvent, TapdataEvent> toTapValueConcurrentProcessor;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -206,7 +209,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
-		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 3, connectorOnTaskThreadGroup, TAG);
 		this.sourceRunner.submitSync(() -> {
 			super.doInit(context);
 			try {
@@ -235,6 +238,26 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void initToTapValueConcurrent() {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);
 		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+		if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, readBatchSize, TAG);
+			toTapValueConcurrentProcessor.start();
+			this.sourceRunner.execute(()->{
+				try {
+					while (isRunning()) {
+						TapdataEvent tapdataEvent = eventQueue.poll(1L, TimeUnit.SECONDS);
+						if (null == tapdataEvent) {
+							continue;
+						}
+						toTapValueConcurrentProcessor.runAsync(tapdataEvent, e -> {
+							transformToTapValue(e);
+							return e;
+						});
+					}
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			});
+		}
 	}
 
 	private void initTapCodecsFilterManager() {
@@ -731,14 +754,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapdataEvent.getTapEvent()) {
 				continue;
 			}
-			if (SyncStage.CDC.equals(tapdataEvent.getSyncStage())
-					|| connectorNodeSchemaFree
-					|| TapInsertRecordEvent.TYPE != tapdataEvent.getTapEvent().getType()) {
-				tapRecordToTapValue(tapdataEvent.getTapEvent(), codecsFilterManager);
-			} else {
-				TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), codecsFilterManagerSchemaEnforced);
-				tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
-			}
+			transformToTapValue(tapdataEvent);
+		}
+	}
+
+	private void transformToTapValue(TapdataEvent tapdataEvent) {
+		if (SyncStage.CDC.equals(tapdataEvent.getSyncStage())
+				|| connectorNodeSchemaFree
+				|| TapInsertRecordEvent.TYPE != tapdataEvent.getTapEvent().getType()) {
+			tapRecordToTapValue(tapdataEvent.getTapEvent(), codecsFilterManager);
+		} else {
+			TransformToTapValueResult transformToTapValueResult = tapRecordToTapValue(tapdataEvent.getTapEvent(), codecsFilterManagerSchemaEnforced);
+			tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
 		}
 	}
 
