@@ -10,6 +10,8 @@ import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
+import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.error.TapEventException;
@@ -22,6 +24,7 @@ import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -57,7 +60,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected EventBatchProcessor batchProcessor;
 	private Boolean enableConcurrentProcess;
 	private int concurrentNum;
-	private ProcessorNodeConcurrentExecutor processorNodeConcurrentExecutor;
+	private SimpleConcurrentProcessorImpl<List<BatchEventWrapper>, List<TapdataEvent>> simpleConcurrentProcessor;
+	private int concurrentBatchSize;
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
@@ -93,7 +97,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			} else if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_DEDUCE_SCHEMA.equals(taskDto.getSyncType())) {
 				enableConcurrentProcess = false;
 			} else {
-				processorNodeConcurrentExecutor = new ProcessorNodeConcurrentExecutor(node, concurrentNum);
+				concurrentBatchSize = Math.max(1, DEFAULT_BATCH_SIZE / concurrentNum);
+				simpleConcurrentProcessor = TapExecutors.createSimple(concurrentNum, concurrentBatchSize, TAG);
 				obsLogger.info("Node {}({}: {}) enable concurrent process, concurrent num: {}", getNode().getType(), getNode().getName(), getNode().getId(), concurrentNum);
 			}
 		}
@@ -108,58 +113,46 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 		this.batchProcessor = new EventBatchProcessor(getNode(), ibp -> {
 			try {
-				List<TapdataEvent> tapdataEvents = new ArrayList<>();
-				List<BatchEventWrapper> drainEvents = new ArrayList<>();
-				List<BatchEventWrapper> cacheBatchEvents = new ArrayList<>();
 				while (isRunning()) {
+					List<BatchEventWrapper> drainEvents = new ArrayList<>();
 					int drain = ibp.drainTo(drainEvents);
 					if (drain <= 0) {
 						continue;
 					}
-					for (BatchEventWrapper batchEventWrapper : drainEvents) {
-						TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
-						if (null == tapdataEvent) {
-							continue;
-						}
-						if (controlOrIgnoreEvent(tapdataEvent)) {
-							batchProcess(cacheBatchEvents, tapdataEvents);
-							tapdataEvents.add(tapdataEvent);
-						} else {
-							cacheBatchEvents.add(batchEventWrapper);
-						}
-					}
-					batchProcess(cacheBatchEvents, tapdataEvents);
 
-					for (TapdataEvent tapdataEvent : tapdataEvents) {
-						while (isRunning()) {
-							if (offer(tapdataEvent)) {
-								break;
-							}
-						}
+					if (Boolean.TRUE.equals(enableConcurrentProcess)) {
+						ListUtils.partition(drainEvents, concurrentBatchSize).forEach(e -> simpleConcurrentProcessor.runAsync(e, this::batchProcess));
+					} else {
+						List<TapdataEvent> tapdataEvents = new ArrayList<>(batchProcess(drainEvents));
+						enqueue(tapdataEvents);
 					}
-					drainEvents = new ArrayList<>();
-					tapdataEvents = new ArrayList<>();
+
 				}
 			} catch (Exception e) {
 				errorHandle(e);
 			}
 		});
+		if (enableConcurrentProcess) {
+			batchProcessor.startConcurrentConsumer(() -> {
+				while (isRunning()) {
+					List<TapdataEvent> tapdataEvents = simpleConcurrentProcessor.get(500L, TimeUnit.MILLISECONDS);
+					if (null == tapdataEvents) {
+						continue;
+					}
+					enqueue(tapdataEvents);
+				}
+			});
+		}
 		obsLogger.info("Node {}({}: {}) enable batch process", getNode().getType(), getNode().getName(), getNode().getId());
 	}
 
-	private void batchProcess(List<BatchEventWrapper> cacheBatchEvents, List<TapdataEvent> tapdataEvents) {
-		if (CollectionUtils.isNotEmpty(cacheBatchEvents)) {
-			if (Boolean.TRUE.equals(enableConcurrentProcess)) {
-				tapdataEvents.addAll(processorNodeConcurrentExecutor.submit(cacheBatchEvents, this::batchProcess));
-			} else {
-				tapdataEvents.addAll(batchProcess(cacheBatchEvents));
-			}
-			cacheBatchEvents.forEach(cbe -> {
-				if (null != cbe.getProcessAspect()) {
-					AspectUtils.accept(cbe.getProcessAspect().state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent());
+	private void enqueue(List<TapdataEvent> tapdataEvents) {
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			while (isRunning()) {
+				if (delayHandler.process(() -> this.offer(tapdataEvent))) {
+					break;
 				}
-			});
-			cacheBatchEvents.clear();
+			}
 		}
 	}
 
@@ -204,6 +197,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				}
 
 				result.add(tapdataEvent);
+			}
+		});
+		batchEventWrappers.forEach(cbe -> {
+			if (null != cbe.getProcessAspect()) {
+				AspectUtils.accept(cbe.getProcessAspect().state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent());
 			}
 		});
 		return result;
@@ -312,13 +310,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			}
 
 			if (CollectionUtils.isNotEmpty(processedEventList)) {
-				for (TapdataEvent event : processedEventList) {
-					while (isRunning()) {
-						if (delayHandler.process(() -> this.offer(event))) {
-							break;
-						}
-					}
-				}
+				enqueue(processedEventList);
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
@@ -342,7 +334,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected void doClose() throws TapCodeException {
 		try {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.batchProcessor).ifPresent(EventBatchProcessor::shutdown), TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.processorNodeConcurrentExecutor).ifPresent(ProcessorNodeConcurrentExecutor::close), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.simpleConcurrentProcessor).ifPresent(SimpleConcurrentProcessorImpl::close), TAG);
 		} finally {
 			super.doClose();
 		}
@@ -368,6 +360,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		List<BatchProcessResult> batchProcessResults = new ArrayList<>();
 		for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
+			if (controlOrIgnoreEvent(tapdataEvent)) {
+				batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
+				continue;
+			}
 			tryProcess(tapdataEvent, (event, processResult) -> {
 				if (null == event) {
 					return;
@@ -424,28 +420,34 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 	}
 
-	private static class EventBatchProcessor {
+	public static class EventBatchProcessor {
 		static final int NOT_RUN = 1;
 		static final int RUNNING = 2;
 		static final int FINISH = 3;
 		int batchSize;
 		long batchTimeoutMs;
+		Node node;
 		LinkedBlockingQueue<BatchEventWrapper> tapdataEventQueue;
 		int status = 1;
-		private Node node;
 		ExecutorService batchConsumerThreadPool;
 
-		public EventBatchProcessor(Node node, BatchProcessor batchProcessor) {
+		public EventBatchProcessor(Node node, Consumer<EventBatchProcessor> batchProcessor) {
 			this.node = node;
-			this.batchConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), runnable -> {
-				Thread thread = new Thread(runnable);
-				thread.setName("processor-node-initial-batch-consumer-" + node.getId());
-				return thread;
+			this.batchConsumerThreadPool = new ThreadPoolExecutor(1, 2, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+			this.batchConsumerThreadPool.submit(() -> {
+				Thread.currentThread().setName(String.join("-", TAG, "processor-node-batch-consumer-thread", node.getId()));
+				batchProcessor.accept(this);
 			});
-			this.batchConsumerThreadPool.submit(() -> batchProcessor.process(this));
 			this.batchSize = CommonUtils.getPropertyInt(PROCESSOR_BATCH_SIZE_PROP_KEY, DEFAULT_BATCH_SIZE);
 			this.batchTimeoutMs = CommonUtils.getPropertyLong(PROCESSOR_BATCH_TIMEOUT_MS_PROP_KEY, DEFAULT_BATCH_TIMEOUT_MS);
 			this.tapdataEventQueue = new LinkedBlockingQueue<>(batchSize * 2);
+		}
+
+		public void startConcurrentConsumer(Runnable runnable) {
+			this.batchConsumerThreadPool.submit(() -> {
+				Thread.currentThread().setName(String.join("-", TAG, "processor-node-concurrent-consumer-thread", node.getId()));
+				runnable.run();
+			});
 		}
 
 		void notRun() {
@@ -479,10 +481,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			finish();
 			Optional.ofNullable(this.batchConsumerThreadPool).ifPresent(ExecutorService::shutdownNow);
 		}
-	}
-
-	private interface BatchProcessor {
-		void process(EventBatchProcessor eventBatchProcessor);
 	}
 
 	protected static class BatchEventWrapper {

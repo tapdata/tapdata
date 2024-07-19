@@ -238,7 +238,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void initToTapValueConcurrent() {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);
-		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(2, Runtime.getRuntime().availableProcessors() / 4));
 		int toTapValueBatchSize = Math.max(1, readBatchSize / toTapValueThreadNum);
 		if (Boolean.TRUE.equals(toTapValueConcurrent)) {
 			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, readBatchSize, TAG);
@@ -697,7 +697,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (null != eventQueue) {
 						try {
 							int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
-
 							if (drain > 0) {
 								batchTransformToTapValue(tapdataEvents);
 							}
