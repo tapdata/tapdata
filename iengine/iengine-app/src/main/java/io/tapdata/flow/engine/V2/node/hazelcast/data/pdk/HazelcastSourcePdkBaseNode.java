@@ -173,7 +173,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private TapCodecsFilterManager codecsFilterManagerSchemaEnforced;
 	private boolean toTapValueConcurrent;
 	private boolean connectorNodeSchemaFree;
-	private SimpleConcurrentProcessorImpl<TapdataEvent, TapdataEvent> toTapValueConcurrentProcessor;
+	private SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor;
+	private int drainSize;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -238,20 +239,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void initToTapValueConcurrent() {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);
 		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+		int toTapValueBatchSize = Math.max(1, readBatchSize / toTapValueThreadNum);
 		if (Boolean.TRUE.equals(toTapValueConcurrent)) {
 			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, readBatchSize, TAG);
 			toTapValueConcurrentProcessor.start();
 			this.sourceRunner.execute(()->{
 				try {
+					List<TapdataEvent> tapdataEvents = new ArrayList<>();
 					while (isRunning()) {
-						TapdataEvent tapdataEvent = eventQueue.poll(1L, TimeUnit.SECONDS);
-						if (null == tapdataEvent) {
-							continue;
+						int drain = Queues.drain(eventQueue, tapdataEvents, toTapValueBatchSize, 500L, TimeUnit.MILLISECONDS);
+						if (drain > 0) {
+							toTapValueConcurrentProcessor.runAsync(tapdataEvents, e -> {
+								batchTransformToTapValue(e);
+								return e;
+							});
+							tapdataEvents = new ArrayList<>();
 						}
-						toTapValueConcurrentProcessor.runAsync(tapdataEvent, e -> {
-							transformToTapValue(e);
-							return e;
-						});
 					}
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
@@ -382,6 +385,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
 			this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
 		}
+		this.drainSize = Math.max(1, readBatchSize / 2);
 		obsLogger.info("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}
 
@@ -687,30 +691,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapdataEvents = pendingEvents;
 				pendingEvents = null;
 			} else {
-				if (null != eventQueue) {
-					try {
-						int drainSize = Math.max(1, readBatchSize / 2);
-						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
+				if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+					tapdataEvents = toTapValueConcurrentProcessor.get(500L, TimeUnit.MILLISECONDS);
+				} else {
+					if (null != eventQueue) {
+						try {
+							int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
 
-						if (drain > 0) {
-							// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-							// the event is considered been output to the next node.
-							if (toTapValueConcurrent) {
-								int partitionSize = Math.max(10, tapdataEvents.size() / toTapValueThreadNum);
-								List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, partitionSize);
-								List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
-								for (List<TapdataEvent> events : partition) {
-									completableFutures.add(
-											CompletableFuture.runAsync(() -> batchTransformToTapValue(events))
-									);
-								}
-								CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
-							} else {
+							if (drain > 0) {
 								batchTransformToTapValue(tapdataEvents);
 							}
+						} catch (InterruptedException ignored) {
+							Thread.currentThread().interrupt();
 						}
-					} catch (InterruptedException ignored) {
-						Thread.currentThread().interrupt();
 					}
 				}
 			}
@@ -1397,6 +1390,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(tableMonitorResultHandler).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueConcurrentProcessor).ifPresent(SimpleConcurrentProcessorImpl::close), TAG);
 		} finally {
 			super.doClose();
 		}
