@@ -579,15 +579,14 @@ class AgentGroupServiceTest {
         @BeforeEach
         void init() {
             agentId = mock(List.class);
-            groupIds = mock(List.class);
-            when(groupIds.isEmpty()).thenReturn(false);
+            groupIds = new ArrayList<>();
 
             all = new ArrayList<>();
             entity = mock(AgentGroupEntity.class);
             when(entity.getGroupId()).thenReturn("id");
             all.add(entity);
-            when(groupIds.contains("id")).thenReturn(true);
-            when(groupIds.addAll(anyList())).thenReturn(true);
+
+            groupIds.add("id");
             when(agentGroupService.findAll(any(Query.class), any(UserDetail.class))).thenReturn(all);
 
 
@@ -596,41 +595,64 @@ class AgentGroupServiceTest {
             when(agentGroupService.update(any(Query.class), any(Update.class), any(UserDetail.class))).thenReturn(mock(UpdateResult.class));
             when(agentGroupService.findAgentGroupInfoMany(anyList(), any(UserDetail.class))).thenReturn(mock(List.class));
             when(agentGroupService.updateAgent(groupIds, agentId, userDetail)).thenCallRealMethod();
+            when(agentId.toArray(any(String[].class))).thenReturn(new String[]{new ObjectId().toHexString()});
         }
 
         @Test
         void testNormal() {
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
-            verify(groupIds, times(0)).addAll(anyList());
-            verify(groupIds, times(1)).contains("id");
-            verify(groupIds, times(1)).isEmpty();
-            verify(agentGroupService, times(1)).findCriteria(groupIds);
-            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
-            verify(agentGroupService, times(1)).findAgentGroupInfoMany(groupIds, userDetail);
+            verify(agentGroupService, times(2)).findCriteria(anyList());
+            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
 
         @Test
         void testGroupIdsIsEmpty() {
-            when(groupIds.isEmpty()).thenReturn(true);
+            groupIds.clear();
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
-            verify(groupIds, times(0)).addAll(anyList());
-            verify(groupIds, times(0)).contains("id");
-            verify(groupIds, times(1)).isEmpty();
-            verify(agentGroupService, times(0)).findCriteria(groupIds);
+            verify(agentGroupService, times(0)).findCriteria(anyList());
             verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
-            verify(agentGroupService, times(0)).findAgentGroupInfoMany(groupIds, userDetail);
+            verify(agentGroupService, times(0)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
+        }
+
+        @Test
+        void testAllIsEmpty() {
+            all.clear();
+            Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+            verify(agentGroupService, times(2)).findCriteria(anyList());
+            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
+        }
+
+        @Test
+        void testAgentIdIsEmpty() {
+            when(agentId.isEmpty()).thenReturn(true);
+            Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+            verify(agentGroupService, times(1)).findCriteria(anyList());
+            verify(agentGroupService, times(1)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
 
         @Test
         void testNeedClean() {
-            when(groupIds.contains("id")).thenReturn(false);
+            groupIds.remove("id");
             Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
-            verify(groupIds, times(1)).addAll(anyList());
-            verify(groupIds, times(1)).isEmpty();
-            verify(agentGroupService, times(1)).findCriteria(groupIds);
-            verify(agentGroupService, times(2)).update(any(Query.class), any(Update.class), any(UserDetail.class));
-            verify(agentGroupService, times(1)).findAgentGroupInfoMany(groupIds, userDetail);
-            verify(groupIds, times(1)).contains("id");
+            verify(agentGroupService, times(0)).findCriteria(anyList());
+            verify(agentGroupService, times(0)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(0)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
+        }
+
+        @Test
+        void testNeedAppendGroupIdsNotEmpty() {
+            AgentGroupEntity e = mock(AgentGroupEntity.class);
+            when(e.getGroupId()).thenReturn("id1");
+            all.add(e);
+            groupIds.add("xxx");
+            groupIds.add("xxx1");
+            Assertions.assertDoesNotThrow(() -> agentGroupService.updateAgent(groupIds, agentId, userDetail));
+            verify(agentGroupService, times(3)).findCriteria(anyList());
+            verify(agentGroupService, times(3)).update(any(Query.class), any(Update.class), any(UserDetail.class));
+            verify(agentGroupService, times(1)).findAgentGroupInfoMany(anyList(), any(UserDetail.class));
         }
     }
 
