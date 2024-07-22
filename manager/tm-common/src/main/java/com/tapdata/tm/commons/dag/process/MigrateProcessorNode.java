@@ -12,7 +12,7 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 
 public abstract class MigrateProcessorNode extends Node<List<Schema>> {
     protected Boolean enableConcurrentProcess;
-    protected int concurrentNum = 1;
+    protected int concurrentNum = 2;
     /**
      * 创建处理器节点
      *

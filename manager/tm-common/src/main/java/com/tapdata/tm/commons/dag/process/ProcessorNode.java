@@ -16,7 +16,7 @@ import java.util.List;
 public abstract class ProcessorNode extends Node<Schema> {
 
     protected Boolean enableConcurrentProcess;
-    protected int concurrentNum = 1;
+    protected int concurrentNum = 2;
 
     /**
      * 创建处理器节点

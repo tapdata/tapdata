@@ -135,7 +135,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (enableConcurrentProcess) {
 			batchProcessor.startConcurrentConsumer(() -> {
 				while (isRunning()) {
-					List<TapdataEvent> tapdataEvents = simpleConcurrentProcessor.get(500L, TimeUnit.MILLISECONDS);
+					List<TapdataEvent> tapdataEvents = simpleConcurrentProcessor.get();
 					if (null == tapdataEvents) {
 						continue;
 					}
