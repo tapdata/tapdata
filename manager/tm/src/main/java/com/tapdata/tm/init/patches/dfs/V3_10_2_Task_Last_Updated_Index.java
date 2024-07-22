@@ -12,7 +12,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 
-@PatchAnnotation(appType = AppType.DAAS, version = "3.10-2")
+@PatchAnnotation(appType = AppType.DFS, version = "3.10-2")
 public class V3_10_2_Task_Last_Updated_Index extends AbsPatch {
     private static final Logger logger = LogManager.getLogger(V3_10_2_Task_Last_Updated_Index.class);
 
