@@ -106,7 +106,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	private void initBatchProcessorIfNeed() {
 		if (!supportBatchProcess()) {
-			if (enableConcurrentProcess) {
+			if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 				obsLogger.info("Node {}({}: {}) enable concurrent process, but not support batch process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
 			}
 			return;
@@ -132,7 +132,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				errorHandle(e);
 			}
 		});
-		if (enableConcurrentProcess) {
+		if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 			batchProcessor.startConcurrentConsumer(() -> {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = simpleConcurrentProcessor.get();
