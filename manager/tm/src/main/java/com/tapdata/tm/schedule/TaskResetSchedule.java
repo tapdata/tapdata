@@ -233,7 +233,7 @@ public class TaskResetSchedule {
     }
 
     protected void checkMoreThanResetTimes(){
-        Criteria criteria = Criteria.where(STATUS).in(TaskDto.STATUS_RENEW_FAILED, TaskDto.STATUS_DELETE_FAILED).and(IS_DELETED).ne(true)
+        Criteria criteria = Criteria.where(STATUS).is(TaskDto.STATUS_DELETE_FAILED).and(IS_DELETED).ne(true)
                 .orOperator(Criteria.where(RESET_TIMES).exists(false), Criteria.where(RESET_TIMES).gte(resetAllTimes));
         Query query = new Query(criteria);
         List<TaskDto> taskDtos = taskService.findAll(query);
