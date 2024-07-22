@@ -35,7 +35,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -215,25 +214,39 @@ public class AgentGroupService extends BaseService<GroupDto, AgentGroupEntity, O
         if (CollectionUtils.isEmpty(groupIds)) {
             return Lists.newArrayList();
         }
-        List<AgentGroupEntity> all = findAll(Query.query(Criteria.where("agentIds").in(newAgentIds)), loginUser);
-        List<String> cleanAgentIds = new ArrayList<>();
-        all.forEach(a -> {
-            String groupId = a.getGroupId();
-            if (!groupIds.contains(groupId)) {
-                cleanAgentIds.add(groupId);
-            }
-        });
-
-        update(Query.query(findCriteria(groupIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds), loginUser);
-        if (!cleanAgentIds.isEmpty()) {
-            update(Query.query(findCriteria(cleanAgentIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, new ArrayList<>()), loginUser);
-            groupIds.addAll(cleanAgentIds);
+        if (CollectionUtils.isEmpty(newAgentIds)) {
+            update(Query.query(findCriteria(groupIds)), new Update().set(AgentGroupTag.TAG_AGENT_IDS, newAgentIds), loginUser);
+            return findAgentGroupInfoMany(groupIds, loginUser);
         }
-        return findAgentGroupInfoMany(groupIds, loginUser);
+        List<AgentGroupEntity> all = findAll(Query.query(Criteria.where("agentIds").in(newAgentIds)), loginUser);
+        List<String> needUpdateGroupIds = new ArrayList<>();
+        List<String> needAppendGroupIds = new ArrayList<>();
+        List<String> collect = all.stream().map(a -> {
+            String groupId = a.getGroupId();
+            if (groupIds.contains(groupId)) {
+                needUpdateGroupIds.add(groupId);
+            }
+            return groupId;
+        }).collect(Collectors.toList());
+        groupIds.stream().filter(groupId -> !collect.contains(groupId)).forEach(needAppendGroupIds::add);
+
+        String[] strings = new String[newAgentIds.size()];
+        String[] toArray = newAgentIds.toArray(strings);
+        update(Query.query(findCriteria(collect)), new Update().pullAll(AgentGroupTag.TAG_AGENT_IDS, toArray), loginUser);
+
+        //需要更新Agent的Agent的分组
+        if (!needUpdateGroupIds.isEmpty()) {
+            update(Query.query(findCriteria(needUpdateGroupIds)), new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(toArray), loginUser);
+        }
+
+        //需要新增Agent的Agent的分组
+        if (!needAppendGroupIds.isEmpty()) {
+            update(Query.query(findCriteria(needAppendGroupIds)), new Update().addToSet(AgentGroupTag.TAG_AGENT_IDS).each(toArray), loginUser);
+        }
+        return findAgentGroupInfoMany(collect, loginUser);
     }
 
     protected List<AgentGroupDto> batchUpdate(List<String> agentIds, List<String> groupIds, UserDetail loginUser) {
-        verifyAgent(agentIds, loginUser);
         try {
             return updateAgent(groupIds, agentIds, loginUser);
         } finally {
