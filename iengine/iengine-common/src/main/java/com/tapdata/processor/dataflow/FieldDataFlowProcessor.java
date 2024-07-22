@@ -103,7 +103,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				.map(FieldProcess::getField).collect(Collectors.toSet());
 	}
 
-	private Invocable getOrInitEngine(String fieldName, String script) {
+	protected Invocable getOrInitEngine(String fieldName, String script) {
 		return fieldScriptEngine.computeIfAbsent(Thread.currentThread().getName(), tn -> new HashMap<>())
 				.computeIfAbsent(fieldName, fn -> {
 					try {

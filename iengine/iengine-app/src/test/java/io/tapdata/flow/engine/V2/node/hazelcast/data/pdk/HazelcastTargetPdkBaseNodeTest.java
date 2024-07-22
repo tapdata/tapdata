@@ -572,8 +572,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
 			tapdataEvent.setTapEvent(tapRecordEvent);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataRecordEvent(tapdataEvent);
-			hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
-			verify(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(any(TapRecordEvent.class));
+			TapRecordEvent result = hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
+			assertInstanceOf(TapInsertRecordEvent.class, result);
 		}
 
 		@Test
@@ -586,8 +586,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			((TapDeleteRecordEvent) tapRecordEvent).setBefore(after);
 			tapdataEvent.setTapEvent(tapRecordEvent);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataRecordEvent(tapdataEvent);
-			hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
-			verify(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(any(TapRecordEvent.class));
+			TapRecordEvent result = hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
+			assertInstanceOf(TapInsertRecordEvent.class, result);
 		}
 	}
 

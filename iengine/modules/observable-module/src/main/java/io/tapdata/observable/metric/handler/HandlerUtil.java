@@ -184,7 +184,7 @@ public class HandlerUtil {
     public static void sampleMemoryTapEvent(EventTypeRecorder recorder, List<?> events, Long sizeOfMemory) {
         if (null == recorder) return;
         if (null == sizeOfMemory) {
-//            randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
+            randomSampleEventHandler.sampleMemoryTapEvent(recorder, events, covertTapDataEvent);
         } else {
             recorder.setMemorySize(sizeOfMemory);
         }
