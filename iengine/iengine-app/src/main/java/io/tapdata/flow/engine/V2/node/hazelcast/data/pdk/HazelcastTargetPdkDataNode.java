@@ -235,6 +235,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
 			if(unwindProcess) createUnique = false;
+			if (false == checkCreateUniqueIndexOpen()) createUnique = false;
 			TapIndex tapIndex = new TapIndex().unique(createUnique);
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
 			if (null == updateConditionFields) {
@@ -261,6 +262,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tapIndices.add(tapIndex);
 				indexEvent.set(createIndexEvent(tableId, tapIndices));
 
+				List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, tapIndices);
+				if(CollectionUtils.isNotEmpty(existsIndexes)){
+					existsIndexes.forEach(i -> {
+						obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i);
+					});
+					return;
+				}
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -279,6 +287,16 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.addEvent(indexEvent.get());
 			}
 		}
+	}
+	protected boolean checkCreateUniqueIndexOpen(){
+		Node node = getNode();
+		if (node instanceof DatabaseNode || node instanceof TableNode) {
+			DataParentNode dataParentNode = (DataParentNode) node;
+			if (Boolean.FALSE.equals(dataParentNode.getUniqueIndexEnable())) {
+				return false;
+			}
+		}
+		return true;
 	}
 	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable){
 		long start = System.currentTimeMillis();
