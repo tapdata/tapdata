@@ -42,6 +42,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.error.CoreException;
@@ -171,6 +172,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
 	private int toTapValueThreadNum;
 	private TapCodecsFilterManager codecsFilterManagerSchemaEnforced;
+
+	protected TapCodecsFilterManager defaultCodecsFilterManager;
+
+	protected TapCodecsRegistry defaultCodecsRegistry = TapCodecsRegistry.create();
 	private boolean toTapValueConcurrent;
 	private boolean connectorNodeSchemaFree;
 	private SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor;
@@ -272,6 +277,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		this.connectorNodeSchemaFree = tags.contains("schema-free");
 		this.codecsFilterManager = connectorNode.getCodecsFilterManager();
 		this.codecsFilterManagerSchemaEnforced = connectorNode.getCodecsFilterManagerSchemaEnforced();
+		this.defaultCodecsFilterManager = TapCodecsFilterManager.create(this.defaultCodecsRegistry);
 	}
 
 	private void initTapEventFilter() {
