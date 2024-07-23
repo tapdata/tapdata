@@ -162,6 +162,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     private String search_databaseType;
     private String connectionUrl;
     private String lastUpdateTime;
+    private Long lastUpdate;
     private String errorMsg;
     private Integer increamentalTps;
     private Integer initialReadSize;

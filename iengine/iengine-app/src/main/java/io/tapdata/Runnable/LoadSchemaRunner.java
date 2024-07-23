@@ -1,5 +1,6 @@
 package io.tapdata.Runnable;
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
@@ -10,6 +11,7 @@ import com.tapdata.entity.LoadSchemaProgress;
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.Schema;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import io.tapdata.TapInterface;
 import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.TapInterfaceUtil;
@@ -40,10 +42,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -120,8 +119,29 @@ public class LoadSchemaRunner implements Runnable {
 
 		logger.info("Starting load schema fields, connection name: {}", connections.getName());
 
-		Update update = new Update().set(ConnectorConstant.LOAD_FIELDS, ConnectorConstant.LOAD_FIELD_STATUS_LOADING);
-		updateConnections(update);
+        String partialUpdateWithSchemaVersion = connections.getPartialUpdateWithSchemaVersion();
+        if (null == partialUpdateWithSchemaVersion) {
+            Update update = new Update().set(ConnectorConstant.LOAD_FIELDS, ConnectorConstant.LOAD_FIELD_STATUS_LOADING);
+            updateConnections(update);
+        } else {
+            connections.setTable_filter(connections.getPartialUpdateFilter());
+            if (null != connections.getPartialUpdateFilter()) {
+                loadSchemaProgress.setTableCount(connections.getPartialUpdateFilter().split(",").length);
+            }
+
+            Query query = new Query(Criteria.where("_id").is(connections.getId())
+                .and(DataSourceConnectionDto.FIELD_SCHEMA_VERSION).is(partialUpdateWithSchemaVersion));
+            Update update = new Update()
+                .set(ConnectorConstant.LOAD_FIELDS, ConnectorConstant.LOAD_FIELD_STATUS_LOADING)
+                .set(DataSourceConnectionDto.FIELD_PARTIAL_UPDATE_FILTER, connections.getPartialUpdateFilter())
+                .set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
+                .set(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, schemaVersion);
+
+            UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION + "/update-partial-schema");
+            if (updateResult.getMatchedCount() <= 0) {
+                return;
+            }
+        }
 
 		try {
 				if (StringUtils.isBlank(connections.getPdkType())) {
@@ -299,9 +319,9 @@ public class LoadSchemaRunner implements Runnable {
 
 		if (needUpdate) {
 			update.set(ConnectorConstant.LOAD_FIELDS, loadFieldsStatus)
-					.set("schemaVersion", this.schemaVersion)
-					.set("lastUpdate", this.lastUpdate)
-					.set("everLoadSchema", true);
+					.set(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, this.schemaVersion)
+					.set(DataSourceConnectionDto.FIELD_LAST_UPDATE, this.lastUpdate)
+					.set(DataSourceConnectionDto.FIELD_EVER_LOAD_SCHEMA, true);
 			updateConnections(update);
 			schema.getTables().clear();
 			schema.getTapTables().clear();

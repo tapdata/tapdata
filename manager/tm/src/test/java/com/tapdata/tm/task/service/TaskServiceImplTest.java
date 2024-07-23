@@ -16,14 +16,15 @@ import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.dag.nodes.*;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.bean.ResponseBody;
-import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -51,6 +52,7 @@ import com.tapdata.tm.message.service.MessageServiceImpl;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
@@ -92,10 +94,8 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
-import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonValue;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -133,7 +133,6 @@ import java.util.stream.Collectors;
 
 import static com.tapdata.tm.task.service.TaskServiceImpl.AGENT_ID;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.*;
 import static org.springframework.beans.BeanUtils.copyProperties;
 
@@ -5119,5 +5118,203 @@ class TaskServiceImplTest {
             assertEquals(2,logCollecotrConnConfig.getTableNames().size());
         }
 
+    }
+
+    @Nested
+    class RefreshSchemasTest {
+
+        DAG dag;
+        TaskDto taskDto;
+        DataSourceService dataSourceService;
+        MetadataInstancesService metadataInstancesService;
+        TransformSchemaService transformSchemaService;
+
+        @BeforeEach
+        void init() {
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+
+            dag = mock(DAG.class);
+            taskDto.setDag(dag);
+
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            UnitTestUtils.injectField(TaskServiceImpl.class, taskService, "dataSourceService", dataSourceService);
+            metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
+            UnitTestUtils.injectField(TaskServiceImpl.class, taskService, "metadataInstancesService", metadataInstancesService);
+            transformSchemaService = mock(TransformSchemaService.class);
+            UnitTestUtils.injectField(TaskServiceImpl.class, taskService, "transformSchemaService", transformSchemaService);
+        }
+
+        @Test
+        void testEmptyNodes() {
+            String nodeIds = null;
+            String keys = null;
+
+            // 检查任务是否修改为推演中，实现前端自动刷新
+            doAnswer(invocation -> {
+                Document doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
+                assertEquals(MetadataTransformerDto.StatusEnum.running.name(), doc.getString(TaskDto.FIELD_TRANSFORM_STATUS));
+                return null;
+            }).when(taskService).updateById(eq(taskDto.getId()), any(Update.class), eq(user));
+            doCallRealMethod().when(taskService).refreshSchemas(taskDto, nodeIds, keys, user);
+
+            // 无节点不刷新模型
+            taskService.refreshSchemas(taskDto, nodeIds, keys, user);
+        }
+
+        @Test
+        void testNotfoundDatasource() {
+            String connId = "test-conn-id";
+            String nodeIds = null;
+            String keys = null;
+
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(Optional.of(new TableNode()).map(n -> {
+                n.setConnectionId(connId);
+                return n;
+            }).get());
+
+            // test not tableNode and DatabaseNode
+            nodes.add(Optional.of(new FieldRenameProcessorNode()).get());
+
+            when(dag.getNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).refreshSchemas(taskDto, nodeIds, keys, user);
+            assertThrows(BizException.class, () -> taskService.refreshSchemas(taskDto, nodeIds, keys, user));
+        }
+
+        @Test
+        void testRefreshTaskTableNode() {
+            String connId = "test-conn-id";
+            String tableName = "test-table-name";
+            String nodeIds = null;
+            String keys = null;
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceService.findById(any())).thenReturn(connDto);
+
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(Optional.of(new TableNode()).map(n -> {
+                n.setConnectionId(connId);
+                n.setTableName(tableName);
+                return n;
+            }).get());
+            when(dag.getNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).refreshSchemas(taskDto, nodeIds, keys, user);
+
+            // 无节点不刷新模型
+            taskService.refreshSchemas(taskDto, nodeIds, keys, user);
+
+            verify(taskService, times(1)).wait2ConnectionsLoadFinished(anyString(), any(), anyLong(), anyInt(), eq(user));
+            verify(metadataInstancesService, times(1)).deleteTaskMetadata(anyString(), any());
+            verify(transformSchemaService, times(1)).transformSchema(eq(taskDto), eq(user));
+        }
+
+        @Test
+        void testRefreshTaskDatabaseNode() {
+            String connId = "test-conn-id";
+            String nodeIds = null;
+            String keys = null;
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceService.findById(any())).thenReturn(connDto);
+
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(Optional.of(new DatabaseNode()).map(n -> {
+                n.setConnectionId(connId);
+                return n;
+            }).get());
+            when(dag.getNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).refreshSchemas(taskDto, nodeIds, keys, user);
+
+            // 无节点不刷新模型
+            taskService.refreshSchemas(taskDto, nodeIds, keys, user);
+
+            verify(taskService, times(1)).wait2ConnectionsLoadFinished(anyString(), any(), anyLong(), anyInt(), eq(user));
+            verify(metadataInstancesService, times(1)).deleteTaskMetadata(anyString(), any());
+            verify(transformSchemaService, times(1)).transformSchema(eq(taskDto), eq(user));
+        }
+
+        @Test
+        void testRefreshTaskNode() {
+            String connId = "test-conn-id";
+            String nodeIds = "test-node-id";
+            String keys = null;
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceService.findById(any())).thenReturn(connDto);
+
+            TableNode tableNode = Optional.of(new TableNode()).map(n -> {
+                n.setId(nodeIds);
+                n.setConnectionId(connId);
+                return n;
+            }).get();
+            when(dag.getNode(nodeIds)).thenReturn((Node) tableNode);
+            doCallRealMethod().when(taskService).refreshSchemas(taskDto, nodeIds, keys, user);
+
+            // 无节点不刷新模型
+            taskService.refreshSchemas(taskDto, nodeIds, keys, user);
+
+            verify(taskService, times(1)).wait2ConnectionsLoadFinished(anyString(), any(), anyLong(), anyInt(), eq(user));
+            verify(metadataInstancesService, times(1)).deleteLogicModel(anyString(), eq(nodeIds));
+            verify(transformSchemaService, times(1)).transformSchema(eq(taskDto), eq(user));
+        }
+    }
+
+    @Nested
+    class Wait2ConnectionsLoadFinishedTest {
+        String taskId;
+        ObjectId connId;
+        long beginTime;
+        int timeout;
+        DataSourceService dataSourceService;
+
+        @BeforeEach
+        void init() {
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskId = taskDto.getId().toHexString();
+            connId = ObjectId.get();
+            beginTime = System.currentTimeMillis();
+            timeout = 3 * 1000;
+
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            UnitTestUtils.injectField(TaskServiceImpl.class, taskService, "dataSourceService", dataSourceService);
+        }
+
+        @Test
+        void testTimeout() {
+            timeout = 1000;
+
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceService.getById(eq(connId), any(), any(), eq(user))).thenReturn(connDto);
+
+            doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
+
+            taskService.wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, user);
+        }
+
+        @Test
+        void testFinished() {
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(connDto.getLastUpdate()).thenReturn(beginTime + 1);
+            when(connDto.getLoadFieldsStatus()).thenReturn(DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED);
+            when(dataSourceService.getById(eq(connId), any(), any(), eq(user))).thenReturn(connDto);
+
+            doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
+
+            taskService.wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, user);
+        }
+
+        @Test
+        void testError() {
+            DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
+            when(connDto.getLastUpdate()).thenReturn(beginTime + 1);
+            when(connDto.getLoadFieldsStatus()).thenReturn(DataSourceConnectionDto.LOAD_FIELD_STATUS_ERROR);
+            when(dataSourceService.getById(eq(connId), any(), any(), eq(user))).thenReturn(connDto);
+
+            doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
+
+            taskService.wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, user);
+        }
     }
 }

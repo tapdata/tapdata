@@ -27,14 +27,10 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.schema.bean.ResponseBody;
-import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
@@ -272,6 +268,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String EDGE_MILESTONES = "edgeMilestones";
     public static final String SYNC_PROGRESS = "syncProgress";
     public static final String TASK_NOT_FOUND = "Task.NotFound";
+    public static final String EX_TASK_NOT_FOUND_DS = "Task.NotfoundDatasource";
     public static final String STATUS = "status";
     public static final String CREATE_TIME = "createTime";
     public static final String DAG_NODES_CONNECTION_ID = "dag.nodes.connectionId";
@@ -4990,4 +4987,95 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
+    @Override
+    public void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail) {
+        // 更新任务加载状态，使前端能自动刷新界面模型
+        updateById(taskDto.getId()
+            , Update.update(TaskDto.FIELD_TRANSFORM_STATUS, MetadataTransformerDto.StatusEnum.running.name())
+            , userDetail
+        );
+
+        String taskId = taskDto.getId().toHexString();
+        boolean isRefreshTaskSchema = false;
+        int timeout = 30 * 1000;
+        long beginTime = System.currentTimeMillis();
+        Set<String> connIdList = new LinkedHashSet<>();
+        Set<String> nodeIdList = new LinkedHashSet<>();
+        if (null == nodeIds) {
+            isRefreshTaskSchema = true;
+            keys = Optional.ofNullable(taskDto.getDag()).map(dag -> {
+                Set<String> tableNames = new LinkedHashSet<>();
+                for (Node<?> node : dag.getNodes()) {
+                    if (node instanceof DatabaseNode) {
+                        DatabaseNode databaseNode = (DatabaseNode) node;
+                        connIdList.add(databaseNode.getConnectionId());
+                    } else if (node instanceof TableNode) {
+                        TableNode tableNode = (TableNode) node;
+                        connIdList.add(tableNode.getConnectionId());
+                        tableNames.add(tableNode.getTableName());
+                    }
+                }
+                if (tableNames.isEmpty()) return null;
+                return String.join(",", tableNames);
+            }).orElse(null);
+        } else {
+            nodeIdList.addAll(Arrays.asList(nodeIds.split(",")));
+            Optional.ofNullable(taskDto.getDag()).ifPresent(dag -> {
+                for (String nodeId : nodeIdList) {
+                    Node<?> node = dag.getNode(nodeId);
+                    if (node instanceof DataParentNode) {
+                        connIdList.add(((DataParentNode<?>) node).getConnectionId());
+                    }
+                }
+            });
+        }
+        if (connIdList.isEmpty()) return; // 没有连接不刷新模型
+
+        // 刷新连接模型
+        for (String connId : connIdList) {
+            DataSourceConnectionDto connDto = dataSourceService.findById(MongoUtils.toObjectId(connId));
+            if (null == connDto) throw new BizException(EX_TASK_NOT_FOUND_DS, connId);
+            dataSourceService.sendTestConnection(connDto, true, true, keys, userDetail);
+        }
+
+        // 等待连接加载模型完成
+        for (String connId : connIdList) {
+            wait2ConnectionsLoadFinished(taskId, MongoUtils.toObjectId(connId), beginTime, timeout, userDetail);
+        }
+
+        // 清理逻辑模型
+        if (isRefreshTaskSchema) {
+            metadataInstancesService.deleteTaskMetadata(taskId, userDetail);
+        } else {
+            for (String nodeId : nodeIdList) {
+                metadataInstancesService.deleteLogicModel(taskId, nodeId);
+            }
+        }
+
+        // 执行推演
+        transformSchemaService.transformSchema(taskDto, userDetail);
+    }
+
+    protected void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail) {
+        Field fields = new Field();
+        fields.put(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, 1);
+        fields.put(DataSourceConnectionDto.FIELD_LAST_UPDATE, 1);
+        DataSourceConnectionDto newConn;
+        do {
+            newConn = dataSourceService.getById(connId, fields, null, userDetail);
+            if (null != newConn.getLastUpdate() && beginTime < newConn.getLastUpdate()) {
+                if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(newConn.getLoadFieldsStatus())) {
+                    log.info("Task '{}' connection '{}' refresh failed, status={}", taskId, connId, newConn.getStatus());
+                }
+                return;
+            }
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        } while (System.currentTimeMillis() - beginTime < timeout); // 30秒超时
+        log.info("Task '{}' connection '{}' refresh timeout", taskId, connId);
+    }
 }

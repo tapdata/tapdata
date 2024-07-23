@@ -154,6 +154,8 @@ public class Connections implements Serializable {
 	private String table_filter;
 	private String tableExcludeFilter;
 	private Boolean openTableExcludeFilter;
+	private String partialUpdateWithSchemaVersion;
+	private String partialUpdateFilter;
 
 	/**
 	 * byte
@@ -1177,7 +1179,23 @@ public class Connections implements Serializable {
 		this.openTableExcludeFilter = openTableExcludeFilter;
 	}
 
-	public String getSheet_start() {
+    public String getPartialUpdateWithSchemaVersion() {
+        return partialUpdateWithSchemaVersion;
+    }
+
+    public void setPartialUpdateWithSchemaVersion(String partialUpdateWithSchemaVersion) {
+        this.partialUpdateWithSchemaVersion = partialUpdateWithSchemaVersion;
+    }
+
+    public String getPartialUpdateFilter() {
+        return partialUpdateFilter;
+    }
+
+    public void setPartialUpdateFilter(String partialUpdateFilter) {
+        this.partialUpdateFilter = partialUpdateFilter;
+    }
+
+    public String getSheet_start() {
 		return sheet_start;
 	}
 

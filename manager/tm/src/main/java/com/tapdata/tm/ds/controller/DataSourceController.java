@@ -664,4 +664,44 @@ public class DataSourceController extends BaseController {
         return success(result);
     }
 
+    @Operation(summary = "Update partial schema with schemaVersion")
+    @PostMapping("update-partial-schema/update")
+    public ResponseMessage<Map<String, Object>> updatePartialSchema(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        String resultKey = "count";
+        Map<String, Object> result = new HashMap<>();
+        result.put(resultKey, 0);
+
+        Where where = parseWhere(whereJson);
+        if (null == where) return success(result);
+
+        String id = (String) where.get("_id");
+        if (StringUtils.isBlank(id)) return success(result);
+        String fromSchemaVersion = (String) where.get(DataSourceConnectionDto.FIELD_SCHEMA_VERSION);
+        if (StringUtils.isBlank(fromSchemaVersion)) return success(result);
+
+        Document updateDoc = Optional.ofNullable(reqBody)
+            .map(jsonStr -> InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class))
+            .map(doc -> {
+                Object setObj = doc.get("$set");
+                if (null != setObj) {
+                    String setJson = JsonUtil.toJsonUseJackson(setObj);
+                    return JsonUtil.parseJsonUseJackson(setJson, new TypeReference<Document>() {
+                    });
+                }
+                return null;
+            }).orElse(null);
+        if (null == updateDoc) return success(result);
+
+        String filters = updateDoc.getString(DataSourceConnectionDto.FIELD_PARTIAL_UPDATE_FILTER);
+        String loadFieldsStatus = updateDoc.getString(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS);
+        if (StringUtils.isBlank(loadFieldsStatus)) return success(result);
+        String toSchemaVersion = updateDoc.getString(DataSourceConnectionDto.FIELD_SCHEMA_VERSION);
+        if (StringUtils.isBlank(toSchemaVersion)) return success(result);
+        Long lastUpdate = updateDoc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE);
+        if (null == lastUpdate) return success(result);
+
+        UserDetail user = getLoginUser();
+        result.put(resultKey, dataSourceService.updatePartialSchema(id, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, user));
+        return success(result);
+    }
 }
