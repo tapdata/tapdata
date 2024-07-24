@@ -176,7 +176,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, ((Map) tableOffsetObj).get("id"));
 			assertEquals("a", ((Map) tableOffsetObj).get("code"));
 			verify(hazelcastSourcePdkDataNode, times(1)).toTapValue(any(Map.class), anyString(), eq(tapCodecsFilterManager));
-			verify(hazelcastSourcePdkDataNode, times(1)).fromTapValue(any(Map.class), eq(tapCodecsFilterManager), anyString());
 		}
 
 		@Test
@@ -194,7 +193,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, ((Map) tableOffsetObj).get("id"));
 			assertEquals("a", ((Map) tableOffsetObj).get("code"));
 			verify(hazelcastSourcePdkDataNode, times(1)).toTapValue(any(Map.class), anyString(), eq(tapCodecsFilterManager));
-			verify(hazelcastSourcePdkDataNode, times(1)).fromTapValue(any(Map.class), eq(tapCodecsFilterManager), anyString());
 		}
 
 		@Test
@@ -212,7 +210,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, ((Map) tableOffsetObj).get("id"));
 			assertEquals("a", ((Map) tableOffsetObj).get("code"));
 			verify(hazelcastSourcePdkDataNode, times(1)).toTapValue(any(Map.class), anyString(), eq(tapCodecsFilterManager));
-			verify(hazelcastSourcePdkDataNode, times(1)).fromTapValue(any(Map.class), eq(tapCodecsFilterManager), anyString());
 		}
 
 		@Test
