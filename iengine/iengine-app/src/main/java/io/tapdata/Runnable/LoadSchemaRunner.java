@@ -118,30 +118,7 @@ public class LoadSchemaRunner implements Runnable {
 		Thread.currentThread().setName(String.format(THREAD_NAME, connections.getName()));
 
 		logger.info("Starting load schema fields, connection name: {}", connections.getName());
-
-        String partialUpdateWithSchemaVersion = connections.getPartialUpdateWithSchemaVersion();
-        if (null == partialUpdateWithSchemaVersion) {
-            Update update = new Update().set(ConnectorConstant.LOAD_FIELDS, ConnectorConstant.LOAD_FIELD_STATUS_LOADING);
-            updateConnections(update);
-        } else {
-            connections.setTable_filter(connections.getPartialUpdateFilter());
-            if (null != connections.getPartialUpdateFilter()) {
-                loadSchemaProgress.setTableCount(connections.getPartialUpdateFilter().split(",").length);
-            }
-
-            Query query = new Query(Criteria.where("_id").is(connections.getId())
-                .and(DataSourceConnectionDto.FIELD_SCHEMA_VERSION).is(partialUpdateWithSchemaVersion));
-            Update update = new Update()
-                .set(ConnectorConstant.LOAD_FIELDS, ConnectorConstant.LOAD_FIELD_STATUS_LOADING)
-                .set(DataSourceConnectionDto.FIELD_PARTIAL_UPDATE_FILTER, connections.getPartialUpdateFilter())
-                .set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
-                .set(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, schemaVersion);
-
-            UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION + "/update-partial-schema");
-            if (updateResult.getMatchedCount() <= 0) {
-                return;
-            }
-        }
+        if (updateConnections2Loading(connections)) return;
 
 		try {
 				if (StringUtils.isBlank(connections.getPdkType())) {
@@ -328,7 +305,33 @@ public class LoadSchemaRunner implements Runnable {
 		}
 	}
 
-	private void updateConnections(Update update) {
+    // return true is not to load schema
+    protected boolean updateConnections2Loading(Connections connections) {
+        String partialUpdateWithSchemaVersion = connections.getPartialUpdateWithSchemaVersion();
+        if (null == partialUpdateWithSchemaVersion) {
+            Update update = new Update().set(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING);
+            updateConnections(update);
+        } else {
+            connections.setTable_filter(connections.getPartialUpdateFilter());
+            if (null != connections.getPartialUpdateFilter()) {
+                loadSchemaProgress.setTableCount(connections.getPartialUpdateFilter().split(",").length);
+            }
+
+            Query query = new Query(Criteria.where("_id").is(connections.getId())
+                .and(DataSourceConnectionDto.FIELD_SCHEMA_VERSION).is(partialUpdateWithSchemaVersion));
+            Update update = new Update()
+                .set(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING)
+                .set(DataSourceConnectionDto.FIELD_PARTIAL_UPDATE_FILTER, connections.getPartialUpdateFilter())
+                .set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
+                .set(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, schemaVersion);
+
+            UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION + "/update-partial-schema");
+            return updateResult.getMatchedCount() <= 0;
+        }
+        return false;
+    }
+
+	protected void updateConnections(Update update) {
 		Query query = new Query(Criteria.where("_id").is(connections.getId()));
 		if (update == null) {
 			return;
