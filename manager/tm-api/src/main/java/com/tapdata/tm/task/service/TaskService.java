@@ -294,6 +294,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
+    public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
 
     @Data
     @AllArgsConstructor

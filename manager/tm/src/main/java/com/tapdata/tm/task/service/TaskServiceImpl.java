@@ -29,6 +29,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import com.tapdata.tm.commons.schema.bean.ValidateDetail;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
@@ -4452,6 +4453,23 @@ public class TaskServiceImpl extends TaskService{
         Criteria criteria = Criteria.where("_id").is(taskId);
         Update update = new Update().set("delayTime", delayTime);
         update(new Query(criteria), update);
+    }
+
+    @Override
+    public void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail) {
+        DAG dag = taskDto.getDag();
+        if(null != dag){
+           Set<String> connectionIds = dag.getSourceNodes().stream().filter(node -> node instanceof DataParentNode)
+                   .map(node -> ((DataParentNode<?>) node).getConnectionId()).collect(Collectors.toSet());
+           if(CollectionUtils.isNotEmpty(connectionIds)){
+               Query query = new Query(Criteria.where("_id").in(connectionIds));
+               query.fields().include("timeDifference");
+               List<DataSourceEntity> dataSourceEntities = dataSourceService.findAll(query, userDetail);
+               Long timeDifference = dataSourceEntities.stream().map(DataSourceEntity::getTimeDifference).filter(Objects::nonNull).max(Comparator.comparing(x -> x)).orElse(null);
+               taskDto.setTimeDifference(timeDifference);
+           }
+
+        }
     }
 
 

@@ -34,6 +34,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.service.DisruptorService;
+import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
@@ -148,6 +149,7 @@ class TaskServiceImplTest {
     TaskDto taskDto;
     UserDetail user;
     ChartViewService chartViewService;
+    DataSourceService dataSourceService;
     @BeforeEach
     void init() {
         taskService = mock(TaskServiceImpl.class);
@@ -162,6 +164,8 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "chartViewService", chartViewService);
         taskDto = mock(TaskDto.class);
         user = mock(UserDetail.class);
+        dataSourceService = mock(DataSourceServiceImpl.class);
+        ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
     }
 
     @Nested
@@ -5119,5 +5123,85 @@ class TaskServiceImplTest {
             assertEquals(2,logCollecotrConnConfig.getTableNames().size());
         }
 
+    }
+    @Nested
+    class CheckSourceTimeDifferenceTest{
+
+        @Test
+        void test_main(){
+            TaskDto taskDto = new TaskDto();
+            UserDetail userDetail = mock(UserDetail.class);
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            DatabaseNode databaseNode = new DatabaseNode();
+            databaseNode.setConnectionId("test");
+            nodes.add(databaseNode);
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkSourceTimeDifference(taskDto,userDetail);
+            List<DataSourceEntity> dataSourceEntities = new ArrayList<>();
+            DataSourceEntity dataSourceEntity = new DataSourceEntity();
+            dataSourceEntity.setTimeDifference(1000L);
+            dataSourceEntities.add(dataSourceEntity);
+            when(dataSourceService.findAll(any(Query.class),any(UserDetail.class))).thenReturn(dataSourceEntities);
+            taskService.checkSourceTimeDifference(taskDto,userDetail);
+            Assertions.assertEquals(1000L,taskDto.getTimeDifference());
+        }
+        @Test
+        void test_tableNodes(){
+            TaskDto taskDto = new TaskDto();
+            UserDetail userDetail = mock(UserDetail.class);
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            TableNode node1 = new TableNode();
+            node1.setConnectionId("test1");
+            TableNode node2 = new TableNode();
+            node2.setConnectionId("test2");
+            TableNode node3 = new TableNode();
+            node3.setConnectionId("test1");
+            nodes.add(node1);
+            nodes.add(node2);
+            nodes.add(node3);
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkSourceTimeDifference(taskDto,userDetail);
+            List<DataSourceEntity> dataSourceEntities = new ArrayList<>();
+            DataSourceEntity dataSourceEntity1 = new DataSourceEntity();
+            dataSourceEntity1.setTimeDifference(1000L);
+            DataSourceEntity dataSourceEntity2 = new DataSourceEntity();
+            dataSourceEntity2.setTimeDifference(2000L);
+            dataSourceEntities.add(dataSourceEntity1);
+            dataSourceEntities.add(dataSourceEntity2);
+            Set<String> connectionIds = new HashSet<>();
+            connectionIds.add("test1");
+            connectionIds.add("test2");
+            Query query = new Query(Criteria.where("_id").in(connectionIds));
+            query.fields().include("timeDifference");
+            when(dataSourceService.findAll(eq(query),eq(userDetail))).thenReturn(dataSourceEntities);
+            taskService.checkSourceTimeDifference(taskDto,userDetail);
+            Assertions.assertEquals(2000L,taskDto.getTimeDifference());
+        }
+        @Test
+        void test_DagIsNull(){
+            TaskDto taskDto = new TaskDto();
+            UserDetail userDetail = mock(UserDetail.class);
+            doCallRealMethod().when(taskService).checkSourceTimeDifference(taskDto,userDetail);
+            taskService.checkSourceTimeDifference(taskDto,userDetail);
+            Assertions.assertNull(taskDto.getTimeDifference());
+        }
+
+        @Test
+        void test_connectionIdsIsEmpty(){
+            TaskDto taskDto = new TaskDto();
+            UserDetail userDetail = mock(UserDetail.class);
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            nodes.add(new MigrateJsProcessorNode());
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkSourceTimeDifference(taskDto,userDetail);
+            taskService.checkSourceTimeDifference(taskDto,userDetail);
+            Assertions.assertNull(taskDto.getTimeDifference());
+        }
     }
 }
