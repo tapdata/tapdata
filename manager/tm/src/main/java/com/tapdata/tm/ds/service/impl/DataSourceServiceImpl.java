@@ -1935,6 +1935,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (null != options.getDbVersion()){
             update.set("db_version",options.getDbVersion());
         }
+        if (null != options.getTimeDifference()){
+            update.set("timeDifference",options.getTimeDifference());
+        }
 
         updateByIdNotChangeLast(id, update, user);
 
