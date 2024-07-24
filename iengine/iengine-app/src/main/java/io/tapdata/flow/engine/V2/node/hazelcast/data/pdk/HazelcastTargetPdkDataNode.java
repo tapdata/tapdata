@@ -205,12 +205,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return;
 		}
 		dropTable(existsDataProcessEnum, tableId, init);
-//		boolean createUnique = tapTable.getIndexList() != null && tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
-//				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
-//		createUnique &= succeed.get();
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
 		//sync index
 		syncIndex(tableId, tapTable, succeed.get());
@@ -257,7 +254,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
 				if (usePkAsUpdateConditions && createdTable) {
-//					obsLogger.info("Table " + tableId + " use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
 				updateConditionFields.forEach(field -> {
@@ -300,9 +296,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		Node node = getNode();
 		if (node instanceof DatabaseNode || node instanceof TableNode) {
 			DataParentNode dataParentNode = (DataParentNode) node;
-			if (Boolean.FALSE.equals(dataParentNode.getUniqueIndexEnable())) {
-				return false;
-			}
+			return !Boolean.FALSE.equals(dataParentNode.getUniqueIndexEnable());
 		}
 		return true;
 	}
@@ -815,7 +809,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
-		switchDmlPolicyIfNeed(tapTable.getId());
 		events.forEach(this::addPropertyForMergeEvent);
 		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
@@ -910,28 +903,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 		} else {
 			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", getConnectorNode().getConnectorContext().getSpecification().getId()));
-		}
-	}
-	private void switchDmlPolicyIfNeed(String tableId) {
-		boolean uniqueIndex = checkCreateUniqueIndexOpen();
-		DmlPolicyEnum settingInsertPolicy = null;
-		Node<?> node = getNode();
-		if (node instanceof DataParentNode) {
-			DmlPolicy dmlPolicy = ((DataParentNode<?>) node).getDmlPolicy();
-			settingInsertPolicy = Optional.ofNullable(dmlPolicy).orElse(new DmlPolicy()).getInsertPolicy();
-		}
-		ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
-		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		if (!uniqueIndex && DmlPolicyEnum.just_insert.equals(settingInsertPolicy)
-				&& ExistsDataProcessEnum.KEEP_DATE.equals(existsDataProcessEnum)
-				&& null == taskDto.getSnapshotDoneAt()) {
-			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
-			String dmlInsertPolicy = connectorNode.getConnectorContext().getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
-			if (DmlPolicyEnum.just_insert.equals(dmlInsertPolicy)) {
-				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, DmlPolicyEnum.update_on_exists.name());
-			}
-			Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has already exist, there maybe has duplicate data when snapshot without unique index, all subsequent data insert policy are switched to {}",
-					tableId, DmlPolicyEnum.update_on_exists.name()));
 		}
 	}
 

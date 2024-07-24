@@ -49,7 +49,10 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 
 	@Override
 	public void writeRecordWithPolicyControl(String tableId, List<TapRecordEvent> tapRecordEvents, ThrowableFunction<Void, List<TapRecordEvent>, Throwable> writePolicyRunner) throws Throwable {
-		if (CollectionUtils.isEmpty(tapRecordEvents) || null == settingInsertPolicy || !settingInsertPolicy.equals(DmlPolicyEnum.just_insert)) {
+		if (CollectionUtils.isEmpty(tapRecordEvents)
+				|| null == settingInsertPolicy
+				|| !settingInsertPolicy.equals(DmlPolicyEnum.update_on_exists)
+				|| Boolean.FALSE.equals(((DataParentNode<?>) node).getUniqueIndexEnable())) {
 			writePolicyRunner.apply(tapRecordEvents);
 			return;
 		}
@@ -60,11 +63,11 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 				writeRecordTableResult.getDuplicateKeyErrorCounter() > writeDuplicateKeyErrorThreshold) {
 			if (writeRecordTableResult.getContinuousDuplicateKeyErrorOverLimit().compareAndSet(false, true)) {
 				Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has more than {} continuous duplicate key errors, all subsequent data insert policy are switched to {}",
-						tableId, writeDuplicateKeyErrorThreshold, DmlPolicyEnum.update_on_exists.name()));
+						tableId, writeDuplicateKeyErrorThreshold, settingInsertPolicy.name()));
 			}
 			currentInsertPolicy = settingInsertPolicy;
 		}
-//		connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, currentInsertPolicy.name());
+		connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, currentInsertPolicy.name());
 
 		try {
 			writePolicyRunner.apply(tapRecordEvents);
@@ -74,10 +77,10 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 		} catch (Throwable e) {
 			Throwable matchThrowable = CommonUtils.matchThrowable(e, TapPdkViolateUniqueEx.class);
 			if (null != matchThrowable) {
-				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, DmlPolicyEnum.update_on_exists.name());
+				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, settingInsertPolicy.name());
 				writePolicyRunner.apply(tapRecordEvents);
 				Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has duplicate key error, switch the insert policy to {} and retry writing, continuous error time: {}",
-						tableId, DmlPolicyEnum.update_on_exists.name(), writeRecordTableResult.incrementDuplicateKeyErrorCounter()));
+						tableId, settingInsertPolicy.name(), writeRecordTableResult.incrementDuplicateKeyErrorCounter()));
 			} else {
 				throw e;
 			}
