@@ -5148,6 +5148,40 @@ class TaskServiceImplTest {
             Assertions.assertEquals(1000L,taskDto.getTimeDifference());
         }
         @Test
+        void test_tableNodes(){
+            TaskDto taskDto = new TaskDto();
+            UserDetail userDetail = mock(UserDetail.class);
+            DAG dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            List<Node> nodes = new ArrayList<>();
+            TableNode node1 = new TableNode();
+            node1.setConnectionId("test1");
+            TableNode node2 = new TableNode();
+            node2.setConnectionId("test2");
+            TableNode node3 = new TableNode();
+            node3.setConnectionId("test1");
+            nodes.add(node1);
+            nodes.add(node2);
+            nodes.add(node3);
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkSourceTimeDifference(taskDto,userDetail);
+            List<DataSourceEntity> dataSourceEntities = new ArrayList<>();
+            DataSourceEntity dataSourceEntity1 = new DataSourceEntity();
+            dataSourceEntity1.setTimeDifference(1000L);
+            DataSourceEntity dataSourceEntity2 = new DataSourceEntity();
+            dataSourceEntity2.setTimeDifference(2000L);
+            dataSourceEntities.add(dataSourceEntity1);
+            dataSourceEntities.add(dataSourceEntity2);
+            Set<String> connectionIds = new HashSet<>();
+            connectionIds.add("test1");
+            connectionIds.add("test2");
+            Query query = new Query(Criteria.where("_id").in(connectionIds));
+            query.fields().include("timeDifference");
+            when(dataSourceService.findAll(eq(query),eq(userDetail))).thenReturn(dataSourceEntities);
+            taskService.checkSourceTimeDifference(taskDto,userDetail);
+            Assertions.assertEquals(2000L,taskDto.getTimeDifference());
+        }
+        @Test
         void test_DagIsNull(){
             TaskDto taskDto = new TaskDto();
             UserDetail userDetail = mock(UserDetail.class);

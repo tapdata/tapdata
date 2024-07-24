@@ -4459,10 +4459,12 @@ public class TaskServiceImpl extends TaskService{
     public void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail) {
         DAG dag = taskDto.getDag();
         if(null != dag){
-           List<String> connectionIds = dag.getSourceNodes().stream().filter(node -> node instanceof DataParentNode)
-                   .map(node -> ((DataParentNode<?>) node).getConnectionId()).collect(Collectors.toList());
+           Set<String> connectionIds = dag.getSourceNodes().stream().filter(node -> node instanceof DataParentNode)
+                   .map(node -> ((DataParentNode<?>) node).getConnectionId()).collect(Collectors.toSet());
            if(CollectionUtils.isNotEmpty(connectionIds)){
-               List<DataSourceEntity> dataSourceEntities = dataSourceService.findAll(new Query(Criteria.where("_id").in(connectionIds)), userDetail);
+               Query query = new Query(Criteria.where("_id").in(connectionIds));
+               query.fields().include("timeDifference");
+               List<DataSourceEntity> dataSourceEntities = dataSourceService.findAll(query, userDetail);
                Long timeDifference = dataSourceEntities.stream().map(DataSourceEntity::getTimeDifference).filter(Objects::nonNull).max(Comparator.comparing(x -> x)).orElse(null);
                taskDto.setTimeDifference(timeDifference);
            }
