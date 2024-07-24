@@ -1535,17 +1535,15 @@ public class DataSourceServiceImpl extends DataSourceService{
             result = 1;
             Criteria where = Criteria.where("source._id").is(id)
                 .and("is_deleted").ne(true)
-                .and("meta_type").is("TABLE")
-                .and("sourceType").is("SOURCE")
+                .and("meta_type").is(MetaType.table)
+                .and("sourceType").is(SourceTypeEnum.SOURCE)
                 .and("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION).is(fromSchemaVersion);
             if(null != filters) {
-                where = where.and("original_name").nin(Arrays.asList(filters.split(",")));
+                where = where.and("name").nin(Arrays.asList(filters.split(",")));
             }
-            UpdateResult updateResult = metadataInstancesService.update(Query.query(where)
+            UpdateResult updateResult = metadataInstancesService.updateMany(Query.query(where)
                 , Update.update("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION, toSchemaVersion)
                     .set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
-                    .set(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, loadFieldsStatus)
-                , user
             );
             result += updateResult.getModifiedCount();
         }

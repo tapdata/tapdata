@@ -16,6 +16,7 @@ import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.entity.Worker;
@@ -524,16 +525,15 @@ class DataSourceServiceImplTest {
                 Document doc = invocation.<Query>getArgument(0).getQueryObject();
                 assertEquals(connId, doc.getString("source._id"));
                 assertEquals("{\"$ne\": true}", doc.get("is_deleted", Document.class).toJson());
-                assertEquals("TABLE", doc.getString("meta_type"));
-                assertEquals("SOURCE", doc.getString("sourceType"));
+                assertEquals(MetaType.table, doc.get("meta_type"));
+                assertEquals(SourceTypeEnum.SOURCE, doc.get("sourceType"));
                 assertEquals(fromSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
 
                 doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
                 assertEquals(toSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
                 assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
-                assertEquals(loadFieldsStatus, doc.getString(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS));
                 return updateResult;
-            }).when(metadataInstancesService).update(any(Query.class), any(Update.class), eq(userDetail));
+            }).when(metadataInstancesService).updateMany(any(Query.class), any(Update.class));
 
             long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
             assertEquals(1, count);
@@ -552,17 +552,16 @@ class DataSourceServiceImplTest {
                 Document doc = invocation.<Query>getArgument(0).getQueryObject();
                 assertEquals(connId, doc.getString("source._id"));
                 assertEquals("{\"$ne\": true}", doc.get("is_deleted", Document.class).toJson());
-                assertEquals("TABLE", doc.getString("meta_type"));
-                assertEquals("SOURCE", doc.getString("sourceType"));
+                assertEquals(MetaType.table, doc.get("meta_type"));
+                assertEquals(SourceTypeEnum.SOURCE, doc.get("sourceType"));
                 assertEquals(fromSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
-                assertEquals("{\"$nin\": [\"" + filters + "\"]}", doc.get("original_name", Document.class).toJson());
+                assertEquals("{\"$nin\": [\"" + filters + "\"]}", doc.get("name", Document.class).toJson());
 
                 doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
                 assertEquals(toSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
                 assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
-                assertEquals(loadFieldsStatus, doc.getString(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS));
                 return updateResult;
-            }).when(metadataInstancesService).update(any(Query.class), any(Update.class), eq(userDetail));
+            }).when(metadataInstancesService).updateMany(any(Query.class), any(Update.class));
 
             long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
             assertEquals(2, count);
@@ -581,17 +580,16 @@ class DataSourceServiceImplTest {
                 Document doc = invocation.<Query>getArgument(0).getQueryObject();
                 assertEquals(connId, doc.getString("source._id"));
                 assertEquals("{\"$ne\": true}", doc.get("is_deleted", Document.class).toJson());
-                assertEquals("TABLE", doc.getString("meta_type"));
-                assertEquals("SOURCE", doc.getString("sourceType"));
+                assertEquals(MetaType.table, doc.get("meta_type"));
+                assertEquals(SourceTypeEnum.SOURCE, doc.get("sourceType"));
                 assertEquals(fromSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
-                assertEquals("{\"$nin\": [\"" + String.join("\", \"", filters.split(",")) + "\"]}", doc.get("original_name", Document.class).toJson());
+                assertEquals("{\"$nin\": [\"" + String.join("\", \"", filters.split(",")) + "\"]}", doc.get("name", Document.class).toJson());
 
                 doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
                 assertEquals(toSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
                 assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
-                assertEquals(loadFieldsStatus, doc.getString(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS));
                 return updateResult;
-            }).when(metadataInstancesService).update(any(Query.class), any(Update.class), eq(userDetail));
+            }).when(metadataInstancesService).updateMany(any(Query.class), any(Update.class));
 
             long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
             assertEquals(2, count);

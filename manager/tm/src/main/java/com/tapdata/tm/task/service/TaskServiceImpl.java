@@ -5012,7 +5012,10 @@ public class TaskServiceImpl extends TaskService{
                     } else if (node instanceof TableNode) {
                         TableNode tableNode = (TableNode) node;
                         connIdList.add(tableNode.getConnectionId());
-                        tableNames.add(tableNode.getTableName());
+                        String tableName = tableNode.getTableName();
+                        if (StringUtils.isNotBlank(tableName)) {
+                            tableNames.add(tableNode.getTableName());
+                        }
                     }
                 }
                 if (tableNames.isEmpty()) return null;

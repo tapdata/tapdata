@@ -309,7 +309,9 @@ public class LoadSchemaRunner implements Runnable {
     protected boolean updateConnections2Loading(Connections connections) {
         String partialUpdateWithSchemaVersion = connections.getPartialUpdateWithSchemaVersion();
         if (null == partialUpdateWithSchemaVersion) {
-            Update update = new Update().set(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING);
+            Update update = new Update()
+                .set(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING)
+                .set(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, schemaVersion);
             updateConnections(update);
         } else {
             connections.setTable_filter(connections.getPartialUpdateFilter());
