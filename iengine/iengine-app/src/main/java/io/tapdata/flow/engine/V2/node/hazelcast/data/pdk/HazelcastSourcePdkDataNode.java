@@ -1178,7 +1178,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		TapCodecsFilterManager connectorCodecsFilterManger = getConnectorNode().getCodecsFilterManager();
 		toTapValue(tablePollingCDCOffset, ((TapRecordEvent)tapEvent).getTableId(), connectorCodecsFilterManger);
-		fromTapValue(tablePollingCDCOffset, connectorCodecsFilterManger, getTgtTableNameFromTapEvent(tapEvent));
+		fromTapValue(tablePollingCDCOffset, this.defaultCodecsFilterManager, getTgtTableNameFromTapEvent(tapEvent));
 	}
 
 	private Long getCdcStartTs() {
