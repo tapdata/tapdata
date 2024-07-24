@@ -7,12 +7,13 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DmlPolicy;
+import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -36,9 +37,10 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
-import io.tapdata.flow.engine.V2.policy.WritePolicyRunner;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -241,6 +243,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
 			if(unwindProcess) createUnique = false;
+			if (!checkCreateUniqueIndexOpen()) createUnique = false;
 			TapIndex tapIndex = new TapIndex().unique(createUnique);
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
 			if (null == updateConditionFields) {
@@ -267,6 +270,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tapIndices.add(tapIndex);
 				indexEvent.set(createIndexEvent(tableId, tapIndices));
 
+				List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, tapIndices);
+				if(CollectionUtils.isNotEmpty(existsIndexes)){
+					existsIndexes.forEach(i -> {
+						obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i);
+					});
+					return;
+				}
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -285,6 +295,16 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.addEvent(indexEvent.get());
 			}
 		}
+	}
+	protected boolean checkCreateUniqueIndexOpen(){
+		Node node = getNode();
+		if (node instanceof DatabaseNode || node instanceof TableNode) {
+			DataParentNode dataParentNode = (DataParentNode) node;
+			if (Boolean.FALSE.equals(dataParentNode.getUniqueIndexEnable())) {
+				return false;
+			}
+		}
+		return true;
 	}
 	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable){
 		long start = System.currentTimeMillis();
@@ -794,6 +814,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
+		switchDmlPolicyIfNeed(tapTable.getId());
 		events.forEach(this::addPropertyForMergeEvent);
 		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
@@ -888,6 +909,28 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 		} else {
 			throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_PDK_NONSUPPORT, String.format("PDK connector id: %s", getConnectorNode().getConnectorContext().getSpecification().getId()));
+		}
+	}
+	private void switchDmlPolicyIfNeed(String tableId) {
+		boolean uniqueIndex = checkCreateUniqueIndexOpen();
+		DmlPolicyEnum settingInsertPolicy = null;
+		Node<?> node = getNode();
+		if (node instanceof DataParentNode) {
+			DmlPolicy dmlPolicy = ((DataParentNode<?>) node).getDmlPolicy();
+			settingInsertPolicy = Optional.ofNullable(dmlPolicy).orElse(new DmlPolicy()).getInsertPolicy();
+		}
+		ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		if (!uniqueIndex && DmlPolicyEnum.just_insert.equals(settingInsertPolicy)
+				&& ExistsDataProcessEnum.KEEP_DATE.equals(existsDataProcessEnum)
+				&& null == taskDto.getSnapshotDoneAt()) {
+			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
+			String dmlInsertPolicy = connectorNode.getConnectorContext().getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+			if (DmlPolicyEnum.just_insert.equals(dmlInsertPolicy)) {
+				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, DmlPolicyEnum.update_on_exists.name());
+			}
+			Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has already exist, there maybe has duplicate data when snapshot without unique index, all subsequent data insert policy are switched to {}",
+					tableId, DmlPolicyEnum.update_on_exists.name()));
 		}
 	}
 
