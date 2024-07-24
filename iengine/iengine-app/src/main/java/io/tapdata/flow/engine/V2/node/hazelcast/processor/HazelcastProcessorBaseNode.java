@@ -18,7 +18,6 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.concurrent.ProcessorNodeConcurrentExecutor;
 import io.tapdata.flow.engine.V2.util.DelayHandler;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -326,7 +325,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		return null == tapdataEvent.getTapEvent() || ignore;
 	}
 
-	private boolean supportBatchProcess() {
+	protected boolean supportBatchProcess() {
 		return true;
 	}
 

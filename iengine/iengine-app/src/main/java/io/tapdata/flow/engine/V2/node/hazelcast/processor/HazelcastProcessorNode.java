@@ -339,9 +339,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	public void renameFields(Map<String, Object> data) {
-		if (null == capitalized) {
-			throw new IllegalArgumentException("Data and convertType must not be null");
-		}
 		if (null == data) {
 			return;
 		}

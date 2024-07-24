@@ -12,7 +12,6 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.TableIndex;
 import com.tapdata.entity.TableIndexColumn;
-import com.tapdata.entity.dataflow.Capitalized;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.schema.value.DateTime;
 import net.sf.jsqlparser.schema.Column;
@@ -40,11 +39,11 @@ public class FieldProcessUtil {
 	private static Logger logger = LogManager.getLogger(FieldProcessUtil.class);
 	private static final String CONVERT_ERROR_TEMPLATE = "Convert type %s to %s does not supported, value: %s";
 
-	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess) throws Exception {
-		filedProcess(record, fieldsProcess, new HashSet<>(), false);
+	public static void fieldProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess) throws Exception {
+		fieldProcess(record, fieldsProcess, new HashSet<>(), false);
 	}
 
-	public static void filedProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, Set<String> rollbackRemoveFields, boolean deleteAllFields) throws Exception {
+	public static void fieldProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, Set<String> rollbackRemoveFields, boolean deleteAllFields) throws Exception {
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
 
@@ -93,7 +92,7 @@ public class FieldProcessUtil {
 		}
 	}
 
-	public static boolean filedProcess(TableIndex tableIndex, List<FieldProcess> fieldsProcess) throws Exception {
+	public static boolean fieldProcess(TableIndex tableIndex, List<FieldProcess> fieldsProcess) throws Exception {
 		for (FieldProcess process : fieldsProcess) {
 			FieldProcess.FieldOp fieldOp = FieldProcess.FieldOp.fromOperation(process.getOp());
 			switch (fieldOp) {

@@ -175,6 +175,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private boolean connectorNodeSchemaFree;
 	private SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor;
 	private int drainSize;
+	private int toTapValueBatchSize;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -236,33 +237,35 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		});
 	}
 
-	private void initToTapValueConcurrent() {
+	protected void initToTapValueConcurrent() {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);
 		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
-		int toTapValueBatchSize = Math.max(1, readBatchSize / toTapValueThreadNum);
 		if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+			toTapValueBatchSize = Math.max(1, readBatchSize / toTapValueThreadNum);
 			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, readBatchSize, TAG);
 			toTapValueConcurrentProcessor.start();
-			this.sourceRunner.execute(() -> {
-				try {
-					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					while (isRunning()) {
-						int drain = Queues.drain(eventQueue, tapdataEvents, readBatchSize, 1L, TimeUnit.MILLISECONDS);
-						if (drain > 0) {
-							List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueBatchSize);
-							for (List<TapdataEvent> events : partition) {
-								toTapValueConcurrentProcessor.runAsync(events, e -> {
-									batchTransformToTapValue(e);
-									return e;
-								});
-							}
-							tapdataEvents = new ArrayList<>();
-						}
+			this.sourceRunner.execute(this::concurrentToTapValueConsumer);
+		}
+	}
+
+	protected void concurrentToTapValueConsumer() {
+		try {
+			List<TapdataEvent> tapdataEvents = new ArrayList<>();
+			while (isRunning()) {
+				int drain = Queues.drain(eventQueue, tapdataEvents, readBatchSize, 1L, TimeUnit.MILLISECONDS);
+				if (drain > 0) {
+					List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueBatchSize);
+					for (List<TapdataEvent> events : partition) {
+						toTapValueConcurrentProcessor.runAsync(events, e -> {
+							batchTransformToTapValue(e);
+							return e;
+						});
 					}
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
+					tapdataEvents = new ArrayList<>();
 				}
-			});
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 		}
 	}
 
@@ -744,7 +747,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return false;
 	}
 
-	private void batchTransformToTapValue(List<TapdataEvent> tapdataEvents) {
+	protected void batchTransformToTapValue(List<TapdataEvent> tapdataEvents) {
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			if (null == tapdataEvent.getTapEvent()) {
 				continue;

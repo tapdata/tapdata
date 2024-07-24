@@ -12,7 +12,6 @@ import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.FieldScript;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
-import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.CloneFieldProcess;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.FieldProcessUtil;
@@ -34,7 +33,6 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
 
 import javax.script.Invocable;
-import javax.script.ScriptException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -149,12 +147,12 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				// so that it cat be get by mapping
 				Map<String, Object> before = message.getBefore();
 				if (MapUtils.isNotEmpty(before)) {
-					FieldProcessUtil.filedProcess(before, fieldProcesses, rollbackRemoveFields, deleteAllFields);
+					FieldProcessUtil.fieldProcess(before, fieldProcesses, rollbackRemoveFields, deleteAllFields);
 					message.setBefore(before);
 				}
 				Map<String, Object> after = message.getAfter();
 				if (MapUtils.isNotEmpty(after)) {
-					FieldProcessUtil.filedProcess(after, fieldProcesses, rollbackRemoveFields, deleteAllFields);
+					FieldProcessUtil.fieldProcess(after, fieldProcesses, rollbackRemoveFields, deleteAllFields);
 					message.setAfter(after);
 				}
 				if (null != before){
@@ -172,7 +170,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 					return message;
 				}
 
-				FieldProcessUtil.filedProcess(record, cloneFieldProcess.getOperations());
+				FieldProcessUtil.fieldProcess(record, cloneFieldProcess.getOperations());
 			} else {
 				return message;
 			}
@@ -190,7 +188,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 		} else if (OperationType.CREATE_INDEX.getOp().equalsIgnoreCase(messageOp)) {
 			List<FieldProcess> tmpFieldProcess = getFieldProcesses(message);
 			// 判断是否丢弃事件
-			if (null != tmpFieldProcess && !FieldProcessUtil.filedProcess(IndicesUtil.getTableIndex(message), tmpFieldProcess)) {
+			if (null != tmpFieldProcess && !FieldProcessUtil.fieldProcess(IndicesUtil.getTableIndex(message), tmpFieldProcess)) {
 				return null;
 			}
 		} else if (OperationType.DDL.getOp().equalsIgnoreCase(messageOp)) {

@@ -261,8 +261,7 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 							FieldInfo fieldInfo = fieldInfoMap.get(key);
 							if (Boolean.FALSE.equals(fieldInfo.getIsShow())) {
 								operator.deleteField((T) map, key);
-							}
-							if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
+							} else if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
 								String newKey = fieldInfo.getTargetFieldName();
 								Object value = operator.renameFieldWithReturn((T) map, key, newKey);
 								if (value instanceof Map || value instanceof List) {

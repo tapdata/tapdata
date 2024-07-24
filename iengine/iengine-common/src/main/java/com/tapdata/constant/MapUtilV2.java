@@ -23,6 +23,9 @@ public class MapUtilV2 extends MapUtil {
 
 	private static NotExistsNode notExistsNode = new NotExistsNode();
 
+	private MapUtilV2() {
+	}
+
 	/**
 	 * 支持从内嵌数组取值，如果是内嵌数组，返回值会是一个集合
 	 * [{index=2, value='value'}] index表示在数组中的下表，value表示具体的值
@@ -44,7 +47,7 @@ public class MapUtilV2 extends MapUtil {
 
 			String[] split = key.split("\\.");
 
-			if (split.length <= 0 || StringUtils.isAllBlank(split)) {
+			if (split.length == 0 || StringUtils.isAllBlank(split)) {
 				return null;
 			}
 
@@ -55,7 +58,7 @@ public class MapUtilV2 extends MapUtil {
 			} else {
 				value = dataMap.getOrDefault(keys.get(0), notExistsNode);
 
-				if (value == null) {
+				if (value instanceof NotExistsNode) {
 					return dataMap.getOrDefault(key, notExistsNode);
 				}
 
@@ -325,6 +328,10 @@ public class MapUtilV2 extends MapUtil {
 				if (value instanceof Map) {
 					// 递归调用Map的移除方法
 					isRemoved = removeValueByKey((Map) value, recursiveKey);
+				} else if (value instanceof TapMapValue) {
+					isRemoved = removeValueByKey(((TapMapValue) value).getValue(), recursiveKey);
+				} else if (value instanceof TapArrayValue) {
+					isRemoved = CollectionUtil.removeKeyFromList(((TapArrayValue) value).getValue(), recursiveKey);
 				} else if (value instanceof List) {
 					// 递归调用List的移除方法
 					isRemoved = CollectionUtil.removeKeyFromList((List) value, recursiveKey);
