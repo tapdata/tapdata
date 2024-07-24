@@ -64,6 +64,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract long upsertByWhere(Where where, Document update, DataSourceConnectionDto connectionDto, UserDetail user);
 
+    public abstract long updatePartialSchema(String id, String loadFieldsStatus, Long lastUpdate, String fromSchemaVersion, String toSchemaVersion, String filters, UserDetail user);
+
     public abstract void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField,Boolean partLoad);
 
     public abstract void updateAfter(UserDetail user, DataSourceConnectionDto connectionDto, String oldName, Boolean submit);

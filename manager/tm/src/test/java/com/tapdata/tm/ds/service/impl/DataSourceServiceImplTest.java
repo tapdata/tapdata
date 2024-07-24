@@ -1,6 +1,7 @@
 package com.tapdata.tm.ds.service.impl;
 
 
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
@@ -15,10 +16,12 @@ import com.tapdata.tm.ds.repository.DataSourceRepository;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.Answers;
@@ -36,6 +39,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -464,6 +468,131 @@ class DataSourceServiceImplTest {
             }).when(messageQueueService).sendMessage(any());
             dataSourceService.sendTestConnection(connectionDto,true,true,mock(UserDetail.class));
         }
+    }
 
+
+    @Nested
+    class UpdatePartialSchemaTest {
+        DataSourceRepository dataSourceRepository;
+        MetadataInstancesService metadataInstancesService;
+        UserDetail userDetail;
+
+        Long lastUpdate;
+        String connId = "test-conn-id";
+        String loadFieldsStatus = "finished";
+        String fromSchemaVersion = "test-from-version";
+        String toSchemaVersion = "test-to-version";
+
+        @BeforeEach
+        void setUp() {
+            dataSourceRepository = mock(DataSourceRepository.class);
+            metadataInstancesService = mock(MetadataInstancesService.class);
+            dataSourceService = spy(new DataSourceServiceImpl(dataSourceRepository));
+            ReflectionTestUtils.setField(dataSourceService, "metadataInstancesService", metadataInstancesService);
+            userDetail = mock(UserDetail.class);
+            lastUpdate = System.currentTimeMillis();
+        }
+
+        @Test
+        void testUnChangeConnection() {
+            String filters = null;
+            doAnswer(invocation -> {
+                Document doc = invocation.<Query>getArgument(0).getQueryObject();
+                assertEquals(connId, doc.getString("_id"));
+                assertEquals(fromSchemaVersion, doc.getString(DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+
+                doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
+                assertEquals(toSchemaVersion, doc.getString(DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+                assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
+                assertEquals(loadFieldsStatus, doc.getString(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS));
+                return null;
+            }).when(dataSourceRepository).findAndModify(any(Query.class), any(Update.class), eq(userDetail));
+
+            // 没更新到连接时，不更新模型状态
+            long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
+            assertEquals(0, count);
+        }
+
+        @Test
+        void testChangeConnectionAndNullFilter() {
+            String filters = null;
+
+            DataSourceEntity dataSourceEntity = mock(DataSourceEntity.class);
+            when(dataSourceRepository.findAndModify(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(dataSourceEntity);
+
+            UpdateResult updateResult = mock(UpdateResult.class);
+            doAnswer(invocation -> {
+                Document doc = invocation.<Query>getArgument(0).getQueryObject();
+                assertEquals(connId, doc.getString("source._id"));
+                assertEquals("{\"$ne\": true}", doc.get("is_deleted", Document.class).toJson());
+                assertEquals(MetaType.table, doc.get("meta_type"));
+                assertEquals(SourceTypeEnum.SOURCE, doc.get("sourceType"));
+                assertEquals(fromSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+
+                doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
+                assertEquals(toSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+                assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
+                return updateResult;
+            }).when(metadataInstancesService).updateMany(any(Query.class), any(Update.class));
+
+            long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
+            assertEquals(1, count);
+        }
+
+        @Test
+        void testChangeConnectionAndNotNullFilter() {
+            String filters = "test-filter";
+
+            DataSourceEntity dataSourceEntity = mock(DataSourceEntity.class);
+            when(dataSourceRepository.findAndModify(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(dataSourceEntity);
+
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+            doAnswer(invocation -> {
+                Document doc = invocation.<Query>getArgument(0).getQueryObject();
+                assertEquals(connId, doc.getString("source._id"));
+                assertEquals("{\"$ne\": true}", doc.get("is_deleted", Document.class).toJson());
+                assertEquals(MetaType.table, doc.get("meta_type"));
+                assertEquals(SourceTypeEnum.SOURCE, doc.get("sourceType"));
+                assertEquals(fromSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+                assertEquals("{\"$nin\": [\"" + filters + "\"]}", doc.get("name", Document.class).toJson());
+
+                doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
+                assertEquals(toSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+                assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
+                return updateResult;
+            }).when(metadataInstancesService).updateMany(any(Query.class), any(Update.class));
+
+            long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
+            assertEquals(2, count);
+        }
+
+        @Test
+        void testChangeConnectionAndNotMultiFilter() {
+            String filters = "test-filter1,test-filter2";
+
+            DataSourceEntity dataSourceEntity = mock(DataSourceEntity.class);
+            when(dataSourceRepository.findAndModify(any(Query.class), any(Update.class), eq(userDetail))).thenReturn(dataSourceEntity);
+
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
+            doAnswer(invocation -> {
+                Document doc = invocation.<Query>getArgument(0).getQueryObject();
+                assertEquals(connId, doc.getString("source._id"));
+                assertEquals("{\"$ne\": true}", doc.get("is_deleted", Document.class).toJson());
+                assertEquals(MetaType.table, doc.get("meta_type"));
+                assertEquals(SourceTypeEnum.SOURCE, doc.get("sourceType"));
+                assertEquals(fromSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+                assertEquals("{\"$nin\": [\"" + String.join("\", \"", filters.split(",")) + "\"]}", doc.get("name", Document.class).toJson());
+
+                doc = invocation.<Update>getArgument(1).getUpdateObject().get("$set", Document.class);
+                assertEquals(toSchemaVersion, doc.getString("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION));
+                assertEquals(lastUpdate, doc.getLong(DataSourceConnectionDto.FIELD_LAST_UPDATE));
+                return updateResult;
+            }).when(metadataInstancesService).updateMany(any(Query.class), any(Update.class));
+
+            long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
+            assertEquals(2, count);
+        }
     }
 }

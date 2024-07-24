@@ -1,7 +1,5 @@
 package com.tapdata.tm.task.service;
 
-import cn.hutool.http.server.HttpServerRequest;
-import cn.hutool.http.server.HttpServerResponse;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.service.BaseService;
@@ -294,6 +292,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract boolean checkCloudTaskLimit(ObjectId taskId, UserDetail user, boolean checkCurrentTask);
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
+    public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
 
     @Data
@@ -318,3 +317,4 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
         private long totalDeleteSize = 0;
     }
 }
+
