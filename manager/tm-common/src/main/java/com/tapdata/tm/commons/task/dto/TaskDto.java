@@ -209,6 +209,10 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * */
     private Map<String, Object> agentGroupInfo;
     private Boolean oldVersionTimezone = true;
+    /**
+     * 源端数据源与引擎最大时间差
+     */
+    private Long timeDifference;
 
     public DAG getDag() {
         if (dag != null) {

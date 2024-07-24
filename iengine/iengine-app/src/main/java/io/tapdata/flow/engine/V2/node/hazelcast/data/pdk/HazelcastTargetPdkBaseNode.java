@@ -324,6 +324,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new CreateTableFuncAspect()
 						.createTableEvent(tapCreateTableEvent.get())
+						.setInit(init)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 				clientMongoOperator.insertOne(Collections.singletonList(tapTable),

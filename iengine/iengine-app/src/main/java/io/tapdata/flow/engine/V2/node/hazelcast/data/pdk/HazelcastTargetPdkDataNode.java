@@ -483,6 +483,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new DropTableFuncAspect()
 						.dropTableEvent(tapDropTableEvent.get())
+						.setInit(init)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}

@@ -162,6 +162,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     private String search_databaseType;
     private String connectionUrl;
     private String lastUpdateTime;
+    private Long lastUpdate;
     private String errorMsg;
     private Integer increamentalTps;
     private Integer initialReadSize;
@@ -333,6 +334,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
 
     private String multiConnectionInstanceId;
 	private List<String> namespace;
+    private Long timeDifference;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

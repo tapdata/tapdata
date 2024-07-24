@@ -50,6 +50,7 @@ class DataSourceServiceTest {
         final ObjectId id = new ObjectId(new GregorianCalendar(2020, Calendar.JANUARY, 1).getTime(), 0);
         final ConnectionOptions options = new ConnectionOptions();
         options.setDbVersion("dbVersion");
+        options.setTimeDifference(1000L);
         final UserDetail user = new UserDetail("userId", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         Criteria criteria = Criteria.where("_id").is(id);
@@ -62,6 +63,7 @@ class DataSourceServiceTest {
         definitionDto.setCapabilities(Arrays.asList(new Capability("id")));
         Update expect = new Update();
         expect.set("db_version","dbVersion");
+        expect.set("timeDifference",1000L);
         expect.set("capabilities",definitionDto.getCapabilities());
         try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
             serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
