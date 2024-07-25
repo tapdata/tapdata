@@ -13,6 +13,7 @@ import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.TableIndex;
 import com.tapdata.entity.TableIndexColumn;
 import com.tapdata.processor.error.FieldProcessException;
+import com.tapdata.processor.error.FieldProcessRuntimeException;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.schema.value.DateTime;
 import net.sf.jsqlparser.schema.Column;
@@ -271,7 +272,7 @@ public class FieldProcessUtil {
 		Object defaultValue = getDefaultValue(javaType);
 		valueByKey = valueByKey != null ? valueByKey : defaultValue;
 		field = handleRename(field, renameMapping);
-		if (valueByKey instanceof TapList && CollectionUtil.isNotEmpty((TapList) valueByKey)) {
+		if (valueByKey instanceof TapList && CollectionUtils.isNotEmpty((TapList) valueByKey)) {
 
 			if (MapUtil.needSplit(field)) {
 				int lastIndexOf = field.lastIndexOf(".");
@@ -401,27 +402,27 @@ public class FieldProcessUtil {
 		return field;
 	}
 
-	private static Object convertType(String newDataType, String dataType, Object value) throws Exception {
+	private static Object convertType(String newDataType, String dataType, Object value) throws FieldProcessException {
 		Object afterConvertValue = null;
 		if (value instanceof TapList) {
 			try {
 				convertTapList((TapList) value, newDataType);
 			} catch (Exception e) {
-				throw new Exception(String.format("Convert embedded list value %s to %s failed: %s, value: %s",
+				throw new FieldProcessException(String.format("Convert embedded list value %s to %s failed: %s, value: %s",
 						e.getMessage(), dataType, newDataType, value), e);
 			}
 		} else {
 			try {
 				afterConvertValue = convert(value, newDataType);
 			} catch (Exception e) {
-				throw new Exception(String.format("Convert value %s to %s failed: %s, value: %s", dataType, newDataType, e.getMessage(), value), e);
+				throw new FieldProcessException(String.format("Convert value %s to %s failed: %s, value: %s", dataType, newDataType, e.getMessage(), value), e);
 			}
 		}
 		return afterConvertValue == null ? value : afterConvertValue;
 	}
 
 	private static void convertTapList(TapList value, String newDataType) {
-		if (CollectionUtil.isEmpty(value) || StringUtils.isBlank(newDataType)) {
+		if (CollectionUtils.isEmpty(value) || StringUtils.isBlank(newDataType)) {
 			return;
 		}
 
@@ -446,7 +447,7 @@ public class FieldProcessUtil {
 					try {
 						value = JSONUtil.obj2Json(value);
 					} catch (Throwable e) {
-						throw new RuntimeException("Convert " + value.getClass().getSimpleName() + " to json string failed, value: " + value + ", error message: " + e.getMessage(), e);
+						throw new FieldProcessRuntimeException(String.format("Convert %s to json string failed, value: %s", value.getClass().getSimpleName(), value), e);
 					}
 				} else {
 					value = String.valueOf(value);
@@ -477,7 +478,7 @@ public class FieldProcessUtil {
 				} else if (value instanceof Number) {
 					value = (((Number) value).intValue() != 0);
 				} else {
-					throw new RuntimeException(String.format(CONVERT_ERROR_TEMPLATE, value.getClass().getSimpleName(), newDataType, value));
+					throw new FieldProcessRuntimeException(String.format(CONVERT_ERROR_TEMPLATE, value.getClass().getSimpleName(), newDataType, value));
 				}
 				break;
 			case "BIGDECIMAL":
@@ -493,16 +494,16 @@ public class FieldProcessUtil {
 							try {
 								value = JSONUtil.json2Map(json);
 							} catch (Throwable e) {
-								throw new RuntimeException("Convert json string to map failed, value: " + StringUtils.substring(json, 0, 20) + ", error message: " + e.getMessage(), e);
+								throw new FieldProcessRuntimeException("Convert json string to map failed, value: " + StringUtils.substring(json, 0, 20) + ", error message: " + e.getMessage(), e);
 							}
 						} else if (firstChar.equals("[")) {
 							try {
 								value = JSONUtil.json2List(json, Object.class);
 							} catch (Throwable e) {
-								throw new RuntimeException("Convert string to array failed, value: " + StringUtils.substring(json, 0, 20) + ", error message: " + e.getMessage(), e);
+								throw new FieldProcessRuntimeException("Convert string to array failed, value: " + StringUtils.substring(json, 0, 20) + ", error message: " + e.getMessage(), e);
 							}
 						} else {
-							throw new RuntimeException("Value is not a json, cannot convert to " + newDataType);
+							throw new FieldProcessRuntimeException("Value is not a json, cannot convert to " + newDataType);
 						}
 					} else {
 						// convert "" to empty map
@@ -510,7 +511,7 @@ public class FieldProcessUtil {
 					}
 
 				} else {
-					throw new RuntimeException(String.format(CONVERT_ERROR_TEMPLATE, value.getClass().getSimpleName(), newDataType, value));
+					throw new FieldProcessRuntimeException(String.format(CONVERT_ERROR_TEMPLATE, value.getClass().getSimpleName(), newDataType, value));
 				}
 				break;
 			default:
@@ -524,7 +525,7 @@ public class FieldProcessUtil {
 		if (value == null) {
 			return null;
 		}
-		Date result = null;
+		Date result;
 		try {
 			if (value instanceof String) {
 				result = AnyTimeToDateTime.withDateStr((String) value).toDate();
@@ -533,7 +534,7 @@ public class FieldProcessUtil {
 				result = dateTime.toDate();
 			}
 		} catch (Throwable e) {
-			throw new RuntimeException(String.format("Convert value %s to Date failed , error message: %s ", value, e.getMessage()), e);
+			throw new FieldProcessRuntimeException(String.format("Convert value %s to Date failed , error message: %s ", value, e.getMessage()), e);
 		}
 		return result;
 	}
