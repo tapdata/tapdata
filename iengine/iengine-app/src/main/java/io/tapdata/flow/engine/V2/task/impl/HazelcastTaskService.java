@@ -38,10 +38,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
-import com.tapdata.tm.commons.dag.nodes.CacheNode;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.*;
@@ -126,6 +123,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static final Logger logger = LogManager.getLogger(HazelcastTaskService.class);
 	private static final String TAG = HazelcastTaskService.class.getSimpleName();
+	public static final int DEFAULT_JET_EDGE_QUEUE_SIZE = 128;
+	public static final String JET_EDGE_QUEUE_SIZE_PROP_KEY = "JET_EDGE_QUEUE_SIZE";
 
 	private static HazelcastInstance hazelcastInstance;
 	private static HazelcastTaskService taskService;
@@ -891,10 +890,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				final Node<?> tgtNode = nodeMap.get(target);
 				List<com.hazelcast.jet.core.Edge> outboundEdges = dag.getOutboundEdges(NodeUtil.getVertexName(srcNode));
 				List<com.hazelcast.jet.core.Edge> inboundEdges = dag.getInboundEdges(NodeUtil.getVertexName(tgtNode));
-				int queueSize = 128;
-				try {
-					queueSize = Integer.parseInt(CommonUtils.getProperty("JET_EDGE_QUEUE_SIZE", "128"));
-				} catch (NumberFormatException ignored) {
+				int queueSize = CommonUtils.getPropertyInt(JET_EDGE_QUEUE_SIZE_PROP_KEY, DEFAULT_JET_EDGE_QUEUE_SIZE);
+				Integer readBatchSize = -1;
+				if (srcNode instanceof DataParentNode) {
+					readBatchSize = ((DataParentNode<?>) srcNode).getReadBatchSize();
+				}
+				if (queueSize < readBatchSize) {
+					queueSize = readBatchSize;
 				}
 				EdgeConfig edgeConfig = new EdgeConfig().setQueueSize(queueSize);
 				com.hazelcast.jet.core.Edge jetEdge = com.hazelcast.jet.core.Edge

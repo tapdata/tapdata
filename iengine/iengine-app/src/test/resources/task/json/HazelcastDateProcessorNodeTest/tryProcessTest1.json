@@ -1,0 +1,329 @@
+{
+  "dag": {
+    "edges": [
+      {
+        "disabled": false,
+        "source": "91936e19-01b2-47ce-a5c3-73b66131c437",
+        "target": "082e87a9-7cc6-44f1-bcf1-e4970bb38e77"
+      },
+      {
+        "disabled": false,
+        "source": "6eb593d4-aac3-4839-b917-38bb2fb88f0a",
+        "target": "91936e19-01b2-47ce-a5c3-73b66131c437"
+      }
+    ],
+    "nodes": [
+      {
+        "dataTypes": [
+          "now"
+        ],
+        "add": true,
+        "hours": 8,
+        "concurrentNum": 2,
+        "type": "date_processor",
+        "catalog": "processor",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "PROCESSNODE",
+            "open": true,
+            "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 1,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+            "point": 60,
+            "equalsFlag": 1,
+            "ms": 30000
+          }
+        ],
+        "id": "91936e19-01b2-47ce-a5c3-73b66131c437",
+        "name": "时间运算",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            330,
+            50
+          ]
+        },
+        "disabled": false
+      },
+      {
+        "tableName": "dummy_test",
+        "isFilter": false,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "updateConditionFields": [
+          "id"
+        ],
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {},
+        "cdcPollingInterval": 0,
+        "cdcPollingBatchSize": 0,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "667ce1f10559427710d4309b",
+        "databaseType": "Dummy",
+        "dmlPolicy": {},
+        "concurrentWritePartitionMap": {},
+        "readBatchSize": 500,
+        "increaseReadSize": 1,
+        "writeBatchSize": 100,
+        "writeBatchWaitMs": 500,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "082e87a9-7cc6-44f1-bcf1-e4970bb38e77",
+        "name": "dummy_test",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            610,
+            50
+          ],
+          "connectionName": "dummy target",
+          "connectionType": "target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "hasCreated": true,
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      },
+      {
+        "tableName": "dummy_test",
+        "isFilter": false,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {},
+        "cdcMode": "logCdc",
+        "cdcPollingFields": [
+          {
+            "field": "",
+            "defaultValue": ""
+          }
+        ],
+        "cdcPollingInterval": 500,
+        "cdcPollingBatchSize": 1000,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "6686140cc3dac65427575089",
+        "databaseType": "Dummy",
+        "ddlConfiguration": "FILTER",
+        "readBatchSize": 100,
+        "increaseReadSize": 1,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "6eb593d4-aac3-4839-b917-38bb2fb88f0a",
+        "name": "dummy_test",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            50,
+            50
+          ],
+          "connectionName": "S dummy 53F 1KB",
+          "connectionType": "source",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "hasCreated": false,
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      }
+    ]
+  },
+  "name": "任务 26"
+}

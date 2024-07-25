@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 
@@ -25,4 +26,8 @@ public class Operation implements Serializable {
      * Capitalized toUpperCase 转大写 toLowerCase 转小写 ""不变（默认）
      */
     private String capitalized;
+
+    public boolean isEmpty() {
+        return StringUtils.isAllBlank(prefix, suffix, capitalized);
+    }
 }
