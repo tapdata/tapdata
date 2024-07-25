@@ -12,6 +12,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.TableIndex;
 import com.tapdata.entity.TableIndexColumn;
+import com.tapdata.processor.error.FieldProcessException;
 import io.tapdata.entity.codec.impl.utils.AnyTimeToDateTime;
 import io.tapdata.entity.schema.value.DateTime;
 import net.sf.jsqlparser.schema.Column;
@@ -35,24 +36,26 @@ import java.util.stream.Collectors;
  */
 public class FieldProcessUtil {
 
-	private final static String LOG_PREFIX = "[Field Process]";
-	private static Logger logger = LogManager.getLogger(FieldProcessUtil.class);
+	private static final Logger logger = LogManager.getLogger(FieldProcessUtil.class);
 	private static final String CONVERT_ERROR_TEMPLATE = "Convert type %s to %s does not supported, value: %s";
 
-	public static void fieldProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess) throws Exception {
-		fieldProcess(record, fieldsProcess, new HashSet<>(), false);
+	private FieldProcessUtil() {
 	}
 
-	public static void fieldProcess(Map<String, Object> record, List<FieldProcess> fieldsProcess, Set<String> rollbackRemoveFields, boolean deleteAllFields) throws Exception {
+	public static void fieldProcess(Map<String, Object> data, List<FieldProcess> fieldsProcess) throws Exception {
+		fieldProcess(data, fieldsProcess, new HashSet<>(), false);
+	}
+
+	public static void fieldProcess(Map<String, Object> data, List<FieldProcess> fieldsProcess, Set<String> rollbackRemoveFields, boolean deleteAllFields) throws Exception {
 		// 记录字段改名的隐射关系
 		Map<String, String> renameMapping = new HashMap<>();
 
 		if (deleteAllFields) {
 			Map<String, Object> rollbackRemoveRecord = new HashMap<>();
-			rollbackRemoveFields.forEach(f -> rollbackRemoveRecord.put(f, MapUtilV2.getValueByKeyV2(record, f)));
-			record.clear();
+			rollbackRemoveFields.forEach(f -> rollbackRemoveRecord.put(f, MapUtilV2.getValueByKeyV2(data, f)));
+			data.clear();
 			for (Map.Entry<String, Object> entry : rollbackRemoveRecord.entrySet()) {
-				MapUtilV2.putValueInMap(record, entry.getKey(), entry.getValue());
+				MapUtilV2.putValueInMap(data, entry.getKey(), entry.getValue());
 			}
 		}
 
@@ -63,24 +66,24 @@ public class FieldProcessUtil {
 			switch (fieldOp) {
 				case OP_CONVERT:
 
-					convertDataTyeProcess(record, process, renameMapping);
+					convertDataTyeProcess(data, process, renameMapping);
 					break;
 
 				case OP_REMOVE:
 					if (!rollbackRemoveFields.contains(field)) {
-						MapUtilV2.removeValueByKey(record, field);
+						MapUtilV2.removeValueByKey(data, field);
 					}
 					break;
 
 				case OP_RENAME:
 
-					renameField(record, renameMapping, process, field);
+					renameField(data, renameMapping, process, field);
 					break;
 
 				case OP_CREATE:
 
 					try {
-						addFieldDefaultValue(process, field, record, renameMapping);
+						addFieldDefaultValue(process, field, data, renameMapping);
 					} catch (ParseException e) {
 						logger.warn("Add new field failed, err: {}, field name: {}", e.getMessage(), field);
 					}
@@ -92,31 +95,35 @@ public class FieldProcessUtil {
 		}
 	}
 
-	public static boolean fieldProcess(TableIndex tableIndex, List<FieldProcess> fieldsProcess) throws Exception {
+	public static boolean fieldProcess(TableIndex tableIndex, List<FieldProcess> fieldsProcess) throws FieldProcessException {
 		for (FieldProcess process : fieldsProcess) {
 			FieldProcess.FieldOp fieldOp = FieldProcess.FieldOp.fromOperation(process.getOp());
-			switch (fieldOp) {
-				case OP_REMOVE:
-					if (null != tableIndex.getColumns()) {
-						for (TableIndexColumn tic : tableIndex.getColumns()) {
-							if (tic.getColumnName().equals(process.getField())) {
-								logger.warn("Index field '" + tic.getColumnName() + "' is remove, ignore index: " + tableIndex);
-								return false;
+			try {
+				switch (fieldOp) {
+					case OP_REMOVE:
+						if (null != tableIndex.getColumns()) {
+							for (TableIndexColumn tic : tableIndex.getColumns()) {
+								if (tic.getColumnName().equals(process.getField())) {
+									logger.warn("Index field '{}' is remove, ignore index: {}", tic.getColumnName(), tableIndex);
+									return false;
+								}
 							}
 						}
-					}
-					break;
-				case OP_RENAME:
-					if (null != tableIndex.getColumns()) {
-						for (TableIndexColumn tic : tableIndex.getColumns()) {
-							if (tic.getColumnName().equals(process.getField())) {
-								tic.setColumnName(process.getOperand());
+						break;
+					case OP_RENAME:
+						if (null != tableIndex.getColumns()) {
+							for (TableIndexColumn tic : tableIndex.getColumns()) {
+								if (tic.getColumnName().equals(process.getField())) {
+									tic.setColumnName(process.getOperand());
+								}
 							}
 						}
-					}
-					break;
-				default:
-					break;
+						break;
+					default:
+						break;
+				}
+			} catch (Exception e) {
+				throw new FieldProcessException(String.format("Field process failed, op: %s, field name: %s, operand: %s", fieldOp.name(), process.getField(), process.getOperand()), e);
 			}
 		}
 		return true;
@@ -177,6 +184,7 @@ public class FieldProcessUtil {
 					if (CollectionUtils.isEmpty(colDataTypeList)) {
 						iterator.remove();
 					}
+					break;
 				default:
 					break;
 			}
@@ -205,8 +213,8 @@ public class FieldProcessUtil {
 		}
 	}
 
-	private static void renameField(Map<String, Object> record, Map<String, String> renameMapping, FieldProcess process, String field) throws Exception {
-		Object value = MapUtilV2.getValueByKey(record, field);
+	private static void renameField(Map<String, Object> data, Map<String, String> renameMapping, FieldProcess process, String field) throws Exception {
+		Object value = MapUtilV2.getValueByKey(data, field);
 		if (value instanceof TapList || value instanceof NotExistsNode) {
 			return;
 		}
@@ -223,10 +231,10 @@ public class FieldProcessUtil {
 		}
 
 		if (!renameMapping.containsKey(operand)) {
-			MapUtilV2.removeValueByKey(record, field);
+			MapUtilV2.removeValueByKey(data, field);
 		}
 		renameMapping.put(field, operand);
-		MapUtilV2.putValueInMap(record, operand, value);
+		MapUtilV2.putValueInMap(data, operand, value);
 	}
 
 	public static void sortFieldProcess(List<FieldProcess> fieldsProcess) {
@@ -241,7 +249,6 @@ public class FieldProcessUtil {
 					String[] split1 = fieldName1.split("\\.");
 					String[] split2 = fieldName2.split("\\.");
 
-					// split1.length > split2.length ? 1 : -1;
 					return Integer.compare(split1.length, split2.length);
 				}
 				if (field1Op == FieldProcess.FieldOp.OP_RENAME && field2Op == FieldProcess.FieldOp.OP_RENAME) {
@@ -250,19 +257,17 @@ public class FieldProcessUtil {
 					String[] split1 = fieldName1.split("\\.");
 					String[] split2 = fieldName2.split("\\.");
 
-					// split1.length < split2.length ? 1 : -1;
 					return Integer.compare(split2.length, split1.length);
 				}
 
-				// field1Op.getSort() > field2Op.getSort() ? 1 : -1;
 				return Integer.compare(field1Op.getSort(), field2Op.getSort());
 			});
 		}
 	}
 
-	private static void addFieldDefaultValue(FieldProcess fieldProcess, String field, Map<String, Object> record, Map<String, String> renameMapping) throws Exception {
+	private static void addFieldDefaultValue(FieldProcess fieldProcess, String field, Map<String, Object> data, Map<String, String> renameMapping) throws Exception {
 		String javaType = fieldProcess.getJavaType();
-		Object valueByKey = MapUtilV2.getValueByKeyV2(record, field);
+		Object valueByKey = MapUtilV2.getValueByKeyV2(data, field);
 		Object defaultValue = getDefaultValue(javaType);
 		valueByKey = valueByKey != null ? valueByKey : defaultValue;
 		field = handleRename(field, renameMapping);
@@ -274,18 +279,18 @@ public class FieldProcessUtil {
 					String parentKey = field.substring(0, lastIndexOf);
 					String addKey = field.substring(lastIndexOf + 1);
 
-					Object parentValue = MapUtilV2.getValueByKey(record, parentKey);
+					Object parentValue = MapUtilV2.getValueByKey(data, parentKey);
 
 					if (parentValue instanceof TapList) {
 
 						CollectionUtil.putInTapList((TapList) parentValue, addKey, defaultValue);
-						MapUtilV2.putValueInMap(record, parentKey, parentValue);
+						MapUtilV2.putValueInMap(data, parentKey, parentValue);
 					}
 				}
 			}
 
 		} else {
-			MapUtilV2.putValueInMap(record, field, valueByKey);
+			MapUtilV2.putValueInMap(data, field, valueByKey);
 		}
 	}
 
@@ -320,10 +325,10 @@ public class FieldProcessUtil {
 		return result;
 	}
 
-	private static void convertDataTyeProcess(Map<String, Object> record, FieldProcess filedProcess,
+	private static void convertDataTyeProcess(Map<String, Object> data, FieldProcess filedProcess,
 											  Map<String, String> renameMapping) throws Exception {
 
-		if (MapUtils.isNotEmpty(record)) {
+		if (MapUtils.isNotEmpty(data)) {
 			String field = filedProcess.getField();
 
 			// 从renameMapping里面，找到改名后的字段
@@ -333,7 +338,7 @@ public class FieldProcessUtil {
 			String newDataType = filedProcess.getOperand();
 			String dataType = filedProcess.getOriginalDataType();
 
-			Object value = MapUtilV2.getValueByKeyV2(record, field);
+			Object value = MapUtilV2.getValueByKeyV2(data, field);
 
 			Object afterConvertValue = convertType(newDataType, dataType, value);
 
@@ -341,7 +346,7 @@ public class FieldProcessUtil {
 				return;
 			}
 
-			MapUtilV2.putValueInMap(record, field, afterConvertValue);
+			MapUtilV2.putValueInMap(data, field, afterConvertValue);
 		}
 	}
 
@@ -470,7 +475,7 @@ public class FieldProcessUtil {
 				if (value instanceof String) {
 					value = Boolean.valueOf((String) value);
 				} else if (value instanceof Number) {
-					value = !(((Number) value).intValue() == 0);
+					value = (((Number) value).intValue() != 0);
 				} else {
 					throw new RuntimeException(String.format(CONVERT_ERROR_TEMPLATE, value.getClass().getSimpleName(), newDataType, value));
 				}
