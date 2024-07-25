@@ -1,5 +1,10 @@
 package io.tapdata.flow.engine.V2.schedule;
 
+import com.mongodb.MongoClientException;
+import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoNodeIsRecoveringException;
+import com.mongodb.MongoNotPrimaryException;
+import com.mongodb.MongoSocketException;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import io.tapdata.utils.AppType;
@@ -8,8 +13,6 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
-import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.memory.MemoryFetcher;
@@ -323,6 +326,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
 				try {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+				} catch (MongoSocketException |
+						MongoNotPrimaryException |
+						MongoClientException |
+						MongoNodeIsRecoveringException |
+						MongoInterruptedException e) {
+					logger.warn("The network has been disconnected and the task status cannot be updated to TM server. Will try updating again in the next attempt, msg: {}", e.getMessage(), e);
+					return taskClient;
 				} catch (Exception e) {
 					if (e instanceof RestDoNotRetryException && "Transition.Not.Supported".equals(((RestDoNotRetryException) e).getCode())) {
 						// ignored Transition.Not.Supported error
@@ -340,7 +350,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		try {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+			try {
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+			} catch (MongoSocketException |
+					MongoNotPrimaryException |
+					MongoClientException |
+					MongoNodeIsRecoveringException |
+					MongoInterruptedException e) {
+				logger.warn("The network has been disconnected and the task status cannot be updated to TM server. Will try updating again in the next attempt, msg: {}", e.getMessage(), e);
+			}
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Exception e) {
@@ -414,7 +432,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 						} else if (TerminalMode.COMPLETE == terminalMode) {
 							stopTaskResource = StopTaskResource.COMPLETE;
 						} else if (TerminalMode.INTERNAL_STOP == terminalMode) {
-							if (taskClient.stop()) {
+							if (taskClient.stop() && beforeCleanTaskCheckSock(taskClient)) {
 								clearTaskCacheAfterStopped(taskClient);
 								clearTaskRetryCache(taskId);
 							}
@@ -426,8 +444,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 								if (taskRetryResult.isCanRetry()) {
 									boolean stop = taskClient.stop();
 									if (stop) {
-										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+										clearTaskCacheAfterStopped(taskClient);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
@@ -581,28 +599,65 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			final String taskId = taskClient.getTask().getId().toHexString();
 			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
 			try {
-				try {
-					logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
-					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
-					if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
-						return false;
-					}
-				} catch (Exception e) {
-					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
-						// 违反TM状态机，不再进行修改任务状态的重试
-						logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
-					} else {
-						throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
-								resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
-					}
+				logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
+				TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+				if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
+					return false;
 				}
+				return true;
+			} catch (MongoSocketException |
+					MongoNotPrimaryException |
+					MongoClientException |
+					MongoNodeIsRecoveringException |
+					MongoInterruptedException e) {
+				logger.warn("The network has been disconnected and the task status cannot be updated to TM server. Will try updating again in the next attempt, msg: {}", e.getMessage(), e);
+				return false;
 			} catch (Exception e) {
-				logger.warn(e.getMessage(), e);
+				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
+					// 违反TM状态机，不再进行修改任务状态的重试
+					logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
+					try {
+						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
+					} catch (MongoSocketException |
+							MongoNotPrimaryException |
+							MongoClientException |
+							MongoNodeIsRecoveringException |
+							MongoInterruptedException exception) {
+						logger.warn("The network has been disconnected and the task status cannot be updated to TM server. Will try updating again in the next attempt, msg: {}", e.getMessage(), e);
+					}
+				} else {
+					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]",
+							resource,
+							taskClient.getTask().getName(),
+							taskClient.getTask().getId(),
+							e
+					);
+				}
+				return false;
 			}
-			return true;
 		}
 		return false;
+	}
+
+	protected boolean beforeCleanTaskCheckSock(TaskClient<TaskDto> taskClient) {
+		Query query = Query.query(Criteria.where("_id").is(taskClient.getTask().getId()));
+		try {
+			String status = String.valueOf(taskClient.getStatus());
+			TaskDto taskDto = clientMongoOperator.findOne(query, "Task", TaskDto.class);
+			if (!status.equals(taskDto.getStatus())) {
+				Update update = new Update();
+				update.set("status", status);
+				clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
+			}
+			return true;
+		} catch (MongoSocketException |
+				MongoNotPrimaryException |
+				MongoClientException |
+				MongoNodeIsRecoveringException |
+				MongoInterruptedException e) {
+			logger.warn("The network has been disconnected and the task status cannot be updated to TM server. Will try updating again in the next attempt, msg: {}", e.getMessage(), e);
+			return false;
+		}
 	}
 
 	private void clearTaskCacheAfterStopped(TaskClient<TaskDto> taskClient) {
