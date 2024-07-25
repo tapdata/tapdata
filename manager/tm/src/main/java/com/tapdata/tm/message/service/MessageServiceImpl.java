@@ -872,8 +872,8 @@ public class MessageServiceImpl extends MessageService{
             MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(msgType);
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(subject + MAIL_SUBJECT, getMailAddressList(userDetail), username, metadataName, clickHref, emailTip);
-                eventsService.recordEvents(subject + MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT + subject, getMailAddressList(userDetail), username, metadataName, clickHref, emailTip);
+                eventsService.recordEvents(MAIL_SUBJECT + subject, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
         }
 

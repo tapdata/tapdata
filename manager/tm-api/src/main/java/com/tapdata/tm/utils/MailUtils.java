@@ -102,6 +102,10 @@ public class MailUtils {
         Document doc = Jsoup.parse(html);
         doc.getElementById(USER_NAME).html(username);
 
+        if (StringUtils.isEmpty(maiContent) || StringUtils.isEmpty(maiContent.trim())) {
+            sendStatus.setErrorMessage("mailContent 为空");
+            return sendStatus;
+        }
         if (StringUtils.isEmpty(agentName)) {
             sendStatus.setErrorMessage("agentName 为空");
             return sendStatus;
