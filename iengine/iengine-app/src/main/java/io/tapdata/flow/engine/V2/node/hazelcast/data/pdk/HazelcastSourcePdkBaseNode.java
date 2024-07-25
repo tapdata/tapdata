@@ -247,7 +247,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
 		if (Boolean.TRUE.equals(toTapValueConcurrent)) {
 			toTapValueBatchSize = Math.max(1, readBatchSize / toTapValueThreadNum);
-			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, readBatchSize, TAG);
+			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, 5, TAG);
 			toTapValueConcurrentProcessor.start();
 			this.sourceRunner.execute(this::concurrentToTapValueConsumer);
 		}

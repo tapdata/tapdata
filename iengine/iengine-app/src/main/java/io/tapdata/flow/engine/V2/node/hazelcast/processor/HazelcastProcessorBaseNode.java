@@ -97,7 +97,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				enableConcurrentProcess = false;
 			} else {
 				concurrentBatchSize = Math.max(1, DEFAULT_BATCH_SIZE / concurrentNum);
-				simpleConcurrentProcessor = TapExecutors.createSimple(concurrentNum, concurrentBatchSize, TAG);
+				simpleConcurrentProcessor = TapExecutors.createSimple(concurrentNum, 5, TAG);
 				obsLogger.info("Node {}({}: {}) enable concurrent process, concurrent num: {}", getNode().getType(), getNode().getName(), getNode().getId(), concurrentNum);
 			}
 		}
