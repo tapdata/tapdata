@@ -444,8 +444,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 								if (taskRetryResult.isCanRetry()) {
 									boolean stop = taskClient.stop();
 									if (stop) {
-										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										clearTaskCacheAfterStopped(taskClient);
+										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
