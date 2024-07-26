@@ -5,11 +5,11 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.exception.TmUnavailableException;
-import io.tapdata.flow.engine.V2.task.OpType;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskClient;
 import io.tapdata.flow.engine.V2.task.operation.StartTaskOperation;
@@ -23,6 +23,7 @@ import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -431,5 +432,172 @@ public class TapdataTaskSchedulerTest {
 		TaskOperation taskOperation = mock(TaskOperation.class);
 		TapdataTaskScheduler instance = new TapdataTaskScheduler();
 		instance.handleTaskOperation(taskOperation);
+	}
+
+	@Nested
+	class StopTaskCallAssignApiTest {
+		TapdataTaskScheduler scheduler;
+		Logger logger;
+		TaskClient<TaskDto> taskClient;
+		TapdataTaskScheduler.StopTaskResource stopTaskResource;
+		ClientMongoOperator clientMongoOperator;
+
+		TaskDto taskDto;
+		TaskOpRespDto taskOpRespDto;
+		@BeforeEach
+		void init() {
+			scheduler = mock(TapdataTaskScheduler.class);
+			logger = mock(Logger.class);
+			taskClient = mock(TaskClient.class);
+			stopTaskResource = mock(TapdataTaskScheduler.StopTaskResource.class);
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(scheduler, "logger", logger);
+			ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
+
+			taskDto = mock(TaskDto.class);
+			taskOpRespDto = mock(TaskOpRespDto.class);
+
+			when(taskDto.getId()).thenReturn(new ObjectId());
+			when(taskDto.getName()).thenReturn("name");
+			when(taskClient.getTask()).thenReturn(taskDto);
+			when(taskClient.stop()).thenReturn(true);
+			when(stopTaskResource.getResource()).thenReturn("source");
+			doNothing().when(logger).info(anyString(), anyString(), anyString());
+			doNothing().when(logger).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			doNothing().when(logger).warn(anyString(), anyString(), anyString(), anyString(), any(Exception.class));
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenReturn(taskOpRespDto);
+			when(taskOpRespDto.getSuccessIds()).thenReturn(new ArrayList<>());
+
+			when(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource)).thenCallRealMethod();
+		}
+
+		@Test
+		void taskClientIsNull() {
+			when(scheduler.stopTaskCallAssignApi(null, stopTaskResource)).thenCallRealMethod();
+			Assertions.assertTrue(scheduler.stopTaskCallAssignApi(null, stopTaskResource));
+		}
+
+		@Test
+		void taskIsNull() {
+			when(taskClient.getTask()).thenReturn(null);
+			Assertions.assertTrue(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+		}
+
+		@Test
+		void taskIdIsNull() {
+			ObjectId is = mock(ObjectId.class);
+			when(is.toHexString()).thenReturn("");
+			when(taskDto.getId()).thenReturn(is);
+			Assertions.assertTrue(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+		}
+
+		@Test
+		void testNormal() {
+			Assertions.assertFalse(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(3)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(1)).getName();
+			verify(taskDto, times(2)).getId();
+			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(1)).info(anyString(), anyString(), anyString());
+			verify(logger, times(0)).warn(anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(1)).getSuccessIds();
+		}
+		@Test
+		void testNotStop() {
+			when(taskClient.stop()).thenReturn(false);
+			Assertions.assertFalse(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(2)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(0)).getName();
+			verify(taskDto, times(1)).getId();
+			verify(clientMongoOperator, times(0)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(0)).info(anyString(), anyString(), anyString());
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(0)).getSuccessIds();
+		}
+		@Test
+		void testNotEmpty() {
+			List<String> objects = new ArrayList<>();
+			objects.add("");
+			when(taskOpRespDto.getSuccessIds()).thenReturn(objects);
+			Assertions.assertTrue(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(3)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(1)).getName();
+			verify(taskDto, times(2)).getId();
+			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(1)).info(anyString(), anyString(), anyString());
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(1)).getSuccessIds();
+		}
+		@Test
+		void testThrow() {
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenAnswer(a -> {
+				throw new Exception("");
+			});
+			Assertions.assertFalse(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(3)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(1)).getName();
+			verify(taskDto, times(2)).getId();
+			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(1)).info(anyString(), anyString(), anyString());
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(0)).getSuccessIds();
+		}
+		@Test
+		void testThrow2() {
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenAnswer(a -> {
+				throw new Exception("222");
+			});
+			Assertions.assertFalse(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(3)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(1)).getName();
+			verify(taskDto, times(2)).getId();
+			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(1)).info(anyString(), anyString(), anyString());
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(0)).getSuccessIds();
+		}
+		@Test
+		void testThrowTransitionNoSupport() {
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenAnswer(a -> {
+				throw new Exception("Transition.Not.Supported");
+			});
+			Assertions.assertThrows(Exception.class, () -> scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(3)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(1)).getName();
+			verify(taskDto, times(2)).getId();
+			verify(clientMongoOperator, times(2)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(1)).info(anyString(), anyString(), anyString());
+			verify(logger, times(1)).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(0)).getSuccessIds();
+		}
+		@Test
+		void testThrowTransitionNoSupport2() {
+			final AtomicBoolean isFirst = new AtomicBoolean(true);
+			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenAnswer(a -> {
+				synchronized (isFirst) {
+					if (isFirst.get()) {
+						isFirst.set(false);
+						throw new Exception("Transition.Not.Supported");
+					} else {
+						return null;
+					}
+				}
+			});
+			Assertions.assertTrue(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			verify(taskClient, times(3)).getTask();
+			verify(taskClient, times(1)).stop();
+			verify(taskDto, times(1)).getName();
+			verify(taskDto, times(2)).getId();
+			verify(clientMongoOperator, times(2)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
+			verify(logger, times(1)).info(anyString(), anyString(), anyString());
+			verify(logger, times(1)).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			verify(taskOpRespDto, times(0)).getSuccessIds();
+		}
 	}
 }
