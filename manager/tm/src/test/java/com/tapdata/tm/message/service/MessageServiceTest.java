@@ -453,7 +453,7 @@ class MessageServiceTest {
             messageDto.setSourceModule("agent");
             when(mockUserService.loadUserById(new ObjectId("62bc5008d4958d013d97c7a6"))).thenReturn(userDetail);
             informUser2.invoke(messageServiceUnderTest,messageDto);
-            verify(mockMailUtils,times(1)).sendHtmlMail("Your deployed Agent name is online【Tapdata】",Arrays.asList("test@test.com"), "Hi, : ", "name",null,"Agent online");
+            verify(mockMailUtils,times(1)).sendHtmlMail("【Tapdata】Your deployed Agent name is online",Arrays.asList("test@test.com"), "Hi, : ", "name",null,"Agent online");
         }
     }
 
@@ -525,7 +525,7 @@ class MessageServiceTest {
 
             informUser2.invoke(messageServiceUnderTest,messageDto);
             verify(mockMailUtils,times(1)).sendHtmlMail(
-                    "The instance (agent-xxxxxx) you subscribed to will expire in 7 days to avoid affecting the running of your tasks. Please renew in time.【Tapdata】",
+                    "【Tapdata】The instance (agent-xxxxxx) you subscribed to will expire in 7 days to avoid affecting the running of your tasks. Please renew in time.",
                     Arrays.asList("test@test.com"),
                     "Hi, : ",
                     "agent-xxxxxx",null,
@@ -535,7 +535,7 @@ class MessageServiceTest {
             messageDto.setMessageMetadata(JsonUtil.toJson(metadata));
             informUser2.invoke(messageServiceUnderTest,messageDto);
             verify(mockMailUtils,times(1)).sendHtmlMail(
-                    "The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.【Tapdata】",
+                    "【Tapdata】The instance (agent-xxxxxx) you subscribed to will expire in 1 days to avoid affecting the running of your tasks. Please renew in time.",
                     Arrays.asList("test@test.com"),
                     "Hi, : ",
                     "agent-xxxxxx",null,
@@ -570,7 +570,7 @@ class MessageServiceTest {
 
             informUser2.invoke(messageServiceUnderTest,messageDto);
             verify(mockMailUtils,times(1)).sendHtmlMail(
-                    "The instance (agent-xxxxxx) you subscribed to has expired and will be released in 1 day.【Tapdata】",
+                    "【Tapdata】The instance (agent-xxxxxx) you subscribed to has expired and will be released in 1 day.",
                     Arrays.asList("test@test.com"),
                     "Hi, : ",
                     "agent-xxxxxx",null,
@@ -581,7 +581,7 @@ class MessageServiceTest {
 
             informUser2.invoke(messageServiceUnderTest,messageDto);
             verify(mockMailUtils,times(1)).sendHtmlMail(
-                    "The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.【Tapdata】",
+                    "【Tapdata】The instance (agent-xxxxxx) you subscribed to has expired. Please keep your auto-renewal account with sufficient balance and the system will automatically renew it for you. If the renewal is not completed, please contact customer service for assistance.",
                     Arrays.asList("test@test.com"),
                     "Hi, : ",
                     "agent-xxxxxx",null,
