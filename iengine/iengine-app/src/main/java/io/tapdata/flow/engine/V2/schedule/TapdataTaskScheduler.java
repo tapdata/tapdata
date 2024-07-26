@@ -586,12 +586,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			} catch (Exception e) {
 				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 					// 违反TM状态机，不再进行修改任务状态的重试
-					logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
+					logger.warn("Call api to stop task status to {} failed, will set task to error, message: {}", resource, e.getMessage(), e);
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
 					return true;
 				} else {
-					throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
-							resource, taskName, taskId), e);
+					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]", resource, taskName, taskId, e);
 				}
 			}
 		}

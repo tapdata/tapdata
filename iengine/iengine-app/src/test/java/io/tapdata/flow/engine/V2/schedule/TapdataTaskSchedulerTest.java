@@ -464,7 +464,8 @@ public class TapdataTaskSchedulerTest {
 			when(taskClient.stop()).thenReturn(true);
 			when(stopTaskResource.getResource()).thenReturn("source");
 			doNothing().when(logger).info(anyString(), anyString(), anyString());
-			doNothing().when(logger).warn(anyString(), any(Exception.class));
+			doNothing().when(logger).warn(anyString(), anyString(), anyString(), any(Exception.class));
+			doNothing().when(logger).warn(anyString(), anyString(), anyString(), anyString(), any(Exception.class));
 			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenReturn(taskOpRespDto);
 			when(taskOpRespDto.getSuccessIds()).thenReturn(new ArrayList<>());
 
@@ -513,7 +514,7 @@ public class TapdataTaskSchedulerTest {
 			verify(taskDto, times(1)).getId();
 			verify(clientMongoOperator, times(0)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
 			verify(logger, times(0)).info(anyString(), anyString(), anyString());
-			verify(logger, times(0)).warn(anyString(), any(Exception.class));
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(0)).getSuccessIds();
 		}
 		@Test
@@ -528,7 +529,7 @@ public class TapdataTaskSchedulerTest {
 			verify(taskDto, times(2)).getId();
 			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
 			verify(logger, times(1)).info(anyString(), anyString(), anyString());
-			verify(logger, times(0)).warn(anyString(), any(Exception.class));
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(1)).getSuccessIds();
 		}
 		@Test
@@ -536,14 +537,14 @@ public class TapdataTaskSchedulerTest {
 			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenAnswer(a -> {
 				throw new Exception("");
 			});
-			Assertions.assertThrows(RuntimeException.class, () -> scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			Assertions.assertFalse(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
 			verify(taskClient, times(3)).getTask();
 			verify(taskClient, times(1)).stop();
 			verify(taskDto, times(1)).getName();
 			verify(taskDto, times(2)).getId();
 			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
 			verify(logger, times(1)).info(anyString(), anyString(), anyString());
-			verify(logger, times(0)).warn(anyString(), any(Exception.class));
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(0)).getSuccessIds();
 		}
 		@Test
@@ -551,14 +552,14 @@ public class TapdataTaskSchedulerTest {
 			when(clientMongoOperator.updateById(any(Update.class), anyString(), anyString(), any(Class.class))).thenAnswer(a -> {
 				throw new Exception("222");
 			});
-			Assertions.assertThrows(RuntimeException.class, () -> scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
+			Assertions.assertFalse(scheduler.stopTaskCallAssignApi(taskClient, stopTaskResource));
 			verify(taskClient, times(3)).getTask();
 			verify(taskClient, times(1)).stop();
 			verify(taskDto, times(1)).getName();
 			verify(taskDto, times(2)).getId();
 			verify(clientMongoOperator, times(1)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
 			verify(logger, times(1)).info(anyString(), anyString(), anyString());
-			verify(logger, times(0)).warn(anyString(), any(Exception.class));
+			verify(logger, times(0)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(0)).getSuccessIds();
 		}
 		@Test
@@ -573,7 +574,7 @@ public class TapdataTaskSchedulerTest {
 			verify(taskDto, times(2)).getId();
 			verify(clientMongoOperator, times(2)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
 			verify(logger, times(1)).info(anyString(), anyString(), anyString());
-			verify(logger, times(1)).warn(anyString(), any(Exception.class));
+			verify(logger, times(1)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(0)).getSuccessIds();
 		}
 		@Test
@@ -596,7 +597,7 @@ public class TapdataTaskSchedulerTest {
 			verify(taskDto, times(2)).getId();
 			verify(clientMongoOperator, times(2)).updateById(any(Update.class), anyString(), anyString(), any(Class.class));
 			verify(logger, times(1)).info(anyString(), anyString(), anyString());
-			verify(logger, times(1)).warn(anyString(), any(Exception.class));
+			verify(logger, times(1)).warn(anyString(), anyString(), anyString(), any(Exception.class));
 			verify(taskOpRespDto, times(0)).getSuccessIds();
 		}
 	}
