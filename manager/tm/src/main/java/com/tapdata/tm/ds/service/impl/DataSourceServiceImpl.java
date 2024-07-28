@@ -181,7 +181,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         desensitizeMongoConnection(connectionDto);
         boolean updateSchema = connectionDto.getUpdateSchema() != null && connectionDto.getUpdateSchema();
         sendTestConnection(connectionDto, updateSchema, submit, userDetail);
-        connectionDto.setConfig(null);
         defaultDataDirectoryService.addConnection(connectionDto, userDetail);
         ConfigureSourceBatch configureSourceBatch = new ConfigureSourceBatch();
         configureSourceBatch.setPdkId(connectionDto.getDefinitionPdkId());
