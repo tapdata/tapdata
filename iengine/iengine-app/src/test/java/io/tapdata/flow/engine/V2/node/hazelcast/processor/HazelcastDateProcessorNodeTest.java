@@ -1,26 +1,32 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import base.BaseTaskTest;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.dag.process.DateProcessorNode;
+import io.tapdata.MockTaskUtil;
+import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.error.TaskDateProcessorExCode_17;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.schema.TapTableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.File;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 /**
  * @author samuel
@@ -28,123 +34,150 @@ import static org.mockito.Mockito.mock;
  * @create 2024-05-18 17:45
  **/
 @DisplayName("Class HazelcastDateProcessorNode Test")
-class HazelcastDateProcessorNodeTest {
-
+class HazelcastDateProcessorNodeTest extends BaseTaskTest {
+	private static final String TAG = HazelcastDateProcessorNodeTest.class.getSimpleName();
 	private HazelcastDateProcessorNode hazelcastDateProcessorNode;
 
-	@BeforeEach
-	void setUp() {
-		hazelcastDateProcessorNode = mock(HazelcastDateProcessorNode.class);
-	}
-
 	@Nested
-	@DisplayName("Method addTime test")
-	class addTimeTest {
+	@DisplayName("Method tryProcess test")
+	class tryProcessTest {
 
-		private String tableName;
+		private TapdataEvent tapdataEvent;
+		private long timestamp;
+		private TapUpdateRecordEvent tapUpdateRecordEvent;
+		private DateProcessorNode dateProcessorNode;
+		private TapTableMap tapTableMap;
 
 		@BeforeEach
 		void setUp() {
-			doCallRealMethod().when(hazelcastDateProcessorNode).addTime(any(), any(), any(), any(), any(), any());
-			tableName = "test";
+			taskDto = MockTaskUtil.setUpTaskDtoByJsonFile(String.join(File.separator, TAG, "tryProcessTest1.json"));
+			dateProcessorNode = (DateProcessorNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof DateProcessorNode).findFirst().orElse(null);
+			setupContext(dateProcessorNode);
+			hazelcastDateProcessorNode = spy(new HazelcastDateProcessorNode(processorBaseContext));
+			setBaseProperty(hazelcastDateProcessorNode);
+			Map<String, Object> after = new HashMap<>();
+			timestamp = 1621339200000L;
+			Instant instant = Instant.ofEpochMilli(timestamp);
+			after.put("_datetime", new DateTime(instant));
+			after.put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
+			after.put("map", new HashMap<String, Object>() {
+				{
+					put("_datetime", new DateTime(instant));
+					put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
+				}
+			});
+			after.put("list", new ArrayList<Object>() {
+				{
+					add(new HashMap<String, Object>() {
+						{
+							put("_datetime", new DateTime(instant));
+							put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
+						}
+					});
+				}
+			});
+			Map<String, Object> before = new HashMap<>();
+			before.put("_datetime", new DateTime(instant));
+			before.put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
+			before.put("map", new HashMap<String, Object>() {
+				{
+					put("_datetime", new DateTime(instant));
+					put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
+				}
+			});
+			before.put("list", new ArrayList<Object>() {
+				{
+					add(new HashMap<String, Object>() {
+						{
+							put("_datetime", new DateTime(instant));
+							put("_tapDatetimeValue", new TapDateTimeValue(new DateTime(instant)));
+						}
+					});
+				}
+			});
+			tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
+			tapUpdateRecordEvent.setBefore(before);
+			tapUpdateRecordEvent.setAfter(after);
+			tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+			TapTable tapTable = new TapTable("91936e19-01b2-47ce-a5c3-73b66131c437");
+			tapTable.add(new TapField("_datetime", "now"));
+			tapTable.add(new TapField("_tapDatetimeValue", "now"));
+			tapTable.add(new TapField("map._datetime", "now"));
+			tapTable.add(new TapField("map._tapDatetimeValue", "now"));
+			tapTable.add(new TapField("list._datetime", "now"));
+			tapTable.add(new TapField("list._tapDatetimeValue", "now"));
+			tapTableMap = mock(TapTableMap.class);
+			when(tapTableMap.get(tapTable.getId())).thenReturn(tapTable);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
 		}
 
 		@Test
 		@DisplayName("test add 8 hours")
-		void testAdd8Hours() {
-			ReflectionTestUtils.setField(hazelcastDateProcessorNode, "add", true);
-			ReflectionTestUtils.setField(hazelcastDateProcessorNode, "hours", 8);
-
-			List<String> addTimeFields = new ArrayList<>();
-			addTimeFields.add("_date");
-			Map<String, Object> after = new HashMap<>();
-			LocalDateTime localDateTime = LocalDateTime.of(2024, 5, 18, 23, 0, 0);
-			DateTime dateTime = new DateTime(localDateTime);
-			after.put("_date", dateTime);
-			hazelcastDateProcessorNode.addTime(addTimeFields, after, tableName, "_date", "_date", dateTime);
-
-			Object result = after.get("_date");
-			assertInstanceOf(DateTime.class, result);
-			DateTime resultDateTime = (DateTime) result;
-			LocalDateTime resultLocalDateTime = LocalDateTime.ofInstant(resultDateTime.toInstant(), ZoneId.of("GMT"));
-			assertEquals(19, resultLocalDateTime.getDayOfMonth());
-			assertEquals(7, resultLocalDateTime.getHour());
+		void test1() {
+			long expectTimestamp = timestamp + TimeUnit.HOURS.toMillis(8L);
+			hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> assertTimestamp(event, expectTimestamp));
 		}
 
 		@Test
 		@DisplayName("test minus 8 hours")
-		void testMinus8Hours() {
-			ReflectionTestUtils.setField(hazelcastDateProcessorNode, "add", false);
-			ReflectionTestUtils.setField(hazelcastDateProcessorNode, "hours", 8);
+		void test2() {
+			long expectTimestamp = timestamp - TimeUnit.HOURS.toMillis(8L);
+			dateProcessorNode.setAdd(false);
+			setupContext(dateProcessorNode);
+			hazelcastDateProcessorNode = spy(new HazelcastDateProcessorNode(processorBaseContext));
+			setBaseProperty(hazelcastDateProcessorNode);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
+			hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> assertTimestamp(event, expectTimestamp));
+		}
 
-			List<String> addTimeFields = new ArrayList<>();
-			addTimeFields.add("_date");
-			Map<String, Object> after = new HashMap<>();
-			LocalDateTime localDateTime = LocalDateTime.of(2024, 5, 18, 2, 0, 0);
-			DateTime dateTime = new DateTime(localDateTime);
-			after.put("_date", dateTime);
-			hazelcastDateProcessorNode.addTime(addTimeFields, after, tableName, "_date", "_date", dateTime);
-
-			Object result = after.get("_date");
-			assertInstanceOf(DateTime.class, result);
-			DateTime resultDateTime = (DateTime) result;
-			LocalDateTime resultLocalDateTime = LocalDateTime.ofInstant(resultDateTime.toInstant(), ZoneId.of("GMT"));
-			assertEquals(17, resultLocalDateTime.getDayOfMonth());
-			assertEquals(18, resultLocalDateTime.getHour());
+		private void assertTimestamp(TapdataEvent event, long expectTimestamp) {
+			AllLayerMapIterator allLayerMapIterator = new AllLayerMapIterator();
+			Map<String, Object> before = ((TapUpdateRecordEvent) event.getTapEvent()).getBefore();
+			allLayerMapIterator.iterate(before, (key, value, recursive) -> {
+				if (value instanceof DateTime) {
+					assertEquals(expectTimestamp, ((DateTime) value).toInstant().toEpochMilli());
+				} else if (value instanceof TapDateTimeValue) {
+					assertEquals(expectTimestamp, ((TapDateTimeValue) value).getValue().toInstant().toEpochMilli());
+				}
+				return null;
+			});
+			Map<String, Object> after = ((TapUpdateRecordEvent) event.getTapEvent()).getAfter();
+			allLayerMapIterator.iterate(after, (key, value, recursive) -> {
+				if (value instanceof DateTime) {
+					assertEquals(expectTimestamp, ((DateTime) value).toInstant().toEpochMilli());
+				} else if (value instanceof TapDateTimeValue) {
+					assertEquals(expectTimestamp, ((TapDateTimeValue) value).getValue().toInstant().toEpochMilli());
+				}
+				return null;
+			});
 		}
 
 		@Test
-		@DisplayName("test input a illegal DateTime")
-		void testIllegalDate() {
-			List<String> addTimeFields = new ArrayList<>();
-			addTimeFields.add("_date");
-			Map<String, Object> after = new HashMap<>();
-			DateTime dateTime = new DateTime("0000-0-0-0-0-0", DateTime.DATETIME_TYPE);
-			after.put("_date", dateTime);
-			hazelcastDateProcessorNode.addTime(addTimeFields, after, tableName, "_date", "_date", dateTime);
-
-			Object result = after.get("_date");
-			assertSame(dateTime, result);
-		}
-
-		@Test
-		@DisplayName("test input parameter is not of the DateTime type, for example, an Instant type is used as input")
-		void testInputInstantType() {
-			List<String> addTimeFields = new ArrayList<>();
-			addTimeFields.add("_date");
-			Map<String, Object> after = new HashMap<>();
-			LocalDateTime localDateTime = LocalDateTime.of(2024, 5, 18, 2, 0, 0);
-			DateTime dateTime = new DateTime(localDateTime);
-			Instant instant = dateTime.toInstant();
-			after.put("_date", instant);
-			TapCodeException tapCodeException = assertThrows(TapCodeException.class,
-					() -> hazelcastDateProcessorNode.addTime(addTimeFields, after, tableName, "_date", "_date", instant)
-			);
+		@DisplayName("test wrong type")
+		void test3() {
+			tapUpdateRecordEvent.getBefore().put("_datetime", "2024-05-18 17:45:00");
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
+			}));
 			assertEquals(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME, tapCodeException.getCode());
-			System.out.println(tapCodeException.getMessage());
 		}
 
 		@Test
-		@DisplayName("test input null")
-		void testInputNull() {
-			List<String> addTimeFields = new ArrayList<>();
-			addTimeFields.add("_date");
-			Map<String, Object> after = new HashMap<>();
-			after.put("_date", null);
-			hazelcastDateProcessorNode.addTime(addTimeFields, after, tableName, "_date", "_date", null);
-			assertNull(after.get("_date"));
+		@DisplayName("test not found tapTable")
+		void test4() {
+			when(tapTableMap.get(anyString())).thenReturn(null);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
+			}));
+			assertEquals(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, tapCodeException.getCode());
 		}
 
 		@Test
-		@DisplayName("test parameter k is not included addTimeFields list")
-		void testNotContainsAddTimeFields() {
-			List<String> addTimeFields = new ArrayList<>();
-			Map<String, Object> after = new HashMap<>();
-			LocalDateTime localDateTime = LocalDateTime.of(2024, 5, 18, 2, 0, 0);
-			DateTime dateTime = new DateTime(localDateTime);
-			after.put("_date", dateTime);
-			hazelcastDateProcessorNode.addTime(addTimeFields, after, tableName, "_date", "_date", dateTime);
-			assertSame(dateTime, after.get("_date"));
+		@DisplayName("test value is null")
+		void test5() {
+			tapUpdateRecordEvent.getBefore().put("_datetime", null);
+			assertDoesNotThrow(() -> hazelcastDateProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> {
+			}));
+			assertNull(tapUpdateRecordEvent.getBefore().get("_datetime"));
 		}
 	}
 }

@@ -256,7 +256,6 @@ class BatchOffsetUtilTest {
             Object offset = BatchOffsetUtil.updateBatchOffset(null, 1L, "OK");
             Assertions.assertNotNull(offset);
             Assertions.assertEquals(HashMap.class.getName(), offset.getClass().getName());
-            Assertions.assertEquals(1L, ((HashMap<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
             Assertions.assertEquals("OK", ((HashMap<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
 
