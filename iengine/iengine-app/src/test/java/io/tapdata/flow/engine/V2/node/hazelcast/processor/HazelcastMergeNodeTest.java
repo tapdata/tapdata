@@ -1687,6 +1687,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		List<String> needCacheList = new ArrayList<>();
 		private Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
 		private Set<String> firstLevelMergeNodeIds = new HashSet<>();
+		private Map<String, HazelcastMergeNode.EnableUpdateJoinKey> enableUpdateJoinKeyMap;
 
 		@BeforeEach
 		void setUp() {
@@ -1697,6 +1698,8 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			lookupMap.put("123", mergeTableProperties);
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "lookupMap", lookupMap);
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "firstLevelMergeNodeIds", firstLevelMergeNodeIds);
+			enableUpdateJoinKeyMap = new HashMap<>();
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
 		}
 
 		@DisplayName("test task is initalSync and mergeMode is mainTableFirst")
@@ -1733,14 +1736,34 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			processorBaseContext.getTaskDto().setType(SyncTypeEnum.CDC.getSyncType());
 			doReturn(false).when(mockHazelcastMergeNode).isSubTableFirstMode();
 			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.addNodeId("123");
 			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
 			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+			enableUpdateJoinKeyMap.computeIfAbsent("123", k -> new HazelcastMergeNode.EnableUpdateJoinKey());
 			assertFalse(mockHazelcastMergeNode.needLookup(tapdataEvent));
 
 			TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create().init();
 			tapdataEvent = new TapdataEvent();
 			tapdataEvent.setTapEvent(tapDeleteRecordEvent);
 			assertFalse(mockHazelcastMergeNode.needLookup(tapdataEvent));
+		}
+
+		@Test
+		@DisplayName("test cdc update event, and enable update join key is true, expect return true")
+		void test4() {
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.CDC.getSyncType());
+			doReturn(false).when(mockHazelcastMergeNode).isSubTableFirstMode();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.addNodeId("123");
+			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
+			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+			enableUpdateJoinKeyMap.computeIfAbsent("123", k -> {
+				HazelcastMergeNode.EnableUpdateJoinKey enableUpdateJoinKey = new HazelcastMergeNode.EnableUpdateJoinKey();
+				enableUpdateJoinKey.enableChildren();
+				return enableUpdateJoinKey;
+			});
+			tapdataEvent.setSyncStage(SyncStage.CDC);
+			assertTrue(mockHazelcastMergeNode.needLookup(tapdataEvent));
 		}
 	}
 
