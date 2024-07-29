@@ -67,8 +67,7 @@ public class FilterUtilTest {
         Set<String> fields = new HashSet<>();
         fields.add(key1);
         eventData = FilterUtil.processTableFields(eventData, fields);
-        Assert.assertTrue(fields.size() > eventData.size());
-        Assert.assertFalse(eventData.containsKey(key1));
+        Assert.assertNull(eventData);
 
     }
 
