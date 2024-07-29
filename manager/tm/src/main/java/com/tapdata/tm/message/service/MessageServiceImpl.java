@@ -99,7 +99,7 @@ public class MessageServiceImpl extends MessageService{
 
     private ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
-    private final static String FEISHU_ADDRESS = "http://34.96.213.48:30008/send_to/feishu/group";
+    private final static String FEISHU_ADDRESS = CommonUtils.getProperty("FEISHU_ADDRESS","https://lark-api.tapdata.net/send_to/feishu/group");
 
 
 
