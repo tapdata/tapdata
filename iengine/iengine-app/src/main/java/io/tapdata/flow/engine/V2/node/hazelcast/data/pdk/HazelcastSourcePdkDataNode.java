@@ -320,7 +320,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								tableId);
 						continue;
 					}
-					Object tableOffset = BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId);
 					firstBatch.set(true);
 					try {
 						executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
@@ -333,7 +332,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							this.removeTables.remove(tableName);
 							continue;
 						}
-						obsLogger.info("Starting batch read, table name: {}, offset: {}", tableId, tableOffset);
+						obsLogger.info("Starting batch read, table name: {}", tableId);
 
 						PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 						try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
@@ -341,7 +340,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 											.eventBatchSize(readBatchSize)
 											.connectorContext(connectorNode.getConnectorContext())
-											.offsetState(tableOffset)
+											.offsetState(null)
 											.dataProcessorContext(this.getDataProcessorContext())
 											.start()
 											.table(tapTable),
@@ -418,10 +417,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	handleCustomCommandResult(result,tableName,consumer);
 																});
 															} else {
-																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
+																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
 															}
 														} else {
-															batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, tableOffset, readBatchSize, consumer);
+															batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
 														}
 													}
 											)
@@ -432,7 +431,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							removePdkMethodInvoker(pdkMethodInvoker);
 						}
 						executeAspect(new SnapshotReadTableEndAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
-						enqueue(new TapdataCompleteTableSnapshotEvent(tableName));
+						TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent(tableName);
+						tapdataCompleteTableSnapshotEvent.setBatchOffset(BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableName));
+						tapdataCompleteTableSnapshotEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+						enqueue(tapdataCompleteTableSnapshotEvent);
 					} catch (Throwable throwable) {
 						executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 						Throwable throwableWrapper = throwable;
@@ -1176,7 +1178,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		TapCodecsFilterManager connectorCodecsFilterManger = getConnectorNode().getCodecsFilterManager();
 		toTapValue(tablePollingCDCOffset, ((TapRecordEvent)tapEvent).getTableId(), connectorCodecsFilterManger);
-		fromTapValue(tablePollingCDCOffset, connectorCodecsFilterManger, getTgtTableNameFromTapEvent(tapEvent));
+		fromTapValue(tablePollingCDCOffset, this.defaultCodecsFilterManager, getTgtTableNameFromTapEvent(tapEvent));
 	}
 
 	private Long getCdcStartTs() {

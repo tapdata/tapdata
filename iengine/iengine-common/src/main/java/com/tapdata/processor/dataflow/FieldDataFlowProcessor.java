@@ -12,7 +12,6 @@ import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.FieldScript;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
-import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.CloneFieldProcess;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.FieldProcessUtil;
@@ -34,10 +33,7 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
 
 import javax.script.Invocable;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -57,7 +53,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 	private List<FieldScript> fieldScripts;
 
-	private Map<String, Invocable> fieldScriptEngine;
+	private final Map<String, Map<String, Invocable>> fieldScriptEngine;
 
 	private final static String SCRIPT_TEMPLATE = "function process(record){ return %s;}";
 
@@ -69,19 +65,16 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 	private DatabaseTypeEnum targetDatabaseTypeEnum;
 
-	private String fieldsNameTransform;
-
 	private boolean deleteAllFields;
+	private Set<String> rollbackRemoveFields;
 
 	public FieldDataFlowProcessor() {
-	}
-
-	public FieldDataFlowProcessor(String fieldsNameTransform) {
-		this.fieldsNameTransform = fieldsNameTransform;
+		this.fieldScriptEngine = new ConcurrentHashMap<>();
 	}
 
 	public FieldDataFlowProcessor(boolean deleteAllFields) {
 		this.deleteAllFields = deleteAllFields;
+		this.fieldScriptEngine = new ConcurrentHashMap<>();
 	}
 
 	@Override
@@ -95,28 +88,6 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 			FieldProcessUtil.sortFieldProcess(fieldProcesses);
 		}
 		this.fieldScripts = stage.getScripts();
-
-		if (CollectionUtils.isNotEmpty(fieldScripts)) {
-			fieldScriptEngine = new HashMap<>(fieldScripts.size());
-			for (FieldScript fieldScript : fieldScripts) {
-				String fieldName = fieldScript.getField();
-				String script = fieldScript.getScript();
-				ScriptConnection sourceScriptConnection = context.getSourceScriptConnection();
-				ScriptConnection targetScriptConnection = context.getTargetScriptConnection();
-				Invocable engine = ScriptUtil.getScriptEngine(
-						JSEngineEnum.GRAALVM_JS.getEngineName(),
-						String.format(SCRIPT_TEMPLATE, script),
-						context.getJavaScriptFunctions(),
-						context.getClientMongoOperator(),
-						sourceScriptConnection,
-						targetScriptConnection,
-						null,
-						logger);
-
-				fieldScriptEngine.put(fieldName, engine);
-			}
-
-		}
 		Connections targetConn = context.getTargetConn();
 		if (targetConn != null) {
 			this.targetDatabaseTypeEnum = DatabaseTypeEnum.fromString(targetConn.getDatabase_type());
@@ -125,6 +96,30 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 		processContext = new ConcurrentHashMap<>();
 		tableNames = new HashSet<>();
+		this.rollbackRemoveFields = CollectionUtils.isEmpty(fieldProcesses) ? new HashSet<>() : fieldProcesses.stream()
+				.filter(f -> FieldProcess.FieldOp.OP_REMOVE.equals(FieldProcess.FieldOp.fromOperation(f.getOp())) && f.getOperand().equals("false"))
+				.map(FieldProcess::getField).collect(Collectors.toSet());
+	}
+
+	protected Invocable getOrInitEngine(String fieldName, String script) {
+		return fieldScriptEngine.computeIfAbsent(Thread.currentThread().getName(), tn -> new HashMap<>())
+				.computeIfAbsent(fieldName, fn -> {
+					try {
+						ScriptConnection sourceScriptConnection = context.getSourceScriptConnection();
+						ScriptConnection targetScriptConnection = context.getTargetScriptConnection();
+						return ScriptUtil.getScriptEngine(
+								JSEngineEnum.GRAALVM_JS.getEngineName(),
+								String.format(SCRIPT_TEMPLATE, script),
+								context.getJavaScriptFunctions(),
+								context.getClientMongoOperator(),
+								sourceScriptConnection,
+								targetScriptConnection,
+								null,
+								logger);
+					} catch (Exception e) {
+						throw new RuntimeException(e);
+					}
+				});
 	}
 
 	@Override
@@ -152,12 +147,12 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				// so that it cat be get by mapping
 				Map<String, Object> before = message.getBefore();
 				if (MapUtils.isNotEmpty(before)) {
-					FieldProcessUtil.filedProcess(before, fieldProcesses, fieldsNameTransform, deleteAllFields);
+					FieldProcessUtil.fieldProcess(before, fieldProcesses, rollbackRemoveFields, deleteAllFields);
 					message.setBefore(before);
 				}
 				Map<String, Object> after = message.getAfter();
 				if (MapUtils.isNotEmpty(after)) {
-					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform, deleteAllFields);
+					FieldProcessUtil.fieldProcess(after, fieldProcesses, rollbackRemoveFields, deleteAllFields);
 					message.setAfter(after);
 				}
 				if (null != before){
@@ -175,7 +170,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 					return message;
 				}
 
-				FieldProcessUtil.filedProcess(record, cloneFieldProcess.getOperations());
+				FieldProcessUtil.fieldProcess(record, cloneFieldProcess.getOperations());
 			} else {
 				return message;
 			}
@@ -193,7 +188,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 		} else if (OperationType.CREATE_INDEX.getOp().equalsIgnoreCase(messageOp)) {
 			List<FieldProcess> tmpFieldProcess = getFieldProcesses(message);
 			// 判断是否丢弃事件
-			if (null != tmpFieldProcess && !FieldProcessUtil.filedProcess(IndicesUtil.getTableIndex(message), tmpFieldProcess)) {
+			if (null != tmpFieldProcess && !FieldProcessUtil.fieldProcess(IndicesUtil.getTableIndex(message), tmpFieldProcess)) {
 				return null;
 			}
 		} else if (OperationType.DDL.getOp().equalsIgnoreCase(messageOp)) {
@@ -244,29 +239,24 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 
 
 	protected void fieldScript(MessageEntity message, Map<String, Object> originRecord, String tag) {
-		if (MapUtils.isNotEmpty(fieldScriptEngine)) {
-			for (Map.Entry<String, Invocable> entry : fieldScriptEngine.entrySet()) {
+		if (CollectionUtils.isNotEmpty(fieldScripts)) {
+			for (FieldScript fieldScript : fieldScripts) {
+				String fieldName = fieldScript.getField();
+				String script = fieldScript.getScript();
+				Invocable engine = getOrInitEngine(fieldName, script);
+				Object valueByKey = MapUtilV2.getValueByKeyV2(originRecord, fieldName);
 				try {
-					String fieldName = entry.getKey();
-					// 字段在源记录里不存在不做处理（兼容脏数据）
-
-					Object valueByKey = MapUtilV2.getValueByKeyV2(originRecord, fieldName);
-					Invocable engine = entry.getValue();
 					if (valueByKey instanceof TapList) {
-						Map<String, Object> finalRecord = originRecord;
 						MessageEntity finalMessage = new MessageEntity();
 						BeanUtils.copyProperties(message, finalMessage);
-						finalMessage.setAfter(finalRecord);
+						finalMessage.setAfter(originRecord);
 						CollectionUtil.tapListValueInvokeFunction((TapList) valueByKey,
 								o -> {
 									try {
 										return ScriptUtil.invokeScript(engine, ScriptUtil.FUNCTION_NAME, finalMessage, context.getSourceConn(),
 												context.getTargetConn(), context.getJob(), processContext, logger, tag);
 									} catch (Exception e) {
-										context.getJob().jobError(e, false, OffsetUtil.getSyncStage(finalMessage.getOffset()), logger, ConnectorConstant.WORKER_TYPE_CONNECTOR,
-												TapLog.PROCESSOR_ERROR_0005.getMsg(), null, finalRecord, e.getMessage());
-
-										return o;
+										throw new RuntimeException(e);
 									}
 								});
 						MapUtilV2.putValueInMap(originRecord, fieldName, valueByKey);
@@ -276,8 +266,7 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 						MapUtilV2.putValueInMap(originRecord, fieldName, o);
 					}
 				} catch (Exception e) {
-					context.getJob().jobError(e, false, OffsetUtil.getSyncStage(message.getOffset()), logger, ConnectorConstant.WORKER_TYPE_CONNECTOR,
-							TapLog.PROCESSOR_ERROR_0005.getMsg(), null, originRecord, e.getMessage());
+					throw new RuntimeException(e);
 				}
 			}
 		}

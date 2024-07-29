@@ -14,8 +14,6 @@
     </modules>
 
     <properties>
-        <sonar.organization>tapdata</sonar.organization>
-        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.coverage.exclusions>
             manager/**/dto/*,
             manager/**/entity/*,
@@ -37,7 +35,8 @@
             **/src/main/java/io/tapdata/**/exception/**,
             iengine/api/src/main/java/io/tapdata/aspect/CreateTableFuncAspect.java,
             iengine/api/src/main/java/io/tapdata/aspect/DropTableFuncAspect.java,
-            **/*Context.java
+            **/*Context.java,
+            **/*Exception.java
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
@@ -55,7 +54,8 @@
             manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
             manager/tm/src/main/java/com/tapdata/tm/init/patches/daas/*,
             manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*,
-            **/*Context.java
+            **/*Context.java,
+            **/*Exception.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**

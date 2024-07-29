@@ -1,0 +1,40 @@
+[
+  {
+    "id": 1,
+    "name": "Sam",
+    "age": 30,
+    "address": {
+      "street": "Nanjing Road",
+      "city": "Shanghai"
+    },
+    "phone": [
+      {
+        "type": "home",
+        "number": "12345"
+      },
+      {
+        "type": "work",
+        "number": "54321"
+      }
+    ]
+  },
+  {
+    "ID": 1,
+    "NAME": "Sam",
+    "AGE": 30,
+    "ADDRESS": {
+      "STREET": "Nanjing Road",
+      "CITY": "Shanghai"
+    },
+    "PHONE": [
+      {
+        "TYPE": "home",
+        "NUMBER": "12345"
+      },
+      {
+        "TYPE": "work",
+        "NUMBER": "54321"
+      }
+    ]
+  }
+]
