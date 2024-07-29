@@ -8,8 +8,6 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
-import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.memory.MemoryFetcher;
@@ -578,29 +576,27 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 		final boolean stop = taskClient.stop();
 		if (stop) {
-			final String taskId = taskClient.getTask().getId().toHexString();
+			final TaskDto task = taskClient.getTask();
+			final String taskName = task.getName();
+			final String taskId = task.getId().toHexString();
 			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
 			try {
-				try {
-					logger.info("Call {} api to modify task [{}] status", resource, taskClient.getTask().getName());
-					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
-					if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
-						return false;
-					}
-				} catch (Exception e) {
-					if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
-						// 违反TM状态机，不再进行修改任务状态的重试
-						logger.warn("Call api to stop task status to " + resource + " failed, will set task to error, message: " + e.getMessage(), e);
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
-					} else {
-						throw new RuntimeException(String.format("Call stop task api failed, api uri: %s, task: %s[%s]",
-								resource, taskClient.getTask().getName(), taskClient.getTask().getId()), e);
-					}
+				logger.info("Call {} api to modify task [{}] status", resource, taskName);
+				TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+				if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
+					return false;
 				}
+				return true;
 			} catch (Exception e) {
-				logger.warn(e.getMessage(), e);
+				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
+					// 违反TM状态机，不再进行修改任务状态的重试
+					logger.warn("Call api to stop task status to {} failed, will set task to error, message: {}", resource, e.getMessage(), e);
+					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
+					return true;
+				} else {
+					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]", resource, taskName, taskId, e);
+				}
 			}
-			return true;
 		}
 		return false;
 	}
@@ -685,7 +681,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		return dataMap;
 	}
 
-	private enum StopTaskResource {
+	protected enum StopTaskResource {
 		STOPPED("stopped"),
 		RUN_ERROR("runError"),
 		COMPLETE("complete"),
