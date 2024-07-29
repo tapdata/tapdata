@@ -11,7 +11,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 public abstract class NodeWritePolicyService extends BaseWritePolicyService {
 	protected Node<?> node;
 
-	public NodeWritePolicyService(TaskDto taskDto, Node<?> node) {
+	protected NodeWritePolicyService(TaskDto taskDto, Node<?> node) {
 		super(taskDto);
 		this.node = node;
 	}

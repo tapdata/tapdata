@@ -12,9 +12,6 @@ public class WriteRecordTableResult {
 	private final AtomicInteger duplicateKeyErrorCounter = new AtomicInteger();
 	private final AtomicBoolean continuousDuplicateKeyErrorOverLimit = new AtomicBoolean();
 
-	public WriteRecordTableResult() {
-	}
-
 	public int incrementDuplicateKeyErrorCounter() {
 		return duplicateKeyErrorCounter.getAndIncrement();
 	}

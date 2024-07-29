@@ -10,7 +10,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 public abstract class BaseWritePolicyService implements WritePolicyService {
 	protected TaskDto taskDto;
 
-	public BaseWritePolicyService(TaskDto taskDto) {
+	protected BaseWritePolicyService(TaskDto taskDto) {
 		this.taskDto = taskDto;
 	}
 }

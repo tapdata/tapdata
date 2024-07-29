@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.MapUtilV2;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -34,7 +35,7 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 	private final MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>> dataOperator = new MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>>() {
 		@Override
 		public void renameField(Map<String, Object> param, String fromName, String toName) {
-			MapUtilV2.replaceKey(fromName, param, toName);
+			MapUtil.replaceKey(fromName, param, toName);
 		}
 
 		@Override

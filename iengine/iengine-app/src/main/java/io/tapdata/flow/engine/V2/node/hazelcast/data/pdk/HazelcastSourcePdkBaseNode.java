@@ -707,13 +707,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
 				} else {
 					if (null != eventQueue) {
-						try {
-							int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
-							if (drain > 0) {
-								batchTransformToTapValue(tapdataEvents);
-							}
-						} catch (InterruptedException ignored) {
-							Thread.currentThread().interrupt();
+						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
+						if (drain > 0) {
+							batchTransformToTapValue(tapdataEvents);
 						}
 					}
 				}
@@ -742,6 +738,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
 
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 		} catch (Exception e) {
 			String errorMsg = String.format("Source sync failed: %s", e.getMessage());
 
