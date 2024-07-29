@@ -6,7 +6,6 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.function.ThrowableFunction;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.TapPdkViolateUniqueEx;
 import io.tapdata.node.pdk.ConnectorNodeService;
@@ -80,7 +79,8 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, settingInsertPolicy.name());
 				writePolicyRunner.apply(tapRecordEvents);
 				Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has duplicate key error, switch the insert policy to {} and retry writing, continuous error time: {}",
-						tableId, settingInsertPolicy.name(), writeRecordTableResult.incrementDuplicateKeyErrorCounter()));
+						tableId, settingInsertPolicy.name(), writeRecordTableResult.getDuplicateKeyErrorCounter()));
+				writeRecordTableResult.incrementDuplicateKeyErrorCounter();
 			} else {
 				throw e;
 			}
