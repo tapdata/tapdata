@@ -90,6 +90,26 @@ class MailUtilsTest {
             throw new RuntimeException(e);
         }
     }
+    @Test
+    void testSendHtmlMail_subjectNotNull_mailContentIsNull(){
+        String mailContent = null;
+        when(blacklistService.inBlacklist(anyString())).thenReturn(false);
+        List<String> addressList = new ArrayList<>();
+        addressList.add("test@qq.com");
+        SendStatus result = mailUtils.sendHtmlMail("",addressList,"test","test","test",mailContent);
+        Assertions.assertEquals("false",result.getStatus());
+        Assertions.assertTrue(result.getErrorMessage().contains("mailContent"));
+    }
+    @Test
+    void testSendHtmlMail_subjectNotNull_mailContentIsEmpty(){
+        String mailContent = "";
+        when(blacklistService.inBlacklist(anyString())).thenReturn(false);
+        List<String> addressList = new ArrayList<>();
+        addressList.add("test@qq.com");
+        SendStatus result = mailUtils.sendHtmlMail("",addressList,"test","test","test",mailContent);
+        Assertions.assertEquals("false",result.getStatus());
+        Assertions.assertTrue(result.getErrorMessage().contains("mailContent"));
+    }
 
     @Test
     void testSendHtmlMail_subjectNotNull_notInBlacklistAddressIsNull(){

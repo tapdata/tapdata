@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.ResponseEntity;
 
@@ -392,6 +393,7 @@ public class TaskController extends BaseController {
 				if (StringUtils.isNotBlank(taskDto.getCrontabScheduleMsg())) {
 					taskDto.setCrontabScheduleMsg(MessageUtil.getMessage(taskDto.getCrontabScheduleMsg()));
 				}
+                taskService.checkSourceTimeDifference(taskDto,user);
 			}
 			return success(taskDto);
 		}
@@ -1432,5 +1434,23 @@ public class TaskController extends BaseController {
         LocalDateTime workerLocalTime = TimeTransFormationUtil.formatDateTime(workerDate);
         List<String> range = TimeTransFormationUtil.calculatedTimeRange(workerLocalTime,queryOperator,offsetHours);
         return success(range);
+    }
+
+    @Operation(summary = "Refresh task schemas")
+    @PutMapping("/{id}/re-schemas")
+    public ResponseMessage<Object> refreshSchemas(HttpServletRequest request
+        , @PathVariable String id
+        , @ApiParam(name = "nodeIds", value = "Refresh the specified node schemas when present, split multiple using ','"
+    ) @RequestParam(required = false) String nodeIds
+        , @ApiParam(name = "keys", value = "Refresh the specified table schemas when present, split multiple using ','"
+    ) @RequestParam(required = false) String keys) {
+        UserDetail user = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        TaskDto resultTask = dataPermissionCheckOfId(request, user, objectId, DataPermissionActionEnums.Edit,
+            () -> taskService.findById(objectId, new Field())
+        );
+
+        taskService.refreshSchemas(resultTask, nodeIds, keys, user);
+        return success();
     }
 }

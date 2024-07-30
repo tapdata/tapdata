@@ -27,6 +27,16 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         public static final String STATUS_READY = "ready";
         public static final String STATUS_TESTING = "testing";
 
+    public static final String FIELD_LAST_UPDATE = "lastUpdate";
+    public static final String FIELD_SCHEMA_VERSION = "schemaVersion";
+    public static final String FIELD_EVER_LOAD_SCHEMA = "everLoadSchema";
+    public static final String FIELD_PARTIAL_UPDATE_FILTER = "partialUpdateFilter";
+    public static final String FIELD_PARTIAL_UPDATE_WITH_SCHEMA_VERSION = "partialUpdateWithSchemaVersion";
+    public static final String FIELD_LOAD_FIELDS_STATUS = "loadFieldsStatus";
+    public static final String LOAD_FIELD_STATUS_LOADING = "loading";
+    public static final String LOAD_FIELD_STATUS_FINISHED = "finished";
+    public static final String LOAD_FIELD_STATUS_ERROR = "error";
+
         /** 数据源连接名称 */
         private String name;
         /** 数据源的配置信息 符合connectiondefinition的jsonschema的json  */
@@ -146,6 +156,7 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         private String search_databaseType;
         private String connectionUrl;
         private String lastUpdateTime;
+        private Long lastUpdate;
         private String errorMsg;
         private Integer increamentalTps;
         private Integer initialReadSize;

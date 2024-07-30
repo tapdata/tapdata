@@ -1,11 +1,9 @@
 package io.tapdata.flow.engine.V2.filter;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,14 +15,9 @@ public class FilterUtil {
      * */
     public static Map<String, Object> processTableFields(Map<String, Object> data, Set<String> fieldNames) {
         if (null == fieldNames || fieldNames.isEmpty()) return data;
-        if (null == data) data = new HashMap<>();
-        Map<String, Object> finalData = new HashMap<>();
-        for (String fieldName : fieldNames) {
-            if (data.containsKey(fieldName)) {
-                finalData.put(fieldName, data.get(fieldName));
-            }
-        }
-        return finalData;
+        if (null == data) return null;
+        data.entrySet().removeIf(entry -> !fieldNames.contains(entry.getKey()));
+        return data;
     }
 
     public static void filterEventData(TapTable tapTable, TapEvent e) {

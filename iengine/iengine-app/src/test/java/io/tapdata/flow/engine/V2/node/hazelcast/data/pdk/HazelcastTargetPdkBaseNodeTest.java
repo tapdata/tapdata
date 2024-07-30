@@ -19,8 +19,10 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.aspect.CreateTableFuncAspect;
 import io.tapdata.aspect.DropTableFuncAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -57,6 +59,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
+import org.springframework.beans.BeanUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
@@ -367,6 +370,34 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		void createTableFalseTestForInit() {
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "unwindProcess", false);
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			AtomicBoolean succeed = new AtomicBoolean(true);
+			Node node = mock(Node.class);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
+			when(node.disabledNode()).thenReturn(false);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getCreateTableFunction()).thenReturn(null);
+			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
+			try (MockedStatic<AspectUtils> aspectUtilsMockedStatic = Mockito.mockStatic(AspectUtils.class)) {
+				aspectUtilsMockedStatic.when(() -> AspectUtils.executeAspect(any())).then(a -> {
+					CreateTableFuncAspect createTableFuncAspect = a.getArgument(0);
+					Assertions.assertTrue(createTableFuncAspect.isInit());
+					return null;
+				});
+
+				doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable, succeed, true);
+				hazelcastTargetPdkBaseNode.createTable(tapTable, succeed, true);
+
+			}
+		}
+
+		@Test
 		void dropTableTestForInit(){
 			TaskDto taskDto = new TaskDto();
 			taskDto.setType("initial_sync");
@@ -399,6 +430,42 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,"test",true);
 			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test",true);
+		}
+
+		@Test
+		void dropTableFalseTestForInit(){
+			TaskDto taskDto = new TaskDto();
+			taskDto.setType("initial_sync");
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			HazelcastTargetPdkDataNode	hazelcastTargetPdkDataNode = mock(HazelcastTargetPdkDataNode.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "clientMongoOperator", mockClientMongoOperator);
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			Node node = mock(Node.class);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			when(node.disabledNode()).thenReturn(false);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getDropTableFunction()).thenReturn(null);
+			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
+
+
+			try (MockedStatic<AspectUtils> aspectUtilsMockedStatic = Mockito.mockStatic(AspectUtils.class)) {
+				aspectUtilsMockedStatic.when(() -> AspectUtils.executeAspect(any())).then(a -> {
+					DropTableFuncAspect actualData = a.getArgument(0);
+					Assertions.assertTrue(actualData.isInit());
+					return null;
+				});
+
+				ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,"test",true);
+				hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test",true);
+
+			}
+
 		}
 	}
 

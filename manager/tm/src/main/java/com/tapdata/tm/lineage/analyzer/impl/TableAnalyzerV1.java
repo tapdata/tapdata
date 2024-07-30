@@ -523,9 +523,9 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 		);
 	}
 
-	private List<ModulesEntity> findModules(String connectionId, String table) {
+	protected List<ModulesEntity> findModules(String connectionId, String table) {
 		Criteria criteria = new Criteria("datasource").is(connectionId)
-				.and("tableName").is(table);
+				.and("tableName").is(table).and("is_deleted").ne(true);
 		Query query = Query.query(criteria);
 		query.fields().include(MODULES_INCLUDE_FIELDS);
 		return modulesRepository.findAll(query);

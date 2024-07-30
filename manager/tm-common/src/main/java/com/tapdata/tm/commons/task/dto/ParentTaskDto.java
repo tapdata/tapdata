@@ -22,6 +22,7 @@ public class ParentTaskDto extends SchedulableDto {
     public final static String TYPE_INITIAL_SYNC = "initial_sync";
     public final static String TYPE_INITIAL_SYNC_CDC = "initial_sync+cdc";
     public final static String TYPE_CDC = "cdc";
+    public static final String FIELD_TRANSFORM_STATUS = "transformStatus";
 
     /** 扩展参数*/
     private Map<String, Object> attrs;

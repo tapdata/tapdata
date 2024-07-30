@@ -62,6 +62,8 @@ public interface TaskClient<T> {
 		return 0;
 	}
 
+	long getCreateTime();
+
 	default boolean resume() {
 		throw new UnsupportedOperationException();
 	}
