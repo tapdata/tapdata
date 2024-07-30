@@ -400,21 +400,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
 
-        for (MeasurementEntity entity : entities) {
-            String hash = hashTag(entity.getTags());
-            for(Sample sample : entity.getSamples()) {
-                if (!data.containsKey(hash)) {
-                    data.put(hash, sample);
-                    continue;
-                }
-
-                long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
-                long newInterval = Math.abs(sample.getDate().getTime() - time);
-                if (newInterval < oldInterval) {
-                    data.put(hash, sample);
-                }
-            }
-        }
+        parse2SampleData(entities, data, time);
 
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
@@ -445,9 +431,32 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return data;
     }
 
-    private Double getTaskLastFiveMinutesQps(Map<String, String> tags) {
+    protected void parse2SampleData(List<MeasurementEntity> entities, Map<String, Sample> data, long time) {
+        Sample sample;
+        List<Sample> samples;
+        for (MeasurementEntity entity : entities) {
+            String hash = hashTag(entity.getTags());
+
+            // 获取最新点的指标（倒序是因为任务在1秒内完成时 init 和 completed 指标同时间一样）
+            samples = entity.getSamples();
+            for(int i = samples.size() - 1; i >= 0; i --) {
+                sample = samples.get(i);
+                if (!data.containsKey(hash)) {
+                    data.put(hash, sample);
+                } else {
+                    long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
+                    long newInterval = Math.abs(sample.getDate().getTime() - time);
+                    if (newInterval < oldInterval) {
+                        data.put(hash, sample);
+                    }
+                }
+            }
+        }
+    }
+
+    protected Double getTaskLastFiveMinutesQps(Map<String, String> tags) {
         Criteria criteria = new Criteria();
-        tags.forEach((k,v)->{
+        tags.forEach((k, v) -> {
             String format = String.format(TAG_FORMAT, k);
             criteria.and(format).is(v);
         });
@@ -462,12 +471,13 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         List<Map> mappedResults = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, Map.class).getMappedResults();
         if (CollectionUtils.isNotEmpty(mappedResults)) {
             Map map = mappedResults.get(0);
-            if (map.containsKey("qps")) {
+            return Optional.ofNullable(map.get("qps")).map(v -> {
                 try {
-                    return Double.parseDouble(map.get("qps").toString());
+                    return Double.parseDouble(v.toString());
                 } catch (NumberFormatException ignored) {
+                    return null;
                 }
-            }
+            }).orElse(0D);
         }
         return 0D;
     }

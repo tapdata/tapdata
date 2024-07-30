@@ -61,6 +61,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private final AtomicInteger retryCounter;
 	private AtomicBoolean retrying;
 	private final AutoRecovery autoRecovery;
+    private final long createTime = System.currentTimeMillis();
 
 	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
@@ -276,7 +277,12 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		return retryCounter.get();
 	}
 
-	public void setJob(Job job) {
+    @Override
+    public long getCreateTime() {
+        return createTime;
+    }
+
+    public void setJob(Job job) {
 		this.job = job;
 	}
 }

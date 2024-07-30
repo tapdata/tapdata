@@ -410,8 +410,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 						if (TerminalMode.STOP_GRACEFUL == terminalMode) {
 							stopTaskResource = StopTaskResource.STOPPED;
 						} else if (TerminalMode.COMPLETE == terminalMode) {
-							stopTaskResource = StopTaskResource.COMPLETE;
-						} else if (TerminalMode.INTERNAL_STOP == terminalMode) {
+                            // 确保任务启动周期大于 5 秒，让指标上报一次
+                            if (System.currentTimeMillis() - taskClient.getCreateTime() < 5000) return;
+
+                            stopTaskResource = StopTaskResource.COMPLETE;
+                        } else if (TerminalMode.INTERNAL_STOP == terminalMode) {
 							if (taskClient.stop()) {
 								clearTaskCacheAfterStopped(taskClient);
 								clearTaskRetryCache(taskId);
