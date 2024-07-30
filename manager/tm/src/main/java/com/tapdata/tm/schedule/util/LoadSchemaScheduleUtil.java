@@ -90,7 +90,7 @@ public class LoadSchemaScheduleUtil {
         if (null != loadSchemaTime) {
             lastLoadTime = loadSchemaTime.getTime();
         }
-        if (time == hour && now() - lastLoadTime >= intervalDay * 24 * 60 * 60 * 1000) {
+        if (time == hour && now() - lastLoadTime >= intervalDay * 24 * 60 * 60 * 1000L) {
             service.sendTestConnection(dataSource, true, true, user);
             //比较大的表，需要sleep一下
             sleep(sleepTime);

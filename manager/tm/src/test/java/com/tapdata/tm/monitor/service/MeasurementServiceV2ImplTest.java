@@ -14,13 +14,17 @@ import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
@@ -268,5 +272,132 @@ class MeasurementServiceV2ImplTest {
             assertEquals(111,tableStatusInfoDto.getCdcDelayTime());
             assertEquals(new Date(1717413352L),tableStatusInfoDto.getLastDataChangeTime());
         }
+    }
+
+    @Nested
+    class GetTaskLastFiveMinutesQpsTest {
+        String type = "task";
+        String taskId = "test-task-id";
+        String taskRecordId = "test-task-record-id";
+        Map<String, String> tags;
+        MongoTemplate mongoOperations;
+
+        @BeforeEach
+        void beforeEach() {
+            tags = new HashMap<>();
+            tags.put("type", type);
+            tags.put("taskId", taskId);
+            tags.put("taskRecordId", taskRecordId);
+
+            mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+        }
+
+        @Test
+        void testNotfound() {
+            AggregationResults<Map> results = mock(AggregationResults.class);
+            when(mongoOperations.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(Map.class))).thenReturn(results);
+            doCallRealMethod().when(measurementServiceV2).getTaskLastFiveMinutesQps(any());
+
+            assertEquals(0D, measurementServiceV2.getTaskLastFiveMinutesQps(tags));
+        }
+
+        @Test
+        void testNotParse() {
+            Map<String, String> values = new HashMap<>();
+            values.put("qps", "error");
+            AggregationResults<Map> results = mock(AggregationResults.class);
+            when(results.getMappedResults()).thenReturn(Arrays.asList(values));
+            when(mongoOperations.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(Map.class))).thenReturn(results);
+            doCallRealMethod().when(measurementServiceV2).getTaskLastFiveMinutesQps(any());
+
+            assertEquals(0D, measurementServiceV2.getTaskLastFiveMinutesQps(tags));
+        }
+
+        @Test
+        void testSuccess() {
+            Map<String, String> values = new HashMap<>();
+            values.put("qps", "100");
+            AggregationResults<Map> results = mock(AggregationResults.class);
+            when(results.getMappedResults()).thenReturn(Arrays.asList(values));
+            when(mongoOperations.aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(Map.class))).thenReturn(results);
+            doCallRealMethod().when(measurementServiceV2).getTaskLastFiveMinutesQps(any());
+
+            assertEquals(100, measurementServiceV2.getTaskLastFiveMinutesQps(tags));
+        }
+    }
+
+    @Nested
+    class Parse2SampleDataTest {
+        String type = "task";
+        String taskId = "test-task-id";
+        String taskRecordId = "test-task-record-id";
+        List<MeasurementEntity> entities;
+        Map<String, Sample> data;
+        long time;
+
+        @BeforeEach
+        void beforeEach() {
+            entities = new ArrayList<>();
+            data = new HashMap<>();
+            time = System.currentTimeMillis();
+        }
+
+        private Sample addSample(List<Sample> samples, Consumer<Sample> consumer) {
+            Sample sample = new Sample();
+            sample.setDate(new Date());
+            consumer.accept(sample);
+            samples.add(sample);
+            return sample;
+        }
+
+        private MeasurementEntity mockMeasurementEntity(String type, String taskId, String taskRecordId) {
+            Map<String, String> tags = new HashMap<>();
+            tags.put("type", type);
+            tags.put("taskId", taskId);
+            tags.put("taskRecordId", taskRecordId);
+            MeasurementEntity entity = new MeasurementEntity();
+            entity.setTags(tags);
+            entity.setSamples(new ArrayList<>());
+            return entity;
+        }
+
+        @Test
+        void testDoubleSampleSameDate() {
+            Date nowTime = new Date();
+            MeasurementEntity entity = mockMeasurementEntity(type, taskId, taskRecordId);
+            addSample(entity.getSamples(), sample -> sample.setDate(nowTime));
+            Sample expected = addSample(entity.getSamples(), sample -> sample.setDate(nowTime));
+            entities.add(entity);
+
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time));
+            measurementServiceV2.parse2SampleData(entities, data, time);
+            assertTrue(data.containsValue(expected));
+        }
+
+        @Test
+        void testDoubleSampleUseLast() {
+            long nowTime = System.currentTimeMillis();
+            MeasurementEntity entity = mockMeasurementEntity(type, taskId, taskRecordId);
+            Sample expected = addSample(entity.getSamples(), sample -> sample.setDate(new Date(nowTime)));
+            addSample(entity.getSamples(), sample -> sample.setDate(new Date(nowTime + 1000)));
+            entities.add(entity);
+
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time));
+            measurementServiceV2.parse2SampleData(entities, data, time);
+            assertTrue(data.containsValue(expected));
+        }
+
+        @Test
+        void testOneSample() {
+            MeasurementEntity entity = mockMeasurementEntity(type, taskId, taskRecordId);
+            Sample expected = addSample(entity.getSamples(), sample -> {});
+            entities.add(entity);
+
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time));
+            measurementServiceV2.parse2SampleData(entities, data, time);
+            assertTrue(data.containsValue(expected));
+        }
+
     }
 }

@@ -116,8 +116,6 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 public class DataSourceServiceImpl extends DataSourceService{
 
     private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])[\\s\\S]*$";
-    private final static String LAST_UPDATE= "lastUpdate";
-    public static final String LOAD_FIELD_STATUS_FINISHED = "finished";
     @Value("${gateway.secret:}")
     private String gatewaySecret;
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
@@ -1225,11 +1223,11 @@ public class DataSourceServiceImpl extends DataSourceService{
     private void deleteModels(String loadFieldsStatus, String datasourceId, Long schemaVersion, UserDetail user) {
         log.debug("delete model, loadFieldsStatus = {}, datasourceId = {}, schemaVersion = {}",
                 loadFieldsStatus, datasourceId, schemaVersion);
-        if (LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && schemaVersion != null) {
+        if (DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && schemaVersion != null) {
             log.debug("loadFieldsStatus is finished, update model delete flag");
             // handle delete model, not match schemaVersion will update is_deleted to true
             Criteria criteria = Criteria.where("is_deleted").ne(true).and("source._id").is(datasourceId)
-                    .and(LAST_UPDATE).lt(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
+                    .and(DataSourceConnectionDto.FIELD_LAST_UPDATE).lt(schemaVersion).and("taskId").exists(false).and("meta_type").ne("database");
             log.info("Delete metadata update filter: {}", criteria);
             Query query = new Query(criteria);
             LiveDataPlatformDto liveDataPlatformDto = liveDataPlatformService.findOne(new Query(), user);
@@ -1257,6 +1255,10 @@ public class DataSourceServiceImpl extends DataSourceService{
 
 
     public void sendTestConnection(DataSourceConnectionDto connectionDto, boolean updateSchema, Boolean submit, UserDetail user) {
+        sendTestConnection(connectionDto, updateSchema, submit, null, user);
+    }
+
+    public void sendTestConnection(DataSourceConnectionDto connectionDto, boolean updateSchema, Boolean submit, String partialUpdateFilter, UserDetail user) {
         log.info("send test connection, connection = {}, updateSchema = {}， submit = {}", connectionDto.getName(), updateSchema, submit);
 
         submit = submit != null && submit;
@@ -1302,6 +1304,10 @@ public class DataSourceServiceImpl extends DataSourceService{
         data.put("type", "testConnection");
         data.put("editTest", false);
         data.put("updateSchema", updateSchema);
+        if (null != partialUpdateFilter) {
+            data.put(DataSourceConnectionDto.FIELD_PARTIAL_UPDATE_WITH_SCHEMA_VERSION, connectionDto.getSchemaVersion());
+            data.put(DataSourceConnectionDto.FIELD_PARTIAL_UPDATE_FILTER, partialUpdateFilter);
+        }
         MessageQueueDto queueDto = new MessageQueueDto();
         queueDto.setReceiver(processId);
         queueDto.setData(data);
@@ -1455,19 +1461,25 @@ public class DataSourceServiceImpl extends DataSourceService{
                 inValues.add("view");
                 Criteria criteria2 = Criteria.where("source._id").is(connectionId).and("meta_type").in(inValues);
                 metadataInstancesService.update(new Query(criteria2), Update.update("databaseId", databaseId), user);
-                flushDatabaseMetadataInstanceLastUpdate((String) set.get("loadFieldsStatus"), connectionId, (Long) set.get(LAST_UPDATE), user);
+
+                Long lastUpdate = null;
+                String loadFieldsStatus = null;
+                if (null != set) {
+                    lastUpdate = (Long) set.get(DataSourceConnectionDto.FIELD_LAST_UPDATE);
+                    loadFieldsStatus = (String) set.get(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS);
+                    flushDatabaseMetadataInstanceLastUpdate(loadFieldsStatus, connectionId, lastUpdate, user);
+                }
                 if (hasSchema) {
                     if (CollectionUtils.isNotEmpty(tables)) {
-                        Long schemaVersion = (Long) set.get(LAST_UPDATE);
-                        String loadFieldsStatus = (String) set.get("loadFieldsStatus");
-                        Boolean loadSchemaField = set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true;
+                        Long schemaVersion = (Long) set.get(DataSourceConnectionDto.FIELD_LAST_UPDATE);
+                        Boolean loadSchemaField = !Boolean.FALSE.equals(set.get("loadSchemaField"));
                         loadSchema(user, tables, oldConnectionDto, definitionDto.getExpression(), databaseId, loadSchemaField,false);
                         deleteModels(loadFieldsStatus, oldConnectionDto.getId().toHexString(), schemaVersion, user);
                         update.put("loadSchemaTime", new Date());
                     }
                 } else {
-                    if (set != null && set.get(LAST_UPDATE) != null) {
-                        deleteModels(LOAD_FIELD_STATUS_FINISHED, connectionId, (Long) set.get(LAST_UPDATE), user);
+                    if (null != lastUpdate) {
+                        deleteModels(DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED, connectionId, lastUpdate, user);
                     }
                 }
             }
@@ -1506,7 +1518,41 @@ public class DataSourceServiceImpl extends DataSourceService{
         return 0L;
     }
 
-    public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField,Boolean partLoad) {
+    @Override
+    public long updatePartialSchema(String id, String loadFieldsStatus, Long lastUpdate, String fromSchemaVersion, String toSchemaVersion, String filters, UserDetail user) {
+        long result = 0;
+        // 更新连接加载状态
+        DataSourceEntity entity = repository.findAndModify(
+            Query.query(Criteria.where("_id").is(id)
+                .and(DataSourceConnectionDto.FIELD_SCHEMA_VERSION).is(fromSchemaVersion))
+            , Update.update(DataSourceConnectionDto.FIELD_SCHEMA_VERSION, toSchemaVersion)
+                .set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
+                .set(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, loadFieldsStatus)
+            , user);
+
+        // 更新连接对应模型的版本（部分更新，需要将没更新的模型版本进行设置）
+        if (null != entity) {
+            result = 1;
+            Criteria where = Criteria.where("source._id").is(id)
+                .and("is_deleted").ne(true)
+                .and("meta_type").is(MetaType.table)
+                .and("sourceType").is(SourceTypeEnum.SOURCE)
+                .and("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION).is(fromSchemaVersion);
+            if(null != filters) {
+                where = where.and("name").nin(Arrays.asList(filters.split(",")));
+            }
+            UpdateResult updateResult = metadataInstancesService.updateMany(Query.query(where)
+                , Update.update("source." + DataSourceConnectionDto.FIELD_SCHEMA_VERSION, toSchemaVersion)
+                    .set(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate)
+            );
+            result += updateResult.getModifiedCount();
+        }
+
+        // 返回数量大于 0，才需要进行模型加载
+        return result;
+    }
+
+    public void loadSchema(UserDetail user, List<TapTable> tables, DataSourceConnectionDto oldConnectionDto, String expression, String databaseId, Boolean loadSchemaField, Boolean partLoad) {
         for (TapTable table : tables) {
             PdkSchemaConvert.getTableFieldTypesGenerator().autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
         }
@@ -1889,6 +1935,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (null != options.getDbVersion()){
             update.set("db_version",options.getDbVersion());
         }
+        if (null != options.getTimeDifference()){
+            update.set("timeDifference",options.getTimeDifference());
+        }
 
         updateByIdNotChangeLast(id, update, user);
 
@@ -2073,7 +2122,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     @Override
     public void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus, String connectionId, Long lastUpdate, UserDetail userDetail) {
-        if (LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && lastUpdate != null && StringUtils.isNotBlank(connectionId)) {
+        if (DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(loadFieldsStatus) && lastUpdate != null && StringUtils.isNotBlank(connectionId)) {
             DataSourceConnectionDto connectionDto = findById(toObjectId(connectionId), userDetail);
             if (connectionDto == null) {
                 return;
@@ -2081,7 +2130,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), connectionDto, null);
             Criteria criteria = Criteria.where("qualified_name").is(qualifiedName);
             Query query = new Query(criteria);
-            metadataInstancesService.update(query,Update.update(LAST_UPDATE,lastUpdate),userDetail);
+            metadataInstancesService.update(query, Update.update(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate), userDetail);
         }
 
     }

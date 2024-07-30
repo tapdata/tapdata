@@ -99,7 +99,7 @@ public class MessageServiceImpl extends MessageService{
 
     private ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
 
-    private final static String FEISHU_ADDRESS = "http://34.96.213.48:30008/send_to/feishu/group";
+    private final static String FEISHU_ADDRESS = CommonUtils.getProperty("FEISHU_ADDRESS","https://lark-api.tapdata.net/send_to/feishu/group");
 
 
 
@@ -872,8 +872,8 @@ public class MessageServiceImpl extends MessageService{
             MsgTypeEnum msgTypeEnum = MsgTypeEnum.getEnumByValue(msgType);
             String clickHref = mailUtils.getAgentClick(metadataName, msgTypeEnum);
             if(checkSending(userDetail)){
-                SendStatus sendStatus = mailUtils.sendHtmlMail(subject + MAIL_SUBJECT, getMailAddressList(userDetail), username, metadataName, clickHref, emailTip);
-                eventsService.recordEvents(subject + MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
+                SendStatus sendStatus = mailUtils.sendHtmlMail(MAIL_SUBJECT + subject, getMailAddressList(userDetail), username, metadataName, clickHref, emailTip);
+                eventsService.recordEvents(MAIL_SUBJECT + subject, MAIL_CONTENT, userDetail.getEmail(), messageDto, sendStatus, retry, Type.NOTICE_MAIL);
             }
         }
 
