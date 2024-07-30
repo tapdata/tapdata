@@ -14,11 +14,12 @@ import org.springframework.lang.NonNull;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -82,7 +83,7 @@ public class CdcDelay implements ICdcDelay {
      * @param recordEvent heartbeat record event
      * @return heartbeat event times
      */
-    private static Long parseTs(@NonNull TapRecordEvent recordEvent) {
+    protected static Long parseTs(@NonNull TapRecordEvent recordEvent) {
         Object ts = null;
         if (recordEvent instanceof TapInsertRecordEvent) {
             Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();
@@ -103,6 +104,8 @@ public class CdcDelay implements ICdcDelay {
             return ((Instant) ts).toEpochMilli();
         } else if (ts instanceof Long) {
             return (Long) ts;
+        } else if (ts instanceof LocalDateTime) {
+            return ((LocalDateTime) ts).toInstant((ZoneOffset.UTC)).toEpochMilli();
         } else if (ts instanceof String) {
             try {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
