@@ -111,12 +111,16 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
 		default void renameField(T param, String fromName, String toName) {
 		}
+
+		default Object renameFieldWithReturn(T param, String fromName, String toName) {
+			return null;
+		}
 	}
 
 	public static class ApplyConfig {
-		private final Operation fieldsOperation;
-		private final Map<String, TableFieldInfo> tableFieldInfoMap;
-		private final Map<String, Map<String, FieldInfo>> fieldInfoMaps;
+		protected final Operation fieldsOperation;
+		protected final Map<String, TableFieldInfo> tableFieldInfoMap;
+		protected final Map<String, Map<String, FieldInfo>> fieldInfoMaps;
 
 
 		public ApplyConfig(MigrateFieldRenameProcessorNode node) {
@@ -182,7 +186,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			return isShow;
 		}
 
-		private String apply(Operation operation, String originalFieldName) {
+		protected String apply(Operation operation, String originalFieldName) {
 			String resValue = originalFieldName;
 			if (null == operation) return resValue;
 
