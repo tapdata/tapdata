@@ -60,7 +60,7 @@ public class BaseEmailExecutor {
 					proxyHost = proxyHostSett.getValue();
 					proxyPort = proxyPortSett.getValue();
 				}
-				if (!StringUtils.isBlank(proxyHost) && !StringUtils.isBlank(proxyHost)) {
+				if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
 					mailer = MailerBuilder
 							.withSMTPServer(host, Integer.valueOf(port), user, password).withDebugLogging(true)
 							.withProperty("tls.rejectUnauthorized", "false")

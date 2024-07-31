@@ -133,7 +133,7 @@ public class SettingsServiceImpl implements SettingsService {
             }
         }
 
-        if (!StringUtils.isBlank(proxyHost) && !StringUtils.isBlank(proxyPort)) {
+        if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
             return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
                     .receivers(receiverList.get()).protocol(protocol).proxyHost(proxyHost).proxyPort(Integer.valueOf(proxyPort)).build();
         }
@@ -328,7 +328,7 @@ public class SettingsServiceImpl implements SettingsService {
         String[] split = testMailDto.getEmail_Receivers().split(",");
         String proxyHost = testMailDto.getSMTP_Proxy_Host();
         String proxyPort = testMailDto.getSMTP_Proxy_Port();
-        if (!StringUtils.isBlank(proxyHost) && !StringUtils.isBlank(proxyPort)) {
+        if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
             return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
                     .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
                     .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol())
