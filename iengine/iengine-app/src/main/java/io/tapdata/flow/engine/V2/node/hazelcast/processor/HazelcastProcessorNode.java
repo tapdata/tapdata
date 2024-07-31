@@ -5,13 +5,12 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtilV2;
 import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
-import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -36,6 +35,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -48,6 +48,9 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
+	private FieldRenameProcessorNode fieldRenameProcessorNode;
+	private Capitalized capitalized;
+	private Map<String, Map<String, String>> fieldsNameTransformMap;
 
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
@@ -57,6 +60,14 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		initDataFlowProcessor();
+		if (getNode() instanceof FieldRenameProcessorNode) {
+			fieldRenameProcessorNode = (FieldRenameProcessorNode) getNode();
+			String fieldsNameTransform = fieldRenameProcessorNode.getFieldsNameTransform();
+			if (StringUtils.isNotBlank(fieldsNameTransform)) {
+				capitalized = Capitalized.fromValue(fieldsNameTransform);
+				this.fieldsNameTransformMap = new HashMap<>();
+			}
+		}
 	}
 
 	@Override
@@ -104,6 +115,10 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (!(tapEvent instanceof TapRecordEvent)) {
 			return;
+		}
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			renameFields(TapEventUtil.getBefore(tapEvent));
+			renameFields(TapEventUtil.getAfter(tapEvent));
 		}
 		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
 		MessageEntity messageEntity = tapEvent2Message((TapRecordEvent) tapEvent);
@@ -252,7 +267,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				stage.setScripts(fieldScripts);
 				stage.setOperations(fieldProcesses);
 				if (node instanceof FieldRenameProcessorNode) {
-					dataFlowProcessor = new FieldDataFlowProcessor(((FieldRenameProcessorNode) node).getFieldsNameTransform());
+					dataFlowProcessor = new FieldDataFlowProcessor();
 				} else if (node instanceof FieldAddDelProcessorNode) {
 					dataFlowProcessor = new FieldDataFlowProcessor(((FieldAddDelProcessorNode) node).isDeleteAllFields());
 				} else {
@@ -316,5 +331,50 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Override
+	public boolean needTransformValue() {
+		return false;
+	}
+
+	public void renameFields(Map<String, Object> data) {
+		if (null == data) {
+			return;
+		}
+
+		Queue<Object> queue = new LinkedList<>();
+		queue.add(data);
+
+		while (!queue.isEmpty()) {
+			Object current = queue.poll();
+
+			if (current instanceof Map) {
+				Map<String, Object> currentMap = (Map<String, Object>) current;
+				List<String> keys = new ArrayList<>(currentMap.keySet());
+				for (String key : keys) {
+					String newKey = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(key, k -> Capitalized.convert(key, capitalized));
+					Object value = currentMap.remove(key);
+					currentMap.put(newKey, value);
+					if (value instanceof Map || value instanceof List) {
+						queue.add(value);
+					}
+				}
+			} else if (current instanceof List) {
+				List<Object> currentList = (List<Object>) current;
+				for (Object item : currentList) {
+					if (item instanceof Map || item instanceof List) {
+						queue.add(item);
+					}
+				}
+			}
+		}
+	}
+
+	@Override
+	public boolean supportConcurrentProcess() {
+		return true;
 	}
 }

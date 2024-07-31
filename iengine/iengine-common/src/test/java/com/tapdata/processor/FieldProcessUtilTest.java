@@ -1,5 +1,6 @@
 package com.tapdata.processor;
 
+import com.tapdata.entity.FieldProcess;
 import io.tapdata.entity.schema.value.DateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -7,8 +8,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.internal.verification.Times;
 
+import java.util.*;
 import java.util.function.Function;
 
+import static com.tapdata.processor.FieldProcessUtil.fieldProcess;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -52,6 +56,60 @@ public class FieldProcessUtilTest {
             Object value = 1L;
             Object actual = FieldProcessUtil.handleDateTime(value);
             assertEquals(value, actual);
+        }
+    }
+
+    @Nested
+    @DisplayName("Method fieldProcess test")
+    class fieldProcessTest {
+
+        private Map<String, Object> record;
+
+        @BeforeEach
+        void setUp() {
+            record = new HashMap<>();
+            record.put("id", 1);
+            record.put("name", "Alice");
+            record.put("age", 30);
+            Map<String, Object> nestedMap = new HashMap<>();
+            nestedMap.put("city", "New York");
+            nestedMap.put("country", "USA");
+            record.put("address", nestedMap);
+        }
+
+        @Test
+        @DisplayName("test delete all fields")
+        void test1() {
+            Set<String> rollbackRemoveFields = new HashSet<>();
+            rollbackRemoveFields.add("id");
+            rollbackRemoveFields.add("name");
+            assertDoesNotThrow(() -> fieldProcess(record, new ArrayList<>(), rollbackRemoveFields, true));
+            assertEquals(2, record.size());
+            assertEquals(1, record.get("id"));
+            assertEquals("Alice", record.get("name"));
+        }
+
+        @Test
+        @DisplayName("test remove fields")
+        void test2() {
+            List<FieldProcess> fieldProcesses = new ArrayList<>();
+            FieldProcess fieldProcess = new FieldProcess();
+            fieldProcess.setField("age");
+            fieldProcess.setOp(FieldProcess.FieldOp.OP_REMOVE.getOperation());
+            fieldProcesses.add(fieldProcess);
+            FieldProcess fieldProcess1 = new FieldProcess();
+            fieldProcess1.setField("address");
+            fieldProcess1.setOp(FieldProcess.FieldOp.OP_REMOVE.getOperation());
+            fieldProcesses.add(fieldProcess1);
+
+            Set<String> rollbackRemoveFields = new HashSet<>();
+            rollbackRemoveFields.add("age");
+
+            assertDoesNotThrow(() -> fieldProcess(record, fieldProcesses, rollbackRemoveFields, false));
+            assertEquals(3, record.size());
+            assertEquals(1, record.get("id"));
+            assertEquals("Alice", record.get("name"));
+            assertEquals(30, record.get("age"));
         }
     }
 }

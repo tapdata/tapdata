@@ -28,4 +28,9 @@ public class HazelcastMigrateUnionProcessorNode extends HazelcastProcessorBaseNo
         }
         consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
     }
+
+    @Override
+    public boolean needTransformValue() {
+        return false;
+    }
 }
