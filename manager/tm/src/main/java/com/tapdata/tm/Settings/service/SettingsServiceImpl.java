@@ -107,6 +107,8 @@ public class SettingsServiceImpl implements SettingsService {
         Object pwd = collect.get("smtp.server.password");
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
+        String proxyHost = (String) collect.get("smtp.proxy.host");
+        String proxyPort = (String) collect.get("smtp.proxy.port");
 
         AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
@@ -132,7 +134,7 @@ public class SettingsServiceImpl implements SettingsService {
         }
 
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                .receivers(receiverList.get()).protocol(protocol).build();
+                .receivers(receiverList.get()).protocol(protocol).proxyHost(proxyHost).proxyPort(Integer.valueOf(proxyPort)).build();
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
@@ -317,11 +319,12 @@ public class SettingsServiceImpl implements SettingsService {
 
     }
 
-    private MailAccountDto getMailAccount(TestMailDto testMailDto) {
+    protected MailAccountDto getMailAccount(TestMailDto testMailDto) {
 
         String[] split = testMailDto.getEmail_Receivers().split(",");
         return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
                 .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
-                .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol()).build();
+                .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol())
+                .proxyHost(testMailDto.getSMTP_Proxy_Host()).proxyPort(Integer.valueOf(testMailDto.getSMTP_Proxy_Port())).build();
     }
 }

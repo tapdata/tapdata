@@ -1,7 +1,8 @@
-package com.tapdata.tm.Settings;
+package com.tapdata.tm.Settings.service;
 
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -156,6 +157,16 @@ public class SettingsServiceTest {
             when(mockSettingsRepository.findAll()).thenReturn(list);
             final List<SettingsDto> result = settingsService.findALl("decode", filter);
             assertThat(result.get(0).getValue()).isEqualTo(settings.getValue());
+        }
+    }
+    @Nested
+    class getMailAccountWithTestMailDtoTest{
+        @Test
+        void testGetMailAccount(){
+            settingsService = mock(SettingsServiceImpl.class);
+            TestMailDto testMailDto = new TestMailDto();
+            testMailDto.setText("test");
+            doCallRealMethod().when(settingsService).getMailAccount(testMailDto);
         }
     }
 }

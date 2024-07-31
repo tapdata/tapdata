@@ -7,6 +7,10 @@ import lombok.Data;
 @Data
 public class    TestMailDto {
     //private List<SettingsDto> settingsDto;
+    @JsonProperty("SMTP_Proxy_Host")
+    private String SMTP_Proxy_Host;
+    @JsonProperty("SMTP_Proxy_Port")
+    private String SMTP_Proxy_Port;
     @JsonProperty("SMTP_Server_Host")
     private String SMTP_Server_Host;
     @JsonProperty("Email_Communication_Protocol")
