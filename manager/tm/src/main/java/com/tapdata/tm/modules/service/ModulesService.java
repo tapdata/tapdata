@@ -180,6 +180,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
+        if (findByName(modulesDto.getName()).size() > 1)
+            throw new BizException("Modules.Name.Existed");
         modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
         modulesDto.setLastUpdAt(new Date());
         modulesDto.setCreateAt(new Date());
