@@ -141,10 +141,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected StreamReadFuncAspect streamReadFuncAspect;
 	protected TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
-	protected Long initialFirstStartTime = System.currentTimeMillis();
 	protected TransformerWsMessageDto transformerWsMessageDto;
 	protected DDLFilter ddlFilter;
-	protected ReentrantLock sourceRunnerLock;
+	protected final ReentrantLock sourceRunnerLock;
 	protected AtomicBoolean endSnapshotLoop;
 	protected CopyOnWriteArrayList<String> newTables;
 	protected CopyOnWriteArrayList<String> removeTables;
@@ -165,6 +164,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.tapEventFilter = TargetTableDataEventFilter.create();
+		this.sourceRunnerLock = new ReentrantLock(true);
 	}
 
 	private boolean needCdcDelay() {
@@ -306,7 +306,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private void initSourceRunnerOnce() {
-		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
@@ -696,49 +695,46 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						List<String> addList = tableResult.getAddList();
 						List<String> removeList = tableResult.getRemoveList();
 						if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
-							while (isRunning()) {
-								try {
-									if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
-										break;
-									}
-								} catch (InterruptedException e) {
-									break;
-								}
-							}
-							// Remove from remove list if in add list
-							if (CollectionUtils.isNotEmpty(addList)) {
-								addList.forEach(tableName -> removeTables.remove(tableName));
-							}
-							// Handle remove table(s)
-							if (CollectionUtils.isNotEmpty(removeList)) {
-								logger.info("Found remove table(s): " + removeList);
-								removeList.forEach(r -> {
-									if (!removeTables.contains(r)) {
-										removeTables.add(r);
-									}
-								});
-								List<TapdataEvent> tapdataEvents = new ArrayList<>();
-								for (String tableName : removeList) {
-									if (!isRunning()) {
-										break;
-									}
-									TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
-									tapDropTableEvent.setTableId(tableName);
-									TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
-									tapdataEvents.add(tapdataEvent);
-								}
-								tapdataEvents.forEach(this::enqueue);
-								AspectUtils.executeAspect(new SourceDynamicTableAspect()
-										.dataProcessorContext(getDataProcessorContext())
-										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE)
-										.tables(removeList)
-										.tapdataEvents(tapdataEvents));
-							}
+							LockUtil.runWithLock(
+									this.sourceRunnerLock,
+									() -> !isRunning(),
+									() -> {
+										// Remove from remove list if in add list
+										if (CollectionUtils.isNotEmpty(addList)) {
+											addList.forEach(tableName -> removeTables.remove(tableName));
+										}
+										// Handle remove table(s)
+										if (CollectionUtils.isNotEmpty(removeList)) {
+											logger.info("Found remove table(s): " + removeList);
+											removeList.forEach(r -> {
+												if (!removeTables.contains(r)) {
+													removeTables.add(r);
+												}
+											});
+											List<TapdataEvent> tapdataEvents = new ArrayList<>();
+											for (String tableName : removeList) {
+												if (!isRunning()) {
+													break;
+												}
+												TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
+												tapDropTableEvent.setTableId(tableName);
+												TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+												tapdataEvents.add(tapdataEvent);
+											}
+											tapdataEvents.forEach(this::enqueue);
+											AspectUtils.executeAspect(new SourceDynamicTableAspect()
+													.dataProcessorContext(getDataProcessorContext())
+													.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE)
+													.tables(removeList)
+													.tapdataEvents(tapdataEvents));
+										}
 
-							// Handle new table(s)
-							if (CollectionUtils.isNotEmpty(addList)) {
-								handleNewTables(addList);
-							}
+										// Handle new table(s)
+										if (CollectionUtils.isNotEmpty(addList)) {
+											handleNewTables(addList);
+										}
+									}
+							);
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
@@ -748,11 +744,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			try {
-				sourceRunnerLock.unlock();
-			} catch (Exception ignored) {
-			}
 		}
 	}
 
