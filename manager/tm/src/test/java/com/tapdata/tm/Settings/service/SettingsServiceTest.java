@@ -5,8 +5,6 @@ import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.repository.SettingsRepository;
-import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.Settings.service.SettingsServiceImpl;
 import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
@@ -31,7 +29,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -81,6 +79,30 @@ public class SettingsServiceTest {
                 assertEquals("192.168.1.1",mailAccount.getHost());
                 assertEquals("test",mailAccount.getReceivers().get(0));
             }
+        }
+        @Test
+        void testGetMailAccountWithProxy(){
+            ArrayList<Settings> settingsArr = new ArrayList<>();
+            Settings settings = new Settings();
+            settings.setKey("smtp.server.host");
+            settings.setValue("192.168.1.1");
+            Settings settings1 = new Settings();
+            settings1.setKey("email.receivers");
+            settings1.setValue("test");
+            Settings settings2 = new Settings();
+            settings2.setKey("smtp.proxy.host");
+            settings2.setValue("smtp.proxy.cn");
+            Settings settings3 = new Settings();
+            settings3.setKey("smtp.proxy.port");
+            settings3.setValue("1025");
+            settingsArr.add(settings);
+            settingsArr.add(settings1);
+            settingsArr.add(settings2);
+            settingsArr.add(settings3);
+            when(mongoTemplate.find(any(),eq(Settings.class))).thenReturn(settingsArr);
+            MailAccountDto mailAccount = settingsService.getMailAccount("123");
+            assertEquals("smtp.proxy.cn",mailAccount.getProxyHost());
+            assertEquals(1025,mailAccount.getProxyPort());
         }
         @Test
         void testGetMailAccountCloud(){
@@ -161,12 +183,34 @@ public class SettingsServiceTest {
     }
     @Nested
     class getMailAccountWithTestMailDtoTest{
-        @Test
-        void testGetMailAccount(){
+        private TestMailDto testMailDto;
+        @BeforeEach
+        void beforeEach(){
             settingsService = mock(SettingsServiceImpl.class);
-            TestMailDto testMailDto = new TestMailDto();
-            testMailDto.setText("test");
+            testMailDto = new TestMailDto();
+            testMailDto.setSMTP_Server_Host("smtp.test.cn");
+            testMailDto.setEmail_Communication_Protocol("SSH");
+            testMailDto.setSMTP_Server_Port("465");
+            testMailDto.setEmail_Send_Address("test@tapdata.io");
+            testMailDto.setSMTP_Server_User("test@tapdata.io");
+            testMailDto.setSMTP_Server_password("test_passwd");
+            testMailDto.setEmail_Receivers("test1@tapdata.io,test2@tapdata.io");
+        }
+        @Test
+        void testGetMailAccountForProxy(){
+            testMailDto.setSMTP_Proxy_Host("smtp.proxy.cn");
+            testMailDto.setSMTP_Proxy_Port("1025");
             doCallRealMethod().when(settingsService).getMailAccount(testMailDto);
+            MailAccountDto actual = settingsService.getMailAccount(testMailDto);
+            assertNotNull(actual.getProxyHost());
+            assertNotNull(actual.getProxyPort());
+        }
+        @Test
+        void testGetMailAccountWithoutProxy(){
+            doCallRealMethod().when(settingsService).getMailAccount(testMailDto);
+            MailAccountDto actual = settingsService.getMailAccount(testMailDto);
+            assertNull(actual.getProxyHost());
+            assertNull(actual.getProxyPort());
         }
     }
 }
