@@ -22,21 +22,10 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.output.WriterOutputStream;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.formula.functions.T;
-import org.voovan.tools.collection.ArraySet;
 import picocli.CommandLine;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.io.Writer;
-import java.nio.charset.Charset;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
