@@ -14,18 +14,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.Session;
-import javax.mail.Transport;
+import javax.mail.*;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -452,28 +452,18 @@ public class MailUtils {
      * 发送HTML邮件
      */
     public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
-        if (CollectionUtils.isEmpty(adressees)) return;
-
-        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
-        if (blacklistService != null) {
-            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
-            if (log.isDebugEnabled()) {
-                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
-            }
-            adressees = notInBlacklistAddress;
-            //adressees.removeAll(blacklist);
-            if (CollectionUtils.isEmpty(adressees)) {
-                return;
-            }
-        } else {
-            log.warn("Check blacklist failed before send email, not found BlacklistService.");
-        }
+        adressees = filterBlackList(adressees);
+        if (adressees == null) return;
 
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
             flag = false;
         } else {
+            if (StringUtils.isNotBlank(parms.getProxyHost()) && null != parms.getProxyPort()) {
+                sendEmailForProxy(parms, adressees, title, content, flag);
+                return;
+            }
             try {
                 MailAccount account = new MailAccount();
                 account.setHost(parms.getHost());
@@ -507,6 +497,79 @@ public class MailUtils {
                 log.error("mail send error：{}", e.getMessage(), e);
                 flag = false;
             }
+        }
+        log.debug("mail send status：{}", flag ? "suc" : "error");
+    }
+
+    @Nullable
+    protected static List<String> filterBlackList(List<String> adressees) {
+        if (CollectionUtils.isEmpty(adressees)) return null;
+
+        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
+        if (blacklistService != null) {
+            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
+            if (log.isDebugEnabled()) {
+                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
+            }
+            adressees = notInBlacklistAddress;
+            //adressees.removeAll(blacklist);
+            if (CollectionUtils.isEmpty(adressees)) {
+                return null;
+            }
+        } else {
+            log.warn("Check blacklist failed before send email, not found BlacklistService.");
+        }
+        return adressees;
+    }
+
+    protected static void sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
+        final String username = parms.getUser();
+        final String password = parms.getPass();
+
+        Properties properties = System.getProperties();
+        properties.put("mail.smtp.host", parms.getHost());
+        properties.put("mail.smtp.port", parms.getPort());
+        properties.put("mail.smtp.auth", "true");
+        if ("SSL".equals(parms.getProtocol()) || "TLS".equals(parms.getProtocol())) {
+            properties.put("mail.smtp.starttls.enable", "true");
+        } else {
+            properties.put("mail.smtp.starttls.enable", "false");
+        }
+        //set proxy server
+        properties.put("mail.smtp.socks.host", parms.getProxyHost());
+        properties.put("mail.smtp.socks.port", parms.getProxyPort());
+
+        Session session = Session.getInstance(properties, new Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
+            }
+        });
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(parms.getFrom()));
+
+            Address[] tos = null;
+            tos = new InternetAddress[adressees.size()];
+            for (int i = 0; i < adressees.size(); i++) {
+                tos[i] = new InternetAddress(adressees.get(i));
+            }
+            message.setRecipients(Message.RecipientType.TO, tos);
+
+            Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+            title = OEMReplaceUtil.replace(title, oemConfig);
+            content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
+            message.setSubject(title, "UTF-8");
+            MimeBodyPart text = new MimeBodyPart();
+            text.setContent(content, "text/html;charset=UTF-8");
+            MimeMultipart mimeMultipart = new MimeMultipart();
+            mimeMultipart.addBodyPart(text);
+            mimeMultipart.setSubType("related");
+            message.setContent(mimeMultipart);
+
+            Transport.send(message);
+        } catch (Exception e) {
+            log.error("mail send error：{}", e.getMessage(), e);
+            flag = false;
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
     }
