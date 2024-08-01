@@ -34,9 +34,28 @@ public class RandomSampleEventHandler {
         long sizeOfSampleListByte = 0L;
         for (Object item : samples) {
             TapEvent tapEvent = handle.handel(item);
-            sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
+            if (null != tapEvent.getMemorySize()) {
+                sizeOfSampleListByte += tapEvent.getMemorySize();
+            } else {
+                sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
+            }
         }
         unitConversion(recorder, sizeOfSampleListByte);
+    }
+
+    public long sampleMemoryTapEvent(List<?> events, HandleEvent handle) {
+        if (null == events) return 0L;
+        List<Object> samples = randomSampleList(events.stream()
+                .filter(Objects::nonNull)
+                .filter(e->e instanceof TapRecordEvent || e instanceof TapdataEvent)
+                .collect(Collectors.toList()), sampleRate);
+        if (samples.isEmpty()) return 0L;
+        long sizeOfSampleListByte = 0L;
+        for (Object item : samples) {
+            TapEvent tapEvent = handle.handel(item);
+            sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
+        }
+        return sizeOfSampleListByte * getTotalSize();
     }
 
     protected long sizeOfTapEvent(TapEvent tapEvent) {
