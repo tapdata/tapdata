@@ -7,17 +7,16 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.repository.ModulesRepository;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 public class ModulesServiceTest {
@@ -43,7 +42,7 @@ public class ModulesServiceTest {
         void test_aclIsNull(){
             ModulesPermissionsDto modulesPermissionsDto = new ModulesPermissionsDto();
             modulesPermissionsDto.setModuleId("test");
-            Assertions.assertThrows(BizException.class,()->modulesService.updatePermissions(modulesPermissionsDto,mock(UserDetail.class)));
+            assertThrows(BizException.class,()->modulesService.updatePermissions(modulesPermissionsDto,mock(UserDetail.class)));
         }
 
     }
@@ -63,7 +62,7 @@ public class ModulesServiceTest {
         void test_tagsIsNull(){
             ModulesTagsDto modulesTagsDto = new ModulesTagsDto();
             modulesTagsDto.setModuleId("test");
-            Assertions.assertThrows(BizException.class,()->modulesService.updateTags(modulesTagsDto,mock(UserDetail.class)));
+            assertThrows(BizException.class,()->modulesService.updateTags(modulesTagsDto,mock(UserDetail.class)));
         }
 
     }
@@ -103,6 +102,40 @@ public class ModulesServiceTest {
             modules.setPaths(paths);
             modulesService.beforeSave(modules,mock(UserDetail.class));
             Assertions.assertEquals(0,modules.getPaths().get(0).getFields().size());
+        }
+    }
+    @Nested
+    class saveTest{
+        private ModulesDto modulesDto;
+        private UserDetail userDetail;
+        @BeforeEach
+        void beforeEach(){
+            modulesService = spy(modulesService);
+            modulesDto = mock(ModulesDto.class);
+            userDetail = mock(UserDetail.class);
+        }
+        @Test
+        @DisplayName("test save method when name existed")
+        void test1(){
+            String name = "test";
+            when(modulesDto.getName()).thenReturn(name);
+            List<ModulesDto> modules = new ArrayList<>();
+            modules.add(mock(ModulesDto.class));
+            modules.add(mock(ModulesDto.class));
+            doReturn(modules).when(modulesService).findByName(name);
+            assertThrows(BizException.class, ()->modulesService.save(modulesDto, userDetail));
+        }
+        @Test
+        @DisplayName("test save method normal")
+        void test2(){
+            String name = "test";
+            when(modulesDto.getName()).thenReturn(name);
+            List<ModulesDto> modules = new ArrayList<>();
+            doReturn(modules).when(modulesService).findByName(name);
+            doCallRealMethod().when(modulesService).save(modulesDto, userDetail);
+            when(modulesRepository.save(any(),any())).thenReturn(mock(ModulesEntity.class));
+            modulesService.save(modulesDto, userDetail);
+            verify(modulesRepository).save(any(),any());
         }
     }
 }
