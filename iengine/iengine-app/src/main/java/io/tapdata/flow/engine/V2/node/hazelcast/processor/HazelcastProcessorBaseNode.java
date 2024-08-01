@@ -147,6 +147,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	private void enqueue(List<TapdataEvent> tapdataEvents) {
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			handleTransformToTapValueResult(tapdataEvent);
 			while (isRunning()) {
 				if (delayHandler.process(() -> this.offer(tapdataEvent))) {
 					break;
@@ -519,5 +520,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	public boolean supportConcurrentProcess() {
 		return false;
+	}
+
+	public void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		tapdataEvent.setTransformToTapValueResult(null);
 	}
 }
