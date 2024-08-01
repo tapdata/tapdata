@@ -199,6 +199,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				result.add(tapdataEvent);
 			}
 		});
+		reCalcMemorySize(batchEventWrappers);
 		batchEventWrappers.forEach(cbe -> {
 			if (null != cbe.getProcessAspect()) {
 				AspectUtils.accept(cbe.getProcessAspect().state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent());
@@ -522,7 +523,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		return false;
 	}
 
-	public void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
 		tapdataEvent.setTransformToTapValueResult(null);
+	}
+
+	protected void reCalcMemorySize(List<BatchEventWrapper> tapdataEvents) {
+		// do nothing
 	}
 }

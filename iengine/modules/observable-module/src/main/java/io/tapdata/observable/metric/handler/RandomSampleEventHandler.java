@@ -8,11 +8,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class RandomSampleEventHandler {
@@ -25,12 +21,8 @@ public class RandomSampleEventHandler {
     }
 
     public void sampleMemoryTapEvent(HandlerUtil.EventTypeRecorder recorder, List<?> events, HandleEvent handle) {
-        if (null == events) return;
-        List<Object> samples = randomSampleList(events.stream()
-                .filter(Objects::nonNull)
-                .filter(e->e instanceof TapRecordEvent || e instanceof TapdataEvent)
-                .collect(Collectors.toList()), sampleRate);
-        if (samples.isEmpty()) return;
+        if (null == events || events.isEmpty()) return;
+        List<Object> samples = Collections.singletonList(events.get(0));
         long sizeOfSampleListByte = 0L;
         for (Object item : samples) {
             TapEvent tapEvent = handle.handel(item);
@@ -90,7 +82,7 @@ public class RandomSampleEventHandler {
 
     protected void unitConversion(HandlerUtil.EventTypeRecorder recorder, long sizeOfSampleListByte) {
         long size = sizeOfSampleListByte * getTotalSize();
-        recorder.setMemorySize(size);
+        recorder.setMemorySize(size / 10);
         recorder.setMemoryUtil("B");
     }
 
