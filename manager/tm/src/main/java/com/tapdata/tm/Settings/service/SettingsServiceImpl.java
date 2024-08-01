@@ -101,14 +101,14 @@ public class SettingsServiceImpl implements SettingsService {
         Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
         String host = (String) collect.get("smtp.server.host");
-        String port = (String) collect.getOrDefault("smtp.server.port", "465");
+        String port = (String) collect.getOrDefault("smtp.server.port", "0");
         String from = (String) collect.get("email.send.address");
         String user = (String) collect.get("smtp.server.user");
         Object pwd = collect.get("smtp.server.password");
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
         String proxyHost = (String) collect.get("smtp.proxy.host");
-        String proxyPort = (String) collect.getOrDefault("smtp.proxy.port", "1025");
+        String proxyPort = (String) collect.getOrDefault("smtp.proxy.port", "0");
 
         AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
@@ -320,8 +320,8 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     protected MailAccountDto getMailAccount(TestMailDto testMailDto) {
-        String port = StringUtils.isNotBlank(testMailDto.getSMTP_Server_Port()) ? testMailDto.getSMTP_Server_Port() : "465";
-        String proxyPort = StringUtils.isNotBlank(testMailDto.getSMTP_Proxy_Port()) ? testMailDto.getSMTP_Proxy_Port() : "1025";
+        String port = StringUtils.isNotBlank(testMailDto.getSMTP_Server_Port()) ? testMailDto.getSMTP_Server_Port() : "0";
+        String proxyPort = StringUtils.isNotBlank(testMailDto.getSMTP_Proxy_Port()) ? testMailDto.getSMTP_Proxy_Port() : "0";
         String[] split = testMailDto.getEmail_Receivers().split(",");
         return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(port))
                 .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())

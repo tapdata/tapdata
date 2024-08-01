@@ -210,7 +210,7 @@ public class SettingsServiceTest {
             doCallRealMethod().when(settingsService).getMailAccount(testMailDto);
             MailAccountDto actual = settingsService.getMailAccount(testMailDto);
             assertNull(actual.getProxyHost());
-            assertEquals(1025, actual.getProxyPort());
+            assertEquals(0, actual.getProxyPort());
         }
     }
 }
