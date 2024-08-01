@@ -1,5 +1,7 @@
 package com.tapdata.constant;
 
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapMapValue;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -20,6 +22,9 @@ import java.util.stream.Collectors;
 public class MapUtilV2 extends MapUtil {
 
 	private static NotExistsNode notExistsNode = new NotExistsNode();
+
+	private MapUtilV2() {
+	}
 
 	/**
 	 * 支持从内嵌数组取值，如果是内嵌数组，返回值会是一个集合
@@ -42,32 +47,39 @@ public class MapUtilV2 extends MapUtil {
 
 			String[] split = key.split("\\.");
 
-			if (split.length <= 0 || StringUtils.isAllBlank(split)) {
+			if (split.length == 0 || StringUtils.isAllBlank(split)) {
 				return null;
 			}
 
-			List<String> keys = Arrays.stream(split).filter(s -> StringUtils.isNotBlank(s)).collect(Collectors.toList());
+			List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
 
 			if (keys.size() <= 1) {
 				return dataMap.getOrDefault(key, notExistsNode);
 			} else {
 				value = dataMap.getOrDefault(keys.get(0), notExistsNode);
 
-				if (value == null) {
+				if (value instanceof NotExistsNode) {
 					return dataMap.getOrDefault(key, notExistsNode);
 				}
 
 				// 截掉第一层字段，例如：a.b.c -> b.c，用于递归
-				String recursiveKey = keys.subList(1, keys.size()).stream().collect(Collectors.joining("."));
+				String recursiveKey = String.join(".", keys.subList(1, keys.size()));
 
 				// 递归处理Map或者List
 				if (value instanceof Map) {
-					value = getValueByKey((Map) value, recursiveKey);
+					value = getValueByKey((Map<String, Object>) value, recursiveKey);
+					if (value instanceof NotExistsNode) {
+						value = dataMap.getOrDefault(key, notExistsNode);
+					}
+				} else if (value instanceof TapMapValue) {
+					value = getValueByKey(((TapMapValue) value).getValue(), recursiveKey);
 					if (value instanceof NotExistsNode) {
 						value = dataMap.getOrDefault(key, notExistsNode);
 					}
 				} else if (value instanceof List) {
 					value = CollectionUtil.getValueByKey((List) value, recursiveKey);
+				} else if (value instanceof TapArrayValue) {
+					value = CollectionUtil.getValueByKey(((TapArrayValue) value).getValue(), recursiveKey);
 				}
 			}
 		} else {
@@ -294,34 +306,32 @@ public class MapUtilV2 extends MapUtil {
 		if (needSplit(key)) {
 			String[] split = key.split("\\.");
 
-			if (split.length <= 0 && StringUtils.isAllBlank(split)) {
+			if (split.length == 0 && StringUtils.isAllBlank(split)) {
 				return false;
 			}
 
-			List<String> keys = Arrays.stream(split).filter(s -> StringUtils.isNotBlank(s)).collect(Collectors.toList());
+			List<String> keys = Arrays.stream(split).filter(StringUtils::isNotBlank).collect(Collectors.toList());
 
 			if (keys.size() <= 1) {
-				if (dataMap.containsKey(key)) {
-					dataMap.remove(key);
-					isRemoved = true;
-				}
+				isRemoved = null != dataMap.remove(key);
 			} else {
 				Object value = dataMap.getOrDefault(keys.get(0), null);
 
 				if (value == null) {
-					if (dataMap.containsKey(key)) {
-						dataMap.remove(key);
-						isRemoved = true;
-					}
+					isRemoved = null != dataMap.remove(key);
 					return isRemoved;
 				}
 
 				// 截取第一个，拼接成新的字段名，如a.b.c变为b.c，往里面递归
-				String recursiveKey = keys.subList(1, keys.size()).stream().collect(Collectors.joining("."));
+				String recursiveKey = String.join(".", keys.subList(1, keys.size()));
 
 				if (value instanceof Map) {
 					// 递归调用Map的移除方法
 					isRemoved = removeValueByKey((Map) value, recursiveKey);
+				} else if (value instanceof TapMapValue) {
+					isRemoved = removeValueByKey(((TapMapValue) value).getValue(), recursiveKey);
+				} else if (value instanceof TapArrayValue) {
+					isRemoved = CollectionUtil.removeKeyFromList(((TapArrayValue) value).getValue(), recursiveKey);
 				} else if (value instanceof List) {
 					// 递归调用List的移除方法
 					isRemoved = CollectionUtil.removeKeyFromList((List) value, recursiveKey);
@@ -330,10 +340,7 @@ public class MapUtilV2 extends MapUtil {
 
 			removeEmptyMap(dataMap, keys.get(0));
 		} else {
-			if (dataMap.containsKey(key)) {
-				dataMap.remove(key);
-				isRemoved = true;
-			}
+			isRemoved = null != dataMap.remove(key);
 		}
 
 		return isRemoved;

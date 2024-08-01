@@ -86,10 +86,12 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 					null,
 					null,
 					true));
-			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"engine",engine);
+			Map<String, Invocable> engineMap = new HashMap<>();
+			engineMap.put(Thread.currentThread().getName(), engine);
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode, "engineMap", engineMap);
 			tapdataEvent = mock(TapdataEvent.class);
 			tapEvent = mock(TapUpdateRecordEvent.class);
-			when(((TapBaseEvent) tapEvent).getTableId()).thenReturn("tableId");
+			when(tapEvent.getTableId()).thenReturn("tableId");
 			when(tapdataEvent.getTapEvent()).thenReturn(tapEvent);
 		}
 		@Test

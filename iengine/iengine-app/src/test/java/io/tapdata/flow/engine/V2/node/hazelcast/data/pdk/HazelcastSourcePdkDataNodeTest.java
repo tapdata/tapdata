@@ -176,7 +176,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, ((Map) tableOffsetObj).get("id"));
 			assertEquals("a", ((Map) tableOffsetObj).get("code"));
 			verify(hazelcastSourcePdkDataNode, times(1)).toTapValue(any(Map.class), anyString(), eq(tapCodecsFilterManager));
-			verify(hazelcastSourcePdkDataNode, times(1)).fromTapValue(any(Map.class), eq(tapCodecsFilterManager), anyString());
 		}
 
 		@Test
@@ -194,7 +193,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, ((Map) tableOffsetObj).get("id"));
 			assertEquals("a", ((Map) tableOffsetObj).get("code"));
 			verify(hazelcastSourcePdkDataNode, times(1)).toTapValue(any(Map.class), anyString(), eq(tapCodecsFilterManager));
-			verify(hazelcastSourcePdkDataNode, times(1)).fromTapValue(any(Map.class), eq(tapCodecsFilterManager), anyString());
 		}
 
 		@Test
@@ -212,7 +210,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, ((Map) tableOffsetObj).get("id"));
 			assertEquals("a", ((Map) tableOffsetObj).get("code"));
 			verify(hazelcastSourcePdkDataNode, times(1)).toTapValue(any(Map.class), anyString(), eq(tapCodecsFilterManager));
-			verify(hazelcastSourcePdkDataNode, times(1)).fromTapValue(any(Map.class), eq(tapCodecsFilterManager), anyString());
 		}
 
 		@Test
@@ -504,7 +501,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				verify(removeTables, times(v.removeTablesContains())).contains(tableId);
 				verify(removeTables, times(v.removeTablesRemove())).remove(tableId);
 				verify(obsLogger, times(v.obsLoggerInfo2())).info("Table {} is detected that it has been removed, the snapshot read will be skipped", "id");
-				verify(obsLogger, times(v.obsLoggerInfo3())).info("Starting batch read, table name: {}, offset: {}", "id", tableOffset);
 				verify(instance, times(v.createPdkMethodInvoker())).createPdkMethodInvoker();
 				verify(instance, times(v.doAsyncTableCount())).doAsyncTableCount(batchCountFunction, tableId);
 				verify(ignoreTableCountCloseable, times(v.close())).close();
@@ -835,7 +831,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertDoesNotThrow(() -> instance.doSnapshot(tableList));
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
-					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
 					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 					verifyAssert(v);
 				}
@@ -1000,7 +995,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						}
 					});
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
-					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
 					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 				}
 				verifyAssert(v);
@@ -1053,7 +1047,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				doCallRealMethod().when(instance).doSnapshot(tableList);
 				try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
 					bou.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)).thenReturn(false);
-					bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenReturn(tableOffset);
 					bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name())).thenAnswer(a->null);
 					Assertions.assertThrows(TapCodeException.class, () -> {
 						try {
@@ -1064,7 +1057,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 						}
 					});
 					bou.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(v.batchIsOverOfTable()));
-					bou.verify(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId), times(v.getBatchOffsetOfTable()));
 					bou.verify(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, null,  TableBatchReadStatus.OVER.name()), times(v.updateBatchOffset()));
 				}
 

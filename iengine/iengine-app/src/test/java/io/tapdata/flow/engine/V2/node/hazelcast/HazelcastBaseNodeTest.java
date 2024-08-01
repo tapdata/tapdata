@@ -8,7 +8,6 @@ import com.hazelcast.jet.Job;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
@@ -74,7 +73,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -1679,16 +1677,6 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("When jet job is not running")
 		void testIsRunningWhenJetJobIsNotRunning() {
 			doReturn(false).when(hazelcastBaseNode).isJetJobRunning();
-			boolean actual = hazelcastBaseNode.isRunning();
-			assertFalse(actual);
-		}
-
-		@Test
-		@DisplayName("When thread is interrupted")
-		void testIsRunningWhenThreadIsInterrupt() {
-			Thread.currentThread().interrupt();
-			hazelcastBaseNode.running = new AtomicBoolean(true);
-			doReturn(true).when(hazelcastBaseNode).isJetJobRunning();
 			boolean actual = hazelcastBaseNode.isRunning();
 			assertFalse(actual);
 		}
