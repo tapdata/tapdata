@@ -36,8 +36,10 @@ import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -49,15 +51,13 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -386,5 +386,19 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	@Override
 	public boolean supportConcurrentProcess() {
 		return true;
+	}
+
+	@Override
+	protected void reCalcMemorySize(List<BatchEventWrapper> tapdataEvents) {
+		if (CollectionUtils.isEmpty(tapdataEvents)) {
+			return;
+		}
+		List<TapEvent> tapEvents = tapdataEvents.stream().map(bew->{
+			if (null != bew && null != bew.getTapdataEvent() && null != bew.getTapdataEvent().getTapEvent()) {
+				return bew.getTapdataEvent().getTapEvent();
+			}
+			return null;
+		}).collect(Collectors.toList());
+		HandlerUtil.sampleMemoryToTapEvent(tapEvents);
 	}
 }
