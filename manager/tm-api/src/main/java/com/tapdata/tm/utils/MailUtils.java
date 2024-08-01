@@ -460,7 +460,7 @@ public class MailUtils {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
             flag = false;
         } else {
-            if (!StringUtils.isBlank(parms.getProxyHost()) && null != parms.getProxyPort()) {
+            if (StringUtils.isNotBlank(parms.getProxyHost()) && null != parms.getProxyPort()) {
                 sendEmailForProxy(parms, adressees, title, content, flag);
                 return;
             }

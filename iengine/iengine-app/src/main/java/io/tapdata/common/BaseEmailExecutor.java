@@ -60,22 +60,15 @@ public class BaseEmailExecutor {
 					proxyHost = proxyHostSett.getValue();
 					proxyPort = proxyPortSett.getValue();
 				}
+				MailerBuilder.MailerRegularBuilder mailerBuilder = MailerBuilder
+						.withSMTPServer(host, Integer.valueOf(port), user, password).withDebugLogging(true)
+						.withProperty("tls.rejectUnauthorized", "false")
+						.withProperty("mail.smtp.ssl.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "SSL") ? "true" : "false")
+						.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false");
 				if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
-					mailer = MailerBuilder
-							.withSMTPServer(host, Integer.valueOf(port), user, password).withDebugLogging(true)
-							.withProperty("tls.rejectUnauthorized", "false")
-							.withProperty("mail.smtp.ssl.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "SSL") ? "true" : "false")
-							.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false")
-							.withProxy(proxyHost, Integer.valueOf(proxyPort), user, password)
-							.buildMailer();
-				} else {
-					mailer = MailerBuilder
-							.withSMTPServer(host, Integer.valueOf(port), user, password).withDebugLogging(true)
-							.withProperty("tls.rejectUnauthorized", "false")
-							.withProperty("mail.smtp.ssl.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "SSL") ? "true" : "false")
-							.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false")
-							.buildMailer();
+					mailerBuilder.withProxy(proxyHost, Integer.valueOf(proxyPort), user, password);
 				}
+				mailer = mailerBuilder.buildMailer();
 			}
 		} catch (Exception e) {
 			logger.error(TapLog.ERROR_0002.getMsg(), e.getMessage(), e);

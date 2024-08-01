@@ -190,7 +190,7 @@ public class SettingsServiceTest {
             testMailDto = new TestMailDto();
             testMailDto.setSMTP_Server_Host("smtp.test.cn");
             testMailDto.setEmail_Communication_Protocol("SSH");
-            testMailDto.setSMTP_Server_Port("465");
+            testMailDto.setSMTP_Server_Port("");
             testMailDto.setEmail_Send_Address("test@tapdata.io");
             testMailDto.setSMTP_Server_User("test@tapdata.io");
             testMailDto.setSMTP_Server_password("test_passwd");
@@ -210,7 +210,7 @@ public class SettingsServiceTest {
             doCallRealMethod().when(settingsService).getMailAccount(testMailDto);
             MailAccountDto actual = settingsService.getMailAccount(testMailDto);
             assertNull(actual.getProxyHost());
-            assertNull(actual.getProxyPort());
+            assertEquals(1025, actual.getProxyPort());
         }
     }
 }

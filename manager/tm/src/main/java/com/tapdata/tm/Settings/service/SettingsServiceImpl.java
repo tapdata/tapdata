@@ -108,7 +108,7 @@ public class SettingsServiceImpl implements SettingsService {
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
         String proxyHost = (String) collect.get("smtp.proxy.host");
-        String proxyPort = (String) collect.get("smtp.proxy.port");
+        String proxyPort = (String) collect.getOrDefault("smtp.proxy.port", "1025");
 
         AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
@@ -133,12 +133,8 @@ public class SettingsServiceImpl implements SettingsService {
             }
         }
 
-        if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
-            return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                    .receivers(receiverList.get()).protocol(protocol).proxyHost(proxyHost).proxyPort(Integer.valueOf(proxyPort)).build();
-        }
         return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
-                .receivers(receiverList.get()).protocol(protocol).build();
+                .receivers(receiverList.get()).protocol(protocol).proxyHost(proxyHost).proxyPort(Integer.valueOf(proxyPort)).build();
     }
 
     public Settings getByCategoryAndKey(CategoryEnum category, KeyEnum key) {
@@ -324,18 +320,12 @@ public class SettingsServiceImpl implements SettingsService {
     }
 
     protected MailAccountDto getMailAccount(TestMailDto testMailDto) {
-
+        String port = StringUtils.isNotBlank(testMailDto.getSMTP_Server_Port()) ? testMailDto.getSMTP_Server_Port() : "465";
+        String proxyPort = StringUtils.isNotBlank(testMailDto.getSMTP_Proxy_Port()) ? testMailDto.getSMTP_Proxy_Port() : "1025";
         String[] split = testMailDto.getEmail_Receivers().split(",");
-        String proxyHost = testMailDto.getSMTP_Proxy_Host();
-        String proxyPort = testMailDto.getSMTP_Proxy_Port();
-        if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
-            return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
-                    .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
-                    .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol())
-                    .proxyHost(testMailDto.getSMTP_Proxy_Host()).proxyPort(Integer.valueOf(testMailDto.getSMTP_Proxy_Port())).build();
-        }
-        return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(testMailDto.getSMTP_Server_Port()))
+        return MailAccountDto.builder().host(testMailDto.getSMTP_Server_Host()).port(Integer.valueOf(port))
                 .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
-                .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol()).build();
+                .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol())
+                .proxyHost(testMailDto.getSMTP_Proxy_Host()).proxyPort(Integer.valueOf(proxyPort)).build();
     }
 }
