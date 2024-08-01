@@ -54,6 +54,7 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -350,6 +351,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											pdkMethodInvoker.runnable(() -> {
 														BiConsumer<List<TapEvent>, Object> consumer = (events, offsetObject) -> {
 															if (events != null && !events.isEmpty()) {
+																HandlerUtil.sampleMemoryToTapEvent(events);
 																if (firstBatch.compareAndSet(true, false)) {
 																	TapdataAdjustMemoryEvent tapdataAdjustMemoryEvent = resizeEventQueueIfNeed(events);
 																	if (null != tapdataAdjustMemoryEvent) {
@@ -779,6 +781,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 				}
 				if (events != null && !events.isEmpty()) {
+					HandlerUtil.sampleMemoryToTapEvent(events);
 					events = events.stream().map(event -> {
 						if (null == event.getTime()) {
 							throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
