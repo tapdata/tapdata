@@ -56,6 +56,9 @@ public class PkdSourceService {
 		Map<String, CommonsMultipartFile> docMap = new HashMap<>();
 		CommonsMultipartFile jarFile = null;
 		for (CommonsMultipartFile multipartFile : files) {
+			if (log.isDebugEnabled()) {
+				log.debug("multipartFile name: {}, file size: {}", multipartFile.getOriginalFilename(), multipartFile.getSize());
+			}
 			if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().endsWith(".jar")) {
 				jarFile = multipartFile;
 			} else if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().endsWith(".md")) {
@@ -111,6 +114,10 @@ public class PkdSourceService {
 
 			// remove snapshot overwritten file(jar/icons)
 			if (oldDefinitionDto != null) {
+				if (log.isDebugEnabled()) {
+					log.debug("Delete original source {}, file id: {}, icon id: {}",
+							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
+				}
 				fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
 				if (oldDefinitionDto.getIcon() != null) {
 					fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
@@ -130,10 +137,19 @@ public class PkdSourceService {
 				fileInfo.put("md5", md5);
 
 				// 1. upload jar file, only update once
+				if (log.isDebugEnabled()) {
+					log.debug("Upload file to GridFS {}, file size: {}",
+							jarFile.getOriginalFilename(), jarFile.getSize());
+				}
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
+
 				// 2. upload the associated icon
 				CommonsMultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
 				if (icon != null) {
+					if (log.isDebugEnabled()) {
+						log.debug("Upload file to GridFS {}, file size: {}",
+								icon.getOriginalFilename(), icon.getSize());
+					}
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
 				// 3. upload readeMe doc
@@ -153,6 +169,10 @@ public class PkdSourceService {
                             if (docMap.containsKey(path)) {
                                 CommonsMultipartFile doc = docMap.getOrDefault(path, null);
                                 try {
+									if (log.isDebugEnabled()) {
+										log.debug("Upload file to GridFS {}, file size: {}",
+												doc.getOriginalFilename(), doc.getSize());
+									}
                                     ObjectId docId = fileService.storeFile(
                                             OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
                                             doc.getOriginalFilename(),
@@ -176,6 +196,7 @@ public class PkdSourceService {
 					}
 				}
 
+				log.debug("Upload file to GridFS success");
 			} catch (IOException e) {
 				throw new BizException("SystemError");
 			}
@@ -204,6 +225,7 @@ public class PkdSourceService {
 			} else {
 				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
 			}
+			log.debug("Upsert data source definition success");
 
 			//根据数据源类型删除可能存在的旧的pdk
 			FunctionUtils.ignoreAnyError(() -> {
@@ -220,6 +242,7 @@ public class PkdSourceService {
 			});
 
 		}
+		log.debug("Upload pdk done.");
 	}
 	public String checkJarMD5(String pdkHash, int pdkBuildNumber){
 		String md5 = null;
