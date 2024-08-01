@@ -35,6 +35,7 @@ public class OEMReplaceUtil {
      * */
     public static String getOEMConfigPath(String fileName){
         String oemType = oemType();
+        TapLogger.info(OEMReplaceUtil.class.getSimpleName(), "Get oem type from evn: {}", String.valueOf(oemType));
         if (null == fileName || "".equals(fileName.trim()) || null == oemType) return null;
         return Optional.ofNullable(System.getenv("oem_file_path")).orElse(path) + oemType + (fileName.startsWith("/") ? "" : "/") + fileName;
     }
