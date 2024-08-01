@@ -321,7 +321,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		// do nothing
 	}
 
-	private boolean controlOrIgnoreEvent(TapdataEvent tapdataEvent) {
+	protected boolean controlOrIgnoreEvent(TapdataEvent tapdataEvent) {
 		return null == tapdataEvent.getTapEvent() || ignore;
 	}
 
