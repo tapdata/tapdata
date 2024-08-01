@@ -275,6 +275,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				this.createIndexEvent = null;
 			}
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
+				if (controlOrIgnoreEvent(batchEventWrapper.getTapdataEvent())) {
+					continue;
+				}
 				if (Boolean.TRUE.equals(needCache(batchEventWrapper.getTapdataEvent()))) {
 					batchCache.add(batchEventWrapper);
 				}
@@ -287,8 +290,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			handleBatchUpdateJoinKey(tapdataEvents);
 			doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
-				String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
-				batchProcessResults.add(new BatchProcessResult(batchEventWrapper, ProcessResult.create().tableId(preTableName)));
+				if (controlOrIgnoreEvent(batchEventWrapper.getTapdataEvent())) {
+					batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
+				} else {
+					String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
+					batchProcessResults.add(new BatchProcessResult(batchEventWrapper, ProcessResult.create().tableId(preTableName)));
+				}
 			}
 			acceptIfNeed(consumer, batchProcessResults, lookupCfs);
 		} finally {
@@ -996,6 +1003,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	}
 
 	protected boolean needLookup(TapdataEvent tapdataEvent) {
+		if (controlOrIgnoreEvent(tapdataEvent)) {
+			return false;
+		}
 		if (isInitialSyncTask() && !isSubTableFirstMode()) return false;
 		SyncStage syncStage = tapdataEvent.getSyncStage();
 		if (isInvalidOperation(tapdataEvent)) return false;
@@ -1813,6 +1823,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		for (BatchEventWrapper batchEventWrapper : batchEventWrappers) {
 			TapdataEvent tapdataEvent = batchEventWrapper.getTapdataEvent();
 			if (null == tapdataEvent) {
+				continue;
+			}
+			if (controlOrIgnoreEvent(tapdataEvent)) {
 				continue;
 			}
 			String preNodeId = getPreNodeId(tapdataEvent);
