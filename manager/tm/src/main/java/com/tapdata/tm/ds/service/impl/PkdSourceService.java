@@ -134,38 +134,9 @@ public class PkdSourceService {
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
 				// 3. upload readeMe doc
-				Map<String, ObjectId> deduplicatioMap = new HashMap<>() ;
-				if (!docMap.isEmpty() && (Objects.nonNull(pdkSourceDto.getMessages()))) {
-					pdkSourceDto.getMessages().forEach((k, v) -> {
-						if (!(v instanceof Map)) return;
-
-						((Map<String, Object>) v).entrySet().forEach(langEntry -> {
-							if (!("doc".equals(langEntry.getKey()) || langEntry.getKey().startsWith("doc:"))) return;
-							if (null == langEntry.getValue()) return;
-							String path = langEntry.getValue().toString();
-							if (deduplicatioMap.containsKey(path)) {
-								langEntry.setValue(deduplicatioMap.get(path));
-								return;
-							}
-							CommonsMultipartFile doc = docMap.getOrDefault(path, null);
-							if (null == langEntry.getValue()) return;
-
-							try {
-								ObjectId docId = fileService.storeFile(
-									OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
-									doc.getOriginalFilename(),
-									null,
-									fileInfo);
-								langEntry.setValue(docId);
-								deduplicatioMap.put(langEntry.getKey(), docId);
-							} catch (IOException e) {
-								throw new BizException(e);
-							}
-						});
-					});
-				}
+                uploadDocs(docMap, pdkSourceDto.getMessages(), fileInfo, oemConfig);
 			} catch (IOException e) {
-				throw new BizException("SystemError");
+				throw new BizException("SystemError", e);
 			}
 
 			definitionDto.setJarRid(jarObjectId.toHexString());
@@ -307,6 +278,37 @@ public class PkdSourceService {
 		fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
 	}
 
+    protected void uploadDocs(Map<String, CommonsMultipartFile> docMap, LinkedHashMap<String, Object> messages, Map<String, Object> fileInfo, Map<String, Object> oemConfig) throws IOException {
+        if (docMap == null || docMap.isEmpty() || null == messages) return;
+
+        Map<String, ObjectId> deduplicatioMap = new HashMap<>();
+        for (Object v : messages.values()) {
+            if (!(v instanceof Map)) continue;
+
+            for (Map.Entry<String, Object> langEntry : ((Map<String, Object>) v).entrySet()) {
+                if (null == langEntry.getValue()
+                    || !("doc".equals(langEntry.getKey()) || langEntry.getKey().startsWith("doc:"))) {
+                    continue;
+                }
+
+                String path = langEntry.getValue().toString();
+                if (deduplicatioMap.containsKey(path)) {
+                    langEntry.setValue(deduplicatioMap.get(path));
+                    continue;
+                }
+                CommonsMultipartFile doc = docMap.getOrDefault(path, null);
+
+                ObjectId docId = fileService.storeFile(
+                    OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
+                    doc.getOriginalFilename(),
+                    null,
+                    fileInfo);
+                langEntry.setValue(docId);
+                deduplicatioMap.put(path, docId);
+            }
+        }
+    }
+
     public void downloadDoc(String pdkHash, Integer pdkBuildNumber, String filename, UserDetail user, HttpServletResponse response) throws IOException {
         Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
         if (null != pdkBuildNumber) {
@@ -319,7 +321,7 @@ public class PkdSourceService {
 
         DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
         if (one == null) {
-            log.error("pdkHash is error pdkHash:{}", pdkHash);
+            log.warn("Not found any datasource: {}", query.getQueryObject().toJson());
             response.sendError(404);
             return;
         }
@@ -328,16 +330,12 @@ public class PkdSourceService {
             throw new BizException("PDK.DOWNLOAD.SOURCE.FAILED");
         }
 
-        String resourceId = "";
         String language = MessageUtil.getLanguage();
-        LinkedHashMap<String, Object> messages = one.getMessages();
-        if (messages != null) {
-            Object lan = messages.get(language);
-            if (Objects.nonNull(lan) && Objects.nonNull(((Map<?, ?>) lan).get(filename))) {
-                Object docId = ((Map<?, ?>) lan).get(filename);
-                resourceId = docId.toString();
-            }
-        }
+        String resourceId = Optional.ofNullable(one.getMessages())
+            .map(messages -> messages.get(language))
+            .map(langMap-> ((Map<?,?>)langMap).get(filename))
+            .map(Object::toString)
+            .orElse("");
 
         if (StringUtils.isBlank(resourceId)) {
             response.sendError(404);
