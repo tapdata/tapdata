@@ -26,6 +26,9 @@ public class RandomSampleEventHandler {
         long sizeOfSampleListByte = 0L;
         for (Object item : samples) {
             TapEvent tapEvent = handle.handel(item);
+            if (null == tapEvent) {
+                continue;
+            }
             if (null != tapEvent.getMemorySize()) {
                 sizeOfSampleListByte += tapEvent.getMemorySize();
             } else {
