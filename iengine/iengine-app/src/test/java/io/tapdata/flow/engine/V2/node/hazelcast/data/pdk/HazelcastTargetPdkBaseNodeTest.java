@@ -1292,6 +1292,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(0, tapEventProcessQueue.size());
 		}
 		@Test
+		@DisplayName("test processTargetEvents method for ddl event")
 		void test3() {
 			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
 			TapdataEvent tapdataEvent = new TapdataEvent();
