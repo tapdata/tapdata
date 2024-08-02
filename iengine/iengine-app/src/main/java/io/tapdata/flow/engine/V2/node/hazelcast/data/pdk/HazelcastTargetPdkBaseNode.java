@@ -571,43 +571,52 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void processQueueConsume() {
-		drainAndRun(tapEventProcessQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, tapdataEvents -> {
-			dispatchTapdataEvents(
-					tapdataEvents,
-					consumeEvents -> {
-						if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
-							handleTapdataEvents(consumeEvents);
-							return;
-						}
-						if (!inCdc) {
-							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
-							final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
-							while (iterator.hasNext()) {
-								final TapdataEvent tapdataEvent = iterator.next();
-								if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
-									inCdc = true;
-									partialCdcEvents.add(tapdataEvent);
-									iterator.remove();
-								}
+		try {
+			drainAndRun(tapEventProcessQueue, targetBatch, targetBatchIntervalMs, TimeUnit.MILLISECONDS, tapdataEvents -> {
+				dispatchTapdataEvents(
+						tapdataEvents,
+						consumeEvents -> {
+							if (consumeEvents.size() == 1 && consumeEvents.get(0) instanceof TapdataAdjustMemoryEvent) {
+								handleTapdataEvents(consumeEvents);
+								return;
 							}
+							if (!inCdc) {
+								List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+								final Iterator<TapdataEvent> iterator = consumeEvents.iterator();
+								while (iterator.hasNext()) {
+									final TapdataEvent tapdataEvent = iterator.next();
+									if (tapdataEvent instanceof TapdataStartingCdcEvent || inCdc) {
+										inCdc = true;
+										partialCdcEvents.add(tapdataEvent);
+										iterator.remove();
+									}
+								}
 
-							// initial events and cdc events both in the queue
-							if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
-								initialProcessEvents(consumeEvents, false);
-								// process partial cdc event
-								if (this.initialPartitionConcurrentProcessor != null) {
-									this.initialPartitionConcurrentProcessor.stop();
+								// initial events and cdc events both in the queue
+								if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+									initialProcessEvents(consumeEvents, false);
+									// process partial cdc event
+									if (this.initialPartitionConcurrentProcessor != null) {
+										this.initialPartitionConcurrentProcessor.stop();
+									}
+									cdcProcessEvents(partialCdcEvents);
+								} else {
+									initialProcessEvents(consumeEvents, true);
 								}
-								cdcProcessEvents(partialCdcEvents);
 							} else {
-								initialProcessEvents(consumeEvents, true);
+								cdcProcessEvents(consumeEvents);
 							}
-						} else {
-							cdcProcessEvents(consumeEvents);
 						}
-					}
-			);
-		});
+				);
+			});
+		} catch (Exception e) {
+			executeAspect(WriteErrorAspect.class, () -> new WriteErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
+			Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
+			if (null == matchThrowable) {
+				matchThrowable = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
+			}
+			errorHandle(matchThrowable);
+		}
 	}
 
 	protected void drainAndRun(BlockingQueue<TapdataEvent> queue, int elementsNum, long timeout, TimeUnit timeUnit, TapdataEventsRunner tapdataEventsRunner) {
