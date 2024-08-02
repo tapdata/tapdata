@@ -3,6 +3,7 @@ package com.tapdata.tm.ds.service.impl;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
 import com.mongodb.client.gridfs.model.GridFSFile;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -98,7 +99,7 @@ public class PkdSourceService {
 
 			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
 			BeanUtils.copyProperties(pdkSourceDto, definitionDto);
-			definitionDto.setId(Objects.nonNull(oldDefinitionDto) ? oldDefinitionDto.getId() : null);
+			//definitionDto.setId(Objects.nonNull(oldDefinitionDto) ? oldDefinitionDto.getId() : null);
 			definitionDto.setConnectionType(pdkSourceDto.getType());
 			definitionDto.setType(pdkSourceDto.getName());
 			definitionDto.setPdkType("pdk");
@@ -116,11 +117,11 @@ public class PkdSourceService {
 					log.debug("Delete original source {}, file id: {}, icon id: {}",
 							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
 				}
-				fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
-				if (oldDefinitionDto.getIcon() != null) {
-					fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
-				}
-				fileService.deleteFileByPdkHash(pdkHash, pdkAPIBuildNumber);
+				// change to async delete
+				UpdateResult result = dataSourceDefinitionService.update(
+						Query.query(Criteria.where("id").is(oldDefinitionDto.getId())),
+						Update.update("is_deleted", true));
+				log.debug("Delete original source {}, result: {}", oldDefinitionDto.getId(), result.getModifiedCount());
 			}
 
 			// upload the associated files(jar/icons)
@@ -175,12 +176,8 @@ public class PkdSourceService {
 				Update removeLatest = Update.update("latest", false);
 				dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
 			}
-			if (Objects.isNull(oldDefinitionDto)) {
-				dataSourceDefinitionService.save(definitionDto, user);
-			} else {
-				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
-			}
-			log.debug("Upsert data source definition success");
+			DataSourceDefinitionDto finalDefinitionDto = dataSourceDefinitionService.save(definitionDto, user);
+			log.debug("Save data source definition success {}", finalDefinitionDto.getId().toHexString());
 
 			//根据数据源类型删除可能存在的旧的pdk
 			FunctionUtils.ignoreAnyError(() -> {
