@@ -89,4 +89,22 @@ public class PdkController extends BaseController {
     public ResponseMessage<String> checkFileMd5(@RequestParam("pdkHash") String pdkHash, @RequestParam("fileName") String fileName) {
         return success(pkdSourceService.checkJarMD5(pdkHash, fileName));
     }
+
+    @GetMapping(value = "/statics/{pdkHash}", produces = MediaType.TEXT_MARKDOWN_VALUE)
+    public void statics(HttpServletResponse response
+        , @PathVariable("pdkHash") String pdkHash
+        , @RequestParam(value = "pdkBuildNumber", required = false) Integer pdkBuildNumber
+        , @RequestParam("filename") String filename) throws IOException {
+        String[] split = filename.split(":");
+        if (split.length == 2) {
+            switch (split[0]) {
+                case "doc":
+                    pkdSourceService.downloadDoc(pdkHash, pdkBuildNumber, filename, getLoginUser(), response);
+                    return;
+                default:
+                    break;
+            }
+        }
+        response.sendError(HttpServletResponse.SC_NOT_FOUND, "Not found: " + filename);
+    }
 }

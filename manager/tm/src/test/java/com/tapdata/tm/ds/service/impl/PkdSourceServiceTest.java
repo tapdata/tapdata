@@ -1,9 +1,12 @@
 package com.tapdata.tm.ds.service.impl;
 
 import com.mongodb.client.gridfs.model.GridFSFile;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.utils.MessageUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.io.FileUtils;
@@ -18,12 +21,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class PkdSourceServiceTest {
@@ -93,6 +96,188 @@ public class PkdSourceServiceTest {
             when(fileService.findOne(query)).thenReturn(gridFSFile);
             String actual = pkdSourceService.checkJarMD5("111", "a.jar");
             assertEquals("123456",actual);
+        }
+    }
+
+    @Nested
+    class UploadDocsTest {
+        Map<String, CommonsMultipartFile> docMap;
+        LinkedHashMap<String, Object> messages;
+        Map<String, Object> fileInfo;
+        Map<String, Object> oemConfig;
+
+        @BeforeEach
+        void setUp() {
+            docMap = new LinkedHashMap<>();
+            messages = new LinkedHashMap<>();
+            fileInfo = new LinkedHashMap<>();
+            oemConfig = new LinkedHashMap<>();
+        }
+
+        @Test
+        void testNullParams() {
+            String filePath = "docs/test_en_US.md";
+
+            // mock data
+            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            docMap.put(filePath, file);
+            messages.put("zh_CN", null);
+            messages.put("en_US", new HashMap<String, String>() {{
+                put("null", null); // test path is null
+                put("not_start_doc", filePath); // test key not doc
+            }});
+
+            // docMap is null
+            assertDoesNotThrow(() -> pkdSourceService.uploadDocs(null, messages, fileInfo, oemConfig));
+            // docMap is empty
+            assertDoesNotThrow(() -> pkdSourceService.uploadDocs(new LinkedHashMap<>(), messages, fileInfo, oemConfig));
+            // messages is null
+            assertDoesNotThrow(() -> pkdSourceService.uploadDocs(docMap, null, fileInfo, oemConfig));
+            // messages lang is null
+            assertDoesNotThrow(() -> pkdSourceService.uploadDocs(docMap, messages, fileInfo, oemConfig));
+
+            // Verification results
+            verify(fileService, times(0)).storeFile(any(), anyString(), any(), anyMap());
+        }
+
+        @Test
+        void testReadmeDoc() {
+            String filePath = "docs/test_en_US.md";
+
+            // mock data
+            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            when(file.getOriginalFilename()).thenReturn(filePath);
+            docMap.put(filePath, file);
+            messages.put("default", "en_US");
+            messages.put("en_US", new HashMap<String, String>() {{
+                put("doc", filePath);
+            }});
+
+            assertDoesNotThrow(() -> pkdSourceService.uploadDocs(docMap, messages, fileInfo, oemConfig));
+
+            // Verification results
+            verify(fileService, times(1)).storeFile(any(), anyString(), any(), anyMap());
+        }
+
+        @Test
+        void testDocTips() {
+            String filePath = "docs/test_en_US.md";
+
+            // mock data
+            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            when(file.getOriginalFilename()).thenReturn(filePath);
+            docMap.put(filePath, file);
+            messages = new LinkedHashMap<String, Object>(){{
+                put("default", "en_US");
+                put("en_US", new HashMap<String, String>() {{
+                    put("doc:test", filePath);
+                }});
+                put("zh_CN", new HashMap<String, String>() {{
+                    put("doc:test", filePath);
+                }});
+            }};
+
+            assertDoesNotThrow(() -> pkdSourceService.uploadDocs(docMap, messages, fileInfo, oemConfig));
+
+            // Verification results
+            verify(fileService, times(1)).storeFile(any(), anyString(), any(), anyMap());
+        }
+    }
+
+    @Nested
+    class DownloadDocTest {
+
+        String customerId = "test-customer-id";
+        String pdkHash;
+        Integer pdkBuildNumber;
+        String filename;
+        UserDetail user;
+        HttpServletResponse response;
+
+        @BeforeEach
+        void setUp() {
+            pdkHash = "123456";
+            pdkBuildNumber = 1;
+            filename = "test_en_US.md";
+            user = mock(UserDetail.class);
+            when(user.getCustomerId()).thenReturn(customerId);
+            response = mock(HttpServletResponse.class);
+        }
+
+        @Test
+        void testNotfoundDatasource() {
+            pdkBuildNumber = null; // test pdkBuildNumber not add to criteria
+
+            // mock data
+            doAnswer(invocation -> {
+                Query query = invocation.getArgument(0);
+                assertNotNull(query);
+                Document doc = query.getQueryObject();
+                assertNotNull(doc);
+
+                // Verification query prams
+                assertTrue(doc.containsKey("pdkHash"));
+                assertFalse(doc.containsKey("pdkAPIBuildNumber"));
+                return null;
+            }).when(dataSourceDefinitionService).findOne(any(Query.class));
+
+            assertDoesNotThrow(() -> {
+                pkdSourceService.downloadDoc(pdkHash, pdkBuildNumber, filename, user, response);
+
+                // Verification results
+                verify(response, times(1)).sendError(eq(404));
+            });
+        }
+
+        @Test
+        void testNotInScope() {
+            // mock data
+            DataSourceDefinitionDto sourceDefinitionDto = mock(DataSourceDefinitionDto.class);
+            when(sourceDefinitionDto.getScope()).thenReturn("customer");
+            when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(sourceDefinitionDto);
+
+            assertThrows(BizException.class, () -> pkdSourceService.downloadDoc(pdkHash, pdkBuildNumber, filename, user, response));
+        }
+
+        @Test
+        void testIsCustomScope() {
+            // mock data
+            DataSourceDefinitionDto sourceDefinitionDto = mock(DataSourceDefinitionDto.class);
+            when(sourceDefinitionDto.getScope()).thenReturn("customer");
+            when(sourceDefinitionDto.getCustomId()).thenReturn(customerId);
+            when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(sourceDefinitionDto);
+
+            assertDoesNotThrow(() -> {
+                pkdSourceService.downloadDoc(pdkHash, pdkBuildNumber, filename, user, response);
+
+                // Verification results
+                verify(response, times(1)).sendError(eq(404));
+            });
+        }
+
+        @Test
+        void testSuccess() {
+            ObjectId resourceId = ObjectId.get();
+
+            // mock data
+            LinkedHashMap<String, Object> messages = new LinkedHashMap<String, Object>(){{
+                put(MessageUtil.getLanguage(), new HashMap<String, String>() {{
+                    put(filename, resourceId.toHexString());
+                }});
+            }};
+            DataSourceDefinitionDto sourceDefinitionDto = mock(DataSourceDefinitionDto.class);
+            when(sourceDefinitionDto.getScope()).thenReturn("global");
+            when(sourceDefinitionDto.getMessages()).thenReturn(messages);
+
+            when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(sourceDefinitionDto);
+
+            assertDoesNotThrow(() -> {
+                pkdSourceService.downloadDoc(pdkHash, pdkBuildNumber, filename, user, response);
+
+                // Verification results
+                verify(fileService, times(1)).viewImg(eq(resourceId), any());
+                verify(response, times(0)).sendError(anyInt());
+            });
         }
     }
 }
