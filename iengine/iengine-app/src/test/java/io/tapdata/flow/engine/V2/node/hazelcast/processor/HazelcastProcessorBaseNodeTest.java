@@ -4,6 +4,7 @@ import base.BaseTest;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.exception.CloneException;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
@@ -14,6 +15,8 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.error.TapEventException;
+import io.tapdata.exception.TapCodeException;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -201,6 +204,20 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 				Assertions.assertEquals(1,batchProcessResults.size());
 			};
 			hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer);
+		}
+
+		@Test
+		void test_cloneError() throws CloneNotSupportedException {
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents = new ArrayList<>();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(new TapInsertRecordEvent());
+			ProcessorNodeProcessAspect processAspect = new ProcessorNodeProcessAspect();
+			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = spy(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent,processAspect));
+			when(batchEventWrapper.clone()).thenThrow(new RuntimeException("clone error"));
+			tapdataEvents.add(batchEventWrapper);
+			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = (batchProcessResults) -> {
+			};
+			Assertions.assertThrows(TapCodeException.class,()->hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer));
 		}
 
 
