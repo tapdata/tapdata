@@ -374,8 +374,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 					}
 				}
-				batchEventWrapper.setTapdataEvent(event);
-				BatchProcessResult batchProcessResult = new BatchProcessResult(batchEventWrapper, processResult);
+				BatchEventWrapper finalBatchEventWrapper = new BatchEventWrapper(event,batchEventWrapper.getProcessAspect());
+				BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
 				batchProcessResults.add(batchProcessResult);
 			});
 		}
