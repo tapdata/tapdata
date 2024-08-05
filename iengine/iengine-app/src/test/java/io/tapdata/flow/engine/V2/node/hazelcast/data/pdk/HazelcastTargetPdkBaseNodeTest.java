@@ -1291,6 +1291,19 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents);
 			assertEquals(0, tapEventProcessQueue.size());
 		}
+		@Test
+		@DisplayName("test processTargetEvents method for ddl event")
+		void test3() {
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapCreateTableEvent);
+			List<TapdataEvent> tapdataEvents = new ArrayList<>();
+			tapdataEvents.add(tapdataEvent);
+			BlockingQueue<TapdataEvent> tapEventProcessQueue = new LinkedBlockingQueue<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "tapEventProcessQueue", tapEventProcessQueue);
+			hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents);
+			verify(hazelcastTargetPdkBaseNode, never()).fromTapValueMergeInfo(any(TapdataEvent.class));
+		}
 	}
 
 	@Nested
