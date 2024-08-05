@@ -2,23 +2,27 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.BaseTest;
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -174,5 +178,31 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 
 			assertNull(ReflectionTestUtils.getField(hazelcastProcessorBaseNode, "simpleConcurrentProcessor"));
 		}
+	}
+
+	@Nested
+	@DisplayName("Method tryProcess test")
+	class tryProcessTest {
+		HazelcastProcessorBaseNode hazelcastProcessorBaseNode = new HazelcastProcessorBaseNode(processorBaseContext) {
+			@Override
+			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+				consumer.accept(tapdataEvent, ProcessResult.create());
+			}
+		};
+		@Test
+		void test_main(){
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents = new ArrayList<>();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(new TapInsertRecordEvent());
+			ProcessorNodeProcessAspect processAspect = new ProcessorNodeProcessAspect();
+			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent,processAspect);
+			tapdataEvents.add(batchEventWrapper);
+			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = (batchProcessResults) -> {
+				Assertions.assertEquals(1,batchProcessResults.size());
+			};
+			hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer);
+		}
+
+
 	}
 }
