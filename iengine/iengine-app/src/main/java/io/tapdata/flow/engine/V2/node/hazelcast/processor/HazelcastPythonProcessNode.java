@@ -292,4 +292,9 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
             TapEventUtil.setAfter(tapEvent, recordMap);
         }
     }
+
+    @Override
+    protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+        tapdataEvent.setTransformToTapValueResult(null);
+    }
 }

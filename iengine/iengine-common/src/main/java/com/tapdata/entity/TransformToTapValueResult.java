@@ -36,4 +36,9 @@ public class TransformToTapValueResult implements Serializable {
 	public Set<String> getAfterTransformedToTapValueFieldNames() {
 		return afterTransformedToTapValueFieldNames;
 	}
+
+	public boolean isEmpty() {
+		return (null == beforeTransformedToTapValueFieldNames || beforeTransformedToTapValueFieldNames.isEmpty())
+				&& (null == afterTransformedToTapValueFieldNames || afterTransformedToTapValueFieldNames.isEmpty());
+	}
 }
