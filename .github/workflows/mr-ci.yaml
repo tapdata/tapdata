@@ -324,7 +324,7 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
-    if: ${{ failure() }}
+    if: ${{ !failure() }}
     runs-on: ubuntu-latest
     needs:
       - MRCI
