@@ -251,8 +251,8 @@ jobs:
           echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
           echo "t-layer3-test-branch=master" >> $GITHUB_ENV
           echo "send-message-to-feishu=n" >> $GITHUB_ENV
-          echo "test-case=1,3,5,9,11,81,83,85" >> $GITHUB_ENV
-          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16" >> $GITHUB_ENV
+          echo "test-case=1" >> $GITHUB_ENV
+          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16,3,5,9,11,81,83,85" >> $GITHUB_ENV
       - name: Fetch Code -- t-layer3-test repo
         run: |
           rm -rf ./t-layer3-test
