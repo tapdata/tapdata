@@ -23,7 +23,7 @@ public class RegisterMain {
 
 	private enum ConnectorEnums {
 		// Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
-		Dummy(BASE_PATH + "connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar", "all", "dummy", "basic"),
+		/*Dummy(BASE_PATH + "connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar", "all", "dummy", "basic"),
 		Mysql(BASE_PATH + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar", "all", "mysql", "basic", "jdbc"),
 		Postgres(BASE_PATH + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar", "all", "postgres", "basic", "jdbc"),
 		Dws(BASE_PATH + "connectors/dist/dws-connector-v1.0-SNAPSHOT.jar", "all", "dws", "basic", "jdbc"),
@@ -44,9 +44,9 @@ public class RegisterMain {
 		ZOHODesk(BASE_PATH + "connectors/dist/zoho-desk-connector-v1.0-SNAPSHOT.jar", "all", "zoho-desk"),
 		Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", "all", "tidb"),
 		Tablestore(BASE_PATH + "connectors/dist/tablestore-connector-v1.0-SNAPSHOT.jar", "all", "tablestore"),
-		Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", "all", "custom"),
-		Csv(BASE_PATH + "connectors/dist/csv-connector-v1.0-SNAPSHOT.jar", "all", "file"),
-		Json(BASE_PATH + "connectors/dist/json-connector-v1.0-SNAPSHOT.jar", "all", "file"),
+		Custom(BASE_PATH + "connectors/dist/custom-connector-v1.0-SNAPSHOT.jar", "all", "custom"),*/
+		Csv("/Users/lg/Downloads/csv-connector-v1.0-SNAPSHOT.jar", "all", "file"),
+		/*Json(BASE_PATH + "connectors/dist/json-connector-v1.0-SNAPSHOT.jar", "all", "file"),
 		Xml(BASE_PATH + "connectors/dist/xml-connector-v1.0-SNAPSHOT.jar", "all", "file"),
 		Excel(BASE_PATH + "connectors/dist/excel-connector-v1.0-SNAPSHOT.jar", "all", "file"),
 		BigQuery(BASE_PATH + "connectors/dist/bigquery-connector-v1.0-SNAPSHOT.jar", "all", "bigquery"),
@@ -89,7 +89,7 @@ public class RegisterMain {
 		Ali1688(BASE_PATH + "connectors/dist/ali1688-connector-v1.0-SNAPSHOT.jar", "all", "ali1688"),
         Temu(BASE_PATH + "connectors/dist/temu-connector-v1.0-SNAPSHOT.jar", "all", "temu"),
 
-		GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
+		GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),*/
 
 		;
 
@@ -130,9 +130,9 @@ public class RegisterMain {
 
 		List<String> postList = new ArrayList<>();
 		//String server = System.getProperty("server", "https://v3.test.cloud.tapdata.net/tm");
-		String server = System.getProperty("server", "http://localhost:3000");
+		String server = System.getProperty("server", "https://cloud.tapdata.net/console/v3/tm");
 		//String server = System.getProperty("server", "http://192.168.1.189:30205");
-		Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
+		Collections.addAll(postList, "register", "-a", "da949282212f4fd7b11796cf2599f9a822a7826ee3e04ca9ac7e75e897fa0b9c", "-ak", "tCnHIpwY1KdPHFhFgiIMtkdXzU95dCdY", "-sk", "nfM7BI8y30n42IkNrZWrO4IU4tHBxRAi", "-t", server);
 		String[] tags = System.getProperty("tags", "all").split(",");
 		ConnectorEnums.addByTags(postList, tags);
 		Main.registerCommands().execute(postList.toArray(new String[0]));

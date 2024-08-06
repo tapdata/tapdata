@@ -1,8 +1,16 @@
 package com.tapdata.tm.schedule;
 
+import com.mongodb.ServerAddress;
+import com.mongodb.ServerCursor;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.file.service.FileService;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,10 +18,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,15 +39,24 @@ import static org.mockito.Mockito.*;
 public class DatabaseTypeScheduleTest {
 
     @Mock
-    private DataSourceDefinitionService dataSourceDefinitionService;
+    private DataSourceDefinitionRepository dataSourceDefinitionRepository;
     @Mock
     private FileService fileService;
+    @Mock
+    private MongoCollection<Document> collection;
+    @Mock
+    private MongoTemplate mongoOperations;
+    @Mock
+    private FindIterable<DataSourceDefinitionDto> findIterable;
 
     @Test
     public void testCleanUpForDatabaseTypes() {
 
-        assertNotNull(dataSourceDefinitionService);
         assertNotNull(fileService);
+        assertNotNull(dataSourceDefinitionRepository);
+        assertNotNull(collection);
+        assertNotNull(mongoOperations);
+        assertNotNull(findIterable);
 
         List<ObjectId> originalIds = Arrays.asList(
                 new ObjectId("66ace100fb85b005263f2c13"),
@@ -48,11 +68,8 @@ public class DatabaseTypeScheduleTest {
 
         DatabaseTypeSchedule databaseTypeSchedule = new DatabaseTypeSchedule();
         databaseTypeSchedule.setFileService(fileService);
-        databaseTypeSchedule.setDataSourceDefinitionService(dataSourceDefinitionService);
+        databaseTypeSchedule.setDataSourceDefinitionRepository(dataSourceDefinitionRepository);
 
-        Query query = Query.query(Criteria.where("is_deleted").is(true));
-        query.fields().include("id", "is_deleted",
-                "jarRid", "icon", "messages.zh_CN.doc", "messages.zh_TW.doc", "messages.en_US.doc");
         List<DataSourceDefinitionDto> result = new ArrayList<>();
         DataSourceDefinitionDto dto = new DataSourceDefinitionDto();
         dto.setId(new ObjectId());
@@ -78,11 +95,16 @@ public class DatabaseTypeScheduleTest {
 
         result.add(dto);
 
-        Mockito.when(dataSourceDefinitionService.findAll(query)).thenReturn(null);
+        when(dataSourceDefinitionRepository.getMongoOperations()).thenReturn(mongoOperations);
+        when(mongoOperations.getCollection(PkdSourceService.DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME))
+                .thenReturn(collection);
+        when(collection.find(DataSourceDefinitionDto.class)).thenReturn(findIterable);
+
+        when(findIterable.cursor()).thenReturn(new MockMongoCursor<>(Collections.emptyList()));
         assertDoesNotThrow(databaseTypeSchedule::cleanUpForDatabaseTypes);
         verify(fileService, never()).deleteFileById(any());
 
-        Mockito.when(dataSourceDefinitionService.findAll(query)).thenReturn(result);
+        when(findIterable.cursor()).thenReturn(new MockMongoCursor<>(result));
         doNothing().when(fileService).deleteFileById(any());
 
         assertDoesNotThrow(databaseTypeSchedule::cleanUpForDatabaseTypes);
@@ -96,6 +118,50 @@ public class DatabaseTypeScheduleTest {
         assertEquals(originalIds.size(), ids.size());
         assertTrue(ids.containsAll(originalIds));
         assertTrue(originalIds.containsAll(ids));
+
+    }
+
+    private static class MockMongoCursor<T> implements MongoCursor<T> {
+        private final List<T> result;
+
+        public MockMongoCursor(List<T> result) {
+            this.result = result;
+        }
+
+        private int readIndex = -1;
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public boolean hasNext() {
+            return result.size() > readIndex + 1;
+        }
+
+        @Override
+        public T next() {
+            readIndex++;
+            return result.get(readIndex);
+        }
+
+        @Override
+        public T tryNext() {
+            if (hasNext()) {
+                return next();
+            }
+            return null;
+        }
+
+        @Override
+        public ServerCursor getServerCursor() {
+            return null;
+        }
+
+        @Override
+        public ServerAddress getServerAddress() {
+            return null;
+        }
 
     }
 }

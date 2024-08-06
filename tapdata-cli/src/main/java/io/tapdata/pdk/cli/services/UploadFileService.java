@@ -272,6 +272,9 @@ public class UploadFileService {
       request = new HttpRequest(url, method);
     }
 
+    request.readTimeout(300000); // 5 minutes
+    request.progress((uploaded, total) -> System.out.println("uploaded: " + uploaded + " total: " + total + " time: " + System.currentTimeMillis()));
+
     if (file != null) {
       request.part("file", file.getName(), "application/java-archive", file);
     }
