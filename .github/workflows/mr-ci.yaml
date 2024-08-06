@@ -329,6 +329,7 @@ jobs:
     needs:
       - MRCI
       - Get-Stable-Branch
+      - Functional-Test
     steps:
       - id: 'auth'
         uses: 'google-github-actions/auth@v1'
