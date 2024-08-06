@@ -146,7 +146,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Node {}({}: {}) enable batch process", getNode().getType(), getNode().getName(), getNode().getId()));
 	}
 
-	private void enqueue(List<TapdataEvent> tapdataEvents) {
+	protected void enqueue(List<TapdataEvent> tapdataEvents) {
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			handleTransformToTapValueResult(tapdataEvent);
 			while (isRunning()) {
@@ -157,7 +157,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 	}
 
-	private List<TapdataEvent> batchProcess(List<BatchEventWrapper> batchEventWrappers) {
+	protected List<TapdataEvent> batchProcess(List<BatchEventWrapper> batchEventWrappers) {
 		List<TapdataEvent> result = new ArrayList<>();
 		List<TapdataEvent> tapdataEvents = new ArrayList<>();
 		for (BatchEventWrapper batchEventWrapper : batchEventWrappers) {
@@ -208,7 +208,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				}
 			});
 			reCalcMemorySize(batchEventWrappers);
-			batchEventWrappers.forEach(cbe -> AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent()));
+			Optional.ofNullable(processorNodeProcessAspect).ifPresent(aspect-> batchEventWrappers.forEach(cbe -> AspectUtils.accept(aspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), cbe.getTapdataEvent())));
 		});
 		return result;
 	}
@@ -223,95 +223,106 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	@Override
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		AtomicBoolean result = new AtomicBoolean(true);
+		if (!isRunning()) {
+			return true;
+		}
+		TapdataEvent tapdataEvent = (TapdataEvent) item;
+		List<TapdataEvent> processedEventList = new ArrayList<>();
+		if (getNode().disabledNode()) {
+			processedEventList.add(tapdataEvent);
+			enqueue(processedEventList);
+			return true;
+		}
 		try {
-			if (!isRunning()) {
-				return true;
+			if (supportBatchProcess()) {
+				batchProcess(tapdataEvent);
+			} else {
+				singleProcess(tapdataEvent, processedEventList);
 			}
-			TapdataEvent tapdataEvent = (TapdataEvent) item;
-			List<TapdataEvent> processedEventList = new ArrayList<>();
-			if (getNode().disabledNode()) {
-				processedEventList.add(tapdataEvent);
-				enqueue(processedEventList);
-				return true;
+		} catch (TapCodeException e) {
+			errorHandle(e);
+		} catch (Exception e) {
+			Throwable matchThrowable = CommonUtils.matchThrowable(e, TapCodeException.class);
+			if (null != matchThrowable) {
+				errorHandle(matchThrowable);
+			} else {
+				errorHandle(new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, e).addEvent(tapdataEvent.getTapEvent()));
 			}
-			try {
-				if (supportBatchProcess()) {
-					if (!controlOrIgnoreEvent(tapdataEvent)) {
-						updateMemoryFromDDLInfoMap(tapdataEvent);
-					}
-					while (isRunning()) {
-						try {
-							if (batchProcessor.offer(new BatchEventWrapper(tapdataEvent))) {
-								break;
-							}
-						} catch (InterruptedException e) {
-							break;
-						}
-					}
-				} else {
-					AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
-							.processorBaseContext(getProcessorBaseContext())
-							.inputEvent(tapdataEvent)
-							.start(), processorNodeProcessAspect -> {
-						if (null != tapdataEvent.getSyncStage()) {
-							syncStage = tapdataEvent.getSyncStage();
-						}
-						if (controlOrIgnoreEvent(tapdataEvent)) {
-							// control tapdata event, skip the process consider process is done
-							processedEventList.add(tapdataEvent);
-							if (null != processorNodeProcessAspect) {
-								AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
-							}
-							return;
-						}
-						// Update memory from ddl event info map
-						updateMemoryFromDDLInfoMap(tapdataEvent);
-
-						AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
-						if (tapdataEvent.isDML() && needTransformValue()) {
-							tapValueTransform.set(transformFromTapValue(tapdataEvent));
-						}
-						handleOriginalValueMapIfNeed(tapValueTransform);
-						tryProcess(tapdataEvent, (event, processResult) -> {
-							if (null == event) {
-								return;
-							}
-							if (tapdataEvent.isDML()) {
-								if (processResult == null) {
-									processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
-								}
-								if (needTransformValue()) {
-									if (null != processResult.getTableId()) {
-										transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
-									} else {
-										transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
-									}
-								}
-							}
-
-							// consider process is done
-							processedEventList.add(event);
-							if (null != processorNodeProcessAspect) {
-								AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
-							}
-						});
-					});
-				}
-			} catch (Throwable throwable) {
-				if (throwable instanceof TapCodeException) {
-					throw (TapCodeException) throwable;
-				} else {
-					throw new TapEventException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable).addEvent(tapdataEvent.getTapEvent());
-				}
-			}
-
-			if (CollectionUtils.isNotEmpty(processedEventList)) {
-				enqueue(processedEventList);
-			}
-		} catch (Throwable throwable) {
-			errorHandle(throwable, throwable.getMessage());
 		}
 		return result.get();
+	}
+
+	protected void singleProcess(TapdataEvent tapdataEvent, List<TapdataEvent> processedEventList) {
+		AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
+				.processorBaseContext(getProcessorBaseContext())
+				.inputEvent(tapdataEvent)
+				.start(), processorNodeProcessAspect -> {
+			if (null != tapdataEvent.getSyncStage()) {
+				syncStage = tapdataEvent.getSyncStage();
+			}
+			if (controlOrIgnoreEvent(tapdataEvent)) {
+				// control tapdata event, skip the process consider process is done
+				processedEventList.add(tapdataEvent);
+				if (null != processorNodeProcessAspect) {
+					AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
+				}
+				return;
+			}
+			// Update memory from ddl event info map
+			updateMemoryFromDDLInfoMap(tapdataEvent);
+
+			AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
+			if (tapdataEvent.isDML() && needTransformValue()) {
+				tapValueTransform.set(transformFromTapValue(tapdataEvent));
+			}
+			handleOriginalValueMapIfNeed(tapValueTransform);
+			tryProcess(tapdataEvent, (event, processResult) -> {
+				if (null == event) {
+					return;
+				}
+				if (tapdataEvent.isDML()) {
+					if (processResult == null) {
+						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
+					}
+					if (needTransformValue()) {
+						if (null != processResult.getTableId()) {
+							transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
+						} else {
+							transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
+						}
+					}
+				}
+
+				// consider process is done
+				processedEventList.add(event);
+				if (null != processorNodeProcessAspect) {
+					AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
+				}
+			});
+		});
+		if (CollectionUtils.isNotEmpty(processedEventList)) {
+			enqueue(processedEventList);
+		}
+	}
+
+	protected void batchProcess(TapdataEvent tapdataEvent) {
+		if (!controlOrIgnoreEvent(tapdataEvent)) {
+			updateMemoryFromDDLInfoMap(tapdataEvent);
+		}
+		enqueueBatchProcessor(tapdataEvent);
+	}
+
+	private void enqueueBatchProcessor(TapdataEvent tapdataEvent) {
+		while (isRunning()) {
+			try {
+				if (batchProcessor.offer(new BatchEventWrapper(tapdataEvent))) {
+					break;
+				}
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				break;
+			}
+		}
 	}
 
 	protected void handleOriginalValueMapIfNeed(AtomicReference<TapValueTransform> tapValueTransform) {
