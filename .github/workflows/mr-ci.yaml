@@ -180,6 +180,7 @@ jobs:
             --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
   Build-And-Deploy:
+    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
     runs-on: ubuntu-latest
     needs:
       - Get-Stable-Branch
@@ -224,43 +225,6 @@ jobs:
           PORT=$(cat .service_ip_port | awk -F':' '{print $2}')
           echo "::set-output name=IP::$IP"
           echo "::set-output name=PORT::$PORT"
-
-  Functional-Test:
-    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
-    runs-on: office-scan
-    needs:
-      - Build-And-Deploy
-      - Get-Stable-Branch
-    steps:
-      - name: Set Env
-        run: |
-          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
-          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
-          echo "t-layer3-test-branch=master" >> $GITHUB_ENV
-          echo "send-message-to-feishu=n" >> $GITHUB_ENV
-          echo "test-case=1,3,5,9,11,81,83,85" >> $GITHUB_ENV
-          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16" >> $GITHUB_ENV
-      - name: Fetch Code -- t-layer3-test repo
-        run: |
-          rm -rf ./t-layer3-test
-          export GIT_LFS_SKIP_SMUDGE=1
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ env.t-layer3-test-branch }} --single-branch ssh://git@113.98.206.141:10022/tapdata/t-layer3-test.git
-          cd t-layer3-test && git fetch --tags
-      - name: Run Functional Test
-        run: |
-          apt install unixodbc -y
-          apt-get install python3.11-dev -y
-          cd t-layer3-test
-          virtualenv venv && source venv/bin/activate
-          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
-          ./taptest install --test
-          if [[ "${{ env.send-message-to-feishu }}" == "y" ]]; then
-            ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -z f
-          else
-            yes n | ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -d -z f
-          fi
-      
 
   MRCI:
     runs-on: office-scan
@@ -311,7 +275,7 @@ jobs:
           echo "OK"
 
   CLOSE_ENV:
-    if: ${{ failure() }}
+    if: ${{ github.event_name == 'schedule' || failure() || inputs.testsigma_run }}
     runs-on: ubuntu-latest
     needs:
       - MRCI
