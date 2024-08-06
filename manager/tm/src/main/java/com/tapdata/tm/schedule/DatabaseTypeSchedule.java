@@ -1,12 +1,17 @@
 package com.tapdata.tm.schedule;
 
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
+import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -17,7 +22,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -28,7 +32,7 @@ import java.util.stream.Collectors;
 public class DatabaseTypeSchedule {
     @Autowired
     @Setter
-    private DataSourceDefinitionService dataSourceDefinitionService;
+    private DataSourceDefinitionRepository dataSourceDefinitionRepository;
     @Autowired
     @Setter
     private FileService fileService;
@@ -44,10 +48,12 @@ public class DatabaseTypeSchedule {
         Query query = Query.query(Criteria.where("is_deleted").is(true));
         query.fields().include("id", "is_deleted",
                 "jarRid", "icon", "messages.zh_CN.doc", "messages.zh_TW.doc", "messages.en_US.doc");
-        List<DataSourceDefinitionDto> result = dataSourceDefinitionService.findAll(query);
-        if (result != null) {
+        MongoCollection<Document> collection = dataSourceDefinitionRepository.getMongoOperations()
+                .getCollection(PkdSourceService.DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME);
+        FindIterable<DataSourceDefinitionDto> result = collection.find(DataSourceDefinitionDto.class);
 
-            List<ObjectId> needToDeleted = result.stream().filter(dataSourceDefinitionDto -> {
+        try (MongoCursor<DataSourceDefinitionDto> cursor = result.cursor()) {
+            cursor.forEachRemaining(dataSourceDefinitionDto -> {
                 List<Boolean> results = new ArrayList<>();
                 results.add(deleteFile(MongoUtils.toObjectId(dataSourceDefinitionDto.getJarRid())));
                 results.add(deleteFile(MongoUtils.toObjectId(dataSourceDefinitionDto.getIcon())));
@@ -65,11 +71,12 @@ public class DatabaseTypeSchedule {
                         }
                     });
                 }
-                return results.stream().allMatch(Boolean.TRUE::equals);
-
-            }).map(DataSourceDefinitionDto::getId).collect(Collectors.toList());
-
-            dataSourceDefinitionService.deleteAll(Query.query(Criteria.where("id").in(needToDeleted)));
+                if (results.stream().allMatch(Boolean.TRUE::equals)) {
+                    Document filter = new Document();
+                    filter.put("_id", dataSourceDefinitionDto.getId());
+                    collection.deleteOne(filter);
+                }
+            });
         }
     }
 

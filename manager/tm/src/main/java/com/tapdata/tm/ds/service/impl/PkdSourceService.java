@@ -7,9 +7,11 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
+import com.tapdata.tm.ds.repository.PdkSourceRepository;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
@@ -20,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +53,8 @@ public class PkdSourceService {
 	private FileService fileService;
 	private TcmService tcmService;
 	private SettingsService settingsService;
+	private PdkSourceRepository repository;
+	public static final String DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME = "DatabaseTypes_waiting_deleted";
 
 	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(CommonsMultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
@@ -120,10 +125,10 @@ public class PkdSourceService {
 							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
 				}
 				// change to async delete
-				UpdateResult result = dataSourceDefinitionService.update(
-						Query.query(Criteria.where("id").is(oldDefinitionDto.getId())),
-						Update.update("is_deleted", true));
-				log.debug("Delete original source {}, result: {}", oldDefinitionDto.getId(), result.getModifiedCount());
+				dataSourceDefinitionService.deleteById(oldDefinitionDto.getId());
+				repository.getMongoOperations().getCollection(DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME)
+								.insertOne(Document.parse(JsonUtil.toJsonUseJackson(oldDefinitionDto)));
+				log.debug("Delete original source {}", oldDefinitionDto.getId());
 			}
 
 			// upload the associated files(jar/icons)
@@ -221,8 +226,12 @@ public class PkdSourceService {
 				Update removeLatest = Update.update("latest", false);
 				dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
 			}
-			DataSourceDefinitionDto finalDefinitionDto = dataSourceDefinitionService.save(definitionDto, user);
-			log.debug("Save data source definition success {}", finalDefinitionDto.getId().toHexString());
+			if (Objects.isNull(oldDefinitionDto)) {
+				dataSourceDefinitionService.save(definitionDto, user);
+			} else {
+				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
+			}
+			log.debug("Upsert data source definition success");
 
 			//根据数据源类型删除可能存在的旧的pdk
 			FunctionUtils.ignoreAnyError(() -> {
