@@ -1,12 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import base.BaseTest;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -21,19 +19,15 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -225,6 +219,11 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setTapEvent(tapInsertRecordEvent);
 		}
 
+		@AfterEach
+		void tearDown() {
+			hazelcastProcessorBaseNode.doClose();
+		}
+
 		@Test
 		@DisplayName("test single process")
 		void test1() {
@@ -245,22 +244,32 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 		void test2() {
 			doReturn(true).when(hazelcastProcessorBaseNode).supportBatchProcess();
 			CountDownLatch countDownLatch = new CountDownLatch(2);
+			List<TapdataEvent> result = new ArrayList<>();
 			TapdataHeartbeatEvent tapdataHeartbeatEvent = new TapdataHeartbeatEvent();
-
 			doAnswer(invocationOnMock -> {
-				assertEquals(tapdataHeartbeatEvent, ((List<?>) invocationOnMock.getArgument(0)).get(0));
-				countDownLatch.countDown();
-				assertEquals(tapdataEvent, ((List<?>) invocationOnMock.getArgument(0)).get(1));
-				countDownLatch.countDown();
+				Object argument1 = invocationOnMock.getArgument(0);
+				if (null == argument1) {
+					return null;
+				}
+				assertInstanceOf(List.class, argument1);
+				List<TapdataEvent> list = (List<TapdataEvent>) argument1;
+				result.addAll(list);
+				for (int i = 0; i < list.size(); i++) {
+					countDownLatch.countDown();
+				}
 				return null;
-			}).when(hazelcastProcessorBaseNode).enqueue(any(List.class));
+			}).when(hazelcastProcessorBaseNode).enqueue(any());
 
 			assertDoesNotThrow(() -> hazelcastProcessorBaseNode.tryProcess(0, tapdataHeartbeatEvent));
 			assertDoesNotThrow(() -> hazelcastProcessorBaseNode.tryProcess(0, tapdataEvent));
-			assertDoesNotThrow(() -> countDownLatch.await(5L, TimeUnit.SECONDS));
+			assertDoesNotThrow(() -> countDownLatch.await());
 			assertEquals(0, countDownLatch.getCount());
 			verify(hazelcastProcessorBaseNode, never()).singleProcess(eq(tapdataEvent), any(List.class));
+			verify(hazelcastProcessorBaseNode).batchProcess(eq(tapdataHeartbeatEvent));
 			verify(hazelcastProcessorBaseNode).batchProcess(eq(tapdataEvent));
+			assertEquals(2, result.size());
+			assertEquals(tapdataHeartbeatEvent, result.get(0));
+			assertEquals(tapdataEvent, result.get(1));
 		}
 
 		@Test
