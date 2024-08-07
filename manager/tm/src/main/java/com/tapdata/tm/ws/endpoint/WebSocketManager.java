@@ -6,21 +6,25 @@
  */
 package com.tapdata.tm.ws.endpoint;
 
+import com.google.gson.Gson;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.commons.websocket.ReturnCallback;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.ws.dto.MessageInfo;
+import com.tapdata.tm.ws.dto.WebSocketEvent;
 import com.tapdata.tm.ws.dto.WebSocketInfo;
 import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.handler.*;
+import io.tapdata.pdk.apis.exception.TapTestItemException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -132,6 +136,8 @@ public class WebSocketManager {
 	public static void sendMessage(String id, String message) throws IOException {
 		WebSocketInfo sessionInfo = getSessionByUid(id);
 		if(sessionInfo != null && sessionInfo.getSession() != null){
+			WebSocketSession session = sessionInfo.getSession();
+			message = formatMessageIfNeed(message, session);
 			log.debug("WebSocket send message, userId {},id {}, message {}", sessionInfo.getUserId(), id, message);
 			sessionInfo.getSession().sendMessage(new TextMessage(message));
 		}else{
@@ -139,6 +145,77 @@ public class WebSocketManager {
 		}
 	}
 
+	public static String formatMessageIfNeed(String message, WebSocketSession session) {
+		if (StringUtils.isBlank(message)) return message;
+		if (message.contains("testConnectionResult")) {
+			WebSocketEvent webSocketEvent = JsonUtil.parseJson(message, WebSocketEvent.class);
+			Map data = (Map) webSocketEvent.getData();
+			Map result = (Map) data.get("result");
+			if (null == result) return message;
+			Map responseBody = (Map) result.get("response_body");
+			List<Map> validateDetails = (List) responseBody.get("validate_details");
+			for (Map validateDetail : validateDetails) {
+				Object itemException = validateDetail.get("item_exception");
+				if (null != itemException) {
+					Locale locale = getLocale(session);
+					Gson gson = new Gson();
+					TapTestItemException itemEx = gson.fromJson(gson.toJson(itemException), TapTestItemException.class);
+					String msg = internationalizationMsg(locale, itemEx.getMessage());
+					String reason = internationalizationMsg(locale, itemEx.getReason());
+					String solution = internationalizationMsg(locale, itemEx.getSolution());
+					itemEx.setMessage(msg);
+					itemEx.setReason(reason);
+					itemEx.setSolution(solution);
+					itemException = itemEx;
+				}
+				validateDetail.put("item_exception", itemException);
+			}
+			responseBody.put("validate_details", validateDetails);
+			result.put("response_body", responseBody);
+			data.put("result", result);
+			webSocketEvent.setData(data);
+			message = JsonUtil.toJson(webSocketEvent);
+		}
+		return message;
+	}
+	private static String internationalizationMsg(Locale locale, String message) {
+		if (StringUtils.isBlank(message)) return null;
+		return MessageUtil.getPdkTestItemMsg(locale, message);
+	}
+	public static Locale getLocale(WebSocketSession session) {
+		if (session != null) {
+			HttpHeaders handshakeHeaders = session.getHandshakeHeaders();
+			String[] cookies = null;
+			String lang = null;
+			List<String> cookieString = handshakeHeaders.get("cookie");
+			if (cookieString != null) {
+				for (String cookie : cookieString) {
+					if (null != cookie && cookie.contains("lang")) {
+						cookies = cookie.split(";");
+						lang = Arrays.stream(cookies).filter(c -> c.contains("lang")).collect(Collectors.toList()).stream().findFirst().orElse(null);
+						if (null == lang) continue;
+						cookies = lang.split("=");
+						if (null == cookies || cookies.length < 2) continue;
+						lang = cookies[1];
+						break;
+					}
+				}
+			}
+			Locale local = null;
+			try {
+				if(lang != null){
+					lang = lang.replaceAll("_","-");
+					local = Locale.forLanguageTag(lang);
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			if (local != null) {
+				return local;
+			}
+		}
+		return MessageUtil.getLocale();
+	}
 	public static void sendMessage(String id, com.tapdata.tm.commons.websocket.MessageInfo messageInfo) throws IOException {
 		sendMessage(id, messageInfo.toTextMessage());
 	}

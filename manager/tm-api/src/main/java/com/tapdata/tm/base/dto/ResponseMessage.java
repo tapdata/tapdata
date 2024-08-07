@@ -35,6 +35,7 @@ public class ResponseMessage<T>{
 	 * 请求处理失败时的错误消息
 	 */
 	protected String message;
+	protected String stack;
 
 	/**
 	 * 请求处理成功的数据
