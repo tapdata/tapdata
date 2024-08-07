@@ -44,7 +44,7 @@ public class DataInspectEventHandler extends BaseEventHandler implements WebSock
 				return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Inspect message can not be empty.");
 			}
 		}catch (Exception e){
-			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Inspect message can not be empty.", e);
+			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Data inspect occurs an error.", e);
 		}
 
 	}

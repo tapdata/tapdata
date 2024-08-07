@@ -208,7 +208,7 @@ public class WebSocketManager {
 					local = Locale.forLanguageTag(lang);
 				}
 			} catch (Exception e) {
-				e.printStackTrace();
+				log.error(e.getMessage());
 			}
 			if (local != null) {
 				return local;
