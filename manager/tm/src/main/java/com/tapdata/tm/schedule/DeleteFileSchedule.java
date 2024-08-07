@@ -22,8 +22,7 @@ public class DeleteFileSchedule {
     /**
      * clean up files that need to be deleted
      */
-    //@Scheduled(cron = "0 0 2 * * ?")
-    @Scheduled(cron = "0/5 * * * * ?")
+    @Scheduled(cron = "0 0 2 * * ?")
     @SchedulerLock(name = "DatabaseTypeSchedule.cleanUpForDatabaseTypes", lockAtMostFor = "PT1H", lockAtLeastFor = "PT1H")
     public void cleanUpForDatabaseTypes() {
         log.info("clean up files that need to be deleted");

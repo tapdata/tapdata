@@ -55,7 +55,6 @@ public class PkdSourceService {
 	private TcmService tcmService;
 	private SettingsService settingsService;
 	private PdkSourceRepository repository;
-	public static final String DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME = "DatabaseTypes_waiting_deleted";
 
 	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(CommonsMultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {

@@ -15,6 +15,7 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import io.jsonwebtoken.lang.Collections;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -50,6 +51,7 @@ import java.util.Map;
 public class FileService {
 
     @Autowired
+    @Setter
     private WaitingDeleteFileRepository waitingDeleteFileRepository;
     @Resource
     private MongoDatabaseFactory mongoDatabaseFactory;
