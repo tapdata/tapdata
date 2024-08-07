@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.entity.event.TapBaseEvent;
@@ -15,10 +16,7 @@ import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.script.Invocable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -198,5 +196,19 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 	@Test
 	void testNeedCopyBatchEventWrapper(){
 		Assertions.assertTrue(hazelcastJavaScriptProcessorNode.needCopyBatchEventWrapper());
+	}
+
+	@Test
+	void testHandleTransformToTapValueResult() {
+		TapdataEvent tapdataEvent = new TapdataEvent();
+		tapdataEvent.setTransformToTapValueResult(TransformToTapValueResult.create()
+				.beforeTransformedToTapValueFieldNames(new HashSet<String>() {{
+					add("created");
+				}})
+				.afterTransformedToTapValueFieldNames(new HashSet<String>() {{
+					add("created");
+				}}));
+		hazelcastJavaScriptProcessorNode.handleTransformToTapValueResult(tapdataEvent);
+		assertNull(tapdataEvent.getTransformToTapValueResult());
 	}
 }

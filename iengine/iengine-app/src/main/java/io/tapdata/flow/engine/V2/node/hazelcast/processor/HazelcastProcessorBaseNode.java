@@ -149,6 +149,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	protected void enqueue(List<TapdataEvent> tapdataEvents) {
+		if(null == tapdataEvents) return;
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
 			handleTransformToTapValueResult(tapdataEvent);
 			while (isRunning()) {
