@@ -2,6 +2,7 @@ package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
+import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -54,7 +55,6 @@ public class PkdSourceService {
 	private TcmService tcmService;
 	private SettingsService settingsService;
 	private PdkSourceRepository repository;
-	public static final String DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME = "DatabaseTypes_waiting_deleted";
 
 	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(CommonsMultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
@@ -125,9 +125,20 @@ public class PkdSourceService {
 							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
 				}
 				// change to async delete
-				dataSourceDefinitionService.deleteById(oldDefinitionDto.getId());
-				repository.getMongoOperations().getCollection(DATABASE_TYPES_WAITING_DELETED_COLLECTION_NAME)
-								.insertOne(Document.parse(JsonUtil.toJsonUseJackson(oldDefinitionDto)));
+				List<ObjectId> fileIds = new ArrayList<>();
+				fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
+				if (oldDefinitionDto.getIcon() != null) {
+					fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
+				}
+				Query query = Query.query(Criteria.where("metadata.pdkHash").is(pdkHash)
+						.and("metadata.pdkAPIBuildNumber").is(pdkAPIBuildNumber));
+				GridFSFindIterable result = fileService.find(query);
+				result.forEach(gridFSFile ->
+					fileIds.add(gridFSFile.getObjectId())
+				);
+
+				fileService.scheduledDeleteFiles(fileIds, "Upload new connector", "DatabaseTypes",
+						oldDefinitionDto.getId(), user);
 				log.debug("Delete original source {}", oldDefinitionDto.getId());
 			}
 

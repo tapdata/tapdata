@@ -8,14 +8,20 @@ import com.mongodb.client.gridfs.GridFSDownloadStream;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.file.entity.WaitingDeleteFile;
+import com.tapdata.tm.file.repository.WaitingDeleteFileRepository;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
+import io.jsonwebtoken.lang.Collections;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
@@ -31,6 +37,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -43,6 +50,9 @@ import java.util.Map;
 @Slf4j
 public class FileService {
 
+    @Autowired
+    @Setter
+    private WaitingDeleteFileRepository waitingDeleteFileRepository;
     @Resource
     private MongoDatabaseFactory mongoDatabaseFactory;
     @Bean
@@ -239,5 +249,35 @@ public class FileService {
         } catch (Exception e) {
             log.error("viewWord error {}", ThrowableUtils.getStackTraceByPn(e));
         }
+    }
+
+    /**
+     * schedule delete files by id
+     * @param fileIds file ids
+     * @param reason reason
+     * @param module module
+     * @param resourceId original resource id
+     * @param userDetail user detail
+     */
+    public void scheduledDeleteFiles(List<ObjectId> fileIds, String reason, String module, ObjectId resourceId, UserDetail userDetail) {
+        WaitingDeleteFile entity = new WaitingDeleteFile();
+        entity.setFileIds(fileIds);
+        entity.setReason(reason);
+        entity.setModule(module);
+        entity.setResourceId(resourceId);
+        waitingDeleteFileRepository.insert(entity, userDetail);
+    }
+
+    /**
+     * execute cleanup
+     */
+    public void cleanupWaitingDeleteFiles() {
+        List<WaitingDeleteFile> result = waitingDeleteFileRepository.findAll(Query.query(new Criteria()));
+        result.forEach(waitingDeleteFile -> {
+            if (!Collections.isEmpty(waitingDeleteFile.getFileIds())) {
+                waitingDeleteFile.getFileIds().forEach(this::deleteFileById);
+            }
+            waitingDeleteFileRepository.deleteById(waitingDeleteFile.getId());
+        });
     }
 }
