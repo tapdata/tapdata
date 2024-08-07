@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -28,6 +29,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -325,5 +328,46 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(hazelcastProcessorBaseNode, times(3)).singleProcess(eq(tapdataEvent), any(List.class));
 			verify(hazelcastProcessorBaseNode, never()).batchProcess(eq(tapdataEvent));
 		}
+	}
+
+	@Nested
+	@DisplayName("Method tryProcess test")
+	class tryProcessByBatchEventWrapperTest {
+		HazelcastProcessorBaseNode hazelcastProcessorBaseNode = spy(new HazelcastProcessorBaseNode(processorBaseContext) {
+			@Override
+			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+				consumer.accept(tapdataEvent, ProcessResult.create());
+			}
+		});
+		@Test
+		void test_main(){
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents = new ArrayList<>();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(new TapInsertRecordEvent());
+			ProcessorNodeProcessAspect processAspect = new ProcessorNodeProcessAspect();
+			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent,processAspect);
+			tapdataEvents.add(batchEventWrapper);
+			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = (batchProcessResults) -> {
+				Assertions.assertEquals(1,batchProcessResults.size());
+			};
+			hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer);
+		}
+
+		@Test
+		void test_cloneError() throws CloneNotSupportedException {
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents = new ArrayList<>();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(new TapInsertRecordEvent());
+			ProcessorNodeProcessAspect processAspect = new ProcessorNodeProcessAspect();
+			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = spy(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent,processAspect));
+			when(batchEventWrapper.clone()).thenThrow(new RuntimeException("clone error"));
+			doReturn(true).when(hazelcastProcessorBaseNode).needCopyBatchEventWrapper();
+			tapdataEvents.add(batchEventWrapper);
+			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = (batchProcessResults) -> {
+			};
+			Assertions.assertThrows(TapCodeException.class,()->hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer));
+		}
+
+
 	}
 }

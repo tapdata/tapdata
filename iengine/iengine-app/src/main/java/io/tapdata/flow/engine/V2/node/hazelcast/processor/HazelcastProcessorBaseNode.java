@@ -4,6 +4,7 @@ import com.google.common.collect.Queues;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.exception.CloneException;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
@@ -27,6 +28,7 @@ import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -380,8 +382,18 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 					}
 				}
-				batchEventWrapper.setTapdataEvent(event);
-				BatchProcessResult batchProcessResult = new BatchProcessResult(batchEventWrapper, processResult);
+                BatchEventWrapper finalBatchEventWrapper = null;
+				if(needCopyBatchEventWrapper()){
+					try {
+						finalBatchEventWrapper = batchEventWrapper.clone();
+					} catch (Throwable throwable) {
+						throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
+					}
+				}else{
+					finalBatchEventWrapper	= batchEventWrapper;
+				}
+                finalBatchEventWrapper.setTapdataEvent(event);
+				BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
 				batchProcessResults.add(batchProcessResult);
 			});
 		}
@@ -490,7 +502,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 	}
 
-	protected static class BatchEventWrapper {
+	protected static class BatchEventWrapper implements Serializable, Cloneable  {
 		private TapdataEvent tapdataEvent;
 		private TapValueTransform tapValueTransform;
 		private ProcessorNodeProcessAspect processAspect;
@@ -519,6 +531,12 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		public ProcessorNodeProcessAspect getProcessAspect() {
 			return processAspect;
 		}
+
+		@Override
+		public BatchEventWrapper clone() throws CloneNotSupportedException {
+			return (BatchEventWrapper)super.clone();
+		}
+
 	}
 
 	public boolean needTransformValue() {
@@ -535,5 +553,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected void reCalcMemorySize(List<BatchEventWrapper> tapdataEvents) {
 		// do nothing
+	}
+
+	public boolean needCopyBatchEventWrapper() {
+		return false;
 	}
 }

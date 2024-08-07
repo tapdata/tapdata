@@ -1,0 +1,36 @@
+[
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "task_log_file_save_size",
+          "$or": [{"value": "10"}, {"value": 10}]
+        },
+        "u": {
+          "$set": {
+            "value": "1024",
+            "default_value": "1024"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "agent_log_file_save_size",
+          "$or": [{"value": "10"}, {"value": 10}]
+        },
+        "u": {
+          "$set": {
+            "value": "1024",
+            "default_value": "1024"
+          }
+        }
+      }
+    ]
+  }
+]

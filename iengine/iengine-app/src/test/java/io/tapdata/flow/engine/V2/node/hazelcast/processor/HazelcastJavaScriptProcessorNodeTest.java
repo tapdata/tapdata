@@ -194,6 +194,11 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Test
+	void testNeedCopyBatchEventWrapper(){
+		Assertions.assertTrue(hazelcastJavaScriptProcessorNode.needCopyBatchEventWrapper());
+	}
+
+	@Test
 	void testHandleTransformToTapValueResult() {
 		TapdataEvent tapdataEvent = new TapdataEvent();
 		tapdataEvent.setTransformToTapValueResult(TransformToTapValueResult.create()

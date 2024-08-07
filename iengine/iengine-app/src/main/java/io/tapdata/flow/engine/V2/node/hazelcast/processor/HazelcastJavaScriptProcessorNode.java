@@ -406,4 +406,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
 		tapdataEvent.setTransformToTapValueResult(null);
 	}
+
+	@Override
+	public boolean needCopyBatchEventWrapper() {
+		return true;
+	}
 }
