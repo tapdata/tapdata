@@ -1,5 +1,7 @@
 package com.tapdata.validator;
 
+import io.tapdata.pdk.apis.exception.TapTestItemException;
+
 public class ConnectionValidateResultDetail {
 
 	private String stage_code;
@@ -13,6 +15,15 @@ public class ConnectionValidateResultDetail {
 	private String error_code;
 
 	private String fail_message;
+	private TapTestItemException item_exception;
+
+	public TapTestItemException getItem_exception() {
+		return item_exception;
+	}
+
+	public void setItem_exception(TapTestItemException item_exception) {
+		this.item_exception = item_exception;
+	}
 
 	private boolean required;
 
