@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import base.BaseTest;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -243,14 +244,18 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test batch process")
 		void test2() {
 			doReturn(true).when(hazelcastProcessorBaseNode).supportBatchProcess();
-			CountDownLatch countDownLatch = new CountDownLatch(1);
+			CountDownLatch countDownLatch = new CountDownLatch(2);
+			TapdataHeartbeatEvent tapdataHeartbeatEvent = new TapdataHeartbeatEvent();
 
 			doAnswer(invocationOnMock -> {
-				assertEquals(tapdataEvent, ((List<?>) invocationOnMock.getArgument(0)).get(0));
+				assertEquals(tapdataHeartbeatEvent, ((List<?>) invocationOnMock.getArgument(0)).get(0));
+				countDownLatch.countDown();
+				assertEquals(tapdataEvent, ((List<?>) invocationOnMock.getArgument(0)).get(1));
 				countDownLatch.countDown();
 				return null;
 			}).when(hazelcastProcessorBaseNode).enqueue(any(List.class));
 
+			assertDoesNotThrow(() -> hazelcastProcessorBaseNode.tryProcess(0, tapdataHeartbeatEvent));
 			assertDoesNotThrow(() -> hazelcastProcessorBaseNode.tryProcess(0, tapdataEvent));
 			assertDoesNotThrow(() -> countDownLatch.await(5L, TimeUnit.SECONDS));
 			assertEquals(0, countDownLatch.getCount());
