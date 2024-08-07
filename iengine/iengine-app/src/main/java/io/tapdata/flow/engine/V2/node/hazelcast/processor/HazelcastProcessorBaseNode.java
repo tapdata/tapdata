@@ -382,11 +382,15 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 				}
                 BatchEventWrapper finalBatchEventWrapper = null;
-                try {
-                    finalBatchEventWrapper = batchEventWrapper.clone();
-                } catch (Throwable throwable) {
-					throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
-                }
+				if(needCopyBatchEventWrapper()){
+					try {
+						finalBatchEventWrapper = batchEventWrapper.clone();
+					} catch (Throwable throwable) {
+						throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
+					}
+				}else{
+					finalBatchEventWrapper	= batchEventWrapper;
+				}
                 finalBatchEventWrapper.setTapdataEvent(event);
 				BatchProcessResult batchProcessResult = new BatchProcessResult(finalBatchEventWrapper, processResult);
 				batchProcessResults.add(batchProcessResult);
@@ -548,5 +552,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected void reCalcMemorySize(List<BatchEventWrapper> tapdataEvents) {
 		// do nothing
+	}
+
+	public boolean needCopyBatchEventWrapper() {
+		return false;
 	}
 }

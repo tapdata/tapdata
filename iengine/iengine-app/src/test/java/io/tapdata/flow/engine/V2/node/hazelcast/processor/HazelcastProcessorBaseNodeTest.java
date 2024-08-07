@@ -321,13 +321,13 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	@DisplayName("Method tryProcess test")
-	class tryProcessTest {
-		HazelcastProcessorBaseNode hazelcastProcessorBaseNode = new HazelcastProcessorBaseNode(processorBaseContext) {
+	class tryProcessByBatchEventWrapperTest {
+		HazelcastProcessorBaseNode hazelcastProcessorBaseNode = spy(new HazelcastProcessorBaseNode(processorBaseContext) {
 			@Override
 			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 				consumer.accept(tapdataEvent, ProcessResult.create());
 			}
-		};
+		});
 		@Test
 		void test_main(){
 			List<HazelcastProcessorBaseNode.BatchEventWrapper> tapdataEvents = new ArrayList<>();
@@ -350,6 +350,7 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 			ProcessorNodeProcessAspect processAspect = new ProcessorNodeProcessAspect();
 			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = spy(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent,processAspect));
 			when(batchEventWrapper.clone()).thenThrow(new RuntimeException("clone error"));
+			doReturn(true).when(hazelcastProcessorBaseNode).needCopyBatchEventWrapper();
 			tapdataEvents.add(batchEventWrapper);
 			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = (batchProcessResults) -> {
 			};
