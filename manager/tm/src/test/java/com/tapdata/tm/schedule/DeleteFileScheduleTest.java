@@ -7,7 +7,6 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
-import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.file.service.FileService;
 import org.bson.Document;
@@ -16,15 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,7 +30,7 @@ import static org.mockito.Mockito.*;
  * create at 2024/8/2 18:42
  */
 @ExtendWith(MockitoExtension.class)
-public class DatabaseTypeScheduleTest {
+public class DeleteFileScheduleTest {
 
     @Mock
     private DataSourceDefinitionRepository dataSourceDefinitionRepository;
@@ -66,9 +60,9 @@ public class DatabaseTypeScheduleTest {
                 new ObjectId("66ace100fb85b005263f2c17")
         );
 
-        DatabaseTypeSchedule databaseTypeSchedule = new DatabaseTypeSchedule();
-        databaseTypeSchedule.setFileService(fileService);
-        databaseTypeSchedule.setDataSourceDefinitionRepository(dataSourceDefinitionRepository);
+        DeleteFileSchedule deleteFileSchedule = new DeleteFileSchedule();
+        deleteFileSchedule.setFileService(fileService);
+        deleteFileSchedule.setDataSourceDefinitionRepository(dataSourceDefinitionRepository);
 
         List<DataSourceDefinitionDto> result = new ArrayList<>();
         DataSourceDefinitionDto dto = new DataSourceDefinitionDto();
@@ -101,13 +95,13 @@ public class DatabaseTypeScheduleTest {
         when(collection.find(DataSourceDefinitionDto.class)).thenReturn(findIterable);
 
         when(findIterable.cursor()).thenReturn(new MockMongoCursor<>(Collections.emptyList()));
-        assertDoesNotThrow(databaseTypeSchedule::cleanUpForDatabaseTypes);
+        assertDoesNotThrow(deleteFileSchedule::cleanUpForDatabaseTypes);
         verify(fileService, never()).deleteFileById(any());
 
         when(findIterable.cursor()).thenReturn(new MockMongoCursor<>(result));
         doNothing().when(fileService).deleteFileById(any());
 
-        assertDoesNotThrow(databaseTypeSchedule::cleanUpForDatabaseTypes);
+        assertDoesNotThrow(deleteFileSchedule::cleanUpForDatabaseTypes);
 
         ArgumentCaptor<ObjectId> captor = ArgumentCaptor.forClass(ObjectId.class);
 
