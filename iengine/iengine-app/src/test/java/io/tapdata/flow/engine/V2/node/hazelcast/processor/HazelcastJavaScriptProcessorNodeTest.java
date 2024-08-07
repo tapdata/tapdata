@@ -194,4 +194,9 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			verify(engine,new Times(1)).invokeFunction(anyString(),any());
 		}
 	}
+
+	@Test
+	void testNeedCopyBatchEventWrapper(){
+		Assertions.assertTrue(hazelcastJavaScriptProcessorNode.needCopyBatchEventWrapper());
+	}
 }
