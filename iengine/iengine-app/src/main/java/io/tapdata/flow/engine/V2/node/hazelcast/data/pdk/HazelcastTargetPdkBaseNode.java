@@ -536,6 +536,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager, targetTableName);
 				}
 				fromTapValueMergeInfo(consumeEvent);
+			} else if(consumeEvent.getTapEvent() instanceof TapDDLEvent) {
+				updateMemoryFromDDLInfoMap(consumeEvent);
 			}
 			while (isRunning()) {
 				try {
@@ -1081,10 +1083,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void handleTapdataDDLEvent(TapdataEvent tapdataEvent, List<TapEvent> tapEvents, Consumer<TapdataEvent> consumer) {
 		TapDDLEvent tapDDLEvent = (TapDDLEvent) tapdataEvent.getTapEvent();
-		if (tapdataEvent.getTapEvent() instanceof TapCreateTableEvent) {
-			updateNode(tapdataEvent);
-		}
-		updateMemoryFromDDLInfoMap(tapdataEvent);
 		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
 		if (updateMetadata instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) updateMetadata)) {
 			this.updateMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) updateMetadata);

@@ -2184,4 +2184,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 		}
 	}
+
+	@Override
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		tapdataEvent.setTransformToTapValueResult(null);
+	}
 }

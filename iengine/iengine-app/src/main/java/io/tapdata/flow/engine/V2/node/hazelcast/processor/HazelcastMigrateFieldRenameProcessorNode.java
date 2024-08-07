@@ -324,4 +324,9 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 	public boolean supportConcurrentProcess() {
 		return true;
 	}
+
+	@Override
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		tapdataEvent.setTransformToTapValueResult(null);
+	}
 }

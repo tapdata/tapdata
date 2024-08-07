@@ -230,4 +230,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			return map.get(key);
 		}
 	}
+
+	@Override
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		tapdataEvent.setTransformToTapValueResult(null);
+	}
 }

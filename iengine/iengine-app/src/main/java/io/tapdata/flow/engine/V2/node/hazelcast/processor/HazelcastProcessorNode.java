@@ -377,4 +377,57 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	public boolean supportConcurrentProcess() {
 		return true;
 	}
+
+	@Override
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		TransformToTapValueResult transformToTapValueResult = tapdataEvent.getTransformToTapValueResult();
+		if (null == transformToTapValueResult || transformToTapValueResult.isEmpty()) {
+			return;
+		}
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				ttf.remove(field);
+				ttf.add(newField);
+			}));
+			Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				ttf.remove(field);
+				ttf.add(newField);
+			}));
+		}
+		Node<?> node = getNode();
+		if (node instanceof FieldProcessorNode) {
+			List<FieldProcessorNode.Operation> operations = ((FieldProcessorNode) node).getOperations();
+			if (null != operations) {
+				for (FieldProcessorNode.Operation operation : operations) {
+					String op = operation.getOp();
+					switch (op) {
+						case "CREATE":
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.add(operation.getField()));
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.add(operation.getField()));
+							break;
+						case "RENAME":
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> {
+								ttf.remove(operation.getField());
+								ttf.add(operation.getOperand());
+							});
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> {
+								ttf.remove(operation.getField());
+								ttf.add(operation.getOperand());
+							});
+							break;
+						case "REMOVE":
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(b -> b.remove(operation.getField()));
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(a -> a.remove(operation.getField()));
+							break;
+					}
+				}
+			}
+		}
+	}
 }
