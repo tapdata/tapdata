@@ -22,16 +22,27 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.output.WriterOutputStream;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.ss.formula.functions.T;
+import org.voovan.tools.collection.ArraySet;
 import picocli.CommandLine;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.io.Writer;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @CommandLine.Command(
-        description = "Push PDK jar file into TM",
-        subcommands = MainCli.class
+    description = "Push PDK jar file into TM",
+    subcommands = MainCli.class
 )
 public class RegisterCli extends CommonCli {
     private static final String TAG = RegisterCli.class.getSimpleName();
@@ -71,8 +82,7 @@ public class RegisterCli extends CommonCli {
         printUtil = new PrintUtil(showAllMessage);
         List<String> filterTypes = generateSkipTypes();
         if (!filterTypes.isEmpty()) {
-            printUtil.print(PrintUtil.TYPE.TIP, "* Starting to register data sources, plan to skip data sources that are not within the registration scope");
-            printUtil.print(PrintUtil.TYPE.TIP, String.format("* The types of data sources that need to be registered are: %s", filterTypes));
+            printUtil.print(PrintUtil.TYPE.TIP, String.format("* Starting to register data sources, plan to skip data sources that are not within the registration scope.\n* The types of data sources that need to be registered are: %s", filterTypes));
         } else {
             printUtil.print(PrintUtil.TYPE.TIP, "Start registering data sources and plan to register all submitted data sources");
         }
@@ -81,15 +91,15 @@ public class RegisterCli extends CommonCli {
         try {
             CommonUtils.setProperty("refresh_local_jars", "true");
             PrintStream out = System.out;
-            try(PrintStream p = new PrintStream(new ByteArrayOutputStream() {
-                @Override
-                public synchronized void write(int b) {
-                    if (showAllMessage) {
-                        super.write(b);
+            try {
+                System.setOut(new PrintStream(new ByteArrayOutputStream() {
+                    @Override
+                    public void write(int b) {
+                        if (showAllMessage) {
+                            super.write(b);
+                        }
                     }
-                }
-            })) {
-                System.setOut(p);
+                }));
                 TapConnectorManager.getInstance().start(Arrays.asList(files));
             } finally {
                 System.setOut(out);
@@ -242,17 +252,7 @@ public class RegisterCli extends CommonCli {
                     }
                     if (file.isFile()) {
                         printUtil.print(PrintUtil.TYPE.INFO, " => uploading ");
-                        UploadFileService.Param param = new UploadFileService.Param();
-                        param.setAccessCode(authToken);
-                        param.setInputStreamMap(inputStreamMap);
-                        param.setJsons(jsons);
-                        param.setLatest(latest);
-                        param.setAk(ak);
-                        param.setFile(file);
-                        param.setPrintUtil(printUtil);
-                        param.setSk(sk);
-                        param.setHostAndPort(tmUrl);
-                        UploadFileService.uploadSourceToTM(param);
+                        UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken, ak, sk, printUtil);
                         printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s | (%s) Completed", file.getName(), connectionType));
                     } else {
                         printUtil.print(PrintUtil.TYPE.DEBUG, "File " + file + " doesn't exists");
@@ -261,7 +261,7 @@ public class RegisterCli extends CommonCli {
                 }
             } finally {
                 if (unUploaded.toString().length() > 0) {
-                    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("[INFO] Some connector that are not in the scope are registered this time: %n%s%nThe data connector type that needs to be registered is: %s", unUploaded.toString(), filterTypes));
+                    printUtil.print(PrintUtil.TYPE.DEBUG, String.format("[INFO] Some connector that are not in the scope are registered this time: \n%s\nThe data connector type that needs to be registered is: %s\n", unUploaded.toString(), filterTypes));
                 }
             }
             System.exit(0);
@@ -283,24 +283,25 @@ public class RegisterCli extends CommonCli {
     }
 
     protected Collection<File> getAllJarFiles(File[] paths) {
-        Set<File> pathSet = new HashSet<>();
+        List<File> path = new ArrayList<>();
         for (File s : paths) {
-            fileTypeDirector(s, pathSet);
+            fileTypeDirector(s, path);
         }
-        return pathSet;
+        return path;
     }
 
-    protected void fileTypeDirector(File f, Set<File> pathSet) {
+    protected void fileTypeDirector(File f, List<File> pathSet) {
         int i = fileType(f);
-        if (i == 1) {
-            File[] listFiles = f.listFiles();
-            if (null != listFiles && listFiles.length > 0) {
-                pathSet.addAll(getAllJarFiles(listFiles));
-            }
-            return;
-        }
-        if (i == 2) {
-            pathSet.add(f);
+        switch (i) {
+            case 1:
+                File[] files = f.listFiles();
+                if (null != files && files.length > 0) {
+                    pathSet.addAll(getAllJarFiles(files));
+                }
+                break;
+            case 2:
+                pathSet.add(f);
+                break;
         }
     }
 
@@ -342,14 +343,14 @@ public class RegisterCli extends CommonCli {
         }
     }
 
-    protected static final String PATH = "tapdata-cli/src/main/resources/replace/";
+    protected static final String path = "tapdata-cli/src/main/resources/replace/";
     private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath){
         if (null != this.replaceName && !"".equals(replaceName.trim())){
             replacePath = replaceName;
         }
         if (null == replacePath || "".equals(replacePath.trim())) return null;
         try {
-            InputStream as = FileUtils.openInputStream(new File(PATH + replacePath + ".json"));
+            InputStream as = FileUtils.openInputStream(new File(path + replacePath + ".json"));//nodeInfo.readResource((String) replacePath);
             return JSON.parseObject(as, StandardCharsets.UTF_8, LinkedHashMap.class);
         }catch (IOException e){}
         return null;

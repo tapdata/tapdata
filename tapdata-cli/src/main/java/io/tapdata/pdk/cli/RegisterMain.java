@@ -24,13 +24,16 @@ public class RegisterMain {
 	private enum ConnectorEnums {
 		// Empty(BASE_PATH + "connectors/dist/empty-connector-v1.1-SNAPSHOT.jar", "all", "empty"),
 		Dummy(BASE_PATH + "connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar", "all", "dummy", "basic"),
+		Mock_Source(BASE_PATH + "connectors/dist/mock-source-connector-v1.0-SNAPSHOT.jar", "all", "mock-source", "basic"),
+		Mock_Target(BASE_PATH + "connectors/dist/mock-target-connector-v1.0-SNAPSHOT.jar", "all", "mock-target", "basic"),
 		Mysql(BASE_PATH + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar", "all", "mysql", "basic", "jdbc"),
 		Postgres(BASE_PATH + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar", "all", "postgres", "basic", "jdbc"),
 		Dws(BASE_PATH + "connectors/dist/dws-connector-v1.0-SNAPSHOT.jar", "all", "dws", "basic", "jdbc"),
 		Mongodb(BASE_PATH + "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar", "all", "mongodb", "basic", "jdbc"),
 		Mongodb_Atlas(BASE_PATH + "connectors/dist/mongodb-atlas-connector-v1.0-SNAPSHOT.jar", "all", "mongodb-atlas"),
+		Mongodb_Lower(BASE_PATH + "connectors/dist/mongodb-lower-connector-v1.0-SNAPSHOT.jar", "all", "mongodb-lower"),
 		Elasticsearch(BASE_PATH + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar", "all", "elasticsearch"),
-		Oceanbase(BASE_PATH + "connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar", "all", "oceanbase"),
+		Oceanbase(BASE_PATH + "connectors/dist/oceanbase-mysql-connector-v1.0-SNAPSHOT.jar", "all", "oceanbase"),
 		Doris(BASE_PATH + "connectors/dist/doris-connector-v1.0-SNAPSHOT.jar", "all", "doris"),
 		Activemq(BASE_PATH + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar", "all", "activemq", "mq"),
 		Rabbitmq(BASE_PATH + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar", "all", "rabbitmq", "mq"),
@@ -88,9 +91,12 @@ public class RegisterMain {
 		YashanDB(BASE_PATH + "connectors/dist/yashandb-connector-v1.0-SNAPSHOT.jar", "all", "yashandb", "basic", "jdbc"),
 		Ali1688(BASE_PATH + "connectors/dist/ali1688-connector-v1.0-SNAPSHOT.jar", "all", "ali1688"),
         Temu(BASE_PATH + "connectors/dist/temu-connector-v1.0-SNAPSHOT.jar", "all", "temu"),
-
-		GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
-
+        GreenPlum(BASE_PATH + "connectors/dist/greenplum-connector-v1.0-SNAPSHOT.jar", "all", "greenplum", "basic", "jdbc"),
+		LarkBitable(BASE_PATH + "connectors/dist/lark-bitable-connector-v1.0-SNAPSHOT.jar", "all", "lark-bitable"),
+		AzureCosmosDB(BASE_PATH + "connectors/dist/azure-cosmosdb-connector-v1.0-SNAPSHOT.jar","all","azure-cosmosdb"),
+		HuDi(BASE_PATH + "connectors/dist/hudi-connector-v1.0-SNAPSHOT.jar", "all", "hudi"),
+		HuaWeiOpenGaussDB(BASE_PATH + "connectors/dist/huawei-cloud-gaussdb-connector-v1.0-SNAPSHOT.jar", "all", "huawei-gauss-db"),
+		Vastbase(BASE_PATH + "connectors/dist/vastbase-connector-v1.0-SNAPSHOT.jar", "all", "vastbase", "basic", "jdbc"),
 		;
 
 		private final String path;
@@ -127,18 +133,25 @@ public class RegisterMain {
 		// -Dserver=http://192.168.1.132:31787
 		// -Dserver=http://192.168.1.181:31321
 		// -Dbeta=true
+		// -Dfilter=GA
 
 		List<String> postList = new ArrayList<>();
 		//String server = System.getProperty("server", "https://v3.test.cloud.tapdata.net/tm");
-		String server = System.getProperty("server", "http://localhost:3000");
+		String server = System.getProperty("server", "http://127.0.0.1:3000");
+		String filter = System.getProperty("filter", "");
 		//String server = System.getProperty("server", "http://192.168.1.189:30205");
-		Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "", "-t", server);
+		Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-ak", "", "-sk", "","-f",filter, "-t", server);
 		String[] tags = System.getProperty("tags", "all").split(",");
 		ConnectorEnums.addByTags(postList, tags);
 		Main.registerCommands().execute(postList.toArray(new String[0]));
 	}
 
 	private static String basePath() {
+        String connectorsHome = System.getProperty("connectors_home");
+        if (null != connectorsHome) {
+            return connectorsHome;
+        }
+
 		URL resource = RegisterMain.class.getClassLoader().getResource("");
 		if (null == resource) {
 			return "/";
