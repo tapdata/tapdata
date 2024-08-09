@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Data;
 import org.bson.types.ObjectId;
 
@@ -30,4 +31,6 @@ public class Table implements Serializable {
     private String oneone;
     private String userId;
     private Map<String, Object> tableAttr;
+    private String partitionMasterTableId;
+    private TapPartition partitionInfo;
 }
