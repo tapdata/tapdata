@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.schema;
 
-import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -8,16 +7,19 @@ import com.tapdata.tm.commons.schema.bean.DataRules;
 import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
-import com.tapdata.tm.commons.schema.bean.*;
 import io.tapdata.entity.conversion.PossibleDataTypes;
-import io.tapdata.entity.result.ResultItem;
-import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 
@@ -114,6 +116,9 @@ public class MetadataInstancesDto extends BaseDto {
 
     private String beforeDynamicTableName;
     private String afterDynamicTableName;
+
+    private String partitionMasterTableId;
+    private TapPartition partitionInfo;
 
     /**
      * 是否是虚拟表 'virtual' 'source'

@@ -98,6 +98,8 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     /** 是否开启全量同步索引*/
     private Boolean syncIndexEnable;
+    /** 是否开启分区表同步*/
+    private Boolean syncPartitionTableEnable;
 
     /** 根据更新条件创建唯一索引或普通索引，默认为 true，创建唯一索引*/
     private Boolean uniqueIndexEnable;

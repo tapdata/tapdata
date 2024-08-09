@@ -844,12 +844,34 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		String tableId = TapEventUtil.getTableId(tapEvent);
+		return getTgtTableNameFromTapEvent(tapEvent, tableId);
+	}
+
+	protected void masterTableId(TapEvent event, TapTable table) {
+		Optional.ofNullable(table.getPartitionMasterTableId()).ifPresent(masterSourceTableId -> {
+			table.setPartitionMasterTableId(getTgtTableNameFromTapEvent(event, masterSourceTableId));
+		});
+	}
+
+
+	protected boolean checkIsMasterPartitionTable(TapTable table) {
+		return Objects.nonNull(table.getPartitionInfo())
+				&& (Objects.isNull(table.getPartitionMasterTableId()) || table.getId().equals(table.getPartitionMasterTableId()));
+	}
+
+	protected boolean checkIsSubPartitionTable(TapTable table) {
+		return Objects.nonNull(table.getPartitionInfo())
+				&& Objects.nonNull(table.getPartitionMasterTableId())
+				&& !table.getId().equals(table.getPartitionMasterTableId());
+	}
+
+	public String getTgtTableNameFromTapEvent(TapEvent tapEvent, String masterTableId) {
 		Object dagDataService = tapEvent.getInfo(DAG_DATA_SERVICE_INFO_KEY);
 		if (!(dagDataService instanceof DAGDataServiceImpl)) {
-			return StringUtils.isNotBlank(lastTableName) ? lastTableName : tableId;
+			return StringUtils.isNotBlank(lastTableName) ? lastTableName : masterTableId;
 		}
 		String nodeId = getNode().getId();
-		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
+		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, masterTableId);
 	}
 
 	protected boolean whetherToSkip(List<ErrorEvent> errorEvents,ErrorEvent event,SkipError skipError){

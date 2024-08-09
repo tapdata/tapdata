@@ -7,11 +7,11 @@ import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.DataRules;
 import com.tapdata.tm.commons.schema.bean.Relation;
-import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import io.tapdata.entity.conversion.PossibleDataTypes;
-import io.tapdata.entity.result.ResultItem;
+import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -106,6 +106,9 @@ public class MetadataInstancesEntity extends BaseEntity {
 
     private String beforeDynamicTableName;
     private String afterDynamicTableName;
+
+    private String partitionMasterTableId;
+    private TapPartition partitionInfo;
 
     /**
      * 是否是虚拟表 'virtual' 'source'

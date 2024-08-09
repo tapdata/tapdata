@@ -628,6 +628,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		@Test
 		@DisplayName("test dropTable method for build error consumer")
 		void test1(){
+			TapTable mockTable = mock(TapTable.class);
+			when(mockTable.getId()).thenReturn(tableId);
 			SyncTypeEnum syncType = SyncTypeEnum.INITIAL_SYNC;
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"syncType",syncType);
 			existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
@@ -637,8 +639,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
 			when(functions.getDropTableFunction()).thenReturn(mock(DropTableFunction.class));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,tableId,true);
-			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,tableId,true);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,mockTable,true);
+			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,mockTable,true);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
 		}
 	}

@@ -3,7 +3,11 @@ package com.tapdata.tm.commons.util;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.schema.bean.TapFieldEx;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
@@ -11,6 +15,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.schema.partition.TapPartitionField;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -21,7 +27,13 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -58,6 +70,21 @@ public class PdkSchemaConvert {
         return instance;
     }
 
+    protected static void setTapTypeToPdk(TapPartition partitionInfo, TapTable tapTable) {
+        Optional.ofNullable(partitionInfo).ifPresent(info -> {
+            List<TapPartitionField> partitionFields = info.getPartitionFields();
+            Optional.ofNullable(partitionFields).ifPresent(fields -> {
+                for (TapPartitionField field : fields) {
+                    if (null == field) continue;
+                    TapField tapField = tapTable.getNameFieldMap().get(field.getName());
+                    if (null != tapField) {
+                        field.setTapType(tapField.getTapType());
+                    }
+                }
+            });
+        });
+    }
+
     public static TapTable toPdk(MetadataInstancesDto schema) {
         TapTable tapTable = new TapTable(schema.getOriginalName() == null ? null : schema.getOriginalName());
         //通过databaseId查询到pdk到相关熟悉
@@ -67,6 +94,8 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setPartitionInfo(schema.getPartitionInfo());
+        tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();
@@ -139,18 +168,11 @@ public class PdkSchemaConvert {
         }
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
+        setTapTypeToPdk(tapTable.getPartitionInfo(), tapTable);
         return tapTable;
     }
 
-
-//    public static TapTable toPdk(Schema schema) {
-//        MetadataInstancesDto metadataInstances = InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(schema), new TypeHolder<MetadataInstancesDto>() {
-//        }, TapConstants.abstractClassDetectors);
-//        return toPdk(metadataInstances);
-//    }
-
     public static TapTable toPdk(Schema schema) {
-        long start = System.currentTimeMillis();
         TapTable tapTable = new TapTable(schema.getOriginalName() == null ? null : schema.getOriginalName());
         //通过databaseId查询到pdk到相关熟悉
         tapTable.pdkId(schema.getPdkId());
@@ -159,6 +181,8 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setPartitionInfo(schema.getPartitionInfo());
+        tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();
@@ -292,10 +316,9 @@ public class PdkSchemaConvert {
         }
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
-
+        setTapTypeToPdk(tapTable.getPartitionInfo(), tapTable);
         return tapTable;
     }
-
 
     public static MetadataInstancesDto fromPdk(TapTable tapTable) {
         MetadataInstancesDto schema = new MetadataInstancesDto();
@@ -310,6 +333,8 @@ public class PdkSchemaConvert {
         schema.setStorageEngine(tapTable.getStorageEngine());
         schema.setComment(tapTable.getComment());
         schema.setTableAttr(tapTable.getTableAttr());
+        schema.setPartitionInfo(tapTable.getPartitionInfo());
+        schema.setPartitionMasterTableId(tapTable.getPartitionMasterTableId());
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         List<Field> fields = new ArrayList<>();
@@ -447,17 +472,10 @@ public class PdkSchemaConvert {
         } else if (indexList != null) {
             schema.setIndices(Lists.newArrayList());
         }
-
+        setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
         return schema;
-
-
     }
 
-//    public static Schema fromPdkSchema(TapTable tapTable) {
-//        MetadataInstancesDto metadataInstances = fromPdk(tapTable);
-//        return InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(metadataInstances), new TypeHolder<Schema>() {
-//        }, TapConstants.abstractClassDetectors);
-//    }
     public static Schema fromPdkSchema(TapTable tapTable) {
         Schema schema = new Schema();
         schema.setName(tapTable.getId());
@@ -471,6 +489,8 @@ public class PdkSchemaConvert {
         schema.setStorageEngine(tapTable.getStorageEngine());
         schema.setComment(tapTable.getComment());
         schema.setTableAttr(tapTable.getTableAttr());
+        schema.setPartitionInfo(tapTable.getPartitionInfo());
+        schema.setPartitionMasterTableId(tapTable.getPartitionMasterTableId());
 
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         List<Field> fields = new ArrayList<>();
@@ -601,7 +621,7 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             schema.setIndices(tableIndexList);
         }
-
+        setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
         return schema;
     }
 

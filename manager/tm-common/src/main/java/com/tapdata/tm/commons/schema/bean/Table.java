@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.schema.bean;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.FileProperty;
 import com.tapdata.tm.commons.schema.TableIndex;
+import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Data;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -41,6 +42,8 @@ public class Table {
     private String oneone;
     private String userId;
     private String charset;
+    private String partitionMasterTableId;
+    private TapPartition partitionInfo;
 
     @JsonProperty("tableAttr")
     @Field("tableAttr")

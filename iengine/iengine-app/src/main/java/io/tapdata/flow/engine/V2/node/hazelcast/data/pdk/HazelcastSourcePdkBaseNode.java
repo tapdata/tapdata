@@ -5,8 +5,21 @@ import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.LockUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.StringCompression;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -57,7 +70,11 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -77,6 +94,8 @@ import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
@@ -105,8 +124,27 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -130,6 +168,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final double DEFAULT_SAMPLE_RATE = 0.2D;
 	public static final int MIN_QUEUE_SIZE = 10;
 	public static final int SOURCE_QUEUE_FACTOR = 2;
+	public static final int BATCH_SCAN_PARTITION_SUB_TABLE_BATCH = 10;
 	public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT";
 	public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT_NUM";
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
@@ -771,6 +810,90 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
+	protected void loadSubTableByPartitionTable(Map<String, TapTable> masterTableMap, List<String> newSubTableList) {
+		if (Objects.isNull(masterTableMap) || masterTableMap.isEmpty()) return;
+		Node<?> node = getNode();
+		if (!(node instanceof DatabaseNode)) {
+			return;
+		}
+		DatabaseNode databaseNode = (DatabaseNode) node;
+		if (!Boolean.TRUE.equals(databaseNode.getSyncPartitionTableEnable())) {
+			return;
+		}
+		Map<String, Set<String>> parentTableAndSubIdMap = new HashMap<>();
+		masterTableMap.forEach((id, table) -> {
+			Set<String> subTableIds = new HashSet<>();
+			Optional.ofNullable(table.getPartitionInfo())
+					.map(TapPartition::getSubPartitionTableInfo)
+					.ifPresent(schemas -> subTableIds.addAll(schemas.stream()
+							.filter(Objects::nonNull)
+							.map(TapSubPartitionTableInfo::getTableName)
+							.collect(Collectors.toList()))
+					);
+			parentTableAndSubIdMap.put(id, subTableIds);
+		});
+
+		ConnectorNode connectorNode = getConnectorNode();
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		Optional.ofNullable(connectorFunctions.getQueryPartitionTablesByParentName()).ifPresent(function -> {
+			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.QUERY_PARTITION_TABLES_BY_PARENT_NAME, () -> {
+				TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+				try {
+					function.query(connectorContext, new ArrayList<>(masterTableMap.values()), partitionResult -> partitionResult.stream()
+							.filter(Objects::nonNull)
+							.filter(t -> parentTableAndSubIdMap.containsKey(t.getMasterTableName()))
+							.filter(t -> Objects.nonNull(parentTableAndSubIdMap.get(t.getMasterTableName())))
+							.filter(t -> Objects.nonNull(t.getSubPartitionTableNames()) && !t.getSubPartitionTableNames().isEmpty())
+							.forEach(info -> {
+								String masterTableName = info.getMasterTableName();
+								Set<String> oldSubTableIds = parentTableAndSubIdMap.get(masterTableName);
+								List<String> newSubTable = info.getSubPartitionTableNames().stream()
+										.filter(id -> !oldSubTableIds.contains(id))
+										.collect(Collectors.toList());
+								if(!newSubTable.isEmpty()) {
+									newSubTableList.addAll(newSubTable);
+								}
+							})
+					);
+				} catch (Exception e) {
+					obsLogger.warn("Call QueryPartitionTablesByParentName function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
+							+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+				}
+			}, TAG);
+		});
+	}
+
+	/**
+	 * Dynamically add tables and load newly added sub tables based on the main table
+	 * */
+	protected void loadSubTableByPartitionTable() {
+		// Handle dynamic sub partition table add
+		Map<String, TapTable> masterTableMap = new HashMap<>();
+		List<String> newSubTables = new ArrayList<>();
+		try {
+			Iterator<Entry<TapTable>> iterator = getConnectorNode().getConnectorContext().getTableMap().iterator();
+			while (iterator.hasNext()) {
+				Entry<TapTable> next = iterator.next();
+				TapTable value = next.getValue();
+				if (!checkIsMasterPartitionTable(value)) {
+					continue;
+				}
+				masterTableMap.put(next.getKey(), value);
+				if (masterTableMap.size() == BATCH_SCAN_PARTITION_SUB_TABLE_BATCH) {
+					loadSubTableByPartitionTable(masterTableMap, newSubTables);
+					masterTableMap.clear();
+				}
+			}
+		} finally {
+			if (!masterTableMap.isEmpty()) {
+				loadSubTableByPartitionTable(masterTableMap, newSubTables);
+			}
+		}
+		if (!newSubTables.isEmpty()) {
+			handleNewTables(newSubTables);
+		}
+	}
+
 	protected void handleTableMonitorResult() {
 		Thread.currentThread().setName("Handle-Table-Monitor-Result-" + this.associateId);
 		try {
@@ -829,6 +952,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				});
 			}
+			loadSubTableByPartitionTable();
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
 		}
@@ -1087,6 +1211,30 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		return tapdataEvent;
+	}
+
+	protected void setPartitionMasterTableId(TapTable tapTable, List<TapEvent> events) {
+		if (!checkIsSubPartitionTable(tapTable)) return;
+		events.stream()
+			.filter(e -> e instanceof TapRecordEvent)
+			.forEach(e -> ((TapRecordEvent) e).setPartitionMasterTableId(tapTable.getPartitionMasterTableId()));
+	}
+
+	protected void setPartitionMasterTableId(List<TapEvent> events) {
+		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
+		events.stream()
+			.filter(e -> e instanceof TapRecordEvent)
+			.forEach(e -> {
+				TapRecordEvent event = ((TapRecordEvent) e);
+				TapTable tapTable = tapTableMap.get(event.getTableId());
+				if (Objects.nonNull(tapTable) && checkIsSubPartitionTable(tapTable)) {
+					Optional.ofNullable(tapTable.getPartitionMasterTableId()).ifPresent(event::setPartitionMasterTableId);
+				}
+			});
+	}
+
+	protected void setPartitionMasterTableId(TapRecordEvent event, String partitionMasterTableId) {
+		Optional.ofNullable(partitionMasterTableId).ifPresent(event::setPartitionMasterTableId);
 	}
 
 	protected void handleSchemaChange(TapEvent tapEvent) {
