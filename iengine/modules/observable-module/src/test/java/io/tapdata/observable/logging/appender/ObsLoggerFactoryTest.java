@@ -19,12 +19,12 @@ public class ObsLoggerFactoryTest {
         ReflectionTestUtils.setField(obsLoggerFactory,"settingService",settingService);
         String prefix="task";
         when(settingService.getInt(prefix+"_log_file_save_time", 180)).thenReturn(180);
-        when(settingService.getInt(prefix+"_log_file_save_size",10)).thenReturn(10);
+        when(settingService.getInt(prefix+"_log_file_save_size",1024)).thenReturn(1024);
         when(settingService.getInt(prefix + "_log_file_save_count", 100)).thenReturn(100);
         doCallRealMethod().when(obsLoggerFactory).getLogConfiguration(prefix);
         LogConfiguration logConfiguration = obsLoggerFactory.getLogConfiguration(prefix);
         assertEquals(180,logConfiguration.getLogSaveTime());
-        assertEquals(10,logConfiguration.getLogSaveSize());
+        assertEquals(1024,logConfiguration.getLogSaveSize());
         assertEquals(100,logConfiguration.getLogSaveCount());
     }
     @DisplayName("test Get null Log Configuration")
@@ -35,12 +35,12 @@ public class ObsLoggerFactoryTest {
         ReflectionTestUtils.setField(obsLoggerFactory, "settingService", settingService);
         String prefix = null;
         when(settingService.getInt(prefix + "_log_file_save_time", 180)).thenReturn(180);
-        when(settingService.getInt(prefix + "_log_file_save_size", 10)).thenReturn(10);
+        when(settingService.getInt(prefix + "_log_file_save_size", 1024)).thenReturn(1024);
         when(settingService.getInt(prefix + "_log_file_save_count", 100)).thenReturn(100);
         doCallRealMethod().when(obsLoggerFactory).getLogConfiguration(prefix);
         LogConfiguration logConfiguration = obsLoggerFactory.getLogConfiguration(prefix);
         assertEquals(180, logConfiguration.getLogSaveTime());
-        assertEquals(10, logConfiguration.getLogSaveSize());
+        assertEquals(1024, logConfiguration.getLogSaveSize());
         assertEquals(100, logConfiguration.getLogSaveCount());
     }
 }

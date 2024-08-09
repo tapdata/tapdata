@@ -91,9 +91,9 @@ public class Application {
 	public static String logsPath = LOG_PATH;
 	private static Level defaultLogLevel = Level.INFO;
 
-	private static Integer DEFAULT_LOG_SAVE_TIME=180;
-	private static String DEFAULT_LOG_SAVE_SIZE="10";
-	private static String DEFAULT_LOG_SAVE_COUNT="100";
+	private static Integer DEFAULT_LOG_SAVE_TIME = 180;
+	private static String DEFAULT_LOG_SAVE_SIZE = "1024";
+	private static String DEFAULT_LOG_SAVE_COUNT = "100";
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 

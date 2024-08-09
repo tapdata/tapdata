@@ -780,5 +780,13 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		Delete
 	}
 
+	@Override
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		tapdataEvent.setTransformToTapValueResult(null);
+	}
 
+	@Override
+	public boolean needCopyBatchEventWrapper() {
+		return true;
+	}
 }

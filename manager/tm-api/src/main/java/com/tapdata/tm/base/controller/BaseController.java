@@ -12,6 +12,7 @@ import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MessageUtil;
+import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -258,6 +259,13 @@ public class BaseController {
 		res.setMessage(msg);
 		return res;
 	}
+	public <T> ResponseMessage<T> failed(String errorCode, String msg, Throwable e) {
+		ResponseMessage<T> res = new ResponseMessage<>();
+		res.setCode(errorCode);
+		res.setMessage(msg);
+		res.setStack(TapSimplify.getStackTrace(e));
+		return res;
+	}
 
 	/**
 	 * Request process failed.
@@ -270,6 +278,7 @@ public class BaseController {
 		ResponseMessage<T> res = new ResponseMessage<>();
 		res.setCode(errorCode);
 		res.setMessage(e != null ? e.getMessage() : null);
+		res.setStack(TapSimplify.getStackTrace(e));
 		return res;
 	}
 
@@ -283,6 +292,7 @@ public class BaseController {
 		ResponseMessage<T> res = new ResponseMessage<>();
 		res.setCode("SystemError");
 		res.setMessage(e != null ? e.getMessage() : null);
+		res.setStack(TapSimplify.getStackTrace(e));
 		return res;
 	}
 
