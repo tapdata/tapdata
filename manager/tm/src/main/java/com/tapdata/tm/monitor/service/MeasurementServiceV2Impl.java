@@ -453,7 +453,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         });
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
         MatchOperation match = Aggregation.match(criteria);
-        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, "_id"));
+        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, "date"));
         LimitOperation limit = Aggregation.limit(5);
         UnwindOperation unwind = Aggregation.unwind("ss", false);
         GroupOperation group = Aggregation.group().avg("ss.vs.inputQps").as("qps");
