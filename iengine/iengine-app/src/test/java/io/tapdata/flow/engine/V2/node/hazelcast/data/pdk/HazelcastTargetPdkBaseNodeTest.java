@@ -253,9 +253,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	class createTableTest {
 
 		DataProcessorContext dataProcessorContext;
+		TapTable mockDropTable;
 
 		@BeforeEach
 		void setUp() {
+			mockDropTable = mock(TapTable.class);
+			when(mockDropTable.getId()).thenReturn("test");
 			dataProcessorContext = mock(DataProcessorContext.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", dataProcessorContext);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "clientMongoOperator", mockClientMongoOperator);
@@ -434,8 +437,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				return null;
 			});
 			ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, "test", true);
-			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test", true);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, mockDropTable, true);
+			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, mockDropTable, true);
 		}
 
 		@Test
@@ -467,8 +470,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				});
 
 				ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
-				doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, "test", true);
-				hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test", true);
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, mockDropTable, true);
+				hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, mockDropTable, true);
 
 			}
 

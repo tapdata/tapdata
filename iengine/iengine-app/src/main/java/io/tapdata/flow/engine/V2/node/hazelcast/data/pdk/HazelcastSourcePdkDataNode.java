@@ -3,7 +3,16 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataAdjustMemoryEvent;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
+import com.tapdata.entity.TapdataStartingCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -16,8 +25,26 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.utils.TimeTransFormationUtil;
 import io.tapdata.Runnable.LoadSchemaRunner;
-import io.tapdata.aspect.*;
-import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceJoinHeartbeatAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadEndAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadErrorAspect;
+import io.tapdata.aspect.taskmilestones.CDCReadStartedAspect;
+import io.tapdata.aspect.taskmilestones.Snapshot2CDCAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadErrorAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotReadTableErrorAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -45,7 +72,10 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
-import io.tapdata.flow.engine.V2.sharecdc.*;
+import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
+import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcReaderExCode_13;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
@@ -56,10 +86,22 @@ import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
-import io.tapdata.pdk.apis.entity.*;
+import io.tapdata.pdk.apis.entity.FilterResults;
+import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.SortOn;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.*;
+import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ConnectionConfigWithTables;
+import io.tapdata.pdk.apis.functions.connector.source.CountByPartitionFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -87,7 +129,15 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -374,6 +424,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject,  TableBatchReadStatus.RUNNING.name());
 
 																flushPollingCDCOffset(events);
+
+																setPartitionMasterTableId(tapTable, events);
 																List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
 
 																if (batchReadFuncAspect != null)
@@ -792,7 +844,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					if (streamReadFuncAspect != null) {
 						AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
 					}
-
+					setPartitionMasterTableId(events);
 					List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
 					if (logger.isDebugEnabled()) {
 						logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
@@ -1035,6 +1087,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													.table(tableName)
 													.referenceTime(System.currentTimeMillis())
 													.init();
+											setPartitionMasterTableId(tapInsertRecordEvent, tapTable.getPartitionMasterTableId());
 											if (streamReadFuncAspect != null) {
 												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), Collections.singletonList(tapInsertRecordEvent));
 											}

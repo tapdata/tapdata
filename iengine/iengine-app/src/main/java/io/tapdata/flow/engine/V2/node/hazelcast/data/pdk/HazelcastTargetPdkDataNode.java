@@ -7,21 +7,36 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.DmlPolicy;
-import com.tapdata.tm.commons.dag.DmlPolicyEnum;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
+import io.tapdata.aspect.AlterFieldNameFuncAspect;
+import io.tapdata.aspect.ClearTableFuncAspect;
+import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.aspect.DropFieldFuncAspect;
+import io.tapdata.aspect.DropTableFuncAspect;
+import io.tapdata.aspect.NewFieldFuncAspect;
+import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.TableInitFuncAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
@@ -39,8 +54,6 @@ import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
-import io.tapdata.node.pdk.ConnectorNodeService;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -49,7 +62,20 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
-import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
+import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropPartitionTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryIndexesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionBeginFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionCommitFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionRollbackFunction;
+import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -64,13 +90,24 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.simplify.TapSimplify.clearTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
+import static io.tapdata.entity.simplify.TapSimplify.dropTableEvent;
 
 /**
  * @author jackin
@@ -204,7 +241,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
 			return;
 		}
-		dropTable(existsDataProcessEnum, tableId, init);
+		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
@@ -458,14 +495,34 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId, boolean init) {
+	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, TapTable table, boolean init) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.DROP_TABLE) return;
 
 		AtomicReference<TapDropTableEvent> tapDropTableEvent = new AtomicReference<>();
+		final String tableId = table.getId();
 		try {
 			DropTableFunction dropTableFunction = getConnectorNode().getConnectorFunctions().getDropTableFunction();
-			if (dropTableFunction != null) {
-				tapDropTableEvent.set(dropTableEvent(tableId));
+			DropPartitionTableFunction dropPartitionTableFunction = getConnectorNode().getConnectorFunctions().getDropPartitionTableFunction();
+			final boolean needDropPartitionTable = syncPartitionTableEnable
+					&& Objects.nonNull(table.getPartitionInfo())
+					&& Objects.nonNull(dropPartitionTableFunction);
+			tapDropTableEvent.set(dropTableEvent(tableId));
+			masterTableId(tapDropTableEvent.get(), table);
+			if (needDropPartitionTable) {
+				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
+						.setInit(init)
+						.dropTableEvent(tapDropTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(), (dropTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.DROP_PARTITION_TABLE_FUNCTION, () ->
+									dropPartitionTableFunction.dropTable(
+										getConnectorNode().getConnectorContext(),
+										tapDropTableEvent.get()),
+										TAG,
+										buildErrorConsumer(tapDropTableEvent.get().getTableId())))
+				);
+			} else if (dropTableFunction != null) {
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
 						.setInit(init)
 						.dropTableEvent(tapDropTableEvent.get())
@@ -798,6 +855,18 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
+	protected void directToMasterTableIfNeed(TapRecordEvent event, TapTable tapTable) {
+		if (!syncPartitionTableEnable || !checkIsSubPartitionTable(tapTable)) {
+			return;
+		}
+		Optional.ofNullable(event.getPartitionMasterTableId())
+				.ifPresent(masterTableId -> {
+					String targetMasterId = getTgtTableNameFromTapEvent(event, masterTableId);
+					event.setTableId(targetMasterId);
+					tapTable.setPartitionMasterTableId(targetMasterId);
+		});
+	}
+
 	protected void writeRecord(List<TapEvent> events) {
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -810,7 +879,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
-		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
+
+		tapRecordEvents.forEach(t -> {
+			directToMasterTableIfNeed(t, tapTable);
+			removeNotSupportFields(t, tapTable.getId());
+		});
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {

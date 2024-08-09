@@ -72,6 +72,7 @@ import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -161,6 +162,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
 	TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
 	private TapCodecsFilterManager codecsFilterManagerForBatchRead;
+	protected boolean syncPartitionTableEnable;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -194,6 +196,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
 		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
+		initSyncPartitionTableEnable();
+	}
+
+	/**
+	 * Initialization: Whether the target has enabled synchronization of partition tables
+	 * */
+	protected void initSyncPartitionTableEnable() {
+		Node<?> node = getNode();
+		this.syncPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncPartitionTableEnable());
 	}
 
 	protected void initCodecsFilterManager() {
@@ -283,6 +294,73 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
+	protected void doCreateTable(TapTable tapTable, AtomicReference<TapCreateTableEvent> tapCreateTableEvent, Runnable runnable) {
+		TapTable finalTapTable = new TapTable();
+		handleTapTablePrimaryKeys(tapTable);
+		BeanUtil.copyProperties(tapTable, finalTapTable);
+		if(unwindProcess){
+			ignorePksAndIndices(finalTapTable, null);
+		}
+		tapCreateTableEvent.set(createTableEvent(finalTapTable));
+		masterTableId(tapCreateTableEvent.get(), tapTable);
+		runnable.run();
+		clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
+				ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+	}
+
+	protected boolean createPartitionTable(CreatePartitionTableFunction createPartitionTableFunction,
+										   AtomicBoolean succeed,
+										   TapTable tapTable,
+										   boolean init,
+										   AtomicReference<TapCreateTableEvent> tapCreateTableEvent) {
+		doCreateTable(tapTable, tapCreateTableEvent, () -> {
+			final ConnectorNode connectorNode = getConnectorNode();
+			final TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+			final TapCreateTableEvent createTableEvent = tapCreateTableEvent.get();
+			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+					.createTableEvent(createTableEvent)
+					.setInit(init)
+					.connectorContext(connectorContext)
+					.dataProcessorContext(dataProcessorContext)
+					.start(), (createTableFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.CREATE_PARTITION_TABLE_FUNCTION, () -> {
+						final CreateTableOptions createTableOptions = createPartitionTableFunction.createTable(connectorContext, createTableEvent);
+						succeed.set(!createTableOptions.getTableExists());
+						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
+					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
+		});
+		return true;
+	}
+
+	protected boolean createSubPartitionTable(CreatePartitionSubTableFunction createSubPartitionTableFunction,
+										   AtomicBoolean succeed,
+										   TapTable tapTable,
+										   boolean init,
+										   AtomicReference<TapCreateTableEvent> tapCreateTableEvent) {
+		final ConnectorNode connectorNode = getConnectorNode();
+		final TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+		final String subTableId = tapTable.getId();
+		doCreateTable(tapTable, tapCreateTableEvent, () -> {
+			final TapCreateTableEvent createTableEvent = tapCreateTableEvent.get();
+			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+					.createTableEvent(createTableEvent)
+					.setInit(init)
+					.connectorContext(connectorContext)
+					.dataProcessorContext(dataProcessorContext)
+					.start(), (createTableFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.CREATE_PARTITION_SUB_TABLE_FUNCTION, () -> {
+						final CreateTableOptions createTableOptions = createSubPartitionTableFunction.createSubPartitionTable(
+									connectorContext,
+									createTableEvent,
+									subTableId
+								);
+						succeed.set(!createTableOptions.getTableExists());
+						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
+					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
+		});
+		return true;
+	}
+
 	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed,boolean init) {
 		if (getNode().disabledNode()) {
 			obsLogger.info("Target node has been disabled, task will skip: create table");
@@ -290,36 +368,44 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
 		boolean createdTable;
+		boolean createPartitionTable;
+		boolean createSubPartitionTable;
 		try {
 			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
 			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
 			createdTable = createTableV2Function != null || createTableFunction != null;
-			TapTable finalTapTable = new TapTable();
-			if (createdTable) {
-				handleTapTablePrimaryKeys(tapTable);
-				BeanUtil.copyProperties(tapTable,finalTapTable);
-				if(unwindProcess){
-					ignorePksAndIndices(finalTapTable, null);
-				}
-				tapCreateTableEvent.set(createTableEvent(finalTapTable));
-				executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
-						.createTableEvent(tapCreateTableEvent.get())
-						.setInit(init)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (createTableFuncAspect ->
-						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
-							if (createTableV2Function != null) {
-								CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-								succeed.set(!createTableOptions.getTableExists());
-								if (createTableFuncAspect != null)
-									createTableFuncAspect.createTableOptions(createTableOptions);
-							} else {
-								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-							}
-						}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId()))));
-				clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
-						ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+
+			CreatePartitionTableFunction createPartitionTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionTableFunction();
+			CreatePartitionSubTableFunction createPartitionSubTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionSubTableFunction();
+			createPartitionTable = this.syncPartitionTableEnable
+					&& checkIsMasterPartitionTable(tapTable)
+					&& Objects.nonNull(createPartitionTableFunction);
+			createSubPartitionTable = this.syncPartitionTableEnable
+					&& checkIsSubPartitionTable(tapTable)
+					&& Objects.nonNull(createPartitionSubTableFunction);
+			if (createPartitionTable) {
+				return createPartitionTable(createPartitionTableFunction, succeed, tapTable, init, tapCreateTableEvent);
+			} else if (createSubPartitionTable) {
+				return createSubPartitionTable(createPartitionSubTableFunction, succeed, tapTable, init, tapCreateTableEvent);
+			} else if (createdTable) {
+				doCreateTable(tapTable, tapCreateTableEvent, () ->
+					executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+							.createTableEvent(tapCreateTableEvent.get())
+							.setInit(init)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start(), (createTableFuncAspect ->
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
+								if (createTableV2Function != null) {
+									CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+									succeed.set(!createTableOptions.getTableExists());
+									if (createTableFuncAspect != null)
+										createTableFuncAspect.createTableOptions(createTableOptions);
+								} else {
+									createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+								}
+							}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId()))))
+				);
 			} else {
 				// only execute start function aspect so that it would be cheated as input
 				AspectUtils.executeAspect(new CreateTableFuncAspect()
@@ -330,7 +416,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				clientMongoOperator.insertOne(Collections.singletonList(tapTable),
 						ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
 			}
-
 		} catch (Throwable throwable) {
 			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 			if (null != matched) {

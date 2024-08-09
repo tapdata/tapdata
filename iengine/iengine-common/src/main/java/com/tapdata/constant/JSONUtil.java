@@ -5,13 +5,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.tapdata.entity.schema.partition.type.TapPartitionType;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +28,7 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Created by tapdata on 12/12/2017.
@@ -38,6 +44,7 @@ public class JSONUtil {
 		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 		mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
 		SimpleModule simpleModule = new SimpleModule();
+		simpleModule.addDeserializer(TapPartitionType.class, new TapPartitionTypeDeserializer());
 		simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
 		mapper.registerModule(simpleModule);
 		mapper.registerModule(new JavaTimeModule());
@@ -202,6 +209,25 @@ public class JSONUtil {
 			} else {
 				throw new RuntimeException("Deserialize TapType failed, cannot find a TapType class by type number: " + typeInt + ", tree node: " + treeNode);
 			}
+		}
+	}
+
+	static class TapPartitionTypeDeserializer extends JsonDeserializer<TapPartitionType> {
+		@Override
+		public TapPartitionType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+			ObjectCodec codec = p.getCodec();
+			TreeNode treeNode = codec.readTree(p);
+			Optional<? extends TapPartitionType> partitionType = Optional.ofNullable((TextNode) treeNode.get(TapPartitionType.KEY_NAME))
+					.map(TextNode::textValue)
+					.map(TapPartitionType::getTapPartitionTypeClass)
+					.map(tapTypeClass -> {
+						try {
+							return codec.treeToValue(treeNode, tapTypeClass);
+						} catch (Exception e) {
+							throw new IllegalArgumentException("Unsupported tap type: " + tapTypeClass.getName());
+						}
+					});
+			return partitionType.orElse(null);
 		}
 	}
 }
