@@ -48,7 +48,11 @@ public class BatchOffsetUtil {
     public static Object getTableOffsetInfo(SyncProgress syncProgress, String tableId) {
         Object batchOffsetObj = syncProgress.getBatchOffsetObj();
         if (batchOffsetObj instanceof Map) {
-            return ((Map<?, ?>) batchOffsetObj).get(tableId);
+            Object tableBatchOffsetObj = ((Map<?, ?>) batchOffsetObj).get(tableId);
+            if (tableBatchOffsetObj instanceof Map) {
+                return new HashMap<>((Map<?, ?>) tableBatchOffsetObj);
+            }
+            return tableBatchOffsetObj;
         }
         return batchOffsetObj;
     }
