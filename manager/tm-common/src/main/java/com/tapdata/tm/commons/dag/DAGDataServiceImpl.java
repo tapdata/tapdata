@@ -299,6 +299,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUserName(userName);
             metadataInstancesDto.setLastUpdBy(userId);
 
+            //传递分区属性
+            metadataInstancesDto.setPartitionInfo(schema.getPartitionInfo());
+            metadataInstancesDto.setPartitionMasterTableId(schema.getPartitionMasterTableId());
+
             String nodeTableName = appendNodeTableName ? schema.getOriginalName() : null;
             String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName, taskId);
             metadataInstancesDto.setQualifiedName(qualifiedName);
@@ -451,6 +455,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
         //}
         //ChangeRuleStage.changeStart(metadataInstancesDto, options);
+        //传递分区属性
+        metadataInstancesDto.setPartitionInfo(schema.getPartitionInfo());
+        metadataInstancesDto.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         return metadataInstancesDto;
     }
     private Map<String, MetadataInstancesDto> rollbackOperation(List<MetadataInstancesDto> metadataInstancesDtos, String rollback, String rollbackTable) {
@@ -557,6 +564,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
             field.setDataTypeTemp(originalDataType);
         });
+        //传递分区属性
+        schema.setPartitionInfo(metadataInstances.getPartitionInfo());
+        schema.setPartitionMasterTableId(metadataInstances.getPartitionMasterTableId());
 
         return schema;
     }
