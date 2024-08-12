@@ -812,37 +812,32 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected void loadSubTableByPartitionTable(Map<String, TapTable> masterTableMap, List<String> newSubTableList) {
 		if (Objects.isNull(masterTableMap) || masterTableMap.isEmpty()) return;
-		Node<?> node = getNode();
-		if (!(node instanceof DatabaseNode)) {
-			return;
-		}
-		DatabaseNode databaseNode = (DatabaseNode) node;
-		if (!Boolean.TRUE.equals(databaseNode.getSyncPartitionTableEnable())) {
-			return;
-		}
 		Map<String, Set<String>> parentTableAndSubIdMap = new HashMap<>();
 		masterTableMap.forEach((id, table) -> {
+			if (!checkIsMasterPartitionTable(table)) {
+				return;
+			}
 			Set<String> subTableIds = new HashSet<>();
 			Optional.ofNullable(table.getPartitionInfo())
 					.map(TapPartition::getSubPartitionTableInfo)
 					.ifPresent(schemas -> subTableIds.addAll(schemas.stream()
-							.filter(Objects::nonNull)
-							.map(TapSubPartitionTableInfo::getTableName)
-							.collect(Collectors.toList()))
+						.filter(Objects::nonNull)
+						.map(TapSubPartitionTableInfo::getTableName)
+						.collect(Collectors.toList()))
 					);
 			parentTableAndSubIdMap.put(id, subTableIds);
 		});
+		if (parentTableAndSubIdMap.isEmpty()) return;
 
 		ConnectorNode connectorNode = getConnectorNode();
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-		Optional.ofNullable(connectorFunctions.getQueryPartitionTablesByParentName()).ifPresent(function -> {
-			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.QUERY_PARTITION_TABLES_BY_PARENT_NAME, () -> {
+		Optional.ofNullable(connectorFunctions.getQueryPartitionTablesByParentName()).ifPresent(function ->
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.QUERY_PARTITION_TABLES_BY_PARENT_NAME, () -> {
 				TapConnectorContext connectorContext = connectorNode.getConnectorContext();
 				try {
 					function.query(connectorContext, new ArrayList<>(masterTableMap.values()), partitionResult -> partitionResult.stream()
 							.filter(Objects::nonNull)
 							.filter(t -> parentTableAndSubIdMap.containsKey(t.getMasterTableName()))
-							.filter(t -> Objects.nonNull(parentTableAndSubIdMap.get(t.getMasterTableName())))
 							.filter(t -> Objects.nonNull(t.getSubPartitionTableNames()) && !t.getSubPartitionTableNames().isEmpty())
 							.forEach(info -> {
 								String masterTableName = info.getMasterTableName();
@@ -859,8 +854,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					obsLogger.warn("Call QueryPartitionTablesByParentName function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 							+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 				}
-			}, TAG);
-		});
+			}, TAG)
+		);
 	}
 
 	/**
@@ -1216,14 +1211,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected void setPartitionMasterTableId(TapTable tapTable, List<TapEvent> events) {
 		if (!checkIsSubPartitionTable(tapTable)) return;
 		events.stream()
-			.filter(e -> e instanceof TapRecordEvent)
+			.filter(TapRecordEvent.class::isInstance)
 			.forEach(e -> ((TapRecordEvent) e).setPartitionMasterTableId(tapTable.getPartitionMasterTableId()));
 	}
 
 	protected void setPartitionMasterTableId(List<TapEvent> events) {
 		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
 		events.stream()
-			.filter(e -> e instanceof TapRecordEvent)
+			.filter(TapRecordEvent.class::isInstance)
 			.forEach(e -> {
 				TapRecordEvent event = ((TapRecordEvent) e);
 				TapTable tapTable = tapTableMap.get(event.getTableId());

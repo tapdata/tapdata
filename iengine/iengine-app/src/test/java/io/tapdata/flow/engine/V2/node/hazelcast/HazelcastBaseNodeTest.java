@@ -31,6 +31,7 @@ import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -40,6 +41,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
@@ -2004,6 +2006,122 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test buildErrorConsumer method for RuntimeException")
 		void test3(){
 			assertThrows(RuntimeException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(mock(RuntimeException.class)));
+		}
+	}
+
+	@Nested
+	class MasterTableIdTest {
+		TapEvent event;
+		TapTable table;
+		@BeforeEach
+		void init() {
+			event = mock(TapEvent.class);
+			table = mock(TapTable.class);
+
+			doNothing().when(table).setPartitionMasterTableId(anyString());
+			when(mockHazelcastBaseNode.getTgtTableNameFromTapEvent(event, "master")).thenReturn("id");
+			doCallRealMethod().when(mockHazelcastBaseNode).masterTableId(event, table);
+		}
+
+		@Test
+		void testNormal() {
+			when(table.getPartitionMasterTableId()).thenReturn("master");
+			Assertions.assertDoesNotThrow(() -> mockHazelcastBaseNode.masterTableId(event, table));
+			verify(mockHazelcastBaseNode).getTgtTableNameFromTapEvent(event, "master");
+			verify(table).getPartitionMasterTableId();
+		}
+		@Test
+		void testNullPartitionMasterTableId() {
+			when(table.getPartitionMasterTableId()).thenReturn(null);
+			Assertions.assertDoesNotThrow(() -> mockHazelcastBaseNode.masterTableId(event, table));
+			verify(mockHazelcastBaseNode, times(0)).getTgtTableNameFromTapEvent(event, "master");
+			verify(table, times(1)).getPartitionMasterTableId();
+		}
+	}
+
+	@Nested
+	class CheckIsMasterPartitionTableTest {
+		TapTable table;
+		TapPartition partition;
+
+		@BeforeEach
+		void init() {
+			table = mock(TapTable.class);
+			partition = mock(TapPartition.class);
+			when(mockHazelcastBaseNode.checkIsMasterPartitionTable(table)).thenCallRealMethod();
+		}
+
+		@Test
+		void testNormal() {
+			when(table.getPartitionInfo()).thenReturn(partition);
+			when(table.getPartitionMasterTableId()).thenReturn("id");
+			when(table.getId()).thenReturn("id");
+			Assertions.assertTrue(mockHazelcastBaseNode.checkIsMasterPartitionTable(table));
+		}
+
+		@Test
+		void testEmptyPartition() {
+			when(table.getPartitionInfo()).thenReturn(null);
+			when(table.getPartitionMasterTableId()).thenReturn("id");
+			when(table.getId()).thenReturn("id");
+			Assertions.assertFalse(mockHazelcastBaseNode.checkIsMasterPartitionTable(table));
+		}
+		@Test
+		void testEmptyMasterId() {
+			when(table.getPartitionInfo()).thenReturn(partition);
+			when(table.getPartitionMasterTableId()).thenReturn(null);
+			when(table.getId()).thenReturn("id");
+			Assertions.assertTrue(mockHazelcastBaseNode.checkIsMasterPartitionTable(table));
+		}
+		@Test
+		void testNotEqualMasterIdAndTableId() {
+			when(table.getPartitionInfo()).thenReturn(partition);
+			when(table.getPartitionMasterTableId()).thenReturn("master");
+			when(table.getId()).thenReturn("id");
+			Assertions.assertFalse(mockHazelcastBaseNode.checkIsMasterPartitionTable(table));
+		}
+	}
+
+	@Nested
+	class CheckIsSubPartitionTableTest {
+		TapTable table;
+		TapPartition partition;
+
+		@BeforeEach
+		void init() {
+			table = mock(TapTable.class);
+			partition = mock(TapPartition.class);
+			when(mockHazelcastBaseNode.checkIsSubPartitionTable(table)).thenCallRealMethod();
+		}
+
+		@Test
+		void testNormal() {
+			when(table.getPartitionInfo()).thenReturn(partition);
+			when(table.getPartitionMasterTableId()).thenReturn("id");
+			when(table.getId()).thenReturn("sub-id");
+			Assertions.assertTrue(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+		}
+
+		@Test
+		void testEmptyPartition() {
+			when(table.getPartitionInfo()).thenReturn(null);
+			when(table.getPartitionMasterTableId()).thenReturn("id");
+			when(table.getId()).thenReturn("id");
+			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+		}
+		@Test
+		void testEmptyMasterId() {
+			when(table.getPartitionInfo()).thenReturn(partition);
+			when(table.getPartitionMasterTableId()).thenReturn(null);
+			when(table.getId()).thenReturn("id");
+			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+		}
+		@Test
+		void testNotEqualMasterIdAndTableId() {
+			when(table.getPartitionInfo()).thenReturn(partition);
+			when(table.getPartitionMasterTableId()).thenReturn("master");
+			when(table.getId()).thenReturn("master");
+			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
 		}
 	}
 }

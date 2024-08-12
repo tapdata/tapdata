@@ -847,19 +847,18 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return getTgtTableNameFromTapEvent(tapEvent, tableId);
 	}
 
-	protected void masterTableId(TapEvent event, TapTable table) {
+	public void masterTableId(TapEvent event, TapTable table) {
 		Optional.ofNullable(table.getPartitionMasterTableId()).ifPresent(masterSourceTableId -> {
 			table.setPartitionMasterTableId(getTgtTableNameFromTapEvent(event, masterSourceTableId));
 		});
 	}
 
-
-	protected boolean checkIsMasterPartitionTable(TapTable table) {
+	public boolean checkIsMasterPartitionTable(TapTable table) {
 		return Objects.nonNull(table.getPartitionInfo())
 				&& (Objects.isNull(table.getPartitionMasterTableId()) || table.getId().equals(table.getPartitionMasterTableId()));
 	}
 
-	protected boolean checkIsSubPartitionTable(TapTable table) {
+	public boolean checkIsSubPartitionTable(TapTable table) {
 		return Objects.nonNull(table.getPartitionInfo())
 				&& Objects.nonNull(table.getPartitionMasterTableId())
 				&& !table.getId().equals(table.getPartitionMasterTableId());

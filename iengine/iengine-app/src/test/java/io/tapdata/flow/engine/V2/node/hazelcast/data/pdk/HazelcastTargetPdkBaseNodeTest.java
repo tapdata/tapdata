@@ -262,6 +262,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			dataProcessorContext = mock(DataProcessorContext.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", dataProcessorContext);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "clientMongoOperator", mockClientMongoOperator);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).doCreateTable(any(TapTable.class), any(AtomicReference.class), any(Runnable.class));
+			doNothing().when(hazelcastTargetPdkBaseNode).masterTableId(any(TapCreateTableEvent.class), any(TapTable.class));
 		}
 
 		@Test
