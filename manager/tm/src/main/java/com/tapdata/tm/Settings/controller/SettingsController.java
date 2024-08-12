@@ -116,8 +116,8 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "test send mail")
     @PostMapping("testEmail")
-    public ResponseMessage<Void> testSendMail(@RequestBody TestMailDto testMailDto) {
-        settingsService.testSendMail(testMailDto);
-        return success();
+    public ResponseMessage<Boolean> testSendMail(@RequestBody TestMailDto testMailDto) {
+        boolean res = settingsService.testSendMail(testMailDto);
+        return success(res);
     }
 }

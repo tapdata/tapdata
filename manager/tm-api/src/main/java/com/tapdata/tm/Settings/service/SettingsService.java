@@ -50,7 +50,7 @@ public interface SettingsService {
 
     List<Settings> findAll(Query query);
 
-    void testSendMail(TestMailDto testMailDto);
+    boolean testSendMail(TestMailDto testMailDto);
 
     void setSettingsRepository(com.tapdata.tm.Settings.repository.SettingsRepository settingsRepository);
 

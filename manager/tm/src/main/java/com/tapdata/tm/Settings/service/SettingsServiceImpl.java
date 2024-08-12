@@ -307,7 +307,7 @@ public class SettingsServiceImpl implements SettingsService {
         return mongoTemplate.find(query, Settings.class);
     }
 
-    public void testSendMail(TestMailDto testMailDto) {
+    public boolean testSendMail(TestMailDto testMailDto) {
         MailAccountDto mailAccount = getMailAccount(testMailDto);
 
         if ("*****".equals(mailAccount.getPass())) {
@@ -315,7 +315,7 @@ public class SettingsServiceImpl implements SettingsService {
             mailAccount.setPass(value);
         }
 
-        MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
+        return MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
 
     }
 
