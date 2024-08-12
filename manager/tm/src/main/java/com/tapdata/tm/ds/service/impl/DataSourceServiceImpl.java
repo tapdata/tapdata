@@ -1368,6 +1368,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (where != null && where.get("_id") != null) {
 
             String id = (String) where.get("_id");
+            log.info("connection id:{},userId:{}", id,user.getUserId());
             ObjectId objectId = toObjectId(id);
             if (connectionDto != null) {
                 submit = connectionDto.getSubmit();
@@ -1397,6 +1398,7 @@ public class DataSourceServiceImpl extends DataSourceService{
                         tables = InstanceFactory.instance(JsonParser.class).fromJson(tablesJson, new TypeHolder<List<TapTable>>() {
                         });
                         set.put("schema.tables", null);
+                        log.info("Load schema size: {},userId: {}, status: {}", tables.size(),user.getUserId(),status);
                     }
                     hasSchema = true;
                 }
@@ -1422,6 +1424,7 @@ public class DataSourceServiceImpl extends DataSourceService{
             }
 
             if (oldConnectionDto != null && oldConnectionDto.getId() != null) {
+                log.info("old Connection id: {},hasSchema :{}", oldConnectionDto.getId(), hasSchema);
                 if (connectionDto != null) {
                     connectionDto.setDatabase_type(oldConnectionDto.getDatabase_type());
                 }
