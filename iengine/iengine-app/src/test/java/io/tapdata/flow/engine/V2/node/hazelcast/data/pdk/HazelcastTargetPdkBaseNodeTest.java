@@ -1225,6 +1225,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			String tableName = "test";
 			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(any(TapEvent.class))).thenReturn(tableName);
 			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", mockObsLogger);
 		}
 
 		@Test
@@ -1301,6 +1302,15 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvents.add(tapdataEvent);
 			BlockingQueue<TapdataEvent> tapEventProcessQueue = new LinkedBlockingQueue<>();
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "tapEventProcessQueue", tapEventProcessQueue);
+			new Thread(() -> assertDoesNotThrow(() -> {
+				TapdataEvent pollEvent = tapEventProcessQueue.take();
+				assertInstanceOf(TapdataCountDownLatchEvent.class, pollEvent);
+				assertNotNull(((TapdataCountDownLatchEvent) pollEvent).getCountDownLatch());
+				assertEquals(1, ((TapdataCountDownLatchEvent) pollEvent).getCountDownLatch().getCount());
+				((TapdataCountDownLatchEvent) pollEvent).getCountDownLatch().countDown();
+				pollEvent = tapEventProcessQueue.take();
+				assertEquals(tapdataEvent, pollEvent);
+			})).start();
 			hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents);
 			verify(hazelcastTargetPdkBaseNode, never()).fromTapValueMergeInfo(any(TapdataEvent.class));
 		}
