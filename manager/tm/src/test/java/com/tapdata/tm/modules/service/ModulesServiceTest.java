@@ -11,6 +11,7 @@ import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import org.junit.jupiter.api.*;
+import org.mockito.internal.verification.Times;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -136,6 +137,22 @@ public class ModulesServiceTest {
             when(modulesRepository.save(any(),any())).thenReturn(mock(ModulesEntity.class));
             modulesService.save(modulesDto, userDetail);
             verify(modulesRepository).save(any(),any());
+        }
+    }
+    @Nested
+    class batchUpdateModuleByListTest{
+        private List<ModulesDto> modulesDtos;
+        private UserDetail userDetail;
+        @Test
+        void testBatchUpdateModuleByListNormal(){
+            modulesService = spy(modulesService);
+            modulesDtos = new ArrayList<>();
+            ModulesDto modulesDto = mock(ModulesDto.class);
+            modulesDtos.add(modulesDto);
+            userDetail = mock(UserDetail.class);
+            doReturn(modulesDto).when(modulesService).updateModuleById(modulesDto, userDetail);
+            modulesService.batchUpdateModuleByList(modulesDtos, userDetail);
+            verify(modulesService,new Times(1)).updateModuleById(modulesDto, userDetail);
         }
     }
 }
