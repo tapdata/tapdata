@@ -100,6 +100,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -177,6 +178,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 	}
 
+	protected Set<String> filterSubPartitionTableTableMap() {
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (syncPartitionTableEnable) {
+			return tapTableMap.keySet().stream().filter(name -> {
+				TapTable tapTable = tapTableMap.get(name);
+				return Objects.nonNull(tapTable) && !checkIsSubPartitionTable(tapTable);
+			}).collect(Collectors.toSet());
+		}
+		return tapTableMap.keySet();
+	}
+
 	private void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
@@ -187,7 +199,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
 			SyncProgress syncProgress = foundSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 			if (null == syncProgress) {
-				for (String tableId : tapTableMap.keySet()) {
+				for (String tableId : filterSubPartitionTableTableMap()) {
 					if (!isRunning()) {
 						return;
 					}
