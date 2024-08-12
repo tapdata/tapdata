@@ -136,6 +136,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -201,6 +202,29 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
+	public Set<String> filterSubTableIfMasterExists() {
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (Objects.isNull(syncSourcePartitionTableEnable)) {
+			//没有开关，不做过滤
+			return tapTableMap.keySet();
+		}
+		Set<String> table = new HashSet<>();
+		Set<String> keySet = tapTableMap.keySet();
+		for (String tableId : keySet) {
+			TapTable tapTable = tapTableMap.get(tableId);
+			if (syncSourcePartitionTableEnable && checkIsSubPartitionTable(tapTable)) {
+				//开关开启，子表全过滤掉
+				continue;
+			}
+			if (!syncSourcePartitionTableEnable && checkIsMasterPartitionTable(tapTable)) {
+				//开关关闭，主表全过滤掉
+				continue;
+			}
+			table.add(tableId);
+		}
+		return table;
+	}
+
 	@Override
 	public void startSourceRunner() {
 		try {
@@ -208,10 +232,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			CacheNode cacheNode = (CacheNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof CacheNode && node.getType().equals(TaskDto.SYNC_TYPE_MEM_CACHE))
 					 .findFirst().orElse(null);
+			final Set<String> tables = filterSubTableIfMasterExists();
 			if(cacheNode != null && TaskDto.SYNC_TYPE_MEM_CACHE.equals(taskDto.getSyncType())
 					&& cacheNode.getAutoCreateIndex()
 					&& CollectionUtils.isNotEmpty(cacheNode.getNeedCreateIndex())){
-				for (String tableId : tapTableMap.keySet()) {
+				for (String tableId : tables) {
 					TapTable tapTable = tapTableMap.get(tableId);
 					AtomicBoolean succeed = new AtomicBoolean(false);
 					if(checkBatchCount(tableId,tapTable)){
@@ -226,7 +251,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			try {
 				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
-						doSnapshotWithControl(new ArrayList<>(tapTableMap.keySet()));
+						doSnapshotWithControl(new ArrayList<>(tables));
 					}
 				}
 

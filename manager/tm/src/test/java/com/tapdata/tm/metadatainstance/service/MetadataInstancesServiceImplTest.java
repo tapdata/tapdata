@@ -1502,7 +1502,7 @@ public class MetadataInstancesServiceImplTest {
 			map.put("test","map");
 			list.add(map);
 			when(aggregate.getMappedResults()).thenReturn(list);
-			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit);
+			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
 			assertEquals(map,actual.getItems().get(0));
 		}
 		@Test
@@ -1511,7 +1511,7 @@ public class MetadataInstancesServiceImplTest {
 			regex = "tableName";
 			limit = 1;
 			when(mongoTemplate.count(any(Query.class),any(Class.class))).thenReturn(0L);
-			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit);
+			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
 			assertEquals(0,actual.getItems().size());
 		}
 		@Test
@@ -1526,7 +1526,7 @@ public class MetadataInstancesServiceImplTest {
 			map.put("test","map");
 			list.add(map);
 			when(aggregate.getMappedResults()).thenReturn(list);
-			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit);
+			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
 			assertEquals(map,actual.getItems().get(0));
 		}
 	}

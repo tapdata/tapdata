@@ -120,7 +120,7 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
 
     public abstract List<Map<String, String>> tableValues(String connectId, String sourceType);
 
-    public abstract Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit);
+    public abstract Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit, Boolean syncPartitionTableEnable);
 
     public abstract TableSupportInspectVo tableSupportInspect(String connectId, String tableName);
 

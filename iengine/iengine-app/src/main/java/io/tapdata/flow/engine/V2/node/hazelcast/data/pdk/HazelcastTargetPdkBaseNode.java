@@ -162,7 +162,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
 	TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
 	private TapCodecsFilterManager codecsFilterManagerForBatchRead;
-	protected boolean syncPartitionTableEnable;
+	protected boolean syncTargetPartitionTableEnable;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -204,7 +204,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	 * */
 	protected void initSyncPartitionTableEnable() {
 		Node<?> node = getNode();
-		this.syncPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncPartitionTableEnable());
+		this.syncTargetPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncTargetPartitionTableEnable());
 	}
 
 	protected void initCodecsFilterManager() {
@@ -377,10 +377,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 			CreatePartitionTableFunction createPartitionTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionTableFunction();
 			CreatePartitionSubTableFunction createPartitionSubTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionSubTableFunction();
-			createPartitionTable = this.syncPartitionTableEnable
+			createPartitionTable = this.syncTargetPartitionTableEnable
 					&& checkIsMasterPartitionTable(tapTable)
 					&& Objects.nonNull(createPartitionTableFunction);
-			createSubPartitionTable = this.syncPartitionTableEnable
+			createSubPartitionTable = this.syncTargetPartitionTableEnable
 					&& checkIsSubPartitionTable(tapTable)
 					&& Objects.nonNull(createPartitionSubTableFunction);
 			if (createPartitionTable) {

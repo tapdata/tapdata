@@ -220,6 +220,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor;
 	private int drainSize;
 	private int toTapValueBatchSize;
+	protected Boolean syncSourcePartitionTableEnable;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -257,6 +258,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
 		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 3, connectorOnTaskThreadGroup, TAG);
+        initSyncPartitionTableEnable();
 		this.sourceRunner.submitSync(() -> {
 			super.doInit(context);
 			try {
@@ -281,6 +283,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initToTapValueConcurrent();
 		});
 	}
+
+    /**
+     * Initialization: Whether the target has enabled synchronization of partition tables
+     * */
+    protected void initSyncPartitionTableEnable() {
+        Node<?> node = getNode();
+        this.syncSourcePartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncSourcePartitionTableEnable());
+    }
 
 	protected void initToTapValueConcurrent() {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);

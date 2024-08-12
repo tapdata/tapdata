@@ -7,13 +7,11 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
 import io.tapdata.aspect.AlterFieldNameFuncAspect;
@@ -180,7 +178,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	protected Set<String> filterSubPartitionTableTableMap() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		if (syncPartitionTableEnable) {
+		if (syncTargetPartitionTableEnable) {
+			//开启分区表时建表需要过滤掉子表
 			return tapTableMap.keySet().stream().filter(name -> {
 				TapTable tapTable = tapTableMap.get(name);
 				return Objects.nonNull(tapTable) && !checkIsSubPartitionTable(tapTable);
@@ -191,15 +190,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	private void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		Set<String> tableIds = filterSubPartitionTableTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
 				.tapTableMap(tapTableMap)
+				.totals(tableIds.size())
 				.dataProcessorContext(dataProcessorContext)
 				.start(), (funcAspect -> {
 			Node<?> node = dataProcessorContext.getNode();
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
 			SyncProgress syncProgress = foundSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 			if (null == syncProgress) {
-				for (String tableId : filterSubPartitionTableTableMap()) {
+				for (String tableId : tableIds) {
 					if (!isRunning()) {
 						return;
 					}
@@ -515,7 +516,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		try {
 			DropTableFunction dropTableFunction = getConnectorNode().getConnectorFunctions().getDropTableFunction();
 			DropPartitionTableFunction dropPartitionTableFunction = getConnectorNode().getConnectorFunctions().getDropPartitionTableFunction();
-			final boolean needDropPartitionTable = syncPartitionTableEnable
+			final boolean needDropPartitionTable = syncTargetPartitionTableEnable
 					&& Objects.nonNull(table.getPartitionInfo())
 					&& Objects.nonNull(dropPartitionTableFunction);
 			tapDropTableEvent.set(dropTableEvent(tableId));
@@ -868,7 +869,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected void directToMasterTableIfNeed(TapRecordEvent event, TapTable tapTable) {
-		if (!syncPartitionTableEnable || !checkIsSubPartitionTable(tapTable)) {
+		if (!syncTargetPartitionTableEnable || !checkIsSubPartitionTable(tapTable)) {
 			return;
 		}
 		Optional.ofNullable(event.getPartitionMasterTableId())
