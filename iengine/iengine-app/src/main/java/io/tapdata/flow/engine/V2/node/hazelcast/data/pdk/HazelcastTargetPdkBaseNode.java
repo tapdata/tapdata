@@ -541,7 +541,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					} catch (InterruptedException e) {
 						Thread.currentThread().interrupt();
-						break;
+						return;
 					}
 				}
 				updateMemoryFromDDLInfoMap(consumeEvent);
@@ -551,7 +551,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void enqueue(LinkedBlockingQueue<TapdataEvent> tapEventQueue, TapdataEvent event) {
+	protected void enqueue(LinkedBlockingQueue<TapdataEvent> tapEventQueue, TapdataEvent event) {
 		while (isRunning()) {
 			try {
 				if (tapEventQueue.offer(event, 1, TimeUnit.SECONDS)) {

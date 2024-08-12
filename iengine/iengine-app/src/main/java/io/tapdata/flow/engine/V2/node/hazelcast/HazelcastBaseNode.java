@@ -714,7 +714,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 
-	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
+	public void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) {
 			return;
 		}
