@@ -58,10 +58,14 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -131,6 +135,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -668,6 +673,27 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		return tableNode.getIsFilter() && CollectionUtils.isNotEmpty(tableNode.getConditions());
 	}
 
+	protected void initPartitionMap() {
+		if (!Boolean.TRUE.equals(syncSourcePartitionTableEnable)) {
+			return;
+		}
+		Iterator<Entry<TapTable>> iterator = getConnectorNode().getConnectorContext().getTableMap().iterator();
+		while (iterator.hasNext()) {
+			Entry<TapTable> next = iterator.next();
+			TapTable value = next.getValue();
+			if (!checkIsMasterPartitionTable(value)) {
+				continue;
+			}
+			TapPartition partitionInfo = value.getPartitionInfo();
+			List<TapSubPartitionTableInfo> subPartitionTableInfo = partitionInfo.getSubPartitionTableInfo();
+			Optional.ofNullable(subPartitionTableInfo).ifPresent(sub -> {
+				for (TapSubPartitionTableInfo tapSubPartitionTableInfo : sub) {
+					partitionTableSubMasterMap.put(tapSubPartitionTableInfo.getTableName(), value);
+				}
+			});
+		}
+	}
+
 	@SneakyThrows
 	protected void doCdc() {
 		if (!isRunning()) {
@@ -685,6 +711,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
+
+		//增量需要把子表加进去，并维护 子表id《-》主表TapTable 的关系
+		initPartitionMap();
+
 		if (isPollingCDC(node)) {
 			doPollingCDC();
 		} else {
@@ -736,6 +766,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		// MILESTONE-READ_CDC_EVENT-RUNNING
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.RUNNING);
 		syncProgress.setSyncStage(SyncStage.CDC.name());
+	}
+
+	protected List<String> cdcTables(Collection<String> tables) {
+		List<String> realTables = new ArrayList<>(tables);
+		if (!partitionTableSubMasterMap.isEmpty()) {
+			realTables.addAll(partitionTableSubMasterMap.keySet());
+		}
+		return realTables;
 	}
 
 	@SneakyThrows
@@ -817,7 +855,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), cdcTables(tables),
 							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
 				};
 			}

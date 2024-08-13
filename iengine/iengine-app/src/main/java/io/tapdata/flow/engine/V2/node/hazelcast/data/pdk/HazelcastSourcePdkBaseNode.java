@@ -179,6 +179,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected int sourceQueueCapacity;
 	protected int originalSourceQueueCapacity;
 	private final TargetTableDataEventFilter tapEventFilter;
+	final protected Map<String, TapTable> partitionTableSubMasterMap = new HashMap<>();;
 
 	/**
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
@@ -290,7 +291,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected void initSyncPartitionTableEnable() {
         Node<?> node = getNode();
         this.syncSourcePartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncSourcePartitionTableEnable());
-    }
+	}
 
 	protected void initToTapValueConcurrent() {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);
@@ -857,6 +858,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.collect(Collectors.toList());
 								if(!newSubTable.isEmpty()) {
 									newSubTableList.addAll(newSubTable);
+
+									TapTable masterTapTable = masterTableMap.get(masterTableName);
+									for (String subTableId : newSubTable) {
+										partitionTableSubMasterMap.put(subTableId, masterTapTable);
+									}
 								}
 							})
 					);
@@ -1231,9 +1237,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			.filter(TapRecordEvent.class::isInstance)
 			.forEach(e -> {
 				TapRecordEvent event = ((TapRecordEvent) e);
-				TapTable tapTable = tapTableMap.get(event.getTableId());
-				if (Objects.nonNull(tapTable) && checkIsSubPartitionTable(tapTable)) {
-					Optional.ofNullable(tapTable.getPartitionMasterTableId()).ifPresent(event::setPartitionMasterTableId);
+				String eventTableId = event.getTableId();
+				TapTable tapTable;
+				if (partitionTableSubMasterMap.containsKey(eventTableId)) {
+					tapTable = partitionTableSubMasterMap.get(eventTableId);
+					//子表：更改表ID为主表ID，masterId为子表ID，如果目标关闭了分区同步，需要撤回这个操作｜
+					//     源上会用tableid获取表后去做类型转换或者啥操作，拿子表的话旧有问题，换成getPartitionMasterTableId去拿主表修改范围太大了
+					Optional.ofNullable(tapTable.getId()).ifPresent(event::setTableId);
+					Optional.ofNullable(eventTableId).ifPresent(event::setPartitionMasterTableId);
+				} else {
+					tapTable = tapTableMap.get(eventTableId);
+					if (Objects.nonNull(tapTable) && checkIsSubPartitionTable(tapTable)) {
+						Optional.ofNullable(tapTable.getPartitionMasterTableId()).ifPresent(event::setPartitionMasterTableId);
+					}
 				}
 			});
 	}

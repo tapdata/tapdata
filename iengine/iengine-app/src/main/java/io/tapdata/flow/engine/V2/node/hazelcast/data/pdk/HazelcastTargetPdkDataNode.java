@@ -869,7 +869,16 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected void directToMasterTableIfNeed(TapRecordEvent event, TapTable tapTable) {
-		if (!syncTargetPartitionTableEnable || !checkIsSubPartitionTable(tapTable)) {
+		boolean isSubPartitionTable = checkIsSubPartitionTable(tapTable);
+		if (!syncTargetPartitionTableEnable && isSubPartitionTable) {
+			String oldTableId = event.getPartitionMasterTableId();
+			if (Objects.nonNull(oldTableId)) {
+				event.setPartitionMasterTableId(event.getTableId());
+				event.setTableId(oldTableId);
+			}
+			return;
+		}
+		if (!syncTargetPartitionTableEnable || !isSubPartitionTable) {
 			return;
 		}
 		Optional.ofNullable(event.getPartitionMasterTableId())
