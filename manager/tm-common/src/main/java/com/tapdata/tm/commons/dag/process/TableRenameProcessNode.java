@@ -92,6 +92,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
             Map<String, TableRenameTableInfo> originaledMap = originalMap();
             String ancestorsName = schema.getAncestorsName();
             String currentTableName = convertTableName(originaledMap, ancestorsName, false);
+            updatePartitionMasterName(schema, currentTableName);
             schema.setName(currentTableName);
             schema.setOriginalName(currentTableName);
             Optional.ofNullable(options.getIncludes()).ifPresent(includes -> {
@@ -104,6 +105,12 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
         });
 
         return outputSchemas;
+    }
+
+    protected void updatePartitionMasterName(Schema schema, String currentTableName) {
+        if (String.valueOf(schema.getName()).equals(schema.getPartitionMasterTableId())) {
+            schema.setPartitionMasterTableId(currentTableName);
+        }
     }
 
 
