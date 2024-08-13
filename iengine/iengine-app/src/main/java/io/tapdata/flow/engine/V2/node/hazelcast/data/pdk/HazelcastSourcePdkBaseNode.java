@@ -953,6 +953,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 			this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
 			initAndStartSourceRunner();
+			initToTapValueConcurrent();
 		} else {
 			String error = "Connector node is null";
 			errorHandle(new RuntimeException(error), error);

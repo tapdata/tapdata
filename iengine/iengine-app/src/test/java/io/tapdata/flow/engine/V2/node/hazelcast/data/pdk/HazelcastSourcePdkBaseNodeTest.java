@@ -1135,6 +1135,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
 			) {
 				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				ReflectionTestUtils.setField(instance, "readBatchSize", 100);
 				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
 				String associateId = "test_associateId";
 				ReflectionTestUtils.setField(instance, "associateId", associateId);
