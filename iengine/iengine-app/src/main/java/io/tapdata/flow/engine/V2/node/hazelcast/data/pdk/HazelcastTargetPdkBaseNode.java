@@ -354,7 +354,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 									createTableEvent,
 									subTableId
 								);
-						succeed.set(!createTableOptions.getTableExists());
+						succeed.set(!Boolean.TRUE.equals(createTableOptions.getTableExists()));
 						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
 					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
 		});

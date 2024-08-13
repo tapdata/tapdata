@@ -127,6 +127,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -857,6 +858,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 										.filter(id -> !oldSubTableIds.contains(id))
 										.collect(Collectors.toList());
 								if(!newSubTable.isEmpty()) {
+									newSubTableList.add(masterTableName);
 									newSubTableList.addAll(newSubTable);
 
 									TapTable masterTapTable = masterTableMap.get(masterTableName);
@@ -877,12 +879,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	/**
 	 * Dynamically add tables and load newly added sub tables based on the main table
 	 * */
-	protected void loadSubTableByPartitionTable() {
+	protected void loadSubTableByPartitionTable(ConnectorNode connectorNode) {
 		// Handle dynamic sub partition table add
 		Map<String, TapTable> masterTableMap = new HashMap<>();
 		List<String> newSubTables = new ArrayList<>();
 		try {
-			Iterator<Entry<TapTable>> iterator = getConnectorNode().getConnectorContext().getTableMap().iterator();
+			Iterator<Entry<TapTable>> iterator = connectorNode.getConnectorContext().getTableMap().iterator();
 			while (iterator.hasNext()) {
 				Entry<TapTable> next = iterator.next();
 				TapTable value = next.getValue();
@@ -901,7 +903,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		if (!newSubTables.isEmpty()) {
-			handleNewTables(newSubTables);
+			handleNewTables(newSubTables, false);
 		}
 	}
 
@@ -963,13 +965,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				});
 			}
-			loadSubTableByPartitionTable();
+			Optional.ofNullable(getConnectorNode()).ifPresent(this::loadSubTableByPartitionTable);
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
 		}
 	}
-
 	protected boolean handleNewTables(List<String> addList) {
+		return handleNewTables(addList, true);
+	}
+	protected boolean handleNewTables(List<String> addList, boolean onlyNormalTable) {
 		if (CollectionUtils.isNotEmpty(addList)) {
 			List<String> loadedTableNames;
 			final List<String> noPrimaryKeyTableNames = new ArrayList<>();
@@ -999,11 +1003,25 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				return null;
 			}).orElse(tapTable -> false);
+			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
 			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
+				if (onlyNormalTable && (Objects.nonNull(tapTable.getPartitionMasterTableId()) || Objects.nonNull(tapTable.getPartitionInfo()))) {
+					addList.remove(tapTable.getId());
+					return;
+				}
+				try {
+					if (checkIsMasterPartitionTable(tapTable) && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
+						masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
+						addList.remove(tapTable.getId());
+						return;
+					}
+				} catch (Exception e) {
+					logger.debug("{} don't exists in table map", tapTable.getId());
+				}
+
 				if (filterTableByNoPrimaryKey.apply(tapTable)) {
 					logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
 					noPrimaryKeyTableNames.add(tapTable.getId());
-					return;
 				}
 				addTapTables.add(tapTable);
 			});
@@ -1024,48 +1042,97 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				obsLogger.warn("It is expected to load {} new table models, and {} table models no longer exist and will be ignored. The table name(s) that does not exist: {}",
 						addList.size(), missingTableNames.size(), missingTableNames);
 			}
-			if (CollectionUtils.isNotEmpty(loadedTableNames)) {
-				for (TapTable addTapTable : addTapTables) {
+			try {
+				if (CollectionUtils.isNotEmpty(loadedTableNames)) {
+					for (TapTable addTapTable : addTapTables) {
+						if (!isRunning()) {
+							break;
+						}
+						if (checkSubPartitionTableHasBeCreated(addTapTable)) {
+							loadedTableNames.remove(addTapTable.getId());
+							continue;
+						}
+
+						TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+						addTapTable.setLastUpdate(Optional.ofNullable(addTapTable.getLastUpdate()).orElse(System.currentTimeMillis()));
+						tapCreateTableEvent.table(addTapTable);
+						tapCreateTableEvent.setTableId(addTapTable.getId());
+						TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+
+						if (null == tapdataEvent) {
+							String error = "Wrap create table tapdata event failed: " + addTapTable;
+							errorHandle(new RuntimeException(error), error);
+							return true;
+						}
+
+						tapdataEvents.add(tapdataEvent);
+					}
 					if (!isRunning()) {
-						break;
-					}
-					TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
-					tapCreateTableEvent.table(addTapTable);
-					tapCreateTableEvent.setTableId(addTapTable.getId());
-					TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
-
-					if (null == tapdataEvent) {
-						String error = "Wrap create table tapdata event failed: " + addTapTable;
-						errorHandle(new RuntimeException(error), error);
 						return true;
 					}
-
-					tapdataEvents.add(tapdataEvent);
-				}
-				if (!isRunning()) {
-					return true;
-				}
-				tapdataEvents.forEach(this::enqueue);
-				this.newTables.addAll(loadedTableNames);
-				AspectUtils.executeAspect(new SourceDynamicTableAspect()
-						.dataProcessorContext(getDataProcessorContext())
-						.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
-						.tables(loadedTableNames)
-						.tapdataEvents(tapdataEvents));
-				if (this.endSnapshotLoop.get()) {
-					obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
-					// Restart source runner
-					if (null != sourceRunner) {
-						this.sourceRunnerFirstTime.set(false);
-						newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
-						restartPdkConnector();
-					} else {
-						String error = "Source runner is null";
-						errorHandle(new RuntimeException(error), error);
-						return true;
+					tapdataEvents.forEach(this::enqueue);
+					if (!loadedTableNames.isEmpty()) {
+						this.newTables.addAll(loadedTableNames);
 					}
+					AspectUtils.executeAspect(new SourceDynamicTableAspect()
+							.dataProcessorContext(getDataProcessorContext())
+							.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
+							.tables(loadedTableNames)
+							.tapdataEvents(tapdataEvents));
+					if (this.endSnapshotLoop.get()) {
+						obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+						// Restart source runner
+						if (null != sourceRunner) {
+							this.sourceRunnerFirstTime.set(false);
+							newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
+							restartPdkConnector();
+						} else {
+							String error = "Source runner is null";
+							errorHandle(new RuntimeException(error), error);
+							return true;
+						}
+					}
+				}
+			} finally {
+				if (!masterAndNewMasterTable.isEmpty()) {
+					//更新Taptable的子表信息
+					masterAndNewMasterTable.forEach((master, newMaster) -> {
+						TapPartition partitionInfo = master.getPartitionInfo();
+						List<TapSubPartitionTableInfo> subPartitionTableInfo = partitionInfo.getSubPartitionTableInfo();
+						List<TapSubPartitionTableInfo> newPartitionTableInfo = Optional.ofNullable(newMaster.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>());
+						if (null == subPartitionTableInfo) {
+							master.getPartitionInfo().setSubPartitionTableInfo(newPartitionTableInfo);
+						} else {
+							Map<String, TapSubPartitionTableInfo> tableInfoMap = subPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
+							Map<String, TapSubPartitionTableInfo> collect = newPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
+							tableInfoMap.putAll(collect);
+							master.getPartitionInfo().setSubPartitionTableInfo(new ArrayList<>(tableInfoMap.values()));
+						}
+					});
 				}
 			}
+		}
+		return false;
+	}
+
+	protected boolean checkSubPartitionTableHasBeCreated(TapTable addTapTable) {
+		if (checkIsSubPartitionTable(addTapTable) && Objects.nonNull(getConnectorNode())) {
+			TapTable masterTable = getConnectorNode().getConnectorContext().getTableMap().get(addTapTable.getPartitionMasterTableId());
+			if(Objects.isNull(masterTable)) {
+				return false;
+			}
+			TapPartition partitionInfo = masterTable.getPartitionInfo();
+			if (Objects.isNull(partitionInfo)) {
+				return false;
+			}
+			List<TapSubPartitionTableInfo> subPartitionTableInfo = partitionInfo.getSubPartitionTableInfo();
+			if (Objects.isNull(subPartitionTableInfo)) {
+				return false;
+			}
+			Optional<TapSubPartitionTableInfo> first = subPartitionTableInfo.stream()
+					.filter(info -> addTapTable.getId().equals(info.getTableName()))
+					.findFirst();
+			return first.isPresent();
 		}
 		return false;
 	}
@@ -1343,7 +1410,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 			List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
 			Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
-					.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> null == m.getId() ? "" : m.getId().toHexString()));
+					.sorted((m1,m2) -> {
+						if (null == m1.getLastUpdate()) return -1;
+						if (null == m2.getLastUpdate()) return 1;
+						return m1.getLastUpdate().compareTo(m2.getLastUpdate());
+					}).collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName,
+							m -> null == m.getId() ? "" : m.getId().toHexString(),
+							(existingValue, newValue) -> existingValue));
 			tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
 			tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
 			tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
