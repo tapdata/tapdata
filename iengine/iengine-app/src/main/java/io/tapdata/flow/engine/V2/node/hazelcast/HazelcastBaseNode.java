@@ -6,7 +6,6 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
@@ -26,7 +25,11 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.DataFunctionAspect;
+import io.tapdata.aspect.DataNodeCloseAspect;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeCloseAspect;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -63,7 +66,6 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
-import io.tapdata.pdk.core.error.TapPdkRunnerExCode_18;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -78,7 +80,11 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -851,17 +857,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		Optional.ofNullable(table.getPartitionMasterTableId()).ifPresent(masterSourceTableId -> {
 			table.setPartitionMasterTableId(getTgtTableNameFromTapEvent(event, masterSourceTableId));
 		});
-	}
-
-	public boolean checkIsMasterPartitionTable(TapTable table) {
-		return Objects.nonNull(table.getPartitionInfo())
-				&& (Objects.isNull(table.getPartitionMasterTableId()) || table.getId().equals(table.getPartitionMasterTableId()));
-	}
-
-	public boolean checkIsSubPartitionTable(TapTable table) {
-		return Objects.nonNull(table.getPartitionInfo())
-				&& Objects.nonNull(table.getPartitionMasterTableId())
-				&& !table.getId().equals(table.getPartitionMasterTableId());
 	}
 
 	public String getTgtTableNameFromTapEvent(TapEvent tapEvent, String masterTableId) {

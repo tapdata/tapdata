@@ -4,9 +4,7 @@ import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -37,8 +35,6 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.partition.TapPartition;
-import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
@@ -53,9 +49,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.common.vo.TapPartitionResult;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -63,19 +57,21 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,11 +80,33 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -1379,190 +1397,4 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
-	@Nested
-	class LoadSubTableByPartitionTableTest {
-		Map<String, TapTable> masterTableMap;
-		List<String> newSubTableList;
-		Node<?> node;
-
-		ConnectorNode connectorNode;
-		ConnectorFunctions connectorFunctions;
-		QueryPartitionTablesByParentName queryPartitionTablesByParentName;
-		TapConnectorContext connectorContext;
-		ObsLogger obsLogger;
-		Collection<TapPartitionResult> results;
-
-		TapTable master;
-		TapTable sub;
-		TapPartition masterPartition;
-		List<TapSubPartitionTableInfo> subPartitionTableInfos;
-		TapSubPartitionTableInfo subInfo;
-		@BeforeEach
-		void init() throws Exception {
-			connectorNode = mock(ConnectorNode.class);
-			connectorFunctions = mock(ConnectorFunctions.class);
-			queryPartitionTablesByParentName = mock(QueryPartitionTablesByParentName.class);
-			connectorContext = mock(TapConnectorContext.class);
-			obsLogger = mock(ObsLogger.class);
-			results = new ArrayList<>();
-			when(mockInstance.getConnectorNode()).thenReturn(connectorNode);
-			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
-			when(connectorFunctions.getQueryPartitionTablesByParentName()).thenReturn(queryPartitionTablesByParentName);
-			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
-			results.add(null);
-			results.add(TapPartitionResult.create("master").addSubTable("s1").addSubTable("s2").addSubTable("sub"));
-			results.add(TapPartitionResult.create("m1").addSubTable("ms1"));
-			results.add(TapPartitionResult.create("m1"));
-			results.add(TapPartitionResult.create("m1").addAllSubTable(new ArrayList<>()));
-			doAnswer(a -> {
-				Consumer consumer = a.getArgument(2, Consumer.class);
-				consumer.accept(results);
-				return null;
-			}).when(queryPartitionTablesByParentName).query(any(TapConnectorContext.class), anyList(), any(Consumer.class));
-
-
-			node = mock(DatabaseNode.class);
-			masterTableMap = new HashMap<>();
-			newSubTableList = new ArrayList<>();
-
-			master = new TapTable("master", "master");
-			masterPartition = new TapPartition();
-			subPartitionTableInfos = new ArrayList<>();
-			subInfo = new TapSubPartitionTableInfo();
-			subInfo.setTableName("sub");
-			subPartitionTableInfos.add(subInfo);
-			subPartitionTableInfos.add(null);
-			masterPartition.setSubPartitionTableInfo(subPartitionTableInfos);
-			master.setPartitionInfo(masterPartition);
-
-			sub = new TapTable("sub", "sub");
-			masterTableMap.put("master", master);
-			masterTableMap.put("sub", sub);
-
-			when(dataProcessorContext.getDatabaseType()).thenReturn(new DatabaseTypeEnum.DatabaseType());
-			doNothing().when(obsLogger).warn(anyString());
-			when(mockInstance.checkIsMasterPartitionTable(any(TapTable.class))).thenCallRealMethod();
-			ReflectionTestUtils.setField(mockInstance, "obsLogger", obsLogger);
-			doCallRealMethod().when(mockInstance).loadSubTableByPartitionTable(masterTableMap, newSubTableList);
-		}
-
-		@Test
-		void testNormal() {
-			try (MockedStatic<PDKInvocationMonitor> m = mockStatic(PDKInvocationMonitor.class);
-				 MockedStatic<Log4jUtil> lu = mockStatic(Log4jUtil.class)) {
-				m.when(() -> PDKInvocationMonitor.invoke(any(ConnectorNode.class), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString())).thenAnswer(a -> {
-					CommonUtils.AnyError argument = a.getArgument(2, CommonUtils.AnyError.class);
-					argument.run();
-					return null;
-				});
-				lu.when(() -> Log4jUtil.getStackStrings(any(Exception.class))).thenReturn(new String[]{"message"});
-				Assertions.assertDoesNotThrow(() -> mockInstance.loadSubTableByPartitionTable(masterTableMap, newSubTableList));
-				Assertions.assertEquals(2, newSubTableList.size());
-				verify(mockInstance, times(1)).getConnectorNode();
-				verify(connectorNode, times(1)).getConnectorFunctions();
-				verify(connectorFunctions, times(1)).getQueryPartitionTablesByParentName();
-				verify(connectorNode, times(1)).getConnectorContext();
-				verify(obsLogger, times(0)).warn(anyString());
-			}
-		}
-
-		@Test
-		void testEmptyMasterTable() {
-			masterTableMap.remove("master");
-			try (MockedStatic<PDKInvocationMonitor> m = mockStatic(PDKInvocationMonitor.class);
-				 MockedStatic<Log4jUtil> lu = mockStatic(Log4jUtil.class)) {
-				m.when(() -> PDKInvocationMonitor.invoke(any(ConnectorNode.class), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString())).thenAnswer(a -> {
-					CommonUtils.AnyError argument = a.getArgument(2, CommonUtils.AnyError.class);
-					argument.run();
-					return null;
-				});
-				lu.when(() -> Log4jUtil.getStackStrings(any(Exception.class))).thenReturn(new String[]{"message"});
-				Assertions.assertDoesNotThrow(() -> mockInstance.loadSubTableByPartitionTable(masterTableMap, newSubTableList));
-				Assertions.assertEquals(0, newSubTableList.size());
-				verify(mockInstance, times(0)).getConnectorNode();
-				verify(connectorNode, times(0)).getConnectorFunctions();
-				verify(connectorFunctions, times(0)).getQueryPartitionTablesByParentName();
-				verify(connectorNode, times(0)).getConnectorContext();
-				verify(obsLogger, times(0)).warn(anyString());
-			}
-		}
-
-		@Test
-		void testEmptyMasterTableMap() {
-			masterTableMap.clear();
-			try (MockedStatic<PDKInvocationMonitor> m = mockStatic(PDKInvocationMonitor.class);
-				 MockedStatic<Log4jUtil> lu = mockStatic(Log4jUtil.class)) {
-				m.when(() -> PDKInvocationMonitor.invoke(any(ConnectorNode.class), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString())).thenAnswer(a -> {
-					CommonUtils.AnyError argument = a.getArgument(2, CommonUtils.AnyError.class);
-					argument.run();
-					return null;
-				});
-				lu.when(() -> Log4jUtil.getStackStrings(any(Exception.class))).thenReturn(new String[]{"message"});
-				Assertions.assertDoesNotThrow(() -> mockInstance.loadSubTableByPartitionTable(masterTableMap, newSubTableList));
-				Assertions.assertEquals(0, newSubTableList.size());
-				verify(mockInstance, times(0)).getConnectorNode();
-				verify(connectorNode, times(0)).getConnectorFunctions();
-				verify(connectorFunctions, times(0)).getQueryPartitionTablesByParentName();
-				verify(connectorNode, times(0)).getConnectorContext();
-				verify(obsLogger, times(0)).warn(anyString());
-			}
-		}
-
-		@Test
-		void testNullMasterTableMap() {
-			doCallRealMethod().when(mockInstance).loadSubTableByPartitionTable(null, newSubTableList);
-			try (MockedStatic<PDKInvocationMonitor> m = mockStatic(PDKInvocationMonitor.class);
-				 MockedStatic<Log4jUtil> lu = mockStatic(Log4jUtil.class)) {
-				m.when(() -> PDKInvocationMonitor.invoke(any(ConnectorNode.class), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString())).thenAnswer(a -> {
-					CommonUtils.AnyError argument = a.getArgument(2, CommonUtils.AnyError.class);
-					argument.run();
-					return null;
-				});
-				lu.when(() -> Log4jUtil.getStackStrings(any(Exception.class))).thenReturn(new String[]{"message"});
-				Assertions.assertDoesNotThrow(() -> mockInstance.loadSubTableByPartitionTable(null, newSubTableList));
-				Assertions.assertEquals(0, newSubTableList.size());
-				verify(mockInstance, times(0)).getConnectorNode();
-				verify(connectorNode, times(0)).getConnectorFunctions();
-				verify(connectorFunctions, times(0)).getQueryPartitionTablesByParentName();
-				verify(connectorNode, times(0)).getConnectorContext();
-				verify(obsLogger, times(0)).warn(anyString());
-			}
-		}
-
-		@Test
-		void testException() throws Exception {
-			doAnswer(a -> {
-				throw new Exception("mock - error");
-			}).when(queryPartitionTablesByParentName).query(any(TapConnectorContext.class), anyList(), any(Consumer.class));
-			try (MockedStatic<PDKInvocationMonitor> m = mockStatic(PDKInvocationMonitor.class);
-				 MockedStatic<Log4jUtil> lu = mockStatic(Log4jUtil.class)) {
-				m.when(() -> PDKInvocationMonitor.invoke(any(ConnectorNode.class), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString())).thenAnswer(a -> {
-					CommonUtils.AnyError argument = a.getArgument(2, CommonUtils.AnyError.class);
-					argument.run();
-					return null;
-				});
-				lu.when(() -> Log4jUtil.getStackStrings(any(Exception.class))).thenReturn(new String[]{"message"});
-				Assertions.assertDoesNotThrow(() -> mockInstance.loadSubTableByPartitionTable(masterTableMap, newSubTableList));
-				Assertions.assertEquals(0, newSubTableList.size());
-				verify(mockInstance, times(1)).getConnectorNode();
-				verify(connectorNode, times(1)).getConnectorFunctions();
-				verify(connectorFunctions, times(1)).getQueryPartitionTablesByParentName();
-				verify(connectorNode, times(1)).getConnectorContext();
-				verify(obsLogger, times(1)).warn(anyString());
-			}
-		}
-	}
-
-	@Nested
-	class LoadSubTableByPartitionTable1Test {
-		ConnectorNode connectorNode;
-		TapConnectorContext connectorContext;
-		ObsLogger obsLogger;
-
-		@BeforeEach
-		void init() {
-			connectorNode = mock(ConnectorNode.class);
-			connectorContext = mock(TapConnectorContext.class);
-		}
-	}
 }

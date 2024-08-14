@@ -73,8 +73,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.cache.Entry;
-import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -89,13 +87,12 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
+import io.tapdata.flow.engine.V2.util.PartitionTableUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.node.pdk.ConnectorNodeService;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
@@ -127,14 +124,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -471,7 +465,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 				Predicate<String> dynamicTableFilter = t -> ReUtil.isMatch(((DatabaseNode) node).getTableExpression(), t);
 				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
-						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter);
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter)
+						.withSyncSourcePartitionTableEnable(syncSourcePartitionTableEnable);
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -822,91 +817,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	protected void loadSubTableByPartitionTable(Map<String, TapTable> masterTableMap, List<String> newSubTableList) {
-		if (Objects.isNull(masterTableMap) || masterTableMap.isEmpty()) return;
-		Map<String, Set<String>> parentTableAndSubIdMap = new HashMap<>();
-		masterTableMap.forEach((id, table) -> {
-			if (!checkIsMasterPartitionTable(table)) {
-				return;
-			}
-			Set<String> subTableIds = new HashSet<>();
-			Optional.ofNullable(table.getPartitionInfo())
-					.map(TapPartition::getSubPartitionTableInfo)
-					.ifPresent(schemas -> subTableIds.addAll(schemas.stream()
-						.filter(Objects::nonNull)
-						.map(TapSubPartitionTableInfo::getTableName)
-						.collect(Collectors.toList()))
-					);
-			parentTableAndSubIdMap.put(id, subTableIds);
-		});
-		if (parentTableAndSubIdMap.isEmpty()) return;
-
-		ConnectorNode connectorNode = getConnectorNode();
-		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-		Optional.ofNullable(connectorFunctions.getQueryPartitionTablesByParentName()).ifPresent(function ->
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.QUERY_PARTITION_TABLES_BY_PARENT_NAME, () -> {
-				TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-				try {
-					function.query(connectorContext, new ArrayList<>(masterTableMap.values()), partitionResult -> partitionResult.stream()
-							.filter(Objects::nonNull)
-							.filter(t -> parentTableAndSubIdMap.containsKey(t.getMasterTableName()))
-							.filter(t -> Objects.nonNull(t.getSubPartitionTableNames()) && !t.getSubPartitionTableNames().isEmpty())
-							.forEach(info -> {
-								String masterTableName = info.getMasterTableName();
-								Set<String> oldSubTableIds = parentTableAndSubIdMap.get(masterTableName);
-								List<String> newSubTable = info.getSubPartitionTableNames().stream()
-										.filter(id -> !oldSubTableIds.contains(id))
-										.collect(Collectors.toList());
-								if(!newSubTable.isEmpty()) {
-									newSubTableList.add(masterTableName);
-									newSubTableList.addAll(newSubTable);
-
-									TapTable masterTapTable = masterTableMap.get(masterTableName);
-									for (String subTableId : newSubTable) {
-										partitionTableSubMasterMap.put(subTableId, masterTapTable);
-									}
-								}
-							})
-					);
-				} catch (Exception e) {
-					obsLogger.warn("Call QueryPartitionTablesByParentName function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
-							+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-				}
-			}, TAG)
-		);
-	}
-
-	/**
-	 * Dynamically add tables and load newly added sub tables based on the main table
-	 * */
-	protected void loadSubTableByPartitionTable(ConnectorNode connectorNode) {
-		// Handle dynamic sub partition table add
-		Map<String, TapTable> masterTableMap = new HashMap<>();
-		List<String> newSubTables = new ArrayList<>();
-		try {
-			Iterator<Entry<TapTable>> iterator = connectorNode.getConnectorContext().getTableMap().iterator();
-			while (iterator.hasNext()) {
-				Entry<TapTable> next = iterator.next();
-				TapTable value = next.getValue();
-				if (!checkIsMasterPartitionTable(value)) {
-					continue;
-				}
-				masterTableMap.put(next.getKey(), value);
-				if (masterTableMap.size() == BATCH_SCAN_PARTITION_SUB_TABLE_BATCH) {
-					loadSubTableByPartitionTable(masterTableMap, newSubTables);
-					masterTableMap.clear();
-				}
-			}
-		} finally {
-			if (!masterTableMap.isEmpty()) {
-				loadSubTableByPartitionTable(masterTableMap, newSubTables);
-			}
-		}
-		if (!newSubTables.isEmpty()) {
-			handleNewTables(newSubTables, false);
-		}
-	}
-
 	protected void handleTableMonitorResult() {
 		Thread.currentThread().setName("Handle-Table-Monitor-Result-" + this.associateId);
 		try {
@@ -965,15 +875,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				});
 			}
-			Optional.ofNullable(getConnectorNode()).ifPresent(this::loadSubTableByPartitionTable);
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
 		}
 	}
+
 	protected boolean handleNewTables(List<String> addList) {
-		return handleNewTables(addList, true);
-	}
-	protected boolean handleNewTables(List<String> addList, boolean onlyNormalTable) {
 		if (CollectionUtils.isNotEmpty(addList)) {
 			List<String> loadedTableNames;
 			final List<String> noPrimaryKeyTableNames = new ArrayList<>();
@@ -1005,12 +912,23 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}).orElse(tapTable -> false);
 			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
 			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
-				if (onlyNormalTable && (Objects.nonNull(tapTable.getPartitionMasterTableId()) || Objects.nonNull(tapTable.getPartitionInfo()))) {
-					addList.remove(tapTable.getId());
-					return;
+				if (Objects.nonNull(syncSourcePartitionTableEnable)
+						&& !syncSourcePartitionTableEnable) {
+					//开启了仅同步子表
+					if (PartitionTableUtil.checkIsMasterPartitionTable(tapTable)) {
+						//主表忽略
+						addList.remove(tapTable.getId());
+						return;
+					}
+					if (PartitionTableUtil.checkIsSubPartitionTable(tapTable)) {
+						//转成普通表处理
+						tapTable.setPartitionMasterTableId(null);
+						tapTable.setPartitionInfo(null);
+					}
 				}
 				try {
-					if (checkIsMasterPartitionTable(tapTable) && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
+					//主表已存在，需要新增表后更新主表的分区信息
+					if (PartitionTableUtil.checkIsMasterPartitionTable(tapTable) && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
 						masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
 						addList.remove(tapTable.getId());
 						return;
@@ -1116,7 +1034,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected boolean checkSubPartitionTableHasBeCreated(TapTable addTapTable) {
-		if (checkIsSubPartitionTable(addTapTable) && Objects.nonNull(getConnectorNode())) {
+		if (PartitionTableUtil.checkIsSubPartitionTable(addTapTable) && Objects.nonNull(getConnectorNode())) {
 			TapTable masterTable = getConnectorNode().getConnectorContext().getTableMap().get(addTapTable.getPartitionMasterTableId());
 			if(Objects.isNull(masterTable)) {
 				return false;
@@ -1132,7 +1050,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			Optional<TapSubPartitionTableInfo> first = subPartitionTableInfo.stream()
 					.filter(info -> addTapTable.getId().equals(info.getTableName()))
 					.findFirst();
-			return first.isPresent();
+			if (first.isPresent()) {
+				return true;
+			}
+			this.partitionTableSubMasterMap.put(addTapTable.getId(), masterTable);
 		}
 		return false;
 	}
@@ -1292,7 +1213,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void setPartitionMasterTableId(TapTable tapTable, List<TapEvent> events) {
-		if (!checkIsSubPartitionTable(tapTable)) return;
+		if (null == syncSourcePartitionTableEnable
+				|| !syncSourcePartitionTableEnable
+				|| !PartitionTableUtil.checkIsSubPartitionTable(tapTable)) return;
 		events.stream()
 			.filter(TapRecordEvent.class::isInstance)
 			.forEach(e -> ((TapRecordEvent) e).setPartitionMasterTableId(tapTable.getPartitionMasterTableId()));
@@ -1306,6 +1229,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapRecordEvent event = ((TapRecordEvent) e);
 				String eventTableId = event.getTableId();
 				TapTable tapTable;
+				if (null == syncSourcePartitionTableEnable
+						|| !syncSourcePartitionTableEnable) {
+					//开启了忽略主表，仅同步子表（当普通表处理，不需要传递主表ID）
+					return;
+				}
 				if (partitionTableSubMasterMap.containsKey(eventTableId)) {
 					tapTable = partitionTableSubMasterMap.get(eventTableId);
 					//子表：更改表ID为主表ID，masterId为子表ID，如果目标关闭了分区同步，需要撤回这个操作｜
@@ -1314,7 +1242,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					Optional.ofNullable(eventTableId).ifPresent(event::setPartitionMasterTableId);
 				} else {
 					tapTable = tapTableMap.get(eventTableId);
-					if (Objects.nonNull(tapTable) && checkIsSubPartitionTable(tapTable)) {
+					if (Objects.nonNull(tapTable) && PartitionTableUtil.checkIsSubPartitionTable(tapTable)) {
 						Optional.ofNullable(tapTable.getPartitionMasterTableId()).ifPresent(event::setPartitionMasterTableId);
 					}
 				}
@@ -1322,6 +1250,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void setPartitionMasterTableId(TapRecordEvent event, String partitionMasterTableId) {
+		if (null == syncSourcePartitionTableEnable || !syncSourcePartitionTableEnable) return;
 		Optional.ofNullable(partitionMasterTableId).ifPresent(event::setPartitionMasterTableId);
 	}
 

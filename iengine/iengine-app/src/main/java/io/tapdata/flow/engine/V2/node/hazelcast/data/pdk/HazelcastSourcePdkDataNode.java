@@ -85,6 +85,7 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.util.PartitionTableUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -217,11 +218,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		Set<String> keySet = tapTableMap.keySet();
 		for (String tableId : keySet) {
 			TapTable tapTable = tapTableMap.get(tableId);
-			if (syncSourcePartitionTableEnable && checkIsSubPartitionTable(tapTable)) {
+			if (syncSourcePartitionTableEnable && PartitionTableUtil.checkIsSubPartitionTable(tapTable)) {
 				//开关开启，子表全过滤掉
 				continue;
 			}
-			if (!syncSourcePartitionTableEnable && checkIsMasterPartitionTable(tapTable)) {
+			if (!syncSourcePartitionTableEnable && PartitionTableUtil.checkIsMasterPartitionTable(tapTable)) {
 				//开关关闭，主表全过滤掉
 				continue;
 			}
@@ -681,7 +682,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		while (iterator.hasNext()) {
 			Entry<TapTable> next = iterator.next();
 			TapTable value = next.getValue();
-			if (!checkIsMasterPartitionTable(value)) {
+			if (!PartitionTableUtil.checkIsMasterPartitionTable(value)) {
 				continue;
 			}
 			TapPartition partitionInfo = value.getPartitionInfo();
