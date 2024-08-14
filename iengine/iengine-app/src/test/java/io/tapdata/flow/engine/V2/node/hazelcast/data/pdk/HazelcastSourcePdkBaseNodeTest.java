@@ -73,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -1300,8 +1301,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void test2() {
 			System.setProperty(HazelcastSourcePdkBaseNode.SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, "true");
 			ReflectionTestUtils.setField(instance, "readBatchSize", 100);
-			ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
-			ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
+//			ThreadPoolExecutorEx toTapValueRunner = mock(ThreadPoolExecutorEx.class);
+//			ReflectionTestUtils.setField(instance, "toTapValueRunner", toTapValueRunner);
 
 			instance.initToTapValueConcurrent();
 
@@ -1310,7 +1311,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertTrue((Boolean) toTapValueConcurrent);
 			Object toTapValueConcurrentProcessor = ReflectionTestUtils.getField(instance, "toTapValueConcurrentProcessor");
 			assertInstanceOf(SimpleConcurrentProcessorImpl.class, toTapValueConcurrentProcessor);
-			verify(sourceRunner).execute(any(Runnable.class));
+			Object toTapValueRunner = ReflectionTestUtils.getField(instance, "toTapValueRunner");
+			assertInstanceOf(ThreadPoolExecutorEx.class, toTapValueRunner);
 		}
 	}
 
@@ -1368,6 +1370,45 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				assertEquals(1, tapdataEvent.getInfo("test"));
 			}
 			simpleConcurrentProcessor.close();
+		}
+	}
+
+	@Nested
+	@DisplayName("Method doClose test")
+	class doCloseTest {
+		@Test
+		@DisplayName("test main process")
+		void test1() {
+			doCallRealMethod().when(mockInstance).doClose();
+			ReflectionTestUtils.setField(mockInstance, "obsLogger", mockObsLogger);
+			when(mockInstance.getNode()).thenReturn((Node) tableNode);
+			final Object waitObj = new Object();
+			ReflectionTestUtils.setField(mockInstance, "waitObj", waitObj);
+			Thread thread = new Thread(() -> {
+				synchronized (waitObj) {
+					try {
+						waitObj.wait();
+					} catch (InterruptedException ignored) {
+					}
+				}
+			});
+			thread.start();
+			ScheduledExecutorService tableMonitorResultHandler = mock(ScheduledExecutorService.class);
+			ReflectionTestUtils.setField(mockInstance, "tableMonitorResultHandler", tableMonitorResultHandler);
+			ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+			ReflectionTestUtils.setField(mockInstance, "sourceRunner", sourceRunner);
+			ThreadPoolExecutorEx toTapValueRunner = mock(ThreadPoolExecutorEx.class);
+			ReflectionTestUtils.setField(mockInstance, "toTapValueRunner", toTapValueRunner);
+			SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor = mock(SimpleConcurrentProcessorImpl.class);
+			ReflectionTestUtils.setField(mockInstance, "toTapValueConcurrentProcessor", toTapValueConcurrentProcessor);
+
+			mockInstance.doClose();
+
+			verify(tableMonitorResultHandler).shutdownNow();
+			verify(sourceRunner).shutdownNow();
+			verify(toTapValueRunner).shutdownNow();
+			verify(toTapValueConcurrentProcessor).close();
+			assertFalse(thread.isAlive());
 		}
 	}
 }
