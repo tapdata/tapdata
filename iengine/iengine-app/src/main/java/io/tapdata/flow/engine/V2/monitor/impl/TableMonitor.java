@@ -48,15 +48,15 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 	public static final long PERIOD_SECOND = 60L;
 	public static final String TAG = TableMonitor.class.getSimpleName();
 	public static final int BATCH_SIZE = 100;
-	private TapTableMap<String, TapTable> tapTableMap;
-	private String associateId;
-	private ReentrantLock lock;
-	private ScheduledExecutorService threadPool;
-	private TableResult tableResult;
-	private Set<String> removeTables;
-	private Connections connections;
+	protected TapTableMap<String, TapTable> tapTableMap;
+	protected String associateId;
+	protected ReentrantLock lock;
+	protected ScheduledExecutorService threadPool;
+	protected TableResult tableResult;
+	protected Set<String> removeTables;
+	protected Connections connections;
 
-	private Predicate<String> dynamicTableFilter;
+	protected Predicate<String> dynamicTableFilter;
 
 	protected Boolean syncSourcePartitionTableEnable;
 
@@ -140,8 +140,11 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 								.filter(t -> Objects.nonNull(t.getSubPartitionTableNames()) && !t.getSubPartitionTableNames().isEmpty())
 								.forEach(info -> {
 									String masterTableName = info.getMasterTableName();
+									finalTapTableNames.remove(masterTableName);
 									Set<String> oldSubTableIds = parentTableAndSubIdMap.get(masterTableName);
 									Set<String> masterTableId = masterTapTables.stream().map(TapTable::getId).collect(Collectors.toSet());
+									// remove all sub table , and ignore drop sub table now
+									removeTables.removeAll(info.getSubPartitionTableNames());
 									List<String> newSubTable = info.getSubPartitionTableNames().stream()
 											.filter(id -> !oldSubTableIds.contains(id))
 											.filter(dbTableName -> filterTable(finalTapTableNames,
@@ -190,41 +193,7 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 						break;
 					}
 				}
-				LoadSchemaRunner.TableFilter tableFilter = LoadSchemaRunner.TableFilter.create(connections.getTable_filter(), connections.getIfOpenTableExcludeFilter());
-				List<String> tapTableNames = new ArrayList<>(tapTableMap.keySet());
-				tapTableNames = tapTableNames.stream().filter(name -> !removeTables.contains(name)).collect(Collectors.toList());
-				GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
-				if (null == getTableNamesFunction) {
-					logger.warn("Connector [" + connectorNode.getConnectorContext().getSpecification().getName() + "] not support get table names function," +
-							"start dynamic table monitor failed");
-					this.close();
-					return;
-				}
-				final Map<String, Set<String>> parentTableAndSubIdMap = new HashMap<>();
-				final Set<String> masterTables = new HashSet<>(); //主表
-				final Set<String> existsSubTable = new HashSet<>();//子表
-				final List<TapTable> masterTapTables = partitionTableInfoSet(masterTables, existsSubTable, parentTableAndSubIdMap);
-
-				List<String> finalTapTableNames = tapTableNames;
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
-						() -> getTableNamesFunction.tableNames(connectorNode.getConnectorContext(), BATCH_SIZE, dbTableNames -> Optional.ofNullable(dbTableNames)
-								.ifPresent(names -> names.stream()
-										.filter(tableFilter)
-										.forEach(dbTableName -> filterTable(finalTapTableNames, masterTables, existsSubTable, dbTableName))
-								)
-						), TAG);
-
-				/**
-				 * Dynamically add tables and load newly added sub tables based on the main table
-				 * */
-				if (Boolean.TRUE.equals(syncSourcePartitionTableEnable) && !masterTables.isEmpty()) {
-					loadSubTableByPartitionTable(connectorNode, masterTapTables, parentTableAndSubIdMap, finalTapTableNames, existsSubTable);
-				}
-
-				if (CollectionUtils.isNotEmpty(tapTableNames)) {
-					tableResult.removeAll(tapTableNames);
-					removeTables.addAll(tapTableNames);
-				}
+				monitor(connectorNode);
 			} catch (Throwable throwable) {
 				logger.warn("Found add/remove table failed, will retry next time, error: " + throwable.getMessage(), throwable);
 			} finally {
@@ -235,6 +204,44 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 			}
 		}, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
 		logger.info("Dynamic table monitor started, interval: " + PERIOD_SECOND + " seconds");
+	}
+
+	protected void monitor(ConnectorNode connectorNode) throws IOException {
+		LoadSchemaRunner.TableFilter tableFilter = LoadSchemaRunner.TableFilter.create(connections.getTable_filter(), connections.getIfOpenTableExcludeFilter());
+		List<String> tapTableNames = new ArrayList<>(tapTableMap.keySet());
+		tapTableNames = tapTableNames.stream().filter(name -> !removeTables.contains(name)).collect(Collectors.toList());
+		GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
+		if (null == getTableNamesFunction) {
+			logger.warn("Connector [" + connectorNode.getConnectorContext().getSpecification().getName() + "] not support get table names function," +
+					"start dynamic table monitor failed");
+			this.close();
+			return;
+		}
+		final Map<String, Set<String>> parentTableAndSubIdMap = new HashMap<>();
+		final Set<String> masterTables = new HashSet<>(); //主表
+		final Set<String> existsSubTable = new HashSet<>();//子表
+		final List<TapTable> masterTapTables = partitionTableInfoSet(masterTables, existsSubTable, parentTableAndSubIdMap);
+
+		List<String> finalTapTableNames = tapTableNames;
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
+				() -> getTableNamesFunction.tableNames(connectorNode.getConnectorContext(), BATCH_SIZE, dbTableNames -> Optional.ofNullable(dbTableNames)
+						.ifPresent(names -> names.stream()
+								.filter(tableFilter)
+								.forEach(dbTableName -> filterTable(finalTapTableNames, masterTables, existsSubTable, dbTableName))
+						)
+				), TAG);
+
+		/**
+		 * Dynamically add tables and load newly added sub tables based on the main table
+		 * */
+		if (Boolean.TRUE.equals(syncSourcePartitionTableEnable) && !masterTables.isEmpty()) {
+			loadSubTableByPartitionTable(connectorNode, masterTapTables, parentTableAndSubIdMap, finalTapTableNames, existsSubTable);
+		}
+
+		if (CollectionUtils.isNotEmpty(tapTableNames)) {
+			tableResult.removeAll(tapTableNames);
+			removeTables.addAll(tapTableNames);
+		}
 	}
 
 	@Override

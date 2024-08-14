@@ -73,14 +73,20 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.ddl.PartitionDDLFilter;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
+import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryService;
@@ -452,21 +458,36 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
 			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
 			String ignoreDDLRules = ((DataParentNode<?>) node).getIgnoredDDLRules();
-			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger).dynamicTableTest(this::needDynamicTable);
+			if (!needDynamicTable(null) && Boolean.TRUE.equals(syncSourcePartitionTableEnable) && containsMasterPartitionTable()) {
+				this.ddlFilter = PartitionDDLFilter.instance(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger);
+			} else {
+				this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger).dynamicTableTest(this::needDynamicTable);
+			}
 		}
 	}
 
 	private void initTableMonitor() throws Exception {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
+			boolean needDynamicTable = false;
+			TableMonitor tableMonitor = null;
 			if (needDynamicTable(null)) {
+				//复制任务：正则表达式模式下动态新增表和动态新增分区子表
+				needDynamicTable = true;
+				Predicate<String> dynamicTableFilter = t -> ReUtil.isMatch(((DatabaseNode) node).getTableExpression(), t);
+				tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter);
+			} else if (Boolean.TRUE.equals(syncSourcePartitionTableEnable) && containsMasterPartitionTable()) {
+				//复制任务和开发任务：普通模式下进行仅分区表的动态新增子表
+				needDynamicTable = true;
+				tableMonitor = new PartitionTableMonitor(dataProcessorContext.getTapTableMap(),
+						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), t -> false);
+			}
+
+			if (needDynamicTable) {
+				tableMonitor.withSyncSourcePartitionTableEnable(syncSourcePartitionTableEnable);
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
-
-				Predicate<String> dynamicTableFilter = t -> ReUtil.isMatch(((DatabaseNode) node).getTableExpression(), t);
-				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
-						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter)
-						.withSyncSourcePartitionTableEnable(syncSourcePartitionTableEnable);
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -503,6 +524,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			return false;
 		}
 		return true;
+	}
+
+	protected boolean containsMasterPartitionTable() {
+		KVReadOnlyMap<TapTable> tableMap = getConnectorNode().getConnectorContext().getTableMap();
+		Iterator<Entry<TapTable>> iterator = tableMap.iterator();
+		while(iterator.hasNext()) {
+			Entry<TapTable> next = iterator.next();
+			if (PartitionTableUtil.checkIsMasterPartitionTable(next.getValue())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	protected void initBatchAndStreamOffset(TaskDto taskDto) {
@@ -822,6 +855,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			// Handle dynamic table change
 			Object tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			if (null == tableMonitor) {
+				tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.PARTITION_TABLE_MONITOR);
+			}
+
 			if (tableMonitor instanceof TableMonitor) {
 				((TableMonitor) tableMonitor).consume(tableResult -> {
 					try {
@@ -852,7 +889,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 												TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
 												tapDropTableEvent.setTableId(tableName);
 												TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
-												tapdataEvents.add(tapdataEvent);
+												Optional.ofNullable(tapdataEvent).ifPresent(tapdataEvents::add);
 											}
 											tapdataEvents.forEach(this::enqueue);
 											AspectUtils.executeAspect(new SourceDynamicTableAspect()

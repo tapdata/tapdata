@@ -22,16 +22,16 @@ import java.util.regex.Pattern;
  **/
 public class DDLFilter implements Predicate<TapDDLEvent> {
 
-	private List<String> disabledEvents;
-	private Predicate<String> dynamicTableTest;
+	protected List<String> disabledEvents;
+	protected Predicate<String> dynamicTableTest;
 
-	private DDLConfiguration configuration;
+	protected DDLConfiguration configuration;
 
-	private String ignoreDDLRules;
+	protected String ignoreDDLRules;
 
-	private ObsLogger obsLogger;
+	protected ObsLogger obsLogger;
 
-	private DDLFilter() {
+	protected DDLFilter() {
 	}
 
 	public static DDLFilter create(List<String> disabledEvents, DDLConfiguration ddlConfiguration, String ignoreDDLRules, ObsLogger obsLogger) {
@@ -67,12 +67,19 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		return this;
 	}
 
-	@Override
-	public boolean test(TapDDLEvent tapDDLEvent) {
+	protected boolean checkDDLFirst(TapDDLEvent tapDDLEvent) {
 		if (null != dynamicTableTest && dynamicTableTest.test(tapDDLEvent.getTableId())) {
 			if (tapDDLEvent instanceof TapCreateTableEvent || tapDDLEvent instanceof TapDropTableEvent) {
 				return true;
 			}
+		}
+		return false;
+	}
+
+	@Override
+	public boolean test(TapDDLEvent tapDDLEvent) {
+		if (checkDDLFirst(tapDDLEvent)) {
+			return true;
 		}
 		if(null != configuration){
 			switch (configuration){
