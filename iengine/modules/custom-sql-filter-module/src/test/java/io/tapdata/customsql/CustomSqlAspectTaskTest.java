@@ -1,11 +1,13 @@
 package io.tapdata.customsql;
 
+import cn.hutool.core.map.MapUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.common.utils.MapUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
@@ -60,6 +62,8 @@ public class CustomSqlAspectTaskTest {
             doReturn(false).when(customSqlAspectTask).checkAndFilter(any(),any(),any(),any());
             AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
             Assertions.assertInstanceOf(TapDeleteRecordEvent.class, tapdataEvents.get(0).getTapEvent());
+            TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent)tapdataEvents.get(0).getTapEvent();
+            Assertions.assertTrue(MapUtil.isNotEmpty(tapDeleteRecordEvent.getBefore()));
         }
     }
 }
