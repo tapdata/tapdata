@@ -1234,9 +1234,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else if (tapEvent instanceof TapDDLEvent) {
 			obsLogger.info("Source node received an ddl event: " + tapEvent);
 
-			final boolean needSubPartitionCreateTable = !(Boolean.TRUE.equals(syncSourcePartitionTableEnable)
+			final boolean needSubPartitionCreateTable = Boolean.TRUE.equals(syncSourcePartitionTableEnable)
 					&& tapEvent instanceof TapCreateTableEvent
-					&& PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent)tapEvent).getTable()));
+					&& PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent)tapEvent).getTable());
 			if (!needSubPartitionCreateTable && null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				obsLogger.warn("DDL events are filtered\n - Event: " + tapEvent + "\n - Filter: " + JSON.toJSONString(ddlFilter));
 				return null;
