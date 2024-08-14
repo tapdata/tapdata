@@ -23,16 +23,10 @@ public class PartitionTableMonitor extends TableMonitor {
     }
 
     @Override
-    protected boolean filterTable(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
-        if (finalTapTableNames.contains(dbTableName)
+    protected boolean filterIfTableNeedRemove(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+        return finalTapTableNames.contains(dbTableName)
                 || existsSubTable.contains(dbTableName)
-                || (null != syncSourcePartitionTableEnable && !syncSourcePartitionTableEnable && masterTables.contains(dbTableName))) {
-            finalTapTableNames.remove(dbTableName);
-            return false;
-        }
-        tableResult.add(dbTableName);
-        removeTables.remove(dbTableName);
-        return true;
+                || (null != syncSourcePartitionTableEnable && !syncSourcePartitionTableEnable && masterTables.contains(dbTableName));
     }
 
     @Override

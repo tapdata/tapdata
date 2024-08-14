@@ -147,7 +147,7 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 									removeTables.removeAll(info.getSubPartitionTableNames());
 									List<String> newSubTable = info.getSubPartitionTableNames().stream()
 											.filter(id -> !oldSubTableIds.contains(id))
-											.filter(dbTableName -> filterTable(finalTapTableNames,
+											.filter(dbTableName -> filterPartitionTable(finalTapTableNames,
 													masterTableId,
 													existsSubTable,
 													dbTableName))
@@ -165,11 +165,29 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 		);
 	}
 
-	protected boolean filterTable(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
-		if (finalTapTableNames.contains(dbTableName)
+	protected boolean filterIfTableNeedRemove(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+		return filterPartitionTableIfNeedRemove(finalTapTableNames, masterTables, existsSubTable, dbTableName)
+				|| !dynamicTableFilter.test(dbTableName);
+	}
+
+	private boolean filterPartitionTableIfNeedRemove(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+		return finalTapTableNames.contains(dbTableName)
 				|| existsSubTable.contains(dbTableName)
-				|| !dynamicTableFilter.test(dbTableName)
-				|| (null != syncSourcePartitionTableEnable && !syncSourcePartitionTableEnable && masterTables.contains(dbTableName))) {
+				|| (null != syncSourcePartitionTableEnable && !syncSourcePartitionTableEnable && masterTables.contains(dbTableName));
+	}
+
+	private boolean filterTable(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+		if (filterIfTableNeedRemove(finalTapTableNames, masterTables, existsSubTable, dbTableName)) {
+			finalTapTableNames.remove(dbTableName);
+			return false;
+		}
+		tableResult.add(dbTableName);
+		removeTables.remove(dbTableName);
+		return true;
+	}
+
+	private boolean filterPartitionTable(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+		if (filterPartitionTableIfNeedRemove(finalTapTableNames, masterTables, existsSubTable, dbTableName)) {
 			finalTapTableNames.remove(dbTableName);
 			return false;
 		}
