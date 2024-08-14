@@ -71,9 +71,9 @@ public class CustomSqlAspectTask extends AbstractAspectTask {
                                     if (MapUtils.isEmpty(before)) {
                                         before = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
                                     }
-                                    TapDeleteRecordEvent tapDeleteRecordEvent =
-                                            TapSimplify.deleteDMLEvent(before, ((TapUpdateRecordEvent) tapRecordEvent).getTableId());
+                                    TapDeleteRecordEvent tapDeleteRecordEvent = TapDeleteRecordEvent.create();
                                     tapRecordEvent.clone(tapDeleteRecordEvent);
+                                    tapDeleteRecordEvent.setBefore(before);
                                     events.get(index).setTapEvent(tapDeleteRecordEvent);
                                 }else {
                                     Map<String, Object> after = ((TapUpdateRecordEvent) tapRecordEvent).getAfter();
