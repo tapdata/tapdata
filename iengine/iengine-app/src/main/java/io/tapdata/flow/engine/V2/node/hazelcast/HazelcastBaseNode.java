@@ -86,6 +86,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -836,6 +837,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (isSubPartitionTable) {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), event.getTable().getPartitionMasterTableId());
 				metadata.setPartitionInfo(event.getTable().getPartitionInfo());
+				metadata.setName(tableName);
+				metadata.setOriginalName(tableName);
+				metadata.setAncestorsName(tableName);
 			} else {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
 			}

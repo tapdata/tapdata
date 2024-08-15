@@ -440,6 +440,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				obsLogger.warn("Target has be close partition table sync, create sub partition table [{}] be ignore", tapTable.getId());
 				return false;
 			}
+			if (createSubPartitionTable && null != tapTable.getPartitionInfo() && tapTable.getPartitionInfo().isInvalidType()) {
+				obsLogger.warn("Target has be not support invalid partition sub table, create sub partition table [{}] be ignore {}", tapTable.getId(), tapTable.getPartitionInfo().getInvalidMsg());
+				return false;
+			}
+			if (createPartitionTable && null != tapTable.getPartitionInfo() && tapTable.getPartitionInfo().isInvalidType()) {
+				obsLogger.warn("Target can not support to create invalid partition master table [{}] be ignore {}, may create as a normal table", tapTable.getId(), tapTable.getPartitionInfo().getInvalidMsg());
+				createPartitionTable = false;
+			}
 
 			if (createPartitionTable) {
 				obsLogger.info("Will create master partition table [{}] to target, init sub partition list: {}",
