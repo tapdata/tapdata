@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.*;
@@ -1733,6 +1734,35 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode,pdkMethodInvoker);
 			streamReadConsumer.accept(tapEvents,null);
 			verify(cdcDelay,times(1)).filterAndCalcDelay(any(),any(),any());
+		}
+	}
+
+	@Nested
+	class addLdpNewTablesIfNeedTest {
+		@DisplayName("test addLdpNewTables when new table is not empty")
+		@Test
+		void test1(){
+			TaskDto taskDto1=new TaskDto();
+			List<String> ldpNewTables = new ArrayList<>();
+			ldpNewTables.add("testAddTable");
+			taskDto1.setLdpNewTables(ldpNewTables);
+			HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode1 = mock(HazelcastSourcePdkDataNode.class);
+			doCallRealMethod().when(hazelcastSourcePdkDataNode1).addLdpNewTablesIfNeed(taskDto1);
+			hazelcastSourcePdkDataNode1.addLdpNewTablesIfNeed(taskDto1);
+			Object addLdpNewTablesFlag = ReflectionTestUtils.getField(hazelcastSourcePdkDataNode1, "addLdpNewTables");
+			assertEquals(true, addLdpNewTablesFlag);
+		}
+		@DisplayName("test addLdpNewTables when new table is empty")
+		@Test
+		void test2(){
+			TaskDto taskDto1=new TaskDto();
+			List<String> ldpNewTables = new ArrayList<>();
+			taskDto1.setLdpNewTables(ldpNewTables);
+			HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode1 = mock(HazelcastSourcePdkDataNode.class);
+			doCallRealMethod().when(hazelcastSourcePdkDataNode1).addLdpNewTablesIfNeed(taskDto1);
+			hazelcastSourcePdkDataNode1.addLdpNewTablesIfNeed(taskDto1);
+			Object addLdpNewTablesFlag = ReflectionTestUtils.getField(hazelcastSourcePdkDataNode1, "addLdpNewTables");
+			assertEquals(false, addLdpNewTablesFlag);
 		}
 	}
 
