@@ -1,5 +1,6 @@
 package com.tapdata.tm.inspect.service;
 
+import cn.hutool.core.collection.CollectionUtil;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.serializer.SerializerFeature;
@@ -7,6 +8,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
+import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.dto.InspectDetailsDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.entity.InspectDetailsEntity;
@@ -22,6 +24,7 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 public abstract class InspectDetailsService extends BaseService<InspectDetailsDto, InspectDetailsEntity, ObjectId, InspectDetailsRepository> {
@@ -66,7 +69,7 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
             if (!"failed".equals(statsTmp.getResult())) {
                 return;
             }
-            if(!inspectDetails.getFullField())compareDifferenceFields(inspectDetailsDtoTmp);
+            if(!inspectDetails.getFullField())compareDifferenceFields(inspectDetailsDtoTmp,inspectResultDto);
             JSONObject jsonObjectTmp = new JSONObject();
             jsonObjectTmp.put("source", inspectDetailsDtoTmp.getSource());
             jsonObjectTmp.put("target", inspectDetailsDtoTmp.getTarget());
@@ -102,36 +105,40 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
         stream.write(JSONObject.toJSONString(jsonArray, SerializerFeature.WriteMapNullValue).getBytes());
     }
 
-    protected void compareDifferenceFields(InspectDetailsDto inspectDetailsDtoTmp){
-        Map<String, Object> source = inspectDetailsDtoTmp.getSource();
-        Map<String, Object> target = inspectDetailsDtoTmp.getTarget();
-        Set<String> allKeys = new HashSet<>(source.keySet());
-        allKeys.addAll(target.keySet());
-        Map<String, Object> difSource = new HashMap<>();
-        Map<String, Object> difTarget = new HashMap<>();
-        for (String key : allKeys) {
-            Object sourceValue = source.get(key);
-            Object targetValue = target.get(key);
+    protected void compareDifferenceFields(InspectDetailsDto inspectDetailsDtoTmp,InspectResultDto inspectResultDto){
+        Map<String,Object> source = inspectDetailsDtoTmp.getSource();
+        Map<String,Object> target = inspectDetailsDtoTmp.getTarget();
+        Map<String,Object> resultSource = new HashMap<>();
+        Map<String,Object> resultTarget = new HashMap<>();
+        String message = inspectDetailsDtoTmp.getMessage();
+        if (message.contains("Different fields")) {
+            List<String> diffFields = Arrays.stream(message.split(":")[1].split(",")).collect(Collectors.toList());
+            diffFields.forEach(diffField -> {
+                resultSource.put(diffField, source.get(diffField));
+                resultTarget.put(diffField, target.get(diffField));
+            });
+        } else if (message.contains("Different index")) {
+            List<String> diffFiledIndexs = Arrays.stream(message.split(":")[1].split(",")).collect(Collectors.toList());
+            List<Task> tasks = inspectResultDto.getInspect().getTasks();
+            if(CollectionUtil.isNotEmpty(tasks)){
+                Task task = tasks.stream().filter(taskTmp -> taskTmp.getTaskId().equals(inspectDetailsDtoTmp.getTaskId())).findFirst().orElse(null);
+                if(task != null){
+                    List<String> sourceColumns = task.getSource().getColumns();
+                    List<String> targetColumns = task.getTarget().getColumns();
+                    diffFiledIndexs.forEach(diffFiledIndex -> {
+                        String sourceColumn = sourceColumns.get(Integer.parseInt(diffFiledIndex));
+                        String targetColumn = targetColumns.get(Integer.parseInt(diffFiledIndex));
+                        resultSource.put(sourceColumn, source.get(sourceColumn));
+                        resultTarget.put(targetColumn, target.get(targetColumn));
+                    });
 
-            if (!equals(sourceValue, targetValue)) {
-                difSource.put(key, sourceValue);
-                difTarget.put(key, targetValue);
+                }
             }
         }
-        inspectDetailsDtoTmp.setSource(difSource);
-        inspectDetailsDtoTmp.setTarget(difTarget);
+        inspectDetailsDtoTmp.setSource(resultSource);
+        inspectDetailsDtoTmp.setTarget(resultTarget);
     }
 
-
-    protected boolean equals(Object o1, Object o2) {
-        if (o1 == null && o2 == null) {
-            return true;
-        }
-        if (o1 == null || o2 == null) {
-            return false;
-        }
-        return o1.equals(o2);
-    }
 
 
 
