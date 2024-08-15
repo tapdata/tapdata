@@ -45,6 +45,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
+import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
@@ -84,7 +85,6 @@ import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.ddl.PartitionDDLFilter;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
-import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
@@ -93,7 +93,6 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
-import io.tapdata.flow.engine.V2.util.PartitionTableUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -125,6 +124,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -997,77 +997,99 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				obsLogger.warn("It is expected to load {} new table models, and {} table models no longer exist and will be ignored. The table name(s) that does not exist: {}",
 						addList.size(), missingTableNames.size(), missingTableNames);
 			}
-			try {
-				if (CollectionUtils.isNotEmpty(loadedTableNames)) {
-					for (TapTable addTapTable : addTapTables) {
-						if (!isRunning()) {
-							break;
-						}
-						if (checkSubPartitionTableHasBeCreated(addTapTable)) {
-							loadedTableNames.remove(addTapTable.getId());
-							continue;
-						}
+			if (CollectionUtils.isEmpty(loadedTableNames)) {
+				return false;
+			}
 
-						TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
-						addTapTable.setLastUpdate(Optional.ofNullable(addTapTable.getLastUpdate()).orElse(System.currentTimeMillis()));
-						tapCreateTableEvent.table(addTapTable);
-						tapCreateTableEvent.setTableId(addTapTable.getId());
-						TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
-
-						if (null == tapdataEvent) {
-							String error = "Wrap create table tapdata event failed: " + addTapTable;
-							errorHandle(new RuntimeException(error), error);
-							return true;
-						}
-
-						tapdataEvents.add(tapdataEvent);
-					}
-					if (!isRunning()) {
-						return true;
-					}
-					tapdataEvents.forEach(this::enqueue);
-					if (!loadedTableNames.isEmpty()) {
-						this.newTables.addAll(loadedTableNames);
-					}
-					AspectUtils.executeAspect(new SourceDynamicTableAspect()
-							.dataProcessorContext(getDataProcessorContext())
-							.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
-							.tables(loadedTableNames)
-							.tapdataEvents(tapdataEvents));
-					if (this.endSnapshotLoop.get()) {
-						obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
-						// Restart source runner
-						if (null != sourceRunner) {
-							this.sourceRunnerFirstTime.set(false);
-							newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
-							restartPdkConnector();
-						} else {
-							String error = "Source runner is null";
-							errorHandle(new RuntimeException(error), error);
-							return true;
-						}
-					}
+			Map<String, TapTable> updateMasterTable = new HashMap<>();
+			for (TapTable addTapTable : addTapTables) {
+				if (!isRunning()) {
+					break;
 				}
-			} finally {
-				if (!masterAndNewMasterTable.isEmpty()) {
-					//更新Taptable的子表信息
-					masterAndNewMasterTable.forEach((master, newMaster) -> {
-						TapPartition partitionInfo = master.getPartitionInfo();
-						List<TapSubPartitionTableInfo> subPartitionTableInfo = partitionInfo.getSubPartitionTableInfo();
-						List<TapSubPartitionTableInfo> newPartitionTableInfo = Optional.ofNullable(newMaster.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>());
-						if (null == subPartitionTableInfo) {
-							master.getPartitionInfo().setSubPartitionTableInfo(newPartitionTableInfo);
-						} else {
-							Map<String, TapSubPartitionTableInfo> tableInfoMap = subPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
-							Map<String, TapSubPartitionTableInfo> collect = newPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
-							tableInfoMap.putAll(collect);
-							master.getPartitionInfo().setSubPartitionTableInfo(new ArrayList<>(tableInfoMap.values()));
+				if (checkSubPartitionTableHasBeCreated(addTapTable)) {
+					loadedTableNames.remove(addTapTable.getId());
+					continue;
+				}
+
+				mergeSubInfoIntoMasterTableIfNeed(addTapTable);
+
+				TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+				addTapTable.setLastUpdate(Optional.ofNullable(addTapTable.getLastUpdate()).orElse(System.currentTimeMillis()));
+				tapCreateTableEvent.table(addTapTable);
+				tapCreateTableEvent.setTableId(addTapTable.getId());
+				TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+
+				if (null == tapdataEvent) {
+					String error = "Wrap create table tapdata event failed: " + addTapTable;
+					errorHandle(new RuntimeException(error), error);
+					return true;
+				}
+
+				tapdataEvents.add(tapdataEvent);
+			}
+			if (!isRunning()) {
+				return true;
+			}
+			tapdataEvents.forEach(this::enqueue);
+			if (!loadedTableNames.isEmpty()) {
+				this.newTables.addAll(loadedTableNames);
+			}
+			List<TapdataEvent> normalDDLEvents = tapdataEvents.stream()
+					.filter(e -> {
+						if (e.getTapEvent() instanceof TapCreateTableEvent
+								&& PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent) e.getTapEvent()).getTable())) {
+							loadedTableNames.remove(((TapCreateTableEvent) e.getTapEvent()).getTable().getId());
+							return false;
 						}
-					});
+						return true;
+					})
+					.collect(Collectors.toList());
+			AspectUtils.executeAspect(new SourceDynamicTableAspect()
+					.dataProcessorContext(getDataProcessorContext())
+					.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
+					.tables(loadedTableNames)
+					.tapdataEvents(normalDDLEvents));
+			if (tapdataEvents.isEmpty()) return false;
+
+			//MetadataInstances
+			if (!updateMasterTable.isEmpty()) {
+				clientMongoOperator.update(new Query(), new Update().set("", ""), ConnectorConstant.METADATA_INSTANCE_COLLECTION);
+			}
+
+			if (this.endSnapshotLoop.get()) {
+				obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+				// Restart source runner
+				if (null != sourceRunner) {
+					this.sourceRunnerFirstTime.set(false);
+					newTables.forEach(id -> BatchOffsetUtil.updateBatchOffset(syncProgress, id, null, TableBatchReadStatus.RUNNING.name()));
+					restartPdkConnector();
+				} else {
+					String error = "Source runner is null";
+					errorHandle(new RuntimeException(error), error);
+					return true;
 				}
 			}
 		}
 		return false;
+	}
+
+	protected void mergeSubInfoIntoMasterTableIfNeed(TapTable addTapTable) {
+		if (!PartitionTableUtil.checkIsSubPartitionTable(addTapTable) || !Objects.nonNull(getConnectorNode())) {
+			return;
+		}
+		TapTable masterTable = getConnectorNode().getConnectorContext().getTableMap().get(addTapTable.getPartitionMasterTableId());
+		TapPartition partitionInfo = addTapTable.getPartitionInfo();
+		List<TapSubPartitionTableInfo> subPartitionTableInfo = partitionInfo.getSubPartitionTableInfo();
+		List<TapSubPartitionTableInfo> masterPartitionTableInfo = Optional.ofNullable(masterTable.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>());
+		Map<String, TapSubPartitionTableInfo> tableInfoMap = masterPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
+		Map<String, TapSubPartitionTableInfo> collect = subPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
+		collect.forEach((name, info) -> {
+			if (!tableInfoMap.containsKey(name)) {
+				masterPartitionTableInfo.add(info);
+			}
+		});
+		masterTable.getPartitionInfo().setSubPartitionTableInfo(masterPartitionTableInfo);
+		return;
 	}
 
 	protected boolean checkSubPartitionTableHasBeCreated(TapTable addTapTable) {
@@ -1098,6 +1120,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	abstract void startSourceRunner();
 
 	synchronized void restartPdkConnector() {
+		logger.warn(this.associateId);
 		if (null != getConnectorNode()) {
 			//Release webhook waiting thread before stop connectorNode.
 			if (streamReadFuncAspect != null) {
@@ -1337,6 +1360,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
 			if (tapEvent instanceof TapCreateTableEvent) {
+				boolean isSubPartition = Boolean.TRUE.equals(syncSourcePartitionTableEnable) && PartitionTableUtil.checkIsSubPartitionTable(tapTable);
+				if (isSubPartition) {
+					String masterTableMetadataQualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tapTable.getPartitionMasterTableId());
+					MetadataInstancesDto masterTableMetadata = dagDataService.getMetadata(masterTableMetadataQualifiedName);
+					if (masterTableMetadata.getId() == null) {
+						masterTableMetadata.setId(masterTableMetadata.getOldId());
+					}
+					masterTableMetadata.setPartitionInfo(dataProcessorContext.getTapTableMap().get(tapTable.getPartitionMasterTableId()).getPartitionInfo());
+					transformerWsMessageDto.getMetadataInstancesDtoList().add(masterTableMetadata);
+					updateMetadata.put(masterTableMetadata.getId().toHexString(), masterTableMetadata);
+				}
 				qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
 				obsLogger.info("Create new table in memory, qualified name: " + qualifiedName);
 				dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
@@ -1348,8 +1382,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					metadata.setId(new ObjectId());
 				}
 				transformerWsMessageDto.getMetadataInstancesDtoList().add(metadata);
-				insertMetadata.add(metadata);
-				obsLogger.info("Create new table schema transform finished: " + tapTable);
+                obsLogger.info("Create new table schema transform finished: " + tapTable);
+                if(!isSubPartition) {
+					insertMetadata.add(metadata);
+				}
 			} else if (tapEvent instanceof TapDropTableEvent) {
 				qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
 				obsLogger.info("Drop table in memory qualified name: " + qualifiedName);

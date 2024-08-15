@@ -5,18 +5,23 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableOperation;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
-import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -28,7 +33,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -376,9 +387,12 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
             tableNames = tableNames == null ? new ArrayList<>() : tableNames;
             if (event instanceof TapCreateTableEvent) {
-                String tableName = ((TapCreateTableEvent) event).getTableId();
-                if (!tableNames.contains(tableName)) {
-                    tableNames.add(tableName);
+                if (!Boolean.TRUE.equals(getSyncSourcePartitionTableEnable())
+                        || !PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent) event).getTable())) {
+                    String tableName = ((TapCreateTableEvent) event).getTableId();
+                    if (!tableNames.contains(tableName)) {
+                        tableNames.add(tableName);
+                    }
                 }
             } else if (event instanceof TapDropTableEvent) {
                 String tableName = ((TapDropTableEvent) event).getTableId();

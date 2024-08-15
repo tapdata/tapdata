@@ -42,6 +42,7 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.aspect.CreateTableFuncAspect;
 import io.tapdata.aspect.NewFieldFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
@@ -87,7 +88,6 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Tap
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
-import io.tapdata.flow.engine.V2.util.PartitionTableUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
@@ -432,9 +432,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			createPartitionTable = this.syncTargetPartitionTableEnable
 					&& PartitionTableUtil.checkIsMasterPartitionTable(tapTable)
 					&& Objects.nonNull(createPartitionTableFunction);
-			createSubPartitionTable = this.syncTargetPartitionTableEnable
-					&& PartitionTableUtil.checkIsSubPartitionTable(tapTable)
+			createSubPartitionTable = PartitionTableUtil.checkIsSubPartitionTable(tapTable)
 					&& Objects.nonNull(createPartitionSubTableFunction);
+			if (createSubPartitionTable && !this.syncTargetPartitionTableEnable) {
+				obsLogger.warn("Target has be close partition table sync, create sub partition table [{}] be ignore", tapTable.getId());
+				return false;
+			}
+
 			if (createPartitionTable) {
 				return createPartitionTable(createPartitionTableFunction, succeed, tapTable, init, tapCreateTableEvent);
 			} else if (createSubPartitionTable) {

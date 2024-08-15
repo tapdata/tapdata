@@ -1,10 +1,10 @@
 package io.tapdata.flow.engine.V2.ddl;
 
 import com.tapdata.tm.commons.dag.DDLConfiguration;
+import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.flow.engine.V2.util.PartitionTableUtil;
 import io.tapdata.observable.logging.ObsLogger;
 
 import java.util.List;

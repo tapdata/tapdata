@@ -51,7 +51,7 @@ import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
-import io.tapdata.flow.engine.V2.util.PartitionTableUtil;
+import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -871,7 +871,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	protected void directToMasterTableIfNeed(TapRecordEvent event, TapTable tapTable) {
 		boolean isSubPartitionTable = PartitionTableUtil.checkIsSubPartitionTable(tapTable);
-		if (!syncTargetPartitionTableEnable && isSubPartitionTable) {
+		if (isSubPartitionTable) {
 			String oldTableId = event.getPartitionMasterTableId();
 			if (Objects.nonNull(oldTableId)) {
 				event.setPartitionMasterTableId(event.getTableId());
@@ -879,7 +879,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			return;
 		}
-		if (!syncTargetPartitionTableEnable || !isSubPartitionTable) {
+		if (!syncTargetPartitionTableEnable) {
 			return;
 		}
 		Optional.ofNullable(event.getPartitionMasterTableId())
