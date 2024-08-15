@@ -103,6 +103,11 @@ public class ModulesController extends BaseController {
   public ResponseMessage<List<String>> batchUpdateListtags(@RequestBody BatchUpdateParam batchUpdateParam) {
     return success(metadataDefinitionService.batchUpdateListTags("Modules",batchUpdateParam,getLoginUser()));
   }
+  @Operation(summary = "批量修改 发布  modules")
+  @PatchMapping("batchUpdate")
+  public ResponseMessage<List<ModulesDto>> batchUpdate(@RequestBody List<ModulesDto> modules) {
+    return success(modulesService.batchUpdateModuleByList(modules, getLoginUser()));
+  }
 
 
   /**
