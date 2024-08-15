@@ -64,6 +64,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapEventException;
@@ -158,6 +159,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
 import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
@@ -440,8 +442,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 
 			if (createPartitionTable) {
+				obsLogger.info("Will create master partition table [{}] to target, init sub partition list: {}",
+						tapTable.getId(),
+						Optional.ofNullable(tapTable.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>())
+								.stream().map(TapSubPartitionTableInfo::getTableName).collect(Collectors.toList()));
 				return createPartitionTable(createPartitionTableFunction, succeed, tapTable, init, tapCreateTableEvent);
 			} else if (createSubPartitionTable) {
+				obsLogger.info("Will create sub partition table [{}] to target, master table is: {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
 				return createSubPartitionTable(createPartitionSubTableFunction, succeed, tapTable, init, tapCreateTableEvent);
 			} else if (createdTable) {
 				doCreateTable(tapTable, tapCreateTableEvent, () ->

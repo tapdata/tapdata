@@ -1279,6 +1279,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (null == syncSourcePartitionTableEnable
 				|| !syncSourcePartitionTableEnable
 				|| !PartitionTableUtil.checkIsSubPartitionTable(tapTable)) return;
+		obsLogger.info("Events from sub table {} will be write to master table, {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
 		events.stream()
 			.filter(TapRecordEvent.class::isInstance)
 			.forEach(e -> ((TapRecordEvent) e).setPartitionMasterTableId(tapTable.getPartitionMasterTableId()));
@@ -1362,6 +1363,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (tapEvent instanceof TapCreateTableEvent) {
 				boolean isSubPartition = Boolean.TRUE.equals(syncSourcePartitionTableEnable) && PartitionTableUtil.checkIsSubPartitionTable(tapTable);
 				if (isSubPartition) {
+					obsLogger.info("Sync sub table's [{}] create table ddl, will add update master table [{}] metadata", tapTable.getId(), tapTable.getPartitionMasterTableId());
 					String masterTableMetadataQualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tapTable.getPartitionMasterTableId());
 					MetadataInstancesDto masterTableMetadata = dagDataService.getMetadata(masterTableMetadataQualifiedName);
 					if (masterTableMetadata.getId() == null) {
@@ -1384,6 +1386,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				transformerWsMessageDto.getMetadataInstancesDtoList().add(metadata);
                 obsLogger.info("Create new table schema transform finished: " + tapTable);
                 if(!isSubPartition) {
+					obsLogger.info("Sync sub table's [{}] create table ddl,, will ignore sub table's metadata", tapTable.getId());
 					insertMetadata.add(metadata);
 				}
 			} else if (tapEvent instanceof TapDropTableEvent) {
