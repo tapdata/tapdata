@@ -498,8 +498,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (existsMetadataInstance == null) {
                 continue;
             }
-            existsMetadataInstance.setPartitionInfo(metadataInstancesDto.getPartitionInfo());
-            existsMetadataInstance.setPartitionMasterTableId(metadataInstancesDto.getPartitionMasterTableId());
             Map<String, Field> existsFieldMap = existsMetadataInstance.getFields().stream()
                     .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
 
