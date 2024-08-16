@@ -8,7 +8,6 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Source;
 import com.tapdata.tm.inspect.bean.Stats;
-import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.dto.InspectDetailsDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.entity.InspectDetailsEntity;
@@ -119,19 +118,20 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
             });
         } else if (message.contains("Different index")) {
             List<String> diffFiledIndexs = Arrays.stream(message.split(":")[1].split(",")).collect(Collectors.toList());
-            List<Task> tasks = inspectResultDto.getInspect().getTasks();
-            if(CollectionUtil.isNotEmpty(tasks)){
-                Task task = tasks.stream().filter(taskTmp -> taskTmp.getTaskId().equals(inspectDetailsDtoTmp.getTaskId())).findFirst().orElse(null);
-                if(task != null){
-                    List<String> sourceColumns = task.getSource().getColumns();
-                    List<String> targetColumns = task.getTarget().getColumns();
-                    diffFiledIndexs.forEach(diffFiledIndex -> {
-                        String sourceColumn = sourceColumns.get(Integer.parseInt(diffFiledIndex));
-                        String targetColumn = targetColumns.get(Integer.parseInt(diffFiledIndex));
-                        resultSource.put(sourceColumn, source.get(sourceColumn));
-                        resultTarget.put(targetColumn, target.get(targetColumn));
-                    });
-
+            List<Stats> statsList = inspectResultDto.getStats();
+            if(CollectionUtil.isNotEmpty(statsList)){
+                Stats stats = statsList.stream().filter(s -> s.getTaskId().equals(inspectDetailsDtoTmp.getTaskId())).findFirst().orElse(null);
+                if(stats != null){
+                    List<String> sourceColumns = stats.getSource().getColumns();
+                    List<String> targetColumns = stats.getTarget().getColumns();
+                    if(CollectionUtil.isNotEmpty(sourceColumns) && CollectionUtil.isNotEmpty(targetColumns)){
+                        diffFiledIndexs.forEach(diffFiledIndex -> {
+                            String sourceColumn = sourceColumns.get(Integer.parseInt(diffFiledIndex));
+                            String targetColumn = targetColumns.get(Integer.parseInt(diffFiledIndex));
+                            resultSource.put(sourceColumn, source.get(sourceColumn));
+                            resultTarget.put(targetColumn, target.get(targetColumn));
+                        });
+                    }
                 }
             }
         }
