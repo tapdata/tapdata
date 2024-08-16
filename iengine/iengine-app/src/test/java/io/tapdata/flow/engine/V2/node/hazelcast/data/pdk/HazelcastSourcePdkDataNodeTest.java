@@ -364,6 +364,9 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				tableList = new ArrayList<>();
 				tableList.add(tableId);
 
+				doCallRealMethod().when(instance).checkFunctions(tableList);
+				doCallRealMethod().when(instance).doSnapshotInvoke(anyString(), nullable(BatchCountFunction.class), any(ConnectorNode.class),
+						any(TapTable.class), any(AtomicBoolean.class), anyString(), any(QueryByAdvanceFilterFunction.class), any(ExecuteCommandFunction.class), any(BatchReadFunction.class));
 				when(instance.executeAspect(any(SnapshotReadBeginAspect.class))).thenReturn(mock(AspectInterceptResult.class));
 				doNothing().when(syncProgress).setSyncStage(SyncStage.INITIAL_SYNC.name());
 
