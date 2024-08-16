@@ -5401,4 +5401,22 @@ class TaskServiceImplTest {
             taskService.wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, user);
         }
     }
+    @Nested
+    class SaveTaskTest{
+        @Test
+        void test_main(){
+            doCallRealMethod().when(taskService).saveTask(taskDto, user);
+            taskService.saveTask(taskDto, user);
+            verify(taskService, times(1)).save(taskDto, user);
+        }
+
+        @Test
+        void test_mongodb_IllegalArgumentException_error(){
+            doCallRealMethod().when(taskService).saveTask(taskDto, user);
+            when(taskService.save(taskDto, user)).thenThrow(new IllegalArgumentException()).thenReturn(taskDto);
+            taskService.saveTask(taskDto, user);
+            verify(taskService, times(2)).save(taskDto, user);
+            verify(taskService, times(1)).updateDag(taskDto, user,false);
+        }
+    }
 }

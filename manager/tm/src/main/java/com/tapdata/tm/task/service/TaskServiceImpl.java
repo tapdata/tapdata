@@ -448,7 +448,7 @@ public class TaskServiceImpl extends TaskService{
         //模型推演
         setDefault(taskDto);
         taskDto.setOldVersionTimezone(false);
-        taskDto = save(taskDto, user);
+        taskDto = saveTask(taskDto, user);
         if (dag != null) {
             dag.setTaskId(taskDto.getId());
             //为了防止上传的json中字段值为null, 导致默认值不生效，二次补上默认值
@@ -462,6 +462,19 @@ public class TaskServiceImpl extends TaskService{
         //新增任务成功，新增校验任务
         //inspectService.saveInspect(taskDto, user);
         return taskDto;
+    }
+
+    protected TaskDto saveTask(TaskDto taskDto,UserDetail userDetail){
+        try{
+            return save(taskDto,userDetail);
+        }catch (IllegalArgumentException e){
+            DAG dag = taskDto.getDag();
+            taskDto.setDag(null);
+            TaskDto result = save(taskDto,userDetail);
+            result.setDag(dag);
+            updateDag(result,userDetail,false);
+            return result;
+        }
     }
 
     public <T> AggregationResults<T> aggregate(org.springframework.data.mongodb.core.aggregation.Aggregation aggregation, Class<T> outputType) {
