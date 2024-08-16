@@ -227,10 +227,13 @@ public class InspectDetailsServiceTest {
             source.setConnectionName("mysql");
             source.setTable("test");
             Source target = new Source();
+            source.setColumns(Arrays.asList("id","name","text"));
+            target.setColumns(Arrays.asList("id","name","text"));
             target.setConnectionName("mysql");
             target.setTable("check_test");
             stats1.setSource(source);
             stats1.setTarget(target);
+            stats1.setTaskId("test");
             long targetTotal = 2l;
             stats1.setTargetTotal(targetTotal);
             long sourceTotal = 3l;
@@ -239,21 +242,7 @@ public class InspectDetailsServiceTest {
             stats1.setTargetOnly(1l);
             stats1.setRowFailed(0l);
             stats.add(stats1);
-
             inspectResultDto.setStats(stats);
-            List<Task> tasks = new ArrayList<>();
-            Task task = new Task();
-            task.setTaskId("test");
-            Source source2 = new Source();
-            source2.setColumns(Arrays.asList("id","name","text"));
-            Source target2 = new Source();
-            target2.setColumns(Arrays.asList("id","name","text"));
-            task.setSource(source2);
-            task.setTarget(target2);
-            tasks.add(task);
-            InspectDto inspectDto = new InspectDto();
-            inspectDto.setTasks(tasks);
-            inspectResultDto.setInspect(inspectDto);
             when(inspectResultService.findById(new ObjectId(inspectResultId),userDetail)).thenReturn(inspectResultDto);
             org.springframework.data.mongodb.core.query.Query query = org.springframework.data.mongodb.core.query.Query.query(Criteria.where("inspectResultId").is(inspectDetails.getInspectResultId()));
             Sort sort = Sort.by("createTime").descending();
