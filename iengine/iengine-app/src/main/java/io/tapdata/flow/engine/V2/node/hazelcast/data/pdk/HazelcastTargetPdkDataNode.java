@@ -869,27 +869,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	protected void directToMasterTableIfNeed(TapRecordEvent event, TapTable tapTable) {
-		boolean isSubPartitionTable = PartitionTableUtil.checkIsSubPartitionTable(tapTable);
-		if (isSubPartitionTable) {
-			String oldTableId = event.getPartitionMasterTableId();
-			if (Objects.nonNull(oldTableId)) {
-				event.setPartitionMasterTableId(event.getTableId());
-				event.setTableId(oldTableId);
-			}
-			return;
-		}
-		if (!syncTargetPartitionTableEnable) {
-			return;
-		}
-		Optional.ofNullable(event.getPartitionMasterTableId())
-				.ifPresent(masterTableId -> {
-					String targetMasterId = getTgtTableNameFromTapEvent(event, masterTableId);
-					event.setTableId(targetMasterId);
-					tapTable.setPartitionMasterTableId(targetMasterId);
-		});
-	}
-
 	protected void writeRecord(List<TapEvent> events) {
 		List<TapRecordEvent> tapRecordEvents = new ArrayList<>();
 		events.forEach(event -> tapRecordEvents.add((TapRecordEvent) event));
@@ -904,7 +883,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		events.forEach(this::addPropertyForMergeEvent);
 
 		tapRecordEvents.forEach(t -> {
-			directToMasterTableIfNeed(t, tapTable);
 			removeNotSupportFields(t, tapTable.getId());
 		});
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();

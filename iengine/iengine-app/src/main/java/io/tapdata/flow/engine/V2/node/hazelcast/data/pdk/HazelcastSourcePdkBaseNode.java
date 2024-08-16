@@ -1077,19 +1077,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (!PartitionTableUtil.checkIsSubPartitionTable(addTapTable) || !Objects.nonNull(getConnectorNode())) {
 			return;
 		}
+		String subTableId = addTapTable.getId();
 		TapTable masterTable = getConnectorNode().getConnectorContext().getTableMap().get(addTapTable.getPartitionMasterTableId());
 		TapPartition partitionInfo = addTapTable.getPartitionInfo();
 		List<TapSubPartitionTableInfo> subPartitionTableInfo = partitionInfo.getSubPartitionTableInfo();
 		List<TapSubPartitionTableInfo> masterPartitionTableInfo = Optional.ofNullable(masterTable.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>());
 		Map<String, TapSubPartitionTableInfo> tableInfoMap = masterPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
-		Map<String, TapSubPartitionTableInfo> collect = subPartitionTableInfo.stream().collect(Collectors.toMap(TapSubPartitionTableInfo::getTableName, info -> info));
-		collect.forEach((name, info) -> {
-			if (!tableInfoMap.containsKey(name)) {
-				masterPartitionTableInfo.add(info);
-			}
-		});
+		subPartitionTableInfo.stream().filter(info -> info.getTableName().equals(subTableId))
+				.forEach(info -> {
+					if (!tableInfoMap.containsKey(subTableId)) {
+						masterPartitionTableInfo.add(info);
+					}
+				});
 		masterTable.getPartitionInfo().setSubPartitionTableInfo(masterPartitionTableInfo);
-		return;
 	}
 
 	protected boolean checkSubPartitionTableHasBeCreated(TapTable addTapTable) {
@@ -1281,8 +1281,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				|| !PartitionTableUtil.checkIsSubPartitionTable(tapTable)) return;
 		obsLogger.info("Events from sub table {} will be write to master table, {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
 		events.stream()
-			.filter(TapRecordEvent.class::isInstance)
-			.forEach(e -> ((TapRecordEvent) e).setPartitionMasterTableId(tapTable.getPartitionMasterTableId()));
+				.filter(TapRecordEvent.class::isInstance)
+				.forEach(e -> {
+					((TapRecordEvent) e).setPartitionMasterTableId(tapTable.getPartitionMasterTableId());
+					TapEventUtil.swapTableIdAndMasterTableId(e);
+				});
 	}
 
 	protected void setPartitionMasterTableId(List<TapEvent> events) {
@@ -1316,6 +1319,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected void setPartitionMasterTableId(TapRecordEvent event, String partitionMasterTableId) {
 		if (null == syncSourcePartitionTableEnable || !syncSourcePartitionTableEnable) return;
 		Optional.ofNullable(partitionMasterTableId).ifPresent(event::setPartitionMasterTableId);
+		TapEventUtil.swapTableIdAndMasterTableId(event);
 	}
 
 	protected void handleSchemaChange(TapEvent tapEvent) {
