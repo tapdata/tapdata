@@ -607,7 +607,7 @@ class TaskServiceImplTest {
             when(taskDto.getId()).thenReturn(taskId);
             doNothing().when(taskService).checkTaskName("test", user, taskId);
             doNothing().when(dateNodeService).checkTaskDateNode(taskDto, user);
-            when(taskService.save(taskDto,user)).thenReturn(taskDto);
+            when(taskService.saveTask(taskDto,user)).thenReturn(taskDto);
             doNothing().when(transformSchemaService).transformSchema(dag, user, taskId);
             when(joinNode.getType()).thenReturn("join_processor");
             doCallRealMethod().when(taskService).create(taskDto,user);
