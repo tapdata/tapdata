@@ -97,8 +97,6 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
 import org.bson.BsonValue;

@@ -190,6 +190,12 @@ public class HandlerUtil {
         }
     }
 
+    public static void sampleMemoryToTapEvent(List<TapEvent> events) {
+        if (null == events || events.isEmpty()) return;
+        long memory = randomSampleEventHandler.sampleMemoryTapEvent(events, covertTapDataEvent);
+        events.stream().filter(Objects::nonNull).forEach(e -> e.setMemorySize(memory));
+    }
+
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         return countTapEvent(events, null);
     }

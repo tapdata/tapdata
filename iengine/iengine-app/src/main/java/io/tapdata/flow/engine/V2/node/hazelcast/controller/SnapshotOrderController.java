@@ -64,7 +64,7 @@ public class SnapshotOrderController implements Serializable {
 		return new SnapshotOrderController(taskDto, snapshotOrderList);
 	}
 
-	private static void recursiveBuildSnapshotOrderListByMergeNode(List<MergeTableProperties> mergeTableProperties, List<NodeControlLayer> snapshotOrderList, MergeTableNode mergeNode, int level) {
+	protected static void recursiveBuildSnapshotOrderListByMergeNode(List<MergeTableProperties> mergeTableProperties, List<NodeControlLayer> snapshotOrderList, MergeTableNode mergeNode, int level) {
 		if (CollectionUtils.isEmpty(mergeTableProperties)) {
 			return;
 		}
@@ -74,7 +74,8 @@ public class SnapshotOrderController implements Serializable {
 			String preId = mergeTableProperty.getId();
 			List<? extends Node<?>> predecessors = mergeNode.predecessors();
 			predecessors = predecessors.stream().filter(n -> n.getId().equals(preId)).collect(Collectors.toList());
-			List<Node<?>> sourceTableNodes = GraphUtil.predecessors(mergeNode, Node::isDataNode, (List<Node<?>>) predecessors);
+			List<Node<?>> sourceTableNodes = GraphUtil.predecessors(mergeNode, Node::isDataNode, (List<Node<?>>) predecessors)
+					.stream().filter(node -> !node.disabledNode()).collect(Collectors.toList());
 			for (Node<?> sourceTableNode : sourceTableNodes) {
 				nodeControllers.add(new NodeController(sourceTableNode));
 			}

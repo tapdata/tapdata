@@ -20,6 +20,7 @@ import io.tapdata.aspect.PDKNodeInitAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -27,6 +28,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
+import com.tapdata.entity.TransformToTapValueResult;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMapEx;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
@@ -71,14 +73,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * @create 2022-05-10 16:57
  **/
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
-	public static final int DEFAULT_READ_BATCH_SIZE = 2000;
+	public static final int DEFAULT_READ_BATCH_SIZE = 100;
 	public static final int DEFAULT_INCREASE_BATCH_SIZE = 1;
 	public static final String OLD_VERSION_TIMEZONE = "oldVersionTimezone";
 	public static final String OLD_VERSION_TIME_ZONE_PROP_KEY = "OLD_VERSION_TIME_ZONE";
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
-	protected SyncProgress syncProgress;
 	protected String associateId;
 	protected TapLogger.LogListener logListener;
 	private final List<PDKMethodInvoker> pdkMethodInvokerList = new CopyOnWriteArrayList<>();
@@ -267,11 +268,16 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 	}
 
-	protected void toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
+	protected Set<String> toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
 		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName) {
-			return;
+			return null;
 		}
-		tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
+		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
+			return ((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformToTapValueMap(data, dataProcessorContext.getTapTableMap().get(tableName), getSkipDetector());
+		} else {
+			tapCodecsFilterManager.transformToTapValueMap(data, getTableFiledMap(tableName), getSkipDetector());
+		}
+		return null;
 	}
 
 	protected LinkedHashMap<String, TapField> getTableFiledMap(String tableName) {
@@ -297,6 +303,27 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			return;
 		}
 		tapCodecsFilterManager.transformFromTapValueMap(data, tapTable.getNameFieldMap(), getSkipDetector());
+	}
+
+	protected void fromTapValue(
+			Map<String, Object> data,
+			TapCodecsFilterManager tapCodecsFilterManager,
+			String targetTableName,
+			Set<String> transformedToTapValueFieldNames
+	) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == targetTableName) {
+			return;
+		}
+		LinkedHashMap<String, TapField> tableFiledMap = getTableFiledMap(targetTableName);
+		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
+			((TapCodecsFilterManagerSchemaEnforced) tapCodecsFilterManager).transformFromTapValueMap(
+					data,
+					tableFiledMap,
+					transformedToTapValueFieldNames
+			);
+		} else {
+			tapCodecsFilterManager.transformFromTapValueMap(data, tableFiledMap, getSkipDetector());
+		}
 	}
 
 	@Override
@@ -339,15 +366,22 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		return ConnectorNodeService.getInstance().getConnectorNode(associateId);
 	}
 
-	protected void tapRecordToTapValue(TapEvent tapEvent, TapCodecsFilterManager codecsFilterManager) {
+	protected TransformToTapValueResult tapRecordToTapValue(TapEvent tapEvent, TapCodecsFilterManager codecsFilterManager) {
+		TransformToTapValueResult transformToTapValueResult = null;
 		if (tapEvent instanceof TapRecordEvent) {
+			transformToTapValueResult = TransformToTapValueResult.create();
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
 			String tableName = ShareCdcUtil.getTapRecordEventTableName(tapRecordEvent);
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-			toTapValue(after, tableName, codecsFilterManager);
+			transformToTapValueResult.afterTransformedToTapValueFieldNames(toTapValue(after, tableName, codecsFilterManager));
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-			toTapValue(before, tableName, codecsFilterManager);
+			transformToTapValueResult.beforeTransformedToTapValueFieldNames(toTapValue(before, tableName, codecsFilterManager));
+			if (null == transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()
+					&& null == transformToTapValueResult.getAfterTransformedToTapValueFieldNames()) {
+				transformToTapValueResult = null;
+			}
 		}
+		return transformToTapValueResult;
 	}
 
 	protected String getCompletedInitialKey() {

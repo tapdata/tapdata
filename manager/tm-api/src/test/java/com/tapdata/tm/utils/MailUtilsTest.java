@@ -1,23 +1,24 @@
 package com.tapdata.tm.utils;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
+import org.apache.commons.lang3.StringUtils;
 import org.jsoup.nodes.Document;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -38,17 +39,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
 @ExtendWith(MockitoExtension.class)
 class MailUtilsTest {
     @Mock
@@ -424,6 +417,163 @@ class MailUtilsTest {
             logF.set(mockTo, log);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+    @Nested
+    class sendHtmlEmailTest{
+        private MailAccountDto parms;
+        private List<String> adressees;
+        private String title;
+        private String content;
+        private Logger log;
+        @BeforeEach
+        void beforeEach(){
+            parms = mock(MailAccountDto.class);
+            adressees = new ArrayList<>();
+            adressees.add("test@tapdata.io");
+            title = "【TAPDATA】";
+            content = "test content";
+            log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+        }
+        @Test
+        @DisplayName("test sendHtmlEmail method when addresses is null")
+        void test1(){
+            try (MockedStatic<StringUtils> mb = Mockito
+                    .mockStatic(StringUtils.class)) {
+                mb.when(()->StringUtils.isAnyBlank(anyString(),anyString(),anyString(),anyString())).thenReturn(false);
+                adressees.clear();
+                mailUtils.sendHtmlEmail(parms, adressees, title, content);
+                mb.verify(() -> StringUtils.isAnyBlank(anyString(),anyString(),anyString(),anyString()),new Times(0));
+            }
+        }
+        @Test
+        @DisplayName("test sendHtmlEmail method when host is blank")
+        void test2(){
+            when(parms.getHost()).thenReturn("  ");
+            mailUtils.sendHtmlEmail(parms, adressees, title, content);
+            verify(log).error("mail account info empty, params:{}", JSON.toJSONString(parms));
+        }
+        @Test
+        @DisplayName("test sendHtmlEmail method for proxy")
+        void test3(){
+            try (MockedStatic<Session> mb = Mockito
+                    .mockStatic(Session.class)) {
+                mb.when(()->Session.getInstance(any(Properties.class),any(Authenticator.class))).thenReturn(null);
+                when(parms.getUser()).thenReturn("test@tapdata.io");
+                when(parms.getPass()).thenReturn("testPasswd");
+                when(parms.getHost()).thenReturn("test@tapdata.io");
+                when(parms.getPort()).thenReturn(465);
+                when(parms.getProxyHost()).thenReturn("smtp.test.cn");
+                when(parms.getProxyPort()).thenReturn(1025);
+                when(parms.getFrom()).thenReturn("from@tapdata.io");
+                MailUtils.sendHtmlEmail(parms, adressees, title, content);
+                mb.verify(() -> Session.getInstance(any(Properties.class),any(Authenticator.class)),new Times(1));
+            }
+        }
+    }
+    @Nested
+    class filterBlackListTest{
+        private List<String> addresses;
+        @BeforeEach
+        void beforeEach(){
+            addresses = new ArrayList<>();
+            addresses.add("test1@tapdata.io");
+            addresses.add("test2@tapdata.io");
+        }
+        @Test
+        @DisplayName("test filterBlackList method when address is null")
+        void test1(){
+            addresses.clear();
+            List<String> actual = MailUtils.filterBlackList(addresses);
+            assertNull(actual);
+        }
+        @Test
+        @DisplayName("test filterBlackList method when blacklistService is not null")
+        void test2(){
+            try (MockedStatic<SpringContextHelper> mb = Mockito
+                    .mockStatic(SpringContextHelper.class)) {
+                BlacklistService blacklistService = mock(BlacklistService.class);
+                mb.when(()->SpringContextHelper.getBean(BlacklistService.class)).thenReturn(blacklistService);
+
+                when(blacklistService.inBlacklist("test1@tapdata.io")).thenReturn(true);
+                List<String> actual = MailUtils.filterBlackList(addresses);
+                String expected = "test2@tapdata.io";
+                assertEquals(expected, actual.get(0));
+            }
+
+        }
+        @Test
+        @DisplayName("test filterBlackList method when blacklistService is not null and address all in black list")
+        void test3(){
+            try (MockedStatic<SpringContextHelper> mb = Mockito
+                    .mockStatic(SpringContextHelper.class)) {
+                BlacklistService blacklistService = mock(BlacklistService.class);
+                mb.when(()->SpringContextHelper.getBean(BlacklistService.class)).thenReturn(blacklistService);
+
+                when(blacklistService.inBlacklist("test1@tapdata.io")).thenReturn(true);
+                when(blacklistService.inBlacklist("test2@tapdata.io")).thenReturn(true);
+                List<String> actual = MailUtils.filterBlackList(addresses);
+                assertNull(actual);
+            }
+
+        }
+        @Test
+        @DisplayName("test filterBlackList method when blacklistService is null")
+        void test4(){
+            List<String> actual = MailUtils.filterBlackList(addresses);
+            assertEquals(addresses, actual);
+        }
+    }
+    @Nested
+    class sendEmailForProxyTest{
+        private MailAccountDto parms;
+        private List<String> adressees;
+        private String title;
+        private String content;
+        private boolean flag;
+        @BeforeEach
+        void beforeEach(){
+            parms = mock(MailAccountDto.class);
+            adressees = new ArrayList<>();
+            adressees.add("test@tapdata.io");
+            title = "【TAPDATA】";
+            content = "test content";
+            flag = true;
+            when(parms.getUser()).thenReturn("test@tapdata.io");
+            when(parms.getPass()).thenReturn("testPasswd");
+            when(parms.getHost()).thenReturn("test@tapdata.io");
+            when(parms.getPort()).thenReturn(465);
+            when(parms.getProxyHost()).thenReturn("smtp.test.cn");
+            when(parms.getProxyPort()).thenReturn(1025);
+            when(parms.getFrom()).thenReturn("from@tapdata.io");
+        }
+        @Test
+        @DisplayName("test sendEmailForProxy method normal")
+        void test1(){
+            try (MockedStatic<Transport> mb = Mockito
+                    .mockStatic(Transport.class)) {
+                when(parms.getProtocol()).thenReturn("SSL");
+                mb.when(()->Transport.send(any(MimeMessage.class))).thenAnswer(invocationOnMock -> {return null;});
+                MailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+                mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
+            }
+        }
+        @Test
+        @DisplayName("test sendEmailForProxy method with exception")
+        void test2(){
+            Logger log;
+            log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            try (MockedStatic<Transport> mb = Mockito
+                    .mockStatic(Transport.class)) {
+                RuntimeException e = new RuntimeException("test ex");
+                mb.when(()->Transport.send(any(MimeMessage.class))).thenThrow(e);
+                when(parms.getProtocol()).thenReturn("NO_PROTOCOL");
+                mailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+                mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
+                verify(log).error("mail send error：{}", "test ex", e);
+            }
         }
     }
 }

@@ -61,4 +61,14 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
             return innerTableCacheMap.computeIfAbsent(tableId, id -> tableRenameProcessNode.convertTableName(tableNameMappingMap, tableId, false));
         }
     }
+
+    @Override
+    public boolean needTransformValue() {
+        return false;
+    }
+
+    @Override
+    public boolean supportConcurrentProcess() {
+        return true;
+    }
 }

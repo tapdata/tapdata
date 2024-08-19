@@ -1,0 +1,45 @@
+[
+  {
+    "id": 1,
+    "title": "test",
+    "created": "2019-01-01T00:00:00Z",
+    "field1": "test",
+    "map": {
+      "key": "value",
+      "map1": {
+        "key1": "value1"
+      },
+      "list1": [
+        {
+          "key": "value"
+        }
+      ]
+    },
+    "list": [
+      {
+        "key": "value"
+      }
+    ]
+  },
+  {
+    "ID": 1,
+    "title_new": "test",
+    "FIELD1": "test",
+    "MAP": {
+      "KEY": "value",
+      "MAP1": {
+        "KEY1": "value1"
+      },
+      "LIST1": [
+        {
+          "KEY": "value"
+        }
+      ]
+    },
+    "LIST": [
+      {
+        "KEY": "value"
+      }
+    ]
+  }
+]

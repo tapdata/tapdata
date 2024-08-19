@@ -37,100 +37,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 @Slf4j
 public class UploadFileService {
-  public static class Param {
-    Map<String, InputStream> inputStreamMap;
-    File file;
-    List<String> jsons;
-    boolean latest;
-    String hostAndPort;
-    String accessCode;
-    String ak;
-    String sk;
-    PrintUtil printUtil;
 
-    public Map<String, InputStream> getInputStreamMap() {
-      return inputStreamMap;
-    }
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk, PrintUtil printUtil) {
 
-    public void setInputStreamMap(Map<String, InputStream> inputStreamMap) {
-      this.inputStreamMap = inputStreamMap;
-    }
-
-    public File getFile() {
-      return file;
-    }
-
-    public void setFile(File file) {
-      this.file = file;
-    }
-
-    public List<String> getJsons() {
-      return jsons;
-    }
-
-    public void setJsons(List<String> jsons) {
-      this.jsons = jsons;
-    }
-
-    public boolean isLatest() {
-      return latest;
-    }
-
-    public void setLatest(boolean latest) {
-      this.latest = latest;
-    }
-
-    public String getHostAndPort() {
-      return hostAndPort;
-    }
-
-    public void setHostAndPort(String hostAndPort) {
-      this.hostAndPort = hostAndPort;
-    }
-
-    public String getAccessCode() {
-      return accessCode;
-    }
-
-    public void setAccessCode(String accessCode) {
-      this.accessCode = accessCode;
-    }
-
-    public String getAk() {
-      return ak;
-    }
-
-    public void setAk(String ak) {
-      this.ak = ak;
-    }
-
-    public String getSk() {
-      return sk;
-    }
-
-    public void setSk(String sk) {
-      this.sk = sk;
-    }
-
-    public PrintUtil getPrintUtil() {
-      return printUtil;
-    }
-
-    public void setPrintUtil(PrintUtil printUtil) {
-      this.printUtil = printUtil;
-    }
-  }
-
-  public static void uploadSourceToTM(Param paramEntity) {
-    Map<String, InputStream> inputStreamMap = paramEntity.getInputStreamMap();
-    File file = paramEntity.getFile();
-    List<String> jsons = paramEntity.jsons;
-    boolean latest = paramEntity.latest;
-    String hostAndPort = paramEntity.hostAndPort;
-    String accessCode = paramEntity.accessCode;
-    String ak = paramEntity.ak;
-    String sk = paramEntity.sk;
-    PrintUtil printUtil = paramEntity.printUtil;
     boolean cloud = StringUtils.isNotBlank(ak);
 
 
@@ -144,22 +53,22 @@ public class UploadFileService {
       String s = OkHttpUtils.postJsonParams(tokenUrl, jsonString);
 
       printUtil.print(PrintUtil.TYPE.DEBUG, "generate token " + s);
-      String error = "TM sever not found or generate token failed";
+
       if (StringUtils.isBlank(s)) {
-        printUtil.print(PrintUtil.TYPE.ERROR, error);
+        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
         return;
       }
 
       Map map = JSON.parseObject(s, Map.class);
       Object data = map.get("data");
       if (null == data) {
-        printUtil.print(PrintUtil.TYPE.ERROR, error);
+        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
         return;
       }
       JSONObject data1 = (JSONObject) data;
       token = (String) data1.get("id");
       if (StringUtils.isBlank(token)) {
-        printUtil.print(PrintUtil.TYPE.ERROR, error);
+        printUtil.print(PrintUtil.TYPE.ERROR, "TM sever not found or generate token failed");
         return;
       }
     }
@@ -271,7 +180,7 @@ public class UploadFileService {
       url = hostAndPort + "/api/pdk/upload/source?access_token=" + token;
       request = new HttpRequest(url, method);
     }
-
+    request.connectTimeout(180000).readTimeout(180000);//连接超时设置
     if (file != null) {
       request.part("file", file.getName(), "application/java-archive", file);
     }
@@ -303,10 +212,10 @@ public class UploadFileService {
     String msg = "success";
     String result = "success";
     if (!"ok".equals(map.get("code"))) {
-      msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
-      result = "fail";
+        msg = map.get("reqId") != null ? (String) map.get("message") : (String) map.get("msg");
+        result = "fail";
     }
-    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + (null == file ? "-" : file.getName()) + ", msg:" + msg + ", response:" + response);
+    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {

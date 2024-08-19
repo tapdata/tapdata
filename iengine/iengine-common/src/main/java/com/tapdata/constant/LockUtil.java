@@ -2,7 +2,6 @@ package com.tapdata.constant;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
-import java.util.function.Predicate;
 
 /**
  * @author samuel
@@ -10,14 +9,13 @@ import java.util.function.Predicate;
  * @create 2022-06-07 11:44
  **/
 public class LockUtil {
-	public static void runWithLock(Lock lock, Predicate<?> stop, Runner runner) {
+	public static void runWithLock(Lock lock, StopPredicate stop, Runner runner) {
 		if (null == lock) {
-			runner.run();
-			return;
+			throw new IllegalArgumentException("Lock cannot be null");
 		}
 		try {
 			while (true) {
-				if (null != stop && stop.test(null)) {
+				if (null != stop && stop.test()) {
 					break;
 				}
 				try {
@@ -36,5 +34,9 @@ public class LockUtil {
 
 	public interface Runner {
 		void run();
+	}
+
+	public interface StopPredicate {
+		boolean test();
 	}
 }

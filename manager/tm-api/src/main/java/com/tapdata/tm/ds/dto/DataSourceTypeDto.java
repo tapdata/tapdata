@@ -23,6 +23,7 @@ public class DataSourceTypeDto extends BaseDto {
     //包含了 applications
     private Map<String, Object> properties;
     private Map<String, Object> messages;
+    private Map<String, String> manifest;
     /** official-官方提供的，self-自定义数据源 */
     private String supplierType;
     /** pdk类型 */

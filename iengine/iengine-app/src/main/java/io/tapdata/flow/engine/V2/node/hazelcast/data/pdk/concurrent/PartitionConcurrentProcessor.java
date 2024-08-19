@@ -161,9 +161,8 @@ public class PartitionConcurrentProcessor {
 			while (isRunning()) {
 				try {
 					List<PartitionEvent<TapdataEvent>> events = new ArrayList<>();
-					Queues.drain(linkedBlockingQueue, events, batchSize, 3, TimeUnit.SECONDS);
+					Queues.drain(linkedBlockingQueue, events, batchSize / 2, 3, TimeUnit.SECONDS);
 					if (events.isEmpty()) continue;
-
 					processPartitionEvents(finalPartition, processEvents, events);
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
@@ -179,18 +178,14 @@ public class PartitionConcurrentProcessor {
 	}
 
 	protected void processPartitionEvents(int finalPartition, List<TapdataEvent> processEvents, List<PartitionEvent<TapdataEvent>> events) throws InterruptedException {
+		List<WatermarkEvent> watermarkEventCache = new ArrayList<>();
 		for (PartitionEvent partitionEvent : events) {
 			if (partitionEvent instanceof NormalEvent) {
 				final NormalEvent<?> normalEvent = (NormalEvent<?>) partitionEvent;
 				final TapdataEvent event = (TapdataEvent) normalEvent.getEvent();
 				processEvents.add(event);
 			} else if (partitionEvent instanceof WatermarkEvent) {
-				if (CollectionUtils.isNotEmpty(processEvents)) {
-					eventProcessor.accept(processEvents);
-					processEvents.clear();
-				}
-				final CountDownLatch countDownLatch = ((WatermarkEvent) partitionEvent).getCountDownLatch();
-				countDownLatch.countDown();
+				watermarkEventCache.add((WatermarkEvent) partitionEvent);
 			} else {
 				if (CollectionUtils.isNotEmpty(processEvents)) {
 					eventProcessor.accept(processEvents);
@@ -206,6 +201,10 @@ public class PartitionConcurrentProcessor {
 		if (CollectionUtils.isNotEmpty(processEvents)) {
 			eventProcessor.accept(processEvents);
 			processEvents.clear();
+		}
+
+		if (CollectionUtils.isNotEmpty(watermarkEventCache)) {
+			watermarkEventCache.forEach(watermarkEvent -> watermarkEvent.getCountDownLatch().countDown());
 		}
 	}
 

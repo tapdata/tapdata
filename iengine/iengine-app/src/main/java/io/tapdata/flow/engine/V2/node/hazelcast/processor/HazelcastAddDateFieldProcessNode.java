@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.AddDateFieldProcessorNode;
@@ -10,8 +11,10 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 public class HazelcastAddDateFieldProcessNode extends HazelcastProcessorBaseNode{
@@ -43,5 +46,18 @@ public class HazelcastAddDateFieldProcessNode extends HazelcastProcessorBaseNode
             record.put(dateFieldName, new DateTime(System.currentTimeMillis()));
         }
         consumer.accept(tapdataEvent, processResult);
+    }
+
+    @Override
+    protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+        if (null == tapdataEvent.getTransformToTapValueResult() || tapdataEvent.getTransformToTapValueResult().isEmpty()) {
+            return;
+        }
+        TransformToTapValueResult transformToTapValueResult = tapdataEvent.getTransformToTapValueResult();
+        if (StringUtils.isBlank(dateFieldName)) {
+            return;
+        }
+        Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.add(dateFieldName));
+        Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.add(dateFieldName));
     }
 }

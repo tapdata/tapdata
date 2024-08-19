@@ -4,6 +4,7 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
@@ -756,6 +757,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		void whenEnableParentUpdateJoinKey() {
 			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = new ArrayList<>();
 			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(TapInsertRecordEvent.create().init());
 			batchEventWrappers.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent));
 			HazelcastMergeNode.EnableUpdateJoinKey enableUpdateJoinKey = new HazelcastMergeNode.EnableUpdateJoinKey();
 			enableUpdateJoinKey.enableParent();
@@ -775,6 +777,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		void whenEnableChildrenUpdateJoinKey() {
 			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = new ArrayList<>();
 			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(TapInsertRecordEvent.create().init());
 			batchEventWrappers.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent));
 			HazelcastMergeNode.EnableUpdateJoinKey enableUpdateJoinKey = new HazelcastMergeNode.EnableUpdateJoinKey();
 			enableUpdateJoinKey.enableChildren();
@@ -794,6 +797,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		void whenEnableBothParentAndChildrenUpdateJoinKey() {
 			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = new ArrayList<>();
 			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(TapInsertRecordEvent.create().init());
 			batchEventWrappers.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent));
 			HazelcastMergeNode.EnableUpdateJoinKey enableUpdateJoinKey = new HazelcastMergeNode.EnableUpdateJoinKey();
 			enableUpdateJoinKey.enableChildren();
@@ -1765,6 +1769,13 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvent.setSyncStage(SyncStage.CDC);
 			assertTrue(mockHazelcastMergeNode.needLookup(tapdataEvent));
 		}
+
+		@Test
+		@DisplayName("test when tapdata event is a signal event")
+		void test5() {
+			TapdataHeartbeatEvent tapdataHeartbeatEvent = new TapdataHeartbeatEvent();
+			assertFalse(mockHazelcastMergeNode.needLookup(tapdataHeartbeatEvent));
+		}
 	}
 
 	@Nested
@@ -1819,16 +1830,18 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			TapdataEvent createIndexEvent = mock(TapdataEvent.class);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "createIndexEvent", createIndexEvent);
 			TapdataEvent tapdataEvent = new TapdataEvent();
-			HazelcastProcessorBaseNode.BatchEventWrapper batchEventWrapper = new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent);
+			tapdataEvent.setTapEvent(TapInsertRecordEvent.create().init());
+			TapdataHeartbeatEvent tapdataHeartbeatEvent = new TapdataHeartbeatEvent();
 			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = new ArrayList<>();
-			batchEventWrappers.add(batchEventWrapper);
+			batchEventWrappers.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataHeartbeatEvent));
+			batchEventWrappers.add(new HazelcastProcessorBaseNode.BatchEventWrapper(tapdataEvent));
 			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = o -> assertEquals(batchEventWrappers.size(), o.size());
 
 			doReturn(true).when(hazelcastMergeNode).needCache(any(TapdataEvent.class));
 			doAnswer(invocationOnMock -> {
 				Object argument1 = invocationOnMock.getArgument(0);
 				assertInstanceOf(ArrayList.class, argument1);
-				assertEquals(batchEventWrappers.size(), ((ArrayList<HazelcastProcessorBaseNode.BatchEventWrapper>) argument1).size());
+				assertEquals(1, ((ArrayList<HazelcastProcessorBaseNode.BatchEventWrapper>) argument1).size());
 				return null;
 			}).when(hazelcastMergeNode).doBatchCache(any(List.class));
 			doAnswer(invocationOnMock -> {

@@ -250,6 +250,8 @@ public class PdkSchemaConvert {
                 tapField.setComment(field.getComment());
                 tapField.setPrimaryKey(field.getPrimaryKey());
                 tapField.setDataType(field.getDataType());
+                tapField.setPureDataType(field.getPureDataType());
+                tapField.setLength(field.getLength());
                 tapField.setDeleted(field.isDeleted());
 
                 tapField.setId(field.getId());
@@ -399,6 +401,10 @@ public class PdkSchemaConvert {
                     partitionSet.add(tapField.getPos());
                 }
                 field.setDataType(tapField.getDataType());
+                field.setPureDataType(tapField.getPureDataType());
+                field.setLength(tapField.getLength());
+                field.setPrecision(tapField.getPrecision());
+                field.setScale(tapField.getScale());
                 fields.add(field);
             }
         }
@@ -533,6 +539,8 @@ public class PdkSchemaConvert {
                     field.setComment(tapField1.getComment());
                     field.setPrimaryKey(tapField1.getPrimaryKey());
                     field.setDataType(tapField1.getDataType());
+                    field.setPureDataType(tapField1.getPureDataType());
+                    field.setLength(tapField1.getLength());
                     field.setDeleted(tapField1.isDeleted());
                 }
                 field.setDefaultValue(tapField.getDefaultValue());

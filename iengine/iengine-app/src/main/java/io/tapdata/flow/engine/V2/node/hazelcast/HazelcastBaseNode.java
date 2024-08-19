@@ -710,11 +710,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		//Should avoid invoke isJetJobRunning method for every event.
 		//Use TapCache to cache the isJetJobRunning's result, expire in 2 seconds.
 		//Then no more performance issue.
-		return running.get() && !Thread.currentThread().isInterrupted() && isJetJobRunning();
+		return running.get() && isJetJobRunning();
 	}
 
 
-	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
+	public void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) {
 			return;
 		}

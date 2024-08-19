@@ -8,10 +8,10 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
-import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
-import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -25,6 +25,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
+import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.event.TapEvent;
@@ -69,14 +71,17 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -114,7 +119,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	class DoInitTest {
 		@BeforeEach
 		void beforeEach() {
-			TaskResourceSupervisorManager taskResourceSupervisorManager=new TaskResourceSupervisorManager();
+			TaskResourceSupervisorManager taskResourceSupervisorManager = new TaskResourceSupervisorManager();
 			ReflectionTestUtils.setField(mockInstance, "taskResourceSupervisorManager", taskResourceSupervisorManager);
 			doCallRealMethod().when(mockInstance).doInit(jetContext);
 		}
@@ -1135,6 +1140,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 					MockedStatic<PDKIntegration> pdkIntegrationMockedStatic = mockStatic(PDKIntegration.class)
 			) {
 				ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+				ReflectionTestUtils.setField(instance, "readBatchSize", 100);
 				ReflectionTestUtils.setField(instance, "sourceRunner", sourceRunner);
 				String associateId = "test_associateId";
 				ReflectionTestUtils.setField(instance, "associateId", associateId);
@@ -1187,21 +1193,21 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Test
 	void testHandleCustomCommandResultForList() {
-        HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode = Mockito.mock(HazelcastSourcePdkDataNode.class);
+		HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode = Mockito.mock(HazelcastSourcePdkDataNode.class);
 		List<Map<String, Object>> list = new ArrayList<>();
 		Map<String, Object> map = new HashMap<>();
-		map.put("id",1);
+		map.put("id", 1);
 		list.add(map);
 		String tableName = "test";
 		BiConsumer<List<TapEvent>, Object> consumer = new BiConsumer<List<TapEvent>, Object>() {
 			@Override
 			public void accept(List<TapEvent> tapEvents, Object o) {
 				TapEvent tapEvent = tapEvents.get(0);
-				Assert.assertEquals(tableName,((TapInsertRecordEvent)tapEvent).getTableId());
+				Assert.assertEquals(tableName, ((TapInsertRecordEvent) tapEvent).getTableId());
 			}
 		};
-		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
-				list,tableName,consumer);
+		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode, "handleCustomCommandResult",
+				list, tableName, consumer);
 	}
 
 
@@ -1216,9 +1222,9 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				Assert.assertTrue(!tapEvents.isEmpty());
 			}
 		};
-		ReflectionTestUtils.setField(hazelcastSourcePdkDataNode,"obsLogger",Mockito.mock(ObsLogger.class));
-		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"handleCustomCommandResult",
-				excepted,tableName,consumer);
+		ReflectionTestUtils.setField(hazelcastSourcePdkDataNode, "obsLogger", Mockito.mock(ObsLogger.class));
+		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode, "handleCustomCommandResult",
+				excepted, tableName, consumer);
 	}
 
 	@Nested
@@ -1279,6 +1285,134 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Method initToTapValueConcurrent test")
+	class initToTapValueConcurrentTest {
+		@Test
+		@DisplayName("test default config, expect not enable concurrent transform to tapValue")
+		void test1() {
+			instance.initToTapValueConcurrent();
 
+			Object toTapValueConcurrent = ReflectionTestUtils.getField(instance, "toTapValueConcurrent");
+			assertInstanceOf(Boolean.class, toTapValueConcurrent);
+			assertFalse((Boolean) toTapValueConcurrent);
+			Object toTapValueConcurrentProcessor = ReflectionTestUtils.getField(instance, "toTapValueConcurrentProcessor");
+			assertNull(toTapValueConcurrentProcessor);
+		}
 
+		@Test
+		@DisplayName("test enable concurrent transform to tapValue")
+		void test2() {
+			System.setProperty(HazelcastSourcePdkBaseNode.SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, "true");
+			ReflectionTestUtils.setField(instance, "readBatchSize", 100);
+//			ThreadPoolExecutorEx toTapValueRunner = mock(ThreadPoolExecutorEx.class);
+//			ReflectionTestUtils.setField(instance, "toTapValueRunner", toTapValueRunner);
+
+			instance.initToTapValueConcurrent();
+
+			Object toTapValueConcurrent = ReflectionTestUtils.getField(instance, "toTapValueConcurrent");
+			assertInstanceOf(Boolean.class, toTapValueConcurrent);
+			assertTrue((Boolean) toTapValueConcurrent);
+			Object toTapValueConcurrentProcessor = ReflectionTestUtils.getField(instance, "toTapValueConcurrentProcessor");
+			assertInstanceOf(SimpleConcurrentProcessorImpl.class, toTapValueConcurrentProcessor);
+			Object toTapValueRunner = ReflectionTestUtils.getField(instance, "toTapValueRunner");
+			assertInstanceOf(ThreadPoolExecutorEx.class, toTapValueRunner);
+		}
+	}
+
+	@Nested
+	@DisplayName("Method concurrentToTapValueConsumer test")
+	class concurrentToTapValueConsumerTest {
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+		}
+
+		@Test
+		@DisplayName("test main process")
+		@SneakyThrows
+		void test1() {
+			CountDownLatch countDownLatch = new CountDownLatch(1000);
+			int threadNum = 5;
+			LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(Long.valueOf(countDownLatch.getCount()).intValue());
+			IntStream.range(0, Long.valueOf(countDownLatch.getCount()).intValue()).forEach(i -> eventQueue.offer(new TapdataEvent()));
+			ReflectionTestUtils.setField(instance, "eventQueue", eventQueue);
+			ReflectionTestUtils.setField(instance, "readBatchSize", Long.valueOf(countDownLatch.getCount()).intValue());
+			ReflectionTestUtils.setField(instance, "toTapValueBatchSize", 10);
+			SimpleConcurrentProcessorImpl<Object, Object> simpleConcurrentProcessor = TapExecutors.createSimple(threadNum, 10, "test");
+			ReflectionTestUtils.setField(instance, "toTapValueConcurrentProcessor", simpleConcurrentProcessor);
+			doAnswer(invocationOnMock -> {
+				Object argument = invocationOnMock.getArgument(0);
+				assertInstanceOf(List.class, argument);
+				List<TapdataEvent> tapdataEvents = (List<TapdataEvent>) argument;
+				for (TapdataEvent tapdataEvent : tapdataEvents) {
+					tapdataEvent.addInfo("test", 1);
+				}
+				return null;
+			}).when(instance).batchTransformToTapValue(any());
+			AtomicBoolean running = new AtomicBoolean(true);
+			ReflectionTestUtils.setField(instance, "running", running);
+
+			new Thread(instance::concurrentToTapValueConsumer).start();
+			List<Object> results = new ArrayList();
+			new Thread(() -> {
+				while (countDownLatch.getCount() > 0) {
+					Object o = simpleConcurrentProcessor.get();
+					assertInstanceOf(List.class, o);
+					for (Object result : (List<?>) o) {
+						results.add(result);
+						countDownLatch.countDown();
+					}
+				}
+			}).start();
+			countDownLatch.await();
+			running.set(false);
+
+			for (Object result : results) {
+				assertInstanceOf(TapdataEvent.class, result);
+				TapdataEvent tapdataEvent = (TapdataEvent) result;
+				assertEquals(1, tapdataEvent.getInfo("test"));
+			}
+			simpleConcurrentProcessor.close();
+		}
+	}
+
+	@Nested
+	@DisplayName("Method doClose test")
+	class doCloseTest {
+		@Test
+		@DisplayName("test main process")
+		void test1() {
+			doCallRealMethod().when(mockInstance).doClose();
+			ReflectionTestUtils.setField(mockInstance, "obsLogger", mockObsLogger);
+			when(mockInstance.getNode()).thenReturn((Node) tableNode);
+			final Object waitObj = new Object();
+			ReflectionTestUtils.setField(mockInstance, "waitObj", waitObj);
+			Thread thread = new Thread(() -> {
+				synchronized (waitObj) {
+					try {
+						waitObj.wait();
+					} catch (InterruptedException ignored) {
+					}
+				}
+			});
+			thread.start();
+			ScheduledExecutorService tableMonitorResultHandler = mock(ScheduledExecutorService.class);
+			ReflectionTestUtils.setField(mockInstance, "tableMonitorResultHandler", tableMonitorResultHandler);
+			ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+			ReflectionTestUtils.setField(mockInstance, "sourceRunner", sourceRunner);
+			ThreadPoolExecutorEx toTapValueRunner = mock(ThreadPoolExecutorEx.class);
+			ReflectionTestUtils.setField(mockInstance, "toTapValueRunner", toTapValueRunner);
+			SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor = mock(SimpleConcurrentProcessorImpl.class);
+			ReflectionTestUtils.setField(mockInstance, "toTapValueConcurrentProcessor", toTapValueConcurrentProcessor);
+
+			mockInstance.doClose();
+
+			verify(tableMonitorResultHandler).shutdownNow();
+			verify(sourceRunner).shutdownNow();
+			verify(toTapValueRunner).shutdownNow();
+			verify(toTapValueConcurrentProcessor).close();
+			assertFalse(thread.isAlive());
+		}
+	}
 }

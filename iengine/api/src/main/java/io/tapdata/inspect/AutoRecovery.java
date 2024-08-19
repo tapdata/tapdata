@@ -21,7 +21,7 @@ import java.util.function.Consumer;
  */
 public class AutoRecovery implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(AutoRecovery.class);
-    private static final Map<String, AutoRecovery> instances = new HashMap<>();
+    private static final Map<String, AutoRecovery> instances = new ConcurrentHashMap<>();
 
     @Getter
     private final String taskId;

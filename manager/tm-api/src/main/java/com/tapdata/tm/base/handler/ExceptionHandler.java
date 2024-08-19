@@ -152,7 +152,7 @@ public class ExceptionHandler extends BaseController {
 
 		ResponseMessage<Object> failed;
 		if (!StringUtils.isEmpty(message)) {
-			failed = failed(e.getErrorCode(), message);
+			failed = failed(e.getErrorCode(), message, e);
 		} else {
 
 			failed = failed(e.getErrorCode(), e);

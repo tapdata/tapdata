@@ -1,9 +1,8 @@
 package com.tapdata.constant;
 
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * @author samuel
@@ -79,6 +78,26 @@ public class TapList extends ArrayList {
 		Object o = super.get(index);
 		if (o instanceof Map && ((Map) o).containsKey(VALUE)) {
 			((Map) o).put(VALUE, value);
+		}
+	}
+
+	public void forEachRealValue(Consumer<Object> consumer) {
+		Queue<Object> queue = new LinkedList<>();
+		queue.add(this);
+
+		while (!queue.isEmpty()) {
+			Object current = queue.poll();
+			if (current instanceof TapList) {
+				TapList tapList = (TapList) current;
+				for (int i = 0; i < tapList.size(); i++) {
+					Object value = tapList.getValue(i);
+					if (value instanceof TapList) {
+						queue.add(value);
+					} else {
+						consumer.accept(value);
+					}
+				}
+			}
 		}
 	}
 }

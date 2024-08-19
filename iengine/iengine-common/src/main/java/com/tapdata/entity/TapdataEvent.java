@@ -38,6 +38,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	protected SyncProgress.Type type;
 	protected volatile Map<String, Object> info;
 	private TapInsertRecordEvent exactlyOnceWriteCache;
+	private TransformToTapValueResult transformToTapValueResult;
 
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
@@ -192,6 +193,10 @@ public class TapdataEvent implements Serializable, Cloneable {
 				throw new RuntimeException("Clone tap event failed: " + e.getMessage(), e);
 			}
 		}
+
+		if (null != transformToTapValueResult) {
+			tapdataEvent.transformToTapValueResult = this.transformToTapValueResult;
+		}
 	}
 
 	public String getFromNodeId() {
@@ -266,6 +271,14 @@ public class TapdataEvent implements Serializable, Cloneable {
 
 	public boolean isConcurrentWrite() {
 		return true;
+	}
+
+	public TransformToTapValueResult getTransformToTapValueResult() {
+		return transformToTapValueResult;
+	}
+
+	public void setTransformToTapValueResult(TransformToTapValueResult transformToTapValueResult) {
+		this.transformToTapValueResult = transformToTapValueResult;
 	}
 
 	@Override
