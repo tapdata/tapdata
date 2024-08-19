@@ -63,8 +63,8 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
                             tableName = tapTableQueue.poll(1L, TimeUnit.MILLISECONDS);
                             processDoSnapshot(tableName, firstBatch);
                         } catch (InterruptedException e) {
+                            obsLogger.warn("Initial concurrent read thread interrupted", e);
                             Thread.currentThread().interrupt();
-                            throw new RuntimeException("Initial concurrent read thread interrupted", e);
                         } catch (Throwable e) {
                             throw new RuntimeException(String.format("Initial concurrent read failed, table : %s", tableName), e);
                         }
