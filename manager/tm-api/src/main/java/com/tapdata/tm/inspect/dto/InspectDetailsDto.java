@@ -31,4 +31,6 @@ public class InspectDetailsDto extends BaseDto {
     private String message;
     /**  */
     private Date ttlTime;
+
+    private Boolean fullField = true;
 }
