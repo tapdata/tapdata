@@ -1013,11 +1013,12 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	class HandleTapdataEventsTest {
-		List<TapdataEvent> tapdataEvents = new ArrayList<>();
+		List<TapdataEvent> tapdataEvents;
 		JetJobStatusMonitor jobStatusMonitor = mock(JetJobStatusMonitor.class);
 
 		@BeforeEach
 		void setUp() {
+			tapdataEvents = new ArrayList<>();
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEvents(any());
 			when(jobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
 
@@ -1083,6 +1084,29 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
 			Assertions.assertThrows(TapdataEventException.class, () -> hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents));
+		}
+
+		@Test
+		void testCountDownLatchEvent() {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(List.class), any(List.class), any(AtomicReference.class), any(AtomicBoolean.class), any(List.class), any(TapdataEvent.class));
+			TapdataCountDownLatchEvent tapdataCountDownLatchEvent = TapdataCountDownLatchEvent.create(1);
+			tapdataEvents.add(tapdataCountDownLatchEvent);
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+
+			hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents);
+
+			assertEquals(0, tapdataCountDownLatchEvent.getCountDownLatch().getCount());
+		}
+
+		@Test
+		void testInvalidCountDownLatchEvent() {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(List.class), any(List.class), any(AtomicReference.class), any(AtomicBoolean.class), any(List.class), any(TapdataEvent.class));
+			TapdataCountDownLatchEvent tapdataCountDownLatchEvent = TapdataCountDownLatchEvent.create(1);
+			ReflectionTestUtils.setField(tapdataCountDownLatchEvent, "countDownLatch", null);
+			tapdataEvents.add(tapdataCountDownLatchEvent);
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+
+			assertDoesNotThrow(() -> hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents));
 		}
 	}
 
@@ -1227,9 +1251,11 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@BeforeEach
 		void setUp() {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).processTargetEvents(any(List.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).enqueue(any(LinkedBlockingQueue.class), any(TapdataEvent.class));
 			String tableName = "test";
 			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(any(TapEvent.class))).thenReturn(tableName);
 			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", mockObsLogger);
 		}
 
 		@Test
@@ -1306,8 +1332,35 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapdataEvents.add(tapdataEvent);
 			BlockingQueue<TapdataEvent> tapEventProcessQueue = new LinkedBlockingQueue<>();
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "tapEventProcessQueue", tapEventProcessQueue);
+			new Thread(() -> assertDoesNotThrow(() -> {
+				TapdataEvent pollEvent = tapEventProcessQueue.take();
+				assertInstanceOf(TapdataCountDownLatchEvent.class, pollEvent);
+				assertNotNull(((TapdataCountDownLatchEvent) pollEvent).getCountDownLatch());
+				assertEquals(1, ((TapdataCountDownLatchEvent) pollEvent).getCountDownLatch().getCount());
+				((TapdataCountDownLatchEvent) pollEvent).getCountDownLatch().countDown();
+				pollEvent = tapEventProcessQueue.take();
+				assertEquals(tapdataEvent, pollEvent);
+			})).start();
 			hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents);
 			verify(hazelcastTargetPdkBaseNode, never()).fromTapValueMergeInfo(any(TapdataEvent.class));
+			verify(hazelcastTargetPdkBaseNode).updateMemoryFromDDLInfoMap(tapdataEvent);
+		}
+
+		@Test
+		@DisplayName("test when ddl event, thread interrupt when await count down latch")
+		void test4() {
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapCreateTableEvent);
+			List<TapdataEvent> tapdataEvents = new ArrayList<>();
+			tapdataEvents.add(tapdataEvent);
+			BlockingQueue<TapdataEvent> tapEventProcessQueue = new LinkedBlockingQueue<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "tapEventProcessQueue", tapEventProcessQueue);
+			Thread thread = new Thread(() -> hazelcastTargetPdkBaseNode.processTargetEvents(tapdataEvents));
+			thread.start();
+			assertDoesNotThrow(() -> TimeUnit.MILLISECONDS.sleep(300L));
+			thread.interrupt();
+			verify(hazelcastTargetPdkBaseNode, never()).updateMemoryFromDDLInfoMap(tapdataEvent);
 		}
 	}
 

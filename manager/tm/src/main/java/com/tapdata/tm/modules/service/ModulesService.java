@@ -223,6 +223,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         return super.upsertByWhere(where, modulesDto, userDetail);
     }
 
+    public List<ModulesDto> batchUpdateModuleByList(List<ModulesDto> modulesDtos, UserDetail userDetail) {
+        List<ModulesDto> modulesDtoList = new ArrayList<>();
+        modulesDtos.forEach((modulesDto -> modulesDtoList.add(updateModuleById(modulesDto, userDetail))));
+        return modulesDtoList;
+    }
 
 
     /**

@@ -630,14 +630,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								continue;
 							}
 						}
-						while (isRunning()) {
-							try {
-								if (tapEventQueue.offer(tapdataEvent, 1L, TimeUnit.SECONDS)) {
-									break;
-								}
-							} catch (InterruptedException ignored) {
-							}
-						}
+						enqueue(this.tapEventQueue, tapdataEvent);
 						if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
 							if (((TapdataAdjustMemoryEvent) tapdataEvent).needAdjust()) {
 								synchronized (this.dynamicAdjustQueueLock) {
@@ -693,16 +686,36 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				fromTapValueMergeInfo(consumeEvent);
 			} else if(consumeEvent.getTapEvent() instanceof TapDDLEvent) {
-				updateMemoryFromDDLInfoMap(consumeEvent);
-			}
-			while (isRunning()) {
-				try {
-					if (tapEventProcessQueue.offer(consumeEvent, 1, TimeUnit.SECONDS)) {
-						break;
+				// send count down latch and await
+				TapdataCountDownLatchEvent tapdataCountDownLatchEvent = TapdataCountDownLatchEvent.create(1);
+				enqueue(this.tapEventProcessQueue, tapdataCountDownLatchEvent);
+				obsLogger.info("The target node received dll event({}). Wait for all previous events to be processed", consumeEvent.getTapEvent());
+				while (isRunning()) {
+					try {
+						if (tapdataCountDownLatchEvent.getCountDownLatch().await(1L, TimeUnit.SECONDS)) {
+							break;
+						}
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						return;
 					}
-				} catch (InterruptedException ignored) {
-					Thread.currentThread().interrupt();
 				}
+				updateMemoryFromDDLInfoMap(consumeEvent);
+				obsLogger.info("The target node refreshes the memory model according to the ddl event({})", consumeEvent.getTapEvent());
+			}
+			enqueue(this.tapEventProcessQueue, consumeEvent);
+		}
+	}
+
+	protected void enqueue(LinkedBlockingQueue<TapdataEvent> tapEventQueue, TapdataEvent event) {
+		while (isRunning()) {
+			try {
+				if (tapEventQueue.offer(event, 1, TimeUnit.SECONDS)) {
+					break;
+				}
+			} catch (InterruptedException ignored) {
+				Thread.currentThread().interrupt();
+				break;
 			}
 		}
 	}
@@ -888,12 +901,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 handleTapdataCompleteTableSnapshotEvent((TapdataCompleteTableSnapshotEvent) tapdataEvent);
             } else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
                 handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
-            } else {
-                handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
-                if (tapdataEvent instanceof TapdataRecoveryEvent) {
-                    AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
-                }
-            }
+			} else if (tapdataEvent instanceof TapdataCountDownLatchEvent) {
+				Optional.of(tapdataEvent)
+						.flatMap(event -> Optional.ofNullable(((TapdataCountDownLatchEvent) event).getCountDownLatch()))
+						.ifPresent(CountDownLatch::countDown);
+			} else {
+				handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				if (tapdataEvent instanceof TapdataRecoveryEvent) {
+					AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
+				}
+			}
         } catch (Throwable throwable) {
             throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
         }

@@ -175,6 +175,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
 	protected ThreadPoolExecutorEx sourceRunner;
+	protected ThreadPoolExecutorEx toTapValueRunner;
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
 	protected int sourceQueueCapacity;
@@ -298,10 +299,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		toTapValueConcurrent = CommonUtils.getPropertyBool(SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY, false);
 		toTapValueThreadNum = CommonUtils.getPropertyInt(SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY, Math.max(2, Runtime.getRuntime().availableProcessors() / 2));
 		if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+			this.toTapValueRunner = AsyncUtils.createThreadPoolExecutor(String.format("ToTapValue-Runner-%s[%s]", getNode().getName(), getNode().getId()), 1, TAG);
 			toTapValueBatchSize = Math.max(1, readBatchSize / toTapValueThreadNum);
 			toTapValueConcurrentProcessor = TapExecutors.createSimple(toTapValueThreadNum, 5, TAG);
 			toTapValueConcurrentProcessor.start();
-			this.sourceRunner.execute(this::concurrentToTapValueConsumer);
+			this.toTapValueRunner.execute(this::concurrentToTapValueConsumer);
 		}
 	}
 
@@ -1645,6 +1647,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(tableMonitorResultHandler).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueRunner).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(toTapValueConcurrentProcessor).ifPresent(SimpleConcurrentProcessorImpl::close), TAG);
 		} finally {
 			super.doClose();

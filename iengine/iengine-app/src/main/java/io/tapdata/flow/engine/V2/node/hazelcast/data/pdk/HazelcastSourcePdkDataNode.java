@@ -172,6 +172,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private static final int CDC_POLLING_MIN_BATCH_SIZE = 1000;
 	private static final long BATCH_COUNT_LIMIT = 5000000;
 	private static final int EQUAL_VALUE = 5;
+	private boolean addLdpNewTables = false;
 	private ShareCdcReader shareCdcReader;
 	private final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
@@ -265,13 +266,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					doSnapshot(newTables);
 				}
 
-				if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
-					if (newTables == null) {
-						newTables = new CopyOnWriteArrayList<>();
-					}
-					newTables.addAll(taskDto.getLdpNewTables());
-					doSnapshot(newTables);
-				}
+				addLdpNewTablesIfNeed(taskDto);
 			} catch (Throwable e) {
 				executeAspect(new SnapshotReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 				throw e;
@@ -303,6 +298,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
+		}
+	}
+
+	protected void addLdpNewTablesIfNeed(TaskDto taskDto) {
+		if (CollectionUtils.isNotEmpty(taskDto.getLdpNewTables())) {
+			if (newTables == null) {
+				newTables = new CopyOnWriteArrayList<>();
+			}
+			addLdpNewTables = true;
+			newTables.addAll(taskDto.getLdpNewTables());
+			doSnapshot(newTables);
 		}
 	}
 
@@ -387,7 +393,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 
 		// MILESTONE-READ_SNAPSHOT-RUNNING
-		if (sourceRunnerFirstTime.get()) {
+		if (sourceRunnerFirstTime.get() && !addLdpNewTables) {
 			executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 		}
 		try {
