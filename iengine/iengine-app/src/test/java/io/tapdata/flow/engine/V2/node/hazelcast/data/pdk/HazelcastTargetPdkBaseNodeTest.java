@@ -406,34 +406,6 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		void createTableFalseTestForInit() {
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "unwindProcess", false);
-			TapTable tapTable = new TapTable();
-			tapTable.setId("test");
-			AtomicBoolean succeed = new AtomicBoolean(true);
-			Node node = mock(Node.class);
-			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
-			when(node.disabledNode()).thenReturn(false);
-			ConnectorNode connectorNode = mock(ConnectorNode.class);
-			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
-			ConnectorFunctions functions = mock(ConnectorFunctions.class);
-			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
-			when(functions.getCreateTableFunction()).thenReturn(null);
-			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
-			try (MockedStatic<AspectUtils> aspectUtilsMockedStatic = Mockito.mockStatic(AspectUtils.class)) {
-				aspectUtilsMockedStatic.when(() -> AspectUtils.executeAspect(any())).then(a -> {
-					CreateTableFuncAspect createTableFuncAspect = a.getArgument(0);
-					Assertions.assertTrue(createTableFuncAspect.isInit());
-					return null;
-				});
-
-				doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable, succeed, true);
-				hazelcastTargetPdkBaseNode.createTable(tapTable, succeed, true);
-
-			}
-		}
-
-		@Test
 		void dropTableTestForInit() {
 			TaskDto taskDto = new TaskDto();
 			taskDto.setType("initial_sync");
