@@ -827,13 +827,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											}
 
 											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
-												if (logger.isDebugEnabled()) {
+												if (obsLogger.isDebugEnabled()) {
 													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
 													if (MapUtils.isNotEmpty(errorMap)) {
 														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
 															String errorRecordMsg = tapRecordEventThrowableEntry.getValue().getMessage() + "\n - Error record: " + tapRecordEventThrowableEntry.getKey()
 																	+ "\n - Stack trace: " + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue());
-															logger.debug(errorRecordMsg);
+															obsLogger.debug(errorRecordMsg);
 														}
 													}
 												}
