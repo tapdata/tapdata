@@ -246,8 +246,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		contextMap.put("global", this.globalTaskContent);
 		Map<String, Object> context = this.processContextThreadLocal.get();
 		context.putAll(contextMap);
-		((ScriptEngine) getOrInitEngine()).put("context", context);
 
+		Invocable engine = getOrInitEngine();
+
+		((ScriptEngine) engine).put("context", context);
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
 		AtomicReference<Object> scriptInvokeBeforeResult = new AtomicReference<>();
@@ -260,7 +262,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			Thread thread = new Thread(() -> {
 				Thread.currentThread().setName("Javascript-Test-Runner");
 				try {
-					scriptInvokeResult.set(getOrInitEngine().invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
+					scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, finalRecord));
 				} catch (Throwable throwable) {
 					errorAtomicRef.set(throwable);
 				} finally {
@@ -277,10 +279,10 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			}
 
 		} else {
-			scriptInvokeResult.set(getOrInitEngine().invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
+			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
 			// handle before
 			if (standard && TapUpdateRecordEvent.TYPE == tapEvent.getType() && MapUtils.isNotEmpty(before)) {
-				scriptInvokeBeforeResult.set(getOrInitEngine().invokeFunction(ScriptUtil.FUNCTION_NAME, before));
+				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
 			}
 		}
 
