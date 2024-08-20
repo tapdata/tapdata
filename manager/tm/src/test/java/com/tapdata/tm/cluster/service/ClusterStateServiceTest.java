@@ -123,7 +123,7 @@ class ClusterStateServiceTest {
             when(worker.getTcmInfo()).thenReturn(null);
             assertVerify(1, 1,
                     0,
-                    2, 0, 3,
+                    2, 0, 5,
                     1);
         }
         @Test
@@ -131,7 +131,7 @@ class ClusterStateServiceTest {
             when(settingsService.isCloud()).thenReturn(true);
             assertVerify(1, 1,
                     1,
-                    2, 0, 3,
+                    2, 0, 5,
                     1);
         }
 
@@ -140,7 +140,7 @@ class ClusterStateServiceTest {
             when(worker.getStopping()).thenReturn(null);
             assertVerify(1, 0,
                     0,
-                    1, 2, 3,
+                    1, 2, 5,
                     1);
         }
         @Test
@@ -148,7 +148,7 @@ class ClusterStateServiceTest {
             when(worker.getStopping()).thenReturn(false);
             assertVerify(1, 0,
                     0,
-                    2, 2, 3,
+                    2, 2, 5,
                     1);
         }
 
@@ -158,7 +158,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(null);
             assertVerify(1, 0,
                     0,
-                    1, 1, 3,
+                    1, 1, 5,
                     1);
         }
         @Test
@@ -167,7 +167,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(2L);
             assertVerify(1, 0,
                     0,
-                    1, 2, 3,
+                    1, 2, 5,
                     1);
         }
         @Test
@@ -176,7 +176,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(Long.MAX_VALUE);
             assertVerify(1, 0,
                     0,
-                    1, 2, 3,
+                    1, 2, 5,
                     1);
         }
     }
