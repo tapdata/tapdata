@@ -14,6 +14,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.exception.RestDoNotRetryException;
 import io.tapdata.flow.engine.V2.common.FixScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.common.ScheduleTaskConfig;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -51,6 +52,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -301,16 +303,25 @@ public class TapdataTaskScheduler {
 	private void startTask(TaskDto taskDto) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
-		if (taskClientMap.containsKey(taskId)) {
-			TaskClient<TaskDto> taskClient = taskClientMap.get(taskId);
-			if (null != taskClient) {
-				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, taskClient.getStatus());
-				if (!TaskDto.STATUS_RUNNING.equals(taskClient.getStatus())) {
+		AtomicBoolean isReturn = new AtomicBoolean(false);
+		taskClientMap.computeIfPresent(taskId, (id, taskClient)->{
+			if (taskClientMap.containsKey(taskId)) {
+				String status = taskClient.getStatus();
+				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
+				try {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+				} catch (Exception e) {
+					if (e instanceof RestDoNotRetryException && "Transition.Not.Supported".equals(((RestDoNotRetryException) e).getCode())) {
+						// ignored Transition.Not.Supported error
+					} else {
+						throw e;
+					}
 				}
-			} else {
-				logger.info("The [task {}, id {}] is being executed, ignore the scheduling", taskDto.getName(), taskId);
+				isReturn.compareAndSet(false, true);
 			}
+			return taskClient;
+		});
+		if (isReturn.get()) {
 			return;
 		}
 		try {
