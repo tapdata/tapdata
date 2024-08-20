@@ -3966,6 +3966,10 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
+            scheduleService.createTaskRecordForInitial(taskDto);
+            save(taskDto, user);
+        }
         String taskType = taskDto.getSyncType();
         TasksNumBatch tasksNumBatch = new TasksNumBatch();
         tasksNumBatch.setTaskType(taskType);
