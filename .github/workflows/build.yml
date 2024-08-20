@@ -249,6 +249,7 @@ jobs:
       - name: Build Docs
         run: |
           cd docs && npm install && npm run build
+          mkdir -p tapdata-enterprise-web/dist/docs/
           rsync -av build/ tapdata-enterprise-web/dist/docs/
       - name: Upload Outputs
         run: |
