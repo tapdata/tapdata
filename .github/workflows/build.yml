@@ -248,9 +248,9 @@ jobs:
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Build Docs
         run: |
-          cd docs && npm install && npm run build
+          cd docs && npm install && npm run build && cd ..
           mkdir -p tapdata-enterprise-web/dist/docs/
-          rsync -av build/ tapdata-enterprise-web/dist/docs/
+          rsync -av docs/build/ tapdata-enterprise-web/dist/docs/
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p frontend
