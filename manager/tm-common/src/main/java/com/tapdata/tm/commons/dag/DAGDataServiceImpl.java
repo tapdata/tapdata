@@ -65,8 +65,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     private static Logger logger = LoggerFactory.getLogger(DAGDataServiceImpl.class);
 
     private final Map<String, MetadataInstancesDto> metadataMap;
-    private final Map<String, DataSourceConnectionDto> dataSourceMap;
-    private final Map<String, DataSourceDefinitionDto> definitionDtoMap;
+    protected final Map<String, DataSourceConnectionDto> dataSourceMap;
+    protected final Map<String, DataSourceDefinitionDto> definitionDtoMap;
 
     private final Map<String, MetadataTransformerDto> transformerDtoMap;
     private final Map<String, TaskDto> taskMap = new HashMap<>();
@@ -545,7 +545,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param metadataInstances 模型元数据记录
      * @param schema 映射后的字段类型将保存在这个对象上
      */
-    private Schema processFieldFromDB(MetadataInstancesDto metadataInstances, Schema schema) {
+    protected Schema processFieldFromDB(MetadataInstancesDto metadataInstances, Schema schema) {
         String sourceId = metadataInstances.getSource().get_id();
         DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(sourceId);
         String dbVersion = dataSourceConnectionDto.getDb_version();

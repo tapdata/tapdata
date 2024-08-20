@@ -10,7 +10,10 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SchemaUtilsTest {
@@ -153,6 +156,22 @@ class SchemaUtilsTest {
             Assertions.assertNotNull(s);
             Assertions.assertEquals(1, s.size());
             Assertions.assertEquals(schema, s.get(0));
+        }
+    }
+
+    @Nested
+    class CloneSchemaInfoTest {
+        @Test
+        void testNormal() {
+            Schema inputSchema = mock(Schema.class);
+            Schema targetSchema = mock(Schema.class);
+            when(inputSchema.getPartitionInfo()).thenReturn(null);
+            when(inputSchema.getPartitionMasterTableId()).thenReturn(null);
+            doNothing().when(targetSchema).setPartitionMasterTableId(null);
+            doNothing().when(targetSchema).setPartitionInfo(null);
+            SchemaUtils.cloneSchemaInfo(inputSchema, targetSchema);
+            verify(inputSchema, times(1)).getPartitionInfo();
+            verify(inputSchema, times(1)).getPartitionMasterTableId();
         }
     }
 }

@@ -108,9 +108,10 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
     }
 
     protected void updatePartitionMasterName(Schema schema, String currentTableName) {
-        if (String.valueOf(schema.getName()).equals(schema.getPartitionMasterTableId())) {
-            schema.setPartitionMasterTableId(currentTableName);
+        if (!String.valueOf(schema.getName()).equals(schema.getPartitionMasterTableId())) {
+            return;
         }
+        schema.setPartitionMasterTableId(currentTableName);
     }
 
 
