@@ -237,7 +237,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			return true;
 		}
 		try {
-			if (supportBatchProcess()) {
+			if (supportBatchProcess() && !StringUtils.equalsAny(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 				batchProcess(tapdataEvent);
 			} else {
 				singleProcess(tapdataEvent, processedEventList);

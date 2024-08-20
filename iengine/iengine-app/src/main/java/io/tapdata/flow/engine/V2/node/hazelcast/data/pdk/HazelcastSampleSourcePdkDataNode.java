@@ -169,8 +169,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 					}
 				}
 				for (TapdataEvent tapdataEvent : tapdataEvents) {
-					TapEvent tapEvent = tapdataEvent.getTapEvent();
-					tapRecordToTapValue(tapEvent, codecsFilterManager);
 					while (true) {
 						if (offer(tapdataEvent)) {
 							break;
