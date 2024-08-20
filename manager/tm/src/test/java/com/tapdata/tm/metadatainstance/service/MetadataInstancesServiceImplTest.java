@@ -71,6 +71,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -2874,5 +2875,25 @@ public class MetadataInstancesServiceImplTest {
 
 		DAG dag = new DAG(graph);
 		return dag;
+	}
+
+	@Nested
+	class SetPartitionFilterIfNeedTest {
+		Criteria criteria;
+		Boolean syncPartitionTableEnable;
+		@BeforeEach
+		void init() {
+			criteria = new Criteria();
+		}
+		@Test
+		void testNeedSetPartitionFilterIfNeed() {
+			syncPartitionTableEnable = true;
+			Assertions.assertDoesNotThrow(() -> metadataInstancesService.setPartitionFilterIfNeed(criteria, syncPartitionTableEnable));
+		}
+		@Test
+		void testNotNeedSetPartitionFilterIfNeed() {
+			syncPartitionTableEnable = false;
+			Assertions.assertDoesNotThrow(() -> metadataInstancesService.setPartitionFilterIfNeed(criteria, syncPartitionTableEnable));
+		}
 	}
 }

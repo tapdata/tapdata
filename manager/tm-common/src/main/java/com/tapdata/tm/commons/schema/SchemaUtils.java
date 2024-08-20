@@ -131,18 +131,9 @@ public class SchemaUtils {
         return targetSchema;
     }
 
-    /**
-     * merge schema的时候需要把必要的属性也merge一次，防止使用的无效属性值
-     *   例如：任务同步过一次，目标表逻辑模型和物理模型都已经存在，
-     *        再次运行前更换了源表，字段重新推演了，但是部分表信息没有更新，
-     *        比如当前新增的分区表属性没有更新导致再次运行的时候用的是旧表的信息
-     * */
     protected static void cloneSchemaInfo(Schema inputSchema, Schema targetSchema) {
-        //clone partition info
         targetSchema.setPartitionInfo(inputSchema.getPartitionInfo());
         targetSchema.setPartitionMasterTableId(inputSchema.getPartitionMasterTableId());
-
-        //clone other...
     }
 
     private static int getPriority(String source) {

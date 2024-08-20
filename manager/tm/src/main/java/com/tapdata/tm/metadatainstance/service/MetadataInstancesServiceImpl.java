@@ -1258,6 +1258,16 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         return values;
     }
 
+    protected void setPartitionFilterIfNeed(Criteria criteria, Boolean syncPartitionTableEnable) {
+        Optional.ofNullable(syncPartitionTableEnable).ifPresent(syncMaster ->
+                criteria.orOperator(
+                        Criteria.where(PARTITION_MASTER_TABLE_ID).exists(false),
+                        Criteria.where(PARTITION_MASTER_TABLE_ID).is(null),
+                        Criteria.where("$expr").is(new Document(syncMaster ? "$eq" : "$ne", Arrays.asList("$partitionMasterTableId", "$name")))
+                )
+        );
+    }
+
     public Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit, Boolean syncPartitionTableEnable) {
 			Criteria criteria = Criteria.where(SOURCE_ID).is(connectId)
 				.and(SOURCE_TYPE).is(sourceType)
@@ -1270,13 +1280,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 				criteria.and(ORIGINAL_NAME).regex(regex);
 			}
 
-            Optional.ofNullable(syncPartitionTableEnable).ifPresent(syncMaster ->
-                criteria.orOperator(
-                        Criteria.where(PARTITION_MASTER_TABLE_ID).exists(false),
-                        Criteria.where(PARTITION_MASTER_TABLE_ID).is(null),
-                        Criteria.where("$expr").is(new Document(syncMaster ? "$eq" : "$ne", Arrays.asList("$partitionMasterTableId", "$name")))
-                )
-            );
+            setPartitionFilterIfNeed(criteria, syncPartitionTableEnable);
             Aggregation aggregation = Aggregation.newAggregation(
                     Aggregation.match(criteria),
                     Aggregation.unwind(FIELDS),
