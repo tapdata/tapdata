@@ -41,6 +41,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -706,7 +707,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				pendingEvents = null;
 			} else {
 				if (Boolean.TRUE.equals(toTapValueConcurrent)) {
-					tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
+					try {
+						tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
+					} catch (ConcurrentProcessorApplyException e) {
+						// throw exception not include original events, local log file will include it
+						logger.error("Concurrent transform to tap value failed, original events: {}", e.getOriginValue(), e.getCause());
+						throw new Exception("Concurrent transform to tap value failed", e.getCause());
+					}
 				} else {
 					if (null != eventQueue) {
 						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
