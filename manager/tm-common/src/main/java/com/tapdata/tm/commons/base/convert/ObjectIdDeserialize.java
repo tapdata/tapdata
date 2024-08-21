@@ -36,13 +36,19 @@ public class ObjectIdDeserialize extends JsonDeserializer<ObjectId> {
 			return toObjectId(value);
 		ObjectCodec codec = p.getCodec();
 		TreeNode treeNode = codec.readTree(p);
-		TreeNode timestampNode = treeNode.get("timestamp");
-		TreeNode counterNode = treeNode.get("counter");
-		if(null != timestampNode && null != counterNode){
-			int timestamp = (int) ((IntNode) timestampNode).numberValue();
-			int counter = (int) ((IntNode) counterNode).numberValue();
-			return new ObjectId(timestamp, counter);
-        }
+		if(null != treeNode){
+			TreeNode timestampNode = treeNode.get("timestamp");
+			TreeNode counterNode = treeNode.get("counter");
+			if(null != timestampNode && null != counterNode){
+				try{
+					int timestamp = (int) ((IntNode) timestampNode).numberValue();
+					int counter = (int) ((IntNode) counterNode).numberValue();
+					return new ObjectId(timestamp, counter);
+				}catch (Exception e){
+					throw new RuntimeException("ObjectIdDeserialize error: " + e.getMessage(),e);
+				}
+			}
+		}
 		return null;
 	}
 }

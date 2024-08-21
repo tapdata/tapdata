@@ -64,4 +64,32 @@ public class ObjectIdDeserializeTest {
         ObjectId result = objectIdDeserialize.deserialize(jsonParser,mock(DeserializationContext.class));
         Assertions.assertNull(result);
     }
+    @Test
+    void test_TreeNodeIsNull() throws IOException {
+        ObjectIdDeserialize objectIdDeserialize = new ObjectIdDeserialize();
+        JsonParser jsonParser = mock(JsonParser.class);
+        when(jsonParser.getValueAsString()).thenReturn(null);
+        ObjectCodec codec = mock(ObjectCodec.class);
+        when(codec.readTree(any())).thenReturn(null);
+        when(jsonParser.getCodec()).thenReturn(codec);
+        ObjectId result = objectIdDeserialize.deserialize(jsonParser,mock(DeserializationContext.class));
+        Assertions.assertNull(result);
+    }
+    @Test
+    void testError() throws IOException{
+        ObjectIdDeserialize objectIdDeserialize = new ObjectIdDeserialize();
+        JsonParser jsonParser = mock(JsonParser.class);
+        when(jsonParser.getValueAsString()).thenReturn(null);
+        ObjectCodec codec = mock(ObjectCodec.class);
+        TreeNode treeNode = mock(TreeNode.class);
+        when(codec.readTree(any())).thenReturn(treeNode);
+        IntNode timestampNode = mock(IntNode.class);
+        IntNode counterNode = mock(IntNode.class);
+        when(treeNode.get("timestamp")).thenReturn(timestampNode);
+        when(treeNode.get("counter")).thenReturn(counterNode);
+        when(timestampNode.numberValue()).thenReturn(123.444);
+        when(counterNode.numberValue()).thenReturn(123.444);
+        when(jsonParser.getCodec()).thenReturn(codec);
+        Assertions.assertThrows(RuntimeException.class,()->objectIdDeserialize.deserialize(jsonParser,mock(DeserializationContext.class)));
+    }
 }
