@@ -27,6 +27,8 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
@@ -46,6 +48,7 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private static final String TAG = HazelcastProcessorBaseNode.class.getSimpleName();
+	private static final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 	public static final String PROCESSOR_BATCH_SIZE_PROP_KEY = "PROCESSOR_BATCH_SIZE";
 	public static final String PROCESSOR_BATCH_TIMEOUT_MS_PROP_KEY = "PROCESSOR_BATCH_TIMEOUT_MS";
 	public static final int DEFAULT_BATCH_SIZE = 1000;
@@ -141,6 +144,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					try {
 						tapdataEvents = simpleConcurrentProcessor.get();
 					} catch (ConcurrentProcessorApplyException e) {
+						// throw exception not include original events, local log file will include it
+						logger.error("Concurrent process failed, original events: {}", e.getOriginValue(), e.getCause());
 						errorHandle(e.getCause());
 						break;
 					}
