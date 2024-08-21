@@ -20,6 +20,7 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.common.TapInterfaceUtil;
+import io.tapdata.dao.DoSnapshotFunctions;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -364,7 +365,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 				tableList.add(tableId);
 
 				doCallRealMethod().when(instance).checkFunctions(tableList);
-				doCallRealMethod().when(instance).doSnapshotInvoke(anyString(),any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class), any(AtomicBoolean.class), anyString());
+				doCallRealMethod().when(instance).doSnapshotInvoke(anyString(),any(DoSnapshotFunctions.class), any(TapTable.class), any(AtomicBoolean.class), anyString());
 				doCallRealMethod().when(instance).handleThrowable(anyString(),any(Throwable.class));
 				when(instance.executeAspect(any(SnapshotReadBeginAspect.class))).thenReturn(mock(AspectInterceptResult.class));
 				doNothing().when(syncProgress).setSyncStage(SyncStage.INITIAL_SYNC.name());

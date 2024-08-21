@@ -8,10 +8,10 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.dao.DoSnapshotFunctions;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -25,11 +25,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDataNode{
-    private static final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
+    private static final Logger logger = LogManager.getLogger(HazelcastSourceConcurrentReadDataNode.class);
     protected int concurrentReadThreadNumber;
     protected LinkedBlockingQueue<String> tapTableQueue = new LinkedBlockingQueue<>();
     protected ExecutorService concurrentReadThreadPool;
-    private HazelcastSourcePdkDataNode.DoSnapshotFunctions functions;
+    private DoSnapshotFunctions functions;
     public HazelcastSourceConcurrentReadDataNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
     }

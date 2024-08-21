@@ -20,6 +20,7 @@ import io.tapdata.aspect.*;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.dao.DoSnapshotFunctions;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -69,7 +70,6 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
-import lombok.Data;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -384,23 +384,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 		}
 		return new DoSnapshotFunctions(connectorNode, batchCountFunction, batchReadFunction, queryByAdvanceFilterFunction, executeCommandFunction);
-	}
-
-	@Data
-	static class DoSnapshotFunctions {
-		protected final ConnectorNode connectorNode;
-		protected final BatchCountFunction batchCountFunction;
-		protected final BatchReadFunction batchReadFunction;
-		protected final QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
-		protected final ExecuteCommandFunction executeCommandFunction;
-
-		public DoSnapshotFunctions(ConnectorNode connectorNode, BatchCountFunction batchCountFunction, BatchReadFunction batchReadFunction, QueryByAdvanceFilterFunction queryByAdvanceFilterFunction, ExecuteCommandFunction executeCommandFunction) {
-			this.connectorNode = connectorNode;
-			this.batchCountFunction = batchCountFunction;
-			this.batchReadFunction = batchReadFunction;
-			this.queryByAdvanceFilterFunction = queryByAdvanceFilterFunction;
-			this.executeCommandFunction = executeCommandFunction;
-		}
 	}
 
 	protected void doSnapshotInvoke(String tableName, DoSnapshotFunctions functions, TapTable tapTable, AtomicBoolean firstBatch, String tableId) throws Exception {
