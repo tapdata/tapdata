@@ -19,6 +19,7 @@ public class AccessNodeInfo {
     private String ip;
     @Schema(description = "引擎运行状态")
     private String status;
+    private String agentName;
 
     public AccessNodeInfo(String processId, String hostName, String ip, String status) {
         this.processId = processId;
