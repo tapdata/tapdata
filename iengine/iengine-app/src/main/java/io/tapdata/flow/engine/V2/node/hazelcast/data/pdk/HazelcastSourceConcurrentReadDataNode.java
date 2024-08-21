@@ -8,11 +8,15 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -22,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDataNode{
+    private static final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
     protected int concurrentReadThreadNumber;
     protected LinkedBlockingQueue<String> tapTableQueue = new LinkedBlockingQueue<>();
     protected ExecutorService concurrentReadThreadPool;
@@ -34,7 +39,7 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
     protected void doInit(@NotNull Context context) throws TapCodeException {
         Node<?> node = dataProcessorContext.getNode();
         if (!(node instanceof DatabaseNode)) {
-            throw new RuntimeException("Expected DatabaseNode, actual is: " + node.getClass().getName());
+            throw new CoreException("Expected DatabaseNode, actual is: " + node.getClass().getName());
         }
         super.doInit(context);
         this.concurrentReadThreadNumber = ((DatabaseNode) node).getConcurrentReadThreadNumber();
@@ -52,7 +57,7 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
         try {
             lockBySourceRunnerLock();
             AtomicBoolean firstBatch = new AtomicBoolean(true);
-            List<CompletableFuture> futures = new ArrayList<>();
+            List<CompletableFuture<Void>> futures = new ArrayList<>();
             AtomicInteger threadIndex = new AtomicInteger(1);
             for (int i = 0; i < concurrentReadThreadNumber; i++) {
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
@@ -66,7 +71,9 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
                             obsLogger.warn("Initial concurrent read thread interrupted", e);
                             Thread.currentThread().interrupt();
                         } catch (Throwable e) {
-                            throw new RuntimeException(String.format("Initial concurrent read failed, table : %s", tableName), e);
+                            logger.error("Initial concurrent read failed, table : {}", tableName, e.getCause());
+                            errorHandle(e.getCause());
+                            break;
                         }
                     }
                 }, concurrentReadThreadPool);
@@ -105,14 +112,9 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
                 return;
             }
             obsLogger.info("Starting batch read, table name: {}", tableId);
-            doSnapshotInvoke(tableName, functions.batchCountFunction, functions.connectorNode, tapTable, firstBatch, tableId, functions.queryByAdvanceFilterFunction, functions.executeCommandFunction, functions.batchReadFunction);
+            doSnapshotInvoke(tableName, functions, tapTable, firstBatch, tableId);
         } catch (Throwable throwable) {
-            executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
-            Throwable throwableWrapper = throwable;
-            if (!(throwableWrapper instanceof TapCodeException)) {
-                throwableWrapper = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
-            }
-            throw throwableWrapper;
+            handleEx(tableName, throwable);
         } finally {
             unLockBySourceRunnerLock();
         }

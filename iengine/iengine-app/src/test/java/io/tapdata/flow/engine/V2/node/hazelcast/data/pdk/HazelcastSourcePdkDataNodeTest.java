@@ -359,14 +359,14 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			PDKMethodInvoker pdkMethodInvoker;
 			AutoCloseable ignoreTableCountCloseable;
 			@BeforeEach
-			void init() throws Exception {
+			void init() throws Throwable {
 				tableId = "id";
 				tableList = new ArrayList<>();
 				tableList.add(tableId);
 
 				doCallRealMethod().when(instance).checkFunctions(tableList);
-				doCallRealMethod().when(instance).doSnapshotInvoke(anyString(), nullable(BatchCountFunction.class), any(ConnectorNode.class),
-						any(TapTable.class), any(AtomicBoolean.class), anyString(), any(QueryByAdvanceFilterFunction.class), any(ExecuteCommandFunction.class), any(BatchReadFunction.class));
+				doCallRealMethod().when(instance).doSnapshotInvoke(anyString(),any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class), any(AtomicBoolean.class), anyString());
+				doCallRealMethod().when(instance).handleEx(anyString(),any(Throwable.class));
 				when(instance.executeAspect(any(SnapshotReadBeginAspect.class))).thenReturn(mock(AspectInterceptResult.class));
 				doNothing().when(syncProgress).setSyncStage(SyncStage.INITIAL_SYNC.name());
 

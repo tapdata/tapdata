@@ -69,6 +69,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.pdk.core.utils.RetryUtils;
 import io.tapdata.schema.TapTableMap;
+import lombok.Data;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -317,14 +318,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						}
 						obsLogger.info("Starting batch read, table name: {}", tableId);
 
-						doSnapshotInvoke(tableName, functions.batchCountFunction, functions.connectorNode, tapTable, firstBatch, tableId, functions.queryByAdvanceFilterFunction, functions.executeCommandFunction, functions.batchReadFunction);
+						doSnapshotInvoke(tableName, functions, tapTable, firstBatch, tableId);
 					} catch (Throwable throwable) {
-						executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
-						Throwable throwableWrapper = throwable;
-						if (!(throwableWrapper instanceof TapCodeException)) {
-							throwableWrapper = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
-						}
-						throw throwableWrapper;
+						handleEx(tableName, throwable);
 					} finally {
 						unLockBySourceRunnerLock();
 					}
@@ -350,6 +346,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+	protected void handleEx(String tableName, Throwable throwable) throws Throwable {
+		executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
+		Throwable throwableWrapper = throwable;
+		if (!(throwableWrapper instanceof TapCodeException)) {
+			throwableWrapper = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
+		}
+		throw throwableWrapper;
 	}
 
 	@NotNull
@@ -379,10 +383,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (sourceRunnerFirstTime.get() && !addLdpNewTables) {
 			executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 		}
-		DoSnapshotFunctions functions = new DoSnapshotFunctions(connectorNode, batchCountFunction, batchReadFunction, queryByAdvanceFilterFunction, executeCommandFunction);
-		return functions;
+		return new DoSnapshotFunctions(connectorNode, batchCountFunction, batchReadFunction, queryByAdvanceFilterFunction, executeCommandFunction);
 	}
 
+	@Data
 	static class DoSnapshotFunctions {
 		protected final ConnectorNode connectorNode;
 		protected final BatchCountFunction batchCountFunction;
@@ -399,7 +403,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	protected void doSnapshotInvoke(String tableName, BatchCountFunction batchCountFunction, ConnectorNode connectorNode, TapTable tapTable, AtomicBoolean firstBatch, String tableId, QueryByAdvanceFilterFunction queryByAdvanceFilterFunction, ExecuteCommandFunction executeCommandFunction, BatchReadFunction batchReadFunction) throws Exception {
+	protected void doSnapshotInvoke(String tableName, DoSnapshotFunctions functions, TapTable tapTable, AtomicBoolean firstBatch, String tableId) throws Exception {
+		ConnectorNode connectorNode = functions.getConnectorNode();
+		BatchCountFunction batchCountFunction = functions.getBatchCountFunction();
+		BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
+		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = functions.getQueryByAdvanceFilterFunction();
+		ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
+
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
 			executeDataFuncAspect(

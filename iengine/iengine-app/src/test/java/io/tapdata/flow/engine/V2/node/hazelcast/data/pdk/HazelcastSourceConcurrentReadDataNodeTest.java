@@ -128,10 +128,10 @@ public class HazelcastSourceConcurrentReadDataNodeTest {
         doReturn(doSnapshotFunctions).when(instance).checkFunctions(tableList);
         ExecutorService concurrentReadThreadPool = new ThreadPoolExecutor(concurrentReadThreadNumber, concurrentReadThreadNumber, 30L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
         ReflectionTestUtils.setField(instance,"concurrentReadThreadPool",concurrentReadThreadPool);
-        doNothing().when(instance).doSnapshotInvoke(anyString(),any(BatchCountFunction.class),any(ConnectorNode.class),any(TapTable.class),any(AtomicBoolean.class),anyString(),any(QueryByAdvanceFilterFunction.class),any(ExecuteCommandFunction.class),any(BatchReadFunction.class));
+        doNothing().when(instance).doSnapshotInvoke(anyString(), any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class),any(AtomicBoolean.class),anyString());
         instance.doSnapshot(tableList);
         verify(instance,new Times(1)).processDoSnapshot(anyString(), any(AtomicBoolean.class));
-        verify(instance,new Times(1)).doSnapshotInvoke(anyString(),any(BatchCountFunction.class),any(ConnectorNode.class),any(TapTable.class),any(AtomicBoolean.class),anyString(),any(QueryByAdvanceFilterFunction.class),any(ExecuteCommandFunction.class),any(BatchReadFunction.class));
+        verify(instance,new Times(1)).doSnapshotInvoke(anyString(), any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class),any(AtomicBoolean.class),anyString());
     }
     @Test
     @SneakyThrows
@@ -154,14 +154,14 @@ public class HazelcastSourceConcurrentReadDataNodeTest {
         removeTables.add("table1");
         ReflectionTestUtils.setField(instance,"removeTables",removeTables);
         instance.processDoSnapshot(tableName, firstBatch);
-        verify(instance,new Times(0)).doSnapshotInvoke(anyString(),any(BatchCountFunction.class),any(ConnectorNode.class),any(TapTable.class),any(AtomicBoolean.class),anyString(),any(QueryByAdvanceFilterFunction.class),any(ExecuteCommandFunction.class),any(BatchReadFunction.class));
+        verify(instance,new Times(0)).doSnapshotInvoke(anyString(), any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class),any(AtomicBoolean.class),anyString());
     }
     @Test
     @SneakyThrows
     void processDoSnapshotWithEx(){
         String tableName = "table1";
         AtomicBoolean firstBatch = new AtomicBoolean(true);
-        doThrow(RuntimeException.class).when(instance).doSnapshotInvoke(anyString(),any(BatchCountFunction.class),any(ConnectorNode.class),any(TapTable.class),any(AtomicBoolean.class),anyString(),any(QueryByAdvanceFilterFunction.class),any(ExecuteCommandFunction.class),any(BatchReadFunction.class));
+        doThrow(RuntimeException.class).when(instance).doSnapshotInvoke(anyString(), any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class),any(AtomicBoolean.class),anyString());
         assertThrows(TapCodeException.class,()->instance.processDoSnapshot(tableName, firstBatch));
         verify(instance,new Times(1)).executeAspect(any(SnapshotReadTableErrorAspect.class));
     }
