@@ -51,7 +51,6 @@ import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
 import io.tapdata.flow.engine.V2.policy.WritePolicyService;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -183,7 +182,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			//开启分区表时建表需要过滤掉子表
 			return tapTableMap.keySet().stream().filter(name -> {
 				TapTable tapTable = tapTableMap.get(name);
-				return Objects.nonNull(tapTable) && !PartitionTableUtil.checkIsSubPartitionTable(tapTable);
+				return Objects.nonNull(tapTable) && !tapTable.checkIsSubPartitionTable();
 			}).collect(Collectors.toSet());
 		}
 		return tapTableMap.keySet();

@@ -4,7 +4,6 @@ import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
@@ -16,6 +15,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
+import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
@@ -98,85 +98,107 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 		ExecutorUtil.shutdown(threadPool, AWAIT_SECOND, TimeUnit.SECONDS);
 	}
 
-	protected List<TapTable> partitionTableInfoSet(Set<String> masterTables, Set<String> existsSubTable, Map<String, Set<String>> parentTableAndSubIdMap) {
+	protected List<TapTable> partitionTableInfoSet(Set<String> masterTables,
+												   Set<String> existsSubTable,
+												   Map<String, Set<String>> parentTableAndSubIdMap) {
 		Iterator<Entry<TapTable>> iterator = tapTableMap.iterator();
 		List<TapTable> masterTapTables = new ArrayList<>();
 		while (iterator.hasNext()) {
 			Entry<TapTable> next = iterator.next();
 			TapTable table = next.getValue();
-			if (PartitionTableUtil.checkIsMasterPartitionTable(table)) {
-				String id = next.getKey();
-				masterTables.add(id);
-				Set<String> subTableIds = new HashSet<>();
-				Optional.ofNullable(table.getPartitionInfo())
-						.map(TapPartition::getSubPartitionTableInfo)
-						.ifPresent(schemas -> subTableIds.addAll(schemas.stream()
-								.filter(Objects::nonNull)
-								.map(TapSubPartitionTableInfo::getTableName)
-								.collect(Collectors.toList()))
-						);
-				parentTableAndSubIdMap.put(id, subTableIds);
-				existsSubTable.addAll(subTableIds);
-				masterTapTables.add(table);
+			if (!table.checkIsMasterPartitionTable()) {
+				continue;
 			}
+			String id = next.getKey();
+			masterTables.add(id);
+			Set<String> subTableIds = new HashSet<>();
+			Optional.ofNullable(table.getPartitionInfo())
+					.map(TapPartition::getSubPartitionTableInfo)
+					.ifPresent(schemas -> subTableIds.addAll(schemas.stream()
+						.filter(Objects::nonNull)
+						.map(TapSubPartitionTableInfo::getTableName)
+						.collect(Collectors.toList()))
+					);
+			parentTableAndSubIdMap.put(id, subTableIds);
+			existsSubTable.addAll(subTableIds);
+			masterTapTables.add(table);
 		}
 		return masterTapTables;
 	}
 
+	/**
+	 * @todo 1：任务进增量后动态新增子表后进入全量时停止任务，再启动会不会继续读子表的全量
+	 *       2：全量阶段分区表同步完成，其他表表未完成，发生动态新增子表，任务重启子表数据丢失
+	 * */
 	protected void loadSubTableByPartitionTable(ConnectorNode connectorNode,
 												List<TapTable> masterTapTables,
 												Map<String, Set<String>> parentTableAndSubIdMap,
 												List<String> finalTapTableNames,
 												Set<String> existsSubTable) {
-		if (parentTableAndSubIdMap.isEmpty()) return;
+		if (parentTableAndSubIdMap.isEmpty()) {
+			return;
+		}
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-		Optional.ofNullable(connectorFunctions.getQueryPartitionTablesByParentName()).ifPresent(function ->
-				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.QUERY_PARTITION_TABLES_BY_PARENT_NAME, () -> {
-					TapConnectorContext connectorContext = connectorNode.getConnectorContext();
-					try {
-						function.query(connectorContext, masterTapTables, partitionResult -> partitionResult.stream()
-								.filter(Objects::nonNull)
-								.filter(t -> parentTableAndSubIdMap.containsKey(t.getMasterTableName()))
-								.filter(t -> Objects.nonNull(t.getSubPartitionTableNames()) && !t.getSubPartitionTableNames().isEmpty())
-								.forEach(info -> {
-									String masterTableName = info.getMasterTableName();
-									finalTapTableNames.remove(masterTableName);
-									Set<String> oldSubTableIds = parentTableAndSubIdMap.get(masterTableName);
-									Set<String> masterTableId = masterTapTables.stream().map(TapTable::getId).collect(Collectors.toSet());
-									// remove all sub table , and ignore drop sub table now
-									removeTables.removeAll(info.getSubPartitionTableNames());
-									List<String> newSubTable = info.getSubPartitionTableNames().stream()
-											.filter(id -> !oldSubTableIds.contains(id))
-											.filter(dbTableName -> filterPartitionTable(finalTapTableNames,
-													masterTableId,
-													existsSubTable,
-													dbTableName))
-											.collect(Collectors.toList());
-									if(!newSubTable.isEmpty()) {
-										tableResult.add(masterTableName);
-									}
-								})
-						);
-					} catch (Exception e) {
-						logger.warn("Call QueryPartitionTablesByParentName function failed, will stop task after snapshot, errors: "
-								+ e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-					}
-				}, TAG)
-		);
+		QueryPartitionTablesByParentName function = connectorFunctions.getQueryPartitionTablesByParentName();
+		if (Objects.isNull(function)) {
+			return;
+		}
+		PDKInvocationMonitor.invoke(connectorNode,
+			PDKMethod.QUERY_PARTITION_TABLES_BY_PARENT_NAME,
+			() -> {
+				TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+				try {
+					final Set<String> masterTableId = masterTapTables.stream().map(TapTable::getId).collect(Collectors.toSet());
+					function.query(connectorContext, masterTapTables, partitionResult -> partitionResult.stream()
+							.filter(Objects::nonNull)
+							.filter(t -> parentTableAndSubIdMap.containsKey(t.getMasterTableName()))
+							.filter(t -> Objects.nonNull(t.getSubPartitionTableNames()) && !t.getSubPartitionTableNames().isEmpty())
+							.forEach(info -> {
+								String masterTableName = info.getMasterTableName();
+								finalTapTableNames.remove(masterTableName);
+								Set<String> oldSubTableIds = parentTableAndSubIdMap.get(masterTableName);
+								removeTables.removeAll(info.getSubPartitionTableNames());
+								List<String> newSubTable = info.getSubPartitionTableNames().stream()
+										.filter(id -> !oldSubTableIds.contains(id))
+										.filter(dbTableName -> filterPartitionTable(
+												finalTapTableNames,
+												masterTableId,
+												existsSubTable,
+												dbTableName)
+										).collect(Collectors.toList());
+								if(!newSubTable.isEmpty()) {
+									tableResult.add(masterTableName);
+								}
+							})
+					);
+				} catch (Exception e) {
+					logger.warn("Call QueryPartitionTablesByParentName function failed, will stop task after snapshot, errors: "
+							+ e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+				}
+		}, TAG);
 	}
 
-	protected boolean filterIfTableNeedRemove(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+	protected boolean filterIfTableNeedRemove(List<String> finalTapTableNames,
+											  Set<String> masterTables,
+											  Set<String> existsSubTable,
+											  String dbTableName) {
 		return filterPartitionTableIfNeedRemove(finalTapTableNames, masterTables, existsSubTable, dbTableName)
 				|| !dynamicTableFilter.test(dbTableName);
 	}
 
-	private boolean filterPartitionTableIfNeedRemove(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+	protected boolean filterPartitionTableIfNeedRemove(List<String> finalTapTableNames,
+													 Set<String> masterTables,
+													 Set<String> existsSubTable,
+													 String dbTableName) {
 		return finalTapTableNames.contains(dbTableName)
 				|| existsSubTable.contains(dbTableName)
 				|| (null != syncSourcePartitionTableEnable && !syncSourcePartitionTableEnable && masterTables.contains(dbTableName));
 	}
 
-	private boolean filterTable(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+	protected boolean filterTable(List<String> finalTapTableNames,
+								Set<String> masterTables,
+								Set<String> existsSubTable,
+								String dbTableName) {
 		if (filterIfTableNeedRemove(finalTapTableNames, masterTables, existsSubTable, dbTableName)) {
 			finalTapTableNames.remove(dbTableName);
 			return false;
@@ -186,7 +208,10 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 		return true;
 	}
 
-	private boolean filterPartitionTable(List<String> finalTapTableNames, Set<String> masterTables, Set<String> existsSubTable, String dbTableName) {
+	protected boolean filterPartitionTable(List<String> finalTapTableNames,
+										 Set<String> masterTables,
+										 Set<String> existsSubTable,
+										 String dbTableName) {
 		if (filterPartitionTableIfNeedRemove(finalTapTableNames, masterTables, existsSubTable, dbTableName)) {
 			finalTapTableNames.remove(dbTableName);
 			return false;
@@ -212,12 +237,13 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 					}
 				}
 				monitor(connectorNode);
-			} catch (Throwable throwable) {
-				logger.warn("Found add/remove table failed, will retry next time, error: " + throwable.getMessage(), throwable);
+			} catch (IOException exception) {
+				logger.warn("Found add/remove table failed, will retry next time, error: " + exception.getMessage(), exception);
 			} finally {
 				try {
 					lock.unlock();
 				} catch (Exception ignored) {
+					//do nothing
 				}
 			}
 		}, 0L, PERIOD_SECOND, TimeUnit.SECONDS);

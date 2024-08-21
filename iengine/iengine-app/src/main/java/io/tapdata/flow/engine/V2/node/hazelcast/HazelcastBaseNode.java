@@ -26,7 +26,6 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.DataNodeCloseAspect;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -86,7 +85,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -833,7 +831,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			MetadataInstancesDto metadata;
 			boolean isSubPartitionTable = node instanceof DatabaseNode
 					&& Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())
-					&& PartitionTableUtil.checkIsSubPartitionTable(event.getTable());
+					&& event.getTable().checkIsSubPartitionTable();
 			if (isSubPartitionTable) {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), event.getTable().getPartitionMasterTableId());
 				metadata.setPartitionInfo(event.getTable().getPartitionInfo());

@@ -20,7 +20,6 @@ import org.mockito.MockedStatic;
 import java.io.IOException;
 import java.lang.reflect.Type;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;

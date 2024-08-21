@@ -23,7 +23,6 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import com.tapdata.tm.utils.TimeTransFormationUtil;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.BatchReadFuncAspect;
@@ -136,7 +135,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -219,11 +217,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		Set<String> keySet = tapTableMap.keySet();
 		for (String tableId : keySet) {
 			TapTable tapTable = tapTableMap.get(tableId);
-			if (syncSourcePartitionTableEnable && PartitionTableUtil.checkIsSubPartitionTable(tapTable)) {
+			if (syncSourcePartitionTableEnable && tapTable.checkIsSubPartitionTable()) {
 				//开关开启，子表全过滤掉
 				continue;
 			}
-			if (!syncSourcePartitionTableEnable && PartitionTableUtil.checkIsMasterPartitionTable(tapTable)) {
+			if (!syncSourcePartitionTableEnable && tapTable.checkIsMasterPartitionTable()) {
 				//开关关闭，主表全过滤掉
 				continue;
 			}
@@ -688,7 +686,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		while (iterator.hasNext()) {
 			Entry<TapTable> next = iterator.next();
 			TapTable value = next.getValue();
-			if (!PartitionTableUtil.checkIsMasterPartitionTable(value)) {
+			if (!value.checkIsMasterPartitionTable()) {
 				continue;
 			}
 			TapPartition partitionInfo = value.getPartitionInfo();
@@ -775,14 +773,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		syncProgress.setSyncStage(SyncStage.CDC.name());
 	}
 
-	protected List<String> cdcTables(Collection<String> tables) {
-		List<String> realTables = new ArrayList<>(tables);
-		if (!partitionTableSubMasterMap.isEmpty()) {
-			realTables.addAll(partitionTableSubMasterMap.keySet());
-		}
-		return realTables;
-	}
-
 	@SneakyThrows
 	protected void doNormalCDC() {
 		if (!isRunning()) {
@@ -862,7 +852,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				excludeRemoveTable(tables);
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), cdcTables(tables),
+					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
 				};
 			}

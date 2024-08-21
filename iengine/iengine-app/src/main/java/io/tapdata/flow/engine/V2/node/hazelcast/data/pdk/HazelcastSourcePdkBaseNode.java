@@ -45,7 +45,6 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
@@ -82,7 +81,6 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
-import io.tapdata.flow.engine.V2.ddl.PartitionDDLFilter;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -101,6 +99,7 @@ import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -460,11 +459,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
 			DDLConfiguration ddlConfiguration = ((DataParentNode<?>) node).getDdlConfiguration();
 			String ignoreDDLRules = ((DataParentNode<?>) node).getIgnoredDDLRules();
-			if (!needDynamicTable(null) && Boolean.TRUE.equals(syncSourcePartitionTableEnable) && containsMasterPartitionTable()) {
-				this.ddlFilter = PartitionDDLFilter.instance(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger);
-			} else {
-				this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger).dynamicTableTest(this::needDynamicTable);
-			}
+			this.ddlFilter = DDLFilter.create(disabledEvents, ddlConfiguration, ignoreDDLRules, obsLogger)
+					.dynamicTableTest(this::checkDDLFilterPredicate);
 		}
 	}
 
@@ -473,13 +469,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (node.isDataNode()) {
 			boolean needDynamicTable = false;
 			TableMonitor tableMonitor = null;
-			if (needDynamicTable(null)) {
+			if (needDynamicTable()) {
 				//复制任务：正则表达式模式下动态新增表和动态新增分区子表
 				needDynamicTable = true;
 				Predicate<String> dynamicTableFilter = t -> ReUtil.isMatch(((DatabaseNode) node).getTableExpression(), t);
 				tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(),
 						associateId, dataProcessorContext.getTaskDto(), dataProcessorContext.getSourceConn(), dynamicTableFilter);
-			} else if (Boolean.TRUE.equals(syncSourcePartitionTableEnable) && containsMasterPartitionTable()) {
+			} else if (needDynamicPartitionTable()) {
 				//复制任务和开发任务：普通模式下进行仅分区表的动态新增子表
 				needDynamicTable = true;
 				tableMonitor = new PartitionTableMonitor(dataProcessorContext.getTapTableMap(),
@@ -498,7 +494,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private boolean needDynamicTable(String tableName) {
+	//@todo 只是判断开没开新增表，需要调整，是否验证表名称符合正则表达式需要另写方法
+	private boolean needDynamicTable() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
 			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
@@ -513,19 +510,38 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				return false;
 			}
 			GetTableNamesFunction getTableNamesFunction = getConnectorNode().getConnectorFunctions().getGetTableNamesFunction();
-			if (null == getTableNamesFunction) {
-				return false;
-			}
-			if (StringUtils.isNotEmpty(tableName)) {
-				String expression = ((DatabaseNode) node).getTableExpression();
-				if (StringUtils.isEmpty(expression) || !ReUtil.isMatch(expression, tableName)) {
-					return false;
-				}
-			}
+			return null != getTableNamesFunction;
 		} else {
 			return false;
 		}
-		return true;
+	}
+
+	protected boolean needDynamicPartitionTable() {
+    	if (!(dataProcessorContext.getNode() instanceof DatabaseNode)) return false;
+		if (syncType.equals(SyncTypeEnum.INITIAL_SYNC)) {
+			return false;
+		}
+    	if(!(Boolean.TRUE.equals(syncSourcePartitionTableEnable) && containsMasterPartitionTable())) {
+    		return false;
+		}
+		QueryPartitionTablesByParentName queryPartitionTablesByParentName = getConnectorNode().getConnectorFunctions().getQueryPartitionTablesByParentName();
+		return Objects.nonNull(queryPartitionTablesByParentName);
+	}
+
+	protected boolean checkDDLFilterPredicate(TapDDLEvent tapEvent) {
+		final boolean subPartitionCreateTable = Boolean.TRUE.equals(syncSourcePartitionTableEnable)
+				&& tapEvent instanceof TapCreateTableEvent
+				&& ((TapCreateTableEvent)tapEvent).getTable().checkIsSubPartitionTable();
+		if (subPartitionCreateTable) return true;
+
+		final String tableId = tapEvent.getTableId();
+		Node<?> node = dataProcessorContext.getNode();
+		if (!(node instanceof DatabaseNode) || StringUtils.isNotEmpty(tableId)) {
+			return true;
+		}
+		String expression = ((DatabaseNode) node).getTableExpression();
+		if (StringUtils.isEmpty(expression)) return true;
+		return ReUtil.isMatch(expression, tableId);
 	}
 
 	protected boolean containsMasterPartitionTable() {
@@ -533,7 +549,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		Iterator<Entry<TapTable>> iterator = tableMap.iterator();
 		while(iterator.hasNext()) {
 			Entry<TapTable> next = iterator.next();
-			if (PartitionTableUtil.checkIsMasterPartitionTable(next.getValue())) {
+			if (next.getValue().checkIsMasterPartitionTable()) {
 				return true;
 			}
 		}
@@ -954,12 +970,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (Objects.nonNull(syncSourcePartitionTableEnable)
 						&& !syncSourcePartitionTableEnable) {
 					//开启了仅同步子表
-					if (PartitionTableUtil.checkIsMasterPartitionTable(tapTable)) {
+					if (tapTable.checkIsMasterPartitionTable()) {
 						//主表忽略
 						addList.remove(tapTable.getId());
 						return;
 					}
-					if (PartitionTableUtil.checkIsSubPartitionTable(tapTable)) {
+					if (tapTable.checkIsSubPartitionTable()) {
 						//转成普通表处理
 						tapTable.setPartitionMasterTableId(null);
 						tapTable.setPartitionInfo(null);
@@ -967,7 +983,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				try {
 					//主表已存在，需要新增表后更新主表的分区信息
-					if (PartitionTableUtil.checkIsMasterPartitionTable(tapTable) && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
+					if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
 						masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
 						addList.remove(tapTable.getId());
 						return;
@@ -1039,7 +1055,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			List<TapdataEvent> normalDDLEvents = tapdataEvents.stream()
 					.filter(e -> {
 						if (e.getTapEvent() instanceof TapCreateTableEvent
-								&& PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent) e.getTapEvent()).getTable())) {
+								&& ((TapCreateTableEvent) e.getTapEvent()).getTable().checkIsSubPartitionTable()) {
 							loadedTableNames.remove(((TapCreateTableEvent) e.getTapEvent()).getTable().getId());
 							return false;
 						}
@@ -1076,7 +1092,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void mergeSubInfoIntoMasterTableIfNeed(TapTable addTapTable) {
-		if (!PartitionTableUtil.checkIsSubPartitionTable(addTapTable) || !Objects.nonNull(getConnectorNode())) {
+		if (!addTapTable.checkIsSubPartitionTable() || !Objects.nonNull(getConnectorNode())) {
 			return;
 		}
 		String subTableId = addTapTable.getId();
@@ -1095,7 +1111,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected boolean checkSubPartitionTableHasBeCreated(TapTable addTapTable) {
-		if (PartitionTableUtil.checkIsSubPartitionTable(addTapTable) && Objects.nonNull(getConnectorNode())) {
+		if (addTapTable.checkIsSubPartitionTable() && Objects.nonNull(getConnectorNode())) {
 			TapTable masterTable = getConnectorNode().getConnectorContext().getTableMap().get(addTapTable.getPartitionMasterTableId());
 			if(Objects.isNull(masterTable)) {
 				return false;
@@ -1259,10 +1275,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else if (tapEvent instanceof TapDDLEvent) {
 			obsLogger.info("Source node received an ddl event: " + tapEvent);
 
-			final boolean needSubPartitionCreateTable = Boolean.TRUE.equals(syncSourcePartitionTableEnable)
-					&& tapEvent instanceof TapCreateTableEvent
-					&& PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent)tapEvent).getTable());
-			if (!needSubPartitionCreateTable && null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
+			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				obsLogger.warn("DDL events are filtered\n - Event: " + tapEvent + "\n - Filter: " + JSON.toJSONString(ddlFilter));
 				return null;
 			}
@@ -1280,8 +1293,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected void setPartitionMasterTableId(TapTable tapTable, List<TapEvent> events) {
 		if (null == syncSourcePartitionTableEnable
 				|| !syncSourcePartitionTableEnable
-				|| !PartitionTableUtil.checkIsSubPartitionTable(tapTable)) return;
-		obsLogger.info("Events from sub table {} will be write to master table, {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
+				|| !tapTable.checkIsSubPartitionTable()) return;
 		events.stream()
 				.filter(TapRecordEvent.class::isInstance)
 				.forEach(e -> {
@@ -1311,7 +1323,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					Optional.ofNullable(eventTableId).ifPresent(event::setPartitionMasterTableId);
 				} else {
 					tapTable = tapTableMap.get(eventTableId);
-					if (Objects.nonNull(tapTable) && PartitionTableUtil.checkIsSubPartitionTable(tapTable)) {
+					if (Objects.nonNull(tapTable) && tapTable.checkIsSubPartitionTable()) {
 						Optional.ofNullable(tapTable.getPartitionMasterTableId()).ifPresent(event::setPartitionMasterTableId);
 					}
 				}
@@ -1367,7 +1379,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			String qualifiedName;
 			Map<String, List<Message>> errorMessage;
 			if (tapEvent instanceof TapCreateTableEvent) {
-				boolean isSubPartition = Boolean.TRUE.equals(syncSourcePartitionTableEnable) && PartitionTableUtil.checkIsSubPartitionTable(tapTable);
+				boolean isSubPartition = Boolean.TRUE.equals(syncSourcePartitionTableEnable) && tapTable.checkIsSubPartitionTable();
 				if (isSubPartition) {
 					obsLogger.info("Sync sub table's [{}] create table ddl, will add update master table [{}] metadata", tapTable.getId(), tapTable.getPartitionMasterTableId());
 					String masterTableMetadataQualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tapTable.getPartitionMasterTableId());

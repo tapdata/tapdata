@@ -21,7 +21,6 @@ import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -388,7 +387,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             tableNames = tableNames == null ? new ArrayList<>() : tableNames;
             if (event instanceof TapCreateTableEvent) {
                 if (!Boolean.TRUE.equals(getSyncSourcePartitionTableEnable())
-                        || !PartitionTableUtil.checkIsSubPartitionTable(((TapCreateTableEvent) event).getTable())) {
+                        || !((TapCreateTableEvent) event).getTable().checkIsSubPartitionTable()) {
                     String tableName = ((TapCreateTableEvent) event).getTableId();
                     if (!tableNames.contains(tableName)) {
                         tableNames.add(tableName);

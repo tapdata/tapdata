@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
+import com.tapdata.tm.commons.util.PartitionTableFieldRenameOperator;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,7 +14,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 
@@ -47,6 +52,7 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
         }
         List<String> inputFields = inputSchemas.stream().map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).filter(f -> !opFields.contains(f)).collect(Collectors.toList());
         if (operations != null && operations.size() > 0) {
+            PartitionTableFieldRenameOperator operator = new PartitionTableFieldRenameOperator();
             operations.forEach(operation -> {
                 if (operation == null) {
                     return;
@@ -61,6 +67,7 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
                 if (StringUtils.isBlank(operand) || "RENAME".equalsIgnoreCase(operand)) {
                     for (Field field : outputSchema.getFields()) {
                         if (fieldName.equals(field.getFieldName())) {
+                            operator.rename(fieldName, operation.getOperand());
                             field.setFieldName(operation.getOperand());
                             break;
                             //field.setOriginalFieldName(operation.getOperand());
@@ -82,6 +89,7 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
                 }
 
             });
+            operator.endOf(outputSchema);
         }
 
         fieldNameReduction(inputFields, outputSchema.getFields(), fieldsNameTransform);

@@ -175,7 +175,7 @@ public class JsonUtil {
 		}
 	}
 
-	static class TapPartitionTypeDeserializer extends JsonDeserializer<TapPartitionType> {
+	public static class TapPartitionTypeDeserializer extends JsonDeserializer<TapPartitionType> {
 		@Override
 		public TapPartitionType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 			ObjectCodec codec = p.getCodec();

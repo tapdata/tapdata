@@ -43,7 +43,6 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
-import com.tapdata.tm.utils.PartitionTableUtil;
 import io.tapdata.aspect.CreateTableFuncAspect;
 import io.tapdata.aspect.NewFieldFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
@@ -434,9 +433,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			CreatePartitionTableFunction createPartitionTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionTableFunction();
 			CreatePartitionSubTableFunction createPartitionSubTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionSubTableFunction();
 			createPartitionTable = this.syncTargetPartitionTableEnable
-					&& PartitionTableUtil.checkIsMasterPartitionTable(tapTable)
+					&& tapTable.checkIsMasterPartitionTable()
 					&& Objects.nonNull(createPartitionTableFunction);
-			createSubPartitionTable = PartitionTableUtil.checkIsSubPartitionTable(tapTable)
+			createSubPartitionTable = tapTable.checkIsSubPartitionTable()
 					&& Objects.nonNull(createPartitionSubTableFunction);
 			if (createSubPartitionTable && !this.syncTargetPartitionTableEnable) {
 				obsLogger.warn("Target has be close partition table sync, create sub partition table [{}] be ignore", tapTable.getId());
