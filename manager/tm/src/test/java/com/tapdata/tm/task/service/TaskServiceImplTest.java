@@ -25,6 +25,8 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.bean.ResponseBody;
+import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
