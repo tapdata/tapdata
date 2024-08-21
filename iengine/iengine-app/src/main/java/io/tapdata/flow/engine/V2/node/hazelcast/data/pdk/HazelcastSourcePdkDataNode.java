@@ -320,7 +320,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 						doSnapshotInvoke(tableName, functions, tapTable, firstBatch, tableId);
 					} catch (Throwable throwable) {
-						handleEx(tableName, throwable);
+						handleThrowable(tableName, throwable);
 					} finally {
 						unLockBySourceRunnerLock();
 					}
@@ -347,7 +347,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
 	}
-	protected void handleEx(String tableName, Throwable throwable) throws Throwable {
+	protected void handleThrowable(String tableName, Throwable throwable) throws Throwable {
 		executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
 		Throwable throwableWrapper = throwable;
 		if (!(throwableWrapper instanceof TapCodeException)) {

@@ -37,7 +37,6 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -366,7 +365,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 				doCallRealMethod().when(instance).checkFunctions(tableList);
 				doCallRealMethod().when(instance).doSnapshotInvoke(anyString(),any(HazelcastSourcePdkDataNode.DoSnapshotFunctions.class), any(TapTable.class), any(AtomicBoolean.class), anyString());
-				doCallRealMethod().when(instance).handleEx(anyString(),any(Throwable.class));
+				doCallRealMethod().when(instance).handleThrowable(anyString(),any(Throwable.class));
 				when(instance.executeAspect(any(SnapshotReadBeginAspect.class))).thenReturn(mock(AspectInterceptResult.class));
 				doNothing().when(syncProgress).setSyncStage(SyncStage.INITIAL_SYNC.name());
 

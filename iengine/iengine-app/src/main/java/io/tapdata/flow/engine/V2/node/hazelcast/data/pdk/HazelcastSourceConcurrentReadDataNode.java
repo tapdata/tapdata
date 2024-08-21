@@ -10,7 +10,6 @@ import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.schema.TapTableMap;
@@ -114,7 +113,7 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
             obsLogger.info("Starting batch read, table name: {}", tableId);
             doSnapshotInvoke(tableName, functions, tapTable, firstBatch, tableId);
         } catch (Throwable throwable) {
-            handleEx(tableName, throwable);
+            handleThrowable(tableName, throwable);
         } finally {
             unLockBySourceRunnerLock();
         }
