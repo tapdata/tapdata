@@ -469,6 +469,20 @@ public class HazelcastTaskServiceTest {
 			HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
 			assertEquals(HazelcastMigrateUnionProcessorNode.class, actual.getClass());
 		}
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate union processor")
+        void testCreateNodeSourceConcurrentReadDataNode(){
+            successors.add(mock(Node.class));
+            node = mock(DatabaseNode.class);
+            when(node.getType()).thenReturn("database");
+            when(((DatabaseNode) node).isEnableConcurrentRead()).thenReturn(true);
+            when(connection.getPdkType()).thenReturn("pdk");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastSourceConcurrentReadDataNode.class, actual.getClass());
+        }
     }
 
     @Nested
