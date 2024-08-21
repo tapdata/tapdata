@@ -3968,7 +3968,7 @@ public class TaskServiceImpl extends TaskService{
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
             scheduleService.createTaskRecordForInitial(taskDto);
-            save(taskDto, user);
+            update(new Query(Criteria.where("_id").is(taskDto.getId())), taskDto);
         }
         String taskType = taskDto.getSyncType();
         TasksNumBatch tasksNumBatch = new TasksNumBatch();

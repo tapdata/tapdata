@@ -2607,7 +2607,7 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).start(taskDto,user,startFlag);
             taskService.start(taskDto,user,startFlag);
             verify(scheduleService,new Times(1)).createTaskRecordForInitial(taskDto);
-            verify(taskService,new Times(1)).save(taskDto, user);
+            verify(taskService,new Times(1)).update(any(Query.class), any(TaskDto.class));
         }
     }
     @Nested

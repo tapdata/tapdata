@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
@@ -116,7 +117,7 @@ public class ScheduleServiceTest {
                 when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
                 scheduleService.executeTask(taskDto);
                 verify(scheduleService, new Times(1)).createTaskRecordForInitial(taskDto);
-                verify(taskService, new Times(1)).save(taskDto, user);
+                verify(taskService, new Times(1)).update(any(Query.class),any(TaskDto.class));
             }
         }
     }

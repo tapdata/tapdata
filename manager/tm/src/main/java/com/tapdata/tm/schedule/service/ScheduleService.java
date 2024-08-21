@@ -22,6 +22,8 @@ import org.quartz.CronScheduleBuilder;
 import org.quartz.CronTrigger;
 import org.quartz.TriggerBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -95,7 +97,7 @@ public class ScheduleService {
         if (scheduleDate < new Date().getTime()) {
 					if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
                         createTaskRecordForInitial(taskDto);
-                        taskService.save(taskDto, userDetail);
+                        taskService.update(new Query(Criteria.where("_id").is(taskDto.getId())), taskDto);
                         transformSchema.transformSchemaBeforeDynamicTableName(taskDto, userDetail);
 						taskService.start(taskDto.getId(), userDetail, true);
 					} else if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
