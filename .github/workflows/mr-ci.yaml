@@ -282,7 +282,6 @@ jobs:
       group: staging_environment
     timeout-minutes: 120
     needs:
-      - Build-And-Deploy
       - Get-Stable-Branch
     steps:
       - name: Set Env
