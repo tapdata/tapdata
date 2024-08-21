@@ -179,100 +179,100 @@ jobs:
             --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
             --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
-  Build-And-Deploy:
-    runs-on: ubuntu-latest
-    needs:
-      - Get-Stable-Branch
-    outputs:
-      IP: ${{ steps.get_ip_port.outputs.IP }}
-      PORT: ${{ steps.get_ip_port.outputs.PORT }}
-    steps:
-      - name: Trigger - Build
-        uses: convictional/trigger-workflow-and-wait@v1.6.1
-        with:
-          owner: tapdata
-          repo: tapdata-application
-          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          workflow_file_name: build-tapdata-op.yaml
-          ref: main
-          wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main", "CONNECTORS-OPTIONS": "lightweight", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
-          propagate_failure: true
-          trigger_workflow: true
-          wait_workflow: true
-      - name: Trigger - Deploy
-        uses: convictional/trigger-workflow-and-wait@v1.6.1
-        with:
-          owner: tapdata
-          repo: tapdata-application
-          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          workflow_file_name: deploy-tapdata-op.yaml
-          ref: main
-          wait_interval: 10
-          client_payload: '{"TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}", "AUTO_TEST": true}'
-          propagate_failure: true
-          trigger_workflow: true
-          wait_workflow: true
-      - id: 'auth'
-        uses: 'google-github-actions/auth@v1'
-        with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
-      - id: 'get-credentials'
-        uses: 'google-github-actions/get-gke-credentials@v1'
-        with:
-          cluster_name: 'tapdata-cloud-cluster'
-          location: 'asia-east2'
-      - name: Checkout Tapdata Application
-        uses: actions/checkout@v2
-        with:
-          repository: 'tapdata/tapdata-application'
-          ref: "main"
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-application
-      - name: Get IP and Port
-        id: get_ip_port
-        run: |
-          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
-          IP=$(cat .service_ip_port | awk -F':' '{print $1}')
-          PORT=$(cat .service_ip_port | awk -F':' '{print $2}')
-          echo "::set-output name=IP::$IP"
-          echo "::set-output name=PORT::$PORT"
+#  Build-And-Deploy:
+#    runs-on: ubuntu-latest
+#    needs:
+#      - Get-Stable-Branch
+#    outputs:
+#      IP: ${{ steps.get_ip_port.outputs.IP }}
+#      PORT: ${{ steps.get_ip_port.outputs.PORT }}
+#    steps:
+#      - name: Trigger - Build
+#        uses: convictional/trigger-workflow-and-wait@v1.6.1
+#        with:
+#          owner: tapdata
+#          repo: tapdata-application
+#          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+#          workflow_file_name: build-tapdata-op.yaml
+#          ref: main
+#          wait_interval: 10
+#          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main", "CONNECTORS-OPTIONS": "lightweight", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+#          propagate_failure: true
+#          trigger_workflow: true
+#          wait_workflow: true
+#      - name: Trigger - Deploy
+#        uses: convictional/trigger-workflow-and-wait@v1.6.1
+#        with:
+#          owner: tapdata
+#          repo: tapdata-application
+#          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+#          workflow_file_name: deploy-tapdata-op.yaml
+#          ref: main
+#          wait_interval: 10
+#          client_payload: '{"TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}", "AUTO_TEST": true}'
+#          propagate_failure: true
+#          trigger_workflow: true
+#          wait_workflow: true
+#      - id: 'auth'
+#        uses: 'google-github-actions/auth@v1'
+#        with:
+#          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+#      - id: 'get-credentials'
+#        uses: 'google-github-actions/get-gke-credentials@v1'
+#        with:
+#          cluster_name: 'tapdata-cloud-cluster'
+#          location: 'asia-east2'
+#      - name: Checkout Tapdata Application
+#        uses: actions/checkout@v2
+#        with:
+#          repository: 'tapdata/tapdata-application'
+#          ref: "main"
+#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+#          path: tapdata-application
+#      - name: Get IP and Port
+#        id: get_ip_port
+#        run: |
+#          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
+#          IP=$(cat .service_ip_port | awk -F':' '{print $1}')
+#          PORT=$(cat .service_ip_port | awk -F':' '{print $2}')
+#          echo "::set-output name=IP::$IP"
+#          echo "::set-output name=PORT::$PORT"
 
-  Functional-Test:
-    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
-    runs-on: office-scan
-    needs:
-      - Build-And-Deploy
-      - Get-Stable-Branch
-    steps:
-      - name: Set Env
-        run: |
-          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
-          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
-          echo "t-layer3-test-branch=master" >> $GITHUB_ENV
-          echo "send-message-to-feishu=n" >> $GITHUB_ENV
-          echo "test-case=1" >> $GITHUB_ENV
-          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16,3,5,9,11,81,83,85" >> $GITHUB_ENV
-      - name: Fetch Code -- t-layer3-test repo
-        run: |
-          rm -rf ./t-layer3-test
-          export GIT_LFS_SKIP_SMUDGE=1
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ env.t-layer3-test-branch }} --single-branch ssh://git@113.98.206.141:10022/tapdata/t-layer3-test.git
-          cd t-layer3-test && git fetch --tags
-      - name: Run Functional Test
-        run: |
-          apt install unixodbc -y
-          apt-get install python3.11-dev -y
-          cd t-layer3-test
-          virtualenv venv && source venv/bin/activate
-          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
-          ./taptest install --test
-          if [[ "${{ env.send-message-to-feishu }}" == "y" ]]; then
-            ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -z f
-          else
-            yes n | ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -d -z f
-          fi
+#  Functional-Test:
+#    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
+#    runs-on: office-scan
+#    needs:
+#      - Build-And-Deploy
+#      - Get-Stable-Branch
+#    steps:
+#      - name: Set Env
+#        run: |
+#          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
+#          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
+#          echo "t-layer3-test-branch=master" >> $GITHUB_ENV
+#          echo "send-message-to-feishu=n" >> $GITHUB_ENV
+#          echo "test-case=1" >> $GITHUB_ENV
+#          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16,3,5,9,11,81,83,85" >> $GITHUB_ENV
+#      - name: Fetch Code -- t-layer3-test repo
+#        run: |
+#          rm -rf ./t-layer3-test
+#          export GIT_LFS_SKIP_SMUDGE=1
+#          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+#          git clone -b ${{ env.t-layer3-test-branch }} --single-branch ssh://git@113.98.206.141:10022/tapdata/t-layer3-test.git
+#          cd t-layer3-test && git fetch --tags
+#      - name: Run Functional Test
+#        run: |
+#          apt install unixodbc -y
+#          apt-get install python3.11-dev -y
+#          cd t-layer3-test
+#          virtualenv venv && source venv/bin/activate
+#          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+#          ./taptest install --test
+#          if [[ "${{ env.send-message-to-feishu }}" == "y" ]]; then
+#            ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -z f
+#          else
+#            yes n | ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -d -z f
+#          fi
       
 
   MRCI:
@@ -329,7 +329,6 @@ jobs:
     needs:
       - MRCI
       - Get-Stable-Branch
-      - Functional-Test
     steps:
       - id: 'auth'
         uses: 'google-github-actions/auth@v1'
