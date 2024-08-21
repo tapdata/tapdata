@@ -22,6 +22,8 @@ import org.quartz.CronScheduleBuilder;
 import org.quartz.CronTrigger;
 import org.quartz.TriggerBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -94,21 +96,8 @@ public class ScheduleService {
         }
         if (scheduleDate < new Date().getTime()) {
 					if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
-						TaskEntity taskSnapshot = new TaskEntity();
-						BeanUtil.copyProperties(taskDto, taskSnapshot);
-						taskSnapshot.setStatus(TaskDto.STATUS_RUNNING);
-						taskSnapshot.setStartTime(new Date());
-						ObjectId objectId = ObjectId.get();
-						taskSnapshot.setTaskRecordId(objectId.toHexString());
-						TaskRecord taskRecord = new TaskRecord(objectId.toHexString(), taskDto.getId().toHexString(), taskSnapshot, "system", new Date());
-						// 创建记录
-						taskRecordService.createRecord(taskRecord);
-						taskDto.setTaskRecordId(objectId.toString());
-						taskDto.setAttrs(new HashMap<>());
-						taskDto.setScheduleDate(newScheduleDate);
-						taskDto.setCrontabScheduleMsg("");
-						taskService.save(taskDto, userDetail);
-						// 执行记录
+                        createTaskRecordForInitial(taskDto);
+                        taskService.update(new Query(Criteria.where("_id").is(taskDto.getId())), taskDto);
                         transformSchema.transformSchemaBeforeDynamicTableName(taskDto, userDetail);
 						taskService.start(taskDto.getId(), userDetail, true);
 					} else if (TaskDto.TYPE_INITIAL_SYNC_CDC.equals(taskDto.getType()) && TaskDto.STATUS_RUNNING.equals(status)) {
@@ -159,6 +148,20 @@ public class ScheduleService {
                 log.warn("other status can not run, need check taskId:{} status:{}", taskId, status);
             }
         }
+    }
+    public void createTaskRecordForInitial(TaskDto taskDto) {
+        TaskEntity taskSnapshot = new TaskEntity();
+        BeanUtil.copyProperties(taskDto, taskSnapshot);
+        taskSnapshot.setStatus(TaskDto.STATUS_RUNNING);
+        taskSnapshot.setStartTime(new Date());
+        ObjectId objectId = ObjectId.get();
+        taskSnapshot.setTaskRecordId(objectId.toHexString());
+        TaskRecord taskRecord = new TaskRecord(objectId.toHexString(), taskDto.getId().toHexString(), taskSnapshot, "system", new Date());
+        // 创建记录
+        taskRecordService.createRecord(taskRecord);
+        taskDto.setTaskRecordId(objectId.toString());
+        taskDto.setAttrs(new HashMap<>());
+        taskDto.setCrontabScheduleMsg("");
     }
 
     /**
