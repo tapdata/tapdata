@@ -827,23 +827,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											}
 
 											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
-												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-												if (MapUtils.isNotEmpty(errorMap)) {
-													int recordWarnCounter = 1;
-													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-														String warnMsg = tapRecordEventThrowableEntry.getValue().getMessage() + "\n - Error record: " + tapRecordEventThrowableEntry.getKey()
-																+ "\n - Stack trace: " + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue());
-														if (recordWarnCounter > MAX_RECORD_OBS_WARN) {
-															logger.warn(warnMsg);
-														} else {
-															obsLogger.warn(warnMsg);
-															recordWarnCounter++;
-															if (recordWarnCounter == MAX_RECORD_OBS_WARN) {
-																int theRemainingAmount = errorMap.size() - recordWarnCounter;
-																if (theRemainingAmount > 0) {
-																	obsLogger.warn("The remaining {} write error record will not be printed on the interface, please go to tapdata-agent.log to check.", theRemainingAmount);
-																}
-															}
+												if (obsLogger.isDebugEnabled()) {
+													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+													if (MapUtils.isNotEmpty(errorMap)) {
+														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+															String errorRecordMsg = tapRecordEventThrowableEntry.getValue().getMessage() + "\n - Error record: " + tapRecordEventThrowableEntry.getKey()
+																	+ "\n - Stack trace: " + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue());
+															obsLogger.debug(errorRecordMsg);
 														}
 													}
 												}

@@ -13,6 +13,7 @@ import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.error.TapEventException;
@@ -26,6 +27,8 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
@@ -45,6 +48,7 @@ import java.util.function.Consumer;
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private static final String TAG = HazelcastProcessorBaseNode.class.getSimpleName();
+	private static final Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 	public static final String PROCESSOR_BATCH_SIZE_PROP_KEY = "PROCESSOR_BATCH_SIZE";
 	public static final String PROCESSOR_BATCH_TIMEOUT_MS_PROP_KEY = "PROCESSOR_BATCH_TIMEOUT_MS";
 	public static final int DEFAULT_BATCH_SIZE = 1000;
@@ -136,7 +140,15 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 			batchProcessor.startConcurrentConsumer(() -> {
 				while (isRunning()) {
-					List<TapdataEvent> tapdataEvents = simpleConcurrentProcessor.get();
+					List<TapdataEvent> tapdataEvents;
+					try {
+						tapdataEvents = simpleConcurrentProcessor.get();
+					} catch (ConcurrentProcessorApplyException e) {
+						// throw exception not include original events, local log file will include it
+						logger.error("Concurrent process failed, original events: {}", e.getOriginValue(), e.getCause());
+						errorHandle(e.getCause());
+						break;
+					}
 					if (null == tapdataEvents) {
 						continue;
 					}
@@ -237,7 +249,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			return true;
 		}
 		try {
-			if (supportBatchProcess()) {
+			if (supportBatchProcess() && !StringUtils.equalsAny(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 				batchProcess(tapdataEvent);
 			} else {
 				singleProcess(tapdataEvent, processedEventList);
