@@ -13,6 +13,7 @@ import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.error.TapEventException;
@@ -136,7 +137,13 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 			batchProcessor.startConcurrentConsumer(() -> {
 				while (isRunning()) {
-					List<TapdataEvent> tapdataEvents = simpleConcurrentProcessor.get();
+					List<TapdataEvent> tapdataEvents;
+					try {
+						tapdataEvents = simpleConcurrentProcessor.get();
+					} catch (ConcurrentProcessorApplyException e) {
+						errorHandle(e.getCause());
+						break;
+					}
 					if (null == tapdataEvents) {
 						continue;
 					}
