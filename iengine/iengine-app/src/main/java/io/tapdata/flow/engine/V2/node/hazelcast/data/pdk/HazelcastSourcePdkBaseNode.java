@@ -710,7 +710,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					try {
 						tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
 					} catch (ConcurrentProcessorApplyException e) {
-						throw new Exception("Concurrent transform to tap value failed, original event: " + e.getOriginValue(), e.getCause());
+						throw new Exception("Concurrent transform to tap value failed", e.getCause());
 					}
 				} else {
 					if (null != eventQueue) {
