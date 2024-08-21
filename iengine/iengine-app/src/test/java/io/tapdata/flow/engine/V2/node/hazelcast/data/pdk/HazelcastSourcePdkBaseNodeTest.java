@@ -1353,7 +1353,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			List<Object> results = new ArrayList();
 			new Thread(() -> {
 				while (countDownLatch.getCount() > 0) {
-					Object o = simpleConcurrentProcessor.get();
+					Object o = assertDoesNotThrow(() -> simpleConcurrentProcessor.get());
 					assertInstanceOf(List.class, o);
 					for (Object result : (List<?>) o) {
 						results.add(result);
