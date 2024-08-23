@@ -9,14 +9,13 @@ import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.dao.DoSnapshotFunctions;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.exception.TapConcurrentReadTableExCode_36;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,15 +31,10 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
     private DoSnapshotFunctions functions;
     public HazelcastSourceConcurrentReadDataNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
-    }
-
-    @Override
-    protected void doInit(@NotNull Context context) throws TapCodeException {
         Node<?> node = dataProcessorContext.getNode();
         if (!(node instanceof DatabaseNode)) {
-            throw new CoreException("Expected DatabaseNode, actual is: " + node.getClass().getName());
+            throw new TapCodeException(TapConcurrentReadTableExCode_36.ILLEGAL_NODE_TYPE, "Expected DatabaseNode, actual node type is: " + node.getClass().getName());
         }
-        super.doInit(context);
         this.concurrentReadThreadNumber = ((DatabaseNode) node).getConcurrentReadThreadNumber();
         this.concurrentReadThreadPool = new ThreadPoolExecutor(concurrentReadThreadNumber, concurrentReadThreadNumber, 30L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
     }
@@ -61,7 +55,7 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
             for (int i = 0; i < concurrentReadThreadNumber; i++) {
                 CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                     Thread.currentThread().setName("[initial-read-thread]-" + threadIndex.get());
-                    while (!tapTableQueue.isEmpty()) {
+                    while (!tapTableQueue.isEmpty() && isRunning()) {
                         String tableName = "";
                         try {
                             tableName = tapTableQueue.poll(1L, TimeUnit.MILLISECONDS);
@@ -90,6 +84,11 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
             endSnapshotLoop.set(true);
             unLockBySourceRunnerLock();
         }
+    }
+
+    @Override
+    protected boolean isRunning() {
+        return super.isRunning();
     }
 
     protected void processDoSnapshot(String tableName, AtomicBoolean firstBatch) throws Throwable {
