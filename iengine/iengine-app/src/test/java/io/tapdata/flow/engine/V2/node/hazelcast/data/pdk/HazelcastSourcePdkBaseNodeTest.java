@@ -10,6 +10,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -75,6 +76,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -1380,7 +1382,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			List<Object> results = new ArrayList();
 			new Thread(() -> {
 				while (countDownLatch.getCount() > 0) {
-					Object o = simpleConcurrentProcessor.get();
+					Object o = assertDoesNotThrow(() -> simpleConcurrentProcessor.get());
 					assertInstanceOf(List.class, o);
 					for (Object result : (List<?>) o) {
 						results.add(result);
