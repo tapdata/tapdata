@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -30,7 +31,6 @@ import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -64,7 +64,15 @@ public class HazelcastSourceConcurrentReadDataNodeTest {
         Connections connections = mock(Connections.class);
         when(connections.getHeartbeatEnable()).thenReturn(false);
         when(dataProcessorContext.getConnections()).thenReturn(connections);
+        Node node = mock(DatabaseNode.class);
+        when(node.getId()).thenReturn("nodeId");
+        when(node.getTaskId()).thenReturn("66a0da195b5c7e5d7b7e1c56");
+        when(((DataParentNode<?>)node).getReadBatchSize()).thenReturn(100);
+        when(((DatabaseNode)node).getConcurrentReadThreadNumber()).thenReturn(4);
+        when(dataProcessorContext.getNode()).thenReturn(node);
         instance = spy(new HazelcastSourceConcurrentReadDataNode(dataProcessorContext));
+        when(instance.getNode()).thenReturn(node);
+        when(instance.isRunning()).thenReturn(true);
         doNothing().when(instance).createPdkConnectorNode(dataProcessorContext,hazelcastInstance);
         doNothing().when(instance).connectorNodeInit(dataProcessorContext);
         ObsLogger obsLogger = mock(ObsLogger.class);
@@ -90,27 +98,11 @@ public class HazelcastSourceConcurrentReadDataNodeTest {
         when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
         doReturn(tapTable).when(tapTableMap).get("table1");
     }
-    @Nested
-    class doInitTest{
-        @Test
-        void notInstanceOfDatabaseNode(){
-            Node node = mock(TableNode.class);
-            when(dataProcessorContext.getNode()).thenReturn(node);
-            assertThrows(RuntimeException.class, ()->instance.doInit(context));
-        }
-        @Test
-        void testDoInitNormal(){
-            Node node = mock(DatabaseNode.class);
-            when(node.getId()).thenReturn("nodeId");
-            when(node.getTaskId()).thenReturn("66a0da195b5c7e5d7b7e1c56");
-            when(((DataParentNode<?>)node).getReadBatchSize()).thenReturn(100);
-            when(((DatabaseNode)node).getConcurrentReadThreadNumber()).thenReturn(4);
-            when(dataProcessorContext.getNode()).thenReturn(node);
-            when(instance.getNode()).thenReturn(node);
-            instance.doInit(context);
-            assertEquals(4, instance.concurrentReadThreadNumber);
-            assertNotNull(instance.concurrentReadThreadPool);
-        }
+    @Test
+    void testConstructMethod(){
+        Node node = mock(TableNode.class);
+        when(dataProcessorContext.getNode()).thenReturn(node);
+        assertThrows(TapCodeException.class, () -> new HazelcastSourceConcurrentReadDataNode(dataProcessorContext));
     }
 
     @Test
@@ -130,6 +122,7 @@ public class HazelcastSourceConcurrentReadDataNodeTest {
         ExecutorService concurrentReadThreadPool = new ThreadPoolExecutor(concurrentReadThreadNumber, concurrentReadThreadNumber, 30L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
         ReflectionTestUtils.setField(instance,"concurrentReadThreadPool",concurrentReadThreadPool);
         doNothing().when(instance).doSnapshotInvoke(anyString(), any(DoSnapshotFunctions.class), any(TapTable.class),any(AtomicBoolean.class),anyString());
+        doNothing().when(instance).enqueue(any(TapdataEvent.class));
         instance.doSnapshot(tableList);
         verify(instance,new Times(1)).processDoSnapshot(anyString(), any(AtomicBoolean.class));
         verify(instance,new Times(1)).doSnapshotInvoke(anyString(), any(DoSnapshotFunctions.class), any(TapTable.class),any(AtomicBoolean.class),anyString());
