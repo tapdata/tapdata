@@ -26,4 +26,9 @@ public class HazelcastBlank extends HazelcastProcessorBaseNode {
 		ProcessResult processResult = getProcessResult(tableName);
 		consumer.accept(tapdataEvent, processResult);
 	}
+
+	@Override
+	public boolean needTransformValue() {
+		return false;
+	}
 }

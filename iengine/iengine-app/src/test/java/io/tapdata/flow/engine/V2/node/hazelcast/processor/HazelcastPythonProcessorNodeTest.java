@@ -1,12 +1,14 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.BaseTest;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.Log4jScriptLogger;
 import com.tapdata.processor.LoggingOutputStream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.graalvm.polyglot.Context;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.python.core.Py;
 import org.python.core.PySystemState;
 import org.python.util.PythonInterpreter;
@@ -17,6 +19,8 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * @author GavinXiao
@@ -161,5 +165,11 @@ public class HazelcastPythonProcessorNodeTest extends BaseTest {
         System.out.println(sys.path.toString());
         //sys.path.add("D:\\GavinData\\deskTop\\Lib");
 //        sys.path.remove("E:\\sacaapm-paserver\\src-python\\jython\\Lib");
+    }
+
+    @Test
+    public void testNeedCopyBatchEventWrapper(){
+        HazelcastPythonProcessNode hazelcastPythonProcessNode =  new HazelcastPythonProcessNode(mock(ProcessorBaseContext.class));
+        Assertions.assertTrue(hazelcastPythonProcessNode.needCopyBatchEventWrapper());
     }
 }

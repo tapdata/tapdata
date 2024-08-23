@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -120,7 +121,7 @@ class BatchOffsetUtilTest {
             when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetObj);
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId));
             }
         }
 
@@ -129,8 +130,22 @@ class BatchOffsetUtilTest {
             when(syncProgress.getBatchOffsetObj()).thenReturn(0);
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId));
             }
+        }
+
+        @Test
+        @DisplayName("test batch offset is {tableId: {status: running}}")
+        void test1() {
+            SyncProgress syncProgress = new SyncProgress();
+            Map<String, Object> tableBatchOffset = new HashMap<>();
+            tableBatchOffset.put("status", "running");
+            Map<String, Object> batchOffsetObj = new HashMap<>();
+            batchOffsetObj.put(tableId, tableBatchOffset);
+            syncProgress.setBatchOffsetObj(batchOffsetObj);
+            Object tableOffsetInfo = BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId);
+            assertEquals(tableOffsetInfo, tableBatchOffset);
+            assertNotSame(tableOffsetInfo, tableBatchOffset);
         }
     }
 
@@ -142,7 +157,7 @@ class BatchOffsetUtilTest {
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(batchOffset);
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
         }
 
@@ -151,7 +166,7 @@ class BatchOffsetUtilTest {
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(batchOffsetObj);
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
         }
         @Test
@@ -159,7 +174,7 @@ class BatchOffsetUtilTest {
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(new HashMap<>());
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
         }
         @Test
@@ -169,7 +184,7 @@ class BatchOffsetUtilTest {
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(map);
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
         }
         @Test
@@ -177,7 +192,7 @@ class BatchOffsetUtilTest {
             try (MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.getTableOffsetInfo(syncProgress, tableId)).thenReturn(0L);
                 bou.when(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
+                assertDoesNotThrow(() -> BatchOffsetUtil.getBatchOffsetOfTable(syncProgress, tableId));
             }
         }
     }
@@ -212,7 +227,7 @@ class BatchOffsetUtilTest {
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.updateBatchOffset(anyMap(), any(), anyString())).thenCallRealMethod();
                 bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
+                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
                 verify(batchOffsetObjTemp, times(1)).computeIfAbsent(anyString(), any());
             }
@@ -230,7 +245,7 @@ class BatchOffsetUtilTest {
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.updateBatchOffset(anyMap(), any(), anyString())).thenCallRealMethod();
                 bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
+                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
                 verify(batchOffsetObjTemp, times(0)).computeIfAbsent(anyString(), any());
             }
@@ -244,7 +259,7 @@ class BatchOffsetUtilTest {
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.updateBatchOffset(anyMap(), any(), anyString())).thenCallRealMethod();
                 bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
+                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
                 verify(batchOffsetObjTemp, times(1)).computeIfAbsent(anyString(), any());
                 verify(batchOffsetObjTemp, times(1)).put(anyString(), any(Map.class));
@@ -256,7 +271,6 @@ class BatchOffsetUtilTest {
             Object offset = BatchOffsetUtil.updateBatchOffset(null, 1L, "OK");
             Assertions.assertNotNull(offset);
             Assertions.assertEquals(HashMap.class.getName(), offset.getClass().getName());
-            Assertions.assertEquals(1L, ((HashMap<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_OFFSET));
             Assertions.assertEquals("OK", ((HashMap<String, Object>)offset).get(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS));
         }
 
@@ -320,7 +334,7 @@ class BatchOffsetUtilTest {
         void testNormal() {
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName));
+                assertDoesNotThrow(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
             }
         }
@@ -329,7 +343,7 @@ class BatchOffsetUtilTest {
             when(syncProgress.getBatchOffsetObj()).thenReturn(0);
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName));
+                assertDoesNotThrow(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
             }
         }
@@ -338,7 +352,7 @@ class BatchOffsetUtilTest {
             batchOffsetObj.remove(oldName);
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName));
+                assertDoesNotThrow(() -> BatchOffsetUtil.tableUpdateName(syncProgress, oldName, newName));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
             }
         }
@@ -365,7 +379,7 @@ class BatchOffsetUtilTest {
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.tableUpdateName(syncProgress, "before", "after")).thenAnswer(a->null);
                 bou.when(() -> BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, tapRenameTableEvent)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, tapRenameTableEvent));
+                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, tapRenameTableEvent));
                 verify(tapRenameTableEvent, times(1)).getNameChanges();
                 verify(valueChange, times(1)).getAfter();
                 verify(valueChange, times(1)).getBefore();
@@ -377,7 +391,7 @@ class BatchOffsetUtilTest {
             try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
                 bou.when(() -> BatchOffsetUtil.tableUpdateName(syncProgress, "before", "after")).thenAnswer(a->null);
                 bou.when(() -> BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, mock)).thenCallRealMethod();
-                Assertions.assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, mock));
+                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffsetWhenTableRename(syncProgress, mock));
                 verify(tapRenameTableEvent, times(0)).getNameChanges();
                 verify(valueChange, times(0)).getAfter();
                 verify(valueChange, times(0)).getBefore();

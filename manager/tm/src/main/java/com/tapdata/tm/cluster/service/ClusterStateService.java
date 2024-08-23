@@ -45,6 +45,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -350,7 +351,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         if (CollectionUtils.isEmpty(workerList)) {
             return result;
         }
-
+        List<String> processIdList = workerList.stream().map(Worker::getProcessId).collect(Collectors.toList());
+        List<ClusterStateDto> clusterStateDtos = findAll(Query.query(Criteria.where("systemInfo.process_id").in(processIdList)));
+        Map<String, ClusterStateDto> processIdClusterStateMap = clusterStateDtos.stream().collect(Collectors.toMap(clusterStateDto -> clusterStateDto.getSystemInfo().getProcess_id(), Function.identity(), (e1, e2) -> e1));
         int overTime = SettingsEnum.WORKER_HEART_OVERTIME.getIntValue(30);
         long liveTime = System.currentTimeMillis() - (overTime * 1000L);
 
@@ -370,6 +373,10 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             AccessNodeInfo accessNodeInfo = new AccessNodeInfo(worker.getProcessId(), hostname.get(), worker.getProcessId(), status);
             accessNodeInfo.setAccessNodeName(worker.getProcessId());
             accessNodeInfo.setAccessNodeType(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name());
+            ClusterStateDto clusterStateDto = processIdClusterStateMap.get(worker.getProcessId());
+            if (null != clusterStateDto && null != clusterStateDto.getAgentName()) {
+                accessNodeInfo.setAgentName(clusterStateDto.getAgentName());
+            }
             result.add(accessNodeInfo);
         });
 

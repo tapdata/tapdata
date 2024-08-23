@@ -4,10 +4,10 @@ package com.tapdata.tm.cluster.service;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingUtil;
-import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
-import com.tapdata.tm.cluster.dto.AccessNodeInfo;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.service.MessageService;
@@ -20,10 +20,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
-
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -55,7 +58,14 @@ class ClusterStateServiceTest {
         settingsService = mock(SettingsService.class);
         mongoTemplate = mock(MongoTemplate.class);
         agentGroupService = mock(AgentGroupService.class);
-
+        ClusterStateDto clusterStateDto = new ClusterStateDto();
+        SystemInfo systemInfo = new SystemInfo("hostName", UUID.randomUUID().toString(), "ip", Arrays.asList("ips"), System.currentTimeMillis(), "accessCode",
+                "userName", "id", 4, "Linux", 1L, "/workDir/log", "/workDir/", "/installDir");
+        clusterStateDto.setAgentName("agentName");
+        clusterStateDto.setSystemInfo(systemInfo);
+        List<ClusterStateDto> clusterStateDtos = new ArrayList<>();
+        clusterStateDtos.add(clusterStateDto);
+        when(clusterStateService.findAll(Query.query(Criteria.where("systemInfo.process_id").in("id")))).thenReturn(clusterStateDtos);
         ReflectionTestUtils.setField(clusterStateService, "workerService",workerService);
         ReflectionTestUtils.setField(clusterStateService, "clusterOperationService",clusterOperationService);
         ReflectionTestUtils.setField(clusterStateService, "messageService",messageService);
@@ -123,7 +133,7 @@ class ClusterStateServiceTest {
             when(worker.getTcmInfo()).thenReturn(null);
             assertVerify(1, 1,
                     0,
-                    2, 0, 3,
+                    2, 0, 5,
                     1);
         }
         @Test
@@ -131,7 +141,7 @@ class ClusterStateServiceTest {
             when(settingsService.isCloud()).thenReturn(true);
             assertVerify(1, 1,
                     1,
-                    2, 0, 3,
+                    2, 0, 5,
                     1);
         }
 
@@ -140,7 +150,7 @@ class ClusterStateServiceTest {
             when(worker.getStopping()).thenReturn(null);
             assertVerify(1, 0,
                     0,
-                    1, 2, 3,
+                    1, 2, 5,
                     1);
         }
         @Test
@@ -148,7 +158,7 @@ class ClusterStateServiceTest {
             when(worker.getStopping()).thenReturn(false);
             assertVerify(1, 0,
                     0,
-                    2, 2, 3,
+                    2, 2, 5,
                     1);
         }
 
@@ -158,7 +168,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(null);
             assertVerify(1, 0,
                     0,
-                    1, 1, 3,
+                    1, 1, 5,
                     1);
         }
         @Test
@@ -167,7 +177,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(2L);
             assertVerify(1, 0,
                     0,
-                    1, 2, 3,
+                    1, 2, 5,
                     1);
         }
         @Test
@@ -176,7 +186,7 @@ class ClusterStateServiceTest {
             when(worker.getPingTime()).thenReturn(Long.MAX_VALUE);
             assertVerify(1, 0,
                     0,
-                    1, 2, 3,
+                    1, 2, 5,
                     1);
         }
     }

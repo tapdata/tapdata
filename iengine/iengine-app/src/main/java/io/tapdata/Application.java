@@ -8,6 +8,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.LoggerInitAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
@@ -90,9 +91,9 @@ public class Application {
 	public static String logsPath = LOG_PATH;
 	private static Level defaultLogLevel = Level.INFO;
 
-	private static Integer DEFAULT_LOG_SAVE_TIME=180;
-	private static String DEFAULT_LOG_SAVE_SIZE="10";
-	private static String DEFAULT_LOG_SAVE_COUNT="100";
+	private static Integer DEFAULT_LOG_SAVE_TIME = 180;
+	private static String DEFAULT_LOG_SAVE_SIZE = "1024";
+	private static String DEFAULT_LOG_SAVE_COUNT = "100";
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 
@@ -204,6 +205,12 @@ public class Application {
 		}
 	}
 
+	public static String getFileNameAfterOem(String fileName) {
+		String oemType = OEMReplaceUtil.replace(fileName, "log/replace.json");
+		if (null == oemType) return fileName;
+		return oemType;
+	}
+
 	/**
 	 * 初始化jdk安全配置
 	 */
@@ -243,7 +250,7 @@ public class Application {
 	}
 
 	protected static void addRollingFileAppender(String tapdataWorkDir) {
-
+		logger.info("Get oem type from evn: {}", OEMReplaceUtil.oemType());
 		Level defaultLogLevel = Level.INFO;
 		String debug = System.getenv("DEBUG");
 		if ("true".equalsIgnoreCase(debug)) {
@@ -275,7 +282,7 @@ public class Application {
 				.build();
 
 		CompositeTriggeringPolicy compositeTriggeringPolicy = LogUtil.getCompositeTriggeringPolicy(DEFAULT_LOG_SAVE_SIZE);
-		String glob="tapdata-agent-*.log.*.gz";
+		String glob=getFileNameAfterOem("tapdata-agent-*.log.*.gz");
 		DeleteAction deleteAction = LogUtil.getDeleteAction(DEFAULT_LOG_SAVE_TIME, logsPath.toString(), glob, config);
 		Action[] actions = {deleteAction};
 
@@ -287,8 +294,8 @@ public class Application {
 		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
 				.setName(ROLLING_FILE_APPENDER)
-				.withFileName(logsPath + "/tapdata-agent.log")
-				.withFilePattern(logsPath + "/tapdata-agent-%i.log.%d{yyyyMMdd}.gz")
+				.withFileName(logsPath + getFileNameAfterOem("/tapdata-agent.log"))
+				.withFilePattern(logsPath + getFileNameAfterOem("/tapdata-agent-%i.log.%d{yyyyMMdd}.gz"))
 				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)

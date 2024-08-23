@@ -370,8 +370,8 @@ class MeasurementServiceV2ImplTest {
             Sample expected = addSample(entity.getSamples(), sample -> sample.setDate(nowTime));
             entities.add(entity);
 
-            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time));
-            measurementServiceV2.parse2SampleData(entities, data, time);
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time), eq(false));
+            measurementServiceV2.parse2SampleData(entities, data, time, false);
             assertTrue(data.containsValue(expected));
         }
 
@@ -383,8 +383,8 @@ class MeasurementServiceV2ImplTest {
             addSample(entity.getSamples(), sample -> sample.setDate(new Date(nowTime + 1000)));
             entities.add(entity);
 
-            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time));
-            measurementServiceV2.parse2SampleData(entities, data, time);
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time), eq(false));
+            measurementServiceV2.parse2SampleData(entities, data, time, false);
             assertTrue(data.containsValue(expected));
         }
 
@@ -394,8 +394,18 @@ class MeasurementServiceV2ImplTest {
             Sample expected = addSample(entity.getSamples(), sample -> {});
             entities.add(entity);
 
-            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time));
-            measurementServiceV2.parse2SampleData(entities, data, time);
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time), eq(false));
+            measurementServiceV2.parse2SampleData(entities, data, time, false);
+            assertTrue(data.containsValue(expected));
+        }
+        @Test
+        void testOneSampleAsc() {
+            MeasurementEntity entity = mockMeasurementEntity(type, taskId, taskRecordId);
+            Sample expected = addSample(entity.getSamples(), sample -> {});
+            entities.add(entity);
+
+            doCallRealMethod().when(measurementServiceV2).parse2SampleData(any(), eq(data), eq(time), eq(true));
+            measurementServiceV2.parse2SampleData(entities, data, time, true);
             assertTrue(data.containsValue(expected));
         }
 

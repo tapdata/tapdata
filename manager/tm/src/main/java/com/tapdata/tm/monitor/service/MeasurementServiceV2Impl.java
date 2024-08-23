@@ -362,12 +362,15 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
         SortOperation sort;
         long time;
+        boolean asc;
         if (padding.equals(INSTANT_PADDING_LEFT)) {
             time = startDate.get().getTime();
             sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+            asc = true;
         } else {
             time = endDate.get().getTime();
             sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending());
+            asc = false;
         }
 
         MatchOperation match = Aggregation.match(criteria);
@@ -400,7 +403,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         List<MeasurementEntity> entities = results.getMappedResults();
 
-        parse2SampleData(entities, data, time);
+        parse2SampleData(entities, data, time, asc);
 
         for (String hash : data.keySet()) {
             Sample sample = data.get(hash);
@@ -431,25 +434,33 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return data;
     }
 
-    protected void parse2SampleData(List<MeasurementEntity> entities, Map<String, Sample> data, long time) {
-        Sample sample;
+    protected void parse2SampleData(List<MeasurementEntity> entities, Map<String, Sample> data, long time, boolean asc) {
         List<Sample> samples;
         for (MeasurementEntity entity : entities) {
             String hash = hashTag(entity.getTags());
-
-            // 获取最新点的指标（倒序是因为任务在1秒内完成时 init 和 completed 指标同时间一样）
             samples = entity.getSamples();
-            for(int i = samples.size() - 1; i >= 0; i --) {
-                sample = samples.get(i);
-                if (!data.containsKey(hash)) {
-                    data.put(hash, sample);
-                } else {
-                    long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
-                    long newInterval = Math.abs(sample.getDate().getTime() - time);
-                    if (newInterval < oldInterval) {
-                        data.put(hash, sample);
-                    }
+            if (asc) {
+                for (int i = 0; i < samples.size(); i++) {
+                    putSample(data, time, samples, i, hash);
                 }
+            } else {
+                // 获取最新点的指标（倒序是因为任务在1秒内完成时 init 和 completed 指标同时间一样）
+                for(int i = samples.size() - 1; i >= 0; i --) {
+                    putSample(data, time, samples, i, hash);
+                }
+            }
+        }
+    }
+
+    private static void putSample(Map<String, Sample> data, long time, List<Sample> samples, int i, String hash) {
+        Sample sample = samples.get(i);
+        if (!data.containsKey(hash)) {
+            data.put(hash, sample);
+        } else {
+            long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
+            long newInterval = Math.abs(sample.getDate().getTime() - time);
+            if (newInterval < oldInterval) {
+                data.put(hash, sample);
             }
         }
     }
@@ -462,7 +473,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         });
         criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
         MatchOperation match = Aggregation.match(criteria);
-        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, "_id"));
+        SortOperation sort = Aggregation.sort(Sort.by(Sort.Direction.DESC, "date"));
         LimitOperation limit = Aggregation.limit(5);
         UnwindOperation unwind = Aggregation.unwind("ss", false);
         GroupOperation group = Aggregation.group().avg("ss.vs.inputQps").as("qps");

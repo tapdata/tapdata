@@ -115,7 +115,7 @@ public class FieldProcessor implements Processor {
 						continue;
 					}
 
-					FieldProcessUtil.filedProcess(record, filedsProcesses);
+					FieldProcessUtil.fieldProcess(record, filedsProcesses);
 
 				}
 			}
@@ -132,7 +132,7 @@ public class FieldProcessor implements Processor {
 					if (CollectionUtils.isEmpty(filedsProcesses)) continue;
 
 					// 判断是否丢弃事件
-					if (!FieldProcessUtil.filedProcess(IndicesUtil.getTableIndex(message), filedsProcesses)) {
+					if (!FieldProcessUtil.fieldProcess(IndicesUtil.getTableIndex(message), filedsProcesses)) {
 						return null;
 					}
 					break;

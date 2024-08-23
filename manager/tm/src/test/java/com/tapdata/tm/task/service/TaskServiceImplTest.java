@@ -97,8 +97,6 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.exception.TapCodeException;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
 import org.bson.BsonValue;
@@ -2510,17 +2508,20 @@ class TaskServiceImplTest {
         private LockControlService lockControlService;
         private DisruptorService disruptorService;
         private LogCollectorService logCollectorService;
+        private ScheduleService scheduleService;
         @BeforeEach
         void beforeEach(){
             startFlag = "11";
             lockControlService = mock(LockControlService.class);
             disruptorService = mock(DisruptorService.class);
             logCollectorService = mock(LogCollectorService.class);
+            scheduleService = mock(ScheduleService.class);
             UserDataReportService userDataReportService = mock(UserDataReportService.class);
             ReflectionTestUtils.setField(taskService,"userDataReportService",userDataReportService);
             ReflectionTestUtils.setField(taskService,"lockControlService",lockControlService);
             ReflectionTestUtils.setField(taskService,"disruptorService",disruptorService);
             ReflectionTestUtils.setField(taskService,"logCollectorService",logCollectorService);
+            ReflectionTestUtils.setField(taskService,"scheduleService",scheduleService);
             when(taskDto.getShareCdcEnable()).thenReturn(true);
             when(taskDto.getSyncType()).thenReturn("sync");
             when(taskDto.getTaskRecordId()).thenReturn("111");
@@ -2595,6 +2596,20 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).start(taskDto,user,startFlag);
             taskService.start(taskDto,user,startFlag);
             verify(taskService,new Times(0)).run(taskDto,user);
+        }
+        @Test
+        @DisplayName("test start method when initial sync complete")
+        void test7(){
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getStatus()).thenReturn("complete");
+            when(taskDto.getCrontabExpressionFlag()).thenReturn(false);
+            DAG dag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+            when(taskDto.getSyncType()).thenReturn("connHeartbeat");
+            doCallRealMethod().when(taskService).start(taskDto,user,startFlag);
+            taskService.start(taskDto,user,startFlag);
+            verify(scheduleService,new Times(1)).createTaskRecordForInitial(taskDto);
+            verify(taskService,new Times(1)).update(any(Query.class), any(TaskDto.class));
         }
     }
     @Nested

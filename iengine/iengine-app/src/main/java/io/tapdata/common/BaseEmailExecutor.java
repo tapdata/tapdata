@@ -43,6 +43,8 @@ public class BaseEmailExecutor {
 			Setting passwordSett = settingService.getSetting("smtp.server.password");
 			Setting encryptTypeSett = settingService.getSetting("email.server.tls");
 			Setting sendAddress = settingService.getSetting("email.send.address");
+			Setting proxyHostSett = settingService.getSetting("smtp.proxy.host");
+			Setting proxyPortSett = settingService.getSetting("smtp.proxy.port");
 
 			if (hostSett != null && portSett != null && userSett != null &&
 					StringUtils.isNotBlank(hostSett.getValue()) && StringUtils.isNotBlank(portSett.getValue()) && StringUtils.isNotBlank(userSett.getValue())) {
@@ -52,13 +54,21 @@ public class BaseEmailExecutor {
 				String port = portSett.getValue();
 				String user = userSett.getValue();
 				String password = StringUtils.isNotBlank(passwordSett.getValue()) ? passwordSett.getValue() : null;
-
-				mailer = MailerBuilder
+				String proxyHost = null;
+				String proxyPort = null;
+				if (null != proxyHostSett && null != proxyPortSett){
+					proxyHost = proxyHostSett.getValue();
+					proxyPort = proxyPortSett.getValue();
+				}
+				MailerBuilder.MailerRegularBuilder mailerBuilder = MailerBuilder
 						.withSMTPServer(host, Integer.valueOf(port), user, password).withDebugLogging(true)
 						.withProperty("tls.rejectUnauthorized", "false")
 						.withProperty("mail.smtp.ssl.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "SSL") ? "true" : "false")
-						.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false")
-						.buildMailer();
+						.withProperty("mail.smtp.starttls.enable", StringUtils.equalsAnyIgnoreCase(encryptTypeSett.getValue(), "TLS") ? "true" : "false");
+				if (StringUtils.isNotBlank(proxyHost) && StringUtils.isNotBlank(proxyPort)) {
+					mailerBuilder.withProxy(proxyHost, Integer.valueOf(proxyPort), user, password);
+				}
+				mailer = mailerBuilder.buildMailer();
 			}
 		} catch (Exception e) {
 			logger.error(TapLog.ERROR_0002.getMsg(), e.getMessage(), e);

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 public class BatchOffsetUtil {
+    @Deprecated
     protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
     protected static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
     private BatchOffsetUtil(){
@@ -44,10 +45,14 @@ public class BatchOffsetUtil {
         return offsetValue;
     }
 
-    protected static Object getTableOffsetInfo(SyncProgress syncProgress, String tableId) {
+    public static Object getTableOffsetInfo(SyncProgress syncProgress, String tableId) {
         Object batchOffsetObj = syncProgress.getBatchOffsetObj();
         if (batchOffsetObj instanceof Map) {
-            return ((Map<?, ?>) batchOffsetObj).get(tableId);
+            Object tableBatchOffsetObj = ((Map<?, ?>) batchOffsetObj).get(tableId);
+            if (tableBatchOffsetObj instanceof Map) {
+                return new HashMap<>((Map<?, ?>) tableBatchOffsetObj);
+            }
+            return tableBatchOffsetObj;
         }
         return batchOffsetObj;
     }
@@ -58,7 +63,6 @@ public class BatchOffsetUtil {
             Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
             Object batchOffsetObject = batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<>());
             if (batchOffsetObject instanceof Map
-                    && ((Map<?, ?>)batchOffsetObject).containsKey(BATCH_READ_CONNECTOR_OFFSET)
                     && ((Map<?, ?>)batchOffsetObject).containsKey(BATCH_READ_CONNECTOR_STATUS)) {
                 updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
             } else {
@@ -73,7 +77,6 @@ public class BatchOffsetUtil {
             offsetMap = new HashMap<>();
         }
         offsetMap.put(BATCH_READ_CONNECTOR_STATUS, isOverTag);
-        offsetMap.put(BATCH_READ_CONNECTOR_OFFSET, offset);
         return offsetMap;
     }
 

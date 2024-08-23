@@ -6,7 +6,6 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
@@ -63,7 +62,6 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
-import io.tapdata.pdk.core.error.TapPdkRunnerExCode_18;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -710,11 +708,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		//Should avoid invoke isJetJobRunning method for every event.
 		//Use TapCache to cache the isJetJobRunning's result, expire in 2 seconds.
 		//Then no more performance issue.
-		return running.get() && !Thread.currentThread().isInterrupted() && isJetJobRunning();
+		return running.get() && isJetJobRunning();
 	}
 
 
-	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
+	public void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) {
 			return;
 		}
