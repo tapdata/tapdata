@@ -44,9 +44,14 @@ public class IndexController {
         return "forward:/index.html";
     }
 
-    @GetMapping("/docs")
+    @GetMapping({"/docs", "/docs/"})
     public String docs() {
         return "forward:/docs/index.html";
+    }
+
+    @GetMapping({"/docs/en", "/docs/en/"})
+    public String docsEN() {
+        return "forward:/docs/en/index.html";
     }
 
     @GetMapping("/version")
