@@ -45,12 +45,22 @@ public class IndexController {
     }
 
     @GetMapping({"/docs", "/docs/"})
-    public String docs() {
+    public String forwardDocs() {
         return "forward:/docs/index.html";
     }
 
     @GetMapping({"/docs/en", "/docs/en/"})
-    public String docsEN() {
+    public String forwardDocsEn() {
+        return "forward:/docs/en/index.html";
+    }
+
+    @GetMapping("/docs/**/{path:[^\\.]*}")
+    public String deepForwardDocs() {
+        return "forward:/docs/index.html";
+    }
+
+    @GetMapping("/docs/en/**/{path:[^\\.]*}")
+    public String deepForwardDocsEn() {
         return "forward:/docs/en/index.html";
     }
 
