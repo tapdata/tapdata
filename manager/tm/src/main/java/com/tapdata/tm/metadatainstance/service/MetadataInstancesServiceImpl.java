@@ -2266,7 +2266,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 .where(IS_DELETED).ne(true)
                 .and(NODE_ID).is(nodeId)
                 .and(SOURCE_TYPE).is(SourceTypeEnum.VIRTUAL)
-                .and("resultItems").is(true);
+                .and("hasTransformEx").is(true);
         return count(Query.query(criteria));
     }
 

@@ -257,7 +257,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 	public LogConfiguration getLogConfiguration(String logConfigPrefix) {
 		int logFileSaveTime = settingService.getInt(logConfigPrefix + "_log_file_save_time", 180);
-		int logFileSaveSize = settingService.getInt(logConfigPrefix + "_log_file_save_size", 10);
+		int logFileSaveSize = settingService.getInt(logConfigPrefix + "_log_file_save_size", 1024);
 		int logFileSaveCount = settingService.getInt(logConfigPrefix + "_log_file_save_count", 100);
 		LogConfiguration logConfiguration = LogConfiguration.builder().logSaveTime(logFileSaveTime)
 				.logSaveSize(logFileSaveSize)

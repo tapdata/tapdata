@@ -1,6 +1,7 @@
 package com.tapdata.processor.dataflow;
 
 import com.tapdata.entity.FieldProcess;
+import com.tapdata.entity.FieldScript;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
@@ -87,7 +88,6 @@ public class FieldDataFlowProcessorTest {
         private MessageEntity message;
         private Map<String, Object> record;
         private String tag;
-        private Map<String, Invocable> fieldScriptEngine;
         private ProcessorContext context;
         private Map<String, Object> processContext;
         private Invocable engine;
@@ -98,7 +98,6 @@ public class FieldDataFlowProcessorTest {
             message = mock(MessageEntity.class);
             record = mock(HashMap.class);
             tag = null;
-            fieldScriptEngine = new HashMap<>();
             engine = spy(ScriptUtil.getScriptEngine(
                     JSEngineEnum.GRAALVM_JS.getEngineName(),
                     "",
@@ -109,8 +108,6 @@ public class FieldDataFlowProcessorTest {
                     null,
                     null,
                     true));
-            fieldScriptEngine.put("doc_id", engine);
-            ReflectionTestUtils.setField(fieldDataFlowProcessor,"fieldScriptEngine",fieldScriptEngine);
             context = mock(ProcessorContext.class);
             ReflectionTestUtils.setField(fieldDataFlowProcessor,"context",context);
             processContext = mock(HashMap.class);
@@ -124,6 +121,14 @@ public class FieldDataFlowProcessorTest {
                     .mockStatic(ScriptUtil.class)) {
                 mb.when(()->ScriptUtil.invokeScript(engine,ScriptUtil.FUNCTION_NAME, message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, tag)).thenReturn(null);
+                List<FieldScript> fieldScripts = new ArrayList<>();
+                FieldScript fieldScript = new FieldScript();
+                fieldScript.setField("doc_id");
+                fieldScript.setScript("function process(record) {return record;}");
+                fieldScripts.add(fieldScript);
+                ReflectionTestUtils.setField(fieldDataFlowProcessor, "fieldScripts", fieldScripts);
+
+                when(fieldDataFlowProcessor.getOrInitEngine(eq("doc_id"), anyString())).thenReturn(engine);
                 doCallRealMethod().when(fieldDataFlowProcessor).fieldScript(message,record,tag);
                 fieldDataFlowProcessor.fieldScript(message,record,tag);
                 mb.verify(() -> ScriptUtil.invokeScript(engine,ScriptUtil.FUNCTION_NAME, message, context.getSourceConn(),

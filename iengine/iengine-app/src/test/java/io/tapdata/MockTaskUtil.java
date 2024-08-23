@@ -2,6 +2,7 @@ package io.tapdata;
 
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import org.bson.types.ObjectId;
 
 import java.io.File;
 import java.io.IOException;
@@ -26,6 +27,9 @@ public class MockTaskUtil {
 			taskDto = JSONUtil.json2POJO(taskJsonFileURL, TaskDto.class);
 		} catch (IOException e) {
 			throw new RuntimeException("Parse json file to task dto failed, url: " + taskJsonFileURL, e);
+		}
+		if (null == taskDto.getId()) {
+			taskDto.setId(new ObjectId());
 		}
 		return taskDto;
 	}

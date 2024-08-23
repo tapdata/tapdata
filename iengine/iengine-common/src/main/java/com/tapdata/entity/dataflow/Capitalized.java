@@ -72,6 +72,24 @@ public enum Capitalized {
 		}
 	}
 
+	public static String convert(String objectName, Capitalized capitalized) {
+		if (StringUtils.isBlank(objectName) || capitalized == null) {
+			return objectName;
+		}
+		switch (capitalized) {
+			case UPPER:
+				return objectName.toUpperCase();
+			case LOWER:
+				return objectName.toLowerCase();
+			case SNAKE:
+				return StrUtil.toUnderlineCase(objectName);
+			case CAMEL:
+				return StrUtil.toCamelCase(objectName);
+			default:
+				return objectName;
+		}
+	}
+
 	public static Map<String, Object> convert(Map<String, Object> map, String capitalized) {
 		if (MapUtils.isEmpty(map) || capitalized == null) {
 			return map;

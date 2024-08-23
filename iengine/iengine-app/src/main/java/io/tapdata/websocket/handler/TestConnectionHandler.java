@@ -274,7 +274,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				getLogger().warn(errMsg);
 				sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg));
 			} else {
-				errMsg = String.format("Test connection %s failed, data: %s, err: %s", connName, event, e.getMessage());
+				errMsg = String.format("Test connection %s failed, err: %s", connName, e.getMessage());
 				getLogger().error(errMsg, e);
 				sendMessage.send(WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, errMsg, e));
 			}

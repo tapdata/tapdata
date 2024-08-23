@@ -20,6 +20,7 @@ import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,7 @@ class HandlerUtilTest {
         after.put("key", "ooo");
         event.before(before);
         event.after(after);
+        event.setMemorySize(100L);
         tapEvent = event;
     }
 
