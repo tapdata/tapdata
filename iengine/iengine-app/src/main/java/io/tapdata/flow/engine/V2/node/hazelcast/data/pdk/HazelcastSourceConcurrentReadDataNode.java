@@ -35,7 +35,8 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
         if (!(node instanceof DatabaseNode)) {
             throw new TapCodeException(TapConcurrentReadTableExCode_36.ILLEGAL_NODE_TYPE, "Expected DatabaseNode, actual node type is: " + node.getClass().getName());
         }
-        this.concurrentReadThreadNumber = ((DatabaseNode) node).getConcurrentReadThreadNumber();
+        int threadNumber = ((DatabaseNode) node).getConcurrentReadThreadNumber();
+        this.concurrentReadThreadNumber = threadNumber == 0 ? 1 : threadNumber;
         this.concurrentReadThreadPool = new ThreadPoolExecutor(concurrentReadThreadNumber, concurrentReadThreadNumber, 30L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
     }
 
