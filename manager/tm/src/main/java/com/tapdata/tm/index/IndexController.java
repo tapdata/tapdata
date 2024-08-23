@@ -44,6 +44,11 @@ public class IndexController {
         return "forward:/index.html";
     }
 
+    @GetMapping("/docs")
+    public String docs() {
+        return "forward:/docs/index.html";
+    }
+
     @GetMapping("/version")
     @ResponseBody
     public String version(HttpServletRequest request){

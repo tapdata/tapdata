@@ -63,7 +63,7 @@ springdoc:
     groups:
       enabled: true
   swagger-ui:
-    path: /docs
+    path: /swagger-ui
     display-request-duration: true
     groups-order: DESC
     operationsSorter: method
