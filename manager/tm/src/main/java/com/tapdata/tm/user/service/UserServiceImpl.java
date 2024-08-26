@@ -397,12 +397,12 @@ public class UserServiceImpl extends UserService{
 
         return result;
     }
-    private List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
+    protected List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
         // delete old role mapping
+        if (CollectionUtils.isNotEmpty(roleusers)) {
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
         // add new role mapping
-        if (CollectionUtils.isNotEmpty(roleusers)) {
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
                 RoleMappingDto roleMappingDto = new RoleMappingDto();
                 roleMappingDto.setPrincipalType("USER");
