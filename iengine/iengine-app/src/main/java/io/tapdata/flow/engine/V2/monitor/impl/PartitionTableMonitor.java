@@ -48,7 +48,7 @@ public class PartitionTableMonitor extends TableMonitor {
             tableResult.removeAll(tapTableNames);
             removeTables.addAll(tapTableNames);
         }
-        tableResult.getAddList().removeAll(masterTables);
+
         removeTables.removeAll(masterTables);
         tableResult.getRemoveList().removeAll(masterTables);
     }

@@ -131,10 +131,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -973,7 +975,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				return null;
 			}).orElse(tapTable -> false);
 			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
+			Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
 			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
+				if (table.contains(tapTable.getId())) return;
 				if (Objects.nonNull(syncSourcePartitionTableEnable)
 						&& !syncSourcePartitionTableEnable) {
 					//开启了仅同步子表
@@ -1118,11 +1122,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected boolean checkSubPartitionTableHasBeCreated(TapTable addTapTable) {
+    	if (this.partitionTableSubMasterMap.containsKey(addTapTable.getId())) return true;
 		if (addTapTable.checkIsSubPartitionTable() && Objects.nonNull(getConnectorNode())) {
 			TapTable masterTable = getConnectorNode().getConnectorContext().getTableMap().get(addTapTable.getPartitionMasterTableId());
 			if(Objects.isNull(masterTable)) {
 				return false;
 			}
+			this.partitionTableSubMasterMap.put(addTapTable.getId(), masterTable);
 			TapPartition partitionInfo = masterTable.getPartitionInfo();
 			if (Objects.isNull(partitionInfo)) {
 				return false;
@@ -1137,7 +1143,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (first.isPresent()) {
 				return true;
 			}
-			this.partitionTableSubMasterMap.put(addTapTable.getId(), masterTable);
 		}
 		return false;
 	}
