@@ -326,10 +326,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			if (index >= ((List<?>) processedBefore).size()) return;
 			Object beforeMap = ((List<?>) processedBefore).get(index);
 			if (beforeMap instanceof Map) {
-				TapEventUtil.setBefore(returnTapEvent, (Map<String, Object>) beforeMap);
+				Map<String, Object> recordMap = new HashMap<>();
+				MapUtil.copyToNewMap((Map<String, Object>) beforeMap, recordMap);
+				TapEventUtil.setBefore(returnTapEvent, recordMap);
 			}
 		} else if (processedBefore instanceof Map) {
-			TapEventUtil.setBefore(returnTapEvent, (Map<String, Object>) processedBefore);
+			Map<String, Object> recordMap = new HashMap<>();
+			MapUtil.copyToNewMap((Map<String, Object>) processedBefore, recordMap);
+			TapEventUtil.setBefore(returnTapEvent, recordMap);
 		}
 	}
 
