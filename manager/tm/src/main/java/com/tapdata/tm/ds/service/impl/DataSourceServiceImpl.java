@@ -1938,7 +1938,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (null != options.getTimeDifference()){
             update.set("timeDifference",options.getTimeDifference());
         }
-        if (null != options.getTimeDifference()){
+        if (null != options.getDatasourceInstanceInfo()){
             update.set("datasourceInstanceInfo",options.getDatasourceInstanceInfo());
         }
 
