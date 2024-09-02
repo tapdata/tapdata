@@ -169,8 +169,9 @@ public class LogCollectorController extends BaseController {
     public ResponseMessage<Page<ShareCdcTableInfo>> tableInfos(@RequestParam("taskId") String taskId, @RequestParam(value = "connectionId", required = false) String connectionId,
                                                                   @RequestParam(value = "keyword", required = false) String keyword,
                                                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
-                                                                  @RequestParam(value = "size", defaultValue = "20") Integer size) {
-        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.tableInfos(taskId, connectionId, keyword, page, size, getLoginUser());
+                                                                  @RequestParam(value = "size", defaultValue = "20") Integer size,
+                                                                  @RequestParam(value = "order", defaultValue = "") String order) {
+        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.tableInfos(taskId, connectionId, keyword, page, size, order, getLoginUser());
         return success(connectionInfos);
     }
 
@@ -179,9 +180,10 @@ public class LogCollectorController extends BaseController {
     @Operation(summary = "已停止挖掘的表")
     public ResponseMessage<Page<ShareCdcTableInfo>> excludeTableInfos(@RequestParam("taskId") String taskId, @RequestParam(value = "connectionId", required = false) String connectionId,
                                                                       @RequestParam(value = "keyword", required = false) String keyword,
-                                                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
-                                                                   @RequestParam(value = "size", defaultValue = "20") Integer size) {
-        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.excludeTableInfos(taskId, connectionId, keyword, page, size, getLoginUser());
+                                                                      @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                      @RequestParam(value = "size", defaultValue = "20") Integer size,
+                                                                      @RequestParam(value = "order", defaultValue = "") String order) {
+        Page<ShareCdcTableInfo> connectionInfos = logCollectorService.excludeTableInfos(taskId, connectionId, keyword, page, size, order, getLoginUser());
         return success(connectionInfos);
     }
 
