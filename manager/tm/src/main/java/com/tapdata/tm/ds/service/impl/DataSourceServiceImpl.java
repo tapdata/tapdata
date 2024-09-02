@@ -1938,6 +1938,9 @@ public class DataSourceServiceImpl extends DataSourceService{
         if (null != options.getTimeDifference()){
             update.set("timeDifference",options.getTimeDifference());
         }
+        if (null != options.getTimeDifference()){
+            update.set("datasourceInstanceInfo",options.getDatasourceInstanceInfo());
+        }
 
         updateByIdNotChangeLast(id, update, user);
 
