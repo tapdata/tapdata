@@ -62,9 +62,9 @@ public class ApiCallMinuteStatsService extends BaseService<ApiCallMinuteStatsDto
 			return;
 		}
 		BigDecimal responseTimePerRow = BigDecimal.valueOf(apiCallMinuteStatsDto.getTotalResponseTime()).divide(BigDecimal.valueOf(apiCallMinuteStatsDto.getResponseDataRowTotalCount()), 2, RoundingMode.HALF_UP);
-		BigDecimal rowPerSecond = BigDecimal.valueOf(apiCallMinuteStatsDto.getResponseDataRowTotalCount()).divide(BigDecimal.valueOf(apiCallMinuteStatsDto.getTotalResponseTime()), 2, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(1000));
+		BigDecimal rowPerSecond = BigDecimal.valueOf(apiCallMinuteStatsDto.getTransferDataTotalBytes()).divide(BigDecimal.valueOf(apiCallMinuteStatsDto.getTotalResponseTime()), 2, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(1000));
 		apiCallMinuteStatsDto.setResponseTimePerRow(responseTimePerRow.doubleValue());
-		apiCallMinuteStatsDto.setRowPerSecond(rowPerSecond.doubleValue());
+		apiCallMinuteStatsDto.setTransferBytePerSecond(rowPerSecond.doubleValue());
 	}
 
 	public void bulkWrite(List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList) {

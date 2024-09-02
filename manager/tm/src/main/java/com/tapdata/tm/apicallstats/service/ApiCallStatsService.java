@@ -8,15 +8,18 @@ import com.tapdata.tm.apicallstats.repository.ApiCallStatsRepository;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.utils.EntityUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -52,6 +55,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 			if (CollectionUtils.isNotEmpty(oldStats.getClientIds())) {
 				newStats.getClientIds().addAll(oldStats.getClientIds());
 			}
+			newStats.setCreateAt(oldStats.getCreateAt());
 			if (log.isDebugEnabled()) {
 				log.debug("ApiCallStatsService.merge oldStats: {}, newStats: {}", oldStats, newStats);
 			}
@@ -63,25 +67,26 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 
 	public ApiCallStatsDto aggregateByUserId(String userId) {
 		ApiCallStatsDto apiCallStatsDto = new ApiCallStatsDto();
-		if (StringUtils.isBlank(userId)) {
-			return apiCallStatsDto;
+		String collectionName;
+		try {
+			collectionName = EntityUtils.documentAnnotationValue(ApiCallStatsEntity.class);
+		} catch (Exception e) {
+			throw new BizException("Get ApiCallStatsEntity's collection name failed", e);
 		}
-		org.springframework.data.mongodb.core.mapping.Document annotation = ApiCallStatsEntity.class.getAnnotation(org.springframework.data.mongodb.core.mapping.Document.class);
-		if (null == annotation) {
-			throw new BizException("ApiCallStatsEntity annotation(org.springframework.data.mongodb.core.mapping.Document.class) is null, cannot get collection name to execute aggregation");
-		}
-		String collectionName = annotation.value();
 		MongoCollection<org.bson.Document> collection = repository.getMongoOperations().getCollection(collectionName);
-		List<Document> pipeline = Arrays.asList(new Document("$match", new Document("user_id", userId)),
-				new Document("$facet",
-						new Document("callTotalCount", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$callTotalCount")))))
-								.append("transferDataTotalBytes", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$transferDataTotalBytes")))))
-								.append("callAlarmTotalCount", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$callAlarmTotalCount")))))
-								.append("responseDataRowTotalCount", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$responseDataRowTotalCount")))))
-								.append("totalResponseTime", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$totalResponseTime")))))
-								.append("alarmApiTotalCount", Arrays.asList(new Document("$match", new Document("accessFailureRate", new Document("$gt", 0))),
-										new Document("$group", new Document("_id", null).append("data", new Document("$sum", 1L)))))
-				));
+		List<Document> pipeline = new ArrayList<>();
+		if (StringUtils.isNotBlank(userId)) {
+			pipeline.add(new Document("$match", new Document("user_id", userId)));
+		}
+		pipeline.addAll(Arrays.asList(new Document("$facet",
+				new Document("callTotalCount", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$callTotalCount")))))
+						.append("transferDataTotalBytes", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$transferDataTotalBytes")))))
+						.append("callAlarmTotalCount", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$callAlarmTotalCount")))))
+						.append("responseDataRowTotalCount", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$responseDataRowTotalCount")))))
+						.append("totalResponseTime", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$totalResponseTime")))))
+						.append("alarmApiTotalCount", Arrays.asList(new Document("$match", new Document("accessFailureRate", new Document("$gt", 0))),
+								new Document("$group", new Document("_id", null).append("data", new Document("$sum", 1L)))))
+		)));
 		if (log.isDebugEnabled()) {
 			StringBuilder pipelineString = new StringBuilder();
 			pipeline.forEach(document -> pipelineString.append(document.toJson()).append(System.lineSeparator()));
@@ -153,5 +158,10 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 		Query query = new Query().limit(1);
 		query.fields().include("_id");
 		return !repository.findOne(query).isPresent();
+	}
+
+	public void deleteAllByModuleId(String moduleId) {
+		Query deleteQuery = Query.query(Criteria.where("moduleId").is(moduleId));
+		deleteAll(deleteQuery);
 	}
 }

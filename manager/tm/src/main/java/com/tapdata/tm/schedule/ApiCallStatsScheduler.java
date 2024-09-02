@@ -7,6 +7,7 @@ import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +65,10 @@ public class ApiCallStatsScheduler {
 			log.info("Initializing Api Call Stats data for the first time, discover the number of apis: {}, please wait...", modulesList.size());
 		}
 
+		if (CollectionUtils.isEmpty(modulesList)) {
+			return;
+		}
+
 		// Traverse all Modules, perform pre-aggregation, and save to ApiCallMinuteStats
 		int traverseStep = 0;
 		for (ModulesDto modulesDto : modulesList) {
@@ -78,15 +83,14 @@ public class ApiCallStatsScheduler {
 
 			if (Boolean.TRUE.equals(isDeleted)) {
 				// Delete ApiCallStats which Api is deleted
-				Query deleteQuery = Query.query(Criteria.where("moduleId").is(moduleId));
-				apiCallStatsService.deleteAll(deleteQuery);
+				apiCallStatsService.deleteAllByModuleId(moduleId);
 				long loopCost = System.currentTimeMillis() - loopStartMs;
 				if (apiCallStatsServiceEmpty) {
-					log.info("Delete one Api Call Stats completed, filter: {}, cost: {} ms, progress: {}/{}", deleteQuery.getQueryObject().toJson(), loopCost, traverseStep, modulesList.size());
+					log.info("Delete Api Call Stats by module id completed, module id: {}, cost: {} ms, progress: {}/{}", modulesDto, loopCost, traverseStep, modulesList.size());
 				}
 			} else {
 				// Get the historical ApiCallStats record based on moduleId, and get the lastApiCallId from it as this offset
-				Query apiCallStatsQuery = Query.query(Criteria.where("moduleId").is(moduleId));
+				Query apiCallStatsQuery = Query.query(Criteria.where("moduleId").is(moduleId)).limit(1);
 				ApiCallStatsDto apiCallStatsDto = apiCallStatsService.findOne(apiCallStatsQuery);
 				String lastApiCallId = null;
 				if (null != apiCallStatsDto) {

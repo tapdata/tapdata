@@ -29,10 +29,12 @@ public class ApiCallMinuteStatsEntity extends BaseEntity {
 	private Long responseDataRowTotalCount;
 	// Total response time(milliseconds)
 	private Long totalResponseTime;
+	// Total size of data transferred by Api (Byte)
+	private Long transferDataTotalBytes;
 	// Response time per row: totalResponseTime / responseDataRowTotalCount
 	private Double responseTimePerRow;
-	// Number of rows per second: (responseDataRowTotalCount / totalResponseTime) * 1000
-	private Double rowPerSecond;
+	// Number of rows per second: (transferDataTotalBytes / totalResponseTime) * 1000
+	private Double transferBytePerSecond;
 	/**
 	 * Associated with {@link com.tapdata.tm.apiCalls.entity.ApiCallEntity}#id
 	 */

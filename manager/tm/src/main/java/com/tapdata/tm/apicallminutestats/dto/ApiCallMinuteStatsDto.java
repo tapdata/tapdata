@@ -27,10 +27,12 @@ public class ApiCallMinuteStatsDto extends BaseDto {
 	private Long responseDataRowTotalCount = 0L;
 	// Total response time(milliseconds)
 	private Long totalResponseTime = 0L;
+	// Total size of data transferred by Api (Byte)
+	private Long transferDataTotalBytes = 0L;
 	// Response time per row: totalResponseTime / responseDataRowTotalCount
 	private Double responseTimePerRow = 0D;
-	// Number of rows per second: (responseDataRowTotalCount / totalResponseTime) * 1000
-	private Double rowPerSecond = 0D;
+	// Number of rows per second: (transferDataTotalBytes / totalResponseTime) * 1000
+	private Double transferBytePerSecond = 0D;
 	/**
 	 * Associated with {@link com.tapdata.tm.apiCalls.entity.ApiCallEntity}#id
 	 */

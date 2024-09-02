@@ -62,6 +62,7 @@ import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -99,7 +100,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApiCallStatsService apiCallStatsService;
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 
-	public ModulesService(@NonNull ModulesRepository repository, ApplicationService applicationService) {
+	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
 	}
 
@@ -818,7 +819,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			return previewVo;
 		}
 		ApiCallStatsDto apiCallStatsDto = apiCallStatsService.aggregateByUserId(userId);
-		Query query = Query.query(Criteria.where("user_id").is(userId).and("is_deleted").is(false));
+		Query query = Query.query(Criteria.where("is_deleted").ne(true));
+		if (!userDetail.isRoot()) {
+			query.addCriteria(Criteria.where("user_id").is(userId));
+		}
 		previewVo.setTotalCount(count(query));
 		previewVo.setVisitTotalCount(apiCallStatsDto.getCallTotalCount());
 		previewVo.setTransmitTotal(apiCallStatsDto.getTransferDataTotalBytes());
@@ -828,31 +832,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return previewVo;
 	}
 
-
-	/**
-	 * 发生过告警的api的数量
-	 *
-	 * @param
-	 * @return
-	 */
-   /* private Long getWarningApis(Map<String, List<ApiCallEntity>> codeToApiCallMap, List<String> moduleIdsList) {
-        List<String> intersection = new ArrayList<>();
-        try {
-            List<ApiCallEntity> apiCallEntityList = codeToApiCallMap.get("warning");
-            List<String> allPathId = apiCallEntityList.stream().map(ApiCallEntity::getAllPathId).collect(Collectors.toList());
-            moduleIdsList.stream().filter(allPathId::contains).collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("发生过告警的api的数量 异常", e);
-        }
-        return Long.valueOf(intersection.size());
-    }*/
-
-
-  /*  private Long getTotalApiCount(UserDetail userDetail) {
-        Query query = Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId()));
-        Long count = repository.count(query);
-        return count;
-    }*/
 	public List<ModulesDto> getByUserId(String userId) {
 		Query query = Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userId));
 		List<ModulesDto> modulesDtoList = findAll(query);
@@ -883,8 +862,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
         RankListsVo rankListsVo = new RankListsVo();
 
-		Query query = Query.query(Criteria.where("user_id").is(userDetail.getUserId()));
-		List<ModulesDto> modulesDtoList;
+		Query query = new Query();
+		if (!userDetail.isRoot()) {
+			query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+		}
+		Long total = apiCallStatsService.count(query);
+		query.fields().include("moduleId", type);
 		if ("DESC".equals(order)) {
 			query.with(Sort.by(type).descending());
 
@@ -892,12 +875,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			query.with(Sort.by(type).ascending());
 		}
 		TmPageable tmPageable = filterToTmPageable(filter);
-		query.fields().include("moduleId", type);
-
-		Long total = apiCallStatsService.count(query);
 		List<ApiCallStatsDto> apiCallStatsDtoList = apiCallStatsService.findAll(query.with(tmPageable));
 		List<ObjectId> moduleIds = apiCallStatsDtoList.stream().map(acs -> new ObjectId(acs.getModuleId())).collect(Collectors.toList());
-		modulesDtoList = findAll(Query.query(Criteria.where("id").in(moduleIds)));
+		List<ModulesDto> modulesDtoList = findAll(Query.query(Criteria.where("id").in(moduleIds)));
 
 		List<Map<String, Object>> list = new ArrayList<>();
 		String finalType = type;
@@ -933,13 +913,19 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				.append("clientIds", 1)
 		));
 		pipeline.add(new Document("$lookup", new Document("from", "Modules")
-				.append("localField", "moduleId")
-				.append("foreignField", "_id")
+				.append("let", new Document("moduleId", "$moduleId"))
+				.append("pipeline", Arrays.asList(
+						new Document("$project", new Document("_id", 1).append("name", 1).append("status", 1).append("user_id", 1).append("createTime", 1)),
+						new Document("$match", new Document("$expr", new Document("$eq", Arrays.asList("$_id", "$$moduleId"))))
+				))
 				.append("as", "modules")
 		));
 		pipeline.add(new Document("$unwind", new Document("path", "$modules")));
 		Where where = filter.getWhere();
-		Document match = new Document("modules.user_id", userDetail.getUserId());
+		Document match = new Document();
+		if (!userDetail.isRoot()) {
+			match.append("modules.user_id", userDetail.getUserId());
+		}
 		where.forEach((k, v) -> {
 			if ("clientId".equals(k)) {
 				match.append("clientIds", v);
@@ -1014,9 +1000,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 							apiListVo.setId(((Document) modules).getObjectId("_id").toString());
 							apiListVo.setName(((Document)modules).getString("name"));
 							apiListVo.setStatus(((Document) modules).getString("status"));
-							apiListVo.setVisitLine(item.getLong("responseDataRowTotalCount"));
-							apiListVo.setVisitCount(item.getLong("callTotalCount"));
-							apiListVo.setTransitQuantity(item.getLong("transferDataTotalBytes"));
+							apiListVo.setVisitLine(getLong(item, "responseDataRowTotalCount"));
+							apiListVo.setVisitCount(getLong(item, "callTotalCount"));
+							apiListVo.setTransitQuantity(getLong(item, "transferDataTotalBytes"));
 							page.getItems().add(apiListVo);
 						}
 					}
@@ -1097,7 +1083,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return apiDetailVo;
 	}
 
-	private Object pickValue(ApiDetailParam apiDetailParam, ApiCallMinuteStatsDto apiCallMinuteStatsDto) {
+	public Object pickValue(ApiDetailParam apiDetailParam, ApiCallMinuteStatsDto apiCallMinuteStatsDto) {
 		Object value = 0;
 		if ("latency".equals(apiDetailParam.getType())) {
 			value = apiCallMinuteStatsDto.getTotalResponseTime();
@@ -1106,96 +1092,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		} else if ("responseTime".equals(apiDetailParam.getType())) {
 			value = apiCallMinuteStatsDto.getResponseTimePerRow();
 		} else if ("speed".equals(apiDetailParam.getType())) {
-			value = apiCallMinuteStatsDto.getRowPerSecond();
+			value = apiCallMinuteStatsDto.getTransferBytePerSecond();
 		}
 		return value;
-	}
-
-	private List<Date> getAllKeysAsList(Map<Date, Object> map) {
-		List<Date> keyList = new ArrayList<>();
-		Set<Date> sampleDateKeySet = map.keySet();
-		sampleDateKeySet.forEach(set -> {
-			keyList.add(set);
-		});
-		return keyList;
-	}
-
-	/**
-	 * 固定返回五个点
-	 *
-	 * @param startMillSeconds
-	 * @param nowMillSeconds
-	 * @return
-	 */
-	private List<Date> getDateList(Long startMillSeconds, Long nowMillSeconds, Integer guanluary) {
-		List<Date> dateList = new ArrayList();
-		Integer pointCount = 1;
-		while (startMillSeconds <= nowMillSeconds && pointCount <= guanluary) {
-			dateList.add(new Date(startMillSeconds.longValue()));
-			startMillSeconds = startMillSeconds + oneMinuteMillSeconds;
-			pointCount++;
-		}
-		return dateList;
-	}
-
-
-	private void executeRankList(UserDetail userDetail, List<ModulesDto> modulesDtoList, List<ApiCallEntity> apiCallEntityList) {
-		log.info("计算失败率和响应时间");
-		if (CollectionUtils.isNotEmpty(modulesDtoList)) {
-			modulesDtoList = findAll(Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId())));
-		}
-
-		List<String> moduleIdList = modulesDtoList.stream().map(ModulesDto::getId).map(ObjectId::toString).collect(Collectors.toList());
-
-		if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
-			apiCallEntityList = apiCallService.findByModuleIds(moduleIdList);
-		}
-		Map<String, List<ApiCallEntity>> moduleIdToApiCallList = apiCallEntityList.stream().collect(Collectors.groupingBy(ApiCallEntity::getAllPathId));
-
-		Date oneHourAgo = DateUtil.offsetHour(new Date(), -24);
-		List<ApiCallEntity> oneHourApiCall = apiCallEntityList.stream().filter(item -> (item.getCreateAt().after(oneHourAgo))).collect(Collectors.toList());
-		Map<String, List<ApiCallEntity>> oneHourModuleIdToApiCall = oneHourApiCall.stream().collect(Collectors.groupingBy(ApiCallEntity::getAllPathId));
-
-
-		BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
-		int exeNum = 0;
-		for (ModulesDto modulesDto : modulesDtoList) {
-			String moduleId = modulesDto.getId().toString();
-			List<ApiCallEntity> apiCallList = moduleIdToApiCallList.getOrDefault(moduleId, Collections.emptyList());
-			Map<String, List<ApiCallEntity>> prodMap = apiCallList.stream().collect(Collectors.groupingBy(item -> {
-				if ("200".equals(item.getCode())) {
-					return "normal";
-				} else {
-					return "warning";
-				}
-			}));
-			List<ApiCallEntity> warningApiCall = prodMap.getOrDefault("warning", Collections.emptyList());
-			double failRate = 0d;
-			if (CollectionUtils.isNotEmpty(warningApiCall) && CollectionUtils.isNotEmpty(apiCallList)) {
-				failRate = (double) warningApiCall.size() / (double) apiCallList.size();
-				failRate = new BigDecimal(failRate).setScale(2, RoundingMode.HALF_UP).doubleValue();
-			}
-
-			Update update = new Update().set("failRate", failRate);
-
-			if (CollectionUtils.isNotEmpty(oneHourModuleIdToApiCall.get(moduleId))) {
-				Number sumResRows = oneHourModuleIdToApiCall.get(moduleId).stream().filter(item -> null != item.getResRows()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getResRows).sum();
-				Number sumLatency = oneHourModuleIdToApiCall.get(moduleId).stream().filter(item -> null != item.getReqBytes()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getReqBytes).sum();
-				if (sumResRows.longValue() > 0) {
-					update.set("responseTime", (sumLatency.longValue() / sumResRows.longValue()));
-				}
-
-			}
-			Query query = new Query(Criteria.where("_id").is(modulesDto.getId()));
-			bulkOperations.updateOne(query, update);
-			if (++exeNum > 1000) {
-				bulkOperations.execute();
-				exeNum = 0;
-			}
-		}
-		if (exeNum > 0) {
-			bulkOperations.execute();
-		}
 	}
 
 	public List<ModulesDto> findByConnectionId(String connectionId) {

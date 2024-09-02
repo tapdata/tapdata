@@ -536,6 +536,7 @@ public class ApiCallService {
         Document group = new Document("_id", groupByMinute())
                 .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))
                 .append("totalResponseTime", new Document("$sum", "$latency"))
+                .append("transferDataTotalBytes", new Document("$sum", "$req_bytes"))
                 .append("lastApiCallId", new Document("$last", "$_id"));
         pipeline.add(new Document("$group", group));
         if (log.isDebugEnabled()) {
@@ -554,6 +555,7 @@ public class ApiCallService {
 
                 apiCallMinuteStatsDto.setResponseDataRowTotalCount(getLong(document, "responseDataRowTotalCount"));
                 apiCallMinuteStatsDto.setTotalResponseTime(getLong(document, "totalResponseTime"));
+                apiCallMinuteStatsDto.setTransferDataTotalBytes(getLong(document, "transferDataTotalBytes"));
                 // responseTimePerRow, rowPerSecond
                 apiCallMinuteStatsService.calculate(apiCallMinuteStatsDto);
                 apiCallMinuteStatsDto.setLastApiCallId(document.getObjectId("lastApiCallId").toString());
