@@ -43,7 +43,8 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-public class ModulesServiceTest {
+@DisplayName("Class ModulesService Test")
+class ModulesServiceTest {
     ModulesService modulesService;
     ModulesRepository modulesRepository;
 

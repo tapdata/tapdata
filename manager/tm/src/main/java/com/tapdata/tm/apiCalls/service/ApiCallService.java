@@ -50,14 +50,13 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiCallService {
-    private final ApiCallMinuteStatsService apiCallMinuteStatsService;
+    ApiCallMinuteStatsService apiCallMinuteStatsService;
     MongoTemplate mongoOperations;
     ModulesService modulesService;
     ApplicationService applicationService;
     ApiCallStatsService apiCallStatsService;
 
-    public ApiCallService(ApiCallMinuteStatsService apiCallMinuteStatsService) {
-        this.apiCallMinuteStatsService = apiCallMinuteStatsService;
+    public ApiCallService() {
     }
 
     public ApiCallEntity findOne(Query query) {
@@ -302,16 +301,6 @@ public class ApiCallService {
         return null;
     }
 
-    public Map<String, List<ApiCallEntity>> getVisitTotalCount(List<ApiCallEntity> apiCallEntityList) {
-        return apiCallEntityList.stream().collect(Collectors.groupingBy(item -> {
-            if ("200".equals(item.getCode())) {
-                return "normal";
-            } else {
-                return "warning";
-            }
-        }));
-    }
-
     public List<ApiCallEntity> findByModuleIds(List<String> moduleIdList) {
         Query query = Query.query(Criteria.where("allPathId").in(moduleIdList));
         query.with(Sort.by("createTime").descending());
@@ -361,16 +350,6 @@ public class ApiCallService {
         });
 
         return result;
-    }
-
-    public List<ApiCallEntity> findByModuleIdAndTimePeriod(List<String> moduleIds, Date startTime, Date endTime) {
-        Criteria startTimeCri = Criteria.where("createTime").gte(startTime);
-        Criteria endTimeCri = Criteria.where("createTime").lte(endTime);
-        Query query = Query.query(Criteria.where("allPathId").in(moduleIds).andOperator(startTimeCri, endTimeCri));
-        query.with(Sort.by("createTime").descending());
-        List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
-        apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
-        return apiCallEntityList;
     }
 
     private String getValueFromOrList(List<Map<String, Map<String, String>>> orList, String fieldName) {
@@ -558,10 +537,18 @@ public class ApiCallService {
                 apiCallMinuteStatsDto.setTransferDataTotalBytes(getLong(document, "transferDataTotalBytes"));
                 // responseTimePerRow, rowPerSecond
                 apiCallMinuteStatsService.calculate(apiCallMinuteStatsDto);
-                apiCallMinuteStatsDto.setLastApiCallId(document.getObjectId("lastApiCallId").toString());
+				if (null != document.get("lastApiCallId")) {
+					apiCallMinuteStatsDto.setLastApiCallId(document.getObjectId("lastApiCallId").toString());
+				}
                 // apiCallTime: year, month, day, hour, minute
                 Document id = document.get("_id", Document.class);
-                Instant apiCallTime = LocalDateTime.of(id.getInteger("year"), id.getInteger("month"), id.getInteger("day"), id.getInteger("hour"), id.getInteger("minute")).toInstant(ZoneOffset.UTC);
+                Instant apiCallTime = LocalDateTime.of(
+						id.getInteger("year"),
+						id.getInteger("month"),
+						id.getInteger("day"),
+						id.getInteger("hour"),
+						id.getInteger("minute")
+				).toInstant(ZoneOffset.UTC);
                 apiCallMinuteStatsDto.setApiCallTime(Date.from(apiCallTime));
 
                 apiCallMinuteStatsDtoList.add(apiCallMinuteStatsDto);
@@ -571,7 +558,7 @@ public class ApiCallService {
         return apiCallMinuteStatsDtoList;
     }
 
-    private Document groupByMinute() {
+    public Document groupByMinute() {
         return new Document("year", "$year")
                 .append("month", "$month")
                 .append("day", "$day")

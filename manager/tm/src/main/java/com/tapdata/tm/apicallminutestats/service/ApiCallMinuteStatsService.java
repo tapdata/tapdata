@@ -47,6 +47,7 @@ public class ApiCallMinuteStatsService extends BaseService<ApiCallMinuteStatsDto
 		if (null != existsApiCallMinuteStats) {
 			apiCallMinuteStatsDto.setTotalResponseTime(apiCallMinuteStatsDto.getTotalResponseTime() + existsApiCallMinuteStats.getTotalResponseTime());
 			apiCallMinuteStatsDto.setResponseDataRowTotalCount(apiCallMinuteStatsDto.getResponseDataRowTotalCount() + existsApiCallMinuteStats.getResponseDataRowTotalCount());
+			apiCallMinuteStatsDto.setTransferDataTotalBytes(apiCallMinuteStatsDto.getTransferDataTotalBytes() + existsApiCallMinuteStats.getTransferDataTotalBytes());
 			// Recalculate responseTimePerRow and rowPerSecond
 			calculate(apiCallMinuteStatsDto);
 			apiCallMinuteStatsDto.setId(existsApiCallMinuteStats.getId());

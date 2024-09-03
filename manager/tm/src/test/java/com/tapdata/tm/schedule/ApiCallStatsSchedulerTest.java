@@ -31,6 +31,7 @@ import static org.mockito.Mockito.*;
  * @Description
  * @create 2024-08-30 18:28
  **/
+@DisplayName("Class ApiCallStatsScheduler Test")
 class ApiCallStatsSchedulerTest {
 
 	private ApiCallStatsScheduler apiCallStatsScheduler;
@@ -51,7 +52,7 @@ class ApiCallStatsSchedulerTest {
 	void test1() {
 		apiCallStatsScheduler.schedule();
 		assertEquals("ApiCallStatsScheduler-scheduler", Thread.currentThread().getName());
-		Method schedule = assertDoesNotThrow(() -> ApiCallStatsScheduler.class.getDeclaredMethod("schedule"));
+		Method schedule = assertDoesNotThrow(() -> apiCallStatsScheduler.getClass().getDeclaredMethod("schedule"));
 		Scheduled scheduleAnnotation = schedule.getAnnotation(Scheduled.class);
 		assertEquals("0 0/5 * * * ?", scheduleAnnotation.cron());
 		SchedulerLock schedulerLockAnnotation = schedule.getAnnotation(SchedulerLock.class);
@@ -74,12 +75,12 @@ class ApiCallStatsSchedulerTest {
 			modulesList = new ArrayList<ModulesDto>() {{
 				add(new ModulesDto() {{
 					setId(new ObjectId());
-					setUser("test");
+					setUserId("test");
 					setIsDeleted(false);
 				}});
 				add(new ModulesDto() {{
 					setId(new ObjectId());
-					setUser("test");
+					setUserId("test");
 					setIsDeleted(true);
 				}});
 			}};
@@ -91,21 +92,21 @@ class ApiCallStatsSchedulerTest {
 				setResponseDataRowTotalCount(150L);
 				setTotalResponseTime(30000L);
 				setMaxResponseTime(2000L);
-				setClientIds(new HashSet<String>(){{
+				setClientIds(new HashSet<String>() {{
 					add("client1");
 				}});
 				setLastApiCallId(new ObjectId().toString());
 				setModuleId(modulesList.get(0).getId().toString());
 				setCreateAt(new Date());
 			}};
-			newApiCallStatsDto = new ApiCallStatsDto(){{
+			newApiCallStatsDto = new ApiCallStatsDto() {{
 				setCallTotalCount(200L);
 				setTransferDataTotalBytes(200L);
 				setCallAlarmTotalCount(8L);
 				setResponseDataRowTotalCount(250L);
 				setTotalResponseTime(60000L);
 				setMaxResponseTime(2000L);
-				setClientIds(new HashSet<String>(){{
+				setClientIds(new HashSet<String>() {{
 					add("client2");
 					add("client3");
 				}});
