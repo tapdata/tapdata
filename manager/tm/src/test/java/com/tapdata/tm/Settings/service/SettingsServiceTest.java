@@ -1,6 +1,9 @@
 package com.tapdata.tm.Settings.service;
 
+import com.tapdata.tm.Settings.constant.SettingUtil;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.SendMailResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -211,6 +214,24 @@ public class SettingsServiceTest {
             MailAccountDto actual = settingsService.getMailAccount(testMailDto);
             assertNull(actual.getProxyHost());
             assertEquals(0, actual.getProxyPort());
+        }
+    }
+    @Nested
+    class testSendMailTest{
+        @Test
+        void testSendMailNormal(){
+            settingsService = mock(SettingsServiceImpl.class);
+            try (MockedStatic<SettingUtil> mb = Mockito
+                    .mockStatic(SettingUtil.class)) {
+                mb.when(()->SettingUtil.getValue(anyString(),anyString())).thenReturn("123456");
+                TestMailDto testMailDto = mock(TestMailDto.class);
+                MailAccountDto mailAccountDto = mock(MailAccountDto.class);
+                when(mailAccountDto.getPass()).thenReturn("*****");
+                when(settingsService.getMailAccount(testMailDto)).thenReturn(mailAccountDto);
+                doCallRealMethod().when(settingsService).testSendMail(testMailDto);
+                SendMailResponseDto actual = settingsService.testSendMail(testMailDto);
+                assertEquals(false,actual.isResult());
+            }
         }
     }
 }
