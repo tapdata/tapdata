@@ -511,6 +511,7 @@ public class ApiCallService {
                 .append("minute", new Document("$minute", "$createTime"))
                 .append("res_rows", 1)
                 .append("latency", 1)
+                .append("req_bytes", 1)
         ));
         Document group = new Document("_id", groupByMinute())
                 .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))

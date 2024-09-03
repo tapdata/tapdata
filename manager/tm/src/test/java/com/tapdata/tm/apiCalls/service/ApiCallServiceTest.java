@@ -148,8 +148,9 @@ class ApiCallServiceTest {
 			AggregateIterable<Document> aggregateIterable = mock(AggregateIterable.class);
 			when(mongoCollection.aggregate(anyList(), any(Class.class))).thenAnswer(invocationOnMock -> {
 				List<Document> pipeline = invocationOnMock.getArgument(0);
+				System.out.println(pipeline.get(1).toJson());
 				assertEquals("{\"$match\": {\"allPathId\": \"" + allPathId + "\", \"_id\": {\"$gt\": {\"$oid\": \"" + lastApiCallId + "\"}}, \"createTime\": {\"$gte\": {\"$date\": \"" + startTime.toInstant().toString() + "\"}}}}", pipeline.get(0).toJson());
-				assertEquals("{\"$project\": {\"year\": {\"$year\": \"$createTime\"}, \"month\": {\"$month\": \"$createTime\"}, \"day\": {\"$dayOfMonth\": \"$createTime\"}, \"hour\": {\"$hour\": \"$createTime\"}, \"minute\": {\"$minute\": \"$createTime\"}, \"res_rows\": 1, \"latency\": 1}}", pipeline.get(1).toJson());
+				assertEquals("{\"$project\": {\"year\": {\"$year\": \"$createTime\"}, \"month\": {\"$month\": \"$createTime\"}, \"day\": {\"$dayOfMonth\": \"$createTime\"}, \"hour\": {\"$hour\": \"$createTime\"}, \"minute\": {\"$minute\": \"$createTime\"}, \"res_rows\": 1, \"latency\": 1, \"req_bytes\": 1}}", pipeline.get(1).toJson());
 				assertEquals("{\"$group\": {\"_id\": {\"year\": \"$year\", \"month\": \"$month\", \"day\": \"$day\", \"hour\": \"$hour\", \"minute\": \"$minute\"}, \"responseDataRowTotalCount\": {\"$sum\": \"$res_rows\"}, \"totalResponseTime\": {\"$sum\": \"$latency\"}, \"transferDataTotalBytes\": {\"$sum\": \"$req_bytes\"}, \"lastApiCallId\": {\"$last\": \"$_id\"}}}", pipeline.get(2).toJson());
 				assertEquals(Document.class, invocationOnMock.getArgument(1));
 				return aggregateIterable;
