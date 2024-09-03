@@ -51,6 +51,10 @@ class DataSourceServiceTest {
         final ConnectionOptions options = new ConnectionOptions();
         options.setDbVersion("dbVersion");
         options.setTimeDifference(1000L);
+        Map<String, String> datasourceInstanceInfo = new HashMap<>();
+        datasourceInstanceInfo.put("id","7e62e76bb5701454987485b28a70eecc");
+        datasourceInstanceInfo.put("tag","127.0.0.1:3306");
+        options.setDatasourceInstanceInfo(datasourceInstanceInfo);
         final UserDetail user = new UserDetail("userId", "customerId", "username", "password", "customerType",
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         Criteria criteria = Criteria.where("_id").is(id);
@@ -64,6 +68,7 @@ class DataSourceServiceTest {
         Update expect = new Update();
         expect.set("db_version","dbVersion");
         expect.set("timeDifference",1000L);
+        expect.set("datasourceInstanceInfo",datasourceInstanceInfo);
         expect.set("capabilities",definitionDto.getCapabilities());
         try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
             serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
