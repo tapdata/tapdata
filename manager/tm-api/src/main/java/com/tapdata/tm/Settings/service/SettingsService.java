@@ -4,6 +4,7 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.SendMailResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -50,7 +51,7 @@ public interface SettingsService {
 
     List<Settings> findAll(Query query);
 
-    void testSendMail(TestMailDto testMailDto);
+    SendMailResponseDto testSendMail(TestMailDto testMailDto);
 
     void setSettingsRepository(com.tapdata.tm.Settings.repository.SettingsRepository settingsRepository);
 
