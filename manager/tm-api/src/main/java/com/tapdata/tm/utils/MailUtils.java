@@ -580,6 +580,79 @@ public class MailUtils {
             return new SendMailResponseDto(flag, TapSimplify.getStackTrace(e));
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
+    }
+
+    @Nullable
+    protected static List<String> filterBlackList(List<String> adressees) {
+        if (CollectionUtils.isEmpty(adressees)) return null;
+
+        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
+        if (blacklistService != null) {
+            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
+            if (log.isDebugEnabled()) {
+                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
+            }
+            adressees = notInBlacklistAddress;
+            //adressees.removeAll(blacklist);
+            if (CollectionUtils.isEmpty(adressees)) {
+                return null;
+            }
+        } else {
+            log.warn("Check blacklist failed before send email, not found BlacklistService.");
+        }
+        return adressees;
+    }
+
+    protected static void sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
+        final String username = parms.getUser();
+        final String password = parms.getPass();
+
+        Properties properties = System.getProperties();
+        properties.put("mail.smtp.host", parms.getHost());
+        properties.put("mail.smtp.port", parms.getPort());
+        properties.put("mail.smtp.auth", "true");
+        if ("SSL".equals(parms.getProtocol()) || "TLS".equals(parms.getProtocol())) {
+            properties.put("mail.smtp.starttls.enable", "true");
+        } else {
+            properties.put("mail.smtp.starttls.enable", "false");
+        }
+        //set proxy server
+        properties.put("mail.smtp.socks.host", parms.getProxyHost());
+        properties.put("mail.smtp.socks.port", parms.getProxyPort());
+
+        Session session = Session.getInstance(properties, new Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
+            }
+        });
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(parms.getFrom()));
+
+            Address[] tos = null;
+            tos = new InternetAddress[adressees.size()];
+            for (int i = 0; i < adressees.size(); i++) {
+                tos[i] = new InternetAddress(adressees.get(i));
+            }
+            message.setRecipients(Message.RecipientType.TO, tos);
+
+            Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+            title = OEMReplaceUtil.replace(title, oemConfig);
+            content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
+            message.setSubject(title, "UTF-8");
+            MimeBodyPart text = new MimeBodyPart();
+            text.setContent(content, "text/html;charset=UTF-8");
+            MimeMultipart mimeMultipart = new MimeMultipart();
+            mimeMultipart.addBodyPart(text);
+            mimeMultipart.setSubType("related");
+            message.setContent(mimeMultipart);
+
+            Transport.send(message);
+        } catch (Exception e) {
+            log.error("mail send error：{}", e.getMessage(), e);
+            flag = false;
+        }
+        log.debug("mail send status：{}", flag ? "suc" : "error");
         return new SendMailResponseDto(flag,null);
     }
 

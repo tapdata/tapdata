@@ -49,55 +49,55 @@ class ModulesServiceTest {
     ModulesRepository modulesRepository;
 
     @BeforeEach
-    void init() {
+    void init(){
         modulesRepository = mock(ModulesRepository.class);
         modulesService = new ModulesService(modulesRepository);
     }
 
     @Nested
-    class UpdatePermissionsTest {
+    class UpdatePermissionsTest{
         @Test
-        void test_main() {
+        void test_main(){
             ModulesPermissionsDto modulesPermissionsDto = new ModulesPermissionsDto();
             modulesPermissionsDto.setModuleId("test");
             modulesPermissionsDto.setAcl(Arrays.asList("admin"));
-            modulesService.updatePermissions(modulesPermissionsDto, mock(UserDetail.class));
-            verify(modulesRepository, times(1)).updateFirst(any(), any(), any());
+            modulesService.updatePermissions(modulesPermissionsDto,mock(UserDetail.class));
+            verify(modulesRepository,times(1)).updateFirst(any(),any(),any());
         }
 
         @Test
-        void test_aclIsNull() {
+        void test_aclIsNull(){
             ModulesPermissionsDto modulesPermissionsDto = new ModulesPermissionsDto();
             modulesPermissionsDto.setModuleId("test");
-            assertThrows(BizException.class, () -> modulesService.updatePermissions(modulesPermissionsDto, mock(UserDetail.class)));
+            assertThrows(BizException.class,()->modulesService.updatePermissions(modulesPermissionsDto,mock(UserDetail.class)));
         }
 
     }
 
     @Nested
-    class UpdateTagsTest {
+    class UpdateTagsTest{
         @Test
-        void test_main() {
+        void test_main(){
             ModulesTagsDto modulesTagsDto = new ModulesTagsDto();
             modulesTagsDto.setModuleId("test");
-            modulesTagsDto.setListtags(Arrays.asList(new Tag("id", "app")));
-            modulesService.updateTags(modulesTagsDto, mock(UserDetail.class));
-            verify(modulesRepository, times(1)).updateFirst(any(), any(), any());
+            modulesTagsDto.setListtags(Arrays.asList(new Tag("id","app")));
+            modulesService.updateTags(modulesTagsDto,mock(UserDetail.class));
+            verify(modulesRepository,times(1)).updateFirst(any(),any(),any());
         }
 
         @Test
-        void test_tagsIsNull() {
+        void test_tagsIsNull(){
             ModulesTagsDto modulesTagsDto = new ModulesTagsDto();
             modulesTagsDto.setModuleId("test");
-            assertThrows(BizException.class, () -> modulesService.updateTags(modulesTagsDto, mock(UserDetail.class)));
+            assertThrows(BizException.class,()->modulesService.updateTags(modulesTagsDto,mock(UserDetail.class)));
         }
 
     }
 
     @Nested
-    class BeforeSaveTest {
+    class BeforeSaveTest{
         @Test
-        void test_main() {
+        void test_main(){
             ModulesDto modules = new ModulesDto();
             List<Path> paths = new ArrayList<>();
             Path path = new Path();
@@ -108,21 +108,21 @@ class ModulesServiceTest {
             path.setFields(fields);
             paths.add(path);
             modules.setPaths(paths);
-            modulesService.beforeSave(modules, mock(UserDetail.class));
-            Assertions.assertEquals(1, modules.getPaths().get(0).getFields().size());
+            modulesService.beforeSave(modules,mock(UserDetail.class));
+            Assertions.assertEquals(1,modules.getPaths().get(0).getFields().size());
         }
 
         @Test
-        void test_paths_isNull() {
+        void test_paths_isNull(){
             ModulesDto modules = new ModulesDto();
             List<Path> paths = new ArrayList<>();
             modules.setPaths(paths);
-            modulesService.beforeSave(modules, mock(UserDetail.class));
-            Assertions.assertEquals(0, modules.getPaths().size());
+            modulesService.beforeSave(modules,mock(UserDetail.class));
+            Assertions.assertEquals(0,modules.getPaths().size());
         }
 
         @Test
-        void test_paths_fields_isNull() {
+        void test_paths_fields_isNull(){
             ModulesDto modules = new ModulesDto();
             List<Path> paths = new ArrayList<>();
             Path path = new Path();
@@ -130,18 +130,18 @@ class ModulesServiceTest {
             path.setFields(fields);
             paths.add(path);
             modules.setPaths(paths);
-            modulesService.beforeSave(modules, mock(UserDetail.class));
-            Assertions.assertEquals(0, modules.getPaths().get(0).getFields().size());
+            modulesService.beforeSave(modules,mock(UserDetail.class));
+            Assertions.assertEquals(0,modules.getPaths().get(0).getFields().size());
         }
     }
 
     @Nested
-    class saveTest {
+    class saveTest{
         private ModulesDto modulesDto;
         private UserDetail userDetail;
 
         @BeforeEach
-        void beforeEach() {
+        void beforeEach(){
             modulesService = spy(modulesService);
             modulesDto = mock(ModulesDto.class);
             userDetail = mock(UserDetail.class);
@@ -149,37 +149,37 @@ class ModulesServiceTest {
 
         @Test
         @DisplayName("test save method when name existed")
-        void test1() {
+        void test1(){
             String name = "test";
             when(modulesDto.getName()).thenReturn(name);
             List<ModulesDto> modules = new ArrayList<>();
             modules.add(mock(ModulesDto.class));
             modules.add(mock(ModulesDto.class));
             doReturn(modules).when(modulesService).findByName(name);
-            assertThrows(BizException.class, () -> modulesService.save(modulesDto, userDetail));
+            assertThrows(BizException.class, ()->modulesService.save(modulesDto, userDetail));
         }
 
         @Test
         @DisplayName("test save method normal")
-        void test2() {
+        void test2(){
             String name = "test";
             when(modulesDto.getName()).thenReturn(name);
             List<ModulesDto> modules = new ArrayList<>();
             doReturn(modules).when(modulesService).findByName(name);
             doCallRealMethod().when(modulesService).save(modulesDto, userDetail);
-            when(modulesRepository.save(any(), any())).thenReturn(mock(ModulesEntity.class));
+            when(modulesRepository.save(any(),any())).thenReturn(mock(ModulesEntity.class));
             modulesService.save(modulesDto, userDetail);
-            verify(modulesRepository).save(any(), any());
+            verify(modulesRepository).save(any(),any());
         }
     }
 
     @Nested
-    class batchUpdateModuleByListTest {
+    class batchUpdateModuleByListTest{
         private List<ModulesDto> modulesDtos;
         private UserDetail userDetail;
 
         @Test
-        void testBatchUpdateModuleByListNormal() {
+        void testBatchUpdateModuleByListNormal(){
             modulesService = spy(modulesService);
             modulesDtos = new ArrayList<>();
             ModulesDto modulesDto = mock(ModulesDto.class);
@@ -187,7 +187,7 @@ class ModulesServiceTest {
             userDetail = mock(UserDetail.class);
             doReturn(modulesDto).when(modulesService).updateModuleById(modulesDto, userDetail);
             modulesService.batchUpdateModuleByList(modulesDtos, userDetail);
-            verify(modulesService, new Times(1)).updateModuleById(modulesDto, userDetail);
+            verify(modulesService,new Times(1)).updateModuleById(modulesDto, userDetail);
         }
     }
 
