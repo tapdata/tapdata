@@ -3172,6 +3172,27 @@ class TaskServiceImplTest {
                 verify(taskService, times(1)).start(taskDtos.get(0), user, "11");
             }
         }
+        @Test
+        void testBatchStartWithNodeInstanceIdInvalidEx() {
+            try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                taskEntity.setCrontabExpressionFlag(true);
+                Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
+                query.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
+                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setRunningNum(2);
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setTotalLimit(2);
+                when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
+                MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+                taskService.setMonitoringLogsService(monitoringLogsService);
+                doThrow(new BizException("License.NodeInstanceIdInvalid","test exception")).when(taskService).start(taskDtos.get(0), user, "11");
+                assertThrows(BizException.class, ()->taskService.batchStart(ids, user, null, null));
+                verify(taskService, times(1)).start(taskDtos.get(0), user, "11");
+            }
+        }
     }
 
     @Nested
