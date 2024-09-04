@@ -8,7 +8,7 @@ import java.util.Map;
 @Data
 public class RankListsVo {
     //失败率排行
-    List<Map> items;
+    List<Map<String, Object>> items;
     Long total;
     Number totalPage;
 }
