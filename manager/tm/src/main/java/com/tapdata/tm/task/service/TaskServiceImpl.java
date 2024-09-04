@@ -1426,6 +1426,12 @@ public class TaskServiceImpl extends TaskService{
                 }
                 start(task, user, "11");
             } catch (Exception e) {
+                if (e instanceof BizException) {
+                    if (("License.NodeInstanceIdInvalid".equals(((BizException)e).getErrorCode()))
+                            || "Task.LicenseScheduleLimit".equals(((BizException)e).getErrorCode())) {
+                        throw e;
+                    }
+                }
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
                 monitoringLogsService.startTaskErrorLog(task, user, e, Level.ERROR);
                 if (e instanceof BizException) {
