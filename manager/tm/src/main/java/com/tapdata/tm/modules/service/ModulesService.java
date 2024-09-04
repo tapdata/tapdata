@@ -818,7 +818,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (StringUtils.isBlank(userId)) {
 			return previewVo;
 		}
-		ApiCallStatsDto apiCallStatsDto = apiCallStatsService.aggregateByUserId(userId);
+		ApiCallStatsDto apiCallStatsDto = apiCallStatsService.aggregateByUserId(userDetail.isRoot() ? "" : userId);
 		Query query = Query.query(Criteria.where("is_deleted").ne(true));
 		if (!userDetail.isRoot()) {
 			query.addCriteria(Criteria.where("user_id").is(userId));
@@ -1051,10 +1051,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			Query applicationQuery = Query.query(Criteria.where("id").in(clientIds));
 			applicationQuery.fields().include("id", "name");
 			List<ApplicationDto> applicationDtoList = applicationService.findAll(applicationQuery);
-			applicationDtoList.forEach(applicationDto -> apiDetailVo.getClientNameList().add(new HashMap<String, String>() {{
-				put("id", applicationDto.getId().toString());
-				put("name", applicationDto.getName());
-			}}));
+			applicationDtoList.forEach(applicationDto -> {
+				Map<String, String> clientNameMap = new HashMap<>();
+				clientNameMap.put("id", applicationDto.getId().toString());
+				clientNameMap.put("name", applicationDto.getName());
+				apiDetailVo.getClientNameList().add(clientNameMap);
+			});
 		}
 
 		Integer guanluary = apiDetailParam.getGuanluary();

@@ -138,7 +138,8 @@ public class ApiCallStatsScheduler {
 						log.debug("Upsert one Api Call Stats completed, filter: {}, cost: {} ms, progress: {}/{}, stats data: {}", upsertQuery.getQueryObject().toJson(), loopCost, traverseStep, modulesList.size(), newApiCallStatsDto);
 					}
 				} catch (Exception e) {
-					log.error("Upsert one Api Call Stats failed, query: {}, data: {}, will skip it, error: {}", upsertQuery.getQueryObject().toJson(), newApiCallStatsDto, e.getMessage(), e);
+					log.error("Upsert one Api Call Stats failed, query: {}, data: {}, will skip it, error: {}",
+							null != upsertQuery ? upsertQuery.getQueryObject().toJson() : "null", newApiCallStatsDto, e.getMessage(), e);
 				}
 			}
 		}

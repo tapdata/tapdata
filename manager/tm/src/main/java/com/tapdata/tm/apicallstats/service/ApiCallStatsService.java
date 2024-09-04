@@ -8,6 +8,7 @@ import com.tapdata.tm.apicallstats.repository.ApiCallStatsRepository;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.utils.DocumentUtils;
 import com.tapdata.tm.utils.EntityUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -106,7 +107,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 				if (callTotalCount instanceof List) {
 					tempList = (List<?>) callTotalCount;
 					if (!tempList.isEmpty()) {
-						apiCallStatsDto.setCallTotalCount(((Document) tempList.get(0)).getLong("data"));
+						apiCallStatsDto.setCallTotalCount(DocumentUtils.getLong((Document) tempList.get(0), "data"));
 					}
 				}
 				// transferDataTotalBytes
@@ -114,7 +115,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 				if (transferDataTotalBytes instanceof List) {
 					tempList = (List<?>) transferDataTotalBytes;
 					if (!tempList.isEmpty()) {
-						apiCallStatsDto.setTransferDataTotalBytes(((Document) tempList.get(0)).getLong("data"));
+						apiCallStatsDto.setTransferDataTotalBytes(DocumentUtils.getLong((Document) tempList.get(0), "data"));
 					}
 				}
 				// callAlarmTotalCount
@@ -122,7 +123,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 				if (callAlarmTotalCount instanceof List) {
 					tempList = (List<?>) callAlarmTotalCount;
 					if (!tempList.isEmpty()) {
-						apiCallStatsDto.setCallAlarmTotalCount(((Document) tempList.get(0)).getLong("data"));
+						apiCallStatsDto.setCallAlarmTotalCount(DocumentUtils.getLong((Document) tempList.get(0), "data"));
 					}
 				}
 				// responseDataRowTotalCount
@@ -130,7 +131,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 				if (responseDataRowTotalCount instanceof List) {
 					tempList = (List<?>) responseDataRowTotalCount;
 					if (!tempList.isEmpty()) {
-						apiCallStatsDto.setResponseDataRowTotalCount(((Document) tempList.get(0)).getLong("data"));
+						apiCallStatsDto.setResponseDataRowTotalCount(DocumentUtils.getLong((Document) tempList.get(0), "data"));
 					}
 				}
 				// totalResponseTime
@@ -138,7 +139,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 				if (totalResponseTime instanceof List) {
 					tempList = (List<?>) totalResponseTime;
 					if (!tempList.isEmpty()) {
-						apiCallStatsDto.setTotalResponseTime(((Document) tempList.get(0)).getLong("data"));
+						apiCallStatsDto.setTotalResponseTime(DocumentUtils.getLong((Document) tempList.get(0), "data"));
 					}
 				}
 				// alarmApiTotalCount
@@ -146,7 +147,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 				if (alarmApiTotalCount instanceof List) {
 					tempList = (List<?>) alarmApiTotalCount;
 					if (!tempList.isEmpty()) {
-						apiCallStatsDto.setAlarmApiTotalCount(((Document) tempList.get(0)).getLong("data"));
+						apiCallStatsDto.setAlarmApiTotalCount(DocumentUtils.getLong((Document) tempList.get(0), "data"));
 					}
 				}
 			}
