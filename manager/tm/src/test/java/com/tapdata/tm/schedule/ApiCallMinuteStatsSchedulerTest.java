@@ -117,5 +117,59 @@ class ApiCallMinuteStatsSchedulerTest {
 
 			apiCallMinuteStatsScheduler.schedule();
 		}
+
+		@Test
+		@DisplayName("test modules oid is null")
+		void test2() {
+			modulesList = new ArrayList<ModulesDto>() {{
+				add(new ModulesDto());
+			}};
+			when(modulesService.findAll(any(Query.class))).thenReturn(modulesList);
+
+			apiCallMinuteStatsScheduler.schedule();
+
+			verify(apiCallService, never()).aggregateByAllPathId(any(), any());
+		}
+
+		@Test
+		@DisplayName("test last api call id is blank")
+		void test3() {
+			when(modulesService.findAll(any(Query.class))).thenReturn(modulesList);
+			lastApiCallMinuteStatsDto.setLastApiCallId("");
+			when(apiCallMinuteStatsService.findOne(any(Query.class))).thenReturn(lastApiCallMinuteStatsDto);
+			when(apiCallService.aggregateMinuteByAllPathId(anyString(), any(), any(Date.class))).thenAnswer(invocationOnMock -> {
+				assertNull(invocationOnMock.getArgument(1));
+				return apiCallMinuteStatsDtoList;
+			});
+			apiCallMinuteStatsScheduler.schedule();
+
+			when(modulesService.findAll(any(Query.class))).thenReturn(modulesList);
+			lastApiCallMinuteStatsDto.setLastApiCallId("    ");
+			when(apiCallService.aggregateMinuteByAllPathId(anyString(), any(), any(Date.class))).thenAnswer(invocationOnMock -> {
+				assertNull(invocationOnMock.getArgument(1));
+				return apiCallMinuteStatsDtoList;
+			});
+			apiCallMinuteStatsScheduler.schedule();
+
+			when(modulesService.findAll(any(Query.class))).thenReturn(modulesList);
+			lastApiCallMinuteStatsDto.setLastApiCallId(null);
+			when(apiCallService.aggregateMinuteByAllPathId(anyString(), any(), any(Date.class))).thenAnswer(invocationOnMock -> {
+				assertNull(invocationOnMock.getArgument(1));
+				return apiCallMinuteStatsDtoList;
+			});
+			apiCallMinuteStatsScheduler.schedule();
+		}
+
+		@Test
+		@DisplayName("test last api call minute stats not exists")
+		void test4() {
+			when(modulesService.findAll(any(Query.class))).thenReturn(modulesList);
+			when(apiCallMinuteStatsService.findOne(any(Query.class))).thenReturn(null);
+			when(apiCallService.aggregateMinuteByAllPathId(anyString(), any(), any(Date.class))).thenAnswer(invocationOnMock -> {
+				assertNull(invocationOnMock.getArgument(1));
+				return apiCallMinuteStatsDtoList;
+			});
+			apiCallMinuteStatsScheduler.schedule();
+		}
 	}
 }
