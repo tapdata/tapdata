@@ -178,13 +178,13 @@ public class LogCollectorServiceImpl implements LogCollectorService {
     }
 
     @Override
-    public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user) {
+    public Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, String order, UserDetail user) {
         Page<ShareCdcTableInfo> shareCdcTableInfoPage = new Page<>();
         return shareCdcTableInfoPage;
     }
 
     @Override
-    public Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user) {
+    public Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, String order, UserDetail user) {
         throw new BizException("TapOssNonSupportFunctionException");
     }
 
