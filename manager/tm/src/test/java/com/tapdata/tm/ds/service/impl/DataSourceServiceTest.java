@@ -11,9 +11,11 @@ import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -28,8 +30,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+
 @ExtendWith(MockitoExtension.class)
 class DataSourceServiceTest {
     private DataSourceService dataSourceServiceUnderTest;
@@ -44,31 +46,35 @@ class DataSourceServiceTest {
         dataSourceServiceUnderTest = new DataSourceServiceImpl(dataSourceRepository);
         ReflectionTestUtils.setField(dataSourceServiceUnderTest,"dataSourceDefinitionService",dataSourceDefinitionService);
     }
-
+    @Nested
+    class updateConnectionOptionsTest{
+        private ObjectId id;
+        private DataSourceEntity dataSourceEntity;
+        private UserDetail user;
+        private Query query;
+        private ConnectionOptions options;
+        @BeforeEach
+        void beforeEach(){
+            id = new ObjectId(new GregorianCalendar(2020, Calendar.JANUARY, 1).getTime(), 0);
+            options = new ConnectionOptions();
+            options.setDbVersion("dbVersion");
+            options.setTimeDifference(1000L);
+            user = new UserDetail("userId", "customerId", "username", "password", "customerType",
+                    "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+            Criteria criteria = Criteria.where("_id").is(id);
+            query = new Query(criteria);
+            query.fields().include("_id", "database_type", "encryptConfig");
+            dataSourceEntity = new DataSourceEntity();
+            dataSourceEntity.setDb_version("test");
+            dataSourceEntity.setDatabase_type("mongo");
+        }
     @Test
     void testUpdateConnectionOptions() {
-        final ObjectId id = new ObjectId(new GregorianCalendar(2020, Calendar.JANUARY, 1).getTime(), 0);
-        final ConnectionOptions options = new ConnectionOptions();
-        options.setDbVersion("dbVersion");
-        options.setTimeDifference(1000L);
-        Map<String, String> datasourceInstanceInfo = new HashMap<>();
-        datasourceInstanceInfo.put("id","7e62e76bb5701454987485b28a70eecc");
-        datasourceInstanceInfo.put("tag","127.0.0.1:3306");
-        options.setDatasourceInstanceInfo(datasourceInstanceInfo);
-        final UserDetail user = new UserDetail("userId", "customerId", "username", "password", "customerType",
-                "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
-        Criteria criteria = Criteria.where("_id").is(id);
-        Query query = new Query(criteria);
-        query.fields().include("_id", "database_type");
-        DataSourceEntity dataSourceEntity = new DataSourceEntity();
-        dataSourceEntity.setDb_version("test");
-        dataSourceEntity.setDatabase_type("mongo");
         DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
         definitionDto.setCapabilities(Arrays.asList(new Capability("id")));
         Update expect = new Update();
         expect.set("db_version","dbVersion");
         expect.set("timeDifference",1000L);
-        expect.set("datasourceInstanceInfo",datasourceInstanceInfo);
         expect.set("capabilities",definitionDto.getCapabilities());
         try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
             serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
@@ -81,6 +87,34 @@ class DataSourceServiceTest {
             });
             dataSourceServiceUnderTest.updateConnectionOptions(id, options, user);
         }
+    }
+    @Test
+    void testUpdateConnectionOptionsWithInstanceInfo() {
+        Map<String, String> datasourceInstanceInfo = new HashMap<>();
+        datasourceInstanceInfo.put("id","7e62e76bb5701454987485b28a70eecc");
+        datasourceInstanceInfo.put("tag","127.0.0.1:3306");
+        options.setDatasourceInstanceInfo(datasourceInstanceInfo);
+        Map<String, Object> config = new HashMap<>();
+        config.put("datasourceInstanceId","7e62e76bb5701454987485b28a70eecc");
+        dataSourceEntity.setConfig(config);
+        DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+        definitionDto.setCapabilities(Arrays.asList(new Capability("id")));
+       try (MockedStatic<DataPermissionService> serviceMockedStatic = Mockito.mockStatic(DataPermissionService.class)){
+            serviceMockedStatic.when(DataPermissionService::isCloud).thenReturn(true);
+            when(dataSourceRepository.findOne(query,user)).thenReturn(Optional.of(dataSourceEntity));
+            when(dataSourceDefinitionService.getByDataSourceType(dataSourceEntity.getDatabase_type(),user)).thenReturn(definitionDto);
+            when(dataSourceRepository.updateFirstNotChangeLast(any(),any(),any())).thenAnswer(invocationOnMock -> {
+                Update result = invocationOnMock.getArgument(1, Update.class);
+                Document updateObject = result.getUpdateObject();
+                Document set = (Document) updateObject.get("$set");
+                Assertions.assertNotNull(set.get("datasourceInstanceTag"));
+                Assertions.assertNotNull(set.get("encryptConfig"));
+                return null;
+            });
+            doCallRealMethod().when(dataSourceRepository).encryptConfig(any(DataSourceEntity.class));
+            dataSourceServiceUnderTest.updateConnectionOptions(id, options, user);
+        }
+    }
     }
 
     @Test

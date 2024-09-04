@@ -1892,7 +1892,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         Criteria criteria = Criteria.where("_id").is(id);
         Query query = new Query(criteria);
-        query.fields().include("_id", "database_type");
+        query.fields().include("_id", "database_type", "encryptConfig");
         DataSourceConnectionDto connectionDto = findOne(query, user);
         if (connectionDto == null) {
             return;
@@ -1939,7 +1939,16 @@ public class DataSourceServiceImpl extends DataSourceService{
             update.set("timeDifference",options.getTimeDifference());
         }
         if (null != options.getDatasourceInstanceInfo()){
-            update.set("datasourceInstanceInfo",options.getDatasourceInstanceInfo());
+            if (StringUtils.isNotBlank(options.getDatasourceInstanceInfo().get("tag"))) {
+                update.set("datasourceInstanceTag",options.getDatasourceInstanceInfo().get("tag"));
+            }
+            if (StringUtils.isNotBlank(options.getDatasourceInstanceInfo().get("id"))) {
+                Map<String, Object> config = connectionDto.getConfig();
+                config.put("datasourceInstanceId", options.getDatasourceInstanceInfo().get("id"));
+                DataSourceEntity dataSourceEntity = convertToEntity(DataSourceEntity.class, connectionDto);
+                repository.encryptConfig(dataSourceEntity);
+                update.set("encryptConfig", dataSourceEntity.getEncryptConfig());
+            }
         }
 
         updateByIdNotChangeLast(id, update, user);

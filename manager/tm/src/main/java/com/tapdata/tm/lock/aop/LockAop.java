@@ -37,41 +37,46 @@ public class LockAop {
 	 * @throws Throwable
 	 */
 	@Around("(@annotation(com.tapdata.tm.lock.annotation.Lock)) && execution(* com.tapdata.tm.*.service..*.*(..))")
-	public Object lock(ProceedingJoinPoint pjp) throws Throwable {
+	public Object lock(ProceedingJoinPoint pjp) throws Throwable {/**/
 		MethodSignature methodSignature = (MethodSignature) pjp.getSignature();
 		Lock annotation = methodSignature.getMethod().getAnnotation(Lock.class);
 		//锁的key 一般为taskId等
 		String value = annotation.value();
+		String customValue = annotation.customValue();
 		String type = annotation.type().name();
 		//锁设置的过期时间
 		int expireSeconds = annotation.expireSeconds();
 		//获取锁失败后的重试等待时间
 		int sleepMillis = annotation.sleepMillis();
 
-		if (StringUtils.isBlank(value)) {
+		if (StringUtils.isBlank(value) && StringUtils.isBlank(customValue)) {
 			throw new BizException("SystemError");
 		}
-
-		List<String> values = Arrays.asList(value.split("\\."));
-		String param = values.get(0);
-		String [] parameters = methodSignature.getParameterNames();
-		int paramIndex = -1;
-		for (int i = 0; i < parameters.length; i++) {
-			if (param.equals(parameters[i])) {
-				paramIndex = i;
-				break;
+		Object obj;
+		if (StringUtils.isNotBlank(value)) {
+			List<String> values = Arrays.asList(value.split("\\."));
+			String param = values.get(0);
+			String [] parameters = methodSignature.getParameterNames();
+			int paramIndex = -1;
+			for (int i = 0; i < parameters.length; i++) {
+				if (param.equals(parameters[i])) {
+					paramIndex = i;
+					break;
+				}
 			}
-		}
-		if (paramIndex == -1) {
-			throw new BizException("SystemError");
-		}
-		Object[] args = pjp.getArgs();
-		Object obj = args[paramIndex];
+			if (paramIndex == -1) {
+				throw new BizException("SystemError");
+			}
+			Object[] args = pjp.getArgs();
+			obj = args[paramIndex];
 
-		//如果是类似record.id的主机value值，需要一步一步的获取属性
-		for (int i = 1; i < values.size(); i++) {
-			Map<String, Object> objectMap = bean2Map(obj);
-			obj = objectMap.get(values.get(i));
+			//如果是类似record.id的主机value值，需要一步一步的获取属性
+			for (int i = 1; i < values.size(); i++) {
+				Map<String, Object> objectMap = bean2Map(obj);
+				obj = objectMap.get(values.get(i));
+			}
+		} else {
+			obj = customValue;
 		}
 
 		String key = obj instanceof String ? (String) obj : obj.toString();

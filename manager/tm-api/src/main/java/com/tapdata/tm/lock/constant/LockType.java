@@ -19,6 +19,6 @@ public enum LockType {
     /** 启动CHECK_ENGINE_VALID任务 */
     CHECK_ENGINE_VALID,
     /** 添加通道授权*/
-    START_PIPELINE_GRANT
+    PIPELINE_LIMIT
     ;
 }
