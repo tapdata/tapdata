@@ -14,81 +14,89 @@ import org.junit.jupiter.api.Test;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.lang.reflect.Method;
-
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 public class LockAopTest {
     private LockAop lockAop;
     private LockService lockService;
+
     @BeforeEach
-    void beforeEach(){
+    void beforeEach() {
         lockAop = mock(LockAop.class);
         lockService = mock(LockService.class);
-        ReflectionTestUtils.setField(lockAop,"lockService",lockService);
+        ReflectionTestUtils.setField(lockAop, "lockService", lockService);
     }
+
     @Nested
-    class lockTest{
-        private Lock annotation;
+    class lockTest {
         private ProceedingJoinPoint pjp;
         private MethodSignature methodSignature;
+
         @BeforeEach
         @SneakyThrows
-        void beforeEach(){
+        void beforeEach() {
             pjp = mock(ProceedingJoinPoint.class);
             methodSignature = mock(MethodSignature.class);
-            Method method = mock(Method.class);
-            when(methodSignature.getMethod()).thenReturn(method);
             String[] parameters = {"taskId"};
             when(methodSignature.getParameterNames()).thenReturn(parameters);
-            annotation = spy(Lock.class);
-            when(method.getAnnotation(Lock.class)).thenReturn(annotation);
-            when((MethodSignature)pjp.getSignature()).thenReturn(methodSignature);
+            when((MethodSignature) pjp.getSignature()).thenReturn(methodSignature);
             when(pjp.getArgs()).thenReturn(parameters);
             doCallRealMethod().when(lockAop).lock(pjp);
         }
+
+        @Lock(value = "taskId", type = LockType.PIPELINE_LIMIT)
+        void test1Method() {
+        }
+
         @Test
         @SneakyThrows
         @DisplayName("test lock method when value is not empty")
-        void test1(){
-            doReturn("taskId").when(annotation).value();
-            doReturn(LockType.PIPELINE_LIMIT).when(annotation).type();
-            when(lockService.lock("PIPELINE_LIMIT_taskId",0,0)).thenReturn(true);
+        void test1() {
+            when(methodSignature.getMethod()).thenReturn(getClass().getDeclaredMethod("test1Method"));
+            when(lockService.lock("PIPELINE_LIMIT_taskId", 10, 50)).thenReturn(true);
             lockAop.lock(pjp);
-            verify(lockService,new Times(1)).lock("PIPELINE_LIMIT_taskId",0,0);
+            verify(lockService, new Times(1)).lock("PIPELINE_LIMIT_taskId", 10, 50);
         }
+
+        @Lock(value = "", customValue = "test", type = LockType.PIPELINE_LIMIT)
+        void test2Method() {
+        }
+
         @Test
         @SneakyThrows
         @DisplayName("test lock method when custom is not empty")
-        void test2(){
-            doReturn("").when(annotation).value();
-            doReturn("test").when(annotation).customValue();
-            doReturn(LockType.PIPELINE_LIMIT).when(annotation).type();
-            when(lockService.lock("PIPELINE_LIMIT_test",0,0)).thenReturn(true);
+        void test2() {
+            when(methodSignature.getMethod()).thenReturn(getClass().getDeclaredMethod("test2Method"));
+            when(lockService.lock("PIPELINE_LIMIT_test", 10, 50)).thenReturn(true);
             lockAop.lock(pjp);
-            verify(lockService,new Times(1)).lock("PIPELINE_LIMIT_test",0,0);
+            verify(lockService, new Times(1)).lock("PIPELINE_LIMIT_test", 10, 50);
+        }
+
+        @Lock(value = "", customValue = "", type = LockType.PIPELINE_LIMIT)
+        void test3Method() {
         }
         @Test
         @SneakyThrows
         @DisplayName("test lock method when custom and value is empty")
-        void test3(){
-            doReturn("").when(annotation).value();
-            doReturn("").when(annotation).customValue();
-            doReturn(LockType.PIPELINE_LIMIT).when(annotation).type();
-            assertThrows(BizException.class, ()->lockAop.lock(pjp));
-            verify(lockService,new Times(0)).lock(anyString(),anyInt(),anyInt());
+        void test3() {
+            when(methodSignature.getMethod()).thenReturn(getClass().getDeclaredMethod("test3Method"));
+            assertThrows(BizException.class, () -> lockAop.lock(pjp));
+            verify(lockService, new Times(0)).lock(anyString(), anyInt(), anyInt());
+        }
+
+        @Lock(value = "taskId", customValue = "", type = LockType.PIPELINE_LIMIT)
+        void test4Method() {
         }
         @Test
         @SneakyThrows
         @DisplayName("test lock method when paramIndex is -1")
-        void test4(){
-            doReturn("taskId").when(annotation).value();
+        void test4() {
+            when(methodSignature.getMethod()).thenReturn(getClass().getDeclaredMethod("test4Method"));
             String[] parameters = {};
             when(methodSignature.getParameterNames()).thenReturn(parameters);
-            doReturn(LockType.PIPELINE_LIMIT).when(annotation).type();
-            assertThrows(BizException.class, ()->lockAop.lock(pjp));
-            verify(lockService,new Times(0)).lock(anyString(),anyInt(),anyInt());
+            assertThrows(BizException.class, () -> lockAop.lock(pjp));
+            verify(lockService, new Times(0)).lock(anyString(), anyInt(), anyInt());
         }
     }
 }
