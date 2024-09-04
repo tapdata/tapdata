@@ -26,4 +26,7 @@ public @interface Lock {
     int expireSeconds() default 10;
     /** 循环等待睡眠时间 单位毫秒*/
     int sleepMillis() default 50;
+
+    /** 锁的key 可以不是方法参数中的值， 如@Lock("task-lock")*/
+    String customValue() default "";
 }

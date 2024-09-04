@@ -306,9 +306,10 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
 
         private String multiConnectionInstanceId;
         private List<String> namespace;
+        private String datasourceInstanceTag;
 
 
-        /**
+    /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除
          *
          */
