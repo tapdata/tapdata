@@ -125,7 +125,7 @@ class DataSourceServiceTest {
                 "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
         Criteria criteria = Criteria.where("_id").is(id);
         Query query = new Query(criteria);
-        query.fields().include("_id", "database_type");
+        query.fields().include("_id", "database_type", "encryptConfig");
         DataSourceEntity dataSourceEntity = new DataSourceEntity();
         dataSourceEntity.setDb_version("test");
         dataSourceEntity.setDatabase_type("mongo");
