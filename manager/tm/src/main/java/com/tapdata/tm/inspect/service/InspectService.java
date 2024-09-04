@@ -518,7 +518,6 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
      * @return
      */
     public InspectDto updateInspectByWhere(Where where, InspectDto updateDto, UserDetail user) {
-				supplementAlarm(updateDto, user);
         InspectDto retDto = null;
         if (InspectStatusEnum.SCHEDULING.getValue().equals(updateDto.getStatus())) {
             log.info("用户点击了执行校验");
