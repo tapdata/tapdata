@@ -413,12 +413,16 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 							break;
 						case "RENAME":
 							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> {
-								ttf.remove(operation.getField());
-								ttf.add(operation.getOperand());
+								boolean remove = ttf.remove(operation.getField());
+								if (remove) {
+									ttf.add(operation.getOperand());
+								}
 							});
 							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> {
-								ttf.remove(operation.getField());
-								ttf.add(operation.getOperand());
+								boolean remove = ttf.remove(operation.getField());
+								if (remove) {
+									ttf.add(operation.getOperand());
+								}
 							});
 							break;
 						case "REMOVE":
