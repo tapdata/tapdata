@@ -2330,8 +2330,8 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	@DisplayName("Method buildConstructIMap test")
-	class buildConstructIMapTest{
+	@DisplayName("Method checkBuildConstructIMap test")
+	class checkBuildConstructIMapTest{
 		@Test
 		void test_createNewHashConstructIMap(){
 			try(MockedStatic<ExternalStorageUtil> utilMockedStatic = mockStatic(ExternalStorageUtil.class);
@@ -2345,7 +2345,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				when(map.getName()).thenReturn(cacheNameHash);
 				when(hazelcastInstance.getMap(cacheNameHash)).thenReturn(map);
 				utilMockedStatic.when(()->ExternalStorageUtil.initHZMapStorage(any(),any(),any(),any())).thenAnswer(invocation -> null);
-				ConstructIMap<Document>  result = HazelcastMergeNode.buildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
+				ConstructIMap<Document>  result = HazelcastMergeNode.checkBuildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
 				Assertions.assertEquals(cacheNameHash,result.getName());
 			}
 		}
@@ -2355,7 +2355,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			try(MockedStatic<ExternalStorageUtil> utilMockedStatic = mockStatic(ExternalStorageUtil.class)){
 				HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
 				utilMockedStatic.when(()->ExternalStorageUtil.initHZMapStorage(any(),any(),any(),any())).thenThrow(RuntimeException.class);
-				Assertions.assertThrows(TapCodeException.class,()-> HazelcastMergeNode.buildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class)));
+				Assertions.assertThrows(TapCodeException.class,()-> HazelcastMergeNode.checkBuildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class)));
 			}
 		}
 
@@ -2372,7 +2372,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				when(map.getName()).thenReturn(cacheNameHash);
 				when(hazelcastInstance.getMap(cacheNameHash)).thenReturn(map);
 				utilMockedStatic.when(()->ExternalStorageUtil.initHZMapStorage(any(),any(),any(),any())).thenAnswer(invocation -> null).thenThrow(RuntimeException.class);
-				ConstructIMap<Document>  result = HazelcastMergeNode.buildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
+				ConstructIMap<Document>  result = HazelcastMergeNode.checkBuildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
 				Assertions.assertEquals(cacheNameHash,result.getName());
 			}
 		}
@@ -2394,7 +2394,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				when(map2.getName()).thenReturn("test");
 				when(hazelcastInstance.getMap("test")).thenReturn(map2);
 				utilMockedStatic.when(()->ExternalStorageUtil.initHZMapStorage(any(),any(),any(),any())).thenAnswer(invocation -> null);
-				ConstructIMap<Document>  result = HazelcastMergeNode.buildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
+				ConstructIMap<Document>  result = HazelcastMergeNode.checkBuildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
 				Assertions.assertEquals("test",result.getName());
 			}
 		}
@@ -2416,7 +2416,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				when(map2.getName()).thenReturn("test");
 				when(hazelcastInstance.getMap("test")).thenReturn(map2);
 				utilMockedStatic.when(()->ExternalStorageUtil.initHZMapStorage(any(),any(),any(),any())).thenAnswer(invocation -> null);
-				ConstructIMap<Document>  result = HazelcastMergeNode.buildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
+				ConstructIMap<Document>  result = HazelcastMergeNode.checkBuildConstructIMap(hazelcastInstance,"test","test",mock(ExternalStorageDto.class));
 				Assertions.assertEquals(cacheNameHash,result.getName());
 			}
 		}

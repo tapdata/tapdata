@@ -494,7 +494,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				}
 				int mergeCacheInMemSize = CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE);
 				ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(mergeCacheInMemSize);
-				ConstructIMap<Document> hazelcastConstruct = buildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
+				ConstructIMap<Document> hazelcastConstruct = checkBuildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
 				obsLogger.info("Create merge cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 			}
@@ -548,7 +548,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 		int inMemSize = CommonUtils.getPropertyInt(UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE);
 		ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(inMemSize);
-		ConstructIMap<Document> constructIMap = buildConstructIMap(jetContext.hazelcastInstance(), String.join("_", TAG, UPDATE_JOIN_KEY_VALUE_CACHE_TABLE_SUFFIX), cacheName, externalStorageDtoCopy);
+		ConstructIMap<Document> constructIMap = buildConstructIMap(jetContext.hazelcastInstance(), String.join("_", TAG, UPDATE_JOIN_KEY_VALUE_CACHE_TABLE_SUFFIX), String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 		obsLogger.info("Create check join key value modify cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 		this.checkJoinKeyUpdateCacheMap.put(id, constructIMap);
 		if (constructIMap.isEmpty()) {
@@ -770,34 +770,39 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return externalStorageDtoCopy;
 	}
 
-	protected static ConstructIMap<Document> buildConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String cacheName, ExternalStorageDto externalStorageDtoCopy) {
+	protected static ConstructIMap<Document> checkBuildConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String cacheName, ExternalStorageDto externalStorageDtoCopy){
 		ConstructIMap<Document> constructIMapV2;
 		try{
-			constructIMapV2 = new ConstructIMap<>(hazelcastInstance, referenceId, String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
+			constructIMapV2 = buildConstructIMap(hazelcastInstance, referenceId, String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 		}catch (Exception e) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.INIT_CACHE_FAILED, String.format("Cache name: %s", cacheName), e);
 		}
 		if(constructIMapV2.isEmpty()){
 			ConstructIMap<Document> constructIMapV1;
 			try {
-				constructIMapV1 = new ConstructIMap<>(hazelcastInstance, referenceId, cacheName, externalStorageDtoCopy);
+				constructIMapV1 = buildConstructIMap(hazelcastInstance, referenceId, cacheName, externalStorageDtoCopy);
 			} catch (Exception e) {
 				return constructIMapV2;
 			}
-            if (!constructIMapV1.isEmpty()) {
-                try {
-                    constructIMapV2.clear();
-                    constructIMapV2.destroy();
-                } catch (Exception e) {
-                }
+			if (!constructIMapV1.isEmpty()) {
+				try {
+					constructIMapV2.clear();
+					constructIMapV2.destroy();
+				} catch (Exception e) {
+				}
 				return constructIMapV1;
-            } else {
-                return constructIMapV2;
-            }
+			} else {
+				return constructIMapV2;
+			}
 
-        }else {
+		}else {
 			return constructIMapV2;
 		}
+
+	}
+
+	protected static ConstructIMap<Document> buildConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String cacheName, ExternalStorageDto externalStorageDtoCopy) {
+		return new ConstructIMap<>(hazelcastInstance, referenceId, cacheName, externalStorageDtoCopy);
 	}
 
 	protected boolean isSourceHaveBefore(String id) {
@@ -1672,7 +1677,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		CommonUtils.handleAnyErrors((Consumer<Throwable> consumer) -> {
 			for (MergeTableProperties mergeTableProperty : mergeTableProperties) {
 				try {
-					ConstructIMap<Document> mergeCache = buildConstructIMap(hazelcastInstance, HazelcastMergeNode.class.getSimpleName(),
+					ConstructIMap<Document> mergeCache = checkBuildConstructIMap(hazelcastInstance, HazelcastMergeNode.class.getSimpleName(),
 							getMergeCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName()), externalStorageDto);
 					try {
 						mergeCache.clear();
@@ -1680,8 +1685,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					} catch (Exception e) {
 						throw new TapCodeException(TaskMergeProcessorExCode_16.CLEAR_AND_DESTROY_CACHE_FAILED, clearAndDestroyCacheErrorMessage(e, mergeCache), e);
 					}
-					ConstructIMap<Document> updateJoinKeyCache = buildConstructIMap(hazelcastInstance, String.join("_", TAG, UPDATE_JOIN_KEY_VALUE_CACHE_TABLE_SUFFIX),
-							getCheckUpdateJoinKeyValueCacheName(mergeTableProperty.getId()), externalStorageDto);
+					ConstructIMap<Document> updateJoinKeyCache = new ConstructIMap<>(hazelcastInstance, String.join("_", TAG, UPDATE_JOIN_KEY_VALUE_CACHE_TABLE_SUFFIX),
+							String.valueOf(getCheckUpdateJoinKeyValueCacheName(mergeTableProperty.getId()).hashCode()), externalStorageDto);
 					try {
 						updateJoinKeyCache.clear();
 						updateJoinKeyCache.destroy();
