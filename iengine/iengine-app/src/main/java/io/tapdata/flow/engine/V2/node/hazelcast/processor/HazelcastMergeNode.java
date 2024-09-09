@@ -988,7 +988,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return name;
 	}
 
-	private static String getCheckUpdateJoinKeyValueCacheName(String nodeId) {
+	protected static String getCheckUpdateJoinKeyValueCacheName(String nodeId) {
 		if (StringUtils.isBlank(nodeId)) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_NAME_FAILED_NODE_ID_CANNOT_NULL);
 		}

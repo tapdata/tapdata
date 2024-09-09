@@ -712,7 +712,6 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);
 			when(jetContext.hazelcastInstance()).thenReturn(hazelcastInstance);
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "jetContext", jetContext);
-			doReturn(constructIMap).when(mockHazelcastMergeNode).buildConstructIMap(eq(hazelcastInstance), anyString(), anyString(), any(ExternalStorageDto.class));
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "obsLogger", mockObsLogger);
 
 			mockHazelcastMergeNode.initFirstLevelIds();
@@ -724,26 +723,33 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		@SneakyThrows
 		@DisplayName("main process test")
 		void testMainProcess() {
-			mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap();
-
-			Object checkJoinKeyUpdateCacheMapObj = ReflectionTestUtils.getField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap");
-			assertInstanceOf(HashMap.class, checkJoinKeyUpdateCacheMapObj);
-			HashMap checkJoinKeyUpdateCacheMap = (HashMap) checkJoinKeyUpdateCacheMapObj;
-			assertEquals(1, checkJoinKeyUpdateCacheMap.size());
-			assertTrue(checkJoinKeyUpdateCacheMap.containsKey("2"));
-			Object constructIMapObj = checkJoinKeyUpdateCacheMap.get("2");
-			assertInstanceOf(ConstructIMap.class, constructIMapObj);
-			assertEquals(constructIMap, constructIMapObj);
+			try(MockedStatic<HazelcastMergeNode> hazelcastMergeNodeMockedStatic = mockStatic(HazelcastMergeNode.class)){
+				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.buildConstructIMap(any(), anyString(),anyString(),any())).thenReturn(constructIMap);
+				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.getCheckUpdateJoinKeyValueCacheName(any())).thenReturn("Merge_Test");
+				mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap();
+				Object checkJoinKeyUpdateCacheMapObj = ReflectionTestUtils.getField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap");
+				assertInstanceOf(HashMap.class, checkJoinKeyUpdateCacheMapObj);
+				HashMap checkJoinKeyUpdateCacheMap = (HashMap) checkJoinKeyUpdateCacheMapObj;
+				assertEquals(1, checkJoinKeyUpdateCacheMap.size());
+				assertTrue(checkJoinKeyUpdateCacheMap.containsKey("2"));
+				Object constructIMapObj = checkJoinKeyUpdateCacheMap.get("2");
+				assertInstanceOf(ConstructIMap.class, constructIMapObj);
+				assertEquals(constructIMap, constructIMapObj);
+			}
 		}
 
 		@Test
 		@DisplayName("when join key include pk")
 		void whenJoinKeyIncludePK() {
-			TapTable b = tapTableMap.get("b");
-			b.getNameFieldMap().get("b_id").primaryKeyPos(1);
-			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap());
-			assertEquals(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, tapCodeException.getCode());
-			assertNotNull(tapCodeException.getMessage());
+			try(MockedStatic<HazelcastMergeNode> hazelcastMergeNodeMockedStatic = mockStatic(HazelcastMergeNode.class)){
+				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.buildConstructIMap(any(), anyString(),anyString(),any())).thenReturn(constructIMap);
+				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.getCheckUpdateJoinKeyValueCacheName(any())).thenReturn("Merge_Test");
+				TapTable b = tapTableMap.get("b");
+				b.getNameFieldMap().get("b_id").primaryKeyPos(1);
+				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap());
+				assertEquals(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, tapCodeException.getCode());
+				assertNotNull(tapCodeException.getMessage());
+			}
 		}
 	}
 
