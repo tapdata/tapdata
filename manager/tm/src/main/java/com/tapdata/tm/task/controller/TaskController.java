@@ -188,7 +188,9 @@ public class TaskController extends BaseController {
 
         UserDetail userDetail;
         Where where = filter.getWhere();
-        if (where.containsKey("_id") || where.get("id") instanceof Map && !((Map) where.get("id")).containsKey("$in")) {
+        if (where.get("id") instanceof Map && ((Map) where.get("id")).containsKey("$in")) {
+            userDetail = getLoginUser();
+        } else if (where.containsKey("_id") || where.containsKey("id")) {
             Object objectId = where.get("_id");
             String taskId;
             if (objectId != null)
