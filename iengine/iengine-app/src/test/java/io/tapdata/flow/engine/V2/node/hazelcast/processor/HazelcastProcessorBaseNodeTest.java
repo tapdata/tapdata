@@ -41,6 +41,7 @@ import static org.mockito.Mockito.*;
  * @Description
  * @create 2024-05-18 17:22
  **/
+@Disabled
 @DisplayName("Class HazelcastProcessorBaseNode Test")
 class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 

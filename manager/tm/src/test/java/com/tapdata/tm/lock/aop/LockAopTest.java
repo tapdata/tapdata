@@ -59,7 +59,7 @@ public class LockAopTest {
             verify(lockService, new Times(1)).lock("PIPELINE_LIMIT_taskId", 10, 50);
         }
 
-        @Lock(value = "", customValue = "test", type = LockType.PIPELINE_LIMIT)
+        @Lock(value = "test", type = LockType.PIPELINE_LIMIT, valueType = Lock.CUSTOM)
         void test2Method() {
         }
 
@@ -73,7 +73,7 @@ public class LockAopTest {
             verify(lockService, new Times(1)).lock("PIPELINE_LIMIT_test", 10, 50);
         }
 
-        @Lock(value = "", customValue = "", type = LockType.PIPELINE_LIMIT)
+        @Lock(value = "", type = LockType.PIPELINE_LIMIT, valueType = Lock.CUSTOM)
         void test3Method() {
         }
         @Test
@@ -85,7 +85,7 @@ public class LockAopTest {
             verify(lockService, new Times(0)).lock(anyString(), anyInt(), anyInt());
         }
 
-        @Lock(value = "taskId", customValue = "", type = LockType.PIPELINE_LIMIT)
+        @Lock(value = "taskId", type = LockType.PIPELINE_LIMIT, valueType = Lock.CUSTOM)
         void test4Method() {
         }
         @Test

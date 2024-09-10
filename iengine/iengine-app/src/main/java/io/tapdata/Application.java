@@ -250,7 +250,7 @@ public class Application {
 	}
 
 	protected static void addRollingFileAppender(String tapdataWorkDir) {
-		logger.info("Get oem type from evn: {}", OEMReplaceUtil.oemType());
+		logger.info("Get application type from env: {}", OEMReplaceUtil.oemType());
 		Level defaultLogLevel = Level.INFO;
 		String debug = System.getenv("DEBUG");
 		if ("true".equalsIgnoreCase(debug)) {
