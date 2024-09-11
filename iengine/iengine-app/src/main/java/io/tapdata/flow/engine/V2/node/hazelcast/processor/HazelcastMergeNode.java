@@ -792,6 +792,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				}
 				return constructIMapV1;
 			} else {
+				try {
+					constructIMapV1.clear();
+					constructIMapV1.destroy();
+				} catch (Exception e) {
+				}
 				return constructIMapV2;
 			}
 
