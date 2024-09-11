@@ -109,7 +109,8 @@ public class SettingsServiceImpl implements SettingsService {
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
         String proxyHost = (String) collect.get("smtp.proxy.host");
-        String proxyPort = (String) collect.getOrDefault("smtp.proxy.port", "0");
+        String proxyPort = (String) collect.get("smtp.proxy.port");
+        proxyPort = StringUtils.isNotBlank(proxyPort) ? proxyPort : "0";
 
         AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
