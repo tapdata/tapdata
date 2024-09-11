@@ -977,22 +977,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events, SyncStage syncStage, Object offsetObj) {
 		int size = events.size();
 		List<TapdataEvent> tapdataEvents = new ArrayList<>(size + 1);
-		List<TapEvent> eventCache = new ArrayList<>();
 		for (int i = 0; i < size; i++) {
 			TapEvent tapEvent = events.get(i);
 			if (null == tapEvent.getTime()) {
 				throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
 			}
 			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
-			eventCache.add(tapEventCache);
 			boolean isLast = i == (size - 1);
-			TapdataEvent tapdataEvent;
-			tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
+			TapdataEvent tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
 			if (null == tapdataEvent) {
 				continue;
 			}
 			tapdataEvents.add(tapdataEvent);
 		}
+		tapdataEvents.add(new TapdataSourceBatchSplitEvent());
 		return tapdataEvents;
 	}
 
