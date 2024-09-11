@@ -7,11 +7,14 @@
 	<define name="HOSTNAME" class="com.tapdata.tm.config.CanonicalHostNamePropertyDefiner"/>
 
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-		<encoder>
-			<pattern>
-				%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
-			</pattern>
-		</encoder>
+<!--		<encoder>-->
+<!--			<pattern>-->
+<!--				%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n-->
+<!--			</pattern>-->
+<!--		</encoder>-->
+		<layout class="com.tapdata.tm.utils.CustomPatternLayout">
+			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%contextName] [%thread] %-5level %logger{36} - %msg%n</pattern>
+		</layout>
 	</appender>
 
 	<appender name="APP_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
@@ -24,9 +27,9 @@
 			</timeBasedFileNamingAndTriggeringPolicy>
 			<maxHistory>7</maxHistory>
 		</rollingPolicy>
-		<encoder>
+		<layout class="com.tapdata.tm.utils.CustomPatternLayout">
 			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%contextName] [%thread] %-5level %logger{36} - %msg%n</pattern>
-		</encoder>
+		</layout>
 	</appender>
 
 	<!-- 异步输出 -->

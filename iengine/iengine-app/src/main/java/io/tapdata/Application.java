@@ -17,6 +17,7 @@ import io.tapdata.common.JetExceptionFilter;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.log.CustomPatternLayout;
 import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -51,7 +52,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
-import javax.script.ScriptEngine;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -274,12 +275,11 @@ public class Application {
 			}
 		}
 		Application.logsPath = logsPath.toString();
-
+		CustomPatternLayout customPatternLayout = CustomPatternLayout.newBuilder()
+				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
+		PatternLayout patternLayout = PatternLayout.newBuilder().withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
 		LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
-		PatternLayout patternLayout = PatternLayout.newBuilder()
-				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
-				.build();
 
 		CompositeTriggeringPolicy compositeTriggeringPolicy = LogUtil.getCompositeTriggeringPolicy(DEFAULT_LOG_SAVE_SIZE);
 		String glob=getFileNameAfterOem("tapdata-agent-*.log.*.gz");
@@ -296,7 +296,7 @@ public class Application {
 				.setName(ROLLING_FILE_APPENDER)
 				.withFileName(logsPath + getFileNameAfterOem("/tapdata-agent.log"))
 				.withFilePattern(logsPath + getFileNameAfterOem("/tapdata-agent-%i.log.%d{yyyyMMdd}.gz"))
-				.setLayout(patternLayout)
+				.setLayout(customPatternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();

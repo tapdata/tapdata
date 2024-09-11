@@ -1,6 +1,7 @@
 package io.tapdata.observable.logging.appender;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.log.CustomPatternLayout;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.util.LogUtil;
@@ -98,7 +99,7 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		final Configuration config = ctx.getConfiguration();
-		PatternLayout patternLayout = PatternLayout.newBuilder()
+		CustomPatternLayout patternLayout = CustomPatternLayout.newBuilder()
 				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n")
 				.withConfiguration(config)
 				.build();
