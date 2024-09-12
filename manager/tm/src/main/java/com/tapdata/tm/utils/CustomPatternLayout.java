@@ -7,7 +7,6 @@ import java.util.Map;
 
 public class CustomPatternLayout extends PatternLayout {
     private Map<String, Object> oemConfigmap = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
-    ;
 
     @Override
     public String doLayout(ILoggingEvent event) {
@@ -16,5 +15,13 @@ public class CustomPatternLayout extends PatternLayout {
             return OEMReplaceUtil.replace(formatMessage, oemConfigmap);
         }
         return formatMessage;
+    }
+
+    public Map<String, Object> getOemConfigmap() {
+        return oemConfigmap;
+    }
+
+    public void setOemConfigmap(Map<String, Object> oemConfigmap) {
+        this.oemConfigmap = oemConfigmap;
     }
 }

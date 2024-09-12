@@ -22,6 +22,7 @@ import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.builders.appender.RollingFileAppenderBuilder;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,7 @@ import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.action.Action;
 import org.apache.logging.log4j.core.appender.rolling.action.DeleteAction;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.core.util.IOUtils;
 import org.springframework.boot.SpringApplication;
@@ -251,7 +253,8 @@ public class Application {
 	}
 
 	protected static void addRollingFileAppender(String tapdataWorkDir) {
-		logger.info("Get oem type from evn: {}", OEMReplaceUtil.oemType());
+		String oemType = OEMReplaceUtil.oemType();
+		logger.info("Get oem type from evn: {}", oemType);
 		Level defaultLogLevel = Level.INFO;
 		String debug = System.getenv("DEBUG");
 		if ("true".equalsIgnoreCase(debug)) {
@@ -275,9 +278,7 @@ public class Application {
 			}
 		}
 		Application.logsPath = logsPath.toString();
-		CustomPatternLayout customPatternLayout = CustomPatternLayout.newBuilder()
-				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
-		PatternLayout patternLayout = PatternLayout.newBuilder().withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
+
 		LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
 
@@ -292,14 +293,22 @@ public class Application {
 				.withConfig(config).build();
 
 		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
-		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
+
+		PatternLayout patternLayout = PatternLayout.newBuilder().withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
+		RollingFileAppender.Builder<?> rollingFileAppenderBuilder = RollingFileAppender.newBuilder()
 				.setName(ROLLING_FILE_APPENDER)
 				.withFileName(logsPath + getFileNameAfterOem("/tapdata-agent.log"))
 				.withFilePattern(logsPath + getFileNameAfterOem("/tapdata-agent-%i.log.%d{yyyyMMdd}.gz"))
-				.setLayout(customPatternLayout)
 				.withPolicy(compositeTriggeringPolicy)
-				.withStrategy(strategy)
-				.build();
+				.withStrategy(strategy);
+		if (null == oemType) {
+			rollingFileAppenderBuilder.setLayout(patternLayout);
+		} else {
+			CustomPatternLayout customPatternLayout = CustomPatternLayout.newBuilder()
+					.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
+			rollingFileAppenderBuilder.setLayout(customPatternLayout);
+		}
+		RollingFileAppender rollingFileAppender = rollingFileAppenderBuilder.build();
 		rollingFileAppender.addFilter(jetExceptionFilter);
 		config.addAppender(rollingFileAppender);
 		LoggerConfig rootLoggerConfig = config.getRootLogger();

@@ -3,6 +3,7 @@ package com.tapdata.tm.init;
 import cn.hutool.core.io.FileUtil;
 import com.tapdata.tm.init.scanners.JavaPatchScanner;
 import com.tapdata.tm.init.scanners.ScriptPatchScanner;
+import com.tapdata.tm.utils.OEMReplaceUtil;
 import com.tapdata.tm.verison.service.VersionService;
 import io.tapdata.utils.UnitTestUtils;
 import org.junit.jupiter.api.Assertions;
@@ -46,6 +47,22 @@ class PatchesRunnerTest {
             doReturn(Collections.emptyList()).when(spyPatchesRunner).scanPatches(any(), any(), any(), any(), any());
 
             try (MockedStatic<InitLogMap> initLogMapMockedStatic = mockStatic(InitLogMap.class)) {
+                initLogMapMockedStatic.when(() -> InitLogMap.complete(any())).then(invocation -> null);
+                Assertions.assertDoesNotThrow(() -> spyPatchesRunner.run(applicationArguments));
+                initLogMapMockedStatic.verify(() -> InitLogMap.complete(any()), times(1));
+            }
+        }
+        @Test
+        void testDAASLogOEM() {
+            UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "mongodbUri", mongodbUri);
+            UnitTestUtils.injectField(PatchesRunner.class, spyPatchesRunner, "productList", Collections.singletonList("idass"));
+            doReturn(Collections.emptyList()).when(spyPatchesRunner).scanPatches(any(), any(), any(), any(), any());
+
+            try (MockedStatic<InitLogMap> initLogMapMockedStatic = mockStatic(InitLogMap.class);
+
+//                 UnitTestUtils.injectField(InitLogMap.class,initLogMapMockedStatic,"log",);
+                 MockedStatic<OEMReplaceUtil> oem = org.mockito.Mockito.mockStatic(OEMReplaceUtil.class)) {
+                oem.when(() -> OEMReplaceUtil.oemType()).thenReturn("app");
                 initLogMapMockedStatic.when(() -> InitLogMap.complete(any())).then(invocation -> null);
                 Assertions.assertDoesNotThrow(() -> spyPatchesRunner.run(applicationArguments));
                 initLogMapMockedStatic.verify(() -> InitLogMap.complete(any()), times(1));
