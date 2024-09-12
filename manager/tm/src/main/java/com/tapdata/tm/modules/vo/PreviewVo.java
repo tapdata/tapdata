@@ -14,5 +14,5 @@ public class PreviewVo {
     private Long visitTotalLine = 0L;
     private Long transmitTotal = 0L;
     private Long warningApiCount = 0L;
-
+    private Long lastUpdAt = 0L;
 }
