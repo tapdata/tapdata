@@ -21,6 +21,7 @@ import io.tapdata.log.CustomPatternLayout;
 import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -298,7 +299,8 @@ public class Application {
 				.withFilePattern(logsPath + getFileNameAfterOem("/tapdata-agent-%i.log.%d{yyyyMMdd}.gz"))
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy);
-		if (null == oemType) {
+		Map<String, Object> oemConfigMap = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
+		if (MapUtils.isEmpty(oemConfigMap)) {
 			rollingFileAppenderBuilder.setLayout(patternLayout);
 		} else {
 			CustomPatternLayout customPatternLayout = CustomPatternLayout.newBuilder()

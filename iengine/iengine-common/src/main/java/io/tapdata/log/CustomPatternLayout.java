@@ -415,6 +415,7 @@ public final class CustomPatternLayout extends AbstractStringLayout {
 
         private final PatternSelector patternSelector;
         private final RegexReplacement replace;
+        Map<String, Object> oemConfigMap = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
 
         private PatternSelectorSerializer(final PatternSelector patternSelector, final RegexReplacement replace) {
             super();
@@ -439,7 +440,6 @@ public final class CustomPatternLayout extends AbstractStringLayout {
             for (int i = 0; i < len; i++) {
                 formatters[i].format(event, buffer);
             }
-            Map<String, Object> oemConfigMap = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
             if (MapUtils.isNotEmpty(oemConfigMap)) {
                 String oemReplaceString = OEMReplaceUtil.replace(buffer.toString(), oemConfigMap);
                 buffer.setLength(0);
