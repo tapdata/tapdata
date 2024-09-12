@@ -38,6 +38,7 @@
             **/*Context.java,
             **/*Exception.java,
             **/*Controller.java
+            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
@@ -58,6 +59,7 @@
             **/*Context.java,
             **/*Exception.java,
             **/*Controller.java
+            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
