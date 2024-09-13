@@ -343,4 +343,10 @@ public interface TaskMergeProcessorExCode_16 {
 			describeCN = "反查数据的CompletableFuture列表不能为空"
 	)
 	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16061";
+
+	@TapExCode(
+			describe = "Init Cache failed",
+			describeCN = "初始化缓存失败"
+	)
+	String INIT_CACHE_FAILED = "16062";
 }
