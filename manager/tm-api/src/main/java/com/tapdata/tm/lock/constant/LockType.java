@@ -18,5 +18,7 @@ public enum LockType {
     START_LDP_FDM,
     /** 启动CHECK_ENGINE_VALID任务 */
     CHECK_ENGINE_VALID,
+    /** 添加通道授权*/
+    PIPELINE_LIMIT
     ;
 }

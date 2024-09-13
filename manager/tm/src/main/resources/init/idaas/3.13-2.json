@@ -1,0 +1,89 @@
+[
+  {
+    "createIndexes": "ApiCall",
+    "indexes": [
+      {
+        "name": "allPathId_1__id_1",
+        "key": {
+          "allPathId": 1,
+          "_id": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCall",
+    "indexes": [
+      {
+        "name": "createTime_1",
+        "key": {
+          "createTime": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCallStats",
+    "indexes": [
+      {
+        "name": "moduleId_1",
+        "key": {
+          "moduleId": 1
+        },
+        "unique": true,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCallStats",
+    "indexes": [
+      {
+        "name": "user_id_1",
+        "key": {
+          "user_id": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCallStats",
+    "indexes": [
+      {
+        "name": "clientIds_1",
+        "key": {
+          "clientIds": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCallMinuteStats",
+    "indexes": [
+      {
+        "name": "moduleId_1",
+        "key": {
+          "moduleId": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCallMinuteStats",
+    "indexes": [
+      {
+        "name": "apiCallTime_1",
+        "key": {
+          "apiCallTime": 1
+        },
+        "expireAfterSeconds": 7200,
+        "background": true
+      }
+    ]
+  }
+]

@@ -1,5 +1,6 @@
 package com.tapdata.tm.Settings.controller;
 
+import com.tapdata.tm.Settings.dto.SendMailResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -116,8 +117,8 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "test send mail")
     @PostMapping("testEmail")
-    public ResponseMessage<Void> testSendMail(@RequestBody TestMailDto testMailDto) {
-        settingsService.testSendMail(testMailDto);
-        return success();
+    public ResponseMessage<SendMailResponseDto> testSendMail(@RequestBody TestMailDto testMailDto) {
+        SendMailResponseDto res = settingsService.testSendMail(testMailDto);
+        return success(res);
     }
 }

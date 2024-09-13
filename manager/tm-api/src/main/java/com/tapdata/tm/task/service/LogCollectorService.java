@@ -120,9 +120,9 @@ public interface LogCollectorService {
 
     void cancelMerge(String taskId, String connectionId, UserDetail user);
 
-    Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user);
+    Page<ShareCdcTableInfo> tableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, String order, UserDetail user);
 
-    Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, UserDetail user);
+    Page<ShareCdcTableInfo> excludeTableInfos(String taskId, String connectionId, String keyword, Integer page, Integer size, String order, UserDetail user);
 
     void configTables(String taskId, List<TableLogCollectorParam> params, String type, UserDetail user);
 

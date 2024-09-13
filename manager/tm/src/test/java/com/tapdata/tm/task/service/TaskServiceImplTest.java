@@ -2509,6 +2509,7 @@ class TaskServiceImplTest {
         private DisruptorService disruptorService;
         private LogCollectorService logCollectorService;
         private ScheduleService scheduleService;
+        private ILicenseService iLicenseService;
         @BeforeEach
         void beforeEach(){
             startFlag = "11";
@@ -2516,18 +2517,21 @@ class TaskServiceImplTest {
             disruptorService = mock(DisruptorService.class);
             logCollectorService = mock(LogCollectorService.class);
             scheduleService = mock(ScheduleService.class);
+            iLicenseService = mock(ILicenseService.class);
             UserDataReportService userDataReportService = mock(UserDataReportService.class);
             ReflectionTestUtils.setField(taskService,"userDataReportService",userDataReportService);
             ReflectionTestUtils.setField(taskService,"lockControlService",lockControlService);
             ReflectionTestUtils.setField(taskService,"disruptorService",disruptorService);
             ReflectionTestUtils.setField(taskService,"logCollectorService",logCollectorService);
             ReflectionTestUtils.setField(taskService,"scheduleService",scheduleService);
+            ReflectionTestUtils.setField(taskService,"iLicenseService",iLicenseService);
             when(taskDto.getShareCdcEnable()).thenReturn(true);
             when(taskDto.getSyncType()).thenReturn("sync");
             when(taskDto.getTaskRecordId()).thenReturn("111");
             when(taskDto.getStartTime()).thenReturn(null);
             when(taskDto.getShareCache()).thenReturn(false);
             when(taskDto.getId()).thenReturn(mock(ObjectId.class));
+            when(iLicenseService.checkTaskPipelineLimit(taskDto, user)).thenReturn(true);
         }
         @Test
         @DisplayName("test start method when dag is invalid")
@@ -2610,6 +2614,13 @@ class TaskServiceImplTest {
             taskService.start(taskDto,user,startFlag);
             verify(scheduleService,new Times(1)).createTaskRecordForInitial(taskDto);
             verify(taskService,new Times(1)).update(any(Query.class), any(TaskDto.class));
+        }
+        @Test
+        @DisplayName("test start method when exceed pipeline limit")
+        void test8(){
+            when(iLicenseService.checkTaskPipelineLimit(taskDto, user)).thenReturn(false);
+            doCallRealMethod().when(taskService).start(taskDto, user, startFlag);
+            assertThrows(BizException.class, ()->taskService.start(taskDto, user, startFlag));
         }
     }
     @Nested
@@ -3158,6 +3169,27 @@ class TaskServiceImplTest {
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
                 taskService.batchStart(ids, user, null, null);
+                verify(taskService, times(1)).start(taskDtos.get(0), user, "11");
+            }
+        }
+        @Test
+        void testBatchStartWithNodeInstanceIdInvalidEx() {
+            try (MockedStatic<DataPermissionHelper> dataPermissionHelperMockedStatic = mockStatic(DataPermissionHelper.class)) {
+                taskEntity.setCrontabExpressionFlag(true);
+                Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
+                query.fields().include("planStartDateFlag", "crontabExpressionFlag");
+                when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
+                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setRunningNum(2);
+                calculationEngineVo.setTaskLimit(2);
+                calculationEngineVo.setTotalLimit(2);
+                when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
+                MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
+                taskService.setMonitoringLogsService(monitoringLogsService);
+                doThrow(new BizException("License.NodeInstanceIdInvalid","test exception")).when(taskService).start(taskDtos.get(0), user, "11");
+                assertThrows(BizException.class, ()->taskService.batchStart(ids, user, null, null));
                 verify(taskService, times(1)).start(taskDtos.get(0), user, "11");
             }
         }
