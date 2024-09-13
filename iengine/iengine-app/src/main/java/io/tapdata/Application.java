@@ -17,9 +17,11 @@ import io.tapdata.common.JetExceptionFilter;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.log.CustomPatternLayout;
 import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -51,7 +53,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 
-import javax.script.ScriptEngine;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -250,7 +251,8 @@ public class Application {
 	}
 
 	protected static void addRollingFileAppender(String tapdataWorkDir) {
-		logger.info("Get application type from env: {}", OEMReplaceUtil.oemType());
+		String oemType = OEMReplaceUtil.oemType();
+		logger.info("Get oem type from evn: {}", oemType);
 		Level defaultLogLevel = Level.INFO;
 		String debug = System.getenv("DEBUG");
 		if ("true".equalsIgnoreCase(debug)) {
@@ -277,9 +279,6 @@ public class Application {
 
 		LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
-		PatternLayout patternLayout = PatternLayout.newBuilder()
-				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
-				.build();
 
 		CompositeTriggeringPolicy compositeTriggeringPolicy = LogUtil.getCompositeTriggeringPolicy(DEFAULT_LOG_SAVE_SIZE);
 		String glob=getFileNameAfterOem("tapdata-agent-*.log.*.gz");
@@ -292,14 +291,23 @@ public class Application {
 				.withConfig(config).build();
 
 		JetExceptionFilter jetExceptionFilter = new JetExceptionFilter.TapLogBuilder().build();
-		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
+
+		PatternLayout patternLayout = PatternLayout.newBuilder().withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
+		RollingFileAppender.Builder<?> rollingFileAppenderBuilder = RollingFileAppender.newBuilder()
 				.setName(ROLLING_FILE_APPENDER)
 				.withFileName(logsPath + getFileNameAfterOem("/tapdata-agent.log"))
 				.withFilePattern(logsPath + getFileNameAfterOem("/tapdata-agent-%i.log.%d{yyyyMMdd}.gz"))
-				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
-				.withStrategy(strategy)
-				.build();
+				.withStrategy(strategy);
+		Map<String, Object> oemConfigMap = OEMReplaceUtil.getOEMConfigMap("log/replace.json");
+		if (MapUtils.isEmpty(oemConfigMap)) {
+			rollingFileAppenderBuilder.setLayout(patternLayout);
+		} else {
+			CustomPatternLayout customPatternLayout = CustomPatternLayout.newBuilder()
+					.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n").build();
+			rollingFileAppenderBuilder.setLayout(customPatternLayout);
+		}
+		RollingFileAppender rollingFileAppender = rollingFileAppenderBuilder.build();
 		rollingFileAppender.addFilter(jetExceptionFilter);
 		config.addAppender(rollingFileAppender);
 		LoggerConfig rootLoggerConfig = config.getRootLogger();

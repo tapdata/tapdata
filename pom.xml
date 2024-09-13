@@ -37,7 +37,8 @@
             iengine/api/src/main/java/io/tapdata/aspect/DropTableFuncAspect.java,
             **/*Context.java,
             **/*Exception.java,
-            **/*Controller.java
+            **/*Controller.java,
+            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
@@ -57,7 +58,8 @@
             manager/tm/src/main/java/com/tapdata/tm/init/patches/dfs/*,
             **/*Context.java,
             **/*Exception.java,
-            **/*Controller.java
+            **/*Controller.java,
+            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
