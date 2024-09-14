@@ -1,6 +1,7 @@
 package com.tapdata.tm.user.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -12,6 +13,7 @@ import com.tapdata.tm.user.repository.UserRepository;
 import com.tapdata.tm.utils.SendStatus;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
 import java.util.List;
@@ -61,5 +63,11 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract String getServerPort();
 
     public abstract void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail);
+
+    public abstract boolean checkADLoginEnable();
+
+    public abstract TestResponseDto testLoginByAD(TestAdDto testAdDto);
+
+    public abstract boolean loginByAD(String username, String password);
 }
 

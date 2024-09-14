@@ -6,7 +6,8 @@ public enum CategoryEnum {
     SMTP("SMTP"),
     FRONTEND("Frontend"),
     JOB("Job"),
-    WORKER("Worker")
+    WORKER("Worker"),
+    Active_Directory("Active_Directory")
     ;
 
     private String value;

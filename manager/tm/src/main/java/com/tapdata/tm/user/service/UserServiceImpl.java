@@ -9,11 +9,16 @@ import com.google.common.collect.Sets;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.function.Bi3Consumer;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -38,6 +43,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.UUIDUtil;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -51,9 +57,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.*;
+import javax.net.ssl.SSLSocketFactory;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -102,6 +112,8 @@ public class UserServiceImpl extends UserService{
 
     @Autowired
     private LdpService ldpService;
+    @Autowired
+    private SettingsService settingsService;
 
     @Override
     protected void beforeSave(UserDto dto, UserDetail userDetail) {
@@ -757,4 +769,170 @@ public class UserServiceImpl extends UserService{
 			add("v2_user_management_menu");
 			add("v2_role_management");
 		}};
+
+    @Override
+    public boolean checkADLoginEnable() {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.Active_Directory, KeyEnum.AD_LOGIN_ENABLE);
+        if (settings != null) {
+            return settings.getOpen();
+        }
+        return false;
+    }
+
+    @Override
+    public TestResponseDto testLoginByAD(TestAdDto testAdDto) {
+        String ldapUrl = testAdDto.getAD_Server_Host() + ":" +testAdDto.getAD_Server_Port();
+        String bindDN = testAdDto.getAD_Bind_DN();
+        String bindPassword = testAdDto.getAD_Bind_Password();
+        AdLoginDto adLoginDto = AdLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).build();
+        if ("*****".equals(adLoginDto.getPassword())) {
+            String value = SettingsEnum.AD_PASSWORD.getValue();
+            adLoginDto.setPassword(value);
+        }
+        DirContext dirContext = null;
+        try {
+            dirContext = buildDirContext(adLoginDto);
+            //查询组
+//            searchAllGroups(dirContext);
+            if (null != dirContext) {
+                return new TestResponseDto(true, null);
+            } else {
+                return new TestResponseDto(false, "connect to active directory server failed");
+            }
+        } catch (NamingException e) {
+            return new TestResponseDto(false, TapSimplify.getStackTrace(e));
+        } finally {
+            if (null != dirContext) {
+                try {
+                    dirContext.close();
+                } catch (NamingException e) {
+                    throw new BizException(e);
+                }
+            }
+        }
+    }
+
+    public void searchAllGroups(DirContext ctx) {
+        String searchBase = "cn=Users,cn=tapdata,dc=ad,dc=internal,dc=tapdata,dc=io";  // AD 根目录
+        String searchFilter = "(objectClass=group)";  // 只查询组对象
+        try {
+
+            // 设置搜索控制参数
+            SearchControls searchControls = new SearchControls();
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);  // 搜索整个子树
+            searchControls.setReturningAttributes(new String[]{"cn", "description"});  // 要返回的属性（例如，组名和描述）
+
+            // 执行 LDAP 查询
+            NamingEnumeration<SearchResult> results = ctx.search(searchBase, searchFilter, searchControls);
+
+            while (results.hasMore()) {
+                SearchResult searchResult = results.next();
+                Attributes attributes = searchResult.getAttributes();
+                String groupName = attributes.get("cn").get().toString();  // 组名称
+                String description = attributes.get("description") != null ? attributes.get("description").get().toString() : "No description";  // 组描述
+
+                System.out.println("Group Name: " + groupName);
+                System.out.println("Description: " + description);
+            }
+
+            ctx.close();
+        } catch (NamingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public boolean loginByAD(String username, String password) {
+        List<Settings> all = settingsService.findAll();
+        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+
+        String host = (String) collect.get("ad.server.host");
+        String port = (String) collect.get("ad.server.port");
+        String bindDN = (String) collect.get("ad.bind.dn");
+        String pwd = (String) collect.get("ad.bind.password");
+        String baseDN = (String) collect.get("ad.base.dn");
+        Boolean ssl = false;
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.Active_Directory, KeyEnum.AD_SSL_ENABLE);
+        if (settings != null) {
+            ssl = settings.getOpen();
+        }
+        String ldapUrl = host + ":" + port;
+        AdLoginDto adLoginDto = AdLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).build();
+        try {
+            boolean exists = searchUser(adLoginDto, username);
+            if (!exists) {
+                throw new BizException("Email.Not.Exist");
+            }
+            adLoginDto.setBindDN(username);
+            adLoginDto.setPassword(password);
+            DirContext dirContext = buildDirContext(adLoginDto);
+            if (null != dirContext) {
+                return true;
+            }
+        } catch (NamingException e) {
+            throw new BizException(e);
+        }
+        return false;
+    }
+
+    public boolean searchUser(AdLoginDto adLoginDto, String username) throws NamingException {
+        String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
+        String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
+        DirContext ctx = buildDirContext(adLoginDto);
+        String searchBase = adLoginDto.getBaseDN();
+        try {
+            SearchControls searchControls = new SearchControls();
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            searchControls.setReturningAttributes(new String[]{"sAMAccountName", "userPrincipalName", "displayName"});
+            if (searchWithFilter(ctx, searchBase, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, searchBase, userPrincipalNameFilter, searchControls)) {
+                return true;
+            }
+            return false;
+        } catch (NamingException e) {
+            e.printStackTrace();
+        } finally {
+            // 关闭上下文
+            ctx.close();
+        }
+        return false;
+    }
+
+    private boolean searchWithFilter(DirContext ctx, String searchBase,String filter, SearchControls searchControls) throws NamingException {
+        NamingEnumeration<SearchResult> sAMAccountNameResult = ctx.search(searchBase, filter, searchControls);
+
+        String sAMAccountName = null;
+        String userPrincipalName = null;
+        String displayName = null;
+        while (sAMAccountNameResult.hasMore()) {
+            SearchResult searchResult = sAMAccountNameResult.next();
+            Attributes attributes = searchResult.getAttributes();
+            sAMAccountName = attributes.get("sAMAccountName").get().toString();
+            userPrincipalName = attributes.get("userPrincipalName") != null ? attributes.get("userPrincipalName").get().toString() : null;
+            displayName = attributes.get("displayName") != null ? attributes.get("displayName").get().toString() : null;
+        }
+
+        if (StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName)) {
+            return true;
+        }
+        return false;
+    }
+
+    private DirContext buildDirContext(AdLoginDto adLoginDto) throws NamingException {
+        String ldapUrl = adLoginDto.getLdapUrl();
+        String bindDn = adLoginDto.getBindDN();
+        String password = adLoginDto.getPassword();
+        Boolean ssl = adLoginDto.isSslEnable();
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, ldapUrl);
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, bindDn);
+        env.put(Context.SECURITY_CREDENTIALS, password);
+        if (ssl) {
+            env.put(Context.SECURITY_PROTOCOL, "ssl");
+            env.put("java.naming.ldap.factory.socket", SSLSocketFactory.class.getName());
+        }
+        DirContext ctx = new InitialDirContext(env);
+        return ctx;
+    }
 }

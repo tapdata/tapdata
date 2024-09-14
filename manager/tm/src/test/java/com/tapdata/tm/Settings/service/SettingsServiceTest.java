@@ -1,9 +1,8 @@
 package com.tapdata.tm.Settings.service;
 
 import com.tapdata.tm.Settings.constant.SettingUtil;
-import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
-import com.tapdata.tm.Settings.dto.SendMailResponseDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -229,7 +228,7 @@ public class SettingsServiceTest {
                 when(mailAccountDto.getPass()).thenReturn("*****");
                 when(settingsService.getMailAccount(testMailDto)).thenReturn(mailAccountDto);
                 doCallRealMethod().when(settingsService).testSendMail(testMailDto);
-                SendMailResponseDto actual = settingsService.testSendMail(testMailDto);
+                TestResponseDto actual = settingsService.testSendMail(testMailDto);
                 assertEquals(false,actual.isResult());
             }
         }

@@ -1,0 +1,112 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "default_value": " ",
+        "documentation": "AD_Server_Host_doc",
+        "hot_reloading": true,
+        "key": "ad.server.host",
+        "key_label": "AD Server Host",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "1",
+        "user_visible": true,
+        "value": ""
+      },
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "default_value": " ",
+        "documentation": "AD_Server_Port_doc",
+        "hot_reloading": true,
+        "key": "ad.server.port",
+        "key_label": "AD Server Port",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "2",
+        "user_visible": true,
+        "value": ""
+      },
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "default_value": " ",
+        "documentation": "AD_Base_DN_doc",
+        "hot_reloading": true,
+        "key": "ad.base.dn",
+        "key_label": "AD Base DN",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "3",
+        "user_visible": true,
+        "value": ""
+      },
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "default_value": " ",
+        "documentation": "AD_Bind_DN_doc",
+        "hot_reloading": true,
+        "key": "ad.bind.dn",
+        "key_label": "AD Bind DN",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "4",
+        "user_visible": true,
+        "value": ""
+      },
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "default_value": " ",
+        "documentation": "AD_Bind_Password_doc",
+        "hot_reloading": true,
+        "key": "ad.bind.password",
+        "key_label": "AD Bind Password",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "5",
+        "user_visible": true,
+        "value": ""
+      },
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "documentation": "AD SSL Enable",
+        "hot_reloading": true,
+        "key": "ad.ssl.enable",
+        "key_label": "AD SSL Enable",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "7",
+        "user_visible": true,
+        "open": false,
+        "value": ""
+      },
+      {
+        "category": "Active_Directory",
+        "category_sort": "91",
+        "documentation": "AD Login Enable",
+        "hot_reloading": true,
+        "key": "ad.login.enable",
+        "key_label": "AD Login Enable",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "0",
+        "user_visible": true,
+        "open": false,
+        "value": ""
+      }
+    ]
+  }
+]
