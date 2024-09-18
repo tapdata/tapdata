@@ -6,9 +6,8 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
-import com.tapdata.tm.Settings.dto.SendMailResponseDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
@@ -454,14 +453,14 @@ public class MailUtils {
     /**
      * 发送HTML邮件
      */
-    public static SendMailResponseDto sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
+    public static TestResponseDto sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
         adressees = filterBlackList(adressees);
-        if (adressees == null) return new SendMailResponseDto(false,"Please check your configuration, receivers cannot be empty.");
+        if (adressees == null) return new TestResponseDto(false,"Please check your configuration, receivers cannot be empty.");
 
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
-            return new SendMailResponseDto(false,"Please check your configuration, mail account information cannot be empty.");
+            return new TestResponseDto(false,"Please check your configuration, mail account information cannot be empty.");
         } else {
             if (StringUtils.isNotBlank(parms.getProxyHost()) && 0 != parms.getProxyPort()) {
                 return sendEmailForProxy(parms, adressees, title, content, flag);
@@ -498,11 +497,11 @@ public class MailUtils {
             } catch (Exception e) {
                 log.error("mail send error：{}", e.getMessage(), e);
                 flag = false;
-                return new SendMailResponseDto(flag, TapSimplify.getStackTrace(e));
+                return new TestResponseDto(flag, TapSimplify.getStackTrace(e));
             }
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
-        return new SendMailResponseDto(flag, null);
+        return new TestResponseDto(flag, null);
     }
 
     @Nullable
@@ -526,7 +525,7 @@ public class MailUtils {
         return adressees;
     }
 
-    protected static SendMailResponseDto sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
+    protected static TestResponseDto sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
         final String username = parms.getUser();
         final String password = parms.getPass();
 
@@ -577,10 +576,10 @@ public class MailUtils {
         } catch (Exception e) {
             flag = false;
             log.error("mail send error：{}", e.getMessage(), e);
-            return new SendMailResponseDto(flag, TapSimplify.getStackTrace(e));
+            return new TestResponseDto(flag, TapSimplify.getStackTrace(e));
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
-        return new SendMailResponseDto(flag,null);
+        return new TestResponseDto(flag,null);
     }
 
     protected static String assemblyMessageBody(String message) {

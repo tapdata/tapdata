@@ -9,11 +9,16 @@ import com.google.common.collect.Sets;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.function.Bi3Consumer;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -38,6 +43,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.UUIDUtil;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -51,9 +57,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.*;
+import javax.net.ssl.SSLSocketFactory;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -102,6 +112,8 @@ public class UserServiceImpl extends UserService{
 
     @Autowired
     private LdpService ldpService;
+    @Autowired
+    private SettingsService settingsService;
 
     @Override
     protected void beforeSave(UserDto dto, UserDetail userDetail) {
@@ -757,4 +769,129 @@ public class UserServiceImpl extends UserService{
 			add("v2_user_management_menu");
 			add("v2_role_management");
 		}};
+
+    @Override
+    public boolean checkLdapLoginEnable() {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_LOGIN_ENABLE);
+        if (settings != null) {
+            return settings.getOpen();
+        }
+        return false;
+    }
+
+    @Override
+    public TestResponseDto testLoginByLdap(TestLdapDto testldapDto) {
+        String ldapUrl = testldapDto.getLdap_Server_Host() + ":" + testldapDto.getLdap_Server_Port();
+        String bindDN = testldapDto.getLdap_Bind_DN();
+        String bindPassword = testldapDto.getLdap_Bind_Password();
+        Boolean sslEnable = testldapDto.getLdap_SSL_Enable();
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).sslEnable(sslEnable).build();
+        if ("*****".equals(ldapLoginDto.getPassword())) {
+            String value = SettingsEnum.AD_PASSWORD.getValue();
+            ldapLoginDto.setPassword(value);
+        }
+        DirContext dirContext = null;
+        try {
+            dirContext = buildDirContext(ldapLoginDto);
+            if (null != dirContext) {
+                return new TestResponseDto(true, null);
+            } else {
+                return new TestResponseDto(false, "connect to active directory server failed");
+            }
+        } catch (NamingException e) {
+            return new TestResponseDto(false, TapSimplify.getStackTrace(e));
+        } finally {
+            if (null != dirContext) {
+                try {
+                    dirContext.close();
+                } catch (NamingException e) {
+                    // do nothing
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean loginByLdap(String username, String password) {
+        List<Settings> all = settingsService.findAll();
+        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+
+        String host = (String) collect.get("ldap.server.host");
+        String port = (String) collect.get("ldap.server.port");
+        String bindDN = (String) collect.get("ldap.bind.dn");
+        String pwd = (String) collect.get("ldap.bind.password");
+        String baseDN = (String) collect.get("ldap.base.dn");
+        Boolean ssl = false;
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE);
+        if (settings != null) {
+            ssl = settings.getOpen();
+        }
+        String ldapUrl = host + ":" + port;
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).build();
+        try {
+            boolean exists = searchUser(ldapLoginDto, username);
+            if (!exists) {
+                throw new BizException("AD.Account.Not.Exists");
+            }
+            ldapLoginDto.setBindDN(username);
+            ldapLoginDto.setPassword(password);
+            DirContext dirContext = buildDirContext(ldapLoginDto);
+            if (null != dirContext) {
+                return true;
+            }
+        } catch (NamingException e) {
+            throw new BizException("AD.Login.Fail", e);
+        }
+        return false;
+    }
+
+    protected boolean searchUser(LdapLoginDto ldapLoginDto, String username) throws NamingException {
+        String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
+        String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
+        DirContext ctx = buildDirContext(ldapLoginDto);
+        String searchBase = ldapLoginDto.getBaseDN();
+        try {
+            SearchControls searchControls = new SearchControls();
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            searchControls.setReturningAttributes(new String[]{"sAMAccountName", "userPrincipalName", "displayName"});
+            return searchWithFilter(ctx, searchBase, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, searchBase, userPrincipalNameFilter, searchControls);
+        } catch (NamingException e) {
+            throw new BizException("AD.Search.Fail", e);
+        } finally {
+            ctx.close();
+        }
+    }
+
+    protected boolean searchWithFilter(DirContext ctx, String searchBase, String filter, SearchControls searchControls) throws NamingException {
+        NamingEnumeration<SearchResult> sAMAccountNameResult = ctx.search(searchBase, filter, searchControls);
+
+        String userPrincipalName = null;
+        String displayName = null;
+        while (sAMAccountNameResult.hasMore()) {
+            SearchResult searchResult = sAMAccountNameResult.next();
+            Attributes attributes = searchResult.getAttributes();
+            userPrincipalName = attributes.get("userPrincipalName") != null ? attributes.get("userPrincipalName").get().toString() : null;
+            displayName = attributes.get("displayName") != null ? attributes.get("displayName").get().toString() : null;
+        }
+        return StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName);
+    }
+
+    protected DirContext buildDirContext(LdapLoginDto ldapLoginDto) throws NamingException {
+        String ldapUrl = ldapLoginDto.getLdapUrl();
+        String bindDn = ldapLoginDto.getBindDN();
+        String password = ldapLoginDto.getPassword();
+        Boolean ssl = ldapLoginDto.isSslEnable();
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, ldapUrl);
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, bindDn);
+        env.put(Context.SECURITY_CREDENTIALS, password);
+        if (ssl) {
+            env.put(Context.SECURITY_PROTOCOL, "ssl");
+            env.put("java.naming.ldap.factory.socket", SSLSocketFactory.class.getName());
+        }
+        DirContext ctx = new InitialDirContext(env);
+        return ctx;
+    }
 }

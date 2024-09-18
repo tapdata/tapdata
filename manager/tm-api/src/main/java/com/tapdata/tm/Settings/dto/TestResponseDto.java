@@ -2,7 +2,7 @@ package com.tapdata.tm.Settings.dto;
 
 import java.io.Serializable;
 
-public class SendMailResponseDto implements Serializable {
+public class TestResponseDto implements Serializable {
     private boolean result;
     private String stack;
 
@@ -14,7 +14,7 @@ public class SendMailResponseDto implements Serializable {
         return stack;
     }
 
-    public SendMailResponseDto(boolean result, String stack) {
+    public TestResponseDto(boolean result, String stack) {
         this.result = result;
         this.stack = stack;
     }
