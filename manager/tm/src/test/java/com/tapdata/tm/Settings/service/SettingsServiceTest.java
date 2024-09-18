@@ -182,6 +182,24 @@ public class SettingsServiceTest {
             final List<SettingsDto> result = settingsService.findALl("decode", filter);
             assertThat(result.get(0).getValue()).isEqualTo(settings.getValue());
         }
+        @Test
+        void testFindALlWithPwd() {
+            final Filter filter = new Filter();
+            Settings settings1 = new Settings();
+            settings1.setKey("smtp.server.password");
+            settings1.setValue("123456");
+            Settings settings2 = new Settings();
+            settings2.setKey("ad.bind.password");
+            settings2.setValue("12345");
+            List<Settings> list = new ArrayList<>();
+            list.add(settings1);
+            list.add(settings2);
+            when(mongoTemplate.find(any(Query.class), eq(Settings.class))).thenReturn(list);
+            when(mockSettingsRepository.findAll()).thenReturn(list);
+            final List<SettingsDto> result = settingsService.findALl("decode", filter);
+            assertEquals("*****", result.get(0).getValue());
+            assertEquals("*****", result.get(0).getValue());
+        }
     }
     @Nested
     class getMailAccountWithTestMailDtoTest{

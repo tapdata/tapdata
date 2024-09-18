@@ -781,7 +781,7 @@ public class UserServiceImpl extends UserService{
 
     @Override
     public TestResponseDto testLoginByAD(TestAdDto testAdDto) {
-        String ldapUrl = testAdDto.getAD_Server_Host() + ":" +testAdDto.getAD_Server_Port();
+        String ldapUrl = testAdDto.getAD_Server_Host() + ":" + testAdDto.getAD_Server_Port();
         String bindDN = testAdDto.getAD_Bind_DN();
         String bindPassword = testAdDto.getAD_Bind_Password();
         AdLoginDto adLoginDto = AdLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).build();
@@ -792,8 +792,6 @@ public class UserServiceImpl extends UserService{
         DirContext dirContext = null;
         try {
             dirContext = buildDirContext(adLoginDto);
-            //查询组
-//            searchAllGroups(dirContext);
             if (null != dirContext) {
                 return new TestResponseDto(true, null);
             } else {
@@ -809,35 +807,6 @@ public class UserServiceImpl extends UserService{
                     throw new BizException(e);
                 }
             }
-        }
-    }
-
-    public void searchAllGroups(DirContext ctx) {
-        String searchBase = "cn=Users,cn=tapdata,dc=ad,dc=internal,dc=tapdata,dc=io";  // AD 根目录
-        String searchFilter = "(objectClass=group)";  // 只查询组对象
-        try {
-
-            // 设置搜索控制参数
-            SearchControls searchControls = new SearchControls();
-            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);  // 搜索整个子树
-            searchControls.setReturningAttributes(new String[]{"cn", "description"});  // 要返回的属性（例如，组名和描述）
-
-            // 执行 LDAP 查询
-            NamingEnumeration<SearchResult> results = ctx.search(searchBase, searchFilter, searchControls);
-
-            while (results.hasMore()) {
-                SearchResult searchResult = results.next();
-                Attributes attributes = searchResult.getAttributes();
-                String groupName = attributes.get("cn").get().toString();  // 组名称
-                String description = attributes.get("description") != null ? attributes.get("description").get().toString() : "No description";  // 组描述
-
-                System.out.println("Group Name: " + groupName);
-                System.out.println("Description: " + description);
-            }
-
-            ctx.close();
-        } catch (NamingException e) {
-            e.printStackTrace();
         }
     }
 
@@ -861,7 +830,7 @@ public class UserServiceImpl extends UserService{
         try {
             boolean exists = searchUser(adLoginDto, username);
             if (!exists) {
-                throw new BizException("Email.Not.Exist");
+                throw new BizException("AD.Account.Not.Exists");
             }
             adLoginDto.setBindDN(username);
             adLoginDto.setPassword(password);
@@ -870,12 +839,12 @@ public class UserServiceImpl extends UserService{
                 return true;
             }
         } catch (NamingException e) {
-            throw new BizException(e);
+            throw new BizException("AD.Login.Fail", e);
         }
         return false;
     }
 
-    public boolean searchUser(AdLoginDto adLoginDto, String username) throws NamingException {
+    protected boolean searchUser(AdLoginDto adLoginDto, String username) throws NamingException {
         String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
         String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
         DirContext ctx = buildDirContext(adLoginDto);
@@ -884,40 +853,29 @@ public class UserServiceImpl extends UserService{
             SearchControls searchControls = new SearchControls();
             searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
             searchControls.setReturningAttributes(new String[]{"sAMAccountName", "userPrincipalName", "displayName"});
-            if (searchWithFilter(ctx, searchBase, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, searchBase, userPrincipalNameFilter, searchControls)) {
-                return true;
-            }
-            return false;
+            return searchWithFilter(ctx, searchBase, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, searchBase, userPrincipalNameFilter, searchControls);
         } catch (NamingException e) {
-            e.printStackTrace();
+            throw new BizException("AD.Search.Fail", e);
         } finally {
-            // 关闭上下文
             ctx.close();
         }
-        return false;
     }
 
-    private boolean searchWithFilter(DirContext ctx, String searchBase,String filter, SearchControls searchControls) throws NamingException {
+    protected boolean searchWithFilter(DirContext ctx, String searchBase, String filter, SearchControls searchControls) throws NamingException {
         NamingEnumeration<SearchResult> sAMAccountNameResult = ctx.search(searchBase, filter, searchControls);
 
-        String sAMAccountName = null;
         String userPrincipalName = null;
         String displayName = null;
         while (sAMAccountNameResult.hasMore()) {
             SearchResult searchResult = sAMAccountNameResult.next();
             Attributes attributes = searchResult.getAttributes();
-            sAMAccountName = attributes.get("sAMAccountName").get().toString();
             userPrincipalName = attributes.get("userPrincipalName") != null ? attributes.get("userPrincipalName").get().toString() : null;
             displayName = attributes.get("displayName") != null ? attributes.get("displayName").get().toString() : null;
         }
-
-        if (StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName)) {
-            return true;
-        }
-        return false;
+        return StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName);
     }
 
-    private DirContext buildDirContext(AdLoginDto adLoginDto) throws NamingException {
+    protected DirContext buildDirContext(AdLoginDto adLoginDto) throws NamingException {
         String ldapUrl = adLoginDto.getLdapUrl();
         String bindDn = adLoginDto.getBindDN();
         String password = adLoginDto.getPassword();
