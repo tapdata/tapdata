@@ -318,10 +318,11 @@ public class UserController extends BaseController {
                     loginRequest.setEmail(split[0]);
                 }
             }
-            UserDto adUser = userService.findOne(new Query(Criteria.where("username").regex(loginRequest.getEmail(), "i").and("source").is("createLdap")
+            UserDto adUser = userService.findOne(new Query(Criteria.where("ldapAccount").regex(loginRequest.getEmail(), "i").and("source").is("createLdap")
                     .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
             if (null == adUser) {
                 CreateUserRequest request = new CreateUserRequest();
+                request.setLdapAccount(loginRequest.getEmail());
                 request.setUsername(loginRequest.getEmail());
                 request.setAccesscode("");
                 request.setAccountStatus(1);

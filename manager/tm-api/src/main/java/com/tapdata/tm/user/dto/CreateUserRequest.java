@@ -24,6 +24,8 @@ public class CreateUserRequest {
 	@NotBlank
 	private String email;
 
+	private String ldapAccount;
+
 	private Boolean emailVerified;
 
 	@JsonProperty("emailVerified_from_frontend")
