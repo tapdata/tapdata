@@ -140,6 +140,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
 				}
+				handleRemoveFields(tapdataEvent);
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
@@ -368,6 +369,60 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					if (item instanceof Map || item instanceof List) {
 						queue.add(item);
 					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Handles the removal of fields from the TapEvent within the given TapdataEvent.
+	 *
+	 * @param tapdataEvent the TapdataEvent containing the TapEvent to process
+	 */
+	protected void handleRemoveFields(TapdataEvent tapdataEvent) {
+	    // Get the TapEvent object
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+	    // Get the list of fields to be removed
+		List<String> removeFields = TapEventUtil.getRemoveFields(tapEvent);
+		if (CollectionUtils.isEmpty(removeFields)) {
+			return;
+		}
+	    // If there is a field rename processor, perform field renaming
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			List<String> newRemoveFields = new ArrayList<>();
+			removeFields.forEach(field->{
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				newRemoveFields.add(newField);
+			});
+	        // Update the removeFields in TapEvent
+			TapEventUtil.setRemoveFields(tapEvent, newRemoveFields);
+			removeFields = newRemoveFields;
+		}
+	    // Get the current node
+		Node<?> node = getNode();
+	    // If the current node is an instance of FieldProcessorNode, process field operations
+		if (node instanceof FieldProcessorNode) {
+			List<FieldProcessorNode.Operation> operations = ((FieldProcessorNode) node).getOperations();
+			if (CollectionUtils.isEmpty(operations)) {
+				return;
+			}
+	        // Iterate through the operations and update the removeFields list based on the operation type
+			for (FieldProcessorNode.Operation operation : operations) {
+				String op = operation.getOp();
+				switch (op) {
+					case "RENAME":
+						boolean removed = removeFields.remove(operation.getField());
+						if (removed) {
+							removeFields.add(operation.getOperand());
+						}
+						break;
+					case "REMOVE":
+						removeFields.remove(operation.getField());
+						break;
+					default:
+						break;
 				}
 			}
 		}
