@@ -140,6 +140,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
 				}
+				handleRemoveFields(tapdataEvent);
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
@@ -368,6 +369,48 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					if (item instanceof Map || item instanceof List) {
 						queue.add(item);
 					}
+				}
+			}
+		}
+	}
+
+	protected void handleRemoveFields(TapdataEvent tapdataEvent) {
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		List<String> removeFields = TapEventUtil.getRemoveFields(tapEvent);
+		if (CollectionUtils.isEmpty(removeFields)) {
+			return;
+		}
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			List<String> newRemoveFields = new ArrayList<>();
+			removeFields.forEach(field->{
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				newRemoveFields.add(newField);
+			});
+			TapEventUtil.setRemoveFields(tapEvent, newRemoveFields);
+			removeFields = newRemoveFields;
+		}
+		Node<?> node = getNode();
+		if (node instanceof FieldProcessorNode) {
+			List<FieldProcessorNode.Operation> operations = ((FieldProcessorNode) node).getOperations();
+			if (CollectionUtils.isEmpty(operations)) {
+				return;
+			}
+			for (FieldProcessorNode.Operation operation : operations) {
+				String op = operation.getOp();
+				switch (op) {
+					case "RENAME":
+						boolean removed = removeFields.remove(operation.getField());
+						if (removed) {
+							removeFields.add(operation.getOperand());
+						}
+						break;
+					case "REMOVE":
+						removeFields.remove(operation.getField());
+						break;
+					default:
+						break;
 				}
 			}
 		}
