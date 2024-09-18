@@ -13,7 +13,6 @@ import com.tapdata.tm.user.repository.UserRepository;
 import com.tapdata.tm.utils.SendStatus;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
 import java.util.List;
@@ -64,10 +63,10 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
 
     public abstract void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail);
 
-    public abstract boolean checkADLoginEnable();
+    public abstract boolean checkLdapLoginEnable();
 
-    public abstract TestResponseDto testLoginByAD(TestAdDto testAdDto);
+    public abstract TestResponseDto testLoginByLdap(TestLdapDto testAdDto);
 
-    public abstract boolean loginByAD(String username, String password);
+    public abstract boolean loginByLdap(String username, String password);
 }
 

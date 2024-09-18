@@ -771,8 +771,8 @@ public class UserServiceImpl extends UserService{
 		}};
 
     @Override
-    public boolean checkADLoginEnable() {
-        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.Active_Directory, KeyEnum.AD_LOGIN_ENABLE);
+    public boolean checkLdapLoginEnable() {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_LOGIN_ENABLE);
         if (settings != null) {
             return settings.getOpen();
         }
@@ -780,18 +780,19 @@ public class UserServiceImpl extends UserService{
     }
 
     @Override
-    public TestResponseDto testLoginByAD(TestAdDto testAdDto) {
-        String ldapUrl = testAdDto.getAD_Server_Host() + ":" + testAdDto.getAD_Server_Port();
-        String bindDN = testAdDto.getAD_Bind_DN();
-        String bindPassword = testAdDto.getAD_Bind_Password();
-        AdLoginDto adLoginDto = AdLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).build();
-        if ("*****".equals(adLoginDto.getPassword())) {
+    public TestResponseDto testLoginByLdap(TestLdapDto testldapDto) {
+        String ldapUrl = testldapDto.getLdap_Server_Host() + ":" + testldapDto.getLdap_Server_Port();
+        String bindDN = testldapDto.getLdap_Bind_DN();
+        String bindPassword = testldapDto.getLdap_Bind_Password();
+        Boolean sslEnable = testldapDto.getLdap_SSL_Enable();
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).sslEnable(sslEnable).build();
+        if ("*****".equals(ldapLoginDto.getPassword())) {
             String value = SettingsEnum.AD_PASSWORD.getValue();
-            adLoginDto.setPassword(value);
+            ldapLoginDto.setPassword(value);
         }
         DirContext dirContext = null;
         try {
-            dirContext = buildDirContext(adLoginDto);
+            dirContext = buildDirContext(ldapLoginDto);
             if (null != dirContext) {
                 return new TestResponseDto(true, null);
             } else {
@@ -811,30 +812,30 @@ public class UserServiceImpl extends UserService{
     }
 
     @Override
-    public boolean loginByAD(String username, String password) {
+    public boolean loginByLdap(String username, String password) {
         List<Settings> all = settingsService.findAll();
         Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
-        String host = (String) collect.get("ad.server.host");
-        String port = (String) collect.get("ad.server.port");
-        String bindDN = (String) collect.get("ad.bind.dn");
-        String pwd = (String) collect.get("ad.bind.password");
-        String baseDN = (String) collect.get("ad.base.dn");
+        String host = (String) collect.get("ldap.server.host");
+        String port = (String) collect.get("ldap.server.port");
+        String bindDN = (String) collect.get("ldap.bind.dn");
+        String pwd = (String) collect.get("ldap.bind.password");
+        String baseDN = (String) collect.get("ldap.base.dn");
         Boolean ssl = false;
-        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.Active_Directory, KeyEnum.AD_SSL_ENABLE);
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE);
         if (settings != null) {
             ssl = settings.getOpen();
         }
         String ldapUrl = host + ":" + port;
-        AdLoginDto adLoginDto = AdLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).build();
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).build();
         try {
-            boolean exists = searchUser(adLoginDto, username);
+            boolean exists = searchUser(ldapLoginDto, username);
             if (!exists) {
                 throw new BizException("AD.Account.Not.Exists");
             }
-            adLoginDto.setBindDN(username);
-            adLoginDto.setPassword(password);
-            DirContext dirContext = buildDirContext(adLoginDto);
+            ldapLoginDto.setBindDN(username);
+            ldapLoginDto.setPassword(password);
+            DirContext dirContext = buildDirContext(ldapLoginDto);
             if (null != dirContext) {
                 return true;
             }
@@ -844,11 +845,11 @@ public class UserServiceImpl extends UserService{
         return false;
     }
 
-    protected boolean searchUser(AdLoginDto adLoginDto, String username) throws NamingException {
+    protected boolean searchUser(LdapLoginDto ldapLoginDto, String username) throws NamingException {
         String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
         String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
-        DirContext ctx = buildDirContext(adLoginDto);
-        String searchBase = adLoginDto.getBaseDN();
+        DirContext ctx = buildDirContext(ldapLoginDto);
+        String searchBase = ldapLoginDto.getBaseDN();
         try {
             SearchControls searchControls = new SearchControls();
             searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
@@ -875,11 +876,11 @@ public class UserServiceImpl extends UserService{
         return StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName);
     }
 
-    protected DirContext buildDirContext(AdLoginDto adLoginDto) throws NamingException {
-        String ldapUrl = adLoginDto.getLdapUrl();
-        String bindDn = adLoginDto.getBindDN();
-        String password = adLoginDto.getPassword();
-        Boolean ssl = adLoginDto.isSslEnable();
+    protected DirContext buildDirContext(LdapLoginDto ldapLoginDto) throws NamingException {
+        String ldapUrl = ldapLoginDto.getLdapUrl();
+        String bindDn = ldapLoginDto.getBindDN();
+        String password = ldapLoginDto.getPassword();
+        Boolean ssl = ldapLoginDto.isSslEnable();
         Hashtable<String, String> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put(Context.PROVIDER_URL, ldapUrl);

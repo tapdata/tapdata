@@ -13,8 +13,8 @@ public enum KeyEnum {
     SHARE_AGENT_CREATE_USER("shareAgentCreateUser"),
     SUPPORT_CDC_CONNECTION("supportCdcConnection"),
     SHARE_AGENT_EXPRIRE_DAYS("shareAgentExprireDays"),
-    AD_LOGIN_ENABLE("ad.login.enable"),
-    AD_SSL_ENABLE("ad.ssl.enable")
+    LDAP_LOGIN_ENABLE("ldap.login.enable"),
+    LDAP_SSL_ENABLE("ldap.ssl.enable")
     ;
 
     private String value;

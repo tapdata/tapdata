@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Builder
 @Data
-public class AdLoginDto {
+public class LdapLoginDto {
     private String ldapUrl; // host+端口
     private String bindDN; //用户名+域
     private String password; //密码
