@@ -805,7 +805,7 @@ public class UserServiceImpl extends UserService{
                 try {
                     dirContext.close();
                 } catch (NamingException e) {
-                    throw new BizException(e);
+                    // do nothing
                 }
             }
         }
