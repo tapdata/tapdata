@@ -108,12 +108,23 @@ public class TapEventUtil {
 	}
 
 	public static List<String> getRemoveFields(TapEvent tapEvent) {
-		List<String> removeFields=null;
-		if(tapEvent instanceof  TapUpdateRecordEvent){
-			removeFields=((TapUpdateRecordEvent)tapEvent).getRemovedFields();
-			return removeFields;
+		if (tapEvent instanceof TapUpdateRecordEvent) {
+			return ((TapUpdateRecordEvent) tapEvent).getRemovedFields();
+		} else if (tapEvent instanceof TapInsertRecordEvent) {
+			return ((TapInsertRecordEvent) tapEvent).getRemovedFields();
 		}
 		return null;
+	}
+
+	public static void setRemoveFields(TapEvent tapEvent, List<String> removeFields) {
+		if (null == tapEvent) {
+			return;
+		}
+		if (tapEvent instanceof TapInsertRecordEvent) {
+			((TapInsertRecordEvent) tapEvent).setRemovedFields(removeFields);
+		} else if (tapEvent instanceof TapUpdateRecordEvent) {
+			((TapUpdateRecordEvent) tapEvent).setRemovedFields(removeFields);
+		}
 	}
 
 	public static Boolean getIsReplaceEvent(TapEvent tapEvent) {
