@@ -13,6 +13,7 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.internal.verification.Times;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 
@@ -300,9 +301,16 @@ public class InspectDetailsServiceTest {
 
         }
 
-
-
-
+        @Test
+        void testExport_fullFiled_false_message_null() {
+            InspectDetailsService inspectDetailsService = mock(InspectDetailsService.class);
+            InspectDetailsDto inspectDetailsDto = mock(InspectDetailsDto.class);
+            InspectResultDto inspectResultDto = mock(InspectResultDto.class);
+            doCallRealMethod().when(inspectDetailsService).compareDifferenceFields(inspectDetailsDto, inspectResultDto);
+            inspectDetailsService.compareDifferenceFields(inspectDetailsDto, inspectResultDto);
+            verify(inspectDetailsDto, new Times(0)).setSource(anyMap());
+            verify(inspectDetailsDto, new Times(0)).setTarget(anyMap());
+        }
 
     }
 
