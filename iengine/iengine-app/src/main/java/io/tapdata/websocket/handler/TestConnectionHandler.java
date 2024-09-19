@@ -97,6 +97,10 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 	@Override
 	public Object handle(Map eventData, SendMessage sendMessage) {
 		Map<String, Object> event = (Map<String, Object>) eventData;
+        event.remove("errorMsg");
+        event.remove("loadFieldErrMsg");
+        event.remove("schema");
+        event.remove("alarmInfo");
 		getLogger().info("Test connection, event: {}", event);
 		if (MapUtils.isEmpty(event)) {
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, "Event data cannot be empty");

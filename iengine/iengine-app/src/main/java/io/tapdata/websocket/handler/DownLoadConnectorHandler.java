@@ -44,6 +44,10 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
 
     @Override
     public Object handle(Map event, SendMessage sendMessage) {
+        event.remove("errorMsg");
+        event.remove("loadFieldErrMsg");
+        event.remove("schema");
+        event.remove("alarmInfo");
         logger.info(String.format("downLoad connector, event: %s", event));
         String pskHash = (String) event.getOrDefault("pdkHash", "");
         String connName = (String) event.getOrDefault("name", "");
