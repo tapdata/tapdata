@@ -1,6 +1,8 @@
 package com.tapdata.tm.Settings.service;
 
+import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -180,6 +182,24 @@ public class SettingsServiceTest {
             final List<SettingsDto> result = settingsService.findALl("decode", filter);
             assertThat(result.get(0).getValue()).isEqualTo(settings.getValue());
         }
+        @Test
+        void testFindALlWithPwd() {
+            final Filter filter = new Filter();
+            Settings settings1 = new Settings();
+            settings1.setKey("smtp.server.password");
+            settings1.setValue("123456");
+            Settings settings2 = new Settings();
+            settings2.setKey("ad.bind.password");
+            settings2.setValue("12345");
+            List<Settings> list = new ArrayList<>();
+            list.add(settings1);
+            list.add(settings2);
+            when(mongoTemplate.find(any(Query.class), eq(Settings.class))).thenReturn(list);
+            when(mockSettingsRepository.findAll()).thenReturn(list);
+            final List<SettingsDto> result = settingsService.findALl("decode", filter);
+            assertEquals("*****", result.get(0).getValue());
+            assertEquals("*****", result.get(0).getValue());
+        }
     }
     @Nested
     class getMailAccountWithTestMailDtoTest{
@@ -211,6 +231,24 @@ public class SettingsServiceTest {
             MailAccountDto actual = settingsService.getMailAccount(testMailDto);
             assertNull(actual.getProxyHost());
             assertEquals(0, actual.getProxyPort());
+        }
+    }
+    @Nested
+    class testSendMailTest{
+        @Test
+        void testSendMailNormal(){
+            settingsService = mock(SettingsServiceImpl.class);
+            try (MockedStatic<SettingUtil> mb = Mockito
+                    .mockStatic(SettingUtil.class)) {
+                mb.when(()->SettingUtil.getValue(anyString(),anyString())).thenReturn("123456");
+                TestMailDto testMailDto = mock(TestMailDto.class);
+                MailAccountDto mailAccountDto = mock(MailAccountDto.class);
+                when(mailAccountDto.getPass()).thenReturn("*****");
+                when(settingsService.getMailAccount(testMailDto)).thenReturn(mailAccountDto);
+                doCallRealMethod().when(settingsService).testSendMail(testMailDto);
+                TestResponseDto actual = settingsService.testSendMail(testMailDto);
+                assertEquals(false,actual.isResult());
+            }
         }
     }
 }

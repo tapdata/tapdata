@@ -93,6 +93,12 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     private Map<String, List<String>> updateConditionFieldMap;
 
+    /**
+     * multi thread table reading when doing data replica
+     */
+    private boolean enableConcurrentRead;
+    private int concurrentReadThreadNumber;
+
     public static final String SELF_TYPE = "database";
 
     public DatabaseNode() {

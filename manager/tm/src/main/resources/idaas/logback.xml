@@ -24,9 +24,9 @@
 			</timeBasedFileNamingAndTriggeringPolicy>
 			<maxHistory>7</maxHistory>
 		</rollingPolicy>
-		<encoder>
+		<layout class="com.tapdata.tm.utils.CustomPatternLayout">
 			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%contextName] [%thread] %-5level %logger{36} - %msg%n</pattern>
-		</encoder>
+		</layout>
 	</appender>
 
 	<!-- 异步输出 -->

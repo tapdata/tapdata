@@ -30,6 +30,7 @@ public class User extends BaseEntity {
     private String password;
     @Indexed(unique = true)
     private String email;
+    private String ldapAccount;
     private String phone;
     private boolean emailVerified;
 

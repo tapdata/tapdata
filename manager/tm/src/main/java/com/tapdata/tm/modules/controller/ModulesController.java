@@ -236,6 +236,7 @@ public class ModulesController extends BaseController {
 
 
   @GetMapping("preview")
+  @Deprecated
   public ResponseMessage preview(){
     return success(modulesService.preview(getLoginUser()));
   }
@@ -258,7 +259,7 @@ public class ModulesController extends BaseController {
 
   @PostMapping("apiDetail")
   public ResponseMessage apiDetail(@RequestBody ApiDetailParam apiDetailParam){
-    return success(modulesService.apiDetail(apiDetailParam,getLoginUser()));
+    return success(modulesService.apiDetail(apiDetailParam));
   }
 
 	@Operation(summary = "api导出")

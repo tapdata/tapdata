@@ -6,6 +6,7 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -108,7 +109,8 @@ public class SettingsServiceImpl implements SettingsService {
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
         String protocol = (String) collect.get("email.server.tls");
         String proxyHost = (String) collect.get("smtp.proxy.host");
-        String proxyPort = (String) collect.getOrDefault("smtp.proxy.port", "0");
+        String proxyPort = (String) collect.get("smtp.proxy.port");
+        proxyPort = StringUtils.isNotBlank(proxyPort) ? proxyPort : "0";
 
         AtomicReference<List<String>> receiverList = new AtomicReference<>(new ArrayList<>());
 
@@ -205,7 +207,7 @@ public class SettingsServiceImpl implements SettingsService {
             //}).collect(Collectors.toList());
         } else {
             settingsList.stream().filter(settings -> {
-                if ("smtp.server.password".equals(settings.getKey()))
+                if ("smtp.server.password".equals(settings.getKey()) || "ad.bind.password".equals(settings.getKey()))
                     settings.setValue("*****");
                 return true;
             }).collect(Collectors.toList());
@@ -307,7 +309,7 @@ public class SettingsServiceImpl implements SettingsService {
         return mongoTemplate.find(query, Settings.class);
     }
 
-    public void testSendMail(TestMailDto testMailDto) {
+    public TestResponseDto testSendMail(TestMailDto testMailDto) {
         MailAccountDto mailAccount = getMailAccount(testMailDto);
 
         if ("*****".equals(mailAccount.getPass())) {
@@ -315,7 +317,7 @@ public class SettingsServiceImpl implements SettingsService {
             mailAccount.setPass(value);
         }
 
-        MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
+        return MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), testMailDto.getTitle(), testMailDto.getText());
 
     }
 

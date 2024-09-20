@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import cn.hutool.core.collection.ConcurrentHashSet;
 import com.google.common.collect.Lists;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
@@ -16,6 +17,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.aspect.CreateTableFuncAspect;
 import io.tapdata.aspect.DropTableFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
@@ -59,6 +61,8 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.supervisor.TaskNodeInfo;
+import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.utils.UnitTestUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -66,6 +70,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
+import org.springframework.beans.BeanUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -709,18 +714,17 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			event = new TapInsertRecordEvent();
 			event.setContainsIllegalDate(true);
 			Map<String, Object> after = new HashMap<>();
+			TapDateTimeValue tapDateTimeValue = new TapDateTimeValue();
+			DateTime dateTime = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+			tapDateTimeValue.setValue(dateTime);
 			after.put("id", "1");
 			after.put("name", "test");
-			after.put("date", new Date());
-			after.put("last_date", new Date());
+			after.put("date", tapDateTimeValue);
+			after.put("last_date", tapDateTimeValue);
 			((TapInsertRecordEvent) event).setAfter(after);
 			event.setContainsIllegalDate(true);
-			List<String> illegalDateFiledName = new ArrayList<>();
-			illegalDateFiledName.add("date");
-			illegalDateFiledName.add("last_date");
-			illegalDateFiledName.add("test_date");
-			((TapInsertRecordEvent) event).setAfterIllegalDateFieldName(illegalDateFiledName);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDate(any());
 			hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
 			assertNull(((TapInsertRecordEvent) event).getAfter().get("date"));
 			assertNull(((TapInsertRecordEvent) event).getAfter().get("last_date"));
@@ -732,18 +736,17 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			event = new TapUpdateRecordEvent();
 			event.setContainsIllegalDate(true);
 			Map<String, Object> after = new HashMap<>();
+			TapDateTimeValue tapDateTimeValue = new TapDateTimeValue();
+			DateTime dateTime = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+			tapDateTimeValue.setValue(dateTime);
 			after.put("id", "1");
 			after.put("name", "test");
-			after.put("date", new Date());
+			after.put("date", tapDateTimeValue);
 			((TapUpdateRecordEvent) event).setBefore(after);
 			((TapUpdateRecordEvent) event).setAfter(after);
 			event.setContainsIllegalDate(true);
-			List<String> illegalDateFiledName = new ArrayList<>();
-			illegalDateFiledName.add("date");
-			illegalDateFiledName.add("last_date");
-			((TapUpdateRecordEvent) event).setBeforeIllegalDateFieldName(illegalDateFiledName);
-			((TapUpdateRecordEvent) event).setAfterIllegalDateFieldName(illegalDateFiledName);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDate(any());
 			hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
 			assertNull(((TapUpdateRecordEvent) event).getBefore().get("date"));
 			assertNull(((TapUpdateRecordEvent) event).getAfter().get("date"));
@@ -1479,6 +1482,59 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			PartitionConcurrentProcessor partitionConcurrentProcessor = hazelcastTargetPdkBaseNode.initInitialConcurrentProcessor(4, mock(Partitioner.class));
 
 			assertNotNull(partitionConcurrentProcessor);
+		}
+	}
+
+	@Nested
+	@DisplayName("Method handleTapdataAdjustMemoryEventTest test")
+	class handleTapdataAdjustMemoryEventTest {
+		ThreadPoolExecutorEx queueExecutorEx;
+		@BeforeEach
+		void setUp() {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataAdjustMemoryEvent(any());
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initQueueConsumerThreadPool();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initTargetQueueConsumer();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"originalWriteQueueCapacity", 100);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeQueueCapacity", 200);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"tapEventQueue", new LinkedBlockingQueue<>(100));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"tapEventProcessQueue", new LinkedBlockingQueue<>(100));
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"tapEventProcessQueue", new LinkedBlockingQueue<>(100));
+			queueExecutorEx = mock(ThreadPoolExecutorEx.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"queueConsumerThreadPool",queueExecutorEx );
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"obsLogger",mock(ObsLogger.class));
+			TaskResourceSupervisorManager taskResourceSupervisorManager = mock(TaskResourceSupervisorManager.class);
+			when(taskResourceSupervisorManager.getTaskNodeInfos()).thenReturn(new ConcurrentHashSet<>());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"taskResourceSupervisorManager",taskResourceSupervisorManager);
+			DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+			TaskDto taskDto1 = new TaskDto();
+			taskDto1.setName("name");
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto1);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+		}
+		@Test
+		void test_main(){
+			TapdataAdjustMemoryEvent tapdataEvent = new TapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent.KEEP, 1.0);
+			try(MockedStatic<AsyncUtils> mockedStatic = mockStatic(AsyncUtils.class)){
+				TableNode node  = new TableNode();
+				node.setName("test");
+				node.setId("test");
+				doReturn(node).when(hazelcastTargetPdkBaseNode).getNode();
+				mockedStatic.when(() -> AsyncUtils.createThreadPoolExecutor(anyString(), anyInt(), any(ThreadGroup.class), anyString())).thenReturn(queueExecutorEx);
+				doReturn(mock(ThreadGroup.class)).when(hazelcastTargetPdkBaseNode).getReuseOrNewThreadGroup(any());
+				when(queueExecutorEx.isShutdown()).thenReturn(true);
+				hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(tapdataEvent);
+				verify(queueExecutorEx,times(1)).shutdownNow();
+				verify(queueExecutorEx,times(2)).submit(any(Runnable.class));
+			}
+		}
+
+		@Test
+		void test_isShutdownFalse(){
+			TapdataAdjustMemoryEvent tapdataEvent = new TapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent.KEEP, 1.0);
+			when(queueExecutorEx.isShutdown()).thenReturn(false);
+			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(tapdataEvent);
+			verify(queueExecutorEx,times(1)).shutdownNow();
 		}
 	}
 }

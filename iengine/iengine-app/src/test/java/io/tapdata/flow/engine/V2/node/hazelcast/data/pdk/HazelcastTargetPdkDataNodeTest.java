@@ -580,24 +580,36 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			ArrayList<String> pks = new ArrayList<>();
 			when(tapTable.primaryKeys()).thenReturn(pks);
 			when(hazelcastTargetPdkDataNode.usePkAsUpdateConditions(updateConditionFields,pks)).thenReturn(false);
+			createUnique = true;
 			createdTable = true;
 			String writeStrategy = "updateOrInsert";
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"writeStrategy",writeStrategy);
 			Boolean unwindProcess = false;
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"unwindProcess",unwindProcess);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
-		}
-		@Test
-		@DisplayName("test createTargetIndex method for build error consumer")
-		void test1(){
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"obsLogger",mockObsLogger);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
 			ConnectorFunctions functions = mock(ConnectorFunctions.class);
 			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
 			when(functions.getCreateIndexFunction()).thenReturn(mock(CreateIndexFunction.class));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+		}
+		@Test
+		@DisplayName("test createTargetIndex method for build error consumer")
+		void test1(){
 			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("test createTargetIndex method when index already exists")
+		void test3(){
+			List<TapIndex> existsIndexes = new ArrayList<>();
+			existsIndexes.add(mock(TapIndex.class));
+			when(hazelcastTargetPdkDataNode.queryExistsIndexes(any(TapTable.class),anyList())).thenReturn(existsIndexes);
+			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			verify(hazelcastTargetPdkDataNode,never()).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 	}
 	@Nested
@@ -807,6 +819,48 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			hazelcastTargetPdkDataNode.updateDAG(tapdataEvent);
 			DatabaseNode node = (DatabaseNode) processorBaseContext.getNode();
 			assertEquals(node.getConcurrentWritePartitionMap().size(),concurrentWritePartitionMap.size());
+		}
+	}
+	@Nested
+	class checkCreateUniqueIndexOpenTest{
+		private Node node;
+		private DataParentNode dataParentNode;
+		@BeforeEach
+		void beforeEach(){
+			node = mock(DatabaseNode.class);
+			dataParentNode = (DataParentNode) node;
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).checkCreateUniqueIndexOpen();
+		}
+		@Test
+		@DisplayName("test checkCreateUniqueIndexOpen method when switch is on")
+		void test1(){
+			when(dataParentNode.getUniqueIndexEnable()).thenReturn(true);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			boolean actual = hazelcastTargetPdkDataNode.checkCreateUniqueIndexOpen();
+			assertEquals(true, actual);
+		}
+		@Test
+		@DisplayName("test checkCreateUniqueIndexOpen method when switch is off")
+		void test2(){
+			when(dataParentNode.getUniqueIndexEnable()).thenReturn(false);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			boolean actual = hazelcastTargetPdkDataNode.checkCreateUniqueIndexOpen();
+			assertEquals(false, actual);
+		}
+		@Test
+		@DisplayName("test checkCreateUniqueIndexOpen method when node is null")
+		void test3(){
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(null);
+			boolean actual = hazelcastTargetPdkDataNode.checkCreateUniqueIndexOpen();
+			assertEquals(true, actual);
+		}
+		@Test
+		@DisplayName("test checkCreateUniqueIndexOpen method when node is not database node or table node")
+		void test4(){
+			Node node1 = mock(Node.class);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node1);
+			boolean actual = hazelcastTargetPdkDataNode.checkCreateUniqueIndexOpen();
+			assertEquals(true, actual);
 		}
 	}
 }

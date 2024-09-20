@@ -14,14 +14,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.*;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class CdcDelayTest {
     private CdcDelay cdcDelay;
@@ -124,5 +123,16 @@ public class CdcDelayTest {
         Long aLong = CdcDelay.parseTs(insertRecordEvent);
         Assertions.assertNotNull(aLong);
         Assertions.assertEquals(0L, aLong);
+    }
+
+    @Test
+    @DisplayName("test ZonedDateTime type")
+    void test4() {
+        Instant now = Instant.now();
+        ZonedDateTime zonedDateTime = ZonedDateTime.ofInstant(now, ZoneId.of("GMT+03"));
+        TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create().init().after(new Document("id", 1).append("ts", zonedDateTime));
+        Long result = CdcDelay.parseTs(tapInsertRecordEvent);
+        assertNotNull(result);
+        assertEquals(result, now.toEpochMilli());
     }
 }

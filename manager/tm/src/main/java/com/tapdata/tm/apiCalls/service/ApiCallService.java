@@ -1,21 +1,30 @@
 package com.tapdata.tm.apiCalls.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
+import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
+import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
+import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
+import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -24,8 +33,13 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static com.tapdata.tm.utils.DocumentUtils.getLong;
 
 /**
  * @Author:
@@ -34,18 +48,19 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@Setter(onMethod_ = {@Autowired})
 public class ApiCallService {
-    @Autowired
+    ApiCallMinuteStatsService apiCallMinuteStatsService;
     MongoTemplate mongoOperations;
-
-    @Autowired
     ModulesService modulesService;
-
-    @Autowired
     ApplicationService applicationService;
+    ApiCallStatsService apiCallStatsService;
 
-    public ApiCallDto findOne(Query query) {
-        return null;
+    public ApiCallService() {
+    }
+
+    public ApiCallEntity findOne(Query query) {
+        return mongoOperations.findOne(query, ApiCallEntity.class);
     }
 
     public ApiCallDto upsertByWhere(Where where, ApiCallDto metadataDefinition, UserDetail loginUser) {
@@ -286,27 +301,6 @@ public class ApiCallService {
         return null;
     }
 
-    public Map<String, List<ApiCallEntity>> getVisitTotalCount(List<ApiCallEntity> apiCallEntityList) {
-        return apiCallEntityList.stream().collect(Collectors.groupingBy(item -> {
-            if ("200".equals(item.getCode())) {
-                return "normal";
-            } else {
-                return "warning";
-            }
-        }));
-    }
-
-
-    /**
-     * 获取传输的数据量
-     *
-     * @return
-     */
-    public Long getTransmitTotal(List<ApiCallEntity> apiCallEntityList) {
-        Long totalScore = apiCallEntityList.stream().mapToLong(ApiCallEntity::getReqBytes).sum();
-        return totalScore;
-    }
-
     public List<ApiCallEntity> findByModuleIds(List<String> moduleIdList) {
         Query query = Query.query(Criteria.where("allPathId").in(moduleIdList));
         query.with(Sort.by("createTime").descending());
@@ -331,52 +325,23 @@ public class ApiCallService {
         return apiCallEntityList;
     }
 
-
-    public Long getVisitTotalLine(List<ApiCallEntity> apiCallEntityList) {
-        Long totalLine = apiCallEntityList.stream().filter(apiCallEntity -> null != apiCallEntity.getResRows()).mapToLong(ApiCallEntity::getResRows).sum();
-        return totalLine;
-    }
-
-    /**
-     * 处理 where 第一层过滤条件
-     *
-     * @param where
-     */
-    private void parseWhereCondition(Where where, Query query) {
-        where.forEach((prop, value) -> {
-            if (!query.getQueryObject().containsKey(prop)) {
-                query.addCriteria(Criteria.where(prop).is(value));
-            }
-        });
-    }
-
-    private void parseFieldCondition(Field fields, Query query) {
-        if (null != fields) {
-            fields.forEach((filedName, get) -> {
-                if ((Boolean) get) {
-                    query.fields().include(filedName);
-                }
-            });
-        }
-    }
-
     public List<Map<String, String>> findClients(List<String> moduleIdList) {
         List<Map<String, String>> result = new ArrayList<>();
-        Query query = Query.query(Criteria.where("is_deleted").ne(true));
+        Query query = new Query();
         if (CollectionUtils.isNotEmpty(moduleIdList)) {
-            query.addCriteria(Criteria.where("allPathId").in(moduleIdList));
+            query.addCriteria(Criteria.where("moduleId").in(moduleIdList));
         }
-        query.fields().include("user_info.clientId");
-        List<ApiCallEntity> modulesDtoList = mongoOperations.find(query, ApiCallEntity.class);
-        List<Map> userInfoMap = modulesDtoList.stream().map(ApiCallEntity::getUserInfo).collect(Collectors.toList());
-
-        List<String> clientIdList = new ArrayList<>();
-        userInfoMap.forEach(userInfo -> {
-            String clientId = (String) userInfo.get("clientId");
-            clientIdList.add(clientId);
+        query.fields().include("clientIds");
+        List<ApiCallStatsDto> apiCallStatsDtoList = apiCallStatsService.findAll(query);
+        Set<String> clientIdSet = new HashSet<>();
+        apiCallStatsDtoList.forEach(apiCallStatsDto -> {
+            Set<String> clientIds = apiCallStatsDto.getClientIds();
+            if (CollectionUtils.isNotEmpty(clientIds)) {
+                clientIdSet.addAll(clientIds);
+            }
         });
 
-        List<ApplicationDto> applicationDtoList = applicationService.findByIds(clientIdList);
+        List<ApplicationDto> applicationDtoList = applicationService.findByIds(new ArrayList<>(clientIdSet));
         applicationDtoList.forEach(applicationDto -> {
             Map<String, String> map = new HashMap<>();
             map.put("id", applicationDto.getId().toString());
@@ -386,51 +351,6 @@ public class ApiCallService {
 
         return result;
     }
-
-    public List<ApiCallEntity> findByClientId(String clientId) {
-        Query query = Query.query(Criteria.where("user_info.clientId").is(clientId));
-        List<ApiCallEntity> apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
-        return apiCallEntityList;
-    }
-
-    public List<ApiCallEntity> findByModuleIdAndTimePeriod(List<String> moduleIds, Date startTime, Date endTime) {
-        Criteria startTimeCri = Criteria.where("createTime").gte(startTime);
-        Criteria endTimeCri = Criteria.where("createTime").lte(endTime);
-        Query query = Query.query(Criteria.where("allPathId").in(moduleIds).andOperator(startTimeCri, endTimeCri));
-        query.with(Sort.by("createTime").descending());
-        List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
-        apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
-        return apiCallEntityList;
-    }
-
-    /**
-     * 处理filter里面的or 请求，传话成Criteria
-     *
-     * @param where
-     * @return
-     */
-    private Criteria parseOrToCriteria(Where where, String queryField) {
-        //处理关键字搜索
-        Criteria nameCriteria = new Criteria();
-        if (null != where.get("or")) {
-            List<Criteria> criteriaList = new ArrayList<>();
-            List<Map<String, Map<String, String>>> orList = (List) where.remove("or");
-            for (Map<String, Map<String, String>> orMap : orList) {
-                orMap.forEach((key, value) -> {
-                    if (value.containsKey("$regex")) {
-                        String queryStr = value.get("$regex");
-                        if (queryField.equals(key)) {
-                            Criteria orCriteria = Criteria.where(key).regex(queryStr);
-                            criteriaList.add(orCriteria);
-                        }
-                    }
-                });
-            }
-            nameCriteria = new Criteria().orOperator(criteriaList);
-        }
-        return nameCriteria;
-    }
-
 
     private String getValueFromOrList(List<Map<String, Map<String, String>>> orList, String fieldName) {
         String fieldValue = "";
@@ -444,22 +364,206 @@ public class ApiCallService {
         return fieldValue;
     }
 
-    public List<ApiCallEntity> findMonitorApiCall(ApiDetailParam apiDetailParam) {
-        List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
+    public ApiCallStatsDto aggregateByAllPathId(String allPathId, String lastApiCallId) {
+        if (StringUtils.isBlank(allPathId)) {
+            return null;
+        }
+        ApiCallStatsDto apiCallStatsDto = new ApiCallStatsDto();
+        apiCallStatsDto.setModuleId(allPathId);
+        String apiCallCollectionName;
+        try {
+            apiCallCollectionName = EntityUtils.documentAnnotationValue(ApiCallEntity.class);
+        } catch (Exception e) {
+            throw new BizException("Get ApiCallEntity's collection name failed", e);
+        }
+        MongoCollection<Document> apiCallCollection = mongoOperations.getCollection(apiCallCollectionName);
 
-        List<String> clientIdList = apiDetailParam.getClientId();
+        // Build aggregation pipeline
+        Document match = new Document("allPathId", allPathId);
+        if (StringUtils.isNotBlank(lastApiCallId)) {
+            match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
+        }
+        List<Document> pipeline = Arrays.asList(new Document("$match", match),
+                new Document("$facet",
+                        new Document("callTotalCount", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", 1L)))))
+                                .append("transferDataTotalBytes", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$req_bytes")))))
+                                .append("callAlarmTotalCount", Arrays.asList(new Document("$match", new Document("code", new Document("$ne", "200"))), new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", 1L)))))
+                                .append("responseDataRowTotalCount", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$res_rows")))))
+                                .append("totalResponseTime", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$latency")))))
+                                .append("lastApiCallId", Arrays.asList(new Document("$project", new Document("_id", 1L)), new Document("$sort", new Document("_id", -1L)), new Document("$limit", 1L)))
+                                .append("maxResponseTime", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$max", "$latency")))))
+                                .append("clientIds", Arrays.asList(new Document("$group", new Document("_id", "$user_info.clientId"))))
+                )
+        );
+        if (log.isDebugEnabled()) {
+            StringBuilder pipelineString = new StringBuilder();
+            pipeline.forEach(document -> pipelineString.append(document.toJson()).append(System.lineSeparator()));
+            log.debug("ApiCallStatsService.aggregateApiCallStats pipeline: {}{}", System.lineSeparator(), pipelineString);
+        }
 
-        List<String> moduleIds = new ArrayList<>();
-        moduleIds.add(apiDetailParam.getId());
-        Criteria criteria = Criteria.where("allPathId").in(moduleIds);
+        // Execute aggregation
+        long startMs = System.currentTimeMillis();
+        try (
+                MongoCursor<Document> iterator = apiCallCollection.aggregate(pipeline, Document.class).allowDiskUse(true).iterator()
+        ) {
+            if (iterator.hasNext()) {
+                // Parse the result of the aggregation, and set value in ApiCallStatsDto
+                Document doc = iterator.next();
+                long costMs = System.currentTimeMillis() - startMs;
+                if (log.isDebugEnabled()) {
+                    log.debug("Execute aggregate by module id [{}], get result document: {}, cost: {} ms", allPathId, doc.toJson(), costMs);
+                }
+                List<?> tempList;
+                // callTotalCount
+                Object callTotalCount = doc.get("callTotalCount");
+                if (callTotalCount instanceof List) {
+                    tempList = (List<?>) callTotalCount;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setCallTotalCount(getLong((Document) tempList.get(0), "data"));
+                    }
+                }
+                // transferDataTotalBytes
+                Object transferDataTotalBytes = doc.get("transferDataTotalBytes");
+                if (transferDataTotalBytes instanceof List) {
+                    tempList = (List<?>) transferDataTotalBytes;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setTransferDataTotalBytes(getLong((Document) tempList.get(0), "data"));
+                    }
+                }
+                // callAlarmTotalCount
+                Object callAlarmTotalCount = doc.get("callAlarmTotalCount");
+                if (callAlarmTotalCount instanceof List) {
+                    tempList = (List<?>) callAlarmTotalCount;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setCallAlarmTotalCount(getLong((Document) tempList.get(0), "data"));
+                    }
+                }
+                // responseDataRowTotalCount
+                Object responseDataRowTotalCount = doc.get("responseDataRowTotalCount");
+                if (responseDataRowTotalCount instanceof List) {
+                    tempList = (List<?>) responseDataRowTotalCount;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setResponseDataRowTotalCount(getLong((Document) tempList.get(0), "data"));
+                    }
+                }
+                // totalResponseTime
+                Object totalResponseTime = doc.get("totalResponseTime");
+                if (totalResponseTime instanceof List) {
+                    tempList = (List<?>) totalResponseTime;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setTotalResponseTime(getLong((Document) tempList.get(0), "data"));
+                    }
+                }
+                // maxResponseTime
+                Object maxResponseTime = doc.get("maxResponseTime");
+                if (maxResponseTime instanceof List) {
+                    tempList = (List<?>) maxResponseTime;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setMaxResponseTime(getLong((Document) tempList.get(0), "data"));
+                    }
+                }
+                // lastApiCallId
+                Object lastApiCallIdObj = doc.get("lastApiCallId");
+                if (lastApiCallIdObj instanceof List) {
+                    tempList = (List<?>) lastApiCallIdObj;
+                    if (!tempList.isEmpty()) {
+                        apiCallStatsDto.setLastApiCallId(((Document) tempList.get(0)).getObjectId("_id").toString());
+                    }
+                }
+                // clientIds
+                Object clientIds = doc.get("clientIds");
+                if (clientIds instanceof List) {
+                    tempList = (List<?>) clientIds;
+                    if (!tempList.isEmpty()) {
+                        tempList.stream().map(t -> ((Document) t).getString("_id")).filter(Objects::nonNull).forEach(apiCallStatsDto.getClientIds()::add);
+                    }
+                }
+            }
+        }
 
-        criteria.and("user_info.clientId").in(clientIdList);
-
-        Query query = new Query().addCriteria(criteria);
-        apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
-
-        return apiCallEntityList;
+        return apiCallStatsDto;
     }
 
+    public List<ApiCallMinuteStatsDto> aggregateMinuteByAllPathId(String allPathId, String lastApiCallId, Date startTime) {
+        List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList = new ArrayList<>();
+        String apiCallCollectionName;
+        try {
+            apiCallCollectionName = EntityUtils.documentAnnotationValue(ApiCallEntity.class);
+        } catch (Exception e) {
+            throw new BizException("Get ApiCallEntity's collection name failed", e);
+        }
+        MongoCollection<Document> apiCallCollection = mongoOperations.getCollection(apiCallCollectionName);
 
+        // Build aggregation pipeline
+        Document match = new Document("allPathId", allPathId);
+        if (StringUtils.isNotBlank(lastApiCallId)) {
+            match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
+        }
+        if (null != startTime) {
+            match.append("createTime", new Document("$gte", startTime));
+        }
+        List<Document> pipeline = new ArrayList<>();
+        pipeline.add(new Document("$match", match));
+        pipeline.add(new Document("$project", new Document("year", new Document("$year", "$createTime"))
+                .append("month", new Document("$month", "$createTime"))
+                .append("day", new Document("$dayOfMonth", "$createTime"))
+                .append("hour", new Document("$hour", "$createTime"))
+                .append("minute", new Document("$minute", "$createTime"))
+                .append("res_rows", 1)
+                .append("latency", 1)
+                .append("req_bytes", 1)
+        ));
+        Document group = new Document("_id", groupByMinute())
+                .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))
+                .append("totalResponseTime", new Document("$sum", "$latency"))
+                .append("transferDataTotalBytes", new Document("$sum", "$req_bytes"))
+                .append("lastApiCallId", new Document("$last", "$_id"));
+        pipeline.add(new Document("$group", group));
+        if (log.isDebugEnabled()) {
+            StringBuilder pipelineString = new StringBuilder();
+            pipeline.forEach(document -> pipelineString.append(document.toJson()).append(System.lineSeparator()));
+            log.debug("ApiCallStatsService.aggregateMinuteByAllPathId pipeline: {}{}", System.lineSeparator(), pipelineString);
+        }
+        // Execute aggregation
+        try (
+                MongoCursor<Document> iterator = apiCallCollection.aggregate(pipeline, Document.class).allowDiskUse(true).iterator()
+        ) {
+            while (iterator.hasNext()) {
+                Document document = iterator.next();
+                ApiCallMinuteStatsDto apiCallMinuteStatsDto = new ApiCallMinuteStatsDto();
+                apiCallMinuteStatsDto.setModuleId(allPathId);
+
+                apiCallMinuteStatsDto.setResponseDataRowTotalCount(getLong(document, "responseDataRowTotalCount"));
+                apiCallMinuteStatsDto.setTotalResponseTime(getLong(document, "totalResponseTime"));
+                apiCallMinuteStatsDto.setTransferDataTotalBytes(getLong(document, "transferDataTotalBytes"));
+                // responseTimePerRow, rowPerSecond
+                apiCallMinuteStatsService.calculate(apiCallMinuteStatsDto);
+				if (null != document.get("lastApiCallId")) {
+					apiCallMinuteStatsDto.setLastApiCallId(document.getObjectId("lastApiCallId").toString());
+				}
+                // apiCallTime: year, month, day, hour, minute
+                Document id = document.get("_id", Document.class);
+                Instant apiCallTime = LocalDateTime.of(
+						id.getInteger("year"),
+						id.getInteger("month"),
+						id.getInteger("day"),
+						id.getInteger("hour"),
+						id.getInteger("minute")
+				).toInstant(ZoneOffset.UTC);
+                apiCallMinuteStatsDto.setApiCallTime(Date.from(apiCallTime));
+
+                apiCallMinuteStatsDtoList.add(apiCallMinuteStatsDto);
+            }
+        }
+
+        return apiCallMinuteStatsDtoList;
+    }
+
+    public Document groupByMinute() {
+        return new Document("year", "$year")
+                .append("month", "$month")
+                .append("day", "$day")
+                .append("hour", "$hour")
+                .append("minute", "$minute");
+    }
 }

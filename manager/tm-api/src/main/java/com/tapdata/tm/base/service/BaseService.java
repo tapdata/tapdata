@@ -3,11 +3,8 @@ package com.tapdata.tm.base.service;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.permissions.DataPermissionHelper;
-import com.tapdata.tm.base.dto.Field;
-import com.tapdata.tm.base.dto.Filter;
-import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -576,5 +573,13 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
     public Dto replaceOrInsert(Dto dto, UserDetail userDetail) {
         Entity entity = repository.replaceOrInsert(new Query(Criteria.where("_id").is(dto.getId())), convertToEntity(entityClass, dto), userDetail);
         return convertToDto(entity, dtoClass);
+    }
+
+    protected TmPageable filterToTmPageable(Filter filter) {
+        TmPageable tmPageable = new TmPageable();
+        Integer page = (filter.getSkip() / filter.getLimit()) + 1;
+        tmPageable.setPage(page);
+        tmPageable.setSize(filter.getLimit());
+        return tmPageable;
     }
 }

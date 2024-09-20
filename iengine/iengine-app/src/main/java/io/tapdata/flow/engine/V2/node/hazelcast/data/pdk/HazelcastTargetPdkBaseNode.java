@@ -65,6 +65,9 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapEventException;
@@ -196,7 +199,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private LinkedBlockingQueue<TapdataEvent> tapEventQueue;
 	private LinkedBlockingQueue<TapdataEvent> tapEventProcessQueue;
 	private final Object saveSnapshotLock = new Object();
-	private final ThreadPoolExecutorEx queueConsumerThreadPool;
+	private ThreadPoolExecutorEx queueConsumerThreadPool;
 	private boolean inCdc = false;
 	protected int targetBatch;
 	protected long targetBatchIntervalMs;
@@ -221,9 +224,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
-		ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
-		queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
+		initQueueConsumerThreadPool();
 		//threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("Target-" + getNode().getName() + "@task-" + dataProcessorContext.getTaskDto().getName(), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
 		flushOffsetExecutor = new ScheduledThreadPoolExecutor(1, r->{
 			Thread thread = new Thread(r);
@@ -280,6 +281,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
+	}
+
+	protected void initQueueConsumerThreadPool(){
+		ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
+		ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
+		queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
 	}
 
 	protected void initExactlyOnceWriteIfNeed() {
@@ -996,7 +1003,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-	private void handleTapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent tapdataEvent) {
+	protected void handleTapdataAdjustMemoryEvent(TapdataAdjustMemoryEvent tapdataEvent) {
 		try {
 			int mode = tapdataEvent.getMode();
 			double coefficient = tapdataEvent.getCoefficient();
@@ -1024,8 +1031,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			if (this.writeQueueCapacity != newQueueSize) {
 				while (isRunning()) {
-					if (tapEventQueue.isEmpty()) {
+					if (tapEventQueue.isEmpty() && tapEventProcessQueue.isEmpty()) {
 						this.tapEventQueue = new LinkedBlockingQueue<>(newQueueSize);
+						this.tapEventProcessQueue = new LinkedBlockingQueue<>(newQueueSize);
+						this.queueConsumerThreadPool.shutdownNow();
+						if(this.queueConsumerThreadPool.isShutdown()){
+							initQueueConsumerThreadPool();
+							initTargetQueueConsumer();
+						}
 						obsLogger.info("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
 						this.writeQueueCapacity = newQueueSize;
 						break;
@@ -1221,24 +1234,25 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		boolean containsIllegalDate = event.getContainsIllegalDate();
 		if (containsIllegalDate && !illegalDateAcceptable){
 			Map<String, Object> before = Optional.ofNullable(TapEventUtil.getBefore(event)).orElse(new HashMap<>());
-			Map<String, List<String>> illegalFieldMap = Optional.ofNullable(TapEventUtil.getIllegalField(event)).orElse(new HashMap<>());
-			List<String> beforeIllegal = Optional.ofNullable(illegalFieldMap.get("before")).orElse(new ArrayList<>());
-			List<String> afterIllegal = Optional.ofNullable(illegalFieldMap.get("after")).orElse(new ArrayList<>());
-			for (String filedName : beforeIllegal) {
-				Object value = before.get(filedName);
-				if (null != value){
-					before.put(filedName, null);
-				}
-			}
-			Map<String, Object> after = TapEventUtil.getAfter(event);
-			for (String filedName : afterIllegal) {
-				Object value = after.get(filedName);
-				if (null != value){
-					after.put(filedName, null);
+			replaceIllegalDate(before);
+			Map<String, Object> after = Optional.ofNullable(TapEventUtil.getAfter(event)).orElse(new HashMap<>());
+			replaceIllegalDate(after);
+		}
+	}
+
+	protected void replaceIllegalDate(Map<String, Object> data){
+		for(Map.Entry<String, Object> entry : data.entrySet()){
+			if(entry.getValue() instanceof TapDateTimeValue){
+				TapDateTimeValue tapDateTimeValue = (TapDateTimeValue) entry.getValue();
+				DateTime dateTime = tapDateTimeValue.getValue();
+				if (dateTime.isContainsIllegal()){
+					entry.setValue(null);
 				}
 			}
 		}
 	}
+
+
 	private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
 		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
 			return false;

@@ -32,7 +32,8 @@ public enum SettingsEnum {
     WORKER_HEART_OVERTIME(CategoryEnum.WORKER.getValue(), KeyEnum.WORKER_HEART_TIMEOUT.getValue()),
     SMTP_PASSWORD("SMTP", "smtp.server.password"),
 
-    SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD("schema", "scheduled.load.schema.count.threshold")
+    SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD("schema", "scheduled.load.schema.count.threshold"),
+    AD_PASSWORD("Active_Directory", "ad.bind.password")
     ;
 
     @Getter

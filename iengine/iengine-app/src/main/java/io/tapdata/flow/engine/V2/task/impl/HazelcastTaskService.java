@@ -73,15 +73,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSource;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastVirtualTargetNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSampleSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkShareCDCNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkAutoInspectNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkCacheNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -529,6 +521,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE && !Objects.equals(taskDto.getType(), SyncTypeEnum.CDC.getSyncType())) {
 								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
+							} else if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE) && node instanceof DatabaseNode && ((DatabaseNode)node).isEnableConcurrentRead()) {
+								hazelcastNode = new HazelcastSourceConcurrentReadDataNode(processorContext);
 							} else {
 								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
 							}

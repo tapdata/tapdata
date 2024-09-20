@@ -184,5 +184,143 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 			hazelcastProcessorNode.handleTransformToTapValueResult(tapdataEvent);
 			assertTrue(tapdataEvent.getTransformToTapValueResult().isEmpty());
 		}
+
+		@Test
+		@DisplayName("test rename when transform result not contains this field")
+		void test5() {
+			FieldProcessorNode.Operation rename = new FieldProcessorNode.Operation();
+			rename.setOp("RENAME");
+			rename.setField("field_old");
+			rename.setOperand("field_new");
+			List<FieldProcessorNode.Operation> operations = new ArrayList<>();
+			operations.add(rename);
+
+			FieldProcessorNode fieldProcessorNode = new FieldProcessorNode();
+			fieldProcessorNode.setOperations(operations);
+			when(dataProcessorContext.getNode()).thenReturn((Node) fieldProcessorNode);
+
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TransformToTapValueResult transformToTapValueResult = TransformToTapValueResult.create()
+					.beforeTransformedToTapValueFieldNames(new HashSet<String>() {{
+						add("field_remove");
+					}}).afterTransformedToTapValueFieldNames(new HashSet<String>() {{
+						add("field_remove");
+					}});
+			tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
+
+			hazelcastProcessorNode.handleTransformToTapValueResult(tapdataEvent);
+
+			Set<String> expect = new HashSet<String>() {{
+				add("field_remove");
+			}};
+
+			assertEquals(expect, tapdataEvent.getTransformToTapValueResult().getBeforeTransformedToTapValueFieldNames());
+			assertEquals(expect, tapdataEvent.getTransformToTapValueResult().getAfterTransformedToTapValueFieldNames());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method handleRemoveFields test")
+	class handleRemoveFieldsTest {
+
+		private FieldRenameProcessorNode fieldRenameProcessorNode;
+
+		@BeforeEach
+		void setUp() {
+			fieldRenameProcessorNode = new FieldRenameProcessorNode();
+		}
+
+		@Test
+		@DisplayName("test main process")
+		void test1() {
+			List<String> removeFields = new ArrayList<String>() {{
+				add("field1");
+				add("field2");
+			}};
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create().removedFields(removeFields);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			List<FieldProcessorNode.Operation> operations = new ArrayList<>();
+			operations.add(new FieldProcessorNode.Operation(){{
+				setOp("REMOVE");
+				setField("FIELD1");
+			}});
+			operations.add(new FieldProcessorNode.Operation(){{
+				setOp("RENAME");
+				setField("FIELD2");
+				setOperand("FIELD3");
+			}});
+			operations.add(new FieldProcessorNode.Operation(){{
+				setOp("CREATE");
+				setField("FIELD4");
+			}});
+			fieldRenameProcessorNode.setFieldsNameTransform(Capitalized.UPPER.getValue());
+			fieldRenameProcessorNode.setOperations(operations);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "fieldRenameProcessorNode", fieldRenameProcessorNode);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "capitalized", Capitalized.UPPER);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "fieldsNameTransformMap", new HashMap<>());
+			doReturn(fieldRenameProcessorNode).when(hazelcastProcessorNode).getNode();
+
+			hazelcastProcessorNode.handleRemoveFields(tapdataEvent);
+
+			List<String> result = ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getRemovedFields();
+			assertEquals(1, result.size());
+			assertEquals("FIELD3", result.get(0));
+		}
+
+		@Test
+		@DisplayName("test remove fields is empty")
+		void test2() {
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create().removedFields(new ArrayList<>());
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			List<FieldProcessorNode.Operation> operations = new ArrayList<>();
+			operations.add(new FieldProcessorNode.Operation(){{
+				setOp("REMOVE");
+				setField("FIELD1");
+			}});
+			operations.add(new FieldProcessorNode.Operation(){{
+				setOp("RENAME");
+				setField("FIELD2");
+				setOperand("FIELD3");
+			}});
+			fieldRenameProcessorNode.setFieldsNameTransform(Capitalized.UPPER.getValue());
+			fieldRenameProcessorNode.setOperations(operations);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "fieldRenameProcessorNode", fieldRenameProcessorNode);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "capitalized", Capitalized.UPPER);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "fieldsNameTransformMap", new HashMap<>());
+			doReturn(fieldRenameProcessorNode).when(hazelcastProcessorNode).getNode();
+
+			hazelcastProcessorNode.handleRemoveFields(tapdataEvent);
+
+			List<String> result = ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getRemovedFields();
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test operations is emtpy")
+		void test3() {
+			List<String> removeFields = new ArrayList<String>() {{
+				add("field1");
+				add("field2");
+			}};
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create().removedFields(removeFields);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			List<FieldProcessorNode.Operation> operations = new ArrayList<>();
+			fieldRenameProcessorNode.setFieldsNameTransform(Capitalized.UPPER.getValue());
+			fieldRenameProcessorNode.setOperations(operations);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "fieldRenameProcessorNode", fieldRenameProcessorNode);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "capitalized", Capitalized.UPPER);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "fieldsNameTransformMap", new HashMap<>());
+			doReturn(fieldRenameProcessorNode).when(hazelcastProcessorNode).getNode();
+
+			hazelcastProcessorNode.handleRemoveFields(tapdataEvent);
+
+			List<String> result = ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getRemovedFields();
+			assertEquals(2, result.size());
+			assertTrue(result.contains("FIELD1"));
+			assertTrue(result.contains("FIELD2"));
+		}
 	}
 }

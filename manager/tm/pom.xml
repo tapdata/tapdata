@@ -177,7 +177,11 @@
                     <artifactId>tapdata-pdk-runner</artifactId>
                     <groupId>io.tapdata</groupId>
                 </exclusion>
-            </exclusions>
+				<exclusion>
+					<artifactId>mongodb-driver-sync</artifactId>
+					<groupId>org.mongodb</groupId>
+				</exclusion>
+			</exclusions>
         </dependency>
 		<dependency>
 			<groupId>com.deepoove</groupId>
@@ -194,6 +198,12 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+			<exclusions>
+				<exclusion>
+					<artifactId>mongodb-driver-sync</artifactId>
+					<groupId>org.mongodb</groupId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.data</groupId>
@@ -299,6 +309,12 @@
 			<groupId>net.javacrumbs.shedlock</groupId>
 			<artifactId>shedlock-provider-mongo</artifactId>
 			<version>4.15.1</version>
+			<exclusions>
+				<exclusion>
+					<artifactId>mongodb-driver-sync</artifactId>
+					<groupId>org.mongodb</groupId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>

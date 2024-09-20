@@ -27,13 +27,13 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.schema.bean.ResponseBody;
-import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
@@ -373,6 +373,7 @@ public class TaskServiceImpl extends TaskService{
     private UserDataReportService userDataReportService;
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
+    private ILicenseService iLicenseService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -1427,6 +1428,12 @@ public class TaskServiceImpl extends TaskService{
                 }
                 start(task, user, "11");
             } catch (Exception e) {
+                if (e instanceof BizException) {
+                    if (("License.NodeInstanceIdInvalid".equals(((BizException)e).getErrorCode()))
+                            || "Task.LicenseScheduleLimit".equals(((BizException)e).getErrorCode())) {
+                        throw e;
+                    }
+                }
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), ThrowableUtils.getStackTraceByPn(e));
                 monitoringLogsService.startTaskErrorLog(task, user, e, Level.ERROR);
                 if (e instanceof BizException) {
@@ -3966,6 +3973,12 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
+        if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
+        if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
+            scheduleService.createTaskRecordForInitial(taskDto);
+            update(new Query(Criteria.where("_id").is(taskDto.getId())), taskDto);
+        }
         String taskType = taskDto.getSyncType();
         TasksNumBatch tasksNumBatch = new TasksNumBatch();
         tasksNumBatch.setTaskType(taskType);
