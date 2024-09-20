@@ -1,5 +1,6 @@
 package io.tapdata.websocket.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Maps;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
@@ -97,14 +98,10 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 	@Override
 	public Object handle(Map eventData, SendMessage sendMessage) {
 		Map<String, Object> event = (Map<String, Object>) eventData;
-        event.remove("errorMsg");
-        event.remove("loadFieldErrMsg");
-        event.remove("schema");
-        event.remove("alarmInfo");
-		getLogger().info("Test connection, event: {}", event);
 		if (MapUtils.isEmpty(event)) {
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_CONNECTION_RESULT, "Event data cannot be empty");
 		}
+        getLogger().debug(() -> String.format("Test connection, event: %s", event));
 
 		Connections connection = parseConnection(event);
 		String connectionId = ConnectionUpdateOperation.ID.getString(event);
@@ -121,6 +118,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 			.pdkHash(pdkHash)
 			.schemaVersion(ConnectionUpdateOperation.SCHEMA_VERSION.getString(event))
 			.databaseType(ConnectionUpdateOperation.DATABASE_TYPE.getString(event));
+        getLogger().info(() -> String.format("Test connection '%s', entity: %s", event.get("connectionUrl"), JSON.toJSONString(entity)));
+
 		String threadName = String.format("TEST-CONNECTION-%s", connName);
 		DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.CONNECTION_TEST, threadName);
 
