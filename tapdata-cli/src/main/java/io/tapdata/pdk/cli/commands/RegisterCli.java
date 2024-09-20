@@ -3,6 +3,7 @@ package io.tapdata.pdk.cli.commands;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -22,21 +23,10 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.output.WriterOutputStream;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.formula.functions.T;
-import org.voovan.tools.collection.ArraySet;
 import picocli.CommandLine;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.io.Writer;
-import java.nio.charset.Charset;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -80,6 +70,8 @@ public class RegisterCli extends CommonCli {
 
     public Integer execute() throws Exception {
         printUtil = new PrintUtil(showAllMessage);
+        TapLogger.setLogListener(printUtil.getLogListener());
+
         List<String> filterTypes = generateSkipTypes();
         if (!filterTypes.isEmpty()) {
             printUtil.print(PrintUtil.TYPE.TIP, String.format("* Starting to register data sources, plan to skip data sources that are not within the registration scope.\n* The types of data sources that need to be registered are: %s", filterTypes));
@@ -344,15 +336,17 @@ public class RegisterCli extends CommonCli {
     }
 
     protected static final String path = "tapdata-cli/src/main/resources/replace/";
-    private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath){
-        if (null != this.replaceName && !"".equals(replaceName.trim())){
+
+    private Map<String, Object> needReplaceKeyWords(TapNodeInfo nodeInfo, String replacePath) {
+        if (null != this.replaceName && !"".equals(replaceName.trim())) {
             replacePath = replaceName;
         }
         if (null == replacePath || "".equals(replacePath.trim())) return null;
         try {
             InputStream as = FileUtils.openInputStream(new File(path + replacePath + ".json"));//nodeInfo.readResource((String) replacePath);
             return JSON.parseObject(as, StandardCharsets.UTF_8, LinkedHashMap.class);
-        }catch (IOException e){}
+        } catch (IOException e) {
+        }
         return null;
     }
 

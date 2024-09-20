@@ -218,7 +218,7 @@ public class UploadFileService {
     } else {
       printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s Completed", file.getName()));
     }
-    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
+    printUtil.print(PrintUtil.TYPE.WARN, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {
