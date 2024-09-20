@@ -832,6 +832,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			boolean isSubPartitionTable = node instanceof DatabaseNode
 					&& Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())
 					&& event.getTable().checkIsSubPartitionTable();
+
+			if (event.getTable().checkIsSubPartitionTable()
+			        && node instanceof DatabaseNode
+					&& !Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())) {
+				obsLogger.info("Target node not enable partition, task will skip: update metadata instances for subpartition table {}",
+						event.getTable().getId());
+				return;
+			}
+
 			if (isSubPartitionTable) {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), event.getTable().getPartitionMasterTableId());
 				metadata.setPartitionInfo(event.getTable().getPartitionInfo());

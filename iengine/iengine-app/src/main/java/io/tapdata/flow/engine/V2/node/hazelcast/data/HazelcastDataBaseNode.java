@@ -3,8 +3,10 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.constant.StringCompression;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -12,10 +14,12 @@ import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author jackin
@@ -43,6 +47,19 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 			return false;
 		}
 		if (syncProgress != null) {
+
+			if (syncProgress.getBatchOffsetObj() != null && syncProgress.getBatchOffsetObj() instanceof Map) {
+				AtomicBoolean hasRunningTable = new AtomicBoolean(false);
+				((Map<?,?>)syncProgress.getBatchOffsetObj()).keySet().forEach(key -> {
+					if (!BatchOffsetUtil.batchIsOverOfTable(syncProgress, String.valueOf(key))) {
+						hasRunningTable.set(true);
+					}
+				});
+				if (hasRunningTable.get()) {
+					return true;
+				}
+			}
+
 			String syncStage = syncProgress.getSyncStage();
 			if (StringUtils.isNotBlank(syncStage)
 					&& SyncStage.valueOf(syncStage).equals(SyncStage.CDC)) {
@@ -114,6 +131,18 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 			}
 		}
 		return syncProgress;
+	}
+
+	@Nullable
+	protected String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
+		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
+			try {
+				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
+			} catch (IOException e) {
+				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
+			}
+		}
+		return streamOffsetStr;
 	}
 
 	public DataProcessorContext getDataProcessorContext() {

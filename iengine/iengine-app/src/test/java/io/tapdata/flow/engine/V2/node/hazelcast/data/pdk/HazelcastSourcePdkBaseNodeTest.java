@@ -25,6 +25,7 @@ import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.event.TapEvent;
@@ -1380,8 +1381,13 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			List<Object> results = new ArrayList();
 			new Thread(() -> {
 				while (countDownLatch.getCount() > 0) {
-					Object o = simpleConcurrentProcessor.get();
-					assertInstanceOf(List.class, o);
+                    Object o = null;
+                    try {
+                        o = simpleConcurrentProcessor.get();
+                    } catch (ConcurrentProcessorApplyException e) {
+                        throw new RuntimeException(e);
+                    }
+                    assertInstanceOf(List.class, o);
 					for (Object result : (List<?>) o) {
 						results.add(result);
 						countDownLatch.countDown();

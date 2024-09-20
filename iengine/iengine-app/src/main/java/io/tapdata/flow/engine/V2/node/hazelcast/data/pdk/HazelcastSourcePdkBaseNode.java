@@ -283,18 +283,29 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTableMonitor();
 			initDynamicAdjustMemory();
 			initSourceRunnerOnce();
+			syncBatchAndStreamOffset();
 			initAndStartSourceRunner();
 			initTapCodecsFilterManager();
 			initToTapValueConcurrent();
 		});
 	}
 
-    /**
+	private void syncBatchAndStreamOffset() {
+		TapdataHeartbeatEvent e = new TapdataHeartbeatEvent();
+		e.setSyncStage(SyncStage.INITIAL_SYNC);
+		e.setBatchOffset(syncProgress.getBatchOffsetObj());
+		e.setStreamOffset(syncProgress.getStreamOffsetObj());
+		enqueue(e);
+	}
+
+	/**
      * Initialization: Whether the target has enabled synchronization of partition tables
      * */
     protected void initSyncPartitionTableEnable() {
         Node<?> node = getNode();
-        this.syncSourcePartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncSourcePartitionTableEnable());
+        this.syncSourcePartitionTableEnable =
+				node instanceof DataParentNode &&
+						Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncSourcePartitionTableEnable());
 	}
 
 	protected void initToTapValueConcurrent() {
@@ -748,18 +759,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	@Nullable
-	private String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
-		if (StringUtils.startsWith(syncProgress.getStreamOffset(), STREAM_OFFSET_COMPRESS_PREFIX)) {
-			try {
-				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
-			} catch (IOException e) {
-				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
-			}
-		}
-		return streamOffsetStr;
-	}
-
 	protected void initStreamOffsetFromTime(Long offsetStartTimeMs) {
 		AtomicReference<Object> timeToStreamOffsetResult = new AtomicReference<>();
 		TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = getConnectorNode().getConnectorFunctions().getTimestampToStreamOffsetFunction();
@@ -1030,7 +1029,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				return false;
 			}
 
-			Map<String, TapTable> updateMasterTable = new HashMap<>();
 			for (TapTable addTapTable : addTapTables) {
 				if (!isRunning()) {
 					break;
@@ -1047,6 +1045,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapCreateTableEvent.table(addTapTable);
 				tapCreateTableEvent.setTableId(addTapTable.getId());
 				TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+				BatchOffsetUtil.updateBatchOffset(syncProgress, addTapTable.getId(), null, TableBatchReadStatus.RUNNING.name());
+				tapdataEvent.setBatchOffset(syncProgress.getBatchOffsetObj());
+				tapdataEvent.setSourceTime(System.currentTimeMillis());
 
 				if (null == tapdataEvent) {
 					String error = "Wrap create table tapdata event failed: " + addTapTable;
@@ -1079,11 +1080,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					.tables(loadedTableNames)
 					.tapdataEvents(normalDDLEvents));
 			if (tapdataEvents.isEmpty()) return false;
-
-			//MetadataInstances
-			if (!updateMasterTable.isEmpty()) {
-				clientMongoOperator.update(new Query(), new Update().set("", ""), ConnectorConstant.METADATA_INSTANCE_COLLECTION);
-			}
 
 			if (this.endSnapshotLoop.get()) {
 				obsLogger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");

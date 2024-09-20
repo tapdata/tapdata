@@ -421,6 +421,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			obsLogger.info("Target node has been disabled, task will skip: create table");
 			return false;
 		}
+		if (!this.syncTargetPartitionTableEnable && tapTable.checkIsSubPartitionTable()) {
+			obsLogger.info("Target node not enable partition, task will skip: create subpartition table {}",
+					tapTable.getId());
+			return false;
+		}
 		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
 		boolean createdTable;
 		boolean createPartitionTable;
@@ -1269,6 +1274,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		if (removeMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) removeMetadata)) {
 			this.removeMetadata.addAll((Collection<? extends String>) removeMetadata);
 		}
+		if (tapDDLEvent instanceof TapCreateTableEvent && tapdataEvent.getBatchOffset() != null) {
+			flushSyncProgressMap(tapdataEvent);
+		}
 		tapEvents.add(tapDDLEvent);
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
 			consumer.accept(tapdataEvent);
@@ -1293,8 +1301,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (null != tapdataEvent.getBatchOffset()) {
 				syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
 			}
-			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
-			syncProgress.setEventTime(tapdataEvent.getSourceTime());
+			if (tapdataEvent.getSourceTime() != null)
+				syncProgress.setSourceTime(tapdataEvent.getSourceTime());
+			if (tapdataEvent.getSourceTime() != null)
+				syncProgress.setEventTime(tapdataEvent.getSourceTime());
 			flushOffset.set(true);
 		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
 			if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
@@ -1386,6 +1396,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX + compress);
 					}
 				}
+				//System.out.println(JSONUtil.obj2JsonPretty(syncProgress.getBatchOffsetObj()));
 				try {
 					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
 				} catch (JsonProcessingException e) {

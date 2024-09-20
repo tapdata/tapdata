@@ -83,11 +83,16 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.utils.CloneUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.beans.BeanUtils;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -99,6 +104,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -120,6 +126,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
 	private WritePolicyService writePolicyService;
+	private Map<String, TapTable> partitionTapTables;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -127,6 +134,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+		this.partitionTapTables = new ConcurrentHashMap<>();
 		try {
 			super.doInit(context);
 			if (getNode() instanceof TableNode) {
@@ -615,6 +623,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private void writeDDL(List<TapEvent> events) {
 		List<TapDDLEvent> tapDDLEvents = new ArrayList<>();
 		events.forEach(event -> {
+			if (event instanceof TapCreateTableEvent) {
+				TapCreateTableEvent createTableEvent = (TapCreateTableEvent) event;
+				// 当前节点未启用分区表，忽略创建分区子表事件
+				if (!syncTargetPartitionTableEnable
+						&& createTableEvent.getTable().checkIsSubPartitionTable()) return;
+			}
 			TapDDLEvent tapDDLEvent = (TapDDLEvent) event;
 			tapDDLEvent.setTableId(getTgtTableNameFromTapEvent(tapDDLEvent));
 			tapDDLEvents.add(tapDDLEvent);
@@ -889,12 +903,26 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (writeRecordFunction != null) {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 			try {
-				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
-						.recordEvents(tapRecordEvents)
-						.table(tapTable)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (writeRecordFuncAspect ->
+				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> {
+
+					TapTable tapTableForObs = tapTable;
+					if (firstEvent.getPartitionMasterTableId() != null) {
+						tapTableForObs = partitionTapTables.computeIfAbsent(firstEvent.getPartitionMasterTableId(), key -> {
+							TapTable cloneObj = new TapTable();
+							BeanUtils.copyProperties(tapTable, cloneObj);
+							cloneObj.setId(key);
+							cloneObj.setName(key);
+							return cloneObj;
+						});
+					}
+
+					return new WriteRecordFuncAspect()
+							.recordEvents(tapRecordEvents)
+							.table(tapTableForObs)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start();
+				}, (writeRecordFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 								pdkMethodInvoker.runnable(
 										() -> {

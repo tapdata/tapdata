@@ -133,16 +133,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -227,6 +218,22 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 			table.add(tableId);
 		}
+
+		Map<String, Boolean> batchOffset = BatchOffsetUtil.getAllTableBatchOffsetInfo(syncProgress);
+		List<String> notOverTables = new ArrayList<>(); // 未完成同步的表，且模型不存在（分区子表）
+		batchOffset.forEach((tableId, isOver) -> {
+			if (table.contains(tableId)) return;
+			if (!isOver) {
+				if (keySet.contains(tableId))
+					table.add(tableId);
+				else
+					notOverTables.add(tableId);
+			}
+		});
+		if (notOverTables.size() > 0) {
+			handleNewTables(notOverTables);
+		}
+
 		return table;
 	}
 
@@ -447,7 +454,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																	if (null == event.getTime()) {
 																		throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 																	}
-																	return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
+																	return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)), this.dataProcessorContext.getTaskDto().getSyncType());
 																}).collect(Collectors.toList());
 
 																if (batchReadFuncAspect != null)
@@ -456,7 +463,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																if (obsLogger.isDebugEnabled()) {
 																	obsLogger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(connectorNode));
 																}
-																BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject,  TableBatchReadStatus.RUNNING.name());
+																BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offsetObject, TableBatchReadStatus.RUNNING.name());
 
 																flushPollingCDCOffset(events);
 
@@ -502,8 +509,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 																		return;
 																	}
 
-																	Object result= executeResult.getResult();
-																	handleCustomCommandResult(result,tableName,consumer);
+																	Object result = executeResult.getResult();
+																	handleCustomCommandResult(result, tableName, consumer);
 																});
 															} else {
 																batchReadFunction.batchRead(connectorNode.getConnectorContext(), tapTable, null, readBatchSize, consumer);
@@ -514,8 +521,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 											)
 									));
-							BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null,  TableBatchReadStatus.OVER.name());
-							obsLogger.info("Table [{}] has been completed batch read, will skip batch read on the next run", tableName);
+							if (getTerminatedMode() == null || getTerminatedMode() == TerminalMode.COMPLETE) {
+								BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null,  TableBatchReadStatus.OVER.name());
+								obsLogger.info("Table [{}] has been completed batch read, will skip batch read on the next run", tableName);
+							}
 						} finally {
 							removePdkMethodInvoker(pdkMethodInvoker);
 						}
@@ -556,6 +565,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
+	}
+
+	private TerminalMode getTerminatedMode() {
+		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
+		if (null != tapdataTaskScheduler) {
+			TaskClient<TaskDto> taskClient = tapdataTaskScheduler.getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString());
+			if (null != taskClient) {
+				return taskClient.getTerminalMode();
+			}
+		}
+		return null;
 	}
 
 	private void handleCustomCommandResult(Object result, String tableName, BiConsumer<List<TapEvent>, Object> consumer){
