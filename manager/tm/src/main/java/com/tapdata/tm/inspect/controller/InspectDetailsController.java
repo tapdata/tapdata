@@ -229,29 +229,28 @@ public class InspectDetailsController extends BaseController {
      */
     @Operation(summary = "Export different data from the inspectDetail.")
     @PostMapping("export")
-    public ResponseMessage<Void> export(@RequestBody InspectDetailsDto inspectDetails,
+    public void export(@RequestBody InspectDetailsDto inspectDetails,
                        HttpServletResponse response) throws IOException {
         String date = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         String filename = inspectDetails.getInspectResultId() + "-" + date;
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream);
-        zipOutputStream.putNextEntry(new ZipEntry(filename + ".json"));
-
-        try {
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+            zipOutputStream.putNextEntry(new ZipEntry(filename + ".json"));
             inspectDetailsService.export(inspectDetails, zipOutputStream, getLoginUser(), inspectResultService);
+
+            zipOutputStream.closeEntry();
+            zipOutputStream.flush();
+            zipOutputStream.close();
 
             response.setContentType("application/zip");
             response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + ".zip\"");
             response.getOutputStream().write(byteArrayOutputStream.toByteArray());
-            return success();
         } catch (Exception e) {
             log.error("Export inspectDetails failed", e);
             throw new BizException("export.inspectDetails.failed",e.getMessage());
         } finally {
-            zipOutputStream.closeEntry();
-            zipOutputStream.flush();
-            zipOutputStream.close();
+            byteArrayOutputStream.close();
         }
     }
 
