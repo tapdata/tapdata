@@ -64,7 +64,7 @@ import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.*;
 import javax.net.ssl.*;
-import java.io.FileInputStream;
+import java.io.*;
 import java.security.KeyStore;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -789,7 +789,8 @@ public class UserServiceImpl extends UserService{
         String bindDN = testldapDto.getLdap_Bind_DN();
         String bindPassword = testldapDto.getLdap_Bind_Password();
         Boolean sslEnable = testldapDto.getLdap_SSL_Enable();
-        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).sslEnable(sslEnable).build();
+        String ldapSslCert = testldapDto.getLdap_SSL_Cert();
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).sslEnable(sslEnable).cert(ldapSslCert).build();
         if ("*****".equals(ldapLoginDto.getPassword())) {
             String value = SettingsEnum.AD_PASSWORD.getValue();
             ldapLoginDto.setPassword(value);
@@ -825,13 +826,14 @@ public class UserServiceImpl extends UserService{
         String bindDN = (String) collect.get("ldap.bind.dn");
         String pwd = (String) collect.get("ldap.bind.password");
         String baseDN = (String) collect.get("ldap.base.dn");
+        String cert = (String) collect.get("ldap.ssl.cert");
         Boolean ssl = false;
         Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE);
         if (settings != null) {
             ssl = settings.getOpen();
         }
         String ldapUrl = host + ":" + port;
-        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).build();
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).cert(cert).build();
         DirContext dirContext = null;
         try {
             boolean exists = searchUser(ldapLoginDto, username);
@@ -900,7 +902,7 @@ public class UserServiceImpl extends UserService{
         String bindDn = ldapLoginDto.getBindDN();
         String password = ldapLoginDto.getPassword();
         Boolean ssl = ldapLoginDto.isSslEnable();
-        String certFilePath = ldapLoginDto.getCertFilePath();
+        String certFile = ldapLoginDto.getCert();
         Hashtable<String, String> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put(Context.PROVIDER_URL, ldapUrl);
@@ -908,14 +910,37 @@ public class UserServiceImpl extends UserService{
         env.put(Context.SECURITY_PRINCIPAL, bindDn);
         env.put(Context.SECURITY_CREDENTIALS, password);
         if (ssl) {
-            env.put(Context.SECURITY_PROTOCOL, "ssl");
-            env.put("java.naming.ldap.factory.socket", CustomSSLSocketFactory.class.getName());
-            // 创建自定义 SSLSocketFactory，传入证书路径
-            CustomSSLSocketFactory customSSLSocketFactory = new CustomSSLSocketFactory(certFilePath);
-            // 设置全局 SSLContext
-            HttpsURLConnection.setDefaultSSLSocketFactory(customSSLSocketFactory);
+            if (null == certFile) throw new BizException("AD.Login.Fail");
+            try (InputStream certificates = new ByteArrayInputStream(certFile.getBytes())) {
+                SSLContext sslContext = createSSLContext(certificates);
+                HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
+            } catch (Exception e) {
+                throw new BizException(e);
+            }
         }
         DirContext ctx = new InitialDirContext(env);
         return ctx;
+    }
+    protected SSLContext createSSLContext(InputStream certFile) throws Exception {
+        // load custom cert
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        X509Certificate caCert = (X509Certificate) cf.generateCertificate(certFile);
+        certFile.close();
+
+        // create KeyStore and import cert
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        // init empty keyStore
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("caCert", caCert);
+
+        // create TrustManagerFactory and init KeyStore
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+
+        TrustManager[] trustManagers = tmf.getTrustManagers();
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, trustManagers, null);
+
+        return sslContext;
     }
 }
