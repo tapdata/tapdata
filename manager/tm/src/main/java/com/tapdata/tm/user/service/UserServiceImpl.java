@@ -63,7 +63,11 @@ import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.*;
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.*;
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -367,7 +371,7 @@ public class UserServiceImpl extends UserService{
 
     public <T extends BaseDto> UserDto save(CreateUserRequest request, UserDetail userDetail) {
 
-        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
+        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).and("ldapAccount").is(request.getLdapAccount()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (userDto != null) {
             throw new BizException("User.Already.Exists");
         }
@@ -828,6 +832,7 @@ public class UserServiceImpl extends UserService{
         }
         String ldapUrl = host + ":" + port;
         LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).build();
+        DirContext dirContext = null;
         try {
             boolean exists = searchUser(ldapLoginDto, username);
             if (!exists) {
@@ -835,12 +840,20 @@ public class UserServiceImpl extends UserService{
             }
             ldapLoginDto.setBindDN(username);
             ldapLoginDto.setPassword(password);
-            DirContext dirContext = buildDirContext(ldapLoginDto);
+            dirContext = buildDirContext(ldapLoginDto);
             if (null != dirContext) {
                 return true;
             }
         } catch (NamingException e) {
             throw new BizException("AD.Login.Fail", e);
+        } finally {
+            if (null != dirContext) {
+                try {
+                    dirContext.close();
+                } catch (NamingException e) {
+                    // do nothing
+                }
+            }
         }
         return false;
     }
@@ -849,12 +862,18 @@ public class UserServiceImpl extends UserService{
         String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
         String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
         DirContext ctx = buildDirContext(ldapLoginDto);
-        String searchBase = ldapLoginDto.getBaseDN();
+        String searchBases = ldapLoginDto.getBaseDN();
+        if (StringUtils.isBlank(searchBases)) return false;
         try {
             SearchControls searchControls = new SearchControls();
             searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
             searchControls.setReturningAttributes(new String[]{"sAMAccountName", "userPrincipalName", "displayName"});
-            return searchWithFilter(ctx, searchBase, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, searchBase, userPrincipalNameFilter, searchControls);
+            String[] searchBase = searchBases.split(";");
+            for (String base : searchBase) {
+                boolean isExist = searchWithFilter(ctx, base, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, base, userPrincipalNameFilter, searchControls);
+                if (isExist) return true;
+            }
+            return false;
         } catch (NamingException e) {
             throw new BizException("AD.Search.Fail", e);
         } finally {
@@ -881,6 +900,7 @@ public class UserServiceImpl extends UserService{
         String bindDn = ldapLoginDto.getBindDN();
         String password = ldapLoginDto.getPassword();
         Boolean ssl = ldapLoginDto.isSslEnable();
+        String certFilePath = ldapLoginDto.getCertFilePath();
         Hashtable<String, String> env = new Hashtable<>();
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put(Context.PROVIDER_URL, ldapUrl);
@@ -889,7 +909,11 @@ public class UserServiceImpl extends UserService{
         env.put(Context.SECURITY_CREDENTIALS, password);
         if (ssl) {
             env.put(Context.SECURITY_PROTOCOL, "ssl");
-            env.put("java.naming.ldap.factory.socket", SSLSocketFactory.class.getName());
+            env.put("java.naming.ldap.factory.socket", CustomSSLSocketFactory.class.getName());
+            // 创建自定义 SSLSocketFactory，传入证书路径
+            CustomSSLSocketFactory customSSLSocketFactory = new CustomSSLSocketFactory(certFilePath);
+            // 设置全局 SSLContext
+            HttpsURLConnection.setDefaultSSLSocketFactory(customSSLSocketFactory);
         }
         DirContext ctx = new InitialDirContext(env);
         return ctx;

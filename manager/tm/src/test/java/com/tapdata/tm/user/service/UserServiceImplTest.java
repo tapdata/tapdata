@@ -451,7 +451,7 @@ public class UserServiceImplTest {
                     .password("password")
                     .sslEnable(true)
                     .build();
-            assertThrows(NamingException.class, () -> userService.buildDirContext(adLoginDto));
+            assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
         }
     }
 }
