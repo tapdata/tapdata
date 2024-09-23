@@ -24,6 +24,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.*;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -453,5 +457,74 @@ public class UserServiceImplTest {
                     .build();
             assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
         }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_SSL() {
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .bindDN("cn=admin,dc=example,dc=com")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            when(userService.createSSLContext(any(InputStream.class))).thenReturn(sslContext);
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            assertThrows(NamingException.class, () -> userService.buildDirContext(adLoginDto));
+        }
     }
+
+    @Nested
+    class createSSLContextTest {
+        @Test
+        public void testCreateSSLContext() throws Exception {
+            InputStream certFile = new ByteArrayInputStream(certString.getBytes());
+
+            doCallRealMethod().when(userService).createSSLContext(certFile);
+            SSLContext sslContext = userService.createSSLContext(certFile);
+
+            assertNotNull(sslContext);
+            assertNotNull(sslContext.getSocketFactory());
+
+        }
+    }
+    private String certString = "-----BEGIN CERTIFICATE-----\n" +
+            "MIIGpzCCBY+gAwIBAgITQwAAAAJuc4zIBYqYIwAAAAAAAjANBgkqhkiG9w0BAQUF\n" +
+            "ADBwMRIwEAYKCZImiZPyLGQBGRYCaW8xFzAVBgoJkiaJk/IsZAEZFgd0YXBkYXRh\n" +
+            "MRgwFgYKCZImiZPyLGQBGRYIaW50ZXJuYWwxEjAQBgoJkiaJk/IsZAEZFgJhZDET\n" +
+            "MBEGA1UEAxMKdGFwZGF0YS1DQTAeFw0yNDA5MTMxNTQ1NTJaFw0yNTA5MTMxNTQ1\n" +
+            "NTJaMDExLzAtBgNVBAMTJmlaOTk4eHJoNnkyYjNiWi5hZC5pbnRlcm5hbC50YXBk\n" +
+            "YXRhLmlvMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo8mqTkTvFfu+\n" +
+            "LXH69clyyxGw9Na8FKdmySUnI7zF2csyfryfU2+Lxi/Xq1q8WkjCpMQ+lRJ5K5WJ\n" +
+            "7TOZ8FaWELFXGJDSdixRuK5aORjWz1KzMWZPW6w62FNLQIfpOtgVQebLe8it7eQR\n" +
+            "WA6PtILbwEtkQtgagwtWmuf9linElM48WSEmpz78eFkW83vgJGfr2nYXyP7VqY83\n" +
+            "XvcagE75nvg1CzgADaCm1plxoSyyx887C3AagSnamenZPH4Dtk3vi2RSJUsVGPcA\n" +
+            "RQg6IViA1cradLu+Q2Htxwh2hL2+lJ/979qILEewFFTIwt9cOT5GoElrW21TSSpI\n" +
+            "p5tQywmPGwIDAQABo4IDdzCCA3MwLwYJKwYBBAGCNxQCBCIeIABEAG8AbQBhAGkA\n" +
+            "bgBDAG8AbgB0AHIAbwBsAGwAZQByMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEF\n" +
+            "BQcDATAOBgNVHQ8BAf8EBAMCBaAweAYJKoZIhvcNAQkPBGswaTAOBggqhkiG9w0D\n" +
+            "AgICAIAwDgYIKoZIhvcNAwQCAgCAMAsGCWCGSAFlAwQBKjALBglghkgBZQMEAS0w\n" +
+            "CwYJYIZIAWUDBAECMAsGCWCGSAFlAwQBBTAHBgUrDgMCBzAKBggqhkiG9w0DBzAd\n" +
+            "BgNVHQ4EFgQU9hwjXlc86SCkrWFyFlkg+KWh/IMwHwYDVR0jBBgwFoAU0PZvyVVN\n" +
+            "5kp+RcZAZ76MbVHAIw8wgeEGA1UdHwSB2TCB1jCB06CB0KCBzYaBymxkYXA6Ly8v\n" +
+            "Q049dGFwZGF0YS1DQSxDTj1pWjk5OHhyaDZ5MmIzYlosQ049Q0RQLENOPVB1Ymxp\n" +
+            "YyUyMEtleSUyMFNlcnZpY2VzLENOPVNlcnZpY2VzLENOPUNvbmZpZ3VyYXRpb24s\n" +
+            "REM9YWQsREM9aW50ZXJuYWwsREM9dGFwZGF0YSxEQz1pbz9jZXJ0aWZpY2F0ZVJl\n" +
+            "dm9jYXRpb25MaXN0P2Jhc2U/b2JqZWN0Q2xhc3M9Y1JMRGlzdHJpYnV0aW9uUG9p\n" +
+            "bnQwgc0GCCsGAQUFBwEBBIHAMIG9MIG6BggrBgEFBQcwAoaBrWxkYXA6Ly8vQ049\n" +
+            "dGFwZGF0YS1DQSxDTj1BSUEsQ049UHVibGljJTIwS2V5JTIwU2VydmljZXMsQ049\n" +
+            "U2VydmljZXMsQ049Q29uZmlndXJhdGlvbixEQz1hZCxEQz1pbnRlcm5hbCxEQz10\n" +
+            "YXBkYXRhLERDPWlvP2NBQ2VydGlmaWNhdGU/YmFzZT9vYmplY3RDbGFzcz1jZXJ0\n" +
+            "aWZpY2F0aW9uQXV0aG9yaXR5MFIGA1UdEQRLMEmgHwYJKwYBBAGCNxkBoBIEEHRb\n" +
+            "dGzUREpNjZzesBnzoguCJmlaOTk4eHJoNnkyYjNiWi5hZC5pbnRlcm5hbC50YXBk\n" +
+            "YXRhLmlvME8GCSsGAQQBgjcZAgRCMECgPgYKKwYBBAGCNxkCAaAwBC5TLTEtNS0y\n" +
+            "MS0yNTA2MzQzMDk4LTM0MzExNDI3NzUtMzEwMjg3OTkwMi0xMDAwMA0GCSqGSIb3\n" +
+            "DQEBBQUAA4IBAQCFJ40kMxvgjpFF/cTglqKBO4MJSMH3wJpN+VG33/WccM62osm4\n" +
+            "TB/QydzHuSWtn52fdtp8Q82dmDvI2QldYyJLvifR+1TGbOt8dc5866jRNqUeRr7Q\n" +
+            "KmTTPxGInM64b/aYYF0cQxC9HX1ct8aTlTArfSztoWgLWG3aXtBa0+TBMuvIDn5o\n" +
+            "dUxc9/NvLsksOecz/AHfIPWmEKu9w+OtnbBnoo5ymB7tmSPUUR54pd5Ul06LvlWs\n" +
+            "hinNPHvFAMDUY7HfrdDfCoEIZSK4u/xFQscsNsE3hywVYYN7uz8wy502fEHzwIgp\n" +
+            "/3vC2igEWcqhxJn9iiIHAzA0mZoS1DOKhgFG\n" +
+            "-----END CERTIFICATE-----";
 }
