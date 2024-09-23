@@ -17,4 +17,6 @@ public class TestLdapDto {
     private String Ldap_Bind_Password;
     @JsonProperty("Ldap_SSL_Enable")
     private Boolean Ldap_SSL_Enable;
+    @JsonProperty("Ldap_SSL_CertFilePath")
+    private String certFilePath;
 }
