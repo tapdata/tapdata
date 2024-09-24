@@ -3,13 +3,13 @@ package com.tapdata.tm.commons.util;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -71,4 +71,20 @@ class ConnHeartbeatUtilsTest {
 		assertEquals("ts", map2.get("name"));
 		assertEquals("now", map2.get("type"));
 	}
+
+    @Nested
+    class CheckConnectionTest {
+
+        @Test
+        void hasNoHeartbeatTag() {
+            DataSourceConnectionDto connectionDto = Mockito.mock(DataSourceConnectionDto.class);
+            Mockito.when(connectionDto.getHeartbeatEnable()).thenReturn(true);
+            Mockito.when(connectionDto.getDatabase_type()).thenReturn(String.format("not-%s", ConnHeartbeatUtils.PDK_NAME));
+            Mockito.when(connectionDto.getCapabilities()).thenReturn(new ArrayList<>());
+            Mockito.when(connectionDto.getConnection_type()).thenReturn("source_and_target");
+            Mockito.when(connectionDto.getDefinitionTags()).thenReturn(Collections.singletonList(ConnHeartbeatUtils.CONNECTOR_TAGS_NO_HEARTBEAT));
+
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+    }
 }
