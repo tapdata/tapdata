@@ -11,4 +11,5 @@ public class LdapLoginDto {
     private String password; //密码
     private String baseDN; //根目录
     private boolean sslEnable; //是否启用ssl
+    private String cert; //cert文件
 }
