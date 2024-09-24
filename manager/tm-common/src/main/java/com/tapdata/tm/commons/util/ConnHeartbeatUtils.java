@@ -23,9 +23,13 @@ public class ConnHeartbeatUtils {
     public static final String PDK_ID = "dummy";
     public static final String PDK_NAME = "Dummy";
     public static final String MODE = "ConnHeartbeat";
+    public static final String CONNECTOR_TAGS_NO_HEARTBEAT = "NoHeartbeat";
     public static final String CONNECTION_NAME = "tapdata_heartbeat_dummy_connection";
     public static final String TABLE_NAME = "_tapdata_heartbeat_table";
     public static final String TASK_RELATION_FIELD = "heartbeatTasks";
+
+    private ConnHeartbeatUtils() {
+    }
 
     /**
      * check the task need to start heartbeat task
@@ -52,6 +56,7 @@ public class ConnHeartbeatUtils {
                 || null == sourceConnectionDto.getCapabilities()
                 || "source".equalsIgnoreCase(sourceConnectionDto.getConnection_type())
                 || "target".equalsIgnoreCase(sourceConnectionDto.getConnection_type())
+                || Optional.ofNullable(sourceConnectionDto.getDefinitionTags()).map(tags -> tags.contains(CONNECTOR_TAGS_NO_HEARTBEAT)).orElse(false)
         ) {
             return false;
         }
