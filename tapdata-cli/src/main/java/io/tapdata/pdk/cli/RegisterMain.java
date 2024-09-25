@@ -110,7 +110,7 @@ public class RegisterMain {
         SALESFORCE(ALPHA),
         SELECTDB(BETA),
         SHEIN(BETA),
-        STD_KAFKA(BETA, TAG_MQ),
+        KAFKA_ENHANCED(BETA, TAG_MQ),
         TABLESTORE(ALPHA),
         TDENGINE(BETA),
         TEMU(ALPHA),
