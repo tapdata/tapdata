@@ -3,6 +3,7 @@ package com.tapdata.tm.metadatadefinition.service;
 import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -73,6 +74,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     private LdpService ldpService;
+
+    @Autowired
+    private SettingsService settingsService;
 
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
@@ -316,7 +320,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
-        Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
+        Page<MetadataDefinitionDto> dtoPage = settingsService.isCloud()? super.find(filter, user) : super.find(filter);
         if (filter.getOrder() == null) {
             dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
             dtoPage.getItems().sort(Comparator.comparing(s -> {
