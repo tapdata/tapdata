@@ -1,5 +1,6 @@
 package io.tapdata.websocket.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -44,7 +45,7 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
 
     @Override
     public Object handle(Map event, SendMessage sendMessage) {
-        logger.info(String.format("downLoad connector, event: %s", event));
+        logger.debug(() -> String.format("downLoad connector, event: %s", event));
         String pskHash = (String) event.getOrDefault("pdkHash", "");
         String connName = (String) event.getOrDefault("name", "");
         String connectionId = String.valueOf(event.get("id"));
@@ -58,6 +59,8 @@ public class DownLoadConnectorHandler implements WebSocketEventHandler {
                 .pdkHash(pskHash)
                 .schemaVersion(String.valueOf(event.get("schemaVersion")))
                 .databaseType(String.valueOf(event.get("database_type")));
+        logger.info(() -> String.format("downLoad connector, entity: %s", JSON.toJSONString(entity)));
+
         String threadName = String.format("DOWNLOAD-CONNECTOR-%s", Optional.ofNullable(event.get("name")).orElse(""));
         DisposableThreadGroup threadGroup = new DisposableThreadGroup(DisposableType.DOWNLOAD_CONNECTOR, threadName);
         DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, pskHash);

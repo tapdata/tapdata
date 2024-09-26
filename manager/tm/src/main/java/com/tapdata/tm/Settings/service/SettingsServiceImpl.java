@@ -6,7 +6,7 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
-import com.tapdata.tm.Settings.dto.SendMailResponseDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.dto.TestMailDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -207,7 +207,7 @@ public class SettingsServiceImpl implements SettingsService {
             //}).collect(Collectors.toList());
         } else {
             settingsList.stream().filter(settings -> {
-                if ("smtp.server.password".equals(settings.getKey()))
+                if ("smtp.server.password".equals(settings.getKey()) || "ad.bind.password".equals(settings.getKey()))
                     settings.setValue("*****");
                 return true;
             }).collect(Collectors.toList());
@@ -309,7 +309,7 @@ public class SettingsServiceImpl implements SettingsService {
         return mongoTemplate.find(query, Settings.class);
     }
 
-    public SendMailResponseDto testSendMail(TestMailDto testMailDto) {
+    public TestResponseDto testSendMail(TestMailDto testMailDto) {
         MailAccountDto mailAccount = getMailAccount(testMailDto);
 
         if ("*****".equals(mailAccount.getPass())) {
