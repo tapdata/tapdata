@@ -319,9 +319,7 @@ public class ExternalStorageUtil {
 					if((boolean)config.get("isUri")){
 						uri =(String)config.get("uri");
 					}else {
-						uri = "mongodb://%s:%s@%s/%s?%s";
-						uri = String.format(uri,config.get("user"),config.get("password"),
-								config.get("host"),config.get("database"),config.get("additionalString"));
+						uri = getMongoUri(config);
 					}
 					externalStorageDto.setName(ConnectorConstant.TARGET_MONGO_DB_EXTERNAL_STORAGE_NAME);
 					externalStorageDto.setUri(uri);
@@ -337,6 +335,22 @@ public class ExternalStorageUtil {
 			}
 		}
 		return externalStorageDto;
+	}
+
+	public static String getMongoUri(Map<String, Object> config) {
+		StringBuilder uriBuilder = new StringBuilder("mongodb://");
+		String user = MapUtils.getString(config, "user");
+		String password = MapUtils.getString(config, "password");
+		if (StringUtils.isNotBlank(user) || StringUtils.isNotBlank(password)) {
+			uriBuilder.append(String.format("%s:%s@", user, password));
+		}
+		uriBuilder.append(String.format("%s/%s", config.get("host"), config.get("database")));
+		String additionalString = MapUtils.getString(config, "additionalString");
+		if (StringUtils.isNotBlank(additionalString)) {
+			additionalString = additionalString.replace("?", "");
+			uriBuilder.append(String.format("?%s", additionalString));
+		}
+		return uriBuilder.toString();
 	}
 
 	public static ExternalStorageDto getExternalStorage(Node node) {
