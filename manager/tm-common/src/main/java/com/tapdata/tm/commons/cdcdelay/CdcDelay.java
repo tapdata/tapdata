@@ -43,7 +43,6 @@ public class CdcDelay implements ICdcDelay {
     @Override
     public boolean addHeartbeatTable(@NonNull List<String> tables) {
         if (tables.contains(ConnHeartbeatUtils.TABLE_NAME)) {
-            tables.remove(ConnHeartbeatUtils.TABLE_NAME);
             isFilter = false;
         } else {
             tables.add(ConnHeartbeatUtils.TABLE_NAME);

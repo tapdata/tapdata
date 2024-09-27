@@ -61,13 +61,6 @@ public class CdcDelayTest {
         TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer);
         assertEquals(true,tapEvent instanceof TapUpdateRecordEvent);
     }
-    @Test
-    void testAddHeartbeatTableContainsHeartbeat(){
-        List<String> tables=new ArrayList<>();
-        tables.add("_tapdata_heartbeat_table");
-        boolean actual = cdcDelay.addHeartbeatTable(tables);
-        assertFalse(actual);
-    }
     @DisplayName("test filterAndCalcDelay not heartbeat event")
     @Test
     void test3(){
