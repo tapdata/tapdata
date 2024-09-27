@@ -19,8 +19,7 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CdcDelayTest {
     private CdcDelay cdcDelay;
@@ -61,6 +60,13 @@ public class CdcDelayTest {
         cdcDelay.addHeartbeatTable(tables);
         TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer, TaskDto.SYNC_TYPE_LOG_COLLECTOR);
         assertEquals(true,tapEvent instanceof TapUpdateRecordEvent);
+    }
+    @Test
+    void testAddHeartbeatTableContainsHeartbeat(){
+        List<String> tables=new ArrayList<>();
+        tables.add("_tapdata_heartbeat_table");
+        boolean actual = cdcDelay.addHeartbeatTable(tables);
+        assertFalse(actual);
     }
     @DisplayName("test filterAndCalcDelay not heartbeat event")
     @Test
