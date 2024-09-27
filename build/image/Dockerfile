@@ -8,9 +8,9 @@ COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/apps/start.sh
 COPY bin/ /tapdata/apps
 
-RUN apt install supervisor -y
+RUN apt install supervisor --fix-missing -y
 
-RUN apt install wget -y && \
+RUN apt install wget --fix-missing -y && \
     if [[ `uname -p` == "aarch64" ]]; then \
       wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz -O /tapdata/apps/components/async-profiler.tar.gz; \
     else \
