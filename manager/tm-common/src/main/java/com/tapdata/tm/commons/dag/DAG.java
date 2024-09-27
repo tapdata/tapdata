@@ -167,6 +167,7 @@ public class DAG implements Serializable, Cloneable {
         }
         if (CollectionUtils.isNotEmpty(edges)) {
             for (Edge edge : edges) {
+                if(null == edge) continue;
                 String from = edge.getSource();
                 String target = edge.getTarget();
                 if (ignore && (!nodeIds.contains(from) || !nodeIds.contains(target))) continue;
@@ -1237,10 +1238,37 @@ public class DAG implements Serializable, Cloneable {
         String databaseType = String.valueOf(dataParentNode1.getDatabaseType());
         return databaseType.equals(dataParentNode2.getDatabaseType());
     }
-    
+
     protected void setIsomorphismValueToOptions(Options options, List<Node> allNodes) {
         if (null != options) {
             options.setIsomorphismTask(getTaskDtoIsomorphism(allNodes));
         }
+    }
+
+    public List<Node> getAllTypeTargetNodes() {
+        Set<String> sinks = graph.getSinks();
+        return getNodes().stream().filter(node -> sinks.contains(node.getId())).collect(Collectors.toList());
+    }
+
+    public void replaceNode(Node oldNode, Node newNode) {
+        LinkedList<Edge> edges = getEdges();
+        LinkedList<Edge> edgesAsSource = edges.stream().filter(edge -> edge.getSource().equals(oldNode.getId())).collect(Collectors.toCollection(LinkedList::new));
+        LinkedList<Edge> edgesAsTarget = edges.stream().filter(edge -> edge.getTarget().equals(oldNode.getId())).collect(Collectors.toCollection(LinkedList::new));
+        graph.removeNode(oldNode.getId());
+        graph.setNode(newNode.getId(), newNode);
+        edgesAsSource.forEach(edge -> {
+            edge.setSource(newNode.getId());
+            graph.setEdge(newNode.getId(), edge.getTarget(), edge);
+        });
+        edgesAsTarget.forEach(edge->{
+            edge.setTarget(newNode.getId());
+            graph.setEdge(edge.getSource(), newNode.getId(), edge);
+        });
+    }
+
+    public void addTargetNode(Node sourceNode, Node targetNode) {
+        graph.setNode(targetNode.getId(), targetNode);
+        Edge edge = new Edge(sourceNode.getId(), targetNode.getId());
+        graph.setEdge(sourceNode.getId(), targetNode.getId(), edge);
     }
 }

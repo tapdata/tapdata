@@ -125,6 +125,10 @@ public class ErrorCodeService implements MemoryFetcher {
 		} else {
 			Map<Class<?>, List<ErrorCodeEntity>> errorClassMap = ErrorCodeConfig.getInstance().getErrorClassMap();
 			if (memoryLevel.equals(MemoryFetcher.MEMORY_LEVEL_SUMMARY)) {
+				long total = 0L;
+				long describeTotal = 0L;
+				long solutionTotal = 0L;
+				long descAndSolutionTotal = 0L;
 				LinkedHashMap<Class<?>, List<ErrorCodeEntity>> linkedHashMap = errorClassMap.entrySet().stream()
 						.sorted((o1, o2) -> {
 							TapExClass exClass1 = o1.getKey().getAnnotation(TapExClass.class);
@@ -136,7 +140,17 @@ public class ErrorCodeService implements MemoryFetcher {
 					List<ErrorCodeEntity> errorCodes = entry.getValue();
 					List<String> list = errorCodes.stream().map(ErrorCodeEntity::fullErrorCode).collect(Collectors.toList());
 					dataMap.put(exCodeClz.getSimpleName(), list);
+					total += list.size();
+					describeTotal += errorCodes.stream().filter(e -> StringUtils.isNotBlank(e.getDescribe())).count();
+					solutionTotal += errorCodes.stream().filter(e -> StringUtils.isNotBlank(e.getSolution())).count();
+					descAndSolutionTotal += errorCodes.stream().filter(e -> StringUtils.isNotBlank(e.getDescribe()) && StringUtils.isNotBlank(e.getSolution())).count();
 				}
+				DataMap stats = DataMap.create()
+						.kv("total", total)
+						.kv("describeTotal", describeTotal)
+						.kv("solutionTotal", solutionTotal)
+						.kv("descAndSolutionTotal", descAndSolutionTotal);
+				dataMap.put("stats", stats);
 			} else if (memoryLevel.equals(MEMORY_LEVEL_IN_DETAIL)) {
 				errorClassMap.forEach((k, v) -> dataMap.put(k.getSimpleName(), v));
 			}

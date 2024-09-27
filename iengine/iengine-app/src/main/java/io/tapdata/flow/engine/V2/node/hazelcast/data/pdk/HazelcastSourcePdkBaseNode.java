@@ -73,6 +73,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
+import io.tapdata.flow.engine.V2.task.preview.TaskPreviewService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -219,7 +220,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else {
 			this.cdcDelayCalculation = new CdcDelayDisable();
 		}
-		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 3, connectorOnTaskThreadGroup, TAG);
+		this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s-%s[%s]", dataProcessorContext.getTaskDto().getId().toString(), getNode().getName(), getNode().getId()), 3, connectorOnTaskThreadGroup, TAG);
 		this.sourceRunner.submitSync(() -> {
 			super.doInit(context);
 			try {
@@ -716,7 +717,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				} else {
 					if (null != eventQueue) {
-						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 500L, TimeUnit.MILLISECONDS);
+						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
 						if (drain > 0) {
 							batchTransformToTapValue(tapdataEvents);
 						}
@@ -737,9 +738,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
 					&& null == pendingEvent && eventQueue.isEmpty()) {
 				Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
-				Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
-				if (obj instanceof AtomicInteger) {
-					if (((AtomicInteger) obj).get() <= 0) {
+				Object sourceInitialCounter = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+				Map<String, Object> taskGlobalVariablePreview = TaskGlobalVariable.INSTANCE
+						.getTaskGlobalVariable(TaskPreviewService.taskPreviewInstanceId(taskDto));
+				Object previewComplete = taskGlobalVariablePreview.get(TaskGlobalVariable.PREVIEW_COMPLETE_KEY);
+				if (sourceInitialCounter instanceof AtomicInteger) {
+					if (((AtomicInteger) sourceInitialCounter).get() <= 0) {
+						this.running.set(false);
+					}
+				} else if (previewComplete instanceof Boolean) {
+					if(Boolean.TRUE.equals(previewComplete)) {
 						this.running.set(false);
 					}
 				} else {

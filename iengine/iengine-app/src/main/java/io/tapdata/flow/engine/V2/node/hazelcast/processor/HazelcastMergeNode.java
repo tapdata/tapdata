@@ -1468,19 +1468,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return predecessors.get(0);
 	}
 
-	private String getTableName(Node<?> preTableNode) {
-		String tableName;
-		if (preTableNode instanceof TableNode) {
-			tableName = ((TableNode) preTableNode).getTableName();
-			if (StringUtils.isBlank(tableName)) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK, String.format("Table node: %s", preTableNode));
-			}
-		} else {
-			tableName = preTableNode.getId();
-		}
-		return tableName;
-	}
-
 	private String getConnectionId(Node<?> preTableNode) {
 		String connectionId;
 		if (preTableNode instanceof TableNode) {

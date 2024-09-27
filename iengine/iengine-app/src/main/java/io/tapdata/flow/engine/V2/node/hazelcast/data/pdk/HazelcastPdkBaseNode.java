@@ -34,6 +34,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMapEx;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.task.preview.PreviewPdkStateMap;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
@@ -197,7 +198,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
+		if (taskDto.isPreviewTask()) {
+			pdkStateMap = new PreviewPdkStateMap();
+		} else {
+			pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
+		}
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
@@ -207,7 +212,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				PdkUtil.createNode(taskDto.getId().toHexString(),
 						databaseType,
 						clientMongoOperator,
-						this.getClass().getSimpleName() + "-" + dataProcessorContext.getNode().getId(),
+						generateNodePdkAssociateId(dataProcessorContext),
 						connectionConfig,
 						nodeConfig,
 						pdkTableMap,
@@ -221,6 +226,15 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
 		processorBaseContext.setPdkAssociateId(this.associateId);
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+	}
+
+	protected String generateNodePdkAssociateId(DataProcessorContext dataProcessorContext) {
+		return String.join(
+				"_",
+				this.getClass().getSimpleName(),
+				dataProcessorContext.getNode().getId(),
+				String.valueOf(System.currentTimeMillis())
+		);
 	}
 
 	protected Map<String, Object> generateNodeConfig(Node<?> node, TaskDto taskDto) {

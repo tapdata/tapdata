@@ -76,9 +76,11 @@ public class TaskLogger extends ObsLogger {
 				)
 			);
 
+		} else if (taskDto.isPreviewTask()) {
+			this.witAppender(this.fileAppender(taskId));
 		} else {
 			this.witAppender(this.fileAppender(taskId))
-							.witAppender(this.obsHttpTMAppender(taskId));
+					.witAppender(this.obsHttpTMAppender(taskId));
 		}
 
 		// add close debug consumer

@@ -6,6 +6,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.exception.CloneException;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -17,6 +18,7 @@ import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.error.TapEventException;
+import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -394,7 +396,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 					}
 				}
-                BatchEventWrapper finalBatchEventWrapper = null;
+                BatchEventWrapper finalBatchEventWrapper;
 				if(needCopyBatchEventWrapper()){
 					try {
 						finalBatchEventWrapper = batchEventWrapper.clone();
@@ -569,5 +571,18 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	public boolean needCopyBatchEventWrapper() {
 		return false;
+	}
+
+	protected String getTableName(Node<?> node) {
+		String tableName;
+		if (node instanceof TableNode) {
+			tableName = ((TableNode) node).getTableName();
+			if (StringUtils.isBlank(tableName)) {
+				throw new TapCodeException(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK, String.format("Table node: %s", node));
+			}
+		} else {
+			tableName = node.getId();
+		}
+		return tableName;
 	}
 }
