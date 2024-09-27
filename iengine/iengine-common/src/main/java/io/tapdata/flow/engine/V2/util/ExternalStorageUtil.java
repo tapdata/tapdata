@@ -315,12 +315,7 @@ public class ExternalStorageUtil {
 				Connections connection = clientMongoOperator.findOne(connQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 				if(connection.getDatabase_type().equals("MongoDB") || connection.getDatabase_type().equals("MongoDB Atlas")){
 					Map<String, Object> config =connection.getConfig();
-					String uri;
-					if((boolean)config.get("isUri")){
-						uri =(String)config.get("uri");
-					}else {
-						uri = getMongoUri(config);
-					}
+					String uri = MongodbUtil.getUri(config);
 					externalStorageDto.setName(ConnectorConstant.TARGET_MONGO_DB_EXTERNAL_STORAGE_NAME);
 					externalStorageDto.setUri(uri);
 					externalStorageDto.setType("mongodb");

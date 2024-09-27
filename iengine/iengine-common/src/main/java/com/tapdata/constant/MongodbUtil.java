@@ -71,6 +71,7 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -2250,5 +2251,36 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		if (StringUtils.isBlank(database))
 			throw new IllegalArgumentException("MongoDB client uri missing database: " + maskUriPassword(uri));
 		return mongoClientURI;
+	}
+
+	public static String getUri(Map<String, Object> config) {
+		boolean isUri = MapUtils.getBooleanValue(config, "isUri");
+		if (isUri) {
+			return MapUtils.getString(config, "uri");
+		} else {
+			StringBuilder sb = new StringBuilder("mongodb://");
+			String user = MapUtils.getString(config, "user");
+			String password = MapUtils.getString(config, "password");
+			if (StringUtils.isNotBlank(user) && StringUtils.isNotBlank(password)) {
+				String encodeUsername = null;
+				String encodePassword = null;
+				try {
+					encodeUsername = URLEncoder.encode(user, "UTF-8");
+					encodePassword = URLEncoder.encode(password, "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					throw new RuntimeException(String.format("Encoding mongodb username/password failed %s", e.getMessage()), e);
+				}
+				sb.append(encodeUsername).append(":").append(encodePassword).append("@");
+			}
+			String host = MapUtils.getString(config, "host");
+			sb.append(host);
+			String database = MapUtils.getString(config, "database");
+			sb.append("/").append(database);
+			String additionalString = MapUtils.getString(config, "additionalString");
+			if (StringUtils.isNotBlank(additionalString)) {
+				sb.append("?").append(additionalString);
+			}
+			return sb.toString();
+		}
 	}
 }
