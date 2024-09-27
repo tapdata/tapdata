@@ -1037,7 +1037,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						this.tapEventProcessQueue = new LinkedBlockingQueue<>(newQueueSize);
 						this.queueConsumerThreadPool.shutdownNow();
 						if(this.queueConsumerThreadPool.isShutdown()){
-							initQueueConsumerThreadPool();
+							ThreadGroup connectorOnTaskThreadGroup = Thread.currentThread().getThreadGroup();
+							queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
 							initTargetQueueConsumer();
 						}
 						obsLogger.info("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
