@@ -8,7 +8,7 @@ COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/apps/start.sh
 COPY bin/ /tapdata/apps
 
-RUN apt install supervisor --fix-missing -y
+RUN apt update && apt install supervisor --fix-missing -y
 
 RUN apt install wget --fix-missing -y && \
     if [[ `uname -p` == "aarch64" ]]; then \
