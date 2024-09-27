@@ -29,6 +29,7 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
@@ -1279,6 +1280,26 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
 		if (updateMetadata instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) updateMetadata)) {
 			this.updateMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) updateMetadata);
+		}
+		if (tapDDLEvent instanceof TapCreateTableEvent) {
+			TapCreateTableEvent createTableEvent = (TapCreateTableEvent) tapDDLEvent;
+			Node node = getNode();
+			boolean isSubPartitionTable = createTableEvent.getTable().checkIsSubPartitionTable();
+			if (isSubPartitionTable) {
+				Object dagDataServiceObj = tapdataEvent.getTapEvent().getInfo(DAG_DATA_SERVICE_INFO_KEY);
+				DAGDataServiceImpl dagDataService = null;
+				if (dagDataServiceObj instanceof DAGDataServiceImpl) {
+					dagDataService = (DAGDataServiceImpl) dagDataServiceObj;
+				}
+				if (dagDataService != null) {
+					String partitionMasterTableId = createTableEvent.getPartitionMasterTableId() != null ?
+							createTableEvent.getPartitionMasterTableId() : createTableEvent.getTable().getPartitionMasterTableId();
+					MetadataInstancesDto metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), partitionMasterTableId);
+					if (metadata != null && metadata.getId() != null) {
+						this.updateMetadata.put(metadata.getId().toHexString(), metadata);
+					}
+				}
+			}
 		}
 		Object insertMetadata = tapDDLEvent.getInfo(INSERT_METADATA_INFO_KEY);
 		if (insertMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) insertMetadata)) {

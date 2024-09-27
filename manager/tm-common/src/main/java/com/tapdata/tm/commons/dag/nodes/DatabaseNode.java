@@ -172,6 +172,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 }
             }
             handleAppendWrite(schema);
+            if (getSyncTargetPartitionTableEnable() == null || !getSyncTargetPartitionTableEnable()) {
+                schema.setPartitionMasterTableId(null);
+            }
         }
         return SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, outputSchema);
     }
@@ -323,6 +326,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     }
                     s.setNodeId(getId());
                     s.setSourceNodeDatabaseType(getDatabaseType());
+                    if (getSyncSourcePartitionTableEnable() == null || !getSyncSourcePartitionTableEnable()) {
+                        s.setPartitionMasterTableId(null);
+                    }
                 }).collect(Collectors.toList());
 
 //        if (CollectionUtils.isNotEmpty(schemaList)) {

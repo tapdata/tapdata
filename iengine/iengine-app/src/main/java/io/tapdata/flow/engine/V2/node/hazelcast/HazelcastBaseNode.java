@@ -21,6 +21,9 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
@@ -829,24 +832,27 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			TapCreateTableEvent event = (TapCreateTableEvent)tapEvent;
 			Node<?> node = getNode();
 			MetadataInstancesDto metadata;
-			boolean isSubPartitionTable = node instanceof DatabaseNode
-					&& Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())
-					&& event.getTable().checkIsSubPartitionTable();
-
-			if (event.getTable().checkIsSubPartitionTable()
-			        && node instanceof DatabaseNode
-					&& !Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())) {
-				obsLogger.info("Target node not enable partition, task will skip: update metadata instances for subpartition table {}",
-						event.getTable().getId());
-				return;
-			}
+			boolean isSubPartitionTable = event.getTable().checkIsSubPartitionTable();
 
 			if (isSubPartitionTable) {
-				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), event.getTable().getPartitionMasterTableId());
+				if (node instanceof DatabaseNode
+						&& !Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())) {
+					obsLogger.info("Target node not enable partition, task will skip: update metadata instances for subpartition table {}",
+							event.getTable().getId());
+					return;
+				}
+				if (node instanceof MigrateProcessorNode) {
+					obsLogger.info("Processor node skip create partition table event.");
+					return;
+				}
+
+				String partitionMasterTableId = event.getPartitionMasterTableId() != null ?
+						event.getPartitionMasterTableId() : event.getTable().getPartitionMasterTableId();
+				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), partitionMasterTableId);
 				metadata.setPartitionInfo(event.getTable().getPartitionInfo());
-				metadata.setName(tableName);
+				/*metadata.setName(tableName);
 				metadata.setOriginalName(tableName);
-				metadata.setAncestorsName(tableName);
+				metadata.setAncestorsName(event.getTable().getId());*/
 			} else {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
 			}
@@ -866,6 +872,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					tapTableMap.putNew(tableName, tapTable, qualifiedName);
 				}
 				tapTable.setPartitionInfo(metadata.getPartitionInfo());
+				tapTable.setAncestorsName(event.getTable().getId());
 			} else {
 				throw new TapCodeException(TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED, String.format("Node: %s(%s), table name: %s", getNode().getName(), getNode().getId(), tableName));
 			}

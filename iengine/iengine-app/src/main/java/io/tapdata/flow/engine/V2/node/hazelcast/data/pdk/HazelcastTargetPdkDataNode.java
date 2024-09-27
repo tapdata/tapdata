@@ -910,7 +910,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							TapTable cloneObj = new TapTable();
 							BeanUtils.copyProperties(tapTable, cloneObj);
 							cloneObj.setId(key);
-							cloneObj.setName(key);
+							TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+							String ancestorsName = tapTableMap.containsKey(firstEvent.getPartitionMasterTableId()) ?
+									tapTableMap.get(firstEvent.getPartitionMasterTableId()).getAncestorsName() : null;
+							if (ancestorsName == null)
+								ancestorsName = tapTable.getAncestorsName() != null ? tapTable.getAncestorsName() : key;
+							cloneObj.setName(ancestorsName);
 							return cloneObj;
 						});
 					}

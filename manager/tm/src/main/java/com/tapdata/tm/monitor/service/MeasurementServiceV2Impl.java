@@ -995,6 +995,20 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             tableNameMap.set(metas.stream()
                     .filter(meta -> Objects.nonNull(meta.getNodeId()) && meta.getNodeId().equals(targetNode.getId()))
                     .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName, (k1, k2) -> k2)));
+
+            metas.stream()
+                    .filter(meta -> StringUtils.isNotBlank(meta.getPartitionMasterTableId())
+                            && meta.getPartitionInfo() != null
+                            && meta.getPartitionInfo().getSubPartitionTableInfo() != null)
+                    .forEach(meta -> {
+                        meta.getPartitionInfo().getSubPartitionTableInfo().forEach(subPartitionTableInfo -> {
+                            tableNameMap.updateAndGet((m) -> {
+                                m.put(subPartitionTableInfo.getTableName(), meta.getName());
+                                return m;
+                            });
+                        });
+                    });
+
         }
 
         List<TableNode> collect = Lists.newArrayList();

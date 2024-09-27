@@ -1044,6 +1044,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				addTapTable.setLastUpdate(Optional.ofNullable(addTapTable.getLastUpdate()).orElse(System.currentTimeMillis()));
 				tapCreateTableEvent.table(addTapTable);
 				tapCreateTableEvent.setTableId(addTapTable.getId());
+				tapCreateTableEvent.setPartitionMasterTableId(addTapTable.getPartitionMasterTableId());
 				TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
 				BatchOffsetUtil.updateBatchOffset(syncProgress, addTapTable.getId(), null, TableBatchReadStatus.RUNNING.name());
 				tapdataEvent.setBatchOffset(syncProgress.getBatchOffsetObj());

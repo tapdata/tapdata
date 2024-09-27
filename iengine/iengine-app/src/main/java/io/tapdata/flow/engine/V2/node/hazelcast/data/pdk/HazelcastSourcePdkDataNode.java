@@ -201,7 +201,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	public Set<String> filterSubTableIfMasterExists() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		if (Objects.isNull(syncSourcePartitionTableEnable)) {
+		if (Objects.isNull(syncSourcePartitionTableEnable) || !syncSourcePartitionTableEnable) {
 			//没有开关，不做过滤
 			return tapTableMap.keySet();
 		}
