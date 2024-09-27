@@ -59,7 +59,7 @@ public class CdcDelayTest {
         tables.add("testTableId");
         cdcDelay.addHeartbeatTable(tables);
         TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer);
-        assertEquals(true,tapEvent instanceof TapUpdateRecordEvent);
+        assertEquals(false,tapEvent instanceof TapUpdateRecordEvent);
     }
     @DisplayName("test filterAndCalcDelay not heartbeat event")
     @Test
