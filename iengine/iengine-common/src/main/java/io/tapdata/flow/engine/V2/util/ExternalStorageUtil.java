@@ -332,21 +332,6 @@ public class ExternalStorageUtil {
 		return externalStorageDto;
 	}
 
-	public static String getMongoUri(Map<String, Object> config) {
-		StringBuilder uriBuilder = new StringBuilder("mongodb://");
-		String user = MapUtils.getString(config, "user");
-		String password = MapUtils.getString(config, "password");
-		if (StringUtils.isNotBlank(user) || StringUtils.isNotBlank(password)) {
-			uriBuilder.append(String.format("%s:%s@", user, password));
-		}
-		uriBuilder.append(String.format("%s/%s", config.get("host"), config.get("database")));
-		String additionalString = MapUtils.getString(config, "additionalString");
-		if (StringUtils.isNotBlank(additionalString)) {
-			additionalString = additionalString.replace("?", "");
-			uriBuilder.append(String.format("?%s", additionalString));
-		}
-		return uriBuilder.toString();
-	}
 
 	public static ExternalStorageDto getExternalStorage(Node node) {
 		ClientMongoOperator clientMongoOperator = ConnectorConstant.clientMongoOperator;
