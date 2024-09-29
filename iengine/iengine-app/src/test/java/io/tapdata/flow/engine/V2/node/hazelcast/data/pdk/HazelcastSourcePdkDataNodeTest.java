@@ -1736,7 +1736,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastSourcePdkDataNode).generateStreamReadConsumer(any(),any());
 			StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode,pdkMethodInvoker);
 			streamReadConsumer.accept(tapEvents,null);
-			verify(cdcDelay,times(1)).filterAndCalcDelay(any(),any());
+			verify(cdcDelay,times(1)).filterAndCalcDelay(any(),any(),any());
 		}
 	}
 

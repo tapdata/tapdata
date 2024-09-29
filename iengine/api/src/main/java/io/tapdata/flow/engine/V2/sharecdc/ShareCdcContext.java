@@ -4,6 +4,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.loglistener.TapLogger;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * @author samuel
@@ -16,6 +17,8 @@ public class ShareCdcContext implements Serializable {
 
 	// Incremental start timestamp
 	private Long cdcStartTs;
+
+	private List<String> tableNames;
 
 	// Tapdata Settings
 	private ConfigurationCenter configurationCenter;
@@ -45,5 +48,13 @@ public class ShareCdcContext implements Serializable {
 
 	public void setObsLogger(TapLogger obsLogger) {
 		this.obsLogger = obsLogger;
+	}
+
+	public List<String> getTableNames() {
+		return tableNames;
+	}
+
+	public void setTableNames(List<String> tableNames) {
+		this.tableNames = tableNames;
 	}
 }

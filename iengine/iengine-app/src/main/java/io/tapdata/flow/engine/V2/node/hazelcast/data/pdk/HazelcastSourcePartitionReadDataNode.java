@@ -578,12 +578,13 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 //				}
 //			}
 			if (tapEvents != null && !tapEvents.isEmpty()) {
+				String taskSyncType = this.dataProcessorContext.getTaskDto().getSyncType();
 				tapEvents = tapEvents.stream().map(event -> {
 					if (null == event.getTime()) {
 						throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 					}
 					event.addInfo("eventId", UUID.randomUUID().toString());
-					return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+					return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)), taskSyncType);
 				}).collect(Collectors.toList());
 
 				if (streamReadFuncAspect != null) {
