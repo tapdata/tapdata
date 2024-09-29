@@ -4038,6 +4038,7 @@ public class TaskServiceImpl extends TaskService{
             log.warn("heartbeat task current status not allow to start, task = {}, status = {}, please restore the task manually.", taskDto.getName(), taskDto.getStatus());
             return;
         }
+        checkHeartTableInLogCollectorTaskTable(taskDto, user);
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
             log.warn("task current status not allow to start, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
@@ -4070,6 +4071,46 @@ public class TaskServiceImpl extends TaskService{
             run(taskDto, user);
         }
     }
+
+    protected void checkHeartTableInLogCollectorTaskTable(TaskDto taskDto, UserDetail user) {
+        if (TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskDto.getSyncType())) {
+            Node logCollectorTaskSourceNode = taskDto.getDag().getSourceNodes().get(0);
+            if ((logCollectorTaskSourceNode instanceof LogCollectorNode)) {
+                LogCollectorNode logCollectorNode = (LogCollectorNode) logCollectorTaskSourceNode;
+                List<String> connectionIds = logCollectorNode.getConnectionIds();
+                Set<String> tableNameSet = new HashSet<>(logCollectorNode.getTableNames());
+                Map<String, LogCollecotrConnConfig> logCollectorConnConfigs = logCollectorNode.getLogCollectorConnConfigs();
+                List<DataSourceConnectionDto> allDataSourceConnection = dataSourceService.findAllByIds(connectionIds);
+                boolean hasUpdate = addHeartBeatTable2LogCollector(allDataSourceConnection, logCollectorConnConfigs, tableNameSet);
+                if (hasUpdate) {
+                    List<String> finalTableNames = new ArrayList<>(tableNameSet);
+                    logCollectorNode.setTableNames(finalTableNames);
+                    shareCdcTableMappingService.genShareCdcTableMappingsByLogCollectorTask(taskDto, false, user);
+                    updateById(taskDto, user);
+                }
+            }
+        }
+    }
+
+    protected boolean addHeartBeatTable2LogCollector(List<DataSourceConnectionDto> allDataSourceConnection, Map<String, LogCollecotrConnConfig> logCollectorConnConfigs, Set<String> tableNameSet) {
+        boolean updateConfig = false;
+        int beforeTableNamesSize = tableNameSet.size();
+        for (DataSourceConnectionDto dataSourceConnectionDto : allDataSourceConnection) {
+            if (Boolean.TRUE.equals(dataSourceConnectionDto.getHeartbeatEnable())) {
+                if (MapUtils.isNotEmpty(logCollectorConnConfigs) && null != logCollectorConnConfigs.get(dataSourceConnectionDto.getId().toHexString())) {
+                    LogCollecotrConnConfig logCollecotrConnConfig = logCollectorConnConfigs.get(dataSourceConnectionDto.getId().toHexString());
+                    List<String> tableNames = logCollecotrConnConfig.getTableNames();
+                    if (tableNames.stream().noneMatch(ConnHeartbeatUtils.TABLE_NAME::equals)) {
+                        logCollecotrConnConfig.getTableNames().add(ConnHeartbeatUtils.TABLE_NAME);
+                        updateConfig = true;
+                    }
+                }
+                tableNameSet.add(ConnHeartbeatUtils.TABLE_NAME);
+            }
+        }
+        return updateConfig || beforeTableNamesSize < tableNameSet.size();
+    }
+
 
     /**
      * @see com.tapdata.tm.statemachine.enums.DataFlowEvent#START

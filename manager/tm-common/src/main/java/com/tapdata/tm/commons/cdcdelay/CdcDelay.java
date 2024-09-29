@@ -52,13 +52,13 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull LongConsumer delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull LongConsumer delayConsumer, String syncType) {
         if (tapEvent instanceof TapRecordEvent) {
             Long sourceTimes;
             TapRecordEvent tapRecordEvent = ((TapRecordEvent) tapEvent);
             if (ConnHeartbeatUtils.TABLE_NAME.equals(tapRecordEvent.getTableId())) {
                 sourceTimes = parseTs(tapRecordEvent);
-                if (isFilter) {
+                if (isFilter && !TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(syncType)) {
                     HeartbeatEvent heartbeatEvent = new HeartbeatEvent();
                     tapEvent.clone(heartbeatEvent);
                     heartbeatEvent.setReferenceTime(tapRecordEvent.getReferenceTime());

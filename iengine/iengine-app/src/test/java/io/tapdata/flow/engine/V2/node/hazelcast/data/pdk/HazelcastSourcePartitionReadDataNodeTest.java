@@ -58,9 +58,9 @@ public class HazelcastSourcePartitionReadDataNodeTest extends BaseHazelcastNodeT
         HeartbeatEvent heartbeatEvent2 = new HeartbeatEvent();
         TapEvent tapEvent = tapUpdateRecordEvent;
         tapEvent.clone(heartbeatEvent2);
-        when(cdcDelay.filterAndCalcDelay(tapEvent, null)).thenReturn(heartbeatEvent2);
+        when(cdcDelay.filterAndCalcDelay(tapEvent, null, null)).thenReturn(heartbeatEvent2);
         hazelcastSourcePartitionReadDataNode.handleStreamEventsReceived(tapEvents, null);
-        verify(cdcDelay, times(1)).filterAndCalcDelay(any(), any());
+        verify(cdcDelay, times(1)).filterAndCalcDelay(any(), any(), any());
     }
     @DisplayName("test streamReadFuncAspect is null ")
     @Test
@@ -80,9 +80,9 @@ public class HazelcastSourcePartitionReadDataNodeTest extends BaseHazelcastNodeT
         HeartbeatEvent hbEvent = new HeartbeatEvent();
         TapEvent tapEvent = tapUpdateRecordEvent;
         tapEvent.clone(hbEvent);
-        when(cdcDelay.filterAndCalcDelay(tapEvent, null)).thenReturn(hbEvent);
+        when(cdcDelay.filterAndCalcDelay(tapEvent, null, null)).thenReturn(hbEvent);
         hazelcastSourcePartitionReadDataNode.handleStreamEventsReceived(tapEvents, null);
-        verify(cdcDelay, times(1)).filterAndCalcDelay(any(), any());
+        verify(cdcDelay, times(1)).filterAndCalcDelay(any(), any(), any());
     }
 
 

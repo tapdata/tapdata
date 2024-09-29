@@ -5036,6 +5036,145 @@ class TaskServiceImplTest {
     }
 
     @Nested
+    class checkHeartTableInLogCollectorTaskTableClass{
+        TaskDto taskDto;
+        UserDetail userDetail;
+        DAG dag;
+        DataSourceService dataSourceService;
+
+        ShareCdcTableMappingService shareCdcTableMappingService;
+        LogCollectorNode logCollectorNode;
+        List<Node> nodes=new ArrayList<>();
+        List<String> connectionIds=new ArrayList<>();
+        List<String> tableNames=new ArrayList<>();
+
+        @BeforeEach
+        void init() {
+            taskDto = mock(TaskDto.class);
+            dag = mock(DAG.class);
+            when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+            when(taskDto.getDag()).thenReturn(dag);
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+            userDetail = mock(UserDetail.class);
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            shareCdcTableMappingService = mock(ShareCdcTableMappingService.class);
+            ReflectionTestUtils.setField(taskService, "shareCdcTableMappingService", shareCdcTableMappingService);
+            ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
+
+            logCollectorNode = new LogCollectorNode();
+
+            nodes.add(logCollectorNode);
+
+
+            connectionIds.add("665eb04d9e541e4fee4f87c5");
+            logCollectorNode.setConnectionIds(connectionIds);
+
+
+            tableNames.add("testTableName");
+            logCollectorNode.setTableNames(tableNames);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs=new HashMap<>();
+            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+        }
+        @DisplayName("test update task config when tableConfig update")
+        @Test
+        void test1(){
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            when(taskService.addHeartBeatTable2LogCollector(any(),any(),any())).thenReturn(false);
+            taskService.checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            verify(taskService,times(0)).updateById(taskDto,userDetail);
+        }
+        @DisplayName("test update task config when tableConfig not update")
+        @Test
+        void test2(){
+            LogCollectorNode logCollectorNode=new LogCollectorNode();
+            List<Node> nodes=new ArrayList<>();
+            nodes.add(logCollectorNode);
+
+            List<String> connectionIds=new ArrayList<>();
+            connectionIds.add("665eb04d9e541e4fee4f87c5");
+            logCollectorNode.setConnectionIds(connectionIds);
+
+            List<String> tableNames=new ArrayList<>();
+            tableNames.add("testTableName");
+            logCollectorNode.setTableNames(tableNames);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs=new HashMap<>();
+            logCollectorNode.setLogCollectorConnConfigs(logCollectorConnConfigs);
+
+            when(dag.getSourceNodes()).thenReturn(nodes);
+            doCallRealMethod().when(taskService).checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            when(taskService.addHeartBeatTable2LogCollector(any(),any(),any())).thenReturn(true);
+            taskService.checkHeartTableInLogCollectorTaskTable(taskDto, userDetail);
+            verify(taskService,times(1)).updateById(taskDto,userDetail);
+        }
+    }
+    @Nested
+    class testUpdateTableNameClass{
+        Set<String> tableNames;
+
+        @BeforeEach
+        void init() {
+            tableNames = new HashSet<>();
+            tableNames.add("testTable");
+        }
+        @DisplayName("test addHeartBeatTable2LogCollector method if connection enableHeartBeat")
+        @Test
+        void test1(){
+            List<DataSourceConnectionDto> dataSourceConnectionList=new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto=new DataSourceConnectionDto();
+            dataSourceConnectionDto.setId(MongoUtils.toObjectId("665eb04d9e541e4fee4f87c5"));
+            dataSourceConnectionDto.setHeartbeatEnable(true);
+            dataSourceConnectionList.add(dataSourceConnectionDto);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs =new HashMap<>();
+            doCallRealMethod().when(taskService).addHeartBeatTable2LogCollector(dataSourceConnectionList,logCollectorConnConfigs,tableNames);
+            boolean updateConfig = taskService.addHeartBeatTable2LogCollector(dataSourceConnectionList, logCollectorConnConfigs, tableNames);
+            assertEquals(true,updateConfig);
+            assertEquals(2,tableNames.size());
+        }
+        @DisplayName("test addHeartBeatTable2LogCollector method if connection disableHeartBeat")
+        @Test
+        void test2(){
+            List<DataSourceConnectionDto> dataSourceConnectionList=new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto=new DataSourceConnectionDto();
+            dataSourceConnectionDto.setId(MongoUtils.toObjectId("665eb04d9e541e4fee4f87c5"));
+            dataSourceConnectionDto.setHeartbeatEnable(false);
+            dataSourceConnectionList.add(dataSourceConnectionDto);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs =new HashMap<>();
+            doCallRealMethod().when(taskService).addHeartBeatTable2LogCollector(dataSourceConnectionList,logCollectorConnConfigs,tableNames);
+            boolean updateConfig = taskService.addHeartBeatTable2LogCollector(dataSourceConnectionList, logCollectorConnConfigs, tableNames);
+
+            assertEquals(false,updateConfig);
+            assertEquals(1,tableNames.size());
+        }
+        @Test
+        void test3(){
+            String connectionId="665eb04d9e541e4fee4f87c5";
+            List<DataSourceConnectionDto> dataSourceConnectionList=new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto=new DataSourceConnectionDto();
+            dataSourceConnectionDto.setId(MongoUtils.toObjectId(connectionId));
+            dataSourceConnectionDto.setHeartbeatEnable(true);
+            dataSourceConnectionList.add(dataSourceConnectionDto);
+
+            Map<String, LogCollecotrConnConfig> logCollectorConnConfigs =new HashMap<>();
+
+            List<String> tableNamesList=new ArrayList<>();
+            tableNamesList.add("testTable");
+            LogCollecotrConnConfig logCollecotrConnConfig=new LogCollecotrConnConfig(connectionId, tableNamesList);
+            logCollectorConnConfigs.put(connectionId, logCollecotrConnConfig);
+
+            doCallRealMethod().when(taskService).addHeartBeatTable2LogCollector(dataSourceConnectionList,logCollectorConnConfigs,tableNames);
+            boolean updateConfig = taskService.addHeartBeatTable2LogCollector(dataSourceConnectionList, logCollectorConnConfigs, tableNames);
+            assertEquals(true,updateConfig);
+            assertEquals(2,tableNames.size());
+            assertEquals(2,logCollecotrConnConfig.getTableNames().size());
+        }
+
+    }
+    @Nested
     class CheckSourceTimeDifferenceTest{
 
         @Test
