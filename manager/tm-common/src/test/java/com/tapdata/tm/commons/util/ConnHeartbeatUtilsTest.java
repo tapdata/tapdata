@@ -3,10 +3,8 @@ package com.tapdata.tm.commons.util;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import io.tapdata.pdk.apis.entity.Capability;
+import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.util.*;
@@ -99,15 +97,83 @@ class ConnHeartbeatUtilsTest {
     @Nested
     class CheckConnectionTest {
 
+        DataSourceConnectionDto connectionDto;
+        List<Capability> capabilities;
+
+        @BeforeEach
+        void setUp() {
+            capabilities = new ArrayList<>();
+            capabilities.add(new Capability(CapabilityEnum.STREAM_READ_FUNCTION.name()));
+            capabilities.add(new Capability(CapabilityEnum.CREATE_TABLE_FUNCTION.name()));
+            capabilities.add(new Capability(CapabilityEnum.CREATE_TABLE_V2_FUNCTION.name()));
+            capabilities.add(new Capability(CapabilityEnum.WRITE_RECORD_FUNCTION.name()));
+            capabilities.add(new Capability(CapabilityEnum.DROP_TABLE_FUNCTION.name()));
+
+            connectionDto = new DataSourceConnectionDto();
+            connectionDto.setHeartbeatEnable(true);
+            connectionDto.setCapabilities(capabilities);
+            connectionDto.setDatabase_type(String.format("not-%s", ConnHeartbeatUtils.PDK_NAME));
+            connectionDto.setConnection_type("source_and_target");
+        }
+
         @Test
-        void hasNoHeartbeatTag() {
-            DataSourceConnectionDto connectionDto = Mockito.mock(DataSourceConnectionDto.class);
-            Mockito.when(connectionDto.getHeartbeatEnable()).thenReturn(true);
-            Mockito.when(connectionDto.getDatabase_type()).thenReturn(String.format("not-%s", ConnHeartbeatUtils.PDK_NAME));
-            Mockito.when(connectionDto.getCapabilities()).thenReturn(new ArrayList<>());
-            Mockito.when(connectionDto.getConnection_type()).thenReturn("source_and_target");
-            Mockito.when(connectionDto.getDefinitionTags()).thenReturn(Collections.singletonList(ConnHeartbeatUtils.CONNECTOR_TAGS_NO_HEARTBEAT));
+        void testDisableHeartbeats() {
+            connectionDto.setHeartbeatEnable(false);
             Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testDummyConnector() {
+            connectionDto.setDatabase_type(ConnHeartbeatUtils.PDK_NAME);
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testNullCapabilities() {
+            connectionDto.setCapabilities(null);
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testSourceConnection() {
+            connectionDto.setConnection_type("source");
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testTargetConnection() {
+            connectionDto.setConnection_type("target");
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testHasNoHeartbeatTag() {
+            connectionDto.setDefinitionTags(Collections.singletonList(ConnHeartbeatUtils.CONNECTOR_TAGS_NO_HEARTBEAT));
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testNoStreamReadFunction() {
+            capabilities.removeIf(capability -> capability.getId().equals(CapabilityEnum.STREAM_READ_FUNCTION.name()));
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testNoCreateTableFunction() {
+            capabilities.removeIf(capability -> capability.getId().equals(CapabilityEnum.CREATE_TABLE_FUNCTION.name()));
+            capabilities.removeIf(capability -> capability.getId().equals(CapabilityEnum.CREATE_TABLE_V2_FUNCTION.name()));
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testNoWriteRecordFunction() {
+            capabilities.removeIf(capability -> capability.getId().equals(CapabilityEnum.WRITE_RECORD_FUNCTION.name()));
+            Assertions.assertFalse(ConnHeartbeatUtils.checkConnection(connectionDto));
+        }
+
+        @Test
+        void testTrue() {
+            Assertions.assertTrue(ConnHeartbeatUtils.checkConnection(connectionDto));
         }
     }
 }
