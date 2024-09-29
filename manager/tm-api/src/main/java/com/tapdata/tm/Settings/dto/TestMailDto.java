@@ -21,6 +21,10 @@ public class    TestMailDto {
     private String SMTP_Server_password;
     @JsonProperty("Email_Receivers")
     private String Email_Receivers;
+    @JsonProperty("SMTP_Proxy_Host")
+    private String SMTP_Proxy_Host;
+    @JsonProperty("SMTP_Proxy_Port")
+    private String SMTP_Proxy_Port;
     private String title;
     private String text;
 }

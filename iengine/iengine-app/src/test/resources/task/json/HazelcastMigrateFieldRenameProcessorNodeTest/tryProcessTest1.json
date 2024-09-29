@@ -1,0 +1,342 @@
+{
+  "dag": {
+    "edges": [
+      {
+        "disabled": false,
+        "source": "db4f2c5f-89ff-4384-b737-7f54a8c64580",
+        "target": "563be0fe-0df1-4787-acf6-6a1e7e3cfb9a"
+      },
+      {
+        "disabled": false,
+        "source": "563be0fe-0df1-4787-acf6-6a1e7e3cfb9a",
+        "target": "e4157ca9-42e6-4891-9783-b48ff6c4b69f"
+      }
+    ],
+    "nodes": [
+      {
+        "existDataProcessMode": "keepData",
+        "tableNames": [
+          "dummy_test"
+        ],
+        "migrateTableSelectType": "custom",
+        "tableExpression": ".*",
+        "noPrimaryKeyTableSelectType": "All",
+        "nodeConfig": {},
+        "connectionId": "6686140cc3dac65427575089",
+        "databaseType": "Dummy",
+        "ddlConfiguration": "FILTER",
+        "readBatchSize": 100,
+        "increaseReadSize": 1,
+        "writeStrategy": "updateOrInsert",
+        "type": "database",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "db4f2c5f-89ff-4384-b737-7f54a8c64580",
+        "name": "S dummy 53F 1KB",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            51,
+            50
+          ],
+          "connectionName": "S dummy 53F 1KB",
+          "connectionType": "source",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      },
+      {
+        "fieldsMapping": [
+          {
+            "qualifiedName": "T_dummy_io_tapdata_1_0-SNAPSHOT_dummy_test_6686140cc3dac65427575089_6695f3dbe1f8e14b8b6c143e",
+            "originTableName": "dummy_test",
+            "previousTableName": "dummy_test",
+            "operation": {
+              "prefix": "",
+              "suffix": "",
+              "capitalized": ""
+            },
+            "fields": [
+              {
+                "sourceFieldName": "title",
+                "targetFieldName": "title_new",
+                "isShow": true
+              },
+              {
+                "sourceFieldName": "created",
+                "targetFieldName": "CREATED",
+                "isShow": false
+              }
+            ]
+          }
+        ],
+        "fieldsOperation": {
+          "prefix": "",
+          "suffix": "",
+          "capitalized": "toUpperCase"
+        },
+        "concurrentNum": 2,
+        "type": "migrate_field_rename_processor",
+        "catalog": "processor",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "PROCESSNODE",
+            "open": true,
+            "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 1,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+            "point": 60,
+            "equalsFlag": 1,
+            "ms": 30000
+          }
+        ],
+        "id": "563be0fe-0df1-4787-acf6-6a1e7e3cfb9a",
+        "name": "字段编辑",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            331,
+            50
+          ]
+        },
+        "disabled": false
+      },
+      {
+        "existDataProcessMode": "keepData",
+        "syncObjects": [
+          {
+            "type": "table",
+            "objectNames": [
+              "dummy_test"
+            ],
+            "tableNameRelation": {
+              "dummy_test": "dummy_test"
+            }
+          }
+        ],
+        "migrateTableSelectType": "custom",
+        "nodeConfig": {},
+        "updateConditionFieldMap": {},
+        "connectionId": "667ce1f10559427710d4309b",
+        "databaseType": "Dummy",
+        "dmlPolicy": {},
+        "initialConcurrent": false,
+        "readBatchSize": 500,
+        "increaseReadSize": 1,
+        "writeBatchSize": 100,
+        "writeBatchWaitMs": 500,
+        "writeStrategy": "updateOrInsert",
+        "type": "database",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "e4157ca9-42e6-4891-9783-b48ff6c4b69f",
+        "name": "dummy target",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            610,
+            50
+          ],
+          "connectionName": "dummy target",
+          "connectionType": "target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "f45ed8744261175abce5f902473472866aa1ffc40cccec0a0d2abceef4a338c2",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            }
+          ],
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      }
+    ]
+  },
+  "name": "任务 28"
+}

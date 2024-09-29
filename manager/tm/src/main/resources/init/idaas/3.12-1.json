@@ -1,0 +1,54 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "_id": "125",
+        "category": "SMTP",
+        "category_sort": 1,
+        "default_value": " ",
+        "documentation": "SMTP Proxy Host",
+        "hot_reloading": true,
+        "key": "smtp.proxy.host",
+        "key_label": "SMTP Proxy Host",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "9",
+        "user_visible": true,
+        "value": ""
+      },
+      {
+        "_id": "126",
+        "category": "SMTP",
+        "category_sort": 1,
+        "default_value": " ",
+        "documentation": "SMTP Proxy Port",
+        "hot_reloading": true,
+        "key": "smtp.proxy.port",
+        "key_label": "SMTP Proxy Port",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "91",
+        "user_visible": true,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "update": "Settings",
+    "updates": [
+      {
+        "q": {
+          "key": "emailHref"
+        },
+        "u": {
+          "$set": {
+            "sort": "92"
+          }
+        }
+      }
+    ]
+  }
+]

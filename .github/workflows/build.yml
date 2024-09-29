@@ -88,6 +88,14 @@ jobs:
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
           fetch-depth: 0
+      - name: Checkout Docs
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/docs'
+          ref: community-data-sources-docs
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: docs
+          fetch-depth: 0
       - name: Push Tapdata to Gogs
         uses: nick-fields/retry@v2
         with:
@@ -116,6 +124,13 @@ jobs:
           max_attempts: 3
           command: |
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-application --gogs-project-name=tapdata-application
+      - name: Push Tapdata Docs to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=docs --gogs-project-name=docs
 
   Build-Tapdata:
     runs-on: office-scan
@@ -208,6 +223,12 @@ jobs:
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
           cd tapdata && git fetch --tags
+      - name: Checkout Docs Repo
+        run: |
+          rm -rf docs
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b community-data-sources-docs --single-branch ssh://git@192.168.1.170:10022/tapdata/docs.git
+          cd docs && git fetch --tags
       - name: Checkout Frontend Code
         run: |
           rm -rf tapdata-enterprise-web
@@ -225,6 +246,11 @@ jobs:
         run: |
           pnpm config set registry https://registry.npmmirror.com
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
+      - name: Build Docs
+        run: |
+          cd docs && npm install && npm run build:docs && cd ..
+          mkdir -p tapdata-enterprise-web/dist/docs/
+          rsync -av docs/build/ tapdata-enterprise-web/dist/docs/
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p frontend

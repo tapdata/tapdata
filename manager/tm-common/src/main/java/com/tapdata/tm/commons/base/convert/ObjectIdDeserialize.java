@@ -1,8 +1,11 @@
 package com.tapdata.tm.commons.base.convert;
 
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.ObjectCodec;
+import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.node.IntNode;
 import org.bson.types.ObjectId;
 
 import java.io.IOException;
@@ -31,6 +34,21 @@ public class ObjectIdDeserialize extends JsonDeserializer<ObjectId> {
 		String value = p.getValueAsString();
 		if (value != null)
 			return toObjectId(value);
+		ObjectCodec codec = p.getCodec();
+		TreeNode treeNode = codec.readTree(p);
+		if(null != treeNode){
+			TreeNode timestampNode = treeNode.get("timestamp");
+			TreeNode counterNode = treeNode.get("counter");
+			if(null != timestampNode && null != counterNode){
+				try{
+					int timestamp = (int) ((IntNode) timestampNode).numberValue();
+					int counter = (int) ((IntNode) counterNode).numberValue();
+					return new ObjectId(timestamp, counter);
+				}catch (Exception e){
+					throw new RuntimeException("ObjectIdDeserialize error: " + e.getMessage(),e);
+				}
+			}
+		}
 		return null;
 	}
 }

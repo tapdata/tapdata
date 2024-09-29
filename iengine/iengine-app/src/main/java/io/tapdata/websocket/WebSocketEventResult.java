@@ -23,6 +23,7 @@ public class WebSocketEventResult implements Serializable {
 	private String type;
 
 	private String error;
+	private String stack;
 
 	private String status;
 
@@ -56,7 +57,7 @@ public class WebSocketEventResult implements Serializable {
 		handleResult.setStatus(EVENT_HANDLE_RESULT_ERRPR);
 		if (throwable != null) {
 			String stackString = Log4jUtil.getStackString(throwable);
-			error += "\n" + stackString;
+			handleResult.setStack(stackString);
 		}
 		handleResult.setError(error);
 
@@ -85,6 +86,13 @@ public class WebSocketEventResult implements Serializable {
 
 	public void setError(String error) {
 		this.error = error;
+	}
+	public String getStack() {
+		return stack;
+	}
+
+	public void setStack(String stack) {
+		this.stack = stack;
 	}
 
 	public String getStatus() {

@@ -1,0 +1,22 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "LDAP",
+        "category_sort": "91",
+        "default_value": " ",
+        "documentation": "Ldap SSL Cert",
+        "hot_reloading": true,
+        "key": "ldap.ssl.cert",
+        "key_label": "Ldap SSL Cert",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "8",
+        "user_visible": true,
+        "value": ""
+      }
+    ]
+  }
+]

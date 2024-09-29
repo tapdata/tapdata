@@ -468,7 +468,6 @@ class DataSourceServiceImplTest {
             }).when(messageQueueService).sendMessage(any());
             dataSourceService.sendTestConnection(connectionDto,true,true,mock(UserDetail.class));
         }
-
     }
 
 

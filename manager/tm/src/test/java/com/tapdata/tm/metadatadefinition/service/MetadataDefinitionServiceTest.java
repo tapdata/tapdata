@@ -1,9 +1,12 @@
 package com.tapdata.tm.metadatadefinition.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.GroupDto;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
+import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository;
 import com.tapdata.tm.utils.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -69,6 +72,34 @@ class MetadataDefinitionServiceTest {
         @Test
         void testOther() {
             doVerify("", 0);
+        }
+    }
+    @Nested
+    class FindTest{
+        SettingsService settingsService;
+        MetadataDefinitionRepository metadataDefinitionRepository;
+        MetadataDefinitionService metadataDefinitionService;
+        @BeforeEach
+        void init() {
+            settingsService = mock(SettingsService.class);
+            metadataDefinitionRepository = mock(MetadataDefinitionRepository.class);
+            metadataDefinitionService = new MetadataDefinitionService(metadataDefinitionRepository);
+            ReflectionTestUtils.setField(metadataDefinitionService, "settingsService", settingsService);
+        }
+        @Test
+        void testCloud() {
+            when(settingsService.isCloud()).thenReturn(true);
+            Filter filter = new Filter();
+            metadataDefinitionService.find(filter,mock(UserDetail.class));
+            verify(metadataDefinitionRepository,times(1)).findAll(any(Filter.class),any(UserDetail.class));
+        }
+
+        @Test
+        void testDass() {
+            when(settingsService.isCloud()).thenReturn(false);
+            Filter filter = new Filter();
+            metadataDefinitionService.find(filter,mock(UserDetail.class));
+            verify(metadataDefinitionRepository,times(1)).findAll(any(Filter.class));
         }
     }
 }

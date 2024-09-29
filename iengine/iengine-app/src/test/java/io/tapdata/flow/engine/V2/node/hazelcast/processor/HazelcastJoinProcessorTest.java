@@ -1,18 +1,22 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.schema.TapTableMap;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.mockito.Mockito.*;
 
@@ -62,4 +66,10 @@ public class HazelcastJoinProcessorTest extends BaseHazelcastNodeTest {
         Assertions.assertInstanceOf(Date.class, before.get("date"));
         Assertions.assertInstanceOf(Date.class, after.get("date"));
     }
+
+    @Test
+    void testNeedCopyBatchEventWrapper(){
+        Assertions.assertTrue(hazelcastJoinProcessor.needCopyBatchEventWrapper());
+    }
+
 }

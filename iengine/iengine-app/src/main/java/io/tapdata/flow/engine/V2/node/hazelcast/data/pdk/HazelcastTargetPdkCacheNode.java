@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
@@ -114,7 +115,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	public void doClose() throws TapCodeException {
 		if (dataMap != null) {
-			PersistenceStorage.getInstance().destroy(dataMap.getName());
+			PersistenceStorage.getInstance().destroy(this.referenceId, ConstructType.IMAP, dataMap.getName());
 		}
 		super.doClose();
 	}

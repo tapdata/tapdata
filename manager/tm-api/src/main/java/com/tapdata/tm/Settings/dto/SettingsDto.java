@@ -38,5 +38,6 @@ public class SettingsDto{
     private List<String> enums;
     private Integer min;
     private Integer max;
+    private Boolean open;
 
 }

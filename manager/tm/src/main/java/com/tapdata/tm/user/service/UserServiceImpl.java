@@ -9,11 +9,16 @@ import com.google.common.collect.Sets;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Permission.entity.PermissionEntity;
 import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.constant.CategoryEnum;
+import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.constant.SettingsEnum;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.function.Bi3Consumer;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -38,6 +43,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.UUIDUtil;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -51,9 +57,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.*;
+import javax.net.ssl.*;
+import java.io.*;
+import java.security.KeyStore;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -102,6 +116,8 @@ public class UserServiceImpl extends UserService{
 
     @Autowired
     private LdpService ldpService;
+    @Autowired
+    private SettingsService settingsService;
 
     @Override
     protected void beforeSave(UserDto dto, UserDetail userDetail) {
@@ -355,7 +371,7 @@ public class UserServiceImpl extends UserService{
 
     public <T extends BaseDto> UserDto save(CreateUserRequest request, UserDetail userDetail) {
 
-        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
+        UserDto userDto = findOne(Query.query(Criteria.where("email").is(request.getEmail()).and("ldapAccount").is(request.getLdapAccount()).orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (userDto != null) {
             throw new BizException("User.Already.Exists");
         }
@@ -397,12 +413,12 @@ public class UserServiceImpl extends UserService{
 
         return result;
     }
-    private List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
+    protected List<RoleMappingDto> updateRoleMapping(String userId, List<Object> roleusers, UserDetail userDetail) {
         // delete old role mapping
+        if (CollectionUtils.isNotEmpty(roleusers)) {
             long deleted = roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(userId).and("principalType").is("USER")));
             log.info("delete old role mapping for userId {}, deleted: {}", userId, deleted);
         // add new role mapping
-        if (CollectionUtils.isNotEmpty(roleusers)) {
             List<RoleMappingDto> roleMappingDtos = roleusers.stream().map(r -> (String) r).map(roleId -> {
                 RoleMappingDto roleMappingDto = new RoleMappingDto();
                 roleMappingDto.setPrincipalType("USER");
@@ -757,4 +773,174 @@ public class UserServiceImpl extends UserService{
 			add("v2_user_management_menu");
 			add("v2_role_management");
 		}};
+
+    @Override
+    public boolean checkLdapLoginEnable() {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_LOGIN_ENABLE);
+        if (settings != null) {
+            return settings.getOpen();
+        }
+        return false;
+    }
+
+    @Override
+    public TestResponseDto testLoginByLdap(TestLdapDto testldapDto) {
+        String ldapUrl = testldapDto.getLdap_Server_Host() + ":" + testldapDto.getLdap_Server_Port();
+        String bindDN = testldapDto.getLdap_Bind_DN();
+        String bindPassword = testldapDto.getLdap_Bind_Password();
+        Boolean sslEnable = testldapDto.getLdap_SSL_Enable();
+        String ldapSslCert = testldapDto.getLdap_SSL_Cert();
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).sslEnable(sslEnable).cert(ldapSslCert).build();
+        if ("*****".equals(ldapLoginDto.getPassword())) {
+            String value = SettingsEnum.AD_PASSWORD.getValue();
+            ldapLoginDto.setPassword(value);
+        }
+        DirContext dirContext = null;
+        try {
+            dirContext = buildDirContext(ldapLoginDto);
+            if (null != dirContext) {
+                return new TestResponseDto(true, null);
+            } else {
+                return new TestResponseDto(false, "connect to active directory server failed");
+            }
+        } catch (NamingException e) {
+            return new TestResponseDto(false, TapSimplify.getStackTrace(e));
+        } finally {
+            if (null != dirContext) {
+                try {
+                    dirContext.close();
+                } catch (NamingException e) {
+                    // do nothing
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean loginByLdap(String username, String password) {
+        List<Settings> all = settingsService.findAll();
+        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
+
+        String host = (String) collect.get("ldap.server.host");
+        String port = (String) collect.get("ldap.server.port");
+        String bindDN = (String) collect.get("ldap.bind.dn");
+        String pwd = (String) collect.get("ldap.bind.password");
+        String baseDN = (String) collect.get("ldap.base.dn");
+        String cert = (String) collect.get("ldap.ssl.cert");
+        Boolean ssl = false;
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LDAP, KeyEnum.LDAP_SSL_ENABLE);
+        if (settings != null) {
+            ssl = settings.getOpen();
+        }
+        String ldapUrl = host + ":" + port;
+        LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(pwd).baseDN(baseDN).sslEnable(ssl).cert(cert).build();
+        DirContext dirContext = null;
+        try {
+            boolean exists = searchUser(ldapLoginDto, username);
+            if (!exists) {
+                throw new BizException("AD.Account.Not.Exists");
+            }
+            ldapLoginDto.setBindDN(username);
+            ldapLoginDto.setPassword(password);
+            dirContext = buildDirContext(ldapLoginDto);
+            if (null != dirContext) {
+                return true;
+            }
+        } catch (NamingException e) {
+            throw new BizException("AD.Login.Fail", e);
+        } finally {
+            if (null != dirContext) {
+                try {
+                    dirContext.close();
+                } catch (NamingException e) {
+                    // do nothing
+                }
+            }
+        }
+        return false;
+    }
+
+    protected boolean searchUser(LdapLoginDto ldapLoginDto, String username) throws NamingException {
+        String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
+        String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
+        DirContext ctx = buildDirContext(ldapLoginDto);
+        String searchBases = ldapLoginDto.getBaseDN();
+        if (StringUtils.isBlank(searchBases)) return false;
+        try {
+            SearchControls searchControls = new SearchControls();
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            searchControls.setReturningAttributes(new String[]{"sAMAccountName", "userPrincipalName", "displayName"});
+            String[] searchBase = searchBases.split(";");
+            for (String base : searchBase) {
+                boolean isExist = searchWithFilter(ctx, base, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, base, userPrincipalNameFilter, searchControls);
+                if (isExist) return true;
+            }
+            return false;
+        } catch (NamingException e) {
+            throw new BizException("AD.Search.Fail", e);
+        } finally {
+            ctx.close();
+        }
+    }
+
+    protected boolean searchWithFilter(DirContext ctx, String searchBase, String filter, SearchControls searchControls) throws NamingException {
+        NamingEnumeration<SearchResult> sAMAccountNameResult = ctx.search(searchBase, filter, searchControls);
+
+        String userPrincipalName = null;
+        String displayName = null;
+        while (sAMAccountNameResult.hasMore()) {
+            SearchResult searchResult = sAMAccountNameResult.next();
+            Attributes attributes = searchResult.getAttributes();
+            userPrincipalName = attributes.get("userPrincipalName") != null ? attributes.get("userPrincipalName").get().toString() : null;
+            displayName = attributes.get("displayName") != null ? attributes.get("displayName").get().toString() : null;
+        }
+        return StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName);
+    }
+
+    protected DirContext buildDirContext(LdapLoginDto ldapLoginDto) throws NamingException {
+        String ldapUrl = ldapLoginDto.getLdapUrl();
+        String bindDn = ldapLoginDto.getBindDN();
+        String password = ldapLoginDto.getPassword();
+        Boolean ssl = ldapLoginDto.isSslEnable();
+        String certFile = ldapLoginDto.getCert();
+        Hashtable<String, String> env = new Hashtable<>();
+        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        env.put(Context.PROVIDER_URL, ldapUrl);
+        env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        env.put(Context.SECURITY_PRINCIPAL, bindDn);
+        env.put(Context.SECURITY_CREDENTIALS, password);
+        if (ssl) {
+            if (null == certFile) throw new BizException("AD.Login.Fail");
+            try (InputStream certificates = new ByteArrayInputStream(certFile.getBytes())) {
+                SSLContext sslContext = createSSLContext(certificates);
+                HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
+            } catch (Exception e) {
+                throw new BizException(e);
+            }
+        }
+        DirContext ctx = new InitialDirContext(env);
+        return ctx;
+    }
+    protected SSLContext createSSLContext(InputStream certFile) throws Exception {
+        // load custom cert
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        X509Certificate caCert = (X509Certificate) cf.generateCertificate(certFile);
+        certFile.close();
+
+        // create KeyStore and import cert
+        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        // init empty keyStore
+        keyStore.load(null, null);
+        keyStore.setCertificateEntry("caCert", caCert);
+
+        // create TrustManagerFactory and init KeyStore
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tmf.init(keyStore);
+
+        TrustManager[] trustManagers = tmf.getTrustManagers();
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, trustManagers, null);
+
+        return sslContext;
+    }
 }

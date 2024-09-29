@@ -29,6 +29,10 @@ public class Field implements Serializable {
     @JsonProperty("data_type")
     @org.springframework.data.mongodb.core.mapping.Field("data_type")
     private String dataType;
+    @JsonProperty("pure_data_type")
+    private String pureDataType;
+    @JsonProperty("data_length")
+    private Integer length;
     private String previousDataType;
     private String selectDataType;
     private String dataTypeTemp;
@@ -92,6 +96,7 @@ public class Field implements Serializable {
 
     private Object parent;
 
+    @JsonProperty("data_precision")
     private Integer precision;
     private Integer originalPrecision;
 
@@ -102,6 +107,7 @@ public class Field implements Serializable {
     @org.springframework.data.mongodb.core.mapping.Field("primary_key_position")
     private Integer primaryKeyPosition;
 
+    @JsonProperty("data_scale")
     private Integer scale;
     private Integer originalScale;
 

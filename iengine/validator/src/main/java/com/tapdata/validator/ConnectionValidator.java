@@ -218,6 +218,7 @@ public class ConnectionValidator {
 								anyErrorOccurred.set(true);
 							}
 							resultDetail.setRequired(result != TestItem.RESULT_SUCCESSFULLY_WITH_WARN);
+							resultDetail.setItem_exception(testItem.getTapTestItemException());
 							resultDetail.setFail_message(testItem.getInformation());
 							resultDetail.setShow_msg(item);
 							resultDetails.add(resultDetail);

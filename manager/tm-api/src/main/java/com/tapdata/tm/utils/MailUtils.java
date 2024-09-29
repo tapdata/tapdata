@@ -6,26 +6,29 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
+import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.Session;
-import javax.mail.Transport;
+import javax.mail.*;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -451,29 +454,18 @@ public class MailUtils {
     /**
      * 发送HTML邮件
      */
-    public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
-        if (CollectionUtils.isEmpty(adressees)) return;
-
-        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
-        if (blacklistService != null) {
-            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
-            if (log.isDebugEnabled()) {
-                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
-            }
-            adressees = notInBlacklistAddress;
-            //adressees.removeAll(blacklist);
-            if (CollectionUtils.isEmpty(adressees)) {
-                return;
-            }
-        } else {
-            log.warn("Check blacklist failed before send email, not found BlacklistService.");
-        }
+    public static TestResponseDto sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
+        adressees = filterBlackList(adressees);
+        if (adressees == null) return new TestResponseDto(false,"Please check your configuration, receivers cannot be empty.");
 
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
-            flag = false;
+            return new TestResponseDto(false,"Please check your configuration, mail account information cannot be empty.");
         } else {
+            if (StringUtils.isNotBlank(parms.getProxyHost()) && 0 != parms.getProxyPort()) {
+                return sendEmailForProxy(parms, adressees, title, content, flag);
+            }
             try {
                 MailAccount account = new MailAccount();
                 account.setHost(parms.getHost());
@@ -506,9 +498,89 @@ public class MailUtils {
             } catch (Exception e) {
                 log.error("mail send error：{}", e.getMessage(), e);
                 flag = false;
+                return new TestResponseDto(flag, TapSimplify.getStackTrace(e));
             }
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
+        return new TestResponseDto(flag, null);
+    }
+
+    @Nullable
+    protected static List<String> filterBlackList(List<String> adressees) {
+        if (CollectionUtils.isEmpty(adressees)) return null;
+
+        BlacklistService blacklistService = SpringContextHelper.getBean(BlacklistService.class);
+        if (blacklistService != null) {
+            List<String> notInBlacklistAddress = adressees.stream().filter(to -> !blacklistService.inBlacklist(to)).collect(Collectors.toList());
+            if (log.isDebugEnabled()) {
+                log.debug("Blacklist filter address {}, {}", adressees, notInBlacklistAddress);
+            }
+            adressees = notInBlacklistAddress;
+            //adressees.removeAll(blacklist);
+            if (CollectionUtils.isEmpty(adressees)) {
+                return null;
+            }
+        } else {
+            log.warn("Check blacklist failed before send email, not found BlacklistService.");
+        }
+        return adressees;
+    }
+
+    protected static TestResponseDto sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
+        final String username = parms.getUser();
+        final String password = parms.getPass();
+
+        Properties properties = new Properties();
+        properties.put("mail.smtp.host", parms.getHost());
+        properties.put("mail.smtp.port", parms.getPort());
+        properties.put("mail.smtp.auth", "true");
+        if ("SSL".equals(parms.getProtocol())){
+            properties.put("mail.smtp.ssl.enable", "true");
+        } else if ("TLS".equals(parms.getProtocol())) {
+            properties.put("mail.smtp.starttls.enable", "true");
+        } else {
+            properties.put("mail.smtp.ssl.enable", "false");
+            properties.put("mail.smtp.starttls.enable", "false");
+        }
+        //set proxy server
+        properties.put("mail.smtp.socks.host", parms.getProxyHost());
+        properties.put("mail.smtp.socks.port", parms.getProxyPort());
+
+        Session session = Session.getInstance(properties, new Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
+            }
+        });
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(parms.getFrom()));
+
+            Address[] tos = null;
+            tos = new InternetAddress[adressees.size()];
+            for (int i = 0; i < adressees.size(); i++) {
+                tos[i] = new InternetAddress(adressees.get(i));
+            }
+            message.setRecipients(Message.RecipientType.TO, tos);
+
+            Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+            title = OEMReplaceUtil.replace(title, oemConfig);
+            content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
+            message.setSubject(title, "UTF-8");
+            MimeBodyPart text = new MimeBodyPart();
+            text.setContent(content, "text/html;charset=UTF-8");
+            MimeMultipart mimeMultipart = new MimeMultipart();
+            mimeMultipart.addBodyPart(text);
+            mimeMultipart.setSubType("related");
+            message.setContent(mimeMultipart);
+
+            Transport.send(message);
+        } catch (Exception e) {
+            flag = false;
+            log.error("mail send error：{}", e.getMessage(), e);
+            return new TestResponseDto(flag, TapSimplify.getStackTrace(e));
+        }
+        log.debug("mail send status：{}", flag ? "suc" : "error");
+        return new TestResponseDto(flag,null);
     }
 
     protected static String assemblyMessageBody(String message) {

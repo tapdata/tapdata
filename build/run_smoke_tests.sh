@@ -209,7 +209,7 @@ function convertsecs(){
 }
  
 function setExitCode(){
-  RESULT=$(echo $RUN_BODY | getJsonValue result)
+  RESULT=$(echo $RUN_BODY | getJsonValue consolidatedResult)
   APPURL=$(echo $RUN_BODY | getJsonValue result)
   echo $RESULT
   echo $([[ $RESULT =~ "SUCCESS" ]])

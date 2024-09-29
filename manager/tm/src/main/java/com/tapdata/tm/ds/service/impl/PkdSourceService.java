@@ -17,11 +17,9 @@ import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.*;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -145,7 +143,6 @@ public class PkdSourceService {
 			// upload the associated files(jar/icons)
 			ObjectId jarObjectId = null;
 			ObjectId iconObjectId = null;
-			Map<String, String> langMap = Maps.newHashMap();
 			try {
 				Map<String, Object> fileInfo = Maps.newHashMap();
 				String md5 = PdkSourceUtils.getFileMD5(jarFile);
@@ -170,52 +167,10 @@ public class PkdSourceService {
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
 				// 3. upload readeMe doc
-				if (!docMap.isEmpty()) {
-					if (Objects.nonNull(pdkSourceDto.getMessages())) {
-						pdkSourceDto.getMessages().forEach((k, v) -> {
-							if (v instanceof Map && Objects.nonNull(((Map<?, ?>) v).get("doc"))) {
-								langMap.put(k, ((Map<?, ?>) v).get("doc").toString());
-							}
-						});
-					}
-					if (!langMap.isEmpty()) {
-						List<String> pathList = langMap.values().stream().distinct().collect(Collectors.toList());
-
-                        Map<String, ObjectId> pathMap = new HashMap<>();
-                        pathList.forEach(path -> {
-                            if (docMap.containsKey(path)) {
-                                CommonsMultipartFile doc = docMap.getOrDefault(path, null);
-                                try {
-									if (log.isDebugEnabled()) {
-										log.debug("Upload file to GridFS {}, file size: {}",
-												doc.getOriginalFilename(), doc.getSize());
-									}
-                                    ObjectId docId = fileService.storeFile(
-                                            OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
-                                            doc.getOriginalFilename(),
-                                            null,
-                                            fileInfo );
-                                    pathMap.put(path, docId);
-                                } catch (IOException e) {
-                                    throw new BizException(e);
-                                }
-                            }
-                        });
-
-						pdkSourceDto.getMessages().forEach((k, v) -> {
-							if (v instanceof Map && Objects.nonNull(((Map<?, ?>) v).get("doc"))) {
-								String path = ((Map<?, ?>) v).get("doc").toString();
-								if (pathMap.containsKey(path)) {
-									((Map<String, Object>) v).put("doc", pathMap.get(path));
-								}
-							}
-						});
-					}
-				}
-
-				log.debug("Upload file to GridFS success");
+                uploadDocs(docMap, pdkSourceDto.getMessages(), fileInfo, oemConfig);
+                log.debug("Upload file to GridFS success");
 			} catch (IOException e) {
-				throw new BizException("SystemError");
+				throw new BizException("SystemError", e);
 			}
 
 			definitionDto.setJarRid(jarObjectId.toHexString());
@@ -358,6 +313,73 @@ public class PkdSourceService {
 
 		fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
 	}
+
+    protected void uploadDocs(Map<String, CommonsMultipartFile> docMap, LinkedHashMap<String, Object> messages, Map<String, Object> fileInfo, Map<String, Object> oemConfig) throws IOException {
+        if (docMap == null || docMap.isEmpty() || null == messages) return;
+
+        Map<String, ObjectId> deduplicatioMap = new HashMap<>();
+        for (Object v : messages.values()) {
+            if (!(v instanceof Map)) continue;
+
+            for (Map.Entry<String, Object> langEntry : ((Map<String, Object>) v).entrySet()) {
+                if (null == langEntry.getValue()
+                    || !("doc".equals(langEntry.getKey()) || langEntry.getKey().startsWith("doc:"))) {
+                    continue;
+                }
+
+                String path = langEntry.getValue().toString();
+                if (deduplicatioMap.containsKey(path)) {
+                    langEntry.setValue(deduplicatioMap.get(path));
+                    continue;
+                }
+                CommonsMultipartFile doc = docMap.getOrDefault(path, null);
+
+                ObjectId docId = fileService.storeFile(
+                    OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
+                    doc.getOriginalFilename(),
+                    null,
+                    fileInfo);
+                langEntry.setValue(docId);
+                deduplicatioMap.put(path, docId);
+            }
+        }
+    }
+
+    public void downloadDoc(String pdkHash, Integer pdkBuildNumber, String filename, UserDetail user, HttpServletResponse response) throws IOException {
+        Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
+        if (null != pdkBuildNumber) {
+            criteria.and("pdkAPIBuildNumber").is(pdkBuildNumber);
+        }
+
+        Query query = new Query(criteria);
+        query.fields().include("messages");
+        query.with(Sort.by("pdkAPIBuildNumber").descending());
+
+        DataSourceDefinitionDto one = dataSourceDefinitionService.findOne(query);
+        if (one == null) {
+            log.warn("Not found any datasource: {}", query.getQueryObject().toJson());
+            response.sendError(404);
+            return;
+        }
+
+        if ("customer".equals(one.getScope()) && !user.getCustomerId().equals(one.getCustomId())) {
+            throw new BizException("PDK.DOWNLOAD.SOURCE.FAILED");
+        }
+
+        String language = MessageUtil.getLanguage();
+        String resourceId = Optional.ofNullable(one.getMessages())
+            .map(messages -> messages.get(language))
+            .map(langMap-> ((Map<?,?>)langMap).get(filename))
+            .map(Object::toString)
+            .orElse("");
+
+        if (StringUtils.isBlank(resourceId)) {
+            response.sendError(404);
+            return;
+        }
+
+        fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
+    }
 
 	public List<PdkVersionCheckDto> versionCheck(int days) {
 		List<PdkVersionCheckDto> result = Lists.newArrayList();

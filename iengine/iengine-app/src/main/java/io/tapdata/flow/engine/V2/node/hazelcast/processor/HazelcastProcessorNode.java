@@ -5,13 +5,12 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtilV2;
 import com.tapdata.constant.NotExistsNode;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
-import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -36,6 +35,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -48,6 +48,9 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
+	private FieldRenameProcessorNode fieldRenameProcessorNode;
+	private Capitalized capitalized;
+	private Map<String, Map<String, String>> fieldsNameTransformMap;
 
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
@@ -57,6 +60,14 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		initDataFlowProcessor();
+		if (getNode() instanceof FieldRenameProcessorNode) {
+			fieldRenameProcessorNode = (FieldRenameProcessorNode) getNode();
+			String fieldsNameTransform = fieldRenameProcessorNode.getFieldsNameTransform();
+			if (StringUtils.isNotBlank(fieldsNameTransform)) {
+				capitalized = Capitalized.fromValue(fieldsNameTransform);
+				this.fieldsNameTransformMap = new HashMap<>();
+			}
+		}
 	}
 
 	@Override
@@ -105,6 +116,10 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		if (!(tapEvent instanceof TapRecordEvent)) {
 			return;
 		}
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			renameFields(TapEventUtil.getBefore(tapEvent));
+			renameFields(TapEventUtil.getAfter(tapEvent));
+		}
 		TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
 		MessageEntity messageEntity = tapEvent2Message((TapRecordEvent) tapEvent);
 		messageEntity.setOffset(tapdataEvent.getOffset());
@@ -125,6 +140,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
 				}
+				handleRemoveFields(tapdataEvent);
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
@@ -252,7 +268,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				stage.setScripts(fieldScripts);
 				stage.setOperations(fieldProcesses);
 				if (node instanceof FieldRenameProcessorNode) {
-					dataFlowProcessor = new FieldDataFlowProcessor(((FieldRenameProcessorNode) node).getFieldsNameTransform());
+					dataFlowProcessor = new FieldDataFlowProcessor();
 				} else if (node instanceof FieldAddDelProcessorNode) {
 					dataFlowProcessor = new FieldDataFlowProcessor(((FieldAddDelProcessorNode) node).isDeleteAllFields());
 				} else {
@@ -315,6 +331,162 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			MapUtilV2.putValueInMap(data, operand, value);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public boolean needTransformValue() {
+		return false;
+	}
+
+	public void renameFields(Map<String, Object> data) {
+		if (null == data) {
+			return;
+		}
+
+		Queue<Object> queue = new LinkedList<>();
+		queue.add(data);
+
+		while (!queue.isEmpty()) {
+			Object current = queue.poll();
+
+			if (current instanceof Map) {
+				Map<String, Object> currentMap = (Map<String, Object>) current;
+				List<String> keys = new ArrayList<>(currentMap.keySet());
+				for (String key : keys) {
+					String newKey = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(key, k -> Capitalized.convert(key, capitalized));
+					Object value = currentMap.remove(key);
+					currentMap.put(newKey, value);
+					if (value instanceof Map || value instanceof List) {
+						queue.add(value);
+					}
+				}
+			} else if (current instanceof List) {
+				List<Object> currentList = (List<Object>) current;
+				for (Object item : currentList) {
+					if (item instanceof Map || item instanceof List) {
+						queue.add(item);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Handles the removal of fields from the TapEvent within the given TapdataEvent.
+	 *
+	 * @param tapdataEvent the TapdataEvent containing the TapEvent to process
+	 */
+	protected void handleRemoveFields(TapdataEvent tapdataEvent) {
+	    // Get the TapEvent object
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+	    // Get the list of fields to be removed
+		List<String> removeFields = TapEventUtil.getRemoveFields(tapEvent);
+		if (CollectionUtils.isEmpty(removeFields)) {
+			return;
+		}
+	    // If there is a field rename processor, perform field renaming
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			List<String> newRemoveFields = new ArrayList<>();
+			removeFields.forEach(field->{
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				newRemoveFields.add(newField);
+			});
+	        // Update the removeFields in TapEvent
+			TapEventUtil.setRemoveFields(tapEvent, newRemoveFields);
+			removeFields = newRemoveFields;
+		}
+	    // Get the current node
+		Node<?> node = getNode();
+	    // If the current node is an instance of FieldProcessorNode, process field operations
+		if (node instanceof FieldProcessorNode) {
+			List<FieldProcessorNode.Operation> operations = ((FieldProcessorNode) node).getOperations();
+			if (CollectionUtils.isEmpty(operations)) {
+				return;
+			}
+	        // Iterate through the operations and update the removeFields list based on the operation type
+			for (FieldProcessorNode.Operation operation : operations) {
+				String op = operation.getOp();
+				switch (op) {
+					case "RENAME":
+						boolean removed = removeFields.remove(operation.getField());
+						if (removed) {
+							removeFields.add(operation.getOperand());
+						}
+						break;
+					case "REMOVE":
+						removeFields.remove(operation.getField());
+						break;
+					default:
+						break;
+				}
+			}
+		}
+	}
+
+	@Override
+	public boolean supportConcurrentProcess() {
+		return true;
+	}
+
+	@Override
+	protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+		TransformToTapValueResult transformToTapValueResult = tapdataEvent.getTransformToTapValueResult();
+		if (null == transformToTapValueResult || transformToTapValueResult.isEmpty()) {
+			return;
+		}
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				ttf.remove(field);
+				ttf.add(newField);
+			}));
+			Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				ttf.remove(field);
+				ttf.add(newField);
+			}));
+		}
+		Node<?> node = getNode();
+		if (node instanceof FieldProcessorNode) {
+			List<FieldProcessorNode.Operation> operations = ((FieldProcessorNode) node).getOperations();
+			if (null != operations) {
+				for (FieldProcessorNode.Operation operation : operations) {
+					String op = operation.getOp();
+					switch (op) {
+						case "CREATE":
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.add(operation.getField()));
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.add(operation.getField()));
+							break;
+						case "RENAME":
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> {
+								boolean remove = ttf.remove(operation.getField());
+								if (remove) {
+									ttf.add(operation.getOperand());
+								}
+							});
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> {
+								boolean remove = ttf.remove(operation.getField());
+								if (remove) {
+									ttf.add(operation.getOperand());
+								}
+							});
+							break;
+						case "REMOVE":
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(b -> b.remove(operation.getField()));
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(a -> a.remove(operation.getField()));
+							break;
+					}
+				}
+			}
 		}
 	}
 }

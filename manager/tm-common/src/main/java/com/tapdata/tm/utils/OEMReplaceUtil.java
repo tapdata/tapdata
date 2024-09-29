@@ -59,7 +59,7 @@ public class OEMReplaceUtil {
             //return org.springframework.util.ResourceUtils.getFile(configPath);//new File(configPath);
         }catch (Exception e){
             //TapLogger.info("FileNotFound in path {}", configPath);
-            TapLogger.warn("OEM-REPLACE", "OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
+            TapLogger.warn("APPLICATION-REPLACE", "APPLICATION name is {} in evn, but file not found in path {}", oemType(), configPath);
             //throw new CoreException("OEM name is {} in evn, but file not found in path {}", oemType(), configPath);
         }
         return null;

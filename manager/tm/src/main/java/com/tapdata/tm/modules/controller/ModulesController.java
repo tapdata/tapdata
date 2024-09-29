@@ -103,6 +103,11 @@ public class ModulesController extends BaseController {
   public ResponseMessage<List<String>> batchUpdateListtags(@RequestBody BatchUpdateParam batchUpdateParam) {
     return success(metadataDefinitionService.batchUpdateListTags("Modules",batchUpdateParam,getLoginUser()));
   }
+  @Operation(summary = "批量修改 发布  modules")
+  @PatchMapping("batchUpdate")
+  public ResponseMessage<List<ModulesDto>> batchUpdate(@RequestBody List<ModulesDto> modules) {
+    return success(modulesService.batchUpdateModuleByList(modules, getLoginUser()));
+  }
 
 
   /**
@@ -231,6 +236,7 @@ public class ModulesController extends BaseController {
 
 
   @GetMapping("preview")
+  @Deprecated
   public ResponseMessage preview(){
     return success(modulesService.preview(getLoginUser()));
   }
@@ -253,7 +259,7 @@ public class ModulesController extends BaseController {
 
   @PostMapping("apiDetail")
   public ResponseMessage apiDetail(@RequestBody ApiDetailParam apiDetailParam){
-    return success(modulesService.apiDetail(apiDetailParam,getLoginUser()));
+    return success(modulesService.apiDetail(apiDetailParam));
   }
 
 	@Operation(summary = "api导出")

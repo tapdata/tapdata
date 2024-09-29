@@ -34,6 +34,8 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
+import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
+import io.tapdata.flow.engine.V2.policy.WritePolicyService;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -77,6 +79,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	public static final int CREATE_INDEX_THRESHOLD = 5000000;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
+	private WritePolicyService writePolicyService;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -101,6 +104,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
 			}
 			initTargetDB();
+			this.writePolicyService = new PDkNodeInsertRecordPolicyService(dataProcessorContext.getTaskDto(), getNode(), associateId);
 		} catch (Exception e) {
 			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 			if (null != matched) {
@@ -197,12 +201,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return;
 		}
 		dropTable(existsDataProcessEnum, tableId, init);
-//		boolean createUnique = tapTable.getIndexList() != null && tapTable.getIndexList().stream().anyMatch(idx -> !idx.isPrimary() && idx.isUnique() && (idx.getIndexFields().size() == updateConditionFields.size()) &&
-//				(idx.getIndexFields().stream().allMatch(idxField -> updateConditionFields.contains(idxField.getName()))));
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
-//		createUnique &= succeed.get();
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
 		//sync index
 		syncIndex(tableId, tapTable, succeed.get());
@@ -235,7 +236,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		try {
 			List<TapIndex> tapIndices = new ArrayList<>();
 			if(unwindProcess) createUnique = false;
-			if (false == checkCreateUniqueIndexOpen()) createUnique = false;
+			if (!checkCreateUniqueIndexOpen()) createUnique = false;
 			TapIndex tapIndex = new TapIndex().unique(createUnique);
 			List<TapIndexField> tapIndexFields = new ArrayList<>();
 			if (null == updateConditionFields) {
@@ -249,7 +250,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				boolean usePkAsUpdateConditions = usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys());
 				if (usePkAsUpdateConditions && createdTable) {
-//					obsLogger.info("Table " + tableId + " use the primary key as the update condition, which is created when the table is create, and ignored");
 					return;
 				}
 				updateConditionFields.forEach(field -> {
@@ -292,9 +292,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		Node node = getNode();
 		if (node instanceof DatabaseNode || node instanceof TableNode) {
 			DataParentNode dataParentNode = (DataParentNode) node;
-			if (Boolean.FALSE.equals(dataParentNode.getUniqueIndexEnable())) {
-				return false;
-			}
+			return !Boolean.FALSE.equals(dataParentNode.getUniqueIndexEnable());
 		}
 		return true;
 	}
@@ -352,7 +350,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i.getName());
 					indexList.remove(i);
 				});
-				return;
 			}
 			if (CollectionUtils.isEmpty(indexList)) {
 				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
@@ -829,23 +826,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											}
 
 											Consumer<WriteListResult<TapRecordEvent>> resultConsumer = (writeListResult) -> {
-												Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-												if (MapUtils.isNotEmpty(errorMap)) {
-													int recordWarnCounter = 1;
-													for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-														String warnMsg = tapRecordEventThrowableEntry.getValue().getMessage() + "\n - Error record: " + tapRecordEventThrowableEntry.getKey()
-																+ "\n - Stack trace: " + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue());
-														if (recordWarnCounter > MAX_RECORD_OBS_WARN) {
-															logger.warn(warnMsg);
-														} else {
-															obsLogger.warn(warnMsg);
-															recordWarnCounter++;
-															if (recordWarnCounter == MAX_RECORD_OBS_WARN) {
-																int theRemainingAmount = errorMap.size() - recordWarnCounter;
-																if (theRemainingAmount > 0) {
-																	obsLogger.warn("The remaining {} write error record will not be printed on the interface, please go to tapdata-agent.log to check.", theRemainingAmount);
-																}
-															}
+												if (obsLogger.isDebugEnabled()) {
+													Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+													if (MapUtils.isNotEmpty(errorMap)) {
+														for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+															String errorRecordMsg = tapRecordEventThrowableEntry.getValue().getMessage() + "\n - Error record: " + tapRecordEventThrowableEntry.getKey()
+																	+ "\n - Stack trace: " + Log4jUtil.getStackString(tapRecordEventThrowableEntry.getValue());
+															obsLogger.debug(errorRecordMsg);
 														}
 													}
 												}
@@ -863,12 +850,26 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 													.tapRecordEvents(tapRecordEvents)
 													.pdkMethodInvoker(pdkMethodInvoker)
 													.writeOneFunction((subTapRecordEvents) -> {
-														writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), subTapRecordEvents, tapTable, resultConsumer);
+														writePolicyService.writeRecordWithPolicyControl(
+																tapTable.getId(),
+																subTapRecordEvents,
+																writeRecords -> {
+																	writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), writeRecords, tapTable, resultConsumer);
+																	return null;
+																}
+														);
 														return null;
 													}));
 											if (!pdkMethodInvoker.isEnableSkipErrorEvent()) {
 												try {
-													writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+													writePolicyService.writeRecordWithPolicyControl(
+															tapTable.getId(),
+															tapRecordEvents,
+															writeRecords -> {
+																writeRecordFunction.writeRecord(connectorNode.getConnectorContext(), tapRecordEvents, tapTable, resultConsumer);
+																return null;
+															}
+													);
 												} catch (Exception e) {
 													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 													if (null != matched) {

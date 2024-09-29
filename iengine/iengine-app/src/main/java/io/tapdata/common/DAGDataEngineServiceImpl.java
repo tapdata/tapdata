@@ -193,8 +193,8 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
                         Map<String, LogCollecotrConnConfig> connConfigs = logCollectorNode.getLogCollectorConnConfigs();
                         TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.computeIfAbsent(f.getId(), key -> TapTableMap.create(null, f.getId(), new HashMap<>(),taskDto.getTmCurrentTime()));
                         Map<String,MetadataInstancesDto> metadataInstancesDtoHashMap = getLogCollectorMetadataInstancesDto().stream()
-                                .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
-                                        , metadataInstancesDto -> metadataInstancesDto, (m1, m2) -> m1));;
+                                .collect(Collectors.toMap(v -> v.getDatabaseId() + "." + v.getOriginalName()
+                                        , metadataInstancesDto -> metadataInstancesDto, (m1, m2) -> m1));
                         if (null != connConfigs && !connConfigs.isEmpty()) {
                             Map<String,List<String>> connections = ShareCdcUtil.getConnectionIds(f, ids -> {
                                 Query connectionQuery = new Query(where("_id").in(ids));

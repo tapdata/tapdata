@@ -21,4 +21,6 @@ public class MailAccountDto {
     private String pass;
     private List<String> receivers;
     private String protocol;
+    private String proxyHost;
+    private Integer proxyPort;
 }

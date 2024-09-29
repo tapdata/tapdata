@@ -2236,7 +2236,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public boolean checkTableExist(String connectionId, String tableName, UserDetail user) {
         Criteria criteria = Criteria.where(ORIGINAL_NAME).is(tableName)
                 .and(IS_DELETED).ne(true)
-                .and("SOURCE_ID").is(connectionId)
+                .and(SOURCE_ID).is(connectionId)
                 .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name())
                 .and(TASK_ID).exists(false);
         Query query = new Query(criteria);
@@ -2266,7 +2266,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 .where(IS_DELETED).ne(true)
                 .and(NODE_ID).is(nodeId)
                 .and(SOURCE_TYPE).is(SourceTypeEnum.VIRTUAL)
-                .and("resultItems").is(true);
+                .and("hasTransformEx").is(true);
         return count(Query.query(criteria));
     }
 

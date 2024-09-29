@@ -2,8 +2,6 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.NodeEnum;
-import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 
@@ -13,6 +11,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
 
 public abstract class MigrateProcessorNode extends Node<List<Schema>> {
+    protected Boolean enableConcurrentProcess;
+    protected int concurrentNum = 2;
     /**
      * 创建处理器节点
      *
@@ -49,5 +49,21 @@ public abstract class MigrateProcessorNode extends Node<List<Schema>> {
 
         getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
         return connectionId.get();
+    }
+
+    public Boolean getEnableConcurrentProcess() {
+        return enableConcurrentProcess;
+    }
+
+    public void setEnableConcurrentProcess(Boolean enableConcurrentProcess) {
+        this.enableConcurrentProcess = enableConcurrentProcess;
+    }
+
+    public int getConcurrentNum() {
+        return concurrentNum;
+    }
+
+    public void setConcurrentNum(int concurrentNum) {
+        this.concurrentNum = concurrentNum;
     }
 }

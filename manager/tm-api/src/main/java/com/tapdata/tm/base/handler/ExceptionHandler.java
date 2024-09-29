@@ -41,7 +41,7 @@ public class ExceptionHandler extends BaseController {
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(Throwable.class)
 	public ResponseMessage<?> handlerException(Throwable e, HttpServletRequest request, HttpServletResponse response) throws Throwable {
-		log.error("System error:{}", ThrowableUtils.getStackTraceByPn(e));
+		log.error("System error", e);
 
 		Locale locale = WebUtils.getLocale(request);
 
@@ -152,7 +152,7 @@ public class ExceptionHandler extends BaseController {
 
 		ResponseMessage<Object> failed;
 		if (!StringUtils.isEmpty(message)) {
-			failed = failed(e.getErrorCode(), message);
+			failed = failed(e.getErrorCode(), message, e);
 		} else {
 
 			failed = failed(e.getErrorCode(), e);

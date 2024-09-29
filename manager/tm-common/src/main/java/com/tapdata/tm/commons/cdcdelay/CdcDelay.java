@@ -16,11 +16,11 @@ import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
-import java.util.function.LongConsumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -107,6 +107,8 @@ public class CdcDelay implements ICdcDelay {
             return (Long) ts;
         } else if (ts instanceof LocalDateTime) {
             return ((LocalDateTime) ts).toInstant((ZoneOffset.UTC)).toEpochMilli();
+        } else if (ts instanceof ZonedDateTime) {
+            return ((ZonedDateTime) ts).toInstant().toEpochMilli();
         } else if (ts instanceof String) {
             try {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");

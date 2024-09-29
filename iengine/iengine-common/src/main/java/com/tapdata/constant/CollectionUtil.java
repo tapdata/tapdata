@@ -1,12 +1,10 @@
 package com.tapdata.constant;
 
+import io.tapdata.entity.schema.value.TapMapValue;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -22,6 +20,12 @@ public class CollectionUtil extends CollectionUtils {
 			Object o = list.get(i);
 			if (o instanceof Map) {
 				Object tempValue = MapUtilV2.getValueByKey((Map) o, key);
+				if (tempValue instanceof NotExistsNode) {
+					continue;
+				}
+				retList.add(i, tempValue);
+			} else if (o instanceof TapMapValue) {
+				Object tempValue = MapUtilV2.getValueByKey(((TapMapValue) o).getValue(), key);
 				if (tempValue instanceof NotExistsNode) {
 					continue;
 				}

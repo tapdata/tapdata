@@ -77,4 +77,12 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
         EventHandel.close();
     }
 
+    @Override
+    protected void handleTransformToTapValueResult(TapdataEvent tapdataEvent) {
+        tapdataEvent.setTransformToTapValueResult(null);
+    }
+    @Override
+    public boolean needCopyBatchEventWrapper() {
+        return true;
+    }
 }
