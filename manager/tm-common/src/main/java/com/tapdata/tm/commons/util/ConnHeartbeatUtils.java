@@ -44,6 +44,14 @@ public class ConnHeartbeatUtils {
         ;
     }
 
+    public static boolean hasNoHeartbeatTag(DataSourceConnectionDto connectionDto) {
+        List<String> tags = connectionDto.getDefinitionTags();
+        if (null != tags) {
+            return tags.contains(CONNECTOR_TAGS_NO_HEARTBEAT);
+        }
+        return false;
+    }
+
     /**
      * check the connection can be start heartbeat task
      *
@@ -51,18 +59,19 @@ public class ConnHeartbeatUtils {
      * @return can start heartbeat
      */
     public static boolean checkConnection(@NonNull DataSourceConnectionDto sourceConnectionDto) {
+        List<Capability> capabilities = sourceConnectionDto.getCapabilities();
         if (!Boolean.TRUE.equals(sourceConnectionDto.getHeartbeatEnable())
                 || PDK_NAME.equals(sourceConnectionDto.getDatabase_type())
-                || null == sourceConnectionDto.getCapabilities()
+                || null == capabilities
                 || "source".equalsIgnoreCase(sourceConnectionDto.getConnection_type())
                 || "target".equalsIgnoreCase(sourceConnectionDto.getConnection_type())
-                || Optional.ofNullable(sourceConnectionDto.getDefinitionTags()).map(tags -> tags.contains(CONNECTOR_TAGS_NO_HEARTBEAT)).orElse(false)
+                || hasNoHeartbeatTag(sourceConnectionDto)
         ) {
             return false;
         }
 
         boolean hasStreamRead = false, hasCreateTable = false, hasWriteRecord = false;
-        for (Capability capability : sourceConnectionDto.getCapabilities()) {
+        for (Capability capability : capabilities) {
             if (CapabilityEnum.STREAM_READ_FUNCTION.name().equalsIgnoreCase(capability.getId())) {
                 hasStreamRead = true;
             } else if (CapabilityEnum.CREATE_TABLE_FUNCTION.name().equalsIgnoreCase(capability.getId())
