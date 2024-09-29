@@ -9,6 +9,7 @@ import com.tapdata.tm.ds.service.impl.PkdSourceService;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -30,12 +31,14 @@ import java.util.Objects;
 @RestController
 @RequestMapping("/api/pdk")
 @Setter(onMethod_ = {@Autowired})
+@Slf4j
 public class PdkController extends BaseController {
     private PkdSourceService pkdSourceService;
 
     @PostMapping(path = "upload/source", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> uploadJar(@RequestParam("file") CommonsMultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest) {
 
+        log.debug("Process upload pdk source, file size: {}, source size: {}, latest: {}", file.length, sourceJsons.size(), latest);
         List<PdkSourceDto> pdkSourceDtos = new ArrayList<>();
         for (String sourceJson : sourceJsons) {
             // if the size of sourceJsons send by client is 1, here we marshal the data in a weird way, not sure why; so

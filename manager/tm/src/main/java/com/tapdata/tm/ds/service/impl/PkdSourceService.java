@@ -2,13 +2,17 @@ package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
+import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
+import com.tapdata.tm.ds.repository.PdkSourceRepository;
 import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
@@ -17,6 +21,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +52,7 @@ public class PkdSourceService {
 	private FileService fileService;
 	private TcmService tcmService;
 	private SettingsService settingsService;
+	private PdkSourceRepository repository;
 
 	@SuppressWarnings(value = "unchecked")
 	public void uploadPdk(CommonsMultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
@@ -54,6 +60,9 @@ public class PkdSourceService {
 		Map<String, CommonsMultipartFile> docMap = new HashMap<>();
 		CommonsMultipartFile jarFile = null;
 		for (CommonsMultipartFile multipartFile : files) {
+			if (log.isDebugEnabled()) {
+				log.debug("multipartFile name: {}, file size: {}", multipartFile.getOriginalFilename(), multipartFile.getSize());
+			}
 			if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().endsWith(".jar")) {
 				jarFile = multipartFile;
 			} else if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().endsWith(".md")) {
@@ -95,7 +104,7 @@ public class PkdSourceService {
 
 			DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
 			BeanUtils.copyProperties(pdkSourceDto, definitionDto);
-			definitionDto.setId(Objects.nonNull(oldDefinitionDto) ? oldDefinitionDto.getId() : null);
+			//definitionDto.setId(Objects.nonNull(oldDefinitionDto) ? oldDefinitionDto.getId() : null);
 			definitionDto.setConnectionType(pdkSourceDto.getType());
 			definitionDto.setType(pdkSourceDto.getName());
 			definitionDto.setPdkType("pdk");
@@ -109,11 +118,26 @@ public class PkdSourceService {
 
 			// remove snapshot overwritten file(jar/icons)
 			if (oldDefinitionDto != null) {
-				fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
-				if (oldDefinitionDto.getIcon() != null) {
-					fileService.deleteFileById(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
+				if (log.isDebugEnabled()) {
+					log.debug("Delete original source {}, file id: {}, icon id: {}",
+							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
 				}
-				fileService.deleteFileByPdkHash(pdkHash, pdkAPIBuildNumber);
+				// change to async delete
+				List<ObjectId> fileIds = new ArrayList<>();
+				fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
+				if (oldDefinitionDto.getIcon() != null) {
+					fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getIcon()));
+				}
+				Query query = Query.query(Criteria.where("metadata.pdkHash").is(pdkHash)
+						.and("metadata.pdkAPIBuildNumber").is(pdkAPIBuildNumber));
+				GridFSFindIterable result = fileService.find(query);
+				result.forEach(gridFSFile ->
+					fileIds.add(gridFSFile.getObjectId())
+				);
+
+				fileService.scheduledDeleteFiles(fileIds, "Upload new connector", "DatabaseTypes",
+						oldDefinitionDto.getId(), user);
+				log.debug("Delete original source {}", oldDefinitionDto.getId());
 			}
 
 			// upload the associated files(jar/icons)
@@ -127,14 +151,24 @@ public class PkdSourceService {
 				fileInfo.put("md5", md5);
 
 				// 1. upload jar file, only update once
+				if (log.isDebugEnabled()) {
+					log.debug("Upload file to GridFS {}, file size: {}",
+							jarFile.getOriginalFilename(), jarFile.getSize());
+				}
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
+
 				// 2. upload the associated icon
 				CommonsMultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
 				if (icon != null) {
+					if (log.isDebugEnabled()) {
+						log.debug("Upload file to GridFS {}, file size: {}",
+								icon.getOriginalFilename(), icon.getSize());
+					}
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
 				// 3. upload readeMe doc
                 uploadDocs(docMap, pdkSourceDto.getMessages(), fileInfo, oemConfig);
+                log.debug("Upload file to GridFS success");
 			} catch (IOException e) {
 				throw new BizException("SystemError", e);
 			}
@@ -163,6 +197,7 @@ public class PkdSourceService {
 			} else {
 				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
 			}
+			log.debug("Upsert data source definition success");
 
 			//根据数据源类型删除可能存在的旧的pdk
 			FunctionUtils.ignoreAnyError(() -> {
@@ -179,6 +214,7 @@ public class PkdSourceService {
 			});
 
 		}
+		log.debug("Upload pdk done.");
 	}
 	public String checkJarMD5(String pdkHash, int pdkBuildNumber){
 		String md5 = null;
