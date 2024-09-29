@@ -83,6 +83,11 @@ public class DeleteFileScheduleTest {
         }
 
         @Override
+        public int available() {
+            return 0;
+        }
+
+        @Override
         public T tryNext() {
             if (hasNext()) {
                 return next();
