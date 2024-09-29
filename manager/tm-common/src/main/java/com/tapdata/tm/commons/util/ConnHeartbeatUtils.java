@@ -46,10 +46,8 @@ public class ConnHeartbeatUtils {
 
     public static boolean hasNoHeartbeatTag(DataSourceConnectionDto connectionDto) {
         List<String> tags = connectionDto.getDefinitionTags();
-        if (null != tags) {
-            return tags.contains(CONNECTOR_TAGS_NO_HEARTBEAT);
-        }
-        return false;
+        if (null == tags || tags.isEmpty()) return false;
+        return tags.contains(CONNECTOR_TAGS_NO_HEARTBEAT);
     }
 
     /**
