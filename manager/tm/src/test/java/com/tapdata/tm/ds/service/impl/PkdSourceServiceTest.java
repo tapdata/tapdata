@@ -1,12 +1,14 @@
 package com.tapdata.tm.ds.service.impl;
 
 import cn.hutool.core.date.DateUtil;
+import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
+import com.tapdata.tm.ds.vo.PdkFileTypeEnum;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.MessageUtil;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -29,6 +32,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.InputStream;
 import java.util.*;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -71,6 +75,30 @@ public class PkdSourceServiceTest {
             pkdSourceService.uploadPdk(files,pdkSourceDtos,latest,user);
             verify(fileService).storeFile(any(),anyString(),any(),anyMap());
             FileUtils.deleteQuietly(new File("a.jar"));
+
+            GridFSFindIterable result = mock(GridFSFindIterable.class);
+
+            DataSourceDefinitionDto dto = new DataSourceDefinitionDto();
+            dto.setId(new ObjectId());
+            dto.setJarRid(new ObjectId().toHexString());
+            dto.setIcon(new ObjectId().toHexString());
+            when(dataSourceDefinitionService.findOne(any())).thenReturn(dto);
+            when(fileService.find(any())).thenReturn(result);
+            doAnswer(answer -> {
+
+                Consumer consumer = answer.getArgument(0);
+                GridFSFile gridFSFile = mock(GridFSFile.class);
+                when(gridFSFile.getObjectId()).thenReturn(new ObjectId());
+                consumer.accept(gridFSFile);
+
+                return null;
+            }).when(result).forEach(any());
+            pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
+            verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());
+
+            /*pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
+            verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());*/
+
         }
     }
     @Nested
@@ -326,5 +354,56 @@ public class PkdSourceServiceTest {
         Assertions.assertEquals("1234", versionCheckResult.get(0).getPdkHash());
         Assertions.assertEquals("2023-04-25 18:05:20", versionCheckResult.get(0).getGitBuildTime());
         Assertions.assertTrue(versionCheckResult.get(0).isLatest());
+    }
+
+    @Test
+    public void testUploadAndView() {
+
+        String pdkHash = "test";
+        int pdkBuildNumber = 1;
+        UserDetail user = mock(UserDetail.class);
+        PdkFileTypeEnum type = PdkFileTypeEnum.JAR;
+        HttpServletResponse response = mock(HttpServletResponse.class);
+
+        Assertions.assertDoesNotThrow(() -> {
+
+            when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(null);
+            ArgumentCaptor<Integer> captor = ArgumentCaptor.forClass(Integer.class);
+            doNothing().when(response).sendError(captor.capture());
+            pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, user, type, response);
+
+            Assertions.assertEquals(404, captor.getValue());
+            DataSourceDefinitionDto dto = new DataSourceDefinitionDto();
+            dto.setScope("customer");
+            dto.setCustomId("customer_id");
+            when(user.getCustomerId()).thenReturn("customer_id_1");
+            when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(dto);
+            Assertions.assertThrows(BizException.class, () -> {
+                pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, user, PdkFileTypeEnum.IMAGE, response);
+            });
+
+            when(user.getCustomerId()).thenReturn("customer_id");
+            when(dataSourceDefinitionService.findOne(any(Query.class))).thenReturn(dto);
+            pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, user, PdkFileTypeEnum.MARKDOWN, response);
+            Assertions.assertTrue(captor.getAllValues().stream().anyMatch(p -> p == 404));
+
+            dto.setMessages(new LinkedHashMap<>());
+            dto.getMessages().put("zh_CN", new HashMap<String, String>(){{
+                put("doc", new ObjectId().toHexString());
+            }});
+            dto.getMessages().put("en_US", new HashMap<String, String>(){{
+                put("doc", new ObjectId().toHexString());
+            }});
+            dto.getMessages().put("zh_TW", new HashMap<String, String>(){{
+                put("doc", new ObjectId().toHexString());
+            }});
+
+            pkdSourceService.uploadAndView(pdkHash, pdkBuildNumber, user, PdkFileTypeEnum.MARKDOWN, response);
+            verify(fileService).viewImg(any(), any());
+
+        });
+
+
+
     }
 }
