@@ -68,6 +68,7 @@ public class FileService {
             };
 
     @Resource
+    @Setter
     private GridFSBucket gridFSBucket;
     private final GridFsTemplate gridFsTemplate;
     public FileService(GridFsTemplate gridFsTemplate){
