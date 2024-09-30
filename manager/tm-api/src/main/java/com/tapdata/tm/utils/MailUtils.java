@@ -23,7 +23,9 @@ import org.springframework.stereotype.Component;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
 import java.io.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -592,39 +594,56 @@ public class MailUtils {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
             flag = false;
         } else {
-            try {
-                MailAccount account = new MailAccount();
-                account.setHost(parms.getHost());
-                account.setPort(parms.getPort());
-                account.setAuth(true);
-                account.setFrom(parms.getFrom());
-                account.setUser(parms.getUser());
-                account.setPass(parms.getPass());
-                if ("SSL".equals(parms.getProtocol())) {
-                    // 使用SSL安全连接
-                    account.setSslEnable(true);
-                    //指定实现javax.net.SocketFactory接口的类的名称,这个类将被用于创建SMTP的套接字
-                    account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
-                } else if ("TLS".equals(parms.getProtocol())) {
-                    account.setStarttlsEnable(true);
-                    account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
-                } else {
-                    account.setSslEnable(false);
-                    account.setStarttlsEnable(false);
-                }
+            sendEmailSmtp(parms, adressees, title, content, flag);
+        }
+        log.debug("mail send status：{}", flag ? "suc" : "error");
+    }
 
-                //如果设置为true,未能创建一个套接字使用指定9的套接字工厂类将导致使用java.net.Socket创建的套接字类, 默认值为true
-                account.setSocketFactoryFallback(true);
-                // 指定的端口连接到在使用指定的套接字工厂。如果没有设置,将使用默认端口456
-                account.setSocketFactoryPort(465);
-                Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
-                title = OEMReplaceUtil.replace(title, oemConfig);
-                content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
-                MailUtil.send(account, adressees, title ,content, true);
-            } catch (Exception e) {
-                log.error("mail send error：{}", e.getMessage(), e);
-                flag = false;
+    protected static void sendEmailSmtp(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
+        final String username = parms.getUser();
+        final String password = parms.getPass();
+
+        Properties properties = System.getProperties();
+        properties.put("mail.smtp.host", parms.getHost());
+        properties.put("mail.smtp.port", parms.getPort());
+        properties.put("mail.smtp.auth", "true");
+        if ("SSL".equals(parms.getProtocol()) || "TLS".equals(parms.getProtocol())) {
+            properties.put("mail.smtp.starttls.enable", "true");
+        } else {
+            properties.put("mail.smtp.starttls.enable", "false");
+        }
+
+        Session session = Session.getInstance(properties, new Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
             }
+        });
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(parms.getFrom()));
+
+            Address[] tos = null;
+            tos = new InternetAddress[adressees.size()];
+            for (int i = 0; i < adressees.size(); i++) {
+                tos[i] = new InternetAddress(adressees.get(i));
+            }
+            message.setRecipients(Message.RecipientType.TO, tos);
+
+            Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
+            title = OEMReplaceUtil.replace(title, oemConfig);
+            content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
+            message.setSubject(title, "UTF-8");
+            MimeBodyPart text = new MimeBodyPart();
+            text.setContent(content, "text/html;charset=UTF-8");
+            MimeMultipart mimeMultipart = new MimeMultipart();
+            mimeMultipart.addBodyPart(text);
+            mimeMultipart.setSubType("related");
+            message.setContent(mimeMultipart);
+
+            Transport.send(message);
+        } catch (Exception e) {
+            log.error("mail send error：{}", e.getMessage(), e);
+            flag = false;
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
     }
