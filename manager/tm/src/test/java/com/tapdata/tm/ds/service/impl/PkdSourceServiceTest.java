@@ -1,17 +1,21 @@
 package com.tapdata.tm.ds.service.impl;
 
+import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.gridfs.model.GridFSFile;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
+import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.MessageUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.fileupload.FileItem;
 import org.apache.commons.io.FileUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -279,5 +283,48 @@ public class PkdSourceServiceTest {
                 verify(response, times(0)).sendError(anyInt());
             });
         }
+    }
+
+    @Test
+    public void testVersionCheck() {
+        TcmService tcmService = mock(TcmService.class);
+        List<DataSourceDefinitionDto> result = new ArrayList<>();
+        when(dataSourceDefinitionService.findAll(any(Query.class))).thenReturn(result);
+        when(tcmService.getLatestProductReleaseCreateTime()).thenReturn("2023-04-28");
+
+        pkdSourceService.setTcmService(tcmService);
+
+        Assertions.assertDoesNotThrow(() -> {
+            List<PdkVersionCheckDto> a = pkdSourceService.versionCheck(5);
+            Assertions.assertNotNull(a);
+            Assertions.assertTrue(a.isEmpty());
+        });
+
+        for (int i = 0; i < 5; i++) {
+            DataSourceDefinitionDto dto = new DataSourceDefinitionDto();
+            dto.setPdkId("test");
+            dto.setPdkAPIBuildNumber(i);
+            dto.setPdkAPIVersion("api_v" + i);
+            dto.setPdkHash("123" + i);
+            dto.setLastUpdAt(new Date());
+            result.add(dto);
+        }
+
+        List<PdkVersionCheckDto> versionCheckResult = pkdSourceService.versionCheck(2);
+        Assertions.assertEquals(1, versionCheckResult.size());
+        Assertions.assertEquals("1234", versionCheckResult.get(0).getPdkHash());
+        Assertions.assertEquals(DateUtil.formatDateTime(result.get(4).getLastUpdAt()), versionCheckResult.get(0).getGitBuildTime());
+        Assertions.assertTrue(versionCheckResult.get(0).isLatest());
+
+        Map<String, String> manifest = new HashMap<>();
+        manifest.put("Git-Build-Time", "2023-04-25T18:05:20+0800");
+        result.get(4).setManifest(manifest);
+
+        versionCheckResult = pkdSourceService.versionCheck(2);
+
+        Assertions.assertEquals(1, versionCheckResult.size());
+        Assertions.assertEquals("1234", versionCheckResult.get(0).getPdkHash());
+        Assertions.assertEquals("2023-04-25 18:05:20", versionCheckResult.get(0).getGitBuildTime());
+        Assertions.assertTrue(versionCheckResult.get(0).isLatest());
     }
 }
