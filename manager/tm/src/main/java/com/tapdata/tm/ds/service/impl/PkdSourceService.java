@@ -123,6 +123,7 @@ public class PkdSourceService {
 							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
 				}
 				// change to async delete
+                dataSourceDefinitionService.deleteById(oldDefinitionDto.getId());
 				List<ObjectId> fileIds = new ArrayList<>();
 				fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
 				if (oldDefinitionDto.getIcon() != null) {
