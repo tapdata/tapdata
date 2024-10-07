@@ -133,3 +133,12 @@ report:
     clientId: '796104786.1713955139'
   data:
     oss: ${REPORT_DATA_OSS:false}
+
+cluster:
+  agent:
+    resources:
+      minTaskSlots: 10
+      maxTaskSlots: 10
+  manager:
+    scheduler:
+      strategy: DEFAULT
