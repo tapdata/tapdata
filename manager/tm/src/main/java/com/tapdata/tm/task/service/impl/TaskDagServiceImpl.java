@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.util.*;
 
+import static org.apache.commons.lang3.RandomUtils.nextInt;
+
 /**
  * @author jiuyetx
  * @date 2022/8/30
@@ -35,10 +37,11 @@ import java.util.*;
 @Service
 @Slf4j
 public class TaskDagServiceImpl implements TaskDagService {
+    private Random random = new Random();
     @Override
     public int calculationDagHash(TaskDto taskDto) {
         if (true) {
-            return new Random().nextInt();
+            return random.nextInt();
         }
         DAG dag = taskDto.getDag();
 
