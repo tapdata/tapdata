@@ -71,7 +71,7 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
-import org.springframework.beans.BeanUtils;
+import org.springframework.core.codec.EncodingException;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -122,6 +122,10 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	private final static String GET_MONGODB_DATE = "new Date()";
 
 	private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
+
+	public final static String PREFIX_MONGO_URI = "mongodb://";
+
+	public final static String UTF_8 = "UTF-8";
 
 	public static final Set<String> systemTables = new HashSet<>();
 
@@ -2258,17 +2262,17 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		if (isUri) {
 			return MapUtils.getString(config, "uri");
 		} else {
-			StringBuilder sb = new StringBuilder("mongodb://");
+			StringBuilder sb = new StringBuilder(PREFIX_MONGO_URI);
 			String user = MapUtils.getString(config, "user");
 			String password = MapUtils.getString(config, "password");
 			if (StringUtils.isNotBlank(user) && StringUtils.isNotBlank(password)) {
 				String encodeUsername = null;
 				String encodePassword = null;
 				try {
-					encodeUsername = URLEncoder.encode(user, "UTF-8");
-					encodePassword = URLEncoder.encode(password, "UTF-8");
+					encodeUsername = URLEncoder.encode(user, UTF_8);
+					encodePassword = URLEncoder.encode(password, UTF_8);
 				} catch (UnsupportedEncodingException e) {
-					throw new RuntimeException(String.format("Encoding mongodb username/password failed %s", e.getMessage()), e);
+					throw new EncodingException(String.format("Encoding mongodb username/password failed %s", e.getMessage()), e);
 				}
 				sb.append(encodeUsername).append(":").append(encodePassword).append("@");
 			}
