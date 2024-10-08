@@ -42,7 +42,7 @@ public class CdcDelayTest {
         List<String> tables=new ArrayList<>();
         tables.add("testTableId");
         cdcDelay.addHeartbeatTable(tables);
-        TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer, TaskDto.SYNC_TYPE_SYNC);
+        TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer);
         assertEquals(true,tapEvent instanceof HeartbeatEvent);
     }
     @DisplayName("test filterAndCalcDelay LOG_COLLECTOR Task")
@@ -59,8 +59,8 @@ public class CdcDelayTest {
         List<String> tables=new ArrayList<>();
         tables.add("testTableId");
         cdcDelay.addHeartbeatTable(tables);
-        TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer, TaskDto.SYNC_TYPE_LOG_COLLECTOR);
-        assertEquals(true,tapEvent instanceof TapUpdateRecordEvent);
+        TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer);
+        assertEquals(false,tapEvent instanceof TapUpdateRecordEvent);
     }
     @DisplayName("test filterAndCalcDelay not heartbeat event")
     @Test
@@ -75,7 +75,7 @@ public class CdcDelayTest {
         tapUpdateRecordEvent.setTableId("testTable");
         LongConsumer consumer=(time)->{
         };
-        TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer, TaskDto.SYNC_TYPE_LOG_COLLECTOR);
+        TapEvent tapEvent = cdcDelay.filterAndCalcDelay(tapUpdateRecordEvent, consumer);
         assertEquals(tapUpdateRecordEvent,tapEvent);
     }
 

@@ -6,6 +6,7 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
@@ -16,16 +17,20 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -377,6 +382,77 @@ class WorkerServiceTest {
         void testEngineVersionDASS(){
             when(settingsService.isCloud()).thenReturn(false);
             Assertions.assertTrue(workerService.checkEngineVersion(mock(UserDetail.class)));
+        }
+    }
+    @Nested
+    class createShareWorkerTest {
+        private WorkerExpireDto workerExpireDto;
+        private UserDetail loginUser;
+        private UserService userService;
+        private MongoTemplate mongoTemplate;
+        @BeforeEach
+        public void setUp() {
+            workerExpireDto = new WorkerExpireDto();
+            workerExpireDto.setUserId("testUser");
+            workerExpireDto.setSubscribeId("subscribe123");
+
+            loginUser = mock(UserDetail.class);
+            loginUser.setUserId("loginUser");
+            loginUser.setUsername("loginUsername");
+            mongoTemplate = mock(MongoTemplate.class);
+            userService = mock(UserService.class);
+            ReflectionTestUtils.setField(workerService, "userService", userService);
+            ReflectionTestUtils.setField(workerService, "mongoTemplate", mongoTemplate);
+            doCallRealMethod().when(workerService).createShareWorker(workerExpireDto, loginUser);
+        }
+
+        @Test
+        public void testCreateShareWorker_Success() {
+            when(settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_EXPRIRE_DAYS))
+                    .thenReturn("30");
+            when(settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_CREATE_USER))
+                    .thenReturn("agentUser1,agentUser2");
+
+            UserDetail sharedUserDetail = mock(UserDetail.class);
+            sharedUserDetail.setUserId("sharedUserId");
+            sharedUserDetail.setTcmUserId("sharedTcmUserId");
+            when(userService.loadUserByUsername(anyString()))
+                    .thenReturn(sharedUserDetail);
+            when(mongoTemplate.findOne(any(), eq(WorkerExpire.class)))
+                    .thenReturn(null);
+            workerService.createShareWorker(workerExpireDto, loginUser);
+            verify(mongoTemplate, times(1)).insert(any(WorkerExpire.class));
+            verify(userService, times(1)).loadUserByUsername(anyString());
+        }
+
+        @Test
+        public void testCreateShareWorker_UserAlreadyExists() {
+            WorkerExpire existingWorkerExpire = new WorkerExpire();
+            when(mongoTemplate.findOne(any(), eq(WorkerExpire.class)))
+                    .thenReturn(existingWorkerExpire);
+            BizException exception = assertThrows(BizException.class, () -> {
+                workerService.createShareWorker(workerExpireDto, loginUser);
+            });
+
+            assertEquals("SHARE_AGENT_USER_EXISTED", exception.getErrorCode());
+            assertEquals("have applied for a public agent", exception.getMessage());
+            verify(mongoTemplate, never()).insert(any(WorkerExpire.class));
+        }
+
+        @Test
+        public void testCreateShareWorker_UserNotFound() {
+            when(settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_EXPRIRE_DAYS))
+                    .thenReturn("30");
+            when(settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.SHARE_AGENT_CREATE_USER))
+                    .thenReturn("agentUser1,agentUser2");
+            when(userService.loadUserByUsername(anyString()))
+                    .thenReturn(null);
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+                workerService.createShareWorker(workerExpireDto, loginUser);
+            });
+
+            assertEquals("userDetail is null", exception.getMessage());
+            verify(mongoTemplate, never()).insert(any(WorkerExpire.class));
         }
     }
 }
