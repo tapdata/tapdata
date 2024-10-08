@@ -841,14 +841,10 @@ public class HazelcastTaskServiceTest {
             Assertions.assertEquals(except,result);
         }
     }
+
     @Nested
     class CleanMergeNodeTest{
-        private HazelcastTaskService hazelcastTaskService;
-        @BeforeEach
-        void setUp(){
-            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
-            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
-        }
+        HazelcastTaskService hazelcastTaskService = mock(HazelcastTaskService.class);
         @Test
         void test_cleanMergeNode(){
             TaskDto taskDto = new TaskDto();
@@ -865,6 +861,7 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test",nodes);
                 hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
                 verify(clientMongoOperator, times(1)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
@@ -885,6 +882,7 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test",nodes);
                 hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
@@ -905,6 +903,7 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test",nodes);
                 hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
@@ -928,6 +927,7 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test",nodes);
                 hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
