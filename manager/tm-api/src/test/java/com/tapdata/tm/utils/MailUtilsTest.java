@@ -2,6 +2,7 @@ package com.tapdata.tm.utils;
 
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -9,20 +10,22 @@ import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
 import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.SendStatus;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.Logger;
 
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -177,6 +180,67 @@ class MailUtilsTest {
         notInBlacklistAddress.add("test@qq.com");
         InternetAddress[] result = mailUtils.getInternetAddress(notInBlacklistAddress);
         Assertions.assertEquals(notInBlacklistAddress.size(),result.length);
+    }
+
+    public void mockSlf4jLog(Object mockTo, Logger log) {
+        try {
+            Field logF = mockTo.getClass().getDeclaredField("log");
+            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            modifiersField.setAccessible(true);
+            modifiersField.setInt(logF, logF.getModifiers() & ~Modifier.FINAL);
+            logF.setAccessible(true);
+            logF.set(mockTo, log);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nested
+    class sendEmailForProxyTest{
+        private MailAccountDto parms;
+        private List<String> adressees;
+        private String title;
+        private String content;
+        @BeforeEach
+        void beforeEach(){
+            parms = mock(MailAccountDto.class);
+            adressees = new ArrayList<>();
+            adressees.add("test@tapdata.io");
+            title = "【TAPDATA】";
+            content = "test content";
+            when(parms.getUser()).thenReturn("test@tapdata.io");
+            when(parms.getPass()).thenReturn("testPasswd");
+            when(parms.getHost()).thenReturn("test@tapdata.io");
+            when(parms.getPort()).thenReturn(465);
+            when(parms.getFrom()).thenReturn("from@tapdata.io");
+        }
+        @Test
+        @DisplayName("test sendEmailSmtp method normal")
+        void test1(){
+            try (MockedStatic<Transport> mb = Mockito
+                    .mockStatic(Transport.class)) {
+                when(parms.getProtocol()).thenReturn("SSL");
+                mb.when(()->Transport.send(any(MimeMessage.class))).thenAnswer(invocationOnMock -> {return null;});
+                MailUtils.sendHtmlEmail(parms, adressees, title, content);
+                mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
+            }
+        }
+        @Test
+        @DisplayName("test sendEmailSmtp method with exception")
+        void test2(){
+            Logger log;
+            log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
+            try (MockedStatic<Transport> mb = Mockito
+                    .mockStatic(Transport.class)) {
+                RuntimeException e = new RuntimeException("test ex");
+                mb.when(()->Transport.send(any(MimeMessage.class))).thenThrow(e);
+                when(parms.getProtocol()).thenReturn("NO_PROTOCOL");
+                mailUtils.sendHtmlEmail(parms, adressees, title, content);
+                mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
+                verify(log).error("mail send error：{}", "test ex", e);
+            }
+        }
     }
 
 
