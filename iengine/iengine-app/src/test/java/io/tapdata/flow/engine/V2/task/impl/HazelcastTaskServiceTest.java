@@ -2,12 +2,10 @@ package io.tapdata.flow.engine.V2.task.impl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.mongodb.MongoClientException;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.HazelcastUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -842,5 +840,98 @@ public class HazelcastTaskServiceTest {
             TapTableMap<String, TapTable> result = HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,tapTableMapHashMap);
             Assertions.assertEquals(except,result);
         }
+    }
+    @Nested
+    class CleanMergeNodeTest{
+        private HazelcastTaskService hazelcastTaskService;
+        @BeforeEach
+        void setUp(){
+            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+        }
+        @Test
+        void test_cleanMergeNode(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+            taskDto.setAttrs(new HashMap<>());
+            List<Node> nodes = new ArrayList<>();
+            MergeTableNode node = new MergeTableNode();
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("disabled",false);
+            node.setAttrs(attrs);
+            nodes.add(node);
+            try (MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+                when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
+                beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
+                verify(clientMongoOperator, times(1)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
+            }
+        }
+
+        @Test
+        void test_ContainDisabledNode(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+            List<Node> nodes = new ArrayList<>();
+            MergeTableNode node = new MergeTableNode();
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("disabled",true);
+            node.setAttrs(attrs);
+            nodes.add(node);
+            try (MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+                when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
+                beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
+                verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
+            }
+        }
+
+        @Test
+        void test_TaskTypeCDC(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType(TaskDto.TYPE_CDC);
+            List<Node> nodes = new ArrayList<>();
+            MergeTableNode node = new MergeTableNode();
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("disabled",false);
+            node.setAttrs(attrs);
+            nodes.add(node);
+            try (MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+                when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
+                beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
+                verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
+            }
+        }
+
+        @Test
+        void test_ContainSyncProgresse(){
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+            Map<String, Object> taskAttrs = new HashMap<>();
+            taskAttrs.put("syncProgress",new SyncProgress());
+            taskDto.setAttrs(taskAttrs);
+            List<Node> nodes = new ArrayList<>();
+            MergeTableNode node = new MergeTableNode();
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("disabled",false);
+            node.setAttrs(attrs);
+            nodes.add(node);
+            try (MockedStatic<BeanUtil> beanUtilMockedStatic = mockStatic(BeanUtil.class)) {
+                ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+                when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
+                beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
+                hazelcastTaskService.cleanMergeNode(taskDto,"test",nodes);
+                verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
+            }
+        }
+
     }
 }

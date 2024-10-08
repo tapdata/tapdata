@@ -7,8 +7,10 @@ import com.hazelcast.jet.core.Processor;
 import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.tm.commons.dag.Edge;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.utils.AppType;
@@ -2421,5 +2423,50 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			}
 		}
 
+	}
+	@Nested
+	class CopyExternalStorageTest{
+		@Test
+		void test(){
+			ExternalStorageDto externalStorageDto = new ExternalStorageDto();
+			ExternalStorageDto result = HazelcastMergeNode.copyExternalStorage(externalStorageDto,1);
+			Assertions.assertNull(result.getTable());
+			Assertions.assertEquals(1,result.getInMemSize());
+			Assertions.assertEquals(10,result.getWriteDelaySeconds());
+			Assertions.assertEquals(0,result.getTtlDay());
+		}
+
+	}
+	@Nested
+	class ClearCacheTest{
+		@Test
+		void testDass(){
+			try(MockedStatic<ExternalStorageUtil> externalStorageUtil = mockStatic(ExternalStorageUtil.class);
+				MockedStatic<HazelcastUtil> hazelcastUtil = mockStatic(HazelcastUtil.class)){
+				externalStorageUtil.when(()->ExternalStorageUtil.getExternalStorage(any())).thenAnswer(invocation -> {
+					Node<?> node = invocation.getArgument(0);
+					Assertions.assertEquals(mergeTableNode,node);
+					return new ExternalStorageDto();
+				});
+				hazelcastUtil.when(()->HazelcastUtil.getInstance()).thenReturn(mock(HazelcastInstance.class));
+				HazelcastMergeNode.clearCache(mergeTableNode);
+			}
+		}
+
+		@Test
+		void testCloud(){
+			try(MockedStatic<ExternalStorageUtil> externalStorageUtil = mockStatic(ExternalStorageUtil.class);
+				MockedStatic<HazelcastUtil> hazelcastUtil = mockStatic(HazelcastUtil.class)){
+				List<Node> nodes = new ArrayList<>();
+				List<Edge> edges = new ArrayList<>();
+				externalStorageUtil.when(()->ExternalStorageUtil.getTargetNodeExternalStorage(any(),any(),any(),anyList())).thenAnswer(invocation -> {
+					Node<?> node = invocation.getArgument(0);
+					Assertions.assertEquals(mergeTableNode,node);
+					return new ExternalStorageDto();
+				});
+				hazelcastUtil.when(()->HazelcastUtil.getInstance()).thenReturn(mock(HazelcastInstance.class));
+				HazelcastMergeNode.clearCache(mergeTableNode,nodes,edges);
+			}
+		}
 	}
 }
