@@ -1284,8 +1284,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		if (tapDDLEvent instanceof TapCreateTableEvent) {
 			TapCreateTableEvent createTableEvent = (TapCreateTableEvent) tapDDLEvent;
-			Node node = getNode();
-			boolean isSubPartitionTable = createTableEvent.getTable().checkIsSubPartitionTable();
+			boolean isSubPartitionTable = createTableEvent.getTable() != null &&
+					createTableEvent.getTable().checkIsSubPartitionTable();
 			if (isSubPartitionTable) {
 				Object dagDataServiceObj = tapdataEvent.getTapEvent().getInfo(DAG_DATA_SERVICE_INFO_KEY);
 				DAGDataServiceImpl dagDataService = null;
