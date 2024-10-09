@@ -25,7 +25,6 @@ public class PreviewReadOperationQueue {
 		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
 		try {
 			queue.put(previewOperation);
-			System.out.println("xxx put operation: " + previewOperation);
 		} catch (InterruptedException ignored) {
 			// do nothing
 		}
@@ -33,7 +32,6 @@ public class PreviewReadOperationQueue {
 
 	public PreviewOperation take(String nodeId) throws InterruptedException {
 		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
-		System.out.println("xxx operation count: " + queue.size());
 		return queue.take();
 	}
 }

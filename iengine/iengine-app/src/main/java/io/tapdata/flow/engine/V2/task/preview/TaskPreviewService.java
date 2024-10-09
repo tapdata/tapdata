@@ -146,7 +146,6 @@ public class TaskPreviewService implements MemoryFetcher {
 			TaskClient<TaskDto> taskDtoTaskClient = hazelcastTaskService.startPreviewTask(taskDto);
 			if (null != taskDtoTaskClient) {
 				taskDtoTaskClient.join();
-				System.out.printf("xxx preview task join finish, stopping it: %s%n", taskPreviewInstanceId(taskDto));
 				while (!taskDtoTaskClient.stop()) {
 					try {
 						TimeUnit.MILLISECONDS.sleep(1L);
@@ -154,7 +153,6 @@ public class TaskPreviewService implements MemoryFetcher {
 						break;
 					}
 				}
-				System.out.printf("xxx preview task stopped: %s%n", taskPreviewInstanceId(taskDto));
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

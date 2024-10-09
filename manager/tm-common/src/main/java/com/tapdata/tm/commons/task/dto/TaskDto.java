@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
 import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
@@ -264,8 +265,20 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     }
 
     public boolean isNormalTask() {
-			return !isTestTask() && !isPreviewTask();
-		}
+        return !isTestTask() && !isPreviewTask();
+    }
+
+    public boolean isCDCTask() {
+        return getType().equals(TYPE_CDC);
+    }
+
+    public boolean hasSyncProgress() {
+        return null != getAttrs() && getAttrs().containsKey("syncProgress");
+    }
+
+    public boolean hasDisableNode() {
+        return null != dag && null != dag.getNodes() && dag.getNodes().stream().anyMatch(Element::disabledNode);
+    }
 
     @Data
     public static class SyncPoint implements Serializable {

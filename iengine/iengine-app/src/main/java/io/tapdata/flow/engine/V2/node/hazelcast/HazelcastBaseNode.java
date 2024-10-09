@@ -449,7 +449,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (processorBaseContext.getTaskDto().isPreviewTask() && null != taskPreviewInstance && null != dataEvent.getTapEvent()) {
 			Map<String, Object> after = TapEventUtil.getAfter(dataEvent.getTapEvent());
 			if (MapUtils.isNotEmpty(after)) {
-				System.out.println("xxx send node result: " + after);
 				taskPreviewInstance.getTaskPreviewResultVO()
 						.nodeResult(getNode().getId())
 						.data(after);

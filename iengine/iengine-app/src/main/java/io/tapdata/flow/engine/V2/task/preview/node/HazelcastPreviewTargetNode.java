@@ -30,7 +30,6 @@ public class HazelcastPreviewTargetNode extends HazelcastDataBaseNode {
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		Thread.currentThread().setName(String.join("_", TAG, dataProcessorContext.getTaskDto().getId().toString(), getNode().getId()));
-		System.out.println("xxx init preview target node");
 	}
 
 	@Override
@@ -44,7 +43,6 @@ public class HazelcastPreviewTargetNode extends HazelcastDataBaseNode {
 			return;
 		}
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			System.out.println("xxx receive event: " + tapdataEvent);
 			if (tapdataEvent instanceof TapdataPreviewCompleteEvent) {
 				Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE
 						.getTaskGlobalVariable(TaskPreviewService.taskPreviewInstanceId(dataProcessorContext.getTaskDto()));

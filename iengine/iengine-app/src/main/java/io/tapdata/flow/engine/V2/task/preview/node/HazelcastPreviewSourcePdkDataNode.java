@@ -146,7 +146,6 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 
 	@Override
 	public void startSourceRunner() {
-		System.out.println("xxx start source preview runner");
 		Node<?> node = getNode();
 		PreviewReadOperationQueue previewReadOperationQueue = taskPreviewInstance.getPreviewReadOperationQueue();
 		while (isRunning() && !finishPreviewRead.get()) {
@@ -159,7 +158,6 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 			if (null == previewOperation) {
 				continue;
 			}
-			System.out.println("xxx start handle operation: " + previewOperation.getClass().getName());
 			Object handleResult = previewOperationHandlers.handle(previewOperation);
 			mockIfNeed(handleResult, previewOperation);
 			try {

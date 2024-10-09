@@ -354,7 +354,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					}
 					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, taskDtoAtomicReference.get(), clientMongoOperator);
 				} else if (node instanceof MergeTableNode){
-					cleanMergeNode(taskDto,node.getId(),nodes);
+					cleanMergeNode(taskDto,node.getId());
 				}
 				List<Node> predecessors = node.predecessors();
 				List<Node> successors = node.successors();
@@ -1009,18 +1009,14 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return tapTableMapHashMap;
 	}
 
-	protected void cleanMergeNode(TaskDto taskDto, String nodeId, List<Node> nodes){
-		AtomicBoolean containDisabledNode = new AtomicBoolean(false);
-		nodes.forEach(node -> {
-			if(node.disabledNode()){
-				containDisabledNode.set(true);
-			}
-		});
-		if(!containDisabledNode.get() && !taskDto.getType().equals(TaskDto.TYPE_CDC) && (null == taskDto.getAttrs() || !taskDto.getAttrs().containsKey("syncProgress"))){
-			MergeNodeCleaner mergeNodeCleaner = new MergeNodeCleaner();
-			mergeNodeCleaner.cleanTaskNode(taskDto.getId().toHexString(), nodeId);
-			logger.info("Clear {} master-slave merge cache", nodeId);
+	protected void cleanMergeNode(TaskDto taskDto, String nodeId){
+		if (!taskDto.isNormalTask() || taskDto.isCDCTask() || taskDto.hasSyncProgress() || taskDto.hasDisableNode()) {
+			return;
 		}
+
+		MergeNodeCleaner mergeNodeCleaner = new MergeNodeCleaner();
+		mergeNodeCleaner.cleanTaskNode(taskDto.getId().toHexString(), nodeId);
+		logger.info("Clear {} master-slave merge cache", nodeId);
 	}
 
 }
