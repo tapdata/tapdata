@@ -201,7 +201,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	public Set<String> filterSubTableIfMasterExists() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		if (Objects.isNull(syncSourcePartitionTableEnable) || !syncSourcePartitionTableEnable) {
+		if (Objects.isNull(syncSourcePartitionTableEnable) || Boolean.FALSE.equals(syncSourcePartitionTableEnable)) {
 			//没有开关，不做过滤
 			return tapTableMap.keySet();
 		}
@@ -209,14 +209,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		Set<String> keySet = tapTableMap.keySet();
 		for (String tableId : keySet) {
 			TapTable tapTable = tapTableMap.get(tableId);
-			if (syncSourcePartitionTableEnable && tapTable.checkIsSubPartitionTable()) {
+			if (tapTable.checkIsSubPartitionTable()) {
 				//开关开启，子表全过滤掉
 				continue;
 			}
-			if (!syncSourcePartitionTableEnable && tapTable.checkIsMasterPartitionTable()) {
+			/*if (!syncSourcePartitionTableEnable && tapTable.checkIsMasterPartitionTable()) {
 				//开关关闭，主表全过滤掉
 				continue;
-			}
+			}*/
 			table.add(tableId);
 		}
 
