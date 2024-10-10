@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
+import com.tapdata.entity.Connections;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
@@ -21,13 +23,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -408,5 +406,28 @@ class TableMonitorTest {
                 verify(connectorFunctions).getQueryPartitionTablesByParentName();
             }
         }
+    }
+
+    @Test
+    void testTableResult() {
+        tableResult = TableMonitor.TableResult.create();
+        tableResult.add("test");
+        Assertions.assertEquals(1, tableResult.getAddList().size());
+        tableResult.add("test");
+        Assertions.assertEquals(1, tableResult.getAddList().size());
+
+        tableResult.remove("test");
+        Assertions.assertEquals(1, tableResult.getRemoveList().size());
+        tableResult.remove("test");
+        Assertions.assertEquals(2, tableResult.getRemoveList().size());
+
+        tableResult.removeAll(Arrays.asList("test1", "test2"));
+        Assertions.assertEquals(4, tableResult.getRemoveList().size());
+
+        tableResult.add("test1");
+        tableResult.remove("test1");
+        tableResult.clear();
+        Assertions.assertEquals(0, tableResult.getRemoveList().size());
+        Assertions.assertEquals(0, tableResult.getAddList().size());
     }
 }
