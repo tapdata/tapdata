@@ -3,14 +3,16 @@ package com.tapdata.tm.commons.dag.nodes;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
+import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import io.github.openlg.graphlib.Graph;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.schema.TapTable;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 import static org.mockito.Mockito.*;
 
@@ -91,5 +93,37 @@ public class DatabaseNodeTest {
             doCallRealMethod().when(databaseNode).loadSchema(includes);
             Assertions.assertEquals(0,databaseNode.loadSchema(includes).size());
         }
+    }
+
+    @Test
+    public void testFieldDdlEvent() throws Exception {
+
+        DatabaseNode databaseNode = new DatabaseNode();
+        FieldProcess fieldProcess = new FieldProcess();
+        fieldProcess.setOperations(Arrays.asList(new FieldProcessorNode.Operation()));
+        databaseNode.setFieldProcess(Collections.singletonList(fieldProcess));
+
+        databaseNode.setSyncSourcePartitionTableEnable(false);
+        TapCreateTableEvent event = new TapCreateTableEvent();
+        event.setTableId("test_1");
+        TapTable tapTable = new TapTable();
+        event.setTable(tapTable);
+        event.getTable().setId("test_1");
+        event.getTable().setName("test_1");
+        event.getTable().setPartitionMasterTableId("test");
+        databaseNode.fieldDdlEvent(event);
+
+        Assertions.assertNotNull(databaseNode.getTableNames());
+        Assertions.assertEquals(1, databaseNode.getTableNames().size());
+
+        databaseNode.fieldDdlEvent(event);
+        Assertions.assertEquals(1, databaseNode.getTableNames().size());
+
+        event.setTableId("test");
+        event.getTable().setId("test");
+        event.getTable().setName("test");
+        event.getTable().setPartitionMasterTableId(null);
+        databaseNode.fieldDdlEvent(event);
+        Assertions.assertEquals(2, databaseNode.getTableNames().size());
     }
 }
