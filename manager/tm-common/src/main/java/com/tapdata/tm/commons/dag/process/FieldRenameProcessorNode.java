@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class FieldRenameProcessorNode extends FieldProcessorNode {
 
+    @EqField
     private String fieldsNameTransform = "";
 
     public FieldRenameProcessorNode() {
