@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.entity.User;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.type.TapType;
 import org.junit.jupiter.api.Assertions;
@@ -98,10 +99,12 @@ public class JSONUtilTest {
 
     @Test
     public void testMap2Json() throws JsonProcessingException {
+        JSONUtil.disableFeature(SerializationFeature.INDENT_OUTPUT);
         Map<String, String> map = new HashMap<>();
         map.put("id", "1");
         String json = JSONUtil.map2Json(map);
         Assertions.assertNotNull(json);
+        System.out.println(json);
         Assertions.assertEquals("{\"id\":\"1\"}", json);
 
         json = JSONUtil.map2JsonPretty(map);
@@ -115,13 +118,14 @@ public class JSONUtilTest {
     public void testTapType() throws IOException {
         List<TapType> types = new ArrayList<>();
         types.add(new TapString(10L, true));
+        types.add(new TapNumber());
         String result = JSONUtil.obj2Json(types);
         Assertions.assertNotNull(result);
 
         List<TapType> list = JSONUtil.json2POJO(result, new TypeReference<List<TapType>>() {
         });
         Assertions.assertNotNull(list);
-        Assertions.assertEquals(1, list.size());
+        Assertions.assertEquals(2, list.size());
         Assertions.assertInstanceOf(TapString.class, list.get(0));
     }
 
