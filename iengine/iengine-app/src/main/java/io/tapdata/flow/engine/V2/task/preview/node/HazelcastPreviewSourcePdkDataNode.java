@@ -6,6 +6,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -14,6 +15,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.pretty.ClassHandlersV2;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapCodeException;
@@ -32,6 +34,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
+import org.jetbrains.annotations.NotNull;
 
 import java.time.Instant;
 import java.util.*;
@@ -63,6 +66,25 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 		this.previewOperationHandlers.register(PreviewReadOperation.class, this::read);
 		this.previewOperationHandlers.register(PreviewMergeReadOperation.class, this::read);
 		this.previewOperationHandlers.register(PreviewFinishReadOperation.class, this::finishRead);
+	}
+
+	@Override
+	protected void doInit(@NotNull Context context) throws TapCodeException {
+		super.doInit(context);
+		TapCodecsRegistry codecsRegistry = this.defaultCodecsFilterManager.getCodecsRegistry();
+		codecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant().toString());
+		codecsRegistry.registerFromTapValue(TapDateValue.class, tapValue -> tapValue.getValue().toInstant().toString());
+		codecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> tapValue.getValue().toTimeStr());
+		codecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> tapValue.getValue().toLocalDateTime().getYear());
+		codecsRegistry.registerFromTapValue(TapNumberValue.class, tapValue -> {
+			Double value = tapValue.getValue();
+			// Determine if the decimal place of value is 0, convert it to Long, otherwise keep Double
+			if (null != value && value % 1 == 0) {
+				return value.longValue();
+			} else {
+				return value;
+			}
+		});
 	}
 
 	private PreviewFinishReadOperation finishRead(PreviewFinishReadOperation previewFinishReadOperation) {

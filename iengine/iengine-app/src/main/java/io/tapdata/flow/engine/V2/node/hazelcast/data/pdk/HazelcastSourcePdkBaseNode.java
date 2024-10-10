@@ -774,6 +774,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				continue;
 			}
 			transformToTapValue(tapdataEvent);
+			if (dataProcessorContext.getTaskDto().isPreviewTask()) {
+				Map<String, Object> after = TapEventUtil.getAfter(tapdataEvent.getTapEvent());
+				if (null != after) {
+					fromTapValue(after, defaultCodecsFilterManager, TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
+				}
+			}
 		}
 	}
 

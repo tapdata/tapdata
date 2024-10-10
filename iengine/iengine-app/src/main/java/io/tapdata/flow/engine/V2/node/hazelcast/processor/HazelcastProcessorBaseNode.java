@@ -289,7 +289,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			updateMemoryFromDDLInfoMap(tapdataEvent);
 
 			AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
-			if (tapdataEvent.isDML() && needTransformValue()) {
+			if (tapdataEvent.isDML() && needTransformValue() && !processorBaseContext.getTaskDto().isPreviewTask()) {
 				tapValueTransform.set(transformFromTapValue(tapdataEvent));
 			}
 			handleOriginalValueMapIfNeed(tapValueTransform);
@@ -301,7 +301,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					if (processResult == null) {
 						processResult = getProcessResult(TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 					}
-					if (needTransformValue()) {
+					if (needTransformValue() && !processorBaseContext.getTaskDto().isPreviewTask()) {
 						if (null != processResult.getTableId()) {
 							transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
 						} else {
