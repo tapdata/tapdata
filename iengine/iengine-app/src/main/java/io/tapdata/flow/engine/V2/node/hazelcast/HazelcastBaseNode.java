@@ -44,6 +44,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
@@ -345,6 +346,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName, TapValueTransform tapValueTransform) {
+		if (processorBaseContext.getTaskDto().isPreviewTask()) {
+			return;
+		}
 		if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) return;
 		if (null == tapTableMap)
 			throw new IllegalArgumentException("Transform to TapValue failed, tapTableMap is empty, table name: " + tableName);
@@ -446,15 +450,19 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (!tryEmit(dataEvent, bucketCount)) return false;
 		}
 		bucketIndex = 0; // reset to 0 of return true
+		reportToPreviewIfNeed(dataEvent);
+		return true;
+	}
+
+	private void reportToPreviewIfNeed(TapdataEvent dataEvent) {
 		if (processorBaseContext.getTaskDto().isPreviewTask() && null != taskPreviewInstance && null != dataEvent.getTapEvent()) {
-			Map<String, Object> after = TapEventUtil.getAfter(dataEvent.getTapEvent());
+			DataMap after = DataMap.create(TapEventUtil.getAfter(dataEvent.getTapEvent()));
 			if (MapUtils.isNotEmpty(after)) {
 				taskPreviewInstance.getTaskPreviewResultVO()
 						.nodeResult(getNode().getId())
 						.data(after);
 			}
 		}
-		return true;
 	}
 
 	protected boolean tryEmit(TapdataEvent dataEvent, int bucketCount) {

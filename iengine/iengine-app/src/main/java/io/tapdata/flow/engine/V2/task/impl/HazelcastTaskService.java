@@ -326,7 +326,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						&& !(node instanceof MigrateDateProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
 						&& !(node instanceof PreviewTargetNode)
-						&& !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)
+						&& taskDto.isNormalTask()
 				) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
@@ -997,6 +997,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					TransformerWsMessageDto.class);
 			transformerWsMessageDto.getTaskDto().setDag(dag);
 			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto, taskService, tapTableMapHashMap, clientMongoOperator);
+			if (taskDto.isPreviewTask()) {
+				transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
+			}
 			dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions(), (e) -> {
 				throw new RuntimeException(e);
 			});

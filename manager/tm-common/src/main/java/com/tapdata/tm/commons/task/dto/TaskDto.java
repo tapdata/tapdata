@@ -269,7 +269,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     }
 
     public boolean isCDCTask() {
-        return getType().equals(TYPE_CDC);
+        return TYPE_CDC.equals(getType());
     }
 
     public boolean hasSyncProgress() {

@@ -283,7 +283,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	protected Set<String> toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
-		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tableName || dataProcessorContext.getTaskDto().isPreviewTask()) {
 			return null;
 		}
 		if (tapCodecsFilterManager instanceof TapCodecsFilterManagerSchemaEnforced) {
@@ -306,14 +306,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager, String targetTableName) {
-		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == targetTableName) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == targetTableName || dataProcessorContext.getTaskDto().isPreviewTask()) {
 			return;
 		}
 		tapCodecsFilterManager.transformFromTapValueMap(data, getTableFiledMap(targetTableName), getSkipDetector());
 	}
 
 	protected void fromTapValue(Map<String, Object> data, TapCodecsFilterManager tapCodecsFilterManager, TapTable tapTable) {
-		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tapTable) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == tapTable || dataProcessorContext.getTaskDto().isPreviewTask()) {
 			return;
 		}
 		tapCodecsFilterManager.transformFromTapValueMap(data, tapTable.getNameFieldMap(), getSkipDetector());
@@ -325,7 +325,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			String targetTableName,
 			Set<String> transformedToTapValueFieldNames
 	) {
-		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == targetTableName) {
+		if (MapUtils.isEmpty(data) || null == tapCodecsFilterManager || null == targetTableName || dataProcessorContext.getTaskDto().isPreviewTask()) {
 			return;
 		}
 		LinkedHashMap<String, TapField> tableFiledMap = getTableFiledMap(targetTableName);

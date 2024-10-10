@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -244,8 +245,8 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 			}
 		} else if (handleResult instanceof PreviewFinishReadOperation) {
 			TapdataPreviewCompleteEvent tapdataPreviewCompleteEvent = new TapdataPreviewCompleteEvent();
-			// Mock a TapInsertEvent to prevent it from being skipped when merging nodes are processed
-			tapdataPreviewCompleteEvent.setTapEvent(TapInsertRecordEvent.create());
+			// Mock a HeartbeatEvent to prevent it from being skipped when merging nodes are processed
+			tapdataPreviewCompleteEvent.setTapEvent(new HeartbeatEvent());
 			tapdataEvents.add(tapdataPreviewCompleteEvent);
 		}
 		return tapdataEvents;

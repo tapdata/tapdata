@@ -137,9 +137,8 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 						Map<String, Object> childData = mergeCacheData.stream()
 								.filter(d -> dataJoinKeyValueString(d, joinKeys, JoinKeyEnum.SOURCE).equals(parentJoinKeyValue))
 								.findFirst().orElse(null);
-						TapMapValue tapMapValue = new TapMapValue(childData);
 						try {
-							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, tapMapValue);
+							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, childData);
 						} catch (Exception e) {
 							throw new MemoryMergeException(e, parentMergeDatum, childData, mergeTableProperties);
 						}
@@ -147,11 +146,9 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 						String parentJoinKeyValue = dataJoinKeyValueString(parentMergeDatum, joinKeys, JoinKeyEnum.TARGET);
 						List<Object> childData = mergeCacheData.stream()
 								.filter(d -> dataJoinKeyValueString(d, joinKeys, JoinKeyEnum.SOURCE).equals(parentJoinKeyValue))
-								.map(TapMapValue::new)
 								.collect(Collectors.toList());
-						TapArrayValue tapArrayValue = new TapArrayValue(childData);
 						try {
-							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, tapArrayValue);
+							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, childData);
 						} catch (Exception e) {
 							throw new MemoryMergeException(e, parentMergeDatum, childData.stream().map(d -> ((TapMapValue) d).getValue()).collect(Collectors.toList()), mergeTableProperties);
 						}

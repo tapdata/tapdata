@@ -18,6 +18,7 @@ public class TaskPreviewResultVO {
 	private final Map<String, TaskPreviewNodeResultVO> nodeResult = new ConcurrentHashMap<>();
 	private String errorMsg;
 	private String errorStack;
+	private TaskPReviewStatsVO stats;
 
 	private TaskPreviewResultVO() {
 	}
@@ -76,5 +77,13 @@ public class TaskPreviewResultVO {
 
 	public String getTaskId() {
 		return taskId;
+	}
+
+	public TaskPReviewStatsVO getStats() {
+		return stats;
+	}
+
+	public void setStats(TaskPReviewStatsVO stats) {
+		this.stats = stats;
 	}
 }

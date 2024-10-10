@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.utils.StopWatch;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.memory.MemoryFetcher;
@@ -58,31 +59,66 @@ public class TaskPreviewService implements MemoryFetcher {
 	}
 
 	public TaskPreviewResultVO preview(String taskJson, List<String> includeNodeIds, Integer previewRows) {
+		StopWatch stopWatch = StopWatch.create(String.join("_", TAG, System.currentTimeMillis() + ""));
+		TaskDto taskDto;
 		try {
-			TaskDto taskDto = parseTaskJson(taskJson);
-			try {
-				validateTask(taskDto);
-			} catch (TaskPreviewInvalidException e) {
-				logger.error(e);
-				return TaskPreviewResultVO.invalid(taskDto, e.getMessage());
-			}
-			if (canSkipPreview(taskDto)) {
-				return new TaskPreviewResultVO(taskDto);
-			}
-			handleTaskBeforePreview(taskDto, includeNodeIds, previewRows);
-			TaskPreviewInstance taskPreviewInstance = wrapTaskPreviewInstance(taskDto);
-			String taskPreviewInstanceId = taskPreviewInstanceId(taskDto);
-			taskPreviewInstanceMap.put(taskPreviewInstanceId, taskPreviewInstance);
-			initGlobalVariable(taskDto);
-			previewPrivate(taskDto);
-			TaskPreviewResultVO taskPreviewResultVO = taskPreviewInstanceMap.remove(taskPreviewInstanceId).getTaskPreviewResultVO();
-			transformFromTapValue(taskPreviewResultVO);
-			clearAfterPreview(taskDto);
-			return taskPreviewResultVO;
+			stopWatch.start("parseTaskJson");
+			taskDto = parseTaskJson(taskJson);
 		} catch (TaskPreviewParseException e) {
-			e.printStackTrace();
 			return TaskPreviewResultVO.parseFailed(e);
 		}
+		stopWatch.start("before");
+		try {
+			validateTask(taskDto);
+		} catch (TaskPreviewInvalidException e) {
+			logger.error(e);
+			return TaskPreviewResultVO.invalid(taskDto, e.getMessage());
+		}
+		if (canSkipPreview(taskDto)) {
+			return new TaskPreviewResultVO(taskDto);
+		}
+		handleTaskBeforePreview(taskDto, includeNodeIds, previewRows);
+		TaskPreviewInstance taskPreviewInstance = wrapTaskPreviewInstance(taskDto);
+		String taskPreviewInstanceId = taskPreviewInstanceId(taskDto);
+		taskPreviewInstanceMap.put(taskPreviewInstanceId, taskPreviewInstance);
+		initGlobalVariable(taskDto);
+		stopWatch.stop();
+		previewPrivate(taskDto, stopWatch);
+		stopWatch.start("after");
+		TaskPreviewResultVO taskPreviewResultVO = taskPreviewInstanceMap.remove(taskPreviewInstanceId).getTaskPreviewResultVO();
+//		transformFromTapValue(taskPreviewResultVO);
+		clearAfterPreview(taskDto);
+		stopWatch.stop();
+		wrapStats(taskPreviewResultVO, stopWatch);
+		return taskPreviewResultVO;
+	}
+
+	private void wrapStats(TaskPreviewResultVO taskPreviewResultVO, StopWatch stopWatch) {
+		TaskPReviewStatsVO stats = taskPreviewResultVO.getStats();
+		StopWatch.TaskInfo[] taskInfos = stopWatch.getTaskInfo();
+		for (StopWatch.TaskInfo taskInfo : taskInfos) {
+			String taskName = taskInfo.getTaskName();
+			switch (taskName) {
+				case "parseTaskJson":
+					stats.setParseTaskJsonTaken(taskInfo.getTimeMillis());
+					break;
+				case "before":
+					stats.setBeforeTaken(taskInfo.getTimeMillis());
+					break;
+				case "execTask":
+					stats.setExecTaskTaken(taskInfo.getTimeMillis());
+					break;
+				case "stopTask":
+					stats.setStopTaskTaken(taskInfo.getTimeMillis());
+					break;
+				case "after":
+					stats.setAfterTaken(taskInfo.getTimeMillis());
+					break;
+				default:
+					break;
+			}
+		}
+		stats.setAllTaken(stopWatch.getTotalTimeMillis());
 	}
 
 	private static void clearAfterPreview(TaskDto taskDto) {
@@ -106,13 +142,15 @@ public class TaskPreviewService implements MemoryFetcher {
 		TaskPreviewInstance taskPreviewInstance = new TaskPreviewInstance();
 		taskPreviewInstance.setTaskDto(taskDto);
 		TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
+		taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
 		taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 		PreviewReadOperationQueue previewReadOperationQueue = new PreviewReadOperationQueue(taskDto.getPreviewRows());
 		taskPreviewInstance.setPreviewReadOperationQueue(previewReadOperationQueue);
 		return taskPreviewInstance;
 	}
 
-	private void previewPrivate(TaskDto taskDto) {
+	private void previewPrivate(TaskDto taskDto, StopWatch stopWatch) {
+		stopWatch.start("execTask");
 		String taskId = taskDto.getId().toHexString();
 		Integer previewRows = taskDto.getPreviewRows();
 		TaskPreviewInstance taskPreviewInstance = taskPreviewInstanceMap.get(taskPreviewInstanceId(taskDto));
@@ -131,6 +169,7 @@ public class TaskPreviewService implements MemoryFetcher {
 				return thread;
 			});
 			previewReadTaskletExecutor.execute(() -> {
+				long startMs = System.currentTimeMillis();
 				try {
 					logger.info("Start preview read tasklet: {}", previewReadTasklet.getClass().getName());
 					previewReadTasklet.execute(taskDto, taskPreviewInstance.getPreviewReadOperationQueue());
@@ -138,6 +177,7 @@ public class TaskPreviewService implements MemoryFetcher {
 					logger.error(e);
 					taskPreviewResultVO.failed(e);
 				}
+				taskPreviewResultVO.getStats().setTaskletTaken(System.currentTimeMillis() - startMs);
 			});
 			HazelcastTaskService hazelcastTaskService = BeanUtil.getBean(HazelcastTaskService.class);
 			if (null == hazelcastTaskService) {
@@ -146,6 +186,7 @@ public class TaskPreviewService implements MemoryFetcher {
 			TaskClient<TaskDto> taskDtoTaskClient = hazelcastTaskService.startPreviewTask(taskDto);
 			if (null != taskDtoTaskClient) {
 				taskDtoTaskClient.join();
+				stopWatch.start("stopTask");
 				while (!taskDtoTaskClient.stop()) {
 					try {
 						TimeUnit.MILLISECONDS.sleep(1L);

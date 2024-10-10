@@ -155,7 +155,12 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 				return true;
 			}
 			tapAdvanceFilter.match(match);
-			tapAdvanceFilter.limit(1);
+			MergeTableProperties.MergeType mergeType = mergeTableProperties.getMergeType();
+			if (MergeTableProperties.MergeType.updateIntoArray == mergeType) {
+				tapAdvanceFilter.limit(2);
+			} else {
+				tapAdvanceFilter.limit(1);
+			}
 		}
 		previewMergeReadOperation.setTapAdvanceFilter(tapAdvanceFilter);
 		return false;

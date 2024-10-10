@@ -173,7 +173,7 @@ public abstract class Node<S> extends Element{
 
         if (schema == null) {
             try {
-                schema = loadSchema(options.getIncludes());
+                schema = loadSchema(options);
                 log.info("load schema complete");
             } catch (Exception e) {
                 log.error("Load schema failed.", e);
@@ -332,6 +332,9 @@ public abstract class Node<S> extends Element{
      * @return
      */
     protected abstract S loadSchema(List<String> includes);
+    protected S loadSchema(DAG.Options options){
+        return loadSchema(options.getIncludes());
+    }
 
     /**
      * 保存模型，子类需要实现模型的存储
