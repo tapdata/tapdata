@@ -11,7 +11,11 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldPrimaryKeyEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -23,7 +27,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 

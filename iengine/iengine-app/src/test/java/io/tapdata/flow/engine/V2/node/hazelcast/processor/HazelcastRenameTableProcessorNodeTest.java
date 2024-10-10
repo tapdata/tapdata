@@ -4,6 +4,7 @@ import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.StopEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -57,6 +58,18 @@ class HazelcastRenameTableProcessorNodeTest extends BaseHazelcastNodeTest {
         tmpEvent.setTapEvent(new StopEvent());
         instance.tryProcess(tmpEvent, (tapdataEvent, processResult) -> {
         });
+
+        TapdataEvent e = new TapdataEvent();
+        TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+        createTableEvent.setTableId("test_1");
+        createTableEvent.setPartitionMasterTableId("test");
+        e.setTapEvent(createTableEvent);
+        instance.tryProcess(e, ((tapdataEvent, processResult) -> {
+            Assertions.assertNotNull(tapdataEvent);
+            Assertions.assertInstanceOf(TapCreateTableEvent.class, tapdataEvent.getTapEvent());
+        }));
+        Assertions.assertTrue(instance.supportConcurrentProcess());
+        Assertions.assertFalse(instance.needTransformValue());
     }
 
     @Nested

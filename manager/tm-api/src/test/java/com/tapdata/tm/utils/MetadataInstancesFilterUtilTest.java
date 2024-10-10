@@ -3,11 +3,17 @@ package com.tapdata.tm.utils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import io.tapdata.entity.schema.partition.TapPartition;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
 public class MetadataInstancesFilterUtilTest {
@@ -189,5 +195,83 @@ public class MetadataInstancesFilterUtilTest {
         MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
         Long result = MetadataInstancesFilterUtil.countFilteredOriginalNames(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3),databaseNode);
         Assertions.assertEquals(2,result);
+    }
+
+    @Nested
+    class filterBySyncSourcePartitionTableEnable {
+        DatabaseNode sourceNode;
+        List<MetadataInstancesDto> dtos;
+
+        @Test
+        void testSyncSourcePartitionTableEnable() {
+            sourceNode = mock(DatabaseNode.class);
+            MetadataInstancesDto dto = mock(MetadataInstancesDto.class);
+            MetadataInstancesDto meta = mock(MetadataInstancesDto.class);
+            MetadataInstancesDto meta1 = mock(MetadataInstancesDto.class);
+            dtos = new ArrayList<>();
+            dtos.add(dto);
+            dtos.add(meta);
+            dtos.add(meta1);
+
+            when(dto.getPartitionInfo()).thenReturn(null);
+
+            when(meta.getPartitionInfo()).thenReturn(mock(TapPartition.class));
+            when(meta.getName()).thenReturn("name");
+            when(meta.getPartitionMasterTableId()).thenReturn("id");
+
+            when(meta1.getPartitionInfo()).thenReturn(mock(TapPartition.class));
+            when(meta1.getName()).thenReturn("name");
+            when(meta1.getPartitionMasterTableId()).thenReturn("name");
+
+            when(sourceNode.getSyncSourcePartitionTableEnable()).thenReturn(true);
+
+            List<MetadataInstancesDto> metadataInstancesDtos = MetadataInstancesFilterUtil.filterBySyncSourcePartitionTableEnable(sourceNode, dtos);
+            Assertions.assertNotNull(metadataInstancesDtos);
+            Assertions.assertEquals(ArrayList.class.getName(), metadataInstancesDtos.getClass().getName());
+            Assertions.assertEquals(2, metadataInstancesDtos.size());
+        }
+        @Test
+        void testNotSyncSourcePartitionTableEnable() {
+            sourceNode = mock(DatabaseNode.class);
+            MetadataInstancesDto dto = mock(MetadataInstancesDto.class);
+            MetadataInstancesDto meta = mock(MetadataInstancesDto.class);
+            MetadataInstancesDto meta1 = mock(MetadataInstancesDto.class);
+            dtos = new ArrayList<>();
+            dtos.add(dto);
+            dtos.add(meta);
+            dtos.add(meta1);
+
+            when(dto.getPartitionInfo()).thenReturn(null);
+
+            when(meta.getPartitionInfo()).thenReturn(mock(TapPartition.class));
+            when(meta.getName()).thenReturn("name");
+            when(meta.getPartitionMasterTableId()).thenReturn("id");
+
+            when(meta1.getPartitionInfo()).thenReturn(mock(TapPartition.class));
+            when(meta1.getName()).thenReturn("name");
+            when(meta1.getPartitionMasterTableId()).thenReturn("name");
+
+            when(sourceNode.getSyncSourcePartitionTableEnable()).thenReturn(false);
+
+            List<MetadataInstancesDto> metadataInstancesDtos = MetadataInstancesFilterUtil.filterBySyncSourcePartitionTableEnable(sourceNode, dtos);
+            Assertions.assertNotNull(metadataInstancesDtos);
+            Assertions.assertEquals(ArrayList.class.getName(), metadataInstancesDtos.getClass().getName());
+            Assertions.assertEquals(2, metadataInstancesDtos.size());
+        }
+        @Test
+        void testNullSyncSourcePartitionTableEnable() {
+            sourceNode = mock(DatabaseNode.class);
+            MetadataInstancesDto dto = mock(MetadataInstancesDto.class);
+            dtos = new ArrayList<>();
+            dtos.add(dto);
+
+            when(dto.getPartitionInfo()).thenReturn(null);
+            when(sourceNode.getSyncSourcePartitionTableEnable()).thenReturn(null);
+
+            List<MetadataInstancesDto> metadataInstancesDtos = MetadataInstancesFilterUtil.filterBySyncSourcePartitionTableEnable(sourceNode, dtos);
+            Assertions.assertNotNull(metadataInstancesDtos);
+            Assertions.assertEquals(ArrayList.class.getName(), metadataInstancesDtos.getClass().getName());
+            Assertions.assertEquals(1, metadataInstancesDtos.size());
+        }
     }
 }
