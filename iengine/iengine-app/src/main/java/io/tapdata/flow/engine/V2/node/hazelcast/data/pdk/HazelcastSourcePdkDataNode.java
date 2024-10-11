@@ -363,6 +363,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				.tables(tableList)
 		);
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+		doCount(tableList);
 		ConnectorNode connectorNode = getConnectorNode();
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
