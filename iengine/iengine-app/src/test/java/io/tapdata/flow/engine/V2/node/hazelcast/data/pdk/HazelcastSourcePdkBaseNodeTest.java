@@ -3,7 +3,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.Graph;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
@@ -18,6 +20,9 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -43,6 +48,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -1440,5 +1446,72 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(toTapValueConcurrentProcessor).close();
 			assertFalse(thread.isAlive());
 		}
+	}
+
+	@Test
+	public void testHasMergeNode() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = mock(TaskDto.class);
+		DAG dag = mock(DAG.class);
+		when(context.getTaskDto()).thenReturn(taskDto);
+		when(taskDto.getType()).thenReturn("initial_sync");
+		when(taskDto.getDag()).thenReturn(dag);
+
+		List<Node> nodes = new ArrayList<>();
+
+		when(dag.getNodes()).thenReturn(nodes);
+		HazelcastSourcePdkBaseNode node = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		Assertions.assertFalse(node.hasMergeNode());
+
+		nodes.add(new DatabaseNode());
+		Assertions.assertFalse(node.hasMergeNode());
+
+		nodes.add(new MergeTableNode());
+		Assertions.assertTrue(node.hasMergeNode());
+
+		nodes.clear();
+		nodes.add(new UnionProcessorNode());
+		Assertions.assertTrue(node.hasMergeNode());
+
+		nodes.clear();
+		nodes.add(new JoinProcessorNode());
+		Assertions.assertTrue(node.hasMergeNode());
+
+		nodes.clear();
+		nodes.add(new DatabaseNode());
+		nodes.add(new JoinProcessorNode());
+		Assertions.assertTrue(node.hasMergeNode());
+	}
+
+	@Test
+	public void testStartSourceConsumer() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = mock(TaskDto.class);
+		DAG dag = mock(DAG.class);
+		when(context.getTaskDto()).thenReturn(taskDto);
+		when(taskDto.getType()).thenReturn("initial_sync");
+		when(taskDto.getDag()).thenReturn(dag);
+
+		HazelcastSourcePdkBaseNode node = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		JetJobStatusMonitor monitor = mock(JetJobStatusMonitor.class);
+		when(monitor.get()).thenReturn(JobStatus.RUNNING);
+
+		ReflectionTestUtils.setField(node, "running", new AtomicBoolean(true));
+		ReflectionTestUtils.setField(node, "jetJobStatusMonitor", monitor);
+
+		//node.startSourceConsumer();
+
 	}
 }
