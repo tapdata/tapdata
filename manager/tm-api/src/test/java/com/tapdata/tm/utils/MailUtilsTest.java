@@ -540,8 +540,6 @@ class MailUtilsTest {
             when(parms.getPass()).thenReturn("testPasswd");
             when(parms.getHost()).thenReturn("test@tapdata.io");
             when(parms.getPort()).thenReturn(465);
-            when(parms.getProxyHost()).thenReturn("smtp.test.cn");
-            when(parms.getProxyPort()).thenReturn(1025);
             when(parms.getFrom()).thenReturn("from@tapdata.io");
         }
         @Test
@@ -549,6 +547,8 @@ class MailUtilsTest {
         void test1(){
             try (MockedStatic<Transport> mb = Mockito
                     .mockStatic(Transport.class)) {
+                when(parms.getProxyHost()).thenReturn("smtp.test.cn");
+                when(parms.getProxyPort()).thenReturn(1025);
                 when(parms.getProtocol()).thenReturn("SSL");
                 mb.when(()->Transport.send(any(MimeMessage.class))).thenAnswer(invocationOnMock -> {return null;});
                 MailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
@@ -563,12 +563,40 @@ class MailUtilsTest {
             mockSlf4jLog(mailUtils, log);
             try (MockedStatic<Transport> mb = Mockito
                     .mockStatic(Transport.class)) {
+                when(parms.getProxyHost()).thenReturn("smtp.test.cn");
+                when(parms.getProxyPort()).thenReturn(1025);
                 RuntimeException e = new RuntimeException("test ex");
                 mb.when(()->Transport.send(any(MimeMessage.class))).thenThrow(e);
                 when(parms.getProtocol()).thenReturn("NO_PROTOCOL");
                 mailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
                 mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
                 verify(log).error("mail send error：{}", "test ex", e);
+            }
+        }
+
+        @Test
+        @DisplayName("test sendEmailForProxy method no proxy")
+        void test3(){
+            try (MockedStatic<Transport> mb = Mockito
+                    .mockStatic(Transport.class)) {
+                when(parms.getProtocol()).thenReturn("SSL");
+                mb.when(()->Transport.send(any(MimeMessage.class))).thenAnswer(invocationOnMock -> {return null;});
+                MailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+                mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
+            }
+        }
+
+        @Test
+        @DisplayName("test sendEmailForProxy method no proxy")
+        void test4(){
+            try (MockedStatic<Transport> mb = Mockito
+                    .mockStatic(Transport.class)) {
+                when(parms.getProxyHost()).thenReturn("smtp.test.cn");
+                when(parms.getProxyPort()).thenReturn(0);
+                when(parms.getProtocol()).thenReturn("SSL");
+                mb.when(()->Transport.send(any(MimeMessage.class))).thenAnswer(invocationOnMock -> {return null;});
+                MailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+                mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
             }
         }
     }
