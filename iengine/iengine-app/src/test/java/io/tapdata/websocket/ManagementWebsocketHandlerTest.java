@@ -1,22 +1,30 @@
 package io.tapdata.websocket;
 
 import com.tapdata.constant.ConfigurationCenter;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.tm.worker.WorkerSingletonLock;
+import io.tapdata.common.SettingService;
+import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.websocket.handler.BaseEventHandler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.support.GenericBeanDefinition;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -127,4 +135,67 @@ class ManagementWebsocketHandlerTest {
             Assertions.assertThrows(RuntimeException.class,()->sessionOption.sendMessage(textMessage));
         }
     }
+
+    @Nested
+    public class TestHandleMessage {
+        public ManagementWebsocketHandler beforeEach() {
+            ManagementWebsocketHandler handler = new ManagementWebsocketHandler();
+            ThreadPoolExecutor threadPool = mock(ThreadPoolExecutor.class);
+            doAnswer(answer -> {
+                Runnable runnable = answer.getArgument(0);
+                runnable.run();
+                return null;
+            }).when(threadPool).execute(any(Runnable.class));
+            ReflectionTestUtils.setField(handler, "websocketHandleMessageThreadPoolExecutor", threadPool);
+
+            Set<BeanDefinition> fileDetectorDefinition = new HashSet<>();
+            ReflectionTestUtils.setField(handler, "fileDetectorDefinition", fileDetectorDefinition);
+
+            BeanDefinition beanDefinition = new GenericBeanDefinition();
+            beanDefinition.setBeanClassName("io.tapdata.websocket.handler.PingEventHandler");
+            fileDetectorDefinition.add(beanDefinition);
+
+            beanDefinition = new GenericBeanDefinition();
+            beanDefinition.setBeanClassName("io.tapdata.websocket.handler.MockEventHandler");
+            fileDetectorDefinition.add(beanDefinition);
+
+            ManagementWebsocketHandler.SessionOption sessionOption = mock(ManagementWebsocketHandler.SessionOption.class);
+            ReflectionTestUtils.setField(handler, "session", sessionOption);
+
+            return handler;
+        }
+
+        @Test
+        public void testHandleUnknownMessage() throws Exception {
+            ManagementWebsocketHandler handler = beforeEach();
+            WebSocketMessage message = mock(WebSocketMessage.class);
+
+            Map<String, Object> messageData = new HashMap<>();
+            messageData.put("type", "test");
+
+            Map<String, Object> messageBody = new HashMap<>();
+            messageBody.put("type", "test");
+            messageBody.put("data", messageData);
+
+            when(message.getPayload()).thenReturn(JSONUtil.obj2Json(messageBody));
+            handler.handleMessage(null, message);
+        }
+
+        @Test
+        public void testHandlePingMessage() throws Exception {
+            ManagementWebsocketHandler handler = beforeEach();
+            WebSocketMessage message = mock(WebSocketMessage.class);
+
+            Map<String, Object> messageData = new HashMap<>();
+            messageData.put("type", "ping");
+
+            Map<String, Object> messageBody = new HashMap<>();
+            messageBody.put("type", "ping");
+            messageBody.put("data", messageData);
+
+            when(message.getPayload()).thenReturn(JSONUtil.obj2Json(messageBody));
+            handler.handleMessage(null, message);
+        }
+    }
+
 }
