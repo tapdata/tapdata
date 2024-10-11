@@ -71,6 +71,7 @@ import org.bson.codecs.configuration.CodecRegistries;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.conversions.Bson;
 import org.bson.types.ObjectId;
+import org.springframework.core.codec.EncodingException;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -121,6 +122,10 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	private final static String GET_MONGODB_DATE = "new Date()";
 
 	private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
+
+	public final static String PREFIX_MONGO_URI = "mongodb://";
+
+	public final static String UTF_8 = "UTF-8";
 
 	public static final Set<String> systemTables = new HashSet<>();
 
@@ -2250,5 +2255,36 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		if (StringUtils.isBlank(database))
 			throw new IllegalArgumentException("MongoDB client uri missing database: " + maskUriPassword(uri));
 		return mongoClientURI;
+	}
+
+	public static String getUri(Map<String, Object> config) {
+		boolean isUri = MapUtils.getBooleanValue(config, "isUri");
+		if (isUri) {
+			return MapUtils.getString(config, "uri");
+		} else {
+			StringBuilder sb = new StringBuilder(PREFIX_MONGO_URI);
+			String user = MapUtils.getString(config, "user");
+			String password = MapUtils.getString(config, "password");
+			if (StringUtils.isNotBlank(user) && StringUtils.isNotBlank(password)) {
+				String encodeUsername = null;
+				String encodePassword = null;
+				try {
+					encodeUsername = URLEncoder.encode(user, UTF_8);
+					encodePassword = URLEncoder.encode(password, UTF_8);
+				} catch (UnsupportedEncodingException e) {
+					throw new EncodingException(String.format("Encoding mongodb username/password failed %s", e.getMessage()), e);
+				}
+				sb.append(encodeUsername).append(":").append(encodePassword).append("@");
+			}
+			String host = MapUtils.getString(config, "host");
+			sb.append(host);
+			String database = MapUtils.getString(config, "database");
+			sb.append("/").append(database);
+			String additionalString = MapUtils.getString(config, "additionalString");
+			if (StringUtils.isNotBlank(additionalString)) {
+				sb.append("?").append(additionalString);
+			}
+			return sb.toString();
+		}
 	}
 }
