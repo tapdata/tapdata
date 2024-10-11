@@ -119,7 +119,6 @@ public class PkdSourceService {
 			// remove snapshot overwritten file(jar/icons)
 			if (oldDefinitionDto != null) {
 				// change to async delete
-                dataSourceDefinitionService.deleteById(oldDefinitionDto.getId());
 				List<ObjectId> fileIds = new ArrayList<>();
 				fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
 				if (oldDefinitionDto.getIcon() != null) {
@@ -184,12 +183,12 @@ public class PkdSourceService {
 			if (Objects.isNull(oldDefinitionDto)) {
 				dataSourceDefinitionService.save(definitionDto, user);
 			} else {
-				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(definitionDto.getId())), definitionDto, user);
+				dataSourceDefinitionService.upsert(Query.query(Criteria.where("_id").is(oldDefinitionDto.getId())), definitionDto, user);
 			}
 			log.debug("Upsert data source definition success");
 
 			//根据数据源类型删除可能存在的旧的pdk
-			FunctionUtils.ignoreAnyError(() -> {
+			/*FunctionUtils.ignoreAnyError(() -> {
 				Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
 				if (Objects.isNull(buildProfile)) {
 					buildProfile = "DAAS";
@@ -200,7 +199,7 @@ public class PkdSourceService {
 					Query query = DataSourceDefinitionServiceImpl.getQueryByDatasourceType(Lists.of(definitionDto.getType()), user, definitionDto.getId());
 					dataSourceDefinitionService.deleteAll(query);
 				}
-			});
+			});*/
 
 		}
 		log.debug("Upload pdk done.");
