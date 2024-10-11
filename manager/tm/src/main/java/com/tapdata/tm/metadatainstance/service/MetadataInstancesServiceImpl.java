@@ -2238,8 +2238,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 .and(IS_DELETED).ne(true)
                 .and(SOURCE_ID).is(connectionId)
                 .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name())
-                .and(TASK_ID).exists(false)
-                .and("createSource").ne("job_analyze");
+                .and(TASK_ID).exists(false);
         Query query = new Query(criteria);
         long count = count(query, user);
         return count > 0;

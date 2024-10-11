@@ -1065,7 +1065,6 @@ public class LdpServiceImpl implements LdpService {
                 if (dag != null) {
                     LinkedList<DatabaseNode> targetNode = dag.getTargetNode();
                     DatabaseNode last = targetNode.getFirst();
-					String lastConnectionId = last.getConnectionId();
                     if (last != null) {
                         List<SyncObjects> syncObjects = last.getSyncObjects();
                         SyncObjects syncObjects1 = syncObjects.get(0);
@@ -1079,7 +1078,7 @@ public class LdpServiceImpl implements LdpService {
                         if (ldpNewTables == null) {
                             ldpNewTables = new ArrayList<>();
                         }
-                        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus()) || TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus())) {
                             String state = "running";
                             for (String tableName : tableNames) {
                                 if (map.containsKey(tableName)) {
@@ -1095,13 +1094,9 @@ public class LdpServiceImpl implements LdpService {
                         } else {
                             for (String tableName : tableNames) {
                                 if (map.containsKey(tableName)) {
-									boolean exist = metadataInstancesService.checkTableExist(lastConnectionId, tableName, user);
-									if (exist) {
-										tableStatusMap.put(tableName, "done");
+									if (!"running".equals(tableStatusMap.get(tableName))) {
+										tableStatusMap.put(tableName, "noRunning");
 									}
-									if (!"running".equals(tableStatusMap.get(tableName)) && !"done".equals(tableStatusMap.get(tableName))) {
-                                        tableStatusMap.put(tableName, "noRunning");
-                                    }
                                 }
                             }
 
@@ -1129,7 +1124,7 @@ public class LdpServiceImpl implements LdpService {
                         if (target instanceof TableNode) {
                             String tableName = ((TableNode) target).getTableName();
                             if (tableNames.contains(tableName)) {
-                                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus()) || TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus())) {
                                     tableStatusMap.put(tableName, "running");
                                 } else {
                                     if (!"running".equals(tableStatusMap.get(tableName))) {

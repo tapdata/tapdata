@@ -4,7 +4,9 @@ package com.tapdata.tm.task.service.impl;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -273,7 +275,7 @@ class LdpServiceImplTest {
             assertEquals("noRunning", result.get("table3"));
         }
         @Test
-        void testLdpTableStatus_FDM_DoneState() {
+        void testLdpTableStatus_FDM_CompleteState() {
             String connectionId = "connection2";
             List<String> tableNames = Arrays.asList("table3");
             String ldpType = TaskDto.LDP_TYPE_FDM;
@@ -282,7 +284,7 @@ class LdpServiceImplTest {
             TaskDto taskDto = mock(TaskDto.class);
             DAG dag = mock(DAG.class);
             when(taskDto.getDag()).thenReturn(dag);
-            when(taskDto.getStatus()).thenReturn(TaskDto.STATUS_STOP);
+            when(taskDto.getStatus()).thenReturn(TaskDto.STATUS_COMPLETE);
             when(taskDto.getLdpNewTables()).thenReturn(Collections.emptyList());
 
             DatabaseNode databaseNode = mock(DatabaseNode.class);
@@ -300,12 +302,38 @@ class LdpServiceImplTest {
 
             when(taskService.findAllDto(any(Query.class), eq(user)))
                     .thenReturn(Collections.singletonList(taskDto));
-            when(metadataInstancesService.checkTableExist(anyString(), anyString(), eq(user)))
-                    .thenReturn(true);
             doCallRealMethod().when(ldpService).ldpTableStatus(connectionId, tableNames, ldpType, user);
             Map<String, String> result = ldpService.ldpTableStatus(connectionId, tableNames, ldpType, user);
 
-            assertEquals("done", result.get("table3"));
+            assertEquals("running", result.get("table3"));
+        }
+        @Test
+        void testLdpTableStatus_MDM_CompleteState() {
+            String connectionId = "connection2";
+            List<String> tableNames = Arrays.asList("table3");
+            String ldpType = TaskDto.LDP_TYPE_MDM;
+            UserDetail user = mock(UserDetail.class);
+
+            TaskDto taskDto = mock(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+            when(taskDto.getStatus()).thenReturn(TaskDto.STATUS_COMPLETE);
+            when(taskDto.getLdpNewTables()).thenReturn(Collections.emptyList());
+
+            TableNode tableNode = mock(TableNode.class);
+            when(tableNode.getConnectionId()).thenReturn(connectionId);
+            when(tableNode.getTableName()).thenReturn("table3");
+
+            List<Node> targetNode = new LinkedList<>();
+            targetNode.add(tableNode);
+            when(dag.getTargets()).thenReturn(targetNode);
+
+            when(taskService.findAllDto(any(Query.class), eq(user)))
+                    .thenReturn(Collections.singletonList(taskDto));
+            doCallRealMethod().when(ldpService).ldpTableStatus(connectionId, tableNames, ldpType, user);
+            Map<String, String> result = ldpService.ldpTableStatus(connectionId, tableNames, ldpType, user);
+
+            assertEquals("running", result.get("table3"));
         }
     }
 }
