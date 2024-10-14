@@ -118,6 +118,10 @@ public class PkdSourceService {
 
 			// remove snapshot overwritten file(jar/icons)
 			if (oldDefinitionDto != null) {
+				if (log.isDebugEnabled()) {
+					log.debug("Delete original source {}, file id: {}, icon id: {}",
+							oldDefinitionDto.getId(), oldDefinitionDto.getJarRid(), oldDefinitionDto.getIcon());
+				}
 				// change to async delete
 				List<ObjectId> fileIds = new ArrayList<>();
 				fileIds.add(MongoUtils.toObjectId(oldDefinitionDto.getJarRid()));
@@ -147,11 +151,19 @@ public class PkdSourceService {
 				fileInfo.put("md5", md5);
 
 				// 1. upload jar file, only update once
+				if (log.isDebugEnabled()) {
+					log.debug("Upload file to GridFS {}, file size: {}",
+							jarFile.getOriginalFilename(), jarFile.getSize());
+				}
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
 
 				// 2. upload the associated icon
 				CommonsMultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
 				if (icon != null) {
+					if (log.isDebugEnabled()) {
+						log.debug("Upload file to GridFS {}, file size: {}",
+								icon.getOriginalFilename(), icon.getSize());
+					}
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
 				// 3. upload readeMe doc
@@ -180,6 +192,7 @@ public class PkdSourceService {
 				Update removeLatest = Update.update("latest", false);
 				dataSourceDefinitionService.update(new Query(criteriaLatest), removeLatest);
 			}
+			definitionDto.setId(null);
 			if (Objects.isNull(oldDefinitionDto)) {
 				dataSourceDefinitionService.save(definitionDto, user);
 			} else {
