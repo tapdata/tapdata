@@ -23,9 +23,11 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataN
 import io.tapdata.flow.engine.V2.task.preview.PreviewReadOperationQueue;
 import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewExCode_37;
+import io.tapdata.flow.engine.V2.task.preview.TaskPreviewReadStatsVO;
 import io.tapdata.flow.engine.V2.task.preview.operation.*;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -34,6 +36,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Instant;
@@ -49,6 +52,7 @@ import java.util.stream.Collectors;
  **/
 public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNode {
 	public static final String TAG = HazelcastPreviewSourcePdkDataNode.class.getSimpleName();
+	public static final String MOCK_METHOD = "MOCK";
 	private ClassHandlersV2 previewOperationHandlers;
 	private AtomicBoolean finishPreviewRead;
 	private TableNode tableNode;
@@ -114,6 +118,8 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 			throw new TapCodeException(TaskPreviewExCode_37.NOT_FOUND_SOURCE_TAP_TABLE, tableNode.getTableName());
 		}
 		AtomicReference<List<TapInsertRecordEvent>> data = new AtomicReference<>(new ArrayList<>());
+		String method = "";
+		long startMs = System.currentTimeMillis();
 		if (null != queryByAdvanceFilterFunction) {
 			try {
 				queryByAdvanceFilterFunction.query(
@@ -132,6 +138,7 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 							}
 						}
 				);
+				method = PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER.name();
 			} catch (Throwable e) {
 				throw new TapCodeException(TaskPreviewExCode_37.MERGE_QUERY_ADVANCE_FILTER_ERROR, e);
 			}
@@ -163,45 +170,65 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 					throw new TapCodeException(TaskPreviewExCode_37.MERGE_BATCH_READ_ERROR, e);
 				}
 			}
+			method = PDKMethod.SOURCE_BATCH_READ.name();
+		}
+		long endMs = System.currentTimeMillis();
+		if (StringUtils.isNotBlank(method)) {
+			taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().add(new TaskPreviewReadStatsVO(
+					tableNode.getTableName(),
+					endMs - startMs,
+					tapAdvanceFilter.getLimit(),
+					tapAdvanceFilter.getMatch(),
+					method,
+					data.get().size()
+			));
 		}
 		return data.get();
 	}
 
 	@Override
 	public void startSourceRunner() {
-		Node<?> node = getNode();
-		PreviewReadOperationQueue previewReadOperationQueue = taskPreviewInstance.getPreviewReadOperationQueue();
-		while (isRunning() && !finishPreviewRead.get()) {
-			PreviewOperation previewOperation;
-			try {
-				previewOperation = previewReadOperationQueue.take(node.getId());
-			} catch (InterruptedException e) {
-				break;
+		try {
+			Node<?> node = getNode();
+			PreviewReadOperationQueue previewReadOperationQueue = taskPreviewInstance.getPreviewReadOperationQueue();
+			while (isRunning() && !finishPreviewRead.get()) {
+				PreviewOperation previewOperation;
+				try {
+					previewOperation = previewReadOperationQueue.take(node.getId());
+				} catch (InterruptedException e) {
+					break;
+				}
+				if (null == previewOperation) {
+					continue;
+				}
+				Object handleResult = previewOperationHandlers.handle(previewOperation);
+				mockIfNeed(handleResult, previewOperation);
+				try {
+					replyPreviewOperationData(handleResult, previewOperation);
+				} catch (InterruptedException e) {
+					break;
+				}
+				List<TapdataEvent> tapdataEvents = wrapTapdataEvents(handleResult, previewOperation);
+				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+					tapdataEvents.forEach(this::enqueue);
+				}
 			}
-			if (null == previewOperation) {
-				continue;
-			}
-			Object handleResult = previewOperationHandlers.handle(previewOperation);
-			mockIfNeed(handleResult, previewOperation);
-			try {
-				replyPreviewOperationData(handleResult, previewOperation);
-			} catch (InterruptedException e) {
-				break;
-			}
-			List<TapdataEvent> tapdataEvents = wrapTapdataEvents(handleResult, previewOperation);
-			if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-				tapdataEvents.forEach(this::enqueue);
-			}
+		} catch (Exception e) {
+			errorHandle(e);
 		}
 	}
 
 	protected void mockIfNeed(Object handleResult, PreviewOperation previewOperation) {
 		if (handleResult instanceof List && ((List<TapInsertRecordEvent>) handleResult).isEmpty()) {
+			long startMs = System.currentTimeMillis();
 			DataMap match = null;
+			int limit = 0;
 			if (previewOperation instanceof PreviewMergeReadOperation) {
 				match = ((PreviewMergeReadOperation) previewOperation).getTapAdvanceFilter().getMatch();
+				limit = ((PreviewMergeReadOperation) previewOperation).getTapAdvanceFilter().getLimit();
 			} else if (previewOperation instanceof PreviewReadOperation) {
 				match = ((PreviewReadOperation) previewOperation).getTapAdvanceFilter().getMatch();
+				limit = ((PreviewReadOperation) previewOperation).getTapAdvanceFilter().getLimit();
 			}
 			TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableNode.getTableName());
 			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
@@ -216,6 +243,15 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 						.after(mockData);
 				((List<TapInsertRecordEvent>) handleResult).add(tapInsertRecordEvent);
 			}
+			long endMs = System.currentTimeMillis();
+			taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().add(new TaskPreviewReadStatsVO(
+					tableNode.getTableName(),
+					endMs - startMs,
+					limit,
+					match,
+					MOCK_METHOD,
+					1
+			));
 		}
 	}
 

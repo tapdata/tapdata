@@ -86,7 +86,6 @@ public class TaskPreviewService implements MemoryFetcher {
 		previewPrivate(taskDto, stopWatch);
 		stopWatch.start("after");
 		TaskPreviewResultVO taskPreviewResultVO = taskPreviewInstanceMap.remove(taskPreviewInstanceId).getTaskPreviewResultVO();
-//		transformFromTapValue(taskPreviewResultVO);
 		clearAfterPreview(taskDto);
 		stopWatch.stop();
 		wrapStats(taskPreviewResultVO, stopWatch);
@@ -143,6 +142,7 @@ public class TaskPreviewService implements MemoryFetcher {
 		taskPreviewInstance.setTaskDto(taskDto);
 		TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
 		taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
+		taskPreviewResultVO.getStats().setReadStats(new ArrayList<>());
 		taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 		PreviewReadOperationQueue previewReadOperationQueue = new PreviewReadOperationQueue(taskDto.getPreviewRows());
 		taskPreviewInstance.setPreviewReadOperationQueue(previewReadOperationQueue);

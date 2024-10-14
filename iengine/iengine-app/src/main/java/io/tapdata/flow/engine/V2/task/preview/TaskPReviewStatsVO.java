@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.task.preview;
 
+import java.util.List;
+
 /**
  * @author samuel
  * @Description
@@ -13,6 +15,7 @@ public class TaskPReviewStatsVO {
 	private long afterTaken;
 	private long allTaken;
 	private long taskletTaken;
+	private List<TaskPreviewReadStatsVO> readStats;
 
 	public long getParseTaskJsonTaken() {
 		return parseTaskJsonTaken;
@@ -68,5 +71,13 @@ public class TaskPReviewStatsVO {
 
 	public void setStopTaskTaken(long stopTaskTaken) {
 		this.stopTaskTaken = stopTaskTaken;
+	}
+
+	public List<TaskPreviewReadStatsVO> getReadStats() {
+		return readStats;
+	}
+
+	public void setReadStats(List<TaskPreviewReadStatsVO> readStats) {
+		this.readStats = readStats;
 	}
 }
