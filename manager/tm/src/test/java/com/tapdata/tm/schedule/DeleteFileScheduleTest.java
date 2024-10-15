@@ -82,7 +82,12 @@ public class DeleteFileScheduleTest {
             return result.get(readIndex);
         }
 
-        @Override
+				@Override
+				public int available() {
+						return 0;
+				}
+
+				@Override
         public T tryNext() {
             if (hasNext()) {
                 return next();
