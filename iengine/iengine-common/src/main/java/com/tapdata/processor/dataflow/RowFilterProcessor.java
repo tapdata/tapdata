@@ -87,21 +87,32 @@ public class RowFilterProcessor implements DataFlowProcessor {
 			Map<String, Object> record = MapUtils.isNotEmpty(message.getAfter()) ? message.getAfter() : message.getBefore();
 			try {
 				if (MapUtils.isNotEmpty(record)) {
-					Object o = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, null);
-					if (o instanceof Boolean) {
-						Boolean result = (Boolean) o;
+					if ("u".equals(message.getOp())) {
+						Object before = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, "before");
+						Object after = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, "after");
+						if (isTrue(before) && !isTrue(after)) { // before满足，after不满足
+							message = FilterAction.DISCARD == action ? null : message;
+							message.setOp("d");
+							message.setAfter(null);
+						} else if (!isTrue(before) && isTrue(after)) { // before不满足，after满足
+							message = FilterAction.DISCARD == action ? null : message;
+							message.setOp("i");
+							message.setBefore(null);
+						} else if (isTrue(before) && isTrue(after)) {
+							message = FilterAction.DISCARD == action ? null : message;
+						} else { // 不满足
+							message = FilterAction.DISCARD == action ? message : null;
+						}
+					} else {
+						Object o = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, null);
 						// 满足条件处理
-						if (result != null && result) {
+						if (isTrue(o)) {
 							message = FilterAction.DISCARD == action ? null : message;
 						}
 						// 不满足条件处理
 						else {
 							message = FilterAction.DISCARD == action ? message : null;
 						}
-					}
-					// 不满足条件处理
-					else {
-						message = FilterAction.DISCARD == action ? message : null;
 					}
 				}
 			} catch (Exception e) {
@@ -111,6 +122,13 @@ public class RowFilterProcessor implements DataFlowProcessor {
 			}
 		}
 		return message;
+	}
+
+	private boolean isTrue(Object o) {
+		if (o instanceof Boolean) {
+			return (Boolean) o;
+		}
+		return false;
 	}
 
 	@Override

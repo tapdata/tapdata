@@ -17,6 +17,8 @@ import javax.script.Invocable;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.*;
 
 public class RowFilterProcessorTest {
@@ -35,7 +37,7 @@ public class RowFilterProcessorTest {
         @BeforeEach
         @SneakyThrows
         void beforeEach() {
-            message = mock(MessageEntity.class);
+            message = new MessageEntity();
             engine = spy(ScriptUtil.getScriptEngine(
                     JSEngineEnum.GRAALVM_JS.getEngineName(),
                     "",
@@ -55,21 +57,115 @@ public class RowFilterProcessorTest {
             ReflectionTestUtils.setField(rowFilterProcessor,"logger",logger);
         }
         @Test
-        @SneakyThrows
-        void testSimple(){
+        void testUpdateEventSimple(){
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenReturn(true);
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(true);
+                message.setOp("u");
+                Map<String, Object> before = mock(HashMap.class);
+                Map<String, Object> after = mock(HashMap.class);
+                message.setBefore(before);
+                message.setAfter(after);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertEquals(message, actual);
+                mb.verify(() -> ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before"),new Times(1));
+                mb.verify(() -> ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after"),new Times(1));
+
+            }
+        }
+        @Test
+        void testUpdateEventReturnNull(){
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenReturn(false);
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(false);
+                message.setOp("u");
+                Map<String, Object> before = mock(HashMap.class);
+                Map<String, Object> after = mock(HashMap.class);
+                message.setBefore(before);
+                message.setAfter(after);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertNull(actual);
+                mb.verify(() -> ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before"),new Times(1));
+                mb.verify(() -> ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after"),new Times(1));
+
+            }
+        }
+        @Test
+        void testUpdateEvent2DeleteEvent() {
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenReturn(true);
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(false);
+                message.setOp("u");
+                Map<String, Object> before = mock(HashMap.class);
+                Map<String, Object> after = mock(HashMap.class);
+                message.setBefore(before);
+                message.setAfter(after);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertEquals("d", actual.getOp());
+                assertNull(actual.getAfter());
+            }
+        }
+        @Test
+        void testUpdateEvent2InsertEvent() {
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenReturn(false);
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(true);
+                message.setOp("u");
+                Map<String, Object> before = mock(HashMap.class);
+                Map<String, Object> after = mock(HashMap.class);
+                message.setBefore(before);
+                message.setAfter(after);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertEquals("i", actual.getOp());
+                assertNull(actual.getBefore());
+            }
+        }
+        @Test
+        void testDeleteEventSimple(){
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, null)).thenReturn(true);
+                message.setOp("d");
+                Map<String, Object> before = mock(HashMap.class);
+                message.setBefore(before);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertEquals(message, actual);
+            }
+        }
+        @Test
+        void testDeleteEventReturnNull(){
             try (MockedStatic<ScriptUtil> mb = Mockito
                     .mockStatic(ScriptUtil.class)) {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, null)).thenReturn(null);
-                when(message.getOp()).thenReturn("u");
+                message.setOp("d");
                 Map<String, Object> before = mock(HashMap.class);
-                Map<String, Object> after = mock(HashMap.class);
-                when(message.getBefore()).thenReturn(before);
-                when(message.getAfter()).thenReturn(after);
+                message.setBefore(before);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
-                rowFilterProcessor.process(message);
-                mb.verify(() -> ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
-                        context.getTargetConn(), context.getJob(), processContext, logger, null),new Times(1));
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertNull(actual);
             }
         }
     }
