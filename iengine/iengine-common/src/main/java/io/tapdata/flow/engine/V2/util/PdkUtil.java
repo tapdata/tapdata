@@ -111,8 +111,9 @@ public class PdkUtil {
 		String md5 = httpClientMongoOperator.findOne(
 				new HashMap<String, Object>(1) {{
 					put("pdkHash", pdkHash);
+					put("fileName", fileName);
 					put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
-				}}, "/pdk/checkMd5/v2", String.class);
+				}}, "/pdk/checkMd5/v3", String.class);
 		String theFilePathMd5 = PdkSourceUtils.getFileMD5(theFilePath);
 		if (null != md5 && !md5.equals(theFilePathMd5)){
 			FileUtils.deleteQuietly(theFilePath);

@@ -189,6 +189,19 @@ public class PkdSourceService {
 		}
 		log.debug("Upload pdk done.");
 	}
+	public String checkJarMD5(String pdkHash, int pdkBuildNumber, String fileName){
+		String md5 = null;
+		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash);
+		Query query = new Query(criteria);
+		criteria.and("metadata.pdkAPIBuildNumber").lte(pdkBuildNumber);
+		criteria.and("filename").is(fileName);
+		query.with(Sort.by("metadata.pdkAPIBuildNumber").descending().and(Sort.by("uploadDate").descending()));
+		GridFSFile gridFSFile = fileService.findOne(query);
+		if(null != gridFSFile && null != gridFSFile.getMetadata()){
+			md5 = (String) gridFSFile.getMetadata().get("md5");
+		}
+		return md5;
+	}
 	public String checkJarMD5(String pdkHash, int pdkBuildNumber){
 		String md5 = null;
 		Criteria criteria = Criteria.where("metadata.pdkHash").is(pdkHash);
