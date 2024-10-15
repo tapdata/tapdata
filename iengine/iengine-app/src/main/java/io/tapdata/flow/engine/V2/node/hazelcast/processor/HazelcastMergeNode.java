@@ -761,6 +761,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (null == externalStorageDto) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.COPY_EXTERNAL_STORAGE_FAILED_SOURCE_IS_NULL);
 		}
+		return copyExternalStorage(externalStorageDto, inMemSize);
+	}
+
+	protected static ExternalStorageDto copyExternalStorage(ExternalStorageDto externalStorageDto,int inMemSize){
 		ExternalStorageDto externalStorageDtoCopy = new ExternalStorageDto();
 		BeanUtils.copyProperties(externalStorageDto, externalStorageDtoCopy);
 		externalStorageDtoCopy.setTable(null);
@@ -1668,13 +1672,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+		ExternalStorageDto copyExternalStorage = copyExternalStorage(externalStorage,CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE));
+		recursiveClearCache(copyExternalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
 	public static void clearCache(Node<?> node, List<Node> nodes, List<Edge> edges) {
 		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getTargetNodeExternalStorage(node, edges, ConnectorConstant.clientMongoOperator, nodes);
-		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+		ExternalStorageDto copyExternalStorage = copyExternalStorage(externalStorage,CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE));
+		recursiveClearCache(copyExternalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
 	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
