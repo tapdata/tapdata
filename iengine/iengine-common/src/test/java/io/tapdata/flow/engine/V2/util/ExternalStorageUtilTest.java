@@ -6,7 +6,6 @@ import com.tapdata.constant.OsUtil;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
  class ExternalStorageUtilTest {
@@ -34,4 +33,5 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
         assertEquals(exceptData,actualData.getPath());
 
     }
+
 }

@@ -100,6 +100,7 @@ public class WorkerServiceImpl extends WorkerService{
     private MongoTemplate mongoTemplate;
 
     private final MultiTaggedCounter workerPing;
+    private Random random = new Random();
 
     public WorkerServiceImpl(@NonNull WorkerRepository repository) {
         super(repository);
@@ -732,7 +733,7 @@ public class WorkerServiceImpl extends WorkerService{
         String[] shareAgentUser = shareAgentUserValue.toString().split(",");
 
         // get share agent user by random
-        String shareAgentUserRandom = shareAgentUser[new Random().nextInt(shareAgentUser.length)];
+        String shareAgentUserRandom = shareAgentUser[random.nextInt(shareAgentUser.length)];
 
         WorkerExpire workerExpire = new WorkerExpire();
         workerExpire.setUserId(loginUser.getUserId());
