@@ -13,10 +13,11 @@ import java.util.Map;
  * @create 2024-09-23 14:24
  **/
 public class TaskPreviewNodeResultVO {
-	private int code;
-	private volatile List<Map<String, Object>> data;
-	private String errorMsg;
-	private String errorStack;
+	private static final String TAG = TaskPreviewNodeResultVO.class.getName();
+	protected int code;
+	protected volatile List<Map<String, Object>> data;
+	protected String errorMsg;
+	protected String errorStack;
 
 	public TaskPreviewNodeResultVO() {
 		this.code = HttpStatus.SC_OK;

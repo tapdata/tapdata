@@ -454,7 +454,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return true;
 	}
 
-	private void reportToPreviewIfNeed(TapdataEvent dataEvent) {
+	protected void reportToPreviewIfNeed(TapdataEvent dataEvent) {
 		if (processorBaseContext.getTaskDto().isPreviewTask() && null != taskPreviewInstance && null != dataEvent.getTapEvent()) {
 			DataMap after = DataMap.create(TapEventUtil.getAfter(dataEvent.getTapEvent()));
 			if (MapUtils.isNotEmpty(after)) {

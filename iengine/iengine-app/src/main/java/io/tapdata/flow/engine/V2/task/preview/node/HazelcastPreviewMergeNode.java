@@ -11,17 +11,14 @@ import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
-import io.tapdata.flow.engine.V2.task.preview.MemoryMergeData;
-import io.tapdata.flow.engine.V2.task.preview.MemoryMergeException;
-import io.tapdata.flow.engine.V2.task.preview.MergeCache;
-import io.tapdata.flow.engine.V2.task.preview.TaskPreviewExCode_37;
+import io.tapdata.flow.engine.V2.task.preview.*;
 import io.tapdata.flow.engine.V2.task.preview.operation.PreviewMergeReadOperation;
 import io.tapdata.flow.engine.V2.task.preview.operation.PreviewOperation;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -36,6 +33,7 @@ import java.util.stream.Collectors;
 public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 	private MergeTableNode mergeTableNode;
 	private Map<String, MergeCache> mergeCacheMap;
+	private TaskPreviewNodeMergeResultVO taskPreviewNodeMergeResultVO;
 
 	public HazelcastPreviewMergeNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
@@ -49,6 +47,7 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 			this.mergeTableNode = (MergeTableNode) node;
 		}
 		initMergeCache();
+		this.taskPreviewNodeMergeResultVO = TaskPreviewNodeMergeResultVO.create();
 	}
 
 	protected void initMergeCache() {
@@ -64,7 +63,9 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 			MergeTableProperties property = queue.poll();
 			String id = property.getId();
 			Node<?> node = dag.getNode(id);
-			mergeCacheMap.put(id, MergeCache.create(property).node(node));
+			if (null != node) {
+				mergeCacheMap.put(id, MergeCache.create(property).node(node));
+			}
 			if (CollectionUtils.isNotEmpty(property.getChildren())) {
 				for (MergeTableProperties child : property.getChildren()) {
 					queue.offer(child);
@@ -84,10 +85,7 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 				return;
 			}
 			for (Map<String, Object> dataMap : dataMaps) {
-				TapdataEvent event = new TapdataEvent();
-				event.setNodeIds(tapdataEvent.getNodeIds());
-				event.setTapEvent(TapInsertRecordEvent.create().after(dataMap));
-				consumer.accept(event, null);
+				taskPreviewNodeMergeResultVO.data(dataMap);
 			}
 			consumer.accept(tapdataEvent, null);
 		} else {
@@ -114,6 +112,9 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 			MergeCache mergeCache = mergeCacheMap.get(p.getId());
 			queue.offer(MemoryMergeData.create().mergeTableProperties(p)
 					.data(mergeCache.getData()));
+			for (Map<String, Object> datum : mergeCache.getData()) {
+				addFieldMapping(p.getId(), "", datum);
+			}
 		});
 		while (isRunning() && !queue.isEmpty()) {
 			MemoryMergeData memoryMergeData = queue.poll();
@@ -127,6 +128,9 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 			for (MergeTableProperties childProperty : children) {
 				String childPreNodeId = childProperty.getId();
 				MergeCache mergeCache = mergeCacheMap.get(childPreNodeId);
+				if (null == mergeCache) {
+					continue;
+				}
 				List<Map<String, Object>> mergeCacheData = mergeCache.getData();
 				MergeTableProperties.MergeType mergeType = childProperty.getMergeType();
 				List<Map<String, String>> joinKeys = childProperty.getJoinKeys();
@@ -139,6 +143,7 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 								.findFirst().orElse(null);
 						try {
 							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, childData);
+							addFieldMapping(childPreNodeId, targetPath, childData);
 						} catch (Exception e) {
 							throw new MemoryMergeException(e, parentMergeDatum, childData, mergeTableProperties);
 						}
@@ -149,6 +154,9 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 								.collect(Collectors.toList());
 						try {
 							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, childData);
+							for (Object childDatum : childData) {
+								addFieldMapping(childPreNodeId, targetPath, childDatum);
+							}
 						} catch (Exception e) {
 							throw new MemoryMergeException(e, parentMergeDatum, childData.stream().map(d -> ((TapMapValue) d).getValue()).collect(Collectors.toList()), mergeTableProperties);
 						}
@@ -196,5 +204,64 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected boolean supportBatchProcess() {
 		return false;
+	}
+
+	@Override
+	protected void reportToPreviewIfNeed(TapdataEvent dataEvent) {
+		if (processorBaseContext.getTaskDto().isPreviewTask() && null != taskPreviewInstance && null != dataEvent.getTapEvent()) {
+			taskPreviewInstance.getTaskPreviewResultVO().nodeResult(getNode().getId(), taskPreviewNodeMergeResultVO);
+		}
+	}
+
+	protected void addFieldMapping(String nodeId, String prefix, Object data) {
+		if (!(data instanceof Map)) {
+			return;
+		}
+		Map<String, Object> map = (Map<String, Object>) data;
+		LinkedList<MergeData> queue = new LinkedList<>();
+		queue.offer(new MergeData(map));
+		while (isRunning() && !queue.isEmpty()) {
+			MergeData mergeData = queue.poll();
+			Map<String, Object> datum = mergeData.map;
+			String loopPrefix = mergeData.prefix;
+			for (Map.Entry<String, Object> entry : datum.entrySet()) {
+				String key = entry.getKey();
+				Object value = entry.getValue();
+				String field = key;
+				if (StringUtils.isNotBlank(loopPrefix)) {
+					field = String.join(".", loopPrefix, field);
+				}
+				if (StringUtils.isNotBlank(prefix)) {
+					field = String.join(".", prefix, field);
+				}
+				if (value instanceof Map) {
+					queue.offer(new MergeData((Map<String, Object>) value, field));
+				} else if (value instanceof Collection) {
+					for (Object obj : ((Collection<?>) value)) {
+						if (obj instanceof Map) {
+							queue.offer(new MergeData((Map<String, Object>) obj, field));
+						} else {
+							taskPreviewNodeMergeResultVO.addFieldMapping(nodeId, field);
+						}
+					}
+				} else {
+					taskPreviewNodeMergeResultVO.addFieldMapping(nodeId, field);
+				}
+			}
+		}
+	}
+
+	static class MergeData {
+		private final Map<String, Object> map;
+		private String prefix;
+
+		public MergeData(Map<String, Object> map, String prefix) {
+			this.map = map;
+			this.prefix = prefix;
+		}
+
+		public MergeData(Map<String, Object> map) {
+			this.map = map;
+		}
 	}
 }

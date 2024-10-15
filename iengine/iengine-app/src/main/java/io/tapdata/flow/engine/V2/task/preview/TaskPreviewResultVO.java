@@ -55,6 +55,10 @@ public class TaskPreviewResultVO {
 		return this.nodeResult.computeIfAbsent(nodeId, k -> new TaskPreviewNodeResultVO());
 	}
 
+	public TaskPreviewNodeResultVO nodeResult(String nodeId, TaskPreviewNodeResultVO taskPreviewNodeResultVO) {
+		return this.nodeResult.put(nodeId, taskPreviewNodeResultVO);
+	}
+
 	public int getCode() {
 		return code;
 	}
