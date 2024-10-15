@@ -91,13 +91,13 @@ public class RowFilterProcessor implements DataFlowProcessor {
 						Object before = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, "before");
 						Object after = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, "after");
 						if (isTrue(before) && !isTrue(after)) { // before满足，after不满足
-							message = FilterAction.DISCARD == action ? null : message;
 							message.setOp("d");
 							message.setAfter(null);
-						} else if (!isTrue(before) && isTrue(after)) { // before不满足，after满足
 							message = FilterAction.DISCARD == action ? null : message;
+						} else if (!isTrue(before) && isTrue(after)) { // before不满足，after满足
 							message.setOp("i");
 							message.setBefore(null);
+							message = FilterAction.DISCARD == action ? null : message;
 						} else if (isTrue(before) && isTrue(after)) {
 							message = FilterAction.DISCARD == action ? null : message;
 						} else { // 不满足
