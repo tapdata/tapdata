@@ -1490,28 +1490,30 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Test
-	public void testStartSourceConsumer() {
+	public void testSyncBatchAndStreamOffset() {
 		DataProcessorContext context = mock(DataProcessorContext.class);
-		TaskDto taskDto = mock(TaskDto.class);
-		DAG dag = mock(DAG.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
 		when(context.getTaskDto()).thenReturn(taskDto);
-		when(taskDto.getType()).thenReturn("initial_sync");
-		when(taskDto.getDag()).thenReturn(dag);
 
+		List<TapdataEvent> result = new ArrayList<>();
 		HazelcastSourcePdkBaseNode node = new HazelcastSourcePdkBaseNode(context) {
 			@Override
 			void startSourceRunner() {
 
 			}
+
+			@Override
+			public void enqueue(TapdataEvent tapdataEvent) {
+				result.add(tapdataEvent);
+			}
 		};
 
-		JetJobStatusMonitor monitor = mock(JetJobStatusMonitor.class);
-		when(monitor.get()).thenReturn(JobStatus.RUNNING);
+		SyncProgress syncProgress = new SyncProgress();
+		ReflectionTestUtils.setField(node, "syncProgress", syncProgress);
 
-		ReflectionTestUtils.setField(node, "running", new AtomicBoolean(true));
-		ReflectionTestUtils.setField(node, "jetJobStatusMonitor", monitor);
+		node.syncBatchAndStreamOffset();
 
-		//node.startSourceConsumer();
-
+		Assertions.assertEquals(1, result.size());
 	}
 }

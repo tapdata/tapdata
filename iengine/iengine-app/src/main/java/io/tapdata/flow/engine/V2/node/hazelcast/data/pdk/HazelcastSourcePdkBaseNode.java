@@ -290,7 +290,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		});
 	}
 
-	private void syncBatchAndStreamOffset() {
+	protected void syncBatchAndStreamOffset() {
 		TapdataHeartbeatEvent e = new TapdataHeartbeatEvent();
 		e.setSyncStage(SyncStage.INITIAL_SYNC);
 		e.setBatchOffset(syncProgress.getBatchOffsetObj());
