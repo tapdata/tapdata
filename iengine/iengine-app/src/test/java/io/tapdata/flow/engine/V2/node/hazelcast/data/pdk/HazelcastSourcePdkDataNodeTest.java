@@ -39,6 +39,9 @@ import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
@@ -92,6 +95,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1891,6 +1895,98 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertNotNull(model);
             assertSame(model, TerminalMode.COMPLETE);
 		});
+
+	}
+
+	@Test
+	public void testInitPartitionMap() {
+
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+		HazelcastSourcePdkDataNode sourceDataNode = new HazelcastSourcePdkDataNode(context);
+
+		Assertions.assertDoesNotThrow(() -> {
+			ReflectionTestUtils.setField(sourceDataNode, "syncSourcePartitionTableEnable", Boolean.FALSE);
+			sourceDataNode.initPartitionMap();
+			ReflectionTestUtils.setField(sourceDataNode, "syncSourcePartitionTableEnable", null);
+			sourceDataNode.initPartitionMap();
+		});
+
+		HazelcastSourcePdkDataNode spySourceDataNode = spy(sourceDataNode);
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+
+		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+		when(connectorContext.getTableMap()).thenReturn(new KVReadOnlyMap<TapTable>() {
+			@Override
+			public TapTable get(String key) {
+				TapTable table = new TapTable();
+				table.setId(key);
+				table.setName(key);
+				return table;
+			}
+
+			@Override
+			public Iterator<Entry<TapTable>> iterator() {
+				AtomicInteger counter = new AtomicInteger(0);
+
+				Iterator<Entry<TapTable>> iterator = new Iterator<Entry<TapTable>>() {
+
+					@Override
+					public boolean hasNext() {
+						return counter.incrementAndGet() < 10;
+					}
+
+					@Override
+					public Entry<TapTable> next() {
+						TapTable table = new TapTable();
+						table.setId("test_" + counter.get());
+						table.setName("test_" + counter.get());
+
+						if (counter.get() %2 == 0) {
+							table.setPartitionMasterTableId(table.getId());
+							table.setPartitionInfo(new TapPartition());
+							List<TapSubPartitionTableInfo> subPartitionInfo = new ArrayList<>();
+
+							TapSubPartitionTableInfo partitionInfo = new TapSubPartitionTableInfo();
+							partitionInfo.setTableName(table.getId() + "_1");
+							subPartitionInfo.add(partitionInfo);
+							partitionInfo = new TapSubPartitionTableInfo();
+							partitionInfo.setTableName(table.getId() + "_2");
+							subPartitionInfo.add(partitionInfo);
+
+							table.getPartitionInfo().setSubPartitionTableInfo(subPartitionInfo);
+
+						}
+
+						return new Entry<TapTable>() {
+							@Override
+							public String getKey() {
+								return table.getId();
+							}
+
+							@Override
+							public TapTable getValue() {
+								return table;
+							}
+						};
+					}
+				};
+				return iterator;
+			}
+		});
+		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+		when(spySourceDataNode.getConnectorNode()).thenReturn(connectorNode);
+
+		sourceDataNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+		spySourceDataNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+		spySourceDataNode.initPartitionMap();
+
+		Assertions.assertNotNull(sourceDataNode.partitionTableSubMasterMap);
+		Assertions.assertEquals(8, sourceDataNode.partitionTableSubMasterMap.keySet().size());
 
 	}
 
