@@ -231,7 +231,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					notOverTables.add(tableId);
 			}
 		});
-		if (notOverTables.size() > 0) {
+		if (!notOverTables.isEmpty()) {
 			handleNewTables(notOverTables);
 		}
 
