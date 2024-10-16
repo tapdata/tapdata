@@ -224,7 +224,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		List<String> notOverTables = new ArrayList<>(); // 未完成同步的表，且模型不存在（分区子表）
 		batchOffset.forEach((tableId, isOver) -> {
 			if (table.contains(tableId)) return;
-			if (!isOver) {
+			if (!Boolean.TRUE.equals(isOver)) {
 				if (keySet.contains(tableId))
 					table.add(tableId);
 				else
