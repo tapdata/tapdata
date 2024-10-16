@@ -1490,6 +1490,27 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Test
+	public void testInitSyncPartitionTableEnable() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+		Node node = new DatabaseNode();
+		((DatabaseNode)node).setSyncSourcePartitionTableEnable(true);
+		when(context.getNode()).thenReturn(node);
+
+		List<TapdataEvent> result = new ArrayList<>();
+		HazelcastSourcePdkBaseNode sourceNode = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+		sourceNode.initSyncPartitionTableEnable();
+		Assertions.assertEquals(true, sourceNode.syncSourcePartitionTableEnable);
+	}
+
+	@Test
 	public void testSyncBatchAndStreamOffset() {
 		DataProcessorContext context = mock(DataProcessorContext.class);
 		TaskDto taskDto = new TaskDto();
