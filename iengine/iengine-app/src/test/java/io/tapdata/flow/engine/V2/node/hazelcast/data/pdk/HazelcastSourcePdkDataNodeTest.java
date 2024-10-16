@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
@@ -41,7 +42,10 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
+import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -74,6 +78,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.CodeSource;
@@ -1853,6 +1858,40 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(2, tableNames.size());
 			Assertions.assertTrue(tableNames.contains("test"));
 		}
+	}
+
+	@Test
+	public void testGetTerminatedMode() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		HazelcastSourcePdkDataNode sourceDataNode = new HazelcastSourcePdkDataNode(context);
+
+		Assertions.assertDoesNotThrow(() -> {
+			TerminalMode mode = sourceDataNode.getTerminatedMode();
+			Assertions.assertNull(mode);
+		});
+
+		ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);
+		BeanUtil.configurableApplicationContext = applicationContext;
+		TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+		when(applicationContext.getBean(TapdataTaskScheduler.class)).thenReturn(taskScheduler);
+
+		TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+		when(taskScheduler.getTaskClient(anyString())).thenReturn(taskClient);
+
+		when(taskClient.getTerminalMode()).thenReturn(TerminalMode.COMPLETE);
+
+		Assertions.assertDoesNotThrow(() -> {
+			TerminalMode model = sourceDataNode.getTerminatedMode();
+			Assertions.assertNotNull(model);
+            assertSame(model, TerminalMode.COMPLETE);
+		});
+
 	}
 
 }

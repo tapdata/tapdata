@@ -587,7 +587,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		enqueue(tapdataCompleteTableSnapshotEvent);
 	}
 
-	private TerminalMode getTerminatedMode() {
+	protected TerminalMode getTerminatedMode() {
 		TapdataTaskScheduler tapdataTaskScheduler = BeanUtil.getBean(TapdataTaskScheduler.class);
 		if (null != tapdataTaskScheduler) {
 			TaskClient<TaskDto> taskClient = tapdataTaskScheduler.getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString());
