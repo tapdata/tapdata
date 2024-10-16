@@ -8,16 +8,17 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anySet;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class PartitionTableMonitorTest {
     PartitionTableMonitor monitor;
@@ -60,15 +61,32 @@ class PartitionTableMonitorTest {
 
         List<TapTable> masterTapTables;
         @BeforeEach
-        void init() {
+        void init() throws IOException {
             connectorNode = mock(ConnectorNode.class);
+            monitor.syncSourcePartitionTableEnable = Boolean.TRUE;
+            masterTapTables = Stream.generate(() -> {
+                TapTable table = new TapTable();
+                table.setName("test");
+                table.setId("test");
+                return table;
+            }).limit(1).collect(Collectors.toList());
             when(monitor.partitionTableInfoSet(anySet(), anySet(), anyMap())).thenAnswer(a -> {
                 Set<String> argument = a.getArgument(0, Set.class);
                 argument.add("id");
                 argument.add("name");
                 return masterTapTables;
             });
-            //doNothing().when(monitor).loadSubTableByPartitionTable(any(ConnectorNode.class), );
+            doCallRealMethod().when(monitor).monitor(any());
+        }
+
+        @Test
+        void test() {
+            doNothing().when(monitor).loadSubTableByPartitionTable(any(), anyList(), anyMap(), anyList(), anySet());
+
+            Assertions.assertDoesNotThrow(() -> {
+                monitor.monitor(connectorNode);
+
+            });
         }
     }
 }
