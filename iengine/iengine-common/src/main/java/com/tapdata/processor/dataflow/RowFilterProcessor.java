@@ -9,6 +9,7 @@ import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.ScriptConnection;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.error.RowFilterProcessorExCode_24;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.exception.TapCodeException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -43,6 +44,7 @@ public class RowFilterProcessor implements DataFlowProcessor {
 	private FilterAction action;
 
 	private Map<String, Object> processContext;
+	private boolean withoutBeforeLog;
 
 	@Override
 	public void initialize(ProcessorContext context, Stage stage) throws Exception {
@@ -71,6 +73,12 @@ public class RowFilterProcessor implements DataFlowProcessor {
 		}
 
 		processContext = new ConcurrentHashMap<>();
+		withoutBeforeLog = false;
+	}
+
+	private TapLogger.LogListener logListener;
+	public void logListener(TapLogger.LogListener logListener){
+		this.logListener = logListener;
 	}
 
 	public MessageEntity process(MessageEntity message) {
@@ -88,20 +96,28 @@ public class RowFilterProcessor implements DataFlowProcessor {
 			try {
 				if (MapUtils.isNotEmpty(record)) {
 					if ("u".equals(message.getOp())) {
+						if (MapUtils.isEmpty(message.getBefore()) && !withoutBeforeLog && null != logListener) {
+							logListener.warn("current database does not support record before value when update, the data will insert or delete record if after value meets condition");
+							withoutBeforeLog = true;
+						}
 						Object before = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, "before");
 						Object after = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, "after");
 						if (isTrue(before) && !isTrue(after)) { // before满足，after不满足
-							message.setOp("d");
-							message.setAfter(null);
-							message = FilterAction.DISCARD == action ? null : message;
+							beforeMeetMessage(message);
 						} else if (!isTrue(before) && isTrue(after)) { // before不满足，after满足
-							message.setOp("i");
-							message.setBefore(null);
-							message = FilterAction.DISCARD == action ? null : message;
+							afterMeetMessage(message);
 						} else if (isTrue(before) && isTrue(after)) {
-							message = FilterAction.DISCARD == action ? null : message;
+							if (MapUtils.isEmpty(message.getBefore())) {
+								afterMeetMessage(message);
+							} else {
+								message = FilterAction.DISCARD == action ? null : message;
+							}
 						} else { // 不满足
-							message = FilterAction.DISCARD == action ? message : null;
+							if (MapUtils.isEmpty(message.getBefore())) {
+								beforeMeetMessage(message);
+							}else {
+								message = FilterAction.DISCARD == action ? message : null;
+							}
 						}
 					} else {
 						Object o = ScriptUtil.invokeScript(engine, SCRIPT_FUNCTION_NAME, message, context.getSourceConn(), context.getTargetConn(), context.getJob(), processContext, logger, null);
@@ -122,6 +138,32 @@ public class RowFilterProcessor implements DataFlowProcessor {
 			}
 		}
 		return message;
+	}
+
+	private void beforeMeetMessage(MessageEntity message) {
+		if (FilterAction.DISCARD == action) {
+			message.setOp("i");
+			message.setBefore(null);
+		} else {
+			message.setOp("d");
+			if (MapUtils.isEmpty(message.getBefore())) {
+				message.setBefore(message.getAfter());
+			}
+			message.setAfter(null);
+		}
+	}
+
+	private void afterMeetMessage(MessageEntity message) {
+		if (FilterAction.DISCARD == action) {
+			message.setOp("d");
+			if (MapUtils.isEmpty(message.getBefore())) {
+				message.setBefore(message.getAfter());
+			}
+			message.setAfter(null);
+		} else {
+			message.setOp("i");
+			message.setBefore(null);
+		}
 	}
 
 	private boolean isTrue(Object o) {

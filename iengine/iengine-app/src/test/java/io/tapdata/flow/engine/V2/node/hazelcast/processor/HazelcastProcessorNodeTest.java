@@ -3,20 +3,33 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import base.BaseTaskTest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.dataflow.Capitalized;
+import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.processor.dataflow.DataFlowProcessor;
+import com.tapdata.processor.dataflow.RowFilterProcessor;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.observable.logging.ObsLogger;
 import lombok.SneakyThrows;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
@@ -321,6 +334,34 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 			assertEquals(2, result.size());
 			assertTrue(result.contains("FIELD1"));
 			assertTrue(result.contains("FIELD2"));
+		}
+	}
+	@Nested
+	class initDataFlowProcessorTest{
+		@Test
+		void testInitDataFlowProcessorSimple() {
+			hazelcastProcessorNode = mock(HazelcastProcessorNode.class);
+			processorBaseContext = mock(DataProcessorContext.class);
+			mockObsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "processorBaseContext", processorBaseContext);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "clientMongoOperator", mockClientMongoOperator);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "obsLogger", mockObsLogger);
+			Node node = mock(RowFilterProcessorNode.class);
+			when(processorBaseContext.getNode()).thenReturn(node);
+			when(node.getType()).thenReturn("row_filter_processor");
+			Stage stage = mock(Stage.class);
+			DataFlowProcessor dataFlowProcessor = mock(RowFilterProcessor.class);
+			try (MockedStatic<HazelcastUtil> mb = Mockito
+					.mockStatic(HazelcastUtil.class)) {
+				mb.when(()->HazelcastUtil.node2CommonStage(node)).thenReturn(stage);
+				when(hazelcastProcessorNode.createDataFlowProcessor(node, stage)).thenReturn(dataFlowProcessor);
+				TaskDto task = mock(TaskDto.class);
+				when(processorBaseContext.getTaskDto()).thenReturn(task);
+				when(task.getId()).thenReturn(mock(ObjectId.class));
+				doCallRealMethod().when(hazelcastProcessorNode).initDataFlowProcessor();
+				hazelcastProcessorNode.initDataFlowProcessor();
+				verify(dataFlowProcessor, new Times(1)).logListener(any(TapLogger.LogListener.class));
+			}
 		}
 	}
 }

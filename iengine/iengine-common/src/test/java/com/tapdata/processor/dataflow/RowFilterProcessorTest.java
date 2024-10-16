@@ -168,5 +168,43 @@ public class RowFilterProcessorTest {
                 assertNull(actual);
             }
         }
+        @Test
+        void testUpdateEventWithoutBefore2InsertEvent() {
+            ReflectionTestUtils.setField(rowFilterProcessor, "action", RowFilterProcessor.FilterAction.DISCARD);
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenReturn(false);
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(false);
+                message.setOp("u");
+                Map<String, Object> after = mock(HashMap.class);
+                message.setBefore(null);
+                message.setAfter(after);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertEquals("i", actual.getOp());
+                assertNull(actual.getBefore());
+            }
+        }
+        @Test
+        void testUpdateEventWithoutBefore2DeleteEvent() {
+            ReflectionTestUtils.setField(rowFilterProcessor, "action", RowFilterProcessor.FilterAction.DISCARD);
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenReturn(true);
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(true);
+                message.setOp("u");
+                Map<String, Object> after = mock(HashMap.class);
+                message.setBefore(null);
+                message.setAfter(after);
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                MessageEntity actual = rowFilterProcessor.process(message);
+                assertEquals("d", actual.getOp());
+                assertNull(actual.getAfter());
+            }
+        }
     }
 }
