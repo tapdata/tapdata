@@ -236,8 +236,9 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			nodeConfig = new HashMap<>();
 		}
         if (node instanceof DataParentNode) {
-            Integer initialConcurrentWriteNum = ((DataParentNode<?>) node).getInitialConcurrentWriteNum();
-            nodeConfig.put(WRITE_THREAD_SIZE, initialConcurrentWriteNum == null ? 1 : initialConcurrentWriteNum);
+            Integer initialConcurrentWriteNum = Optional.ofNullable(((DataParentNode<?>) node).getInitialConcurrentWriteNum()).orElse(1);
+			Integer cdcConcurrentWriteNum = Optional.ofNullable(((DataParentNode<?>) node).getCdcConcurrentWriteNum()).orElse(1);
+            nodeConfig.put(WRITE_THREAD_SIZE, Math.max(initialConcurrentWriteNum, cdcConcurrentWriteNum));
         }
 		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
 		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
