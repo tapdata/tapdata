@@ -360,7 +360,7 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 				when(task.getId()).thenReturn(mock(ObjectId.class));
 				doCallRealMethod().when(hazelcastProcessorNode).initDataFlowProcessor();
 				hazelcastProcessorNode.initDataFlowProcessor();
-				verify(dataFlowProcessor, new Times(1)).logListener(any(TapLogger.LogListener.class));
+				verify(dataFlowProcessor, new Times(1)).logListener(any());
 			}
 		}
 	}
