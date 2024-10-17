@@ -107,31 +107,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		);
 		try {
 			dataFlowProcessor.initialize(processorContext, stage);
-			dataFlowProcessor.logListener(new TapLogger.LogListener() {
-				@Override
-				public void debug(String log) {
-					obsLogger.debug(log);
-				}
-				@Override
-				public void info(String log) {
-					obsLogger.info(log);
-				}
-				@Override
-				public void warn(String log) {
-					obsLogger.warn(log);
-				}
-				@Override
-				public void error(String log) {
-					obsLogger.error(log);
-				}
-				@Override
-				public void fatal(String log) {
-					obsLogger.fatal(log);
-				}
-				@Override
-				public void memory(String memoryLog) {
-				}
-			});
+			dataFlowProcessor.logListener(logListener());
 		} catch (Exception e) {
 			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e);
 		}
