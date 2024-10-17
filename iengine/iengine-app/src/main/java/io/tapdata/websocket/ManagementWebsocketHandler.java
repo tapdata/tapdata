@@ -225,7 +225,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 					+ "?agentId={agentId}&access_token={access_token}");
 
 
-			WebSocketClient client = new StandardWebSocketClient();
+			WebSocketClient client = ManagementWebsocketHandler.createWebSocketClient();
 
 			currentWsUrl = UriComponentsBuilder.fromUriString(currentWsUrl)
 					.buildAndExpand(agentId, configCenter.getConfig(ConfigurationCenter.TOKEN)).encode().toUri().toString();
@@ -247,9 +247,12 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 
 			session.setSession(listenableFuture.get());
 			logger.info("Connect to web socket server success, url {}", currentWsUrl);
-		} catch (Exception e) {
-			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
+		} catch (InterruptedException interruptedException) {
 			Thread.currentThread().interrupt();
+			logger.warn("Connect to web socket Thread interrupted,Thread name:{}", Thread.currentThread().getName());
+		}
+		catch (Exception e) {
+			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
 		}
 	}
 
@@ -385,6 +388,10 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	 */
 	public void sendMessage(TextMessage textMessage) throws RuntimeException {
 		session.sendMessage(textMessage);
+	}
+
+	public static WebSocketClient createWebSocketClient() {
+		return new StandardWebSocketClient();
 	}
 
 	protected class SessionOption implements AutoCloseable {
