@@ -160,10 +160,10 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 					FieldProcessUtil.filedProcess(after, fieldProcesses, fieldsNameTransform, deleteAllFields);
 					message.setAfter(after);
 				}
-				if (null != before){
+				if (MapUtils.isNotEmpty(before)){
 					fieldScript(message, before, "before");
 				}
-				if (null != after){
+				if (MapUtils.isNotEmpty(after)){
 					fieldScript(message, after, "after");
 				}
 			} else if (CollectionUtils.isNotEmpty(cloneFieldProcesses)) {
