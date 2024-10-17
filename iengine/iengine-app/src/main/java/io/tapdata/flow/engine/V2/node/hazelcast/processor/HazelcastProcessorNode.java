@@ -17,7 +17,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
@@ -80,7 +82,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		}
 	}
 
-	private void initDataFlowProcessor() throws TapCodeException {
+	protected void initDataFlowProcessor() throws TapCodeException {
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
 		Job job = new Job();
@@ -105,6 +107,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		);
 		try {
 			dataFlowProcessor.initialize(processorContext, stage);
+			dataFlowProcessor.logListener(logListener());
 		} catch (Exception e) {
 			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e);
 		}
@@ -139,6 +142,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				} else {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+					tapRecordEvent = message2TapEvent(processedMessage);
+					tapdataEvent.setTapEvent(tapRecordEvent);
 				}
 				handleRemoveFields(tapdataEvent);
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
@@ -202,7 +207,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	}
 
-	private DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
+	protected DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
 		NodeTypeEnum nodeType = NodeTypeEnum.get(node.getType());
 		DataFlowProcessor dataFlowProcessor = null;
 		switch (nodeType) {
