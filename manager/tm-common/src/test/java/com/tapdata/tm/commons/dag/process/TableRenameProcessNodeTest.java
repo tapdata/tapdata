@@ -12,6 +12,13 @@ import org.junit.jupiter.api.Test;
 import java.util.*;
 import java.util.function.Function;
 
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2024/5/21 11:13 Create
@@ -171,5 +178,33 @@ class TableRenameProcessNodeTest {
         // test toLowerCase
         instance.setTransferCase("toLowerCase");
         Assertions.assertEquals(tableName.toLowerCase(Locale.ROOT), instance.convertTableName(tableName));
+    }
+
+    @Nested
+    class updatePartitionMasterNameTest {
+        Schema schema;
+        @Test
+        void testNormal() {
+            schema = mock(Schema.class);
+            when(schema.getName()).thenReturn("name");
+            when(schema.getPartitionMasterTableId()).thenReturn("name");
+            doNothing().when(schema).setPartitionMasterTableId("id");
+            instance.updatePartitionMasterName(schema, "id");
+            verify(schema, times(1)).getName();
+            verify(schema, times(1)).getPartitionMasterTableId();
+            verify(schema, times(1)).setPartitionMasterTableId("id");
+        }
+
+        @Test
+        void testNotEquals() {
+            schema = mock(Schema.class);
+            when(schema.getName()).thenReturn("id");
+            when(schema.getPartitionMasterTableId()).thenReturn("name");
+            doNothing().when(schema).setPartitionMasterTableId("id");
+            instance.updatePartitionMasterName(schema, "id");
+            verify(schema, times(1)).getName();
+            verify(schema, times(1)).getPartitionMasterTableId();
+            verify(schema, times(0)).setPartitionMasterTableId("id");
+        }
     }
 }

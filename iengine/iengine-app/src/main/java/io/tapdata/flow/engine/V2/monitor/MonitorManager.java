@@ -75,6 +75,7 @@ public class MonitorManager implements Closeable {
 		SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
 		TASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
 		TABLE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TableMonitor"),
+		PARTITION_TABLE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor"),
 		JET_JOB_STATUS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor"),
 		;
 

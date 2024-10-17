@@ -1,0 +1,14 @@
+[
+  {
+    "createIndexes": "InspectResult",
+    "indexes": [
+      {
+        "name": "createTime_-1",
+        "key": {
+          "createTime": -1
+        },
+        "background": true
+      }
+    ]
+  }
+]
