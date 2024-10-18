@@ -35,6 +35,7 @@ import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
@@ -85,11 +86,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -1766,5 +1763,42 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals("test_1", ((TapInsertRecordEvent)e).getPartitionMasterTableId());
 			Assertions.assertEquals("test", ((TapInsertRecordEvent)e).getTableId());
 		});
+	}
+
+	@Test
+	public void testInitTapCodecsFilterManager() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		((DatabaseNode)node).setSyncSourcePartitionTableEnable(true);
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastSourcePdkBaseNode sourceBaseNode = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		HazelcastSourcePdkBaseNode spySourceBaseNode = spy(sourceBaseNode);
+
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+		TapNodeSpecification spec = mock(TapNodeSpecification.class);
+
+		List<String> tags = new ArrayList<>();
+		tags.add("schema-free");
+
+		when(spec.getTags()).thenReturn(tags);
+		when(connectorContext.getSpecification()).thenReturn(spec);
+		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+		when(connectorNode.getCodecsFilterManager()).thenReturn(null);
+		when(connectorNode.getCodecsFilterManagerSchemaEnforced()).thenReturn(null);
+		when(spySourceBaseNode.getConnectorNode()).thenReturn(connectorNode);
+
+		ReflectionTestUtils.invokeMethod(spySourceBaseNode, "initTapCodecsFilterManager");
 	}
 }
