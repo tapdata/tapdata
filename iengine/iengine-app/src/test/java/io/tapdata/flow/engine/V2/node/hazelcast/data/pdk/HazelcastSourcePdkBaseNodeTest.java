@@ -28,6 +28,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
@@ -93,6 +94,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -1765,6 +1767,44 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals("test_1", ((TapInsertRecordEvent)e).getPartitionMasterTableId());
 			Assertions.assertEquals("test", ((TapInsertRecordEvent)e).getTableId());
 		});
+
+		TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+		tableMap.putNew("test_2", new TapTable(), "test_2");
+		tableMap.putNew("test_3", new TapTable(), "test_3");
+		tableMap.putNew("test_4", new TapTable(), "test_4");
+		tableMap.putNew("test_5", new TapTable(), "test_5");
+		when(context.getTapTableMap()).thenReturn(tableMap);
+		AtomicInteger counter = new AtomicInteger(0);
+		events = Stream.generate(() -> {
+			TapEvent event = new TapInsertRecordEvent();
+			if (counter.incrementAndGet() < 2) {
+				((TapInsertRecordEvent)event).setTableId("test");
+			} else {
+				((TapInsertRecordEvent)event).setTableId("test_" + counter.get());
+			}
+
+			return event;
+		}).limit(5).collect(Collectors.toList());
+		sourceBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+		table = new TapTable();
+		table.setId("test");
+		table.setName("test");
+		sourceBaseNode.partitionTableSubMasterMap.put("test", table);
+		table = new TapTable();
+		table.setId("test_1");
+		table.setName("test_1");
+		sourceBaseNode.partitionTableSubMasterMap.put("test_1", table);
+
+		sourceBaseNode.setPartitionMasterTableId(events);
+		Optional<TapEvent> optional = events.stream().filter(TapInsertRecordEvent.class::isInstance)
+				.filter(e -> "test".equals(((TapInsertRecordEvent) e).getTableId())).findFirst();
+		Assertions.assertTrue(optional.isPresent());
+		Assertions.assertEquals("test", ((TapInsertRecordEvent)optional.get()).getPartitionMasterTableId());
+
+		TapInsertRecordEvent event = new TapInsertRecordEvent();
+		event.setTableId("test");
+		sourceBaseNode.setPartitionMasterTableId(event, "test");
+		Assertions.assertEquals("test", event.getPartitionMasterTableId());
 	}
 
 	@Test
