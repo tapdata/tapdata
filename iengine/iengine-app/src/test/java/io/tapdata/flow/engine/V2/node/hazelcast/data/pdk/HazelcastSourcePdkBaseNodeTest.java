@@ -23,6 +23,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
@@ -50,6 +51,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
@@ -1894,5 +1897,89 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.invokeMethod(sourceBaseNode, "initTapEventFilter");
 		});
 
+	}
+
+	@Test
+	void testNeedDynamicPartitionTable() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setNeedFilterEventData(Boolean.TRUE);
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new TableRenameProcessNode();
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastSourcePdkBaseNode sourceBaseNode = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		Assertions.assertFalse(sourceBaseNode.needDynamicPartitionTable());
+
+		node = new DatabaseNode();
+		when(context.getNode()).thenReturn(node);
+		Assertions.assertFalse(sourceBaseNode.needDynamicPartitionTable());
+
+		HazelcastSourcePdkBaseNode spySourceBaseNode = spy(sourceBaseNode);
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+		KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+			@Override
+			public TapTable get(String key) {
+				return null;
+			}
+
+			@Override
+			public Iterator<Entry<TapTable>> iterator() {
+
+				Iterator<Entry<TapTable>> iterator = new Iterator<Entry<TapTable>>() {
+					private int counter = 0;
+					@Override
+					public boolean hasNext() {
+						counter++;
+						return counter < 2;
+					}
+
+					@Override
+					public Entry<TapTable> next() {
+						TapTable table;
+						if (counter == 1) {
+							table = new TapTable();
+							table.setId("test");
+							table.setName("test");
+						} else {
+							table = new TapTable();
+							table.setId("test");
+							table.setName("test");
+							table.setPartitionInfo(new TapPartition());
+							table.setPartitionMasterTableId("test");
+						}
+						return new Entry<TapTable>() {
+							@Override
+							public String getKey() {
+								return "test";
+							}
+
+							@Override
+							public TapTable getValue() {
+								return table;
+							}
+						};
+					}
+				};
+				return iterator;
+			}
+		};
+		when(connectorContext.getTableMap()).thenReturn(tableMap);
+		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+		when(spySourceBaseNode.getConnectorNode()).thenReturn(connectorNode);
+
+		ReflectionTestUtils.setField(sourceBaseNode, "syncType", SyncTypeEnum.INITIAL_SYNC_CDC);
+		sourceBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+
+		Assertions.assertFalse(spySourceBaseNode.needDynamicPartitionTable());
 	}
 }
