@@ -36,6 +36,7 @@ import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
@@ -54,6 +55,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -1800,5 +1802,57 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		when(spySourceBaseNode.getConnectorNode()).thenReturn(connectorNode);
 
 		ReflectionTestUtils.invokeMethod(spySourceBaseNode, "initTapCodecsFilterManager");
+	}
+
+	@Test
+	void testInitTapEventFilter() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setNeedFilterEventData(Boolean.TRUE);
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		((DatabaseNode)node).setSyncSourcePartitionTableEnable(true);
+		when(context.getNode()).thenReturn(node);
+
+
+		HazelcastSourcePdkBaseNode sourceBaseNode = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		ObsLogger obsLogger = mock(ObsLogger.class);
+		ReflectionTestUtils.setField(sourceBaseNode, "obsLogger", obsLogger);
+
+		Assertions.assertThrows(CoreException.class, () -> {
+			when(context.getTapTableMap()).thenReturn(null);
+			ReflectionTestUtils.invokeMethod(sourceBaseNode, "initTapEventFilter");
+		});
+
+		TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+		tableMap.putNew("test", new TapTable(), "test");
+		when(context.getTapTableMap()).thenReturn(tableMap);
+
+		TargetTableDataEventFilter tapEventFilter = mock(TargetTableDataEventFilter.class);
+		doAnswer(answer -> {
+			TargetTableDataEventFilter.TapEventHandel handler = answer.getArgument(0);
+
+			TapdataEvent event = new TapdataEvent();
+			TapInsertRecordEvent recordEvent = new TapInsertRecordEvent();
+			recordEvent.setTableId("test");
+			event.setTapEvent(recordEvent);
+			handler.handler(event);
+
+			return null;
+		}).when(tapEventFilter).addHandler(any());
+		ReflectionTestUtils.setField(sourceBaseNode, "tapEventFilter", tapEventFilter);
+
+		Assertions.assertDoesNotThrow(() -> {
+			ReflectionTestUtils.invokeMethod(sourceBaseNode, "initTapEventFilter");
+		});
+
 	}
 }
