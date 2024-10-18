@@ -31,6 +31,7 @@ import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -43,11 +44,17 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapNumberValue;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
-import io.tapdata.exception.*;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.TapPdkBaseException;
+import io.tapdata.exception.TapPdkWriteMissingPrivilegesEx;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -65,17 +72,49 @@ import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skipError.SkipErrorStrategy;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.anyList;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * @author samuel
@@ -2006,4 +2045,115 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			assertThrows(RuntimeException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(mock(RuntimeException.class)));
 		}
 	}
+
+	@Nested
+	class MasterTableIdTest {
+		TapEvent event;
+		TapTable table;
+		@BeforeEach
+		void init() {
+			event = mock(TapEvent.class);
+			table = mock(TapTable.class);
+
+			doNothing().when(table).setPartitionMasterTableId(anyString());
+			when(mockHazelcastBaseNode.getTgtTableNameFromTapEvent(event, "master")).thenReturn("id");
+			doCallRealMethod().when(mockHazelcastBaseNode).masterTableId(event, table);
+		}
+
+		@Test
+		void testNormal() {
+			when(table.getPartitionMasterTableId()).thenReturn("master");
+			Assertions.assertDoesNotThrow(() -> mockHazelcastBaseNode.masterTableId(event, table));
+			verify(mockHazelcastBaseNode).getTgtTableNameFromTapEvent(event, "master");
+			verify(table).getPartitionMasterTableId();
+		}
+		@Test
+		void testNullPartitionMasterTableId() {
+			when(table.getPartitionMasterTableId()).thenReturn(null);
+			Assertions.assertDoesNotThrow(() -> mockHazelcastBaseNode.masterTableId(event, table));
+			verify(mockHazelcastBaseNode, times(0)).getTgtTableNameFromTapEvent(event, "master");
+			verify(table, times(1)).getPartitionMasterTableId();
+		}
+	}
+
+//	@Nested
+//	class CheckIsMasterPartitionTableTest {
+//		TapTable table;
+//		TapPartition partition;
+//
+//		@BeforeEach
+//		void init() {
+//			table = mock(TapTable.class);
+//			partition = mock(TapPartition.class);
+//		}
+//
+//		@Test
+//		void testNormal() {
+//			when(table.getPartitionInfo()).thenReturn(partition);
+//			when(table.getPartitionMasterTableId()).thenReturn("id");
+//			when(table.getId()).thenReturn("id");
+//		}
+//
+//		@Test
+//		void testEmptyPartition() {
+//			when(table.getPartitionInfo()).thenReturn(null);
+//			when(table.getPartitionMasterTableId()).thenReturn("id");
+//			when(table.getId()).thenReturn("id");
+//		}
+//		@Test
+//		void testEmptyMasterId() {
+//			when(table.getPartitionInfo()).thenReturn(partition);
+//			when(table.getPartitionMasterTableId()).thenReturn(null);
+//			when(table.getId()).thenReturn("id");
+//		}
+//		@Test
+//		void testNotEqualMasterIdAndTableId() {
+//			when(table.getPartitionInfo()).thenReturn(partition);
+//			when(table.getPartitionMasterTableId()).thenReturn("master");
+//			when(table.getId()).thenReturn("id");
+//		}
+//	}
+//
+//	@Nested
+//	class CheckIsSubPartitionTableTest {
+//		TapTable table;
+//		TapPartition partition;
+//
+//		@BeforeEach
+//		void init() {
+//			table = mock(TapTable.class);
+//			partition = mock(TapPartition.class);
+//			when(mockHazelcastBaseNode.checkIsSubPartitionTable(table)).thenCallRealMethod();
+//		}
+//
+//		@Test
+//		void testNormal() {
+//			when(table.getPartitionInfo()).thenReturn(partition);
+//			when(table.getPartitionMasterTableId()).thenReturn("id");
+//			when(table.getId()).thenReturn("sub-id");
+//			Assertions.assertTrue(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+//		}
+//
+//		@Test
+//		void testEmptyPartition() {
+//			when(table.getPartitionInfo()).thenReturn(null);
+//			when(table.getPartitionMasterTableId()).thenReturn("id");
+//			when(table.getId()).thenReturn("id");
+//			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+//		}
+//		@Test
+//		void testEmptyMasterId() {
+//			when(table.getPartitionInfo()).thenReturn(partition);
+//			when(table.getPartitionMasterTableId()).thenReturn(null);
+//			when(table.getId()).thenReturn("id");
+//			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+//		}
+//		@Test
+//		void testNotEqualMasterIdAndTableId() {
+//			when(table.getPartitionInfo()).thenReturn(partition);
+//			when(table.getPartitionMasterTableId()).thenReturn("master");
+//			when(table.getId()).thenReturn("master");
+//			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
+//		}
+//	}
 }

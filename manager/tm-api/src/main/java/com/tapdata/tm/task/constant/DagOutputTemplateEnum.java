@@ -29,6 +29,7 @@ public enum DagOutputTemplateEnum {
     FIELD_MOD_TYPE_CHECK("类型修改节点检测", "fieldModTypeStrategy"),
     FIELD_ADD_DEL_CHECK("增删字段节点检测", "fieldAddDelStrategy"),
     CUSTOM_NODE_CHECK("自定义节点检测", "customNodeStrategy"),
+    MIGRATE_UNION_NODE_CHECK("对表合并节点检测", "migrateUnionNodeStrategy"),
     ;
 
     private final String type;
@@ -39,7 +40,7 @@ public enum DagOutputTemplateEnum {
         EnumSet<DagOutputTemplateEnum> enumSet = EnumSet.of(SOURCE_CONNECT_CHECK,TARGET_CONNECT_CHECK,TASK_SETTING_CHECK, SOURCE_SETTING_CHECK, JS_NODE_CHECK,
                 TABLE_EDIT_NODE_CHECK, FIELD_EDIT_NODE_CHECK, TARGET_NODE_CHECK, DATA_INSPECT_CHECK, MODEL_PROCESS_CHECK,
                 JOIN_NODE_CHECK, MERGE_NODE_CHECK, UNION_NODE_CHECK, ROW_FILTER_CHECK, FIELD_CALCULTE_CHECK, FIELD_MOD_TYPE_CHECK,
-                FIELD_ADD_DEL_CHECK, CUSTOM_NODE_CHECK);
+                FIELD_ADD_DEL_CHECK, CUSTOM_NODE_CHECK, MIGRATE_UNION_NODE_CHECK);
         return Lists.newLinkedList(enumSet);
     }
 

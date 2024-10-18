@@ -72,6 +72,9 @@ public class SchemaUtils {
                 return null;
             }
         } else {
+            if (!_inputSchemas.isEmpty()) {
+                cloneSchemaInfo(_inputSchemas.get(0), targetSchema);
+            }
             if (logicInput) {
                 List<Field> fields = targetSchema.getFields();
                 if (CollectionUtils.isNotEmpty(fields)) {
@@ -126,6 +129,11 @@ public class SchemaUtils {
         }
 
         return targetSchema;
+    }
+
+    protected static void cloneSchemaInfo(Schema inputSchema, Schema targetSchema) {
+        targetSchema.setPartitionInfo(inputSchema.getPartitionInfo());
+        targetSchema.setPartitionMasterTableId(inputSchema.getPartitionMasterTableId());
     }
 
     private static int getPriority(String source) {

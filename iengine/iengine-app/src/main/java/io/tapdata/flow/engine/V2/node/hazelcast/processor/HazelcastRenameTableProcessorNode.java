@@ -6,8 +6,10 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 
 import java.util.Map;
@@ -37,8 +39,13 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
         TapEvent tapEvent = tapdataEvent.getTapEvent();
 
         if (tapEvent instanceof TapBaseEvent) {
+            TapBaseEvent tapBaseEvent = (TapBaseEvent) tapEvent;
             String newTableName = getTgtTableNameFromTapEvent(tapEvent);
-            ((TapBaseEvent) tapEvent).setTableId(newTableName);
+            tapBaseEvent.setTableId(newTableName);
+            if (tapBaseEvent.getPartitionMasterTableId() != null) {
+                String newPartitionMasterId = convertTableName(tapEvent, tapBaseEvent.getPartitionMasterTableId());
+                tapBaseEvent.setPartitionMasterTableId(newPartitionMasterId);
+            }
         }
         consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
     }
@@ -46,6 +53,10 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
     @Override
     public String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
         String tableId = TapEventUtil.getTableId(tapEvent);
+        return convertTableName(tapEvent, tableId);
+    }
+
+    private String convertTableName(TapEvent tapEvent, String tableId) {
         TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) getNode();
         if (tapEvent instanceof TapRenameTableEvent) {
             String newTableId = tableRenameProcessNode.convertTableName(tableNameMappingMap, tableId, true);

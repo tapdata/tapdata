@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
+import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
@@ -32,13 +34,22 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
+import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -61,15 +72,20 @@ import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.schema.TapTableMap;
+import javassist.*;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -79,6 +95,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1767,6 +1784,210 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			Object addLdpNewTablesFlag = ReflectionTestUtils.getField(hazelcastSourcePdkDataNode1, "addLdpNewTables");
 			assertEquals(false, addLdpNewTablesFlag);
 		}
+	}
+
+	@Nested
+	class testFilterSubTableIfMasterExists{
+
+		private HazelcastSourcePdkDataNode sourceDataNode;
+
+		@BeforeEach
+		public void beforeEach() {
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("nodeId");
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			tapTable.setName("test");
+			TapPartition partitionInfo = new TapPartition();
+			partitionInfo.setSubPartitionTableInfo(new ArrayList<>());
+			partitionInfo.getSubPartitionTableInfo().add(new TapSubPartitionTableInfo());
+			tapTable.setPartitionInfo(partitionInfo);
+			tapTableMap.putNew("test", tapTable, "test");
+
+			tapTable = new TapTable();
+			tapTable.setId("test_1");
+			tapTable.setName("test_1");
+			tapTable.setPartitionMasterTableId("test");
+			tapTable.setPartitionInfo(partitionInfo);
+			tapTableMap.putNew("test_1", tapTable, "test_1");
+
+			tapTable = new TapTable();
+			tapTable.setId("test_table");
+			tapTable.setName("test_table");
+			tapTableMap.putNew("test_table", tapTable, "test_table");
+
+			when(context.getTapTableMap()).thenReturn(tapTableMap);
+
+			Node node = new DatabaseNode();
+			node.setId("nodeId");
+			node.setDisabled(false);
+			when(context.getNode()).thenReturn(node);
+
+			sourceDataNode = new HazelcastSourcePdkDataNode(context);
+			SyncProgress syncProgress = new SyncProgress();
+			Map batchOffsetObj = (Map) syncProgress.getBatchOffsetObj();
+			batchOffsetObj.put("test", new HashMap<String, Object>(){{
+				put("batch_read_connector_offset", true);
+			}});
+			batchOffsetObj.put("user_tbl", new HashMap<String, Object>(){{
+				put("batch_read_connector_offset", true);
+			}});
+			ReflectionTestUtils.setField(sourceDataNode, "syncProgress", syncProgress);
+		}
+
+		@Test
+		public void testNotEnableSyncPartitionTable () throws Exception {
+			ReflectionTestUtils.setField(sourceDataNode, "syncSourcePartitionTableEnable", null);
+			Set<String> tableNames = sourceDataNode.filterSubTableIfMasterExists();
+			Assertions.assertNotNull(tableNames);
+			Assertions.assertEquals(3, tableNames.size());
+			Assertions.assertTrue(tableNames.contains("test"));
+		}
+
+		@Test
+		public void testEnableSyncPartitionTable () throws Exception {
+			ReflectionTestUtils.setField(sourceDataNode, "syncSourcePartitionTableEnable", Boolean.TRUE);
+
+			HazelcastSourcePdkDataNode spySourceDataNode = spy(sourceDataNode);
+			when(spySourceDataNode.handleNewTables(anyList())).thenReturn(true);
+
+			Set<String> tableNames = spySourceDataNode.filterSubTableIfMasterExists();
+			Assertions.assertNotNull(tableNames);
+			Assertions.assertEquals(2, tableNames.size());
+			Assertions.assertTrue(tableNames.contains("test"));
+		}
+	}
+
+	@Test
+	public void testGetTerminatedMode() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		HazelcastSourcePdkDataNode sourceDataNode = new HazelcastSourcePdkDataNode(context);
+
+		Assertions.assertDoesNotThrow(() -> {
+			TerminalMode mode = sourceDataNode.getTerminatedMode();
+			Assertions.assertNull(mode);
+		});
+
+		ConfigurableApplicationContext applicationContext = mock(ConfigurableApplicationContext.class);
+		BeanUtil.configurableApplicationContext = applicationContext;
+		TapdataTaskScheduler taskScheduler = mock(TapdataTaskScheduler.class);
+		when(applicationContext.getBean(TapdataTaskScheduler.class)).thenReturn(taskScheduler);
+
+		TaskClient<TaskDto> taskClient = mock(TaskClient.class);
+		when(taskScheduler.getTaskClient(anyString())).thenReturn(taskClient);
+
+		when(taskClient.getTerminalMode()).thenReturn(TerminalMode.COMPLETE);
+
+		Assertions.assertDoesNotThrow(() -> {
+			TerminalMode model = sourceDataNode.getTerminatedMode();
+			Assertions.assertNotNull(model);
+            assertSame(model, TerminalMode.COMPLETE);
+		});
+
+	}
+
+	@Test
+	public void testInitPartitionMap() {
+
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+		HazelcastSourcePdkDataNode sourceDataNode = new HazelcastSourcePdkDataNode(context);
+
+		Assertions.assertDoesNotThrow(() -> {
+			ReflectionTestUtils.setField(sourceDataNode, "syncSourcePartitionTableEnable", Boolean.FALSE);
+			sourceDataNode.initPartitionMap();
+			ReflectionTestUtils.setField(sourceDataNode, "syncSourcePartitionTableEnable", null);
+			sourceDataNode.initPartitionMap();
+		});
+
+		HazelcastSourcePdkDataNode spySourceDataNode = spy(sourceDataNode);
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+
+		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+		when(connectorContext.getTableMap()).thenReturn(new KVReadOnlyMap<TapTable>() {
+			@Override
+			public TapTable get(String key) {
+				TapTable table = new TapTable();
+				table.setId(key);
+				table.setName(key);
+				return table;
+			}
+
+			@Override
+			public Iterator<Entry<TapTable>> iterator() {
+				AtomicInteger counter = new AtomicInteger(0);
+
+				Iterator<Entry<TapTable>> iterator = new Iterator<Entry<TapTable>>() {
+
+					@Override
+					public boolean hasNext() {
+						return counter.incrementAndGet() < 10;
+					}
+
+					@Override
+					public Entry<TapTable> next() {
+						TapTable table = new TapTable();
+						table.setId("test_" + counter.get());
+						table.setName("test_" + counter.get());
+
+						if (counter.get() %2 == 0) {
+							table.setPartitionMasterTableId(table.getId());
+							table.setPartitionInfo(new TapPartition());
+							List<TapSubPartitionTableInfo> subPartitionInfo = new ArrayList<>();
+
+							TapSubPartitionTableInfo partitionInfo = new TapSubPartitionTableInfo();
+							partitionInfo.setTableName(table.getId() + "_1");
+							subPartitionInfo.add(partitionInfo);
+							partitionInfo = new TapSubPartitionTableInfo();
+							partitionInfo.setTableName(table.getId() + "_2");
+							subPartitionInfo.add(partitionInfo);
+
+							table.getPartitionInfo().setSubPartitionTableInfo(subPartitionInfo);
+
+						}
+
+						return new Entry<TapTable>() {
+							@Override
+							public String getKey() {
+								return table.getId();
+							}
+
+							@Override
+							public TapTable getValue() {
+								return table;
+							}
+						};
+					}
+				};
+				return iterator;
+			}
+		});
+		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+		when(spySourceDataNode.getConnectorNode()).thenReturn(connectorNode);
+
+		sourceDataNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+		spySourceDataNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+		spySourceDataNode.initPartitionMap();
+
+		Assertions.assertNotNull(sourceDataNode.partitionTableSubMasterMap);
+		Assertions.assertEquals(8, sourceDataNode.partitionTableSubMasterMap.keySet().size());
+
 	}
 
 }
