@@ -253,7 +253,8 @@ public class PartitionConcurrentProcessor {
 						processSignalWithWait(tapdataEvent);
 					}
 				}
-				offsetEvent = getOffsetEvent(tapdataEvent, controlOffsetEvents);;
+				TapdataEvent tempOffsetEvent = getOffsetEvent(tapdataEvent, controlOffsetEvents);
+				offsetEvent = tempOffsetEvent != null ? tempOffsetEvent : offsetEvent;
 			}
 			if (null != offsetEvent) {
 				generateWatermarkEvent(offsetEvent);
@@ -273,12 +274,16 @@ public class PartitionConcurrentProcessor {
 		}
 	}
 
-	protected static TapdataEvent getOffsetEvent(TapdataEvent tapdataEvent, List<TapdataEvent> controlOffsetEvent) {
+	protected TapdataEvent getOffsetEvent(TapdataEvent tapdataEvent, List<TapdataEvent> controlOffsetEvent) {
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
-			if (tapdataEvent.isDML() || tapdataEvent.isDDL() || tapdataEvent.isConcurrentWrite()) {
+			if (tapdataEvent.isDML() || tapdataEvent.isDDL()) {
 				return tapdataEvent;
 			} else {
-				controlOffsetEvent.add(tapdataEvent);
+				if (tapdataEvent.isConcurrentWrite()) {
+					return tapdataEvent;
+				}else{
+					controlOffsetEvent.add(tapdataEvent);
+				}
 			}
 		}
 		return null;

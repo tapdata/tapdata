@@ -639,6 +639,7 @@ class PartitionConcurrentProcessorTest {
         PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class);
         when(processor.isRunning()).thenReturn(true);
         doCallRealMethod().when(processor).process(anyList(), anyBoolean());
+        doCallRealMethod().when(processor).getOffsetEvent(any(),anyList());
         doAnswer(invocationOnMock -> {
             offsetEvent.set(invocationOnMock.getArgument(0));
             return null;
