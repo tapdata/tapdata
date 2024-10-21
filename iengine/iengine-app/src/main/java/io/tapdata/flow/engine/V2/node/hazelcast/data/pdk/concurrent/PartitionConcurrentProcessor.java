@@ -237,6 +237,7 @@ public class PartitionConcurrentProcessor {
 		try {
 			AtomicBoolean singleMode = new AtomicBoolean(false);
             TapdataEvent offsetEvent = null;
+			List<TapdataEvent> controlOffsetEvents = new ArrayList<>();
 			for (TapdataEvent tapdataEvent : tapdataEvents) {
 				if (!isRunning()) {
 					break;
@@ -252,12 +253,17 @@ public class PartitionConcurrentProcessor {
 						processSignalWithWait(tapdataEvent);
 					}
 				}
-                if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
-                    offsetEvent = tapdataEvent;
-                }
+				TapdataEvent tempOffsetEvent = getOffsetEvent(tapdataEvent, controlOffsetEvents);
+				offsetEvent = tempOffsetEvent != null ? tempOffsetEvent : offsetEvent;
 			}
 			if (null != offsetEvent) {
 				generateWatermarkEvent(offsetEvent);
+			}
+
+			if (CollectionUtils.isNotEmpty(controlOffsetEvents)) {
+				for (TapdataEvent controlOffsetEvent : controlOffsetEvents) {
+					generateWatermarkEvent(controlOffsetEvent);
+				}
 			}
 
 			if (!async) {
@@ -267,6 +273,22 @@ public class PartitionConcurrentProcessor {
 			Thread.currentThread().interrupt();
 		}
 	}
+
+	protected TapdataEvent getOffsetEvent(TapdataEvent tapdataEvent, List<TapdataEvent> controlOffsetEvent) {
+		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
+			if (tapdataEvent.isDML() || tapdataEvent.isDDL()) {
+				return tapdataEvent;
+			} else {
+				if (tapdataEvent.isConcurrentWrite()) {
+					return tapdataEvent;
+				}else{
+					controlOffsetEvent.add(tapdataEvent);
+				}
+			}
+		}
+		return null;
+	}
+
 
 	protected void processDML(TapdataEvent tapdataEvent, AtomicBoolean singleMode) throws InterruptedException {
 		String tableName = "";
