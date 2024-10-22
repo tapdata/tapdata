@@ -21,6 +21,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
@@ -861,6 +862,55 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node1);
 			boolean actual = hazelcastTargetPdkDataNode.checkCreateUniqueIndexOpen();
 			assertEquals(true, actual);
+		}
+	}
+
+	@Nested
+	class testFilterSubPartitionTableTableMap {
+		@Test
+		void testFilterSubPartitionTableTableMap() {
+
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("test");
+
+			TapTable table = new TapTable();
+			table.setId("test");
+			table.setName("test");
+			table.setPartitionInfo(new TapPartition());
+			table.setPartitionMasterTableId("test");
+			tableMap.putNew("test", table, "test");
+
+			table = new TapTable();
+			table.setId("test1");
+			table.setName("test1");
+			table.setPartitionInfo(new TapPartition());
+			table.setPartitionMasterTableId("test1_1");
+			tableMap.putNew("test1", table, "test1");
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+			when(context.getTapTableMap()).thenReturn(tableMap);
+			Node node = new DatabaseNode();
+			node.setId("test");
+			node.setName("test");
+			when(context.getNode()).thenReturn(node);
+
+			HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
+			targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.TRUE;
+
+			Set<String> result = targetPdkDataNode.filterSubPartitionTableTableMap();
+
+			Assertions.assertNotNull(result);
+			Assertions.assertEquals(1, result.size());
+
+			targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.FALSE;
+			result = targetPdkDataNode.filterSubPartitionTableTableMap();
+
+			Assertions.assertNotNull(result);
+			Assertions.assertEquals(2, result.size());
+
 		}
 	}
 }
