@@ -45,9 +45,11 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
+import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.metric.collector.SyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -1537,4 +1539,79 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(queueExecutorEx,times(1)).shutdownNow();
 		}
 	}
+
+	@Test
+	public void testInitSyncPartitionTableEnable() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		node.setId("nodeId");
+		node.setName("name");
+		((DatabaseNode)node).setSyncTargetPartitionTableEnable(Boolean.TRUE);
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastTargetPdkBaseNode targetBaseNode = new HazelcastTargetPdkBaseNode(context) {
+			@Override
+			void processEvents(List<TapEvent> tapEvents) {
+
+			}
+		};
+
+		targetBaseNode.initSyncPartitionTableEnable();
+
+		Assertions.assertTrue(targetBaseNode.syncTargetPartitionTableEnable);
+	}
+
+	@Test
+	public void testCreatePartitionTable() {
+
+		DataProcessorContext context = mock(DataProcessorContext.class);
+
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		node.setId("nodeId");
+		node.setName("name");
+		((DatabaseNode)node).setSyncTargetPartitionTableEnable(Boolean.TRUE);
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastTargetPdkBaseNode targetBaseNode = new HazelcastTargetPdkBaseNode(context) {
+			@Override
+			void processEvents(List<TapEvent> tapEvents) {
+
+			}
+		};
+
+		HazelcastTargetPdkBaseNode spyTargetBaseNode = spy(targetBaseNode);
+		doAnswer(answer -> {
+			Runnable runnable = answer.getArgument(2);
+			runnable.run();
+			return null;
+		}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+		when(spyTargetBaseNode.getConnectorNode()).thenReturn(connectorNode);
+
+		TapTable tapTable = new TapTable();
+		TapCreateTableEvent createTableEvent = new TapCreateTableEvent();
+		createTableEvent.setTableId("test");
+		boolean result = spyTargetBaseNode.createPartitionTable((TapConnectorContext ctx, TapCreateTableEvent event) -> {
+			return null;
+		}, new AtomicBoolean(true), tapTable, true, new AtomicReference<>(createTableEvent));
+
+		Assertions.assertTrue(result);
+	}
+
 }
