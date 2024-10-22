@@ -779,7 +779,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			after.put("testTime",tapTimeValue);
 			hazelcastTargetPdkBaseNode.replaceIllegalDate(after);
 		}
-		@DisplayName("test replace DateTime value")
+		@DisplayName("test replace TapDateTimeValue")
 		@Test
 		void test4(){
 			TapDateTimeValue tapDateTimeValue = new TapDateTimeValue();
