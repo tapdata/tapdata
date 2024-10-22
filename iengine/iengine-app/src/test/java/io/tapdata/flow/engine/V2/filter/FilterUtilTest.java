@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.filter;
 
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -8,7 +9,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class FilterUtilTest {
 
@@ -148,5 +149,20 @@ public class FilterUtilTest {
         assertEquals(2, finalData.size());
         assertEquals("张三", finalData.get("name"));
         assertEquals(18, finalData.get("age"));
+    }
+
+    @Test
+    public void testProcessTableFieldsOfNoPrimaryKeyHash() {
+        String expectedHash = "hash";
+        String expectedName = "张三";
+        Map<String, Object> data = new HashMap<>();
+        data.put(NoPrimaryKeyVirtualField.FIELD_NAME, expectedHash);
+        data.put("name", expectedName);
+        Set<String> fieldNames = new HashSet<>();
+        fieldNames.add("name");
+        Map<String, Object> finalData = FilterUtil.processTableFields(data, fieldNames);
+        assertNotNull(finalData);
+        assertEquals(expectedHash, finalData.get(NoPrimaryKeyVirtualField.FIELD_NAME));
+        assertEquals(expectedName, finalData.get("name"));
     }
 }

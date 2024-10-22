@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.filter;
 
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -16,7 +17,7 @@ public class FilterUtil {
     public static Map<String, Object> processTableFields(Map<String, Object> data, Set<String> fieldNames) {
         if (null == fieldNames || fieldNames.isEmpty()) return data;
         if (null == data) return null;
-        data.entrySet().removeIf(entry -> !fieldNames.contains(entry.getKey()));
+        data.entrySet().removeIf(entry -> !NoPrimaryKeyVirtualField.FIELD_NAME.equalsIgnoreCase(entry.getKey()) && !fieldNames.contains(entry.getKey()));
         return data;
     }
 
