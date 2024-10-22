@@ -19,7 +19,9 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -41,6 +43,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
@@ -2076,84 +2079,41 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
-//	@Nested
-//	class CheckIsMasterPartitionTableTest {
-//		TapTable table;
-//		TapPartition partition;
-//
-//		@BeforeEach
-//		void init() {
-//			table = mock(TapTable.class);
-//			partition = mock(TapPartition.class);
-//		}
-//
-//		@Test
-//		void testNormal() {
-//			when(table.getPartitionInfo()).thenReturn(partition);
-//			when(table.getPartitionMasterTableId()).thenReturn("id");
-//			when(table.getId()).thenReturn("id");
-//		}
-//
-//		@Test
-//		void testEmptyPartition() {
-//			when(table.getPartitionInfo()).thenReturn(null);
-//			when(table.getPartitionMasterTableId()).thenReturn("id");
-//			when(table.getId()).thenReturn("id");
-//		}
-//		@Test
-//		void testEmptyMasterId() {
-//			when(table.getPartitionInfo()).thenReturn(partition);
-//			when(table.getPartitionMasterTableId()).thenReturn(null);
-//			when(table.getId()).thenReturn("id");
-//		}
-//		@Test
-//		void testNotEqualMasterIdAndTableId() {
-//			when(table.getPartitionInfo()).thenReturn(partition);
-//			when(table.getPartitionMasterTableId()).thenReturn("master");
-//			when(table.getId()).thenReturn("id");
-//		}
-//	}
-//
-//	@Nested
-//	class CheckIsSubPartitionTableTest {
-//		TapTable table;
-//		TapPartition partition;
-//
-//		@BeforeEach
-//		void init() {
-//			table = mock(TapTable.class);
-//			partition = mock(TapPartition.class);
-//			when(mockHazelcastBaseNode.checkIsSubPartitionTable(table)).thenCallRealMethod();
-//		}
-//
-//		@Test
-//		void testNormal() {
-//			when(table.getPartitionInfo()).thenReturn(partition);
-//			when(table.getPartitionMasterTableId()).thenReturn("id");
-//			when(table.getId()).thenReturn("sub-id");
-//			Assertions.assertTrue(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
-//		}
-//
-//		@Test
-//		void testEmptyPartition() {
-//			when(table.getPartitionInfo()).thenReturn(null);
-//			when(table.getPartitionMasterTableId()).thenReturn("id");
-//			when(table.getId()).thenReturn("id");
-//			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
-//		}
-//		@Test
-//		void testEmptyMasterId() {
-//			when(table.getPartitionInfo()).thenReturn(partition);
-//			when(table.getPartitionMasterTableId()).thenReturn(null);
-//			when(table.getId()).thenReturn("id");
-//			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
-//		}
-//		@Test
-//		void testNotEqualMasterIdAndTableId() {
-//			when(table.getPartitionInfo()).thenReturn(partition);
-//			when(table.getPartitionMasterTableId()).thenReturn("master");
-//			when(table.getId()).thenReturn("master");
-//			Assertions.assertFalse(mockHazelcastBaseNode.checkIsSubPartitionTable(table));
-//		}
-//	}
+	@Test
+	void testUpdateTapTableWhenCreateTableEvent() {
+
+		ProcessorBaseContext context = ProcessorBaseContext.newBuilder().build();
+		HazelcastBaseNode baseNode = new HazelcastBaseNode(context) {};
+		ReflectionTestUtils.setField(baseNode, "obsLogger", mock(ObsLogger.class));
+
+		TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+		TapCreateTableEvent tapEvent = new TapCreateTableEvent();
+		Map<String, Object> info = new HashMap<>();
+		List<MetadataInstancesDto> metadata = new ArrayList<>();
+		info.put("INSERT_METADATA", metadata);
+		tapEvent.setInfo(info);
+		tapEvent.setTableId("test_1");
+		tapEvent.setPartitionMasterTableId("test");
+		tapEvent.setTable(new TapTable());
+		tapEvent.getTable().setId("test_1");
+		tapEvent.getTable().setPartitionMasterTableId("test");
+		tapEvent.getTable().setPartitionInfo(new TapPartition());
+
+		HazelcastBaseNode spyBaseNode = spy(baseNode);
+		DatabaseNode node = new DatabaseNode();
+		node.setSyncTargetPartitionTableEnable(false);
+
+		when(spyBaseNode.getNode()).thenReturn((Node) node);
+
+		DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+		MetadataInstancesDto meta = new MetadataInstancesDto();
+		when(dagDataService.getSchemaByNodeAndTableName(anyString(), anyString())).thenReturn(meta);
+		when(dagDataService.getTaskById(anyString())).thenReturn(taskDto);
+
+		Assertions.assertDoesNotThrow(() -> {
+			ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+		});
+
+
+	}
 }
