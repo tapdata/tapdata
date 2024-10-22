@@ -37,8 +37,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.error.TapdataEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
@@ -826,6 +825,52 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			connections.setCapabilities(capabilities);
 			hazelcastTargetPdkBaseNode.initIllegalDateAcceptable();
 			assertFalse(hazelcastTargetPdkBaseNode.illegalDateAcceptable);
+		}
+	}
+	@Nested
+	class replaceIllegalDateTest{
+		private HashMap<String,Object> after;
+		@BeforeEach
+		void init() {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDate(anyMap());
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateTime2Null(any(), any());
+			after=new HashMap<>();
+		}
+		@DisplayName("test replace tapDateValue")
+		@Test
+		void test1() {
+			TapDateValue tapDateValue = new TapDateValue();
+			DateTime dateTime = new DateTime("0000-00-00", DateTime.DATE_TYPE);
+			tapDateValue.setValue(dateTime);
+			after.put("testDate",tapDateValue);
+			hazelcastTargetPdkBaseNode.replaceIllegalDate(after);
+		}
+		@DisplayName("test replace tapYearValue")
+		@Test
+		void test2(){
+			TapYearValue tapYearValue = new TapYearValue();
+			DateTime dateTime = new DateTime("0000",DateTime.YEAR_TYPE);
+			tapYearValue.setValue(dateTime);
+			after.put("testYear",tapYearValue);
+			hazelcastTargetPdkBaseNode.replaceIllegalDate(after);
+		}
+		@DisplayName("test replace tapTimeValue")
+		@Test
+		void test3(){
+			TapTimeValue tapTimeValue = new TapTimeValue();
+			DateTime dateTime = new DateTime("00:00:00",DateTime.TIME_TYPE);
+			tapTimeValue.setValue(dateTime);
+			after.put("testTime",tapTimeValue);
+			hazelcastTargetPdkBaseNode.replaceIllegalDate(after);
+		}
+		@DisplayName("test replace TapDateTimeValue")
+		@Test
+		void test4(){
+			TapDateTimeValue tapDateTimeValue = new TapDateTimeValue();
+			DateTime dateTime = new DateTime("0000-00-00 00:00:00",DateTime.DATETIME_TYPE);
+			tapDateTimeValue.setValue(dateTime);
+			after.put("testDateTimeValue",tapDateTimeValue);
+			hazelcastTargetPdkBaseNode.replaceIllegalDate(after);
 		}
 	}
 
