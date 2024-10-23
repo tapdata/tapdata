@@ -26,12 +26,14 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
+import com.tapdata.tm.commons.exception.NoPrimaryKeyException;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
@@ -183,6 +185,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor;
 	private int drainSize;
 	private int toTapValueBatchSize;
+    protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -231,6 +234,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				throw new NodeException(e).context(getProcessorBaseContext());
 			}
+            dataProcessorContext.getTapTableMap().forEach((id, table) -> noPrimaryKeyVirtualField.add(table));
 			initSourceReadBatchSize();
 			initSourceEventQueue();
 			initSyncProgress();
@@ -908,6 +912,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 
 					tapdataEvents.add(tapdataEvent);
+                    noPrimaryKeyVirtualField.add(addTapTable);
 				}
 				if (!isRunning()) {
 					return true;
@@ -1058,20 +1063,32 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		tapdataEvent.setTapEvent(tapEvent);
 		tapdataEvent.setSyncStage(syncStage);
 		if (tapEvent instanceof TapRecordEvent) {
+            TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-					tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, ((TapRecordEvent) tapEvent).getTableId()));
+					tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, recordEvent.getTableId()));
 					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				tapdataEvent.setStreamOffset(offsetObj);
-				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
+				if (null == recordEvent.getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
-				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
+				tapdataEvent.setSourceTime(recordEvent.getReferenceTime());
 			}
-		} else if (tapEvent instanceof HeartbeatEvent) {
+            try {
+                if (!noPrimaryKeyVirtualField.addHashValue(recordEvent)) return null;
+            } catch (NoPrimaryKeyException e) {
+                if (NoPrimaryKeyException.CODE_INCOMPLETE_FIELDS == e.getCode()) {
+                    obsLogger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
+                    logger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
+                } else {
+                    obsLogger.warn("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
+                    logger.error("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
+                }
+            }
+        } else if (tapEvent instanceof HeartbeatEvent) {
 			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			obsLogger.info("Source node received an ddl event: " + tapEvent);
