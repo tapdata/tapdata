@@ -20,8 +20,11 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -86,12 +89,7 @@ import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -2079,41 +2077,85 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 
-	@Test
-	void testUpdateTapTableWhenCreateTableEvent() {
+	@Nested
+	class testUpdateTableWhenCreateTable{
+		private ProcessorBaseContext context;
+		private HazelcastBaseNode baseNode;
 
-		ProcessorBaseContext context = ProcessorBaseContext.newBuilder().build();
-		HazelcastBaseNode baseNode = new HazelcastBaseNode(context) {};
-		ReflectionTestUtils.setField(baseNode, "obsLogger", mock(ObsLogger.class));
+		@BeforeEach
+		void before() {
+			context = ProcessorBaseContext.newBuilder().build();
+			baseNode = new HazelcastBaseNode(context) {};
+			ReflectionTestUtils.setField(baseNode, "obsLogger", mock(ObsLogger.class));
+		}
+		@Test
+		void testUpdateTapTableWhenCreateTableEvent() {
 
-		TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
-		TapCreateTableEvent tapEvent = new TapCreateTableEvent();
-		Map<String, Object> info = new HashMap<>();
-		List<MetadataInstancesDto> metadata = new ArrayList<>();
-		info.put("INSERT_METADATA", metadata);
-		tapEvent.setInfo(info);
-		tapEvent.setTableId("test_1");
-		tapEvent.setPartitionMasterTableId("test");
-		tapEvent.setTable(new TapTable());
-		tapEvent.getTable().setId("test_1");
-		tapEvent.getTable().setPartitionMasterTableId("test");
-		tapEvent.getTable().setPartitionInfo(new TapPartition());
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+			TapCreateTableEvent tapEvent = new TapCreateTableEvent();
+			Map<String, Object> info = new HashMap<>();
+			List<MetadataInstancesDto> metadata = new ArrayList<>();
+			info.put("INSERT_METADATA", metadata);
+			tapEvent.setInfo(info);
+			tapEvent.setTableId("test_1");
+			tapEvent.setPartitionMasterTableId("test");
+			tapEvent.setTable(new TapTable());
+			tapEvent.getTable().setId("test_1");
+			tapEvent.getTable().setPartitionMasterTableId("test");
+			tapEvent.getTable().setPartitionInfo(new TapPartition());
 
-		HazelcastBaseNode spyBaseNode = spy(baseNode);
-		DatabaseNode node = new DatabaseNode();
-		node.setSyncTargetPartitionTableEnable(false);
+			HazelcastBaseNode spyBaseNode = spy(baseNode);
+			DatabaseNode node = new DatabaseNode();
+			node.setSyncTargetPartitionTableEnable(false);
 
-		when(spyBaseNode.getNode()).thenReturn((Node) node);
+			when(spyBaseNode.getNode()).thenReturn((Node) node);
 
-		DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
-		MetadataInstancesDto meta = new MetadataInstancesDto();
-		when(dagDataService.getSchemaByNodeAndTableName(anyString(), anyString())).thenReturn(meta);
-		when(dagDataService.getTaskById(anyString())).thenReturn(taskDto);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setQualifiedName("test_node_id");
+			when(dagDataService.getSchemaByNodeAndTableName(any(), any())).thenReturn(meta);
+			when(dagDataService.getTaskById(anyString())).thenReturn(taskDto);
+			when(dagDataService.getTapTable(any())).thenReturn(new TapTable());
 
-		Assertions.assertDoesNotThrow(() -> {
-			ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
-		});
+			Assertions.assertDoesNotThrow(() -> {
+				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+			});
 
+			node.setSyncTargetPartitionTableEnable(true);
+			Assertions.assertDoesNotThrow(() -> {
+				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+			});
 
+		}
+
+		@Test
+		void testMigrateProcessorNode() {
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+			TapCreateTableEvent tapEvent = new TapCreateTableEvent();
+			Map<String, Object> info = new HashMap<>();
+			List<MetadataInstancesDto> metadata = new ArrayList<>();
+			info.put("INSERT_METADATA", metadata);
+			tapEvent.setInfo(info);
+			tapEvent.setTableId("test_1");
+			tapEvent.setPartitionMasterTableId("test");
+			tapEvent.setTable(new TapTable());
+			tapEvent.getTable().setId("test_1");
+			tapEvent.getTable().setPartitionMasterTableId("test");
+			tapEvent.getTable().setPartitionInfo(new TapPartition());
+
+			HazelcastBaseNode spyBaseNode = spy(baseNode);
+			MigrateProcessorNode node = new MigrateJsProcessorNode();
+
+			when(spyBaseNode.getNode()).thenReturn((Node) node);
+
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			when(dagDataService.getSchemaByNodeAndTableName(anyString(), anyString())).thenReturn(meta);
+			when(dagDataService.getTaskById(anyString())).thenReturn(taskDto);
+
+			Assertions.assertDoesNotThrow(() -> {
+				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+			});
+		}
 	}
 }
