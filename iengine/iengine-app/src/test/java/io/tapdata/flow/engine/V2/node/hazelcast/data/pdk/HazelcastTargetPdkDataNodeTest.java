@@ -993,12 +993,24 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		createEvent.setTableId("test");
 		createEvent.setTable(new TapTable());
 		events.add(createEvent);
+		createEvent = new TapCreateTableEvent();
+		createEvent.setTableId("test1");
+		TapTable partitionTable = new TapTable();
+		partitionTable.setId("test_2");
+		partitionTable.setName("test_2");
+		partitionTable.setPartitionMasterTableId("test");
+		partitionTable.setPartitionInfo(new TapPartition());
+		createEvent.setTable(partitionTable);
+		events.add(createEvent);
 		TapDropTableEvent dropEvent = new TapDropTableEvent();
 		dropEvent.setTableId("test_1");
 		events.add(dropEvent);
 
 		targetPdkDataNode.writeDDL(events);
 
-		verify(ddlEventHandlers,times(2)).handle(any());
+		targetPdkDataNode.syncTargetPartitionTableEnable = false;
+		targetPdkDataNode.writeDDL(events);
+
+		verify(ddlEventHandlers,times(5)).handle(any());
 	}
 }
