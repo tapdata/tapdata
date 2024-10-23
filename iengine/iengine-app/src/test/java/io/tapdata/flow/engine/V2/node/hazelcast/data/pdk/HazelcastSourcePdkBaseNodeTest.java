@@ -1664,6 +1664,41 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(connectorContext.getTableMap()).thenReturn(tableMap);
 			Assertions.assertTrue(spySourceBaseNode.checkSubPartitionTableHasBeCreated(table));
 		}
+
+
+		@Test
+		void testSubPartitionTable2() {
+			TapTable table = new TapTable();
+			table.setId("test_1");
+			table.setPartitionMasterTableId("test");
+			table.setPartitionInfo(new TapPartition());
+
+			HazelcastSourcePdkBaseNode spySourceBaseNode = spy(sourceBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			when(spySourceBaseNode.getConnectorNode()).thenReturn(connectorNode);
+
+			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+				@Override
+				public TapTable get(String key) {
+					TapTable tapTable = new TapTable();
+					tapTable.setPartitionInfo(new TapPartition());
+					List<TapSubPartitionTableInfo> subPartitionTableList = new ArrayList<>();
+
+					TapSubPartitionTableInfo subPartitionTable = new TapSubPartitionTableInfo();
+					subPartitionTable.setTableName("test_1");
+					subPartitionTableList.add(subPartitionTable);
+
+					tapTable.getPartitionInfo().setSubPartitionTableInfo(subPartitionTableList);
+					return tapTable;
+				}
+			};
+
+			when(connectorContext.getTableMap()).thenReturn(tableMap);
+			Assertions.assertTrue(spySourceBaseNode.checkSubPartitionTableHasBeCreated(table));
+		}
 	}
 
 	@Nested
