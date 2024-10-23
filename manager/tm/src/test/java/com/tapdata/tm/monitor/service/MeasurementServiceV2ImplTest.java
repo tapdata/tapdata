@@ -529,5 +529,92 @@ class MeasurementServiceV2ImplTest {
 
             assertEquals(5, result.getTotal());
         }
+
+        @Test
+        void testQuerySyncStatic_Sync() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId("615c9f48f1d842b8b78bf9c8"));
+            taskDto.setDag(mock(DAG.class));
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+            when(mongoTemplate.count(any(Query.class), eq(MeasurementEntity.COLLECTION_NAME))).thenReturn(5L);
+            MeasurementEntity measurementEntity = new MeasurementEntity();
+            Map<String, String> tags = new HashMap<>();
+            tags.put("table","table1");
+            measurementEntity.setTags(tags);
+            List<Sample> samples = new ArrayList<>();
+            Sample sample = mock(Sample.class);
+            samples.add(sample);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotSyncRate", 0.5);
+            vs.put("snapshotRowTotal", 1);
+            vs.put("snapshotInsertRowTotal", 1);
+            when(sample.getVs()).thenReturn(vs);
+            measurementEntity.setSamples(samples);
+            when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(Collections.singletonList(measurementEntity));
+
+            doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
+            Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
+
+            assertEquals(5, result.getTotal());
+        }
+        @Test
+        void testQuerySyncStatic() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId("615c9f48f1d842b8b78bf9c8"));
+            taskDto.setDag(mock(DAG.class));
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+            when(mongoTemplate.count(any(Query.class), eq(MeasurementEntity.COLLECTION_NAME))).thenReturn(5L);
+            MeasurementEntity measurementEntity = new MeasurementEntity();
+            Map<String, String> tags = new HashMap<>();
+            tags.put("table","table1");
+            measurementEntity.setTags(tags);
+            List<Sample> samples = new ArrayList<>();
+            Sample sample = mock(Sample.class);
+            samples.add(sample);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotRowTotal", 0);
+            vs.put("snapshotInsertRowTotal", 1);
+            when(sample.getVs()).thenReturn(vs);
+            measurementEntity.setSamples(samples);
+            when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(Collections.singletonList(measurementEntity));
+
+            doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
+            Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
+
+            assertEquals(5, result.getTotal());
+        }
+        @Test
+        void testQuerySyncStatic_snapshotRowTotal() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId("615c9f48f1d842b8b78bf9c8"));
+            taskDto.setDag(mock(DAG.class));
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+            when(mongoTemplate.count(any(Query.class), eq(MeasurementEntity.COLLECTION_NAME))).thenReturn(5L);
+            MeasurementEntity measurementEntity = new MeasurementEntity();
+            Map<String, String> tags = new HashMap<>();
+            tags.put("table","table1");
+            measurementEntity.setTags(tags);
+            List<Sample> samples = new ArrayList<>();
+            Sample sample = mock(Sample.class);
+            samples.add(sample);
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotRowTotal", -1);
+            vs.put("snapshotInsertRowTotal", 0);
+            when(sample.getVs()).thenReturn(vs);
+            measurementEntity.setSamples(samples);
+            when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(Collections.singletonList(measurementEntity));
+
+            doCallRealMethod().when(measurementServiceV2).querySyncStatic(any(),any());
+            Page<TableSyncStaticVo> result = measurementServiceV2.querySyncStatic(tableSyncStaticDto,mock(UserDetail.class));
+
+            assertEquals(5, result.getTotal());
+        }
     }
+
 }
