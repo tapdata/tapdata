@@ -1272,7 +1272,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (dataProcessorContext.getTapTableMap().keySet().size() > ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD) {
 			asyncCountTable(batchCountFunction, tableList);
 		} else {
-			doCountSynchronously(batchCountFunction, tableList);
+			doCountSynchronously(batchCountFunction, tableList, false);
 		}
 	}
 
@@ -1286,7 +1286,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@SneakyThrows
-	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
+	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList, boolean displayTableListFirst) {
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
 			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
@@ -1306,13 +1306,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							createPdkMethodInvoker().runnable(
 									() -> {
 										try {
-											long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
-
-											if (null == snapshotRowSizeMap) {
-												snapshotRowSizeMap = new HashMap<>();
+											long count;
+											if (displayTableListFirst) {
+												count = -1;
+											} else {
+												count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+												if (null == snapshotRowSizeMap) {
+													snapshotRowSizeMap = new HashMap<>();
+												}
+												snapshotRowSizeMap.putIfAbsent(tableName, count);
 											}
-											snapshotRowSizeMap.putIfAbsent(tableName, count);
-
 											if (null != tableCountFuncAspect) {
 												AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
 											}
@@ -1328,37 +1331,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@SneakyThrows
 	protected void doTableNameSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
-		if (null == batchCountFunction) {
-			setDefaultRowSizeMap();
-			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
-			return;
-		}
-
-		for (String tableName : tableList) {
-			if (!isRunning()) {
-				return;
-			}
-
-			TapTable table = dataProcessorContext.getTapTableMap().get(tableName);
-			executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
-							.dataProcessorContext(this.getDataProcessorContext())
-							.start(),
-					tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
-							createPdkMethodInvoker().runnable(
-									() -> {
-										try {
-											long count = -1;
-											if (null != tableCountFuncAspect) {
-												AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
-											}
-										} catch (Exception e) {
-											throw new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
-													.context(getProcessorBaseContext());
-										}
-									}
-							)
-					));
-		}
+		doCountSynchronously(batchCountFunction, tableList, true);
 		asyncCountTable(batchCountFunction, tableList);
 	}
 
@@ -1372,7 +1345,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
 					Thread.currentThread().setName(name);
 
-					doCountSynchronously(batchCountFunction, tableList);
+					doCountSynchronously(batchCountFunction, tableList, false);
 				}, snapshotRowSizeThreadPool)
 				.whenComplete((v, e) -> {
 					if (null != e) {

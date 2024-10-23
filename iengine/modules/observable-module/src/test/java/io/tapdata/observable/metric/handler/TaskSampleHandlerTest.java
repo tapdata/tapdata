@@ -1,9 +1,19 @@
 package io.tapdata.observable.metric.handler;
 
+import io.tapdata.common.sample.sampler.CounterSampler;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
 
 public class TaskSampleHandlerTest {
 
@@ -36,5 +46,18 @@ public class TaskSampleHandlerTest {
         }
         Assert.assertNotNull(v);
         Assert.assertEquals(value, v);
+    }
+    @Test
+    void handleTableCountAcceptTest() {
+        TaskSampleHandler handler = mock(TaskSampleHandler.class);
+        Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+        ReflectionTestUtils.setField(handler, "currentSnapshotTableRowTotalMap", currentSnapshotTableRowTotalMap);
+        CounterSampler snapshotRowTotal = mock(CounterSampler.class);
+        ReflectionTestUtils.setField(handler, "snapshotRowTotal", snapshotRowTotal);
+        String table = "table1";
+        doCallRealMethod().when(handler).handleTableCountAccept(anyString(), anyLong());
+        handler.handleTableCountAccept(table, -1L);
+        handler.handleTableCountAccept(table, 10L);
+        assertEquals(10L, currentSnapshotTableRowTotalMap.get(table));
     }
 }

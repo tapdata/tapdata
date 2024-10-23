@@ -10,7 +10,6 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
-import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -1425,15 +1424,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
-		void testDoTableNameSynchronously_BatchCountFunctionIsNull() {
-			doCallRealMethod().when(mockInstance).doTableNameSynchronously(null, tableList);
-			mockInstance.doTableNameSynchronously(null, tableList);
-			verify(mockInstance, times(1)).setDefaultRowSizeMap();
-
-			verifyNoMoreInteractions(batchCountFunction);
-		}
-
-		@Test
 		void testDoTableNameSynchronously_IsRunningFalse() {
 			when(mockInstance.isRunning()).thenReturn(false);
 			doCallRealMethod().when(mockInstance).doTableNameSynchronously(batchCountFunction, tableList);
@@ -1491,7 +1481,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		@Test
 		void testAsyncCountTable_Success() throws InterruptedException {
-			doNothing().when(mockInstance).doCountSynchronously(batchCountFunction, tableList);
+			doNothing().when(mockInstance).doCountSynchronously(batchCountFunction, tableList, false);
 			doNothing().when(snapshotRowSizeThreadPool).shutdown();
 
 			mockInstance.asyncCountTable(batchCountFunction, tableList);
@@ -1500,13 +1490,13 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			Thread.sleep(100); // Wait for async execution
 
-			verify(mockInstance).doCountSynchronously(batchCountFunction, tableList);
+			verify(mockInstance).doCountSynchronously(batchCountFunction, tableList, false);
 			verify(obsLogger).info(contains("Query snapshot row size completed"));
 		}
 
 		@Test
 		void testAsyncCountTable_ExceptionHandling() throws InterruptedException {
-			doThrow(new RuntimeException("Count error")).when(mockInstance).doCountSynchronously(any(), any());
+			doThrow(new RuntimeException("Count error")).when(mockInstance).doCountSynchronously(any(), any(), eq(false));
 			mockInstance.asyncCountTable(batchCountFunction, tableList);
 			Thread.sleep(100);
 			verify(obsLogger).warn(contains("Query snapshot row size failed"));
