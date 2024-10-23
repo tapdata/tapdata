@@ -55,14 +55,18 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
+import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.common.vo.TapPartitionResult;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
@@ -84,6 +88,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -111,22 +116,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -2368,6 +2358,106 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				boolean result = sourcePdkBaseNode.handleNewTables(tables);
 			}
 
+		}
+	}
+
+	@Nested
+	class testInitTableMonitor {
+
+		private DataProcessorContext context;
+		private HazelcastSourcePdkBaseNode sourcePdkBaseNode;
+		private MonitorManager monitorManager;
+
+		@BeforeEach
+		void beforeEach() {
+			context = mock(DataProcessorContext.class);
+			taskDto = new TaskDto();
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setNeedFilterEventData(Boolean.TRUE);
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			DatabaseNode node = new DatabaseNode();
+			node.setCatalog(Node.NodeCatalog.data);
+			when(context.getNode()).thenReturn((Node)node);
+
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+			when(context.getTapTableMap()).thenReturn(tableMap);
+
+			sourcePdkBaseNode = new HazelcastSourcePdkBaseNode(context) {
+				@Override
+				void startSourceRunner() {
+
+				}
+			};
+
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "obsLogger", obsLogger);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "associateId", "nodeId");
+
+			monitorManager = mock(MonitorManager.class);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "monitorManager", monitorManager);
+
+		}
+
+		@Test
+		void testInitTableMonitor() {
+
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNode = spy(sourcePdkBaseNode);
+			doReturn(true).when(spySourcePdkBaseNode).needDynamicTable();
+
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn("nodeId").when(connectorNode).getAssociateId();
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			doReturn(connectorFunctions).when(connectorNode).getConnectorFunctions();
+			GetTableNamesFunction tableNamesFunction = mock(GetTableNamesFunction.class);
+			doReturn(tableNamesFunction).when(connectorFunctions).getGetTableNamesFunction();
+			ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
+
+			Assertions.assertDoesNotThrow(() -> {
+
+				try(MockedStatic<ObsLoggerFactory> mockLogFactory = mockStatic(ObsLoggerFactory.class)) {
+
+					ObsLoggerFactory logFactory = mock(ObsLoggerFactory.class);
+					ObsLogger obsLogger = mock(ObsLogger.class);
+					when(logFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+					mockLogFactory.when(ObsLoggerFactory::getInstance).thenReturn(logFactory);
+
+					spySourcePdkBaseNode.initTableMonitor();
+					verify(monitorManager, times(1)).startMonitor(any());
+
+				}
+			});
+		}
+
+		@Test
+		void testInitPartitionTableMonitor() {
+
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNode = spy(sourcePdkBaseNode);
+			doReturn(false).when(spySourcePdkBaseNode).needDynamicTable();
+			doReturn(true).when(spySourcePdkBaseNode).needDynamicPartitionTable();
+
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			doReturn("nodeId").when(connectorNode).getAssociateId();
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			doReturn(connectorFunctions).when(connectorNode).getConnectorFunctions();
+			GetTableNamesFunction tableNamesFunction = mock(GetTableNamesFunction.class);
+			doReturn(tableNamesFunction).when(connectorFunctions).getGetTableNamesFunction();
+			ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
+
+			Assertions.assertDoesNotThrow(() -> {
+
+				try(MockedStatic<ObsLoggerFactory> mockLogFactory = mockStatic(ObsLoggerFactory.class)) {
+
+					ObsLoggerFactory logFactory = mock(ObsLoggerFactory.class);
+					ObsLogger obsLogger = mock(ObsLogger.class);
+					when(logFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
+					mockLogFactory.when(ObsLoggerFactory::getInstance).thenReturn(logFactory);
+
+					spySourcePdkBaseNode.initTableMonitor();
+					verify(monitorManager, times(1)).startMonitor(any());
+
+				}
+			});
 		}
 	}
 

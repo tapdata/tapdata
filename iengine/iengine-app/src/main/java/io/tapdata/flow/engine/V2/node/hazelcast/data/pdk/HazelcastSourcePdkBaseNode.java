@@ -482,7 +482,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void initTableMonitor() throws Exception {
+	protected void initTableMonitor() throws Exception {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			boolean needDynamicTable = false;
@@ -513,7 +513,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	//@todo 只是判断开没开新增表，需要调整，是否验证表名称符合正则表达式需要另写方法
-	private boolean needDynamicTable() {
+	protected boolean needDynamicTable() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
 			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
