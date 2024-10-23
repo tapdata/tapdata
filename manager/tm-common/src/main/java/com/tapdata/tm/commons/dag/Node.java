@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -248,6 +249,7 @@ public abstract class Node<S> extends Element{
         }
 
         if (this.outputSchema != null) {
+            NoPrimaryKeyVirtualField.addVirtualField(outputSchema, this);
             S changedSchema = outputSchema;//filterChangedSchema(this.outputSchema, options);  // 过滤出修改过的模型
             if (changedSchema != null) {
                 String taskId = service.getTaskId().toHexString();

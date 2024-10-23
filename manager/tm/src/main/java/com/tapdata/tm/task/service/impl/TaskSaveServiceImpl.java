@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskSaveService;
@@ -149,6 +150,11 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                                     .collect(Collectors.toList());
                                             if (CollectionUtils.isNotEmpty(columnList)) {
                                                 databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
+                                            } else {
+                                                columnList = NoPrimaryKeyVirtualField.getVirtualHashFieldNames(schema);
+                                                if (CollectionUtils.isNotEmpty(columnList)) {
+                                                    databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
+                                                }
                                             }
                                         }
                                     });

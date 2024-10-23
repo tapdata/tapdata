@@ -95,10 +95,6 @@ public class PkdSourceServiceTest {
             }).when(result).forEach(any());
             pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
             verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());
-
-            /*pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
-            verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());*/
-
         }
     }
     @Nested
@@ -127,6 +123,22 @@ public class PkdSourceServiceTest {
             when(gridFSFile.getMetadata()).thenReturn(document);
             when(fileService.findOne(query)).thenReturn(gridFSFile);
             String actual = pkdSourceService.checkJarMD5("111", "a.jar");
+            assertEquals("123456",actual);
+        }
+        @Test
+        void testCheckJarMD5WithFileName(){
+            String fileName = "a.jar";
+            Criteria criteria = Criteria.where("metadata.pdkHash").is("111");
+            Query query = new Query(criteria);
+            criteria.and("metadata.pdkAPIBuildNumber").lte(14);
+            criteria.and("filename").is(fileName);
+            query.with(Sort.by("metadata.pdkAPIBuildNumber").descending().and(Sort.by("uploadDate").descending()));
+            GridFSFile gridFSFile = mock(GridFSFile.class);
+            Document document = new Document();
+            document.append("md5","123456");
+            when(gridFSFile.getMetadata()).thenReturn(document);
+            when(fileService.findOne(query)).thenReturn(gridFSFile);
+            String actual = pkdSourceService.checkJarMD5("111", 14, fileName);
             assertEquals("123456",actual);
         }
     }

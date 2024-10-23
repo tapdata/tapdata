@@ -228,7 +228,12 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 	protected void buildLogListener(){
-		processorBaseContext.getTapTableMap().logListener(new TapLogger.LogListener() {
+		processorBaseContext.getTapTableMap().logListener(logListener());
+	}
+
+	@NotNull
+	protected TapLogger.LogListener logListener() {
+		return new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
 				obsLogger.debug(log);
@@ -252,7 +257,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			@Override
 			public void memory(String memoryLog) {
 			}
-		});
+		};
 	}
 
 	protected MonitorManager initMonitor() {
