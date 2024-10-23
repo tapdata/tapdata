@@ -3,10 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import base.ex.TestException;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
-import com.tapdata.constant.ConnectorContext;
-import com.tapdata.constant.Graph;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
@@ -29,15 +26,13 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import com.tapdata.tm.commons.util.JsonUtil;
+import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
-import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -60,13 +55,11 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
-import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -75,6 +68,7 @@ import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
@@ -83,7 +77,6 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
-import org.apache.kafka.common.PartitionInfo;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
@@ -117,6 +110,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
@@ -2312,4 +2306,69 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertTrue(result);
 		}
 	}
+
+	@Nested
+	class testHandleNewTables {
+		private DataProcessorContext context;
+		private HazelcastSourcePdkBaseNode sourcePdkBaseNode;
+
+		@BeforeEach
+		void beforeEach() {
+			context = mock(DataProcessorContext.class);
+			taskDto = new TaskDto();
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setNeedFilterEventData(Boolean.TRUE);
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			sourcePdkBaseNode = new HazelcastSourcePdkBaseNode(context) {
+				@Override
+				void startSourceRunner() {
+
+				}
+			};
+
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "obsLogger", obsLogger);
+
+
+		}
+
+		@Test
+		void testEmptyNewTable() {
+			List<String> tables = Collections.emptyList();
+			boolean result = sourcePdkBaseNode.handleNewTables(tables);
+			Assertions.assertFalse(result);
+		}
+
+		@Test
+		void testNewPartitionTable() {
+
+			List<String> tables = Collections.singletonList("test");
+			AtomicReference<List<TapTable>> tapTables = new AtomicReference<>();
+			try(MockedStatic<LoadSchemaRunner> lsrMock = mockStatic(LoadSchemaRunner.class)) {
+				lsrMock.when(() -> LoadSchemaRunner.pdkDiscoverSchema(any(ConnectorNode.class), anyList(), any()))
+						.thenAnswer(answer -> {
+
+					Consumer<TapTable> consumer = answer.getArgument(2);
+
+							TapTable table = new TapTable();
+							table.setId("test");
+							table.setName("test");
+							table.setPartitionMasterTableId("test");
+							table.setPartitionInfo(new TapPartition());
+							consumer.accept(table);
+					/*tapTables.set(Stream.generate(() -> {
+
+						return table;
+					}).limit(1).collect(Collectors.toList()));*/
+
+					return null;
+				});
+				sourcePdkBaseNode.syncSourcePartitionTableEnable = false;
+				boolean result = sourcePdkBaseNode.handleNewTables(tables);
+			}
+
+		}
+	}
+
 }
