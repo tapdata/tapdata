@@ -380,7 +380,7 @@ public class LoggingAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case TableCountFuncAspect.STATE_START:
 				aspect.tableCountConsumer((table, cnt) -> {
-					tableCountMap.putIfAbsent(node.getId(), new HashMap<>());
+					tableCountMap.put(node.getId(), new HashMap<>());
 					tableCountMap.get(node.getId()).put(table, cnt);
 				});
 				break;

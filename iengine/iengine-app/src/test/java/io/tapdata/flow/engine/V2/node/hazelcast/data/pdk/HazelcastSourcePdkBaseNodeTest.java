@@ -61,6 +61,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
+import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
@@ -68,14 +69,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -1411,6 +1406,110 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(toTapValueRunner).shutdownNow();
 			verify(toTapValueConcurrentProcessor).close();
 			assertFalse(thread.isAlive());
+		}
+	}
+
+
+	@Nested
+	class doTableNameSynchronouslyTest{
+		private BatchCountFunction batchCountFunction;
+		private List<String> tableList;
+		@BeforeEach
+		void setUp() {
+			tableList = Arrays.asList("table1", "table2");
+			TapTableMap map = TapTableMap.create("nodeId");
+			map.putNew("table1", new TapTable("table1"), "qualifiedName1");
+			map.putNew("table2", new TapTable("table2"), "qualifiedName2");
+			when(dataProcessorContext.getTapTableMap()).thenReturn(map);
+			batchCountFunction = mock(BatchCountFunction.class);
+		}
+
+		@Test
+		void testDoTableNameSynchronously_BatchCountFunctionIsNull() {
+			doCallRealMethod().when(mockInstance).doTableNameSynchronously(null, tableList);
+			mockInstance.doTableNameSynchronously(null, tableList);
+			verify(mockInstance, times(1)).setDefaultRowSizeMap();
+
+			verifyNoMoreInteractions(batchCountFunction);
+		}
+
+		@Test
+		void testDoTableNameSynchronously_IsRunningFalse() {
+			when(mockInstance.isRunning()).thenReturn(false);
+			doCallRealMethod().when(mockInstance).doTableNameSynchronously(batchCountFunction, tableList);
+			mockInstance.doTableNameSynchronously(batchCountFunction, tableList);
+			verify(mockInstance, never()).executeDataFuncAspect(any(), any(), any());
+		}
+
+		@Test
+		void testDoTableNameSynchronously_NormalExecution() {
+			when(mockInstance.isRunning()).thenReturn(true);
+			try (MockedStatic<PDKInvocationMonitor> mb = Mockito
+					.mockStatic(PDKInvocationMonitor.class)) {
+				mb.when(()->PDKInvocationMonitor.invoke(any(),any(),any())).thenAnswer(invocationOnMock -> {
+					return null;
+				});
+				doCallRealMethod().when(mockInstance).doTableNameSynchronously(batchCountFunction, tableList);
+				mockInstance.doTableNameSynchronously(batchCountFunction, tableList);
+				verify(mockInstance, times(1)).asyncCountTable(batchCountFunction, tableList);
+			}
+		}
+	}
+
+	@Nested
+	class asyncCountTableTest{
+		private BatchCountFunction batchCountFunction;
+		protected ObsLogger obsLogger;
+		private List<String> tableList;
+		private TaskDto taskDto;
+		private Node node;
+		private ExecutorService snapshotRowSizeThreadPool;
+		private Logger logger = mock(Logger.class);
+		@BeforeEach
+		void setUp() {
+			batchCountFunction = mock(BatchCountFunction.class);
+			tableList = Arrays.asList("table1", "table2");
+
+			taskDto = mock(TaskDto.class);
+			node = mock(Node.class);
+
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			when(dataProcessorContext.getNode()).thenReturn(node);
+			when(taskDto.getName()).thenReturn("TestTask");
+			when(taskDto.getId()).thenReturn(new ObjectId("507f1f77bcf86cd799439011"));
+			when(node.getName()).thenReturn("TestNode");
+			when(node.getId()).thenReturn("12345");
+			snapshotRowSizeThreadPool = mock(ExecutorService.class);
+			ReflectionTestUtils.setField(mockInstance, "snapshotRowSizeThreadPool", snapshotRowSizeThreadPool);
+			obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(mockInstance, "obsLogger", obsLogger);
+			logger = mock(Logger.class);
+			ReflectionTestUtils.setField(mockInstance, "logger", logger);
+			doCallRealMethod().when(mockInstance).asyncCountTable(batchCountFunction, tableList);
+
+		}
+
+		@Test
+		void testAsyncCountTable_Success() throws InterruptedException {
+			doNothing().when(mockInstance).doCountSynchronously(batchCountFunction, tableList);
+			doNothing().when(snapshotRowSizeThreadPool).shutdown();
+
+			mockInstance.asyncCountTable(batchCountFunction, tableList);
+
+			verify(logger).info(contains("Start to asynchronously count the size of rows for the source table(s)"));
+
+			Thread.sleep(100); // Wait for async execution
+
+			verify(mockInstance).doCountSynchronously(batchCountFunction, tableList);
+			verify(obsLogger).info(contains("Query snapshot row size completed"));
+		}
+
+		@Test
+		void testAsyncCountTable_ExceptionHandling() throws InterruptedException {
+			doThrow(new RuntimeException("Count error")).when(mockInstance).doCountSynchronously(any(), any());
+			mockInstance.asyncCountTable(batchCountFunction, tableList);
+			Thread.sleep(100);
+			verify(obsLogger).warn(contains("Query snapshot row size failed"));
 		}
 	}
 }
