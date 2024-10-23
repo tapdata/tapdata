@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.schema.TapTable;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -116,6 +117,12 @@ public class DatabaseNodeTest {
         Assertions.assertNotNull(databaseNode.getTableNames());
         Assertions.assertEquals(1, databaseNode.getTableNames().size());
 
+        databaseNode.setSyncSourcePartitionTableEnable(true);
+        databaseNode.fieldDdlEvent(event);
+
+        Assertions.assertNotNull(databaseNode.getTableNames());
+        Assertions.assertEquals(1, databaseNode.getTableNames().size());
+
         databaseNode.fieldDdlEvent(event);
         Assertions.assertEquals(1, databaseNode.getTableNames().size());
 
@@ -125,5 +132,10 @@ public class DatabaseNodeTest {
         event.getTable().setPartitionMasterTableId(null);
         databaseNode.fieldDdlEvent(event);
         Assertions.assertEquals(2, databaseNode.getTableNames().size());
+
+        TapDropTableEvent dropEvent = new TapDropTableEvent();
+        dropEvent.setTableId("test");
+        databaseNode.fieldDdlEvent(dropEvent);
+        Assertions.assertEquals(1, databaseNode.getTableNames().size());
     }
 }
