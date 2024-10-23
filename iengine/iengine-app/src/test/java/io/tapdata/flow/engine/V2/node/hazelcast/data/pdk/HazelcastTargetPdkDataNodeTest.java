@@ -38,6 +38,7 @@ import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
+import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -911,6 +912,64 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			Assertions.assertNotNull(result);
 			Assertions.assertEquals(2, result.size());
 
+		}
+	}
+
+	@Nested
+	class testDropTable {
+		@Test
+		public void testDropTable() {
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			Node node = new DatabaseNode();
+			node.setId("test");
+			node.setName("test");
+			when(context.getNode()).thenReturn(node);
+
+			HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
+			targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.TRUE;
+
+			HazelcastTargetPdkDataNode spyTargetPdkDataNode = spy(targetPdkDataNode);
+
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			ConnectorFunctions connectorFunction = mock(ConnectorFunctions.class);
+			DropTableFunction dropTableFunction = new DropTableFunction() {
+				@Override
+				public void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Throwable {
+
+				}
+			};
+			DropPartitionTableFunction dropPartititonTableFunction = new DropPartitionTableFunction() {
+				@Override
+				public void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Exception {
+
+				}
+			};
+			when(connectorFunction.getDropTableFunction()).thenReturn(dropTableFunction);
+
+			when(connectorFunction.getDropPartitionTableFunction()).thenReturn(dropPartititonTableFunction);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
+			when(spyTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+
+			/*when(spyTargetPdkDataNode.executeDataFuncAspect(any(), any(), any())).then(anwser -> {
+				Callable callable = anwser.getArgument(1);
+				callable.call();
+
+				anwser.getArgument(2);
+				return null;
+			});*/
+
+			TapTable table = new TapTable();
+			table.setId("test");
+			table.setName("test");
+			table.setPartitionInfo(new TapPartition());
+			spyTargetPdkDataNode.dropTable(ExistsDataProcessEnum.DROP_TABLE, table, true);
+
+			verify(spyTargetPdkDataNode, times(1)).executeDataFuncAspect(any(), any(), any());
 		}
 	}
 }
