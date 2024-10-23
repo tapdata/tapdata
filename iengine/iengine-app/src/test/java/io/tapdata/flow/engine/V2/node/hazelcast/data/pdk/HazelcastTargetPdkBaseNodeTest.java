@@ -32,6 +32,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.error.TapdataEventException;
@@ -55,13 +56,12 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
@@ -1613,6 +1613,335 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}, new AtomicBoolean(true), tapTable, true, new AtomicReference<>(createTableEvent));
 
 		Assertions.assertTrue(result);
+	}
+
+	@Nested
+	class testCreatePartitionTable {
+		private HazelcastTargetPdkBaseNode targetBaseNode;
+
+		@BeforeEach
+		void before() {
+			DataProcessorContext context = mock(DataProcessorContext.class);
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			Node node = new DatabaseNode();
+			node.setId("nodeId");
+			node.setName("name");
+			((DatabaseNode)node).setSyncTargetPartitionTableEnable(Boolean.TRUE);
+			when(context.getNode()).thenReturn(node);
+
+			targetBaseNode = new HazelcastTargetPdkBaseNode(context) {
+				@Override
+				void processEvents(List<TapEvent> tapEvents) {
+
+				}
+			};
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(targetBaseNode, "obsLogger", obsLogger);
+
+		}
+		@Test
+		void testCreateSubPartitionTable() {
+
+			HazelcastTargetPdkBaseNode spyTargetBaseNode = spy(targetBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			when(spyTargetBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			doAnswer(answer -> {
+				Runnable runnable = answer.getArgument(2);
+				runnable.run();
+				return null;
+			}).when(spyTargetBaseNode).doCreateTable(any(TapTable.class), any(), any());
+
+			doAnswer(answer -> {
+				Callable aspectCallable = answer.getArgument(1) ;
+				CommonUtils.AnyErrorConsumer anyErrorConsumer = answer.getArgument(2);
+				aspectCallable.call();
+
+				anyErrorConsumer.accept(null);
+				return null;
+			}).when(spyTargetBaseNode).executeDataFuncAspect(any(), any(), any());
+
+
+			CreatePartitionSubTableFunction createSubPartitionTableFunction = mock(CreatePartitionSubTableFunction.class);
+
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			tapTable.setName("test");
+			tapTable.setPartitionInfo(new TapPartition());
+			tapTable.setPartitionMasterTableId("test");
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+
+			boolean result = spyTargetBaseNode.createSubPartitionTable(createSubPartitionTableFunction, new AtomicBoolean(true), tapTable, true, new AtomicReference<>(tapCreateTableEvent));
+
+			Assertions.assertTrue(result);
+		}
+
+		@Test
+		void testCreateTable() {
+			HazelcastTargetPdkBaseNode spyTargetBaseNode = spy(targetBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			ConnectorFunctions connectorFunction = mock(ConnectorFunctions.class);
+			CreateTableV2Function createTableFunctionV2 = new CreateTableV2Function() {
+				@Override
+				public CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreateTableV2Function()).thenReturn(createTableFunctionV2);
+			CreatePartitionTableFunction createPartitionTableFun = new CreatePartitionTableFunction() {
+				@Override
+				public CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws Exception {
+					return null;
+				}
+			};
+			when(connectorFunction.getCreatePartitionTableFunction()).thenReturn(createPartitionTableFun);
+			CreatePartitionSubTableFunction createPartitionSubTableFun = new CreatePartitionSubTableFunction() {
+				@Override
+				public CreateTableOptions createSubPartitionTable(TapConnectorContext connectorContext, TapCreateTableEvent masterTableEvent, String subTableId) throws Exception {
+					return null;
+				}
+			};
+			when(connectorFunction.getCreatePartitionSubTableFunction()).thenReturn(createPartitionSubTableFun);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
+			when(spyTargetBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			doNothing().when(spyTargetBaseNode).handleTapTablePrimaryKeys(any());
+			doAnswer(answer -> {
+
+				AtomicReference<TapCreateTableEvent> tapCreateTableEvent = answer.getArgument(1);
+				TapCreateTableEvent event = new TapCreateTableEvent();
+				event.setTableId("test");
+				tapCreateTableEvent.set(event);
+				Runnable runnable = answer.getArgument(2);
+				runnable.run();
+
+				return null;
+			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+			doAnswer(answer -> {
+				Callable aspectCallable = answer.getArgument(1) ;
+				aspectCallable.call();
+
+				CommonUtils.AnyErrorConsumer anyErrorConsumer = answer.getArgument(2);
+				anyErrorConsumer.accept(null);
+				return null;
+			}).when(spyTargetBaseNode).executeDataFuncAspect(any(), any(), any());
+
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			tapTable.setName("test");
+			tapTable.setPartitionInfo(new TapPartition());
+			tapTable.setPartitionMasterTableId("test");
+			tapTable.setCharset("utf-8");
+			tapTable.setNameFieldMap(new LinkedHashMap<>());
+			tapTable.getNameFieldMap().put("id", new TapField("id", "integer"));
+			tapTable.getNameFieldMap().put("name", new TapField("name", "string"));
+
+			try (MockedStatic<PDKInvocationMonitor> mc = mockStatic(PDKInvocationMonitor.class)){
+				mc.when(() -> PDKInvocationMonitor.invoke(any(io.tapdata.pdk.core.api.Node.class), any(PDKMethod.class), any(), anyString(), any(Consumer.class)))
+						.then(answer -> {
+							CommonUtils.AnyError r = answer.getArgument(2);
+							r.run();
+							return null;
+						});
+
+				Assertions.assertDoesNotThrow(() -> {
+					boolean result = spyTargetBaseNode.createTable(tapTable, new AtomicBoolean(true), true);
+					Assertions.assertTrue(result);
+				});
+			}
+		}
+
+		@Test
+		void testCreateSubPartitionTable_1() {
+
+			HazelcastTargetPdkBaseNode spyTargetBaseNode = spy(targetBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			ConnectorFunctions connectorFunction = mock(ConnectorFunctions.class);
+			CreateTableV2Function createTableFunctionV2 = new CreateTableV2Function() {
+				@Override
+				public CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreateTableV2Function()).thenReturn(createTableFunctionV2);
+			CreatePartitionTableFunction createPartitionTableFun = new CreatePartitionTableFunction() {
+				@Override
+				public CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws Exception {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreatePartitionTableFunction()).thenReturn(createPartitionTableFun);
+			CreatePartitionSubTableFunction createPartitionSubTableFun = new CreatePartitionSubTableFunction() {
+				@Override
+				public CreateTableOptions createSubPartitionTable(TapConnectorContext connectorContext, TapCreateTableEvent masterTableEvent, String subTableId) throws Exception {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreatePartitionSubTableFunction()).thenReturn(createPartitionSubTableFun);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
+			when(spyTargetBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			doNothing().when(spyTargetBaseNode).handleTapTablePrimaryKeys(any());
+			doAnswer(answer -> {
+
+				AtomicReference<TapCreateTableEvent> tapCreateTableEvent = answer.getArgument(1);
+				TapCreateTableEvent event = new TapCreateTableEvent();
+				event.setTableId("test");
+				tapCreateTableEvent.set(event);
+				Runnable runnable = answer.getArgument(2);
+				runnable.run();
+
+				return null;
+			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+			doAnswer(answer -> {
+				Callable aspectCallable = answer.getArgument(1) ;
+				aspectCallable.call();
+
+				CommonUtils.AnyErrorConsumer anyErrorConsumer = answer.getArgument(2);
+				anyErrorConsumer.accept(null);
+				return null;
+			}).when(spyTargetBaseNode).executeDataFuncAspect(any(), any(), any());
+
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test_1");
+			tapTable.setName("test_1");
+			tapTable.setPartitionInfo(new TapPartition());
+			tapTable.setPartitionMasterTableId("test");
+			tapTable.setCharset("utf-8");
+			tapTable.setNameFieldMap(new LinkedHashMap<>());
+			tapTable.getNameFieldMap().put("id", new TapField("id", "integer"));
+			tapTable.getNameFieldMap().put("name", new TapField("name", "string"));
+
+			spyTargetBaseNode.syncTargetPartitionTableEnable = false;
+			boolean result = spyTargetBaseNode.createTable(tapTable, new AtomicBoolean(true), true);
+			Assertions.assertFalse(result);
+
+			spyTargetBaseNode.syncTargetPartitionTableEnable = true;
+			tapTable.getPartitionInfo().setInvalidType(true);
+			result = spyTargetBaseNode.createTable(tapTable, new AtomicBoolean(true), true);
+			Assertions.assertFalse(result);
+
+			tapTable.getPartitionInfo().setInvalidType(false);
+			result = spyTargetBaseNode.createTable(tapTable, new AtomicBoolean(true), true);
+			Assertions.assertTrue(result);
+
+			try (MockedStatic<PDKInvocationMonitor> mc = mockStatic(PDKInvocationMonitor.class)){
+
+				mc.when(() -> PDKInvocationMonitor.invoke(any(io.tapdata.pdk.core.api.Node.class), any(PDKMethod.class), any(), anyString(), any(Consumer.class)))
+						.then(answer -> {
+							CommonUtils.AnyError r = answer.getArgument(2);
+							r.run();
+							return null;
+						});
+
+				Assertions.assertDoesNotThrow(() -> {
+					boolean r = spyTargetBaseNode.createTable(tapTable, new AtomicBoolean(true), true);
+					Assertions.assertTrue(r);
+				});
+			}
+		}
+
+		@Test
+		void testCreatePartitionTable() {
+
+			HazelcastTargetPdkBaseNode spyTargetBaseNode = spy(targetBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			ConnectorFunctions connectorFunction = mock(ConnectorFunctions.class);
+			CreateTableV2Function createTableFunctionV2 = new CreateTableV2Function() {
+				@Override
+				public CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreateTableV2Function()).thenReturn(createTableFunctionV2);
+			CreatePartitionTableFunction createPartitionTableFun = new CreatePartitionTableFunction() {
+				@Override
+				public CreateTableOptions createTable(TapConnectorContext connectorContext, TapCreateTableEvent createTableEvent) throws Exception {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreatePartitionTableFunction()).thenReturn(createPartitionTableFun);
+			CreatePartitionSubTableFunction createPartitionSubTableFun = new CreatePartitionSubTableFunction() {
+				@Override
+				public CreateTableOptions createSubPartitionTable(TapConnectorContext connectorContext, TapCreateTableEvent masterTableEvent, String subTableId) throws Exception {
+					CreateTableOptions options = new CreateTableOptions();
+					options.tableExists(false);
+					return options;
+				}
+			};
+			when(connectorFunction.getCreatePartitionSubTableFunction()).thenReturn(createPartitionSubTableFun);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
+			when(spyTargetBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			doNothing().when(spyTargetBaseNode).handleTapTablePrimaryKeys(any());
+			doAnswer(answer -> {
+
+				AtomicReference<TapCreateTableEvent> tapCreateTableEvent = answer.getArgument(1);
+				TapCreateTableEvent event = new TapCreateTableEvent();
+				event.setTableId("test");
+				tapCreateTableEvent.set(event);
+				Runnable runnable = answer.getArgument(2);
+				runnable.run();
+
+				return null;
+			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+			doAnswer(answer -> {
+				Callable aspectCallable = answer.getArgument(1) ;
+				aspectCallable.call();
+
+				CommonUtils.AnyErrorConsumer anyErrorConsumer = answer.getArgument(2);
+				anyErrorConsumer.accept(null);
+				return null;
+			}).when(spyTargetBaseNode).executeDataFuncAspect(any(), any(), any());
+
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			tapTable.setName("test");
+			tapTable.setPartitionInfo(new TapPartition());
+			tapTable.setPartitionMasterTableId("test");
+			tapTable.setCharset("utf-8");
+			tapTable.setNameFieldMap(new LinkedHashMap<>());
+			tapTable.getNameFieldMap().put("id", new TapField("id", "integer"));
+			tapTable.getNameFieldMap().put("name", new TapField("name", "string"));
+
+			spyTargetBaseNode.syncTargetPartitionTableEnable = true;
+			try (MockedStatic<PDKInvocationMonitor> mc = mockStatic(PDKInvocationMonitor.class)){
+
+				mc.when(() -> PDKInvocationMonitor.invoke(any(io.tapdata.pdk.core.api.Node.class), any(PDKMethod.class), any(), anyString(), any(Consumer.class)))
+						.then(answer -> {
+							CommonUtils.AnyError r = answer.getArgument(2);
+							r.run();
+							return null;
+						});
+
+				Assertions.assertDoesNotThrow(() -> {
+					boolean r = spyTargetBaseNode.createTable(tapTable, new AtomicBoolean(true), true);
+					Assertions.assertTrue(r);
+				});
+			}
+		}
 	}
 
 }
