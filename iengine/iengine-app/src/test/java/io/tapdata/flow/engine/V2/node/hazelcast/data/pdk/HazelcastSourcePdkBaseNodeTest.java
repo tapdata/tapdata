@@ -81,6 +81,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
+import org.apache.kafka.common.PartitionInfo;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
 import org.junit.jupiter.api.Assertions;
@@ -1981,5 +1982,154 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		sourceBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
 
 		Assertions.assertFalse(spySourceBaseNode.needDynamicPartitionTable());
+	}
+
+	@Test
+	void testContainsMasterPartitionTable() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setNeedFilterEventData(Boolean.TRUE);
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastSourcePdkBaseNode sourcePdkBaseNode = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		HazelcastSourcePdkBaseNode spySourcePdkBaseNode = spy(sourcePdkBaseNode);
+
+		List<TapTable> tables = new ArrayList<>();
+
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+		TapConnectorContext ctx = mock(TapConnectorContext.class);
+		KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+			@Override
+			public TapTable get(String key) {
+				return null;
+			}
+
+			@Override
+			public Iterator<Entry<TapTable>> iterator() {
+				AtomicInteger counter = new AtomicInteger(-1);
+				return new Iterator<Entry<TapTable>>() {
+					@Override
+					public boolean hasNext() {
+						return tables.size() > counter.incrementAndGet();
+					}
+
+					@Override
+					public Entry<TapTable> next() {
+						TapTable table = tables.get(counter.get());
+						return new Entry<TapTable>() {
+							@Override
+							public String getKey() {
+								return table.getId();
+							}
+
+							@Override
+							public TapTable getValue() {
+								return table;
+							}
+						};
+					}
+				};
+			}
+		};
+		when(ctx.getTableMap()).thenReturn(tableMap);
+		when(connectorNode.getConnectorContext()).thenReturn(ctx);
+        when(spySourcePdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+
+		boolean result = spySourcePdkBaseNode.containsMasterPartitionTable();
+		Assertions.assertFalse(result);
+
+		TapTable tapTable = new TapTable();
+		tapTable.setId("test");
+		tapTable.setPartitionMasterTableId("test");
+		tapTable.setPartitionInfo(new TapPartition());
+		tapTable.setName("test");
+		tables.add(tapTable);
+
+		result = spySourcePdkBaseNode.containsMasterPartitionTable();
+		Assertions.assertTrue(result);
+	}
+
+	@Nested
+	class testCheckDDLFilterPredicate {
+
+		private HazelcastSourcePdkBaseNode sourcePdkBaseNode;
+		private DataProcessorContext context;
+
+		@BeforeEach
+		void beforeEach() {
+			context = mock(DataProcessorContext.class);
+			taskDto = new TaskDto();
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setNeedFilterEventData(Boolean.TRUE);
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			sourcePdkBaseNode = new HazelcastSourcePdkBaseNode(context) {
+				@Override
+				void startSourceRunner() {
+
+				}
+			};
+
+		}
+		@Test
+		void testCreateParititonTable() {
+
+
+			sourcePdkBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+
+			TapCreateTableEvent event = new TapCreateTableEvent();
+			TapTable table = new TapTable();
+			table.setId("test_1");
+			table.setName("test_1");
+			table.setPartitionInfo(new TapPartition());
+			table.setPartitionMasterTableId("test");
+			event.setTable(table);
+			boolean result = sourcePdkBaseNode.checkDDLFilterPredicate(event);
+			Assertions.assertTrue(result);
+
+			Node node = new TableRenameProcessNode();
+			when(context.getNode()).thenReturn(node);
+
+			sourcePdkBaseNode.syncSourcePartitionTableEnable = Boolean.FALSE;
+			result = sourcePdkBaseNode.checkDDLFilterPredicate(event);
+			Assertions.assertTrue(result);
+		}
+
+		@Test
+		void testCreatePartitionTableInDatabaseNode() {
+
+
+			sourcePdkBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+
+			TapCreateTableEvent event = new TapCreateTableEvent();
+			TapTable table = new TapTable();
+			table.setId("test_1");
+			table.setName("test_1");
+			table.setPartitionInfo(new TapPartition());
+			table.setPartitionMasterTableId("test");
+			event.setTable(table);
+			event.setTableId(table.getId());
+
+			DatabaseNode node = new DatabaseNode();
+			when(context.getNode()).thenReturn((Node)node);
+
+			sourcePdkBaseNode.syncSourcePartitionTableEnable = Boolean.FALSE;
+			boolean result = sourcePdkBaseNode.checkDDLFilterPredicate(event);
+			Assertions.assertTrue(result);
+
+			node.setTableExpression("*");
+			result = sourcePdkBaseNode.checkDDLFilterPredicate(event);
+			Assertions.assertTrue(result);
+		}
 	}
 }
