@@ -332,5 +332,84 @@ public class ObservableAspectTaskTest {
             Assertions.assertEquals(recordEvents.size(), snapshotInsertRowCounter.value().intValue());
         }
 
+        @Test
+        void testStateStart_1() {
+            TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setTaskRecordId(new ObjectId().toHexString());
+            taskDto.setStartTime(new Date());
+            taskDto.setSyncType("migrate");
+            Node node = new DatabaseNode();
+            node.setId("nodeId");
+            List<SyncObjects> syncObjects = new ArrayList<>();
+            SyncObjects syncObject = new SyncObjects();
+            LinkedHashMap<String, String> tableNameRelation = new LinkedHashMap<>();
+            tableNameRelation.put("test", "test");
+            syncObject.setTableNameRelation(tableNameRelation);
+            syncObjects.add(syncObject);
+            ((DatabaseNode)node).setSyncObjects(syncObjects);
+
+            ObservableAspectTask task = new ObservableAspectTask();
+            task.initCompletableFuture();
+            task.setTask(taskDto);
+
+            Map<String, DataNodeSampleHandler> sampleHandler = new HashMap<>();
+
+            sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
+
+            Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            tableSampleHandler.init();
+            tableSampleHandlers.put("test_1", tableSampleHandler);
+            TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);
+            taskSampleHandler.init();
+
+            ReflectionTestUtils.setField(task, "dataNodeSampleHandlers", sampleHandler);
+            ReflectionTestUtils.setField(task, "tableSampleHandlers", tableSampleHandlers);
+            ReflectionTestUtils.setField(task, "taskSampleHandler", taskSampleHandler);
+
+            WriteRecordFuncAspect aspect = mock(WriteRecordFuncAspect.class);
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+            when(aspect.getDataProcessorContext()).thenReturn(dataProcessorContext);
+
+            when(dataProcessorContext.getNode()).thenReturn(node);
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+
+            TapTable tapTable = new TapTable();
+            tapTable.setName("test");
+            when(aspect.getTable()).thenReturn(tapTable);
+            when(aspect.getTime()).thenReturn(System.currentTimeMillis());
+
+            when(aspect.getState()).thenReturn(WriteRecordFuncAspect.STATE_START);
+
+            List<TapRecordEvent> recordEvents = Stream.generate(() -> {
+                TapRecordEvent event = new TapInsertRecordEvent();
+                event.setReferenceTime(System.currentTimeMillis());
+                event.setTime(System.currentTimeMillis()- 10000);
+                return event;
+            }).limit(RandomUtils.nextInt()% 10).collect(Collectors.toList());
+
+            when(aspect.getRecordEvents()).thenReturn(recordEvents);
+
+            WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+            when(aspect.consumer(any())).then(answer -> {
+                BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer = answer.getArgument(0);
+                resultConsumer.accept(recordEvents, result);
+                return aspect;
+            });
+
+            task.handleWriteRecordFunc(aspect);
+
+            task.closeCompletableFuture();
+
+            CounterSampler snapshotInsertRowCounter = (CounterSampler) ReflectionTestUtils.getField(tableSampleHandler, "snapshotInsertRowCounter");
+
+            Assertions.assertNotNull(snapshotInsertRowCounter);
+            Assertions.assertNotNull(snapshotInsertRowCounter.value());
+            Assertions.assertEquals(0, snapshotInsertRowCounter.value().intValue());
+        }
+
     }
 }
