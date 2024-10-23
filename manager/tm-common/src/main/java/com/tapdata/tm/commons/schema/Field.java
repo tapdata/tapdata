@@ -14,6 +14,7 @@ public class Field implements Serializable {
     public static final String SOURCE_JOB_ANALYZE = "job_analyze";
     public static final String SOURCE_AUTO = "auto";
     public static final String SOURCE_MANUAL = "manual";
+    public static final String SOURCE_VIRTUAL_HASH = "virtual_hash";
 
     private Object autoincrement;
 
@@ -165,7 +166,7 @@ public class Field implements Serializable {
     private Boolean fixed;
 
     private Boolean dataTypeSupport;
-    private String createSource; // manual/auto/job_analyze
+    private String createSource; // manual/auto/job_analyze/virtual_pk
     private String changeRuleId; // 如果命中字段变更规则则存在值
 
     private boolean useDefaultValue = true;
