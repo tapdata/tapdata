@@ -10,6 +10,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
@@ -23,8 +24,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
+import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.event.TapEvent;
@@ -1500,6 +1503,48 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			mockInstance.asyncCountTable(batchCountFunction, tableList);
 			Thread.sleep(100);
 			verify(obsLogger).warn(contains("Query snapshot row size failed"));
+		}
+	}
+	@Nested
+	class doCountSynchronouslyTest{
+		private BatchCountFunction batchCountFunction;
+		private DataProcessorContext dataProcessorContext;
+		private ObsLogger obsLogger;
+
+		@BeforeEach
+		void setUp() {
+			batchCountFunction = mock(BatchCountFunction.class);
+			dataProcessorContext = mock(DataProcessorContext.class);
+			obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(mockInstance,"dataProcessorContext",dataProcessorContext);
+			ReflectionTestUtils.setField(mockInstance,"obsLogger",obsLogger);
+		}
+
+		@Test
+		void testDoCountSynchronously_withBatchCountFunctionNull() {
+			doCallRealMethod().when(mockInstance).doCountSynchronously(null, Arrays.asList("table1"), false);
+			mockInstance.doCountSynchronously(null, Arrays.asList("table1"), false);
+
+			verify(obsLogger, times(1)).warn(anyString());
+		}
+
+		@Test
+		void testDoCountSynchronously_withException() throws Throwable {
+			String tableName = "table1";
+			TapTable tapTable = mock(TapTable.class);
+			TapTableMap map = TapTableMap.create("nodeId");
+			map.putNew("table1",tapTable,"qualifiedName1");
+			when(dataProcessorContext.getTapTableMap()).thenReturn(map);
+
+			when(batchCountFunction.count(any(), any())).thenThrow(new RuntimeException("Test Exception"));
+
+			try {
+				doCallRealMethod().when(mockInstance).doCountSynchronously(batchCountFunction, Arrays.asList(tableName), false);
+				mockInstance.doCountSynchronously(batchCountFunction, Arrays.asList(tableName), false);
+			} catch (Exception e) {
+				fail("Exception should be handled");
+			}
+			verify(obsLogger, never()).warn(anyString());
 		}
 	}
 }
