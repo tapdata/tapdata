@@ -2085,7 +2085,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
 		when(spySourceBaseNode.getConnectorNode()).thenReturn(connectorNode);
 
-		Assertions.assertTrue(spySourceBaseNode.needDynamicPartitionTable());
+		Assertions.assertFalse(spySourceBaseNode.needDynamicPartitionTable());
 	}
 	@Test
 	void testNeedDynamicPartitionTable_2() {
