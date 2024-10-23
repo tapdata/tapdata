@@ -70,7 +70,9 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connector.common.vo.TapPartitionResult;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -101,6 +103,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -1980,6 +1983,72 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		ReflectionTestUtils.setField(sourceBaseNode, "syncType", SyncTypeEnum.INITIAL_SYNC_CDC);
 		sourceBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+
+		Assertions.assertFalse(spySourceBaseNode.needDynamicPartitionTable());
+	}
+
+	@Test
+	void testNeedDynamicPartitionTable_1() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		taskDto = new TaskDto();
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC_CDC.getSyncType());
+		taskDto.setNeedFilterEventData(Boolean.TRUE);
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new TableRenameProcessNode();
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastSourcePdkBaseNode sourceBaseNode = new HazelcastSourcePdkBaseNode(context) {
+			@Override
+			void startSourceRunner() {
+
+			}
+		};
+
+		Assertions.assertFalse(sourceBaseNode.needDynamicPartitionTable());
+
+		node = new DatabaseNode();
+		when(context.getNode()).thenReturn(node);
+		Assertions.assertFalse(sourceBaseNode.needDynamicPartitionTable());
+
+		sourceBaseNode.syncSourcePartitionTableEnable = Boolean.TRUE;
+
+		HazelcastSourcePdkBaseNode spySourceBaseNode = spy(sourceBaseNode);
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+		ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+		QueryPartitionTablesByParentName fun = new QueryPartitionTablesByParentName() {
+			@Override
+			public void query(TapConnectorContext connectorContext, List<TapTable> table, Consumer<Collection<TapPartitionResult>> consumer) throws Exception {
+
+			}
+		};
+		when(connectorFunctions.getQueryPartitionTablesByParentName()).thenReturn(fun);
+		when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+		KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+			@Override
+			public TapTable get(String key) {
+				return null;
+			}
+
+			@Override
+			public Iterator<Entry<TapTable>> iterator() {
+				return new Iterator<Entry<TapTable>>() {
+					@Override
+					public boolean hasNext() {
+						return false;
+					}
+
+					@Override
+					public Entry<TapTable> next() {
+						return null;
+					}
+				};
+			}
+		};
+		when(connectorContext.getTableMap()).thenReturn(tableMap);
+		when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+		when(spySourceBaseNode.getConnectorNode()).thenReturn(connectorNode);
 
 		Assertions.assertFalse(spySourceBaseNode.needDynamicPartitionTable());
 	}
