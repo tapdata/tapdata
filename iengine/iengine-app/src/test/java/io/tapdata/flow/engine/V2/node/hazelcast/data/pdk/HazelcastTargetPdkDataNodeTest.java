@@ -965,6 +965,11 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		when(connectorFunction.getDropPartitionTableFunction()).thenReturn(dropPartititonTableFunction);
 		when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
 		when(spyTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+		doAnswer(answer -> {
+			Callable aspectCallable = answer.getArgument(1);
+			aspectCallable.call();
+			return null;
+		}).when(spyTargetPdkDataNode).executeDataFuncAspect(any(), any(), any());
 
 		doAnswer(answer -> {
 			Callable aspectCallable = answer.getArgument(1);
