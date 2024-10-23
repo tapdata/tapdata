@@ -22,6 +22,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
@@ -46,6 +47,7 @@ import java.sql.Ref;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -971,5 +973,41 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 
 			verify(spyTargetPdkDataNode, times(1)).executeDataFuncAspect(any(), any(), any());
 		}
+	}
+
+	@Test
+	void testWriteDDL() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		node.setId("test");
+		node.setName("test");
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
+		targetPdkDataNode.syncTargetPartitionTableEnable = true;
+		targetPdkDataNode.uploadDagService = new AtomicBoolean();
+		ClassHandlers ddlEventHandlers = mock(ClassHandlers.class);
+		ObsLogger obsLogger = mock(ObsLogger.class);
+		ReflectionTestUtils.setField(targetPdkDataNode, "ddlEventHandlers", ddlEventHandlers);
+		ReflectionTestUtils.setField(targetPdkDataNode, "obsLogger", obsLogger);
+
+
+		List<TapEvent> events = new ArrayList<>();
+		TapCreateTableEvent createEvent = new TapCreateTableEvent();
+		createEvent.setTableId("test");
+		createEvent.setTable(new TapTable());
+		events.add(createEvent);
+		TapDropTableEvent dropEvent = new TapDropTableEvent();
+		dropEvent.setTableId("test_1");
+		events.add(dropEvent);
+
+		ReflectionTestUtils.invokeMethod(targetPdkDataNode, "writeDDL", events);
+
+		verify(ddlEventHandlers,times(2)).handle(any());
 	}
 }
