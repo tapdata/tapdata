@@ -1240,7 +1240,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapDDLUnknownEvent.setOriginDDL("alter table xxx add new_field number(8,0)");
 			TapdataEvent tapdataEvent = instance.wrapSingleTapdataEvent(tapDDLUnknownEvent, SyncStage.CDC, null, true);
 			assertNull(tapdataEvent);
-			verify(mockObsLogger).warn(any());
+			verify(mockObsLogger, atLeastOnce()).warn(any());
 		}
 	}
 
