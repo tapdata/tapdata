@@ -189,7 +189,7 @@ public class SettingsServiceTest {
             settings1.setKey("smtp.server.password");
             settings1.setValue("123456");
             Settings settings2 = new Settings();
-            settings2.setKey("ad.bind.password");
+            settings2.setKey("ldap.bind.password");
             settings2.setValue("12345");
             List<Settings> list = new ArrayList<>();
             list.add(settings1);
