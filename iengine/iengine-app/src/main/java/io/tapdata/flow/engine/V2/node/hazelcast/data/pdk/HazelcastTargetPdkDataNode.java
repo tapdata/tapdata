@@ -144,7 +144,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				.start(), (funcAspect -> {
 			Node<?> node = dataProcessorContext.getNode();
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
-			SyncProgress syncProgress = foundSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress);
 			if (null == syncProgress) {
 				for (String tableId : tapTableMap.keySet()) {
 					if (!isRunning()) {

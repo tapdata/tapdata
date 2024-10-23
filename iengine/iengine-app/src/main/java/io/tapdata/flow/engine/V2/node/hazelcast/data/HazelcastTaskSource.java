@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorContext;
 import com.tapdata.constant.DateUtil;
@@ -24,6 +25,7 @@ import io.tapdata.exception.SourceException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,8 +36,10 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -130,8 +134,8 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	private void initJobOffset() {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
-			this.syncProgress = foundSyncProgress(taskDto.getAttrs());
-
+			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(taskDto.getAttrs());
+			this.syncProgress = foundNodeSyncProgress(allSyncProgress);
 			if (this.syncProgress == null || StringUtils.isBlank(this.syncProgress.getOffset()) || this.sourceContext == null || this.sourceContext.getJob() == null) {
 				return;
 			}
@@ -415,4 +419,5 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	private void findEdgeSnapshotProgress() {
 
 	}
+
 }
