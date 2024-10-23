@@ -17,6 +17,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
@@ -27,14 +28,19 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -44,6 +50,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.ReflectionUtils;
 
 import java.sql.Ref;
 import java.util.*;
@@ -51,7 +58,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -1020,5 +1029,89 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		targetPdkDataNode.writeDDL(events);
 
 		verify(ddlEventHandlers,times(5)).handle(any());
+	}
+
+	@Nested
+	class testWriteRecord {
+
+		private HazelcastTargetPdkDataNode targetDataNode;
+		private DataProcessorContext context;
+		private TapTableMap<String, TapTable> tableMap;
+		private ISyncMetricCollector syncMetricCollector;
+
+		@BeforeEach
+		void beforeEach() {
+			context = mock(DataProcessorContext.class);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			Node node = new DatabaseNode();
+			node.setId("test");
+			node.setName("test");
+			when(context.getNode()).thenReturn(node);
+
+			tableMap = TapTableMap.create("nodeId");
+			when(context.getTapTableMap()).thenReturn(tableMap);
+
+			targetDataNode = new HazelcastTargetPdkDataNode(context);
+			ReflectionTestUtils.setField(targetDataNode, "partitionTapTables", new HashMap<>());
+			syncMetricCollector = mock(ISyncMetricCollector.class);;
+			targetDataNode.syncMetricCollector = syncMetricCollector;
+		}
+
+		@Test
+		void testWriteRecord() {
+
+			List<TapEvent> events = Stream.generate(() -> {
+				TapInsertRecordEvent e = new TapInsertRecordEvent();
+				e.setTableId("test");
+				e.setPartitionMasterTableId("test_1");
+				return e;
+			}).limit(5).collect(Collectors.toList());
+
+			TapTable table = new TapTable();
+			table.setId("test");
+			table.setName("test");
+			table.setPartitionMasterTableId("test");
+			table.setPartitionInfo(new TapPartition());
+			tableMap.putNew("test", table, "node_id_test");
+
+			HazelcastTargetPdkDataNode spyTargetDataNode = spy(targetDataNode);
+			doNothing().when(spyTargetDataNode).handleTapTablePrimaryKeys(any());
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			WriteRecordFunction writeRecord = new WriteRecordFunction() {
+				@Override
+				public void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> recordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+
+				}
+			};
+			when(connectorFunctions.getWriteRecordFunction()).thenReturn(writeRecord);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(connectorNode.getDagId()).thenReturn("test");
+			when(connectorNode.getAssociateId()).thenReturn("test");
+			TapNodeInfo tapNodeInfo = new TapNodeInfo();
+			tapNodeInfo.setTapNodeSpecification(new TapNodeSpecification());
+			tapNodeInfo.getTapNodeSpecification().setGroup("mysql");
+			tapNodeInfo.getTapNodeSpecification().setVersion("v1.0.0");
+			when(connectorNode.getTapNodeInfo()).thenReturn(tapNodeInfo);
+			when(spyTargetDataNode.getConnectorNode()).thenReturn(connectorNode);
+			PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+			doReturn(pdkMethodInvoker).when(spyTargetDataNode).createPdkMethodInvoker();
+
+			doAnswer(answer -> {
+				Callable aspectCallable = answer.getArgument(1);
+				aspectCallable.call();
+				return null;
+			}).when(spyTargetDataNode).executeDataFuncAspect(any(), any(), any());
+
+			Assertions.assertDoesNotThrow(() -> {
+				spyTargetDataNode.writeRecord(events);
+			});
+			verify(syncMetricCollector, times(1)).log(anyList());
+
+		}
 	}
 }
