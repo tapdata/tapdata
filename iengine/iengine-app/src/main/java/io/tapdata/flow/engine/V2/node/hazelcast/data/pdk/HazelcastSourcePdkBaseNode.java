@@ -1061,7 +1061,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 
 				tapdataEvents.add(tapdataEvent);
-noPrimaryKeyVirtualField.add(addTapTable);			}
+				noPrimaryKeyVirtualField.add(addTapTable);
+			}
 			if (!isRunning()) {
 				return true;
 			}
