@@ -2,20 +2,20 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import cn.hutool.core.collection.ConcurrentHashSet;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Lists;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.batch.BatchOffset;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.DmlPolicy;
-import com.tapdata.tm.commons.dag.DmlPolicyEnum;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.aspect.CreateTableFuncAspect;
@@ -1941,6 +1941,72 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 					Assertions.assertTrue(r);
 				});
 			}
+		}
+	}
+
+	@Nested
+	class testHandleTapdataDDLEvent {
+		private HazelcastTargetPdkBaseNode targetBaseNode;
+
+		@BeforeEach
+		void before() {
+			DataProcessorContext context = mock(DataProcessorContext.class);
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			Node node = new DatabaseNode();
+			node.setId("nodeId");
+			node.setName("name");
+			((DatabaseNode)node).setSyncTargetPartitionTableEnable(Boolean.TRUE);
+			when(context.getNode()).thenReturn(node);
+
+			targetBaseNode = new HazelcastTargetPdkBaseNode(context) {
+				@Override
+				void processEvents(List<TapEvent> tapEvents) {
+
+				}
+			};
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(targetBaseNode, "obsLogger", obsLogger);
+			ReflectionTestUtils.setField(targetBaseNode, "updateMetadata", new HashMap<>());
+		}
+
+		@Test
+		void testHandleTapdataDDLEvent() throws JsonProcessingException {
+
+			List<TapEvent> events = new ArrayList<>();
+			TapCreateTableEvent tapEvent = new TapCreateTableEvent();
+			TapdataEvent event = new TapdataEvent();
+			event.setTapEvent(tapEvent);
+			AtomicReference<TapdataEvent> lastEvent = new AtomicReference<>();
+			tapEvent.setInfo(new HashMap<>());
+			Map<String, MetadataInstancesDto> metadata = new HashMap<>();
+			metadata.put("test", new MetadataInstancesDto());
+			tapEvent.getInfo().put("UPDATE_METADATA", metadata);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			tapEvent.getInfo().put("DAG_DATA_SERVICE", dagDataService);
+
+			TapTable table = new TapTable();
+			table.setId("test_1");
+			table.setName("test_1");
+			table.setPartitionMasterTableId("test");
+			table.setPartitionInfo(new TapPartition());
+			tapEvent.setTable(table);
+
+			MetadataInstancesDto metadataIns = new MetadataInstancesDto();
+			metadataIns.setId(new ObjectId());
+			doReturn(metadataIns).when(dagDataService).getSchemaByNodeAndTableName(anyString(), anyString());
+
+			event.setBatchOffset(new BatchOffset());
+
+			targetBaseNode.handleTapdataEvent(events, null, null, lastEvent, event);
+
+			Assertions.assertNotNull(lastEvent.get());
+
 		}
 	}
 
