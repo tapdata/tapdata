@@ -7,6 +7,7 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -14,6 +15,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -62,11 +64,11 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		return true;
 	}
 
-	protected SyncProgress foundSyncProgress(Map<String, Object> attrs) {
-		SyncProgress syncProgress = null;
+	protected Map<String,SyncProgress> foundAllSyncProgress(Map<String, Object> attrs) {
+		Map<String, SyncProgress> allSyncProgressMap = new HashMap<>();
 		try {
-			if (MapUtils.isEmpty(attrs)) {
-				return null;
+			if (org.apache.commons.collections.MapUtils.isEmpty(attrs)) {
+				return allSyncProgressMap;
 			}
 			Object syncProgressObj = attrs.get("syncProgress");
 			if (syncProgressObj instanceof Map) {
@@ -82,15 +84,12 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 					} catch (IOException e) {
 						throw new RuntimeException("Convert key to list failed. Key string: " + key + "; Error: " + e.getMessage(), e);
 					}
-					if (CollectionUtils.isNotEmpty(keyList) && keyList.contains(dataProcessorContext.getNode().getId())) {
+					if (CollectionUtils.isNotEmpty(keyList)) {
 						try {
-							SyncProgress tmp = JSONUtil.json2POJO((String) syncProgressString, new TypeReference<SyncProgress>() {
+							String syncProgressKey = String.join(",", keyList);
+							SyncProgress syncProgress = JSONUtil.json2POJO((String) syncProgressString, new TypeReference<SyncProgress>() {
 							});
-							if (null == syncProgress) {
-								syncProgress = tmp;
-							} else if (tmp.compareTo(syncProgress) < 0) {
-								syncProgress = tmp;
-							}
+							allSyncProgressMap.put(syncProgressKey, syncProgress);
 						} catch (IOException e) {
 							throw new RuntimeException("Convert sync progress json to pojo failed. Sync progress string: " + syncProgressString
 									+ "; Error: " + e.getMessage(), e);
@@ -107,7 +106,21 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		} catch (Exception e) {
 			throw new RuntimeException("Init sync progress failed; Error: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
 		}
+		return allSyncProgressMap;
+	}
 
+	protected SyncProgress foundNodeSyncProgress(Map<String, SyncProgress> allSyncProgress) {
+		SyncProgress syncProgress = null;
+		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
+			if (entry.getKey().contains(getNode().getId())) {
+				SyncProgress temp = entry.getValue();
+				if (null == syncProgress) {
+					syncProgress = temp;
+				} else if (temp.compareTo(syncProgress) < 0) {
+					syncProgress = temp;
+				}
+			}
+		}
 		if (null != syncProgress) {
 			if (null == syncProgress.getEventSerialNo()) {
 				syncProgress.setEventSerialNo(0L);
@@ -115,7 +128,6 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		}
 		return syncProgress;
 	}
-
 	public DataProcessorContext getDataProcessorContext() {
 		return dataProcessorContext;
 	}
