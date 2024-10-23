@@ -34,6 +34,8 @@ public class RowFilterProcessorTest {
         private Map<String, Object> processContext;
         private Invocable engine;
         private Logger logger;
+        private Map<String, Object> before;
+        private Map<String, Object> after;
         @BeforeEach
         @SneakyThrows
         void beforeEach() {
@@ -51,10 +53,14 @@ public class RowFilterProcessorTest {
             ReflectionTestUtils.setField(rowFilterProcessor,"engine",engine);
             context = mock(ProcessorContext.class);
             ReflectionTestUtils.setField(rowFilterProcessor,"context",context);
-            processContext = mock(HashMap.class);
+            processContext = new HashMap<>();
             ReflectionTestUtils.setField(rowFilterProcessor,"processContext",processContext);
             logger = mock(Logger.class);
             ReflectionTestUtils.setField(rowFilterProcessor,"logger",logger);
+            before = new HashMap<>();
+            after = new HashMap<>();
+            before.put("before","test");
+            after.put("after","test");
         }
         @Test
         void testUpdateEventSimple(){
@@ -65,8 +71,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(true);
                 message.setOp("u");
-                Map<String, Object> before = mock(HashMap.class);
-                Map<String, Object> after = mock(HashMap.class);
                 message.setBefore(before);
                 message.setAfter(after);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
@@ -88,8 +92,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(false);
                 message.setOp("u");
-                Map<String, Object> before = mock(HashMap.class);
-                Map<String, Object> after = mock(HashMap.class);
                 message.setBefore(before);
                 message.setAfter(after);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
@@ -111,8 +113,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(false);
                 message.setOp("u");
-                Map<String, Object> before = mock(HashMap.class);
-                Map<String, Object> after = mock(HashMap.class);
                 message.setBefore(before);
                 message.setAfter(after);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
@@ -130,8 +130,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(true);
                 message.setOp("u");
-                Map<String, Object> before = mock(HashMap.class);
-                Map<String, Object> after = mock(HashMap.class);
                 message.setBefore(before);
                 message.setAfter(after);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
@@ -147,7 +145,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, null)).thenReturn(true);
                 message.setOp("d");
-                Map<String, Object> before = mock(HashMap.class);
                 message.setBefore(before);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
                 MessageEntity actual = rowFilterProcessor.process(message);
@@ -161,7 +158,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, null)).thenReturn(null);
                 message.setOp("d");
-                Map<String, Object> before = mock(HashMap.class);
                 message.setBefore(before);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
                 MessageEntity actual = rowFilterProcessor.process(message);
@@ -178,7 +174,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(false);
                 message.setOp("u");
-                Map<String, Object> after = mock(HashMap.class);
                 message.setBefore(null);
                 message.setAfter(after);
                 doCallRealMethod().when(rowFilterProcessor).process(message);
@@ -197,7 +192,6 @@ public class RowFilterProcessorTest {
                 mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
                         context.getTargetConn(), context.getJob(), processContext, logger, "after")).thenReturn(true);
                 message.setOp("u");
-                Map<String, Object> after = mock(HashMap.class);
                 message.setBefore(null);
                 message.setAfter(after);
                 doCallRealMethod().when(rowFilterProcessor).process(message);

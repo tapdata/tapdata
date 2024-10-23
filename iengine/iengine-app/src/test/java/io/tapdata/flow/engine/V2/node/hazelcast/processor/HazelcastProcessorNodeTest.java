@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.observable.logging.ObsLogger;
 import lombok.SneakyThrows;
@@ -80,6 +81,22 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 			tapdataEvent.setTapEvent(tapInsertRecordEvent);
 
 			hazelcastProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> assertEquals(data.get(1), (((TapInsertRecordEvent) event.getTapEvent()).getAfter())));
+		}
+
+		@Test
+		@DisplayName("test update event contains remove field")
+		void test2() {
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create().init();
+			ArrayList<String> removedFields = new ArrayList<>();
+			tapUpdateRecordEvent.setRemovedFields(removedFields);
+			List<?> data = json2Pojo(String.join(File.separator, "task", "json", TAG, "tryProcessTest1_data.json"), new TypeReference<List<?>>() {
+			});
+			tapUpdateRecordEvent.setAfter((Map<String, Object>) data.get(0));
+			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+
+			hazelcastProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> assertEquals(data.get(1), (((TapUpdateRecordEvent) event.getTapEvent()).getAfter())));
+			assertEquals(removedFields, ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getRemovedFields());
 		}
 	}
 

@@ -17,8 +17,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
@@ -142,7 +144,14 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				} else {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+					List<String> removedFields = null;
+					if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+						removedFields = ((TapUpdateRecordEvent) tapRecordEvent).getRemovedFields();
+					}
 					tapRecordEvent = message2TapEvent(processedMessage);
+					if (null != removedFields) {
+						TapEventUtil.setRemoveFields(tapRecordEvent, removedFields);
+					}
 					tapdataEvent.setTapEvent(tapRecordEvent);
 				}
 				handleRemoveFields(tapdataEvent);
