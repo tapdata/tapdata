@@ -957,14 +957,6 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
 			when(spyTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
 
-			/*when(spyTargetPdkDataNode.executeDataFuncAspect(any(), any(), any())).then(anwser -> {
-				Callable callable = anwser.getArgument(1);
-				callable.call();
-
-				anwser.getArgument(2);
-				return null;
-			});*/
-
 			TapTable table = new TapTable();
 			table.setId("test");
 			table.setName("test");
@@ -1006,7 +998,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		dropEvent.setTableId("test_1");
 		events.add(dropEvent);
 
-		ReflectionTestUtils.invokeMethod(targetPdkDataNode, "writeDDL", events);
+		targetPdkDataNode.writeDDL(events);
 
 		verify(ddlEventHandlers,times(2)).handle(any());
 	}

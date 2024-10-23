@@ -619,7 +619,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void writeDDL(List<TapEvent> events) {
+	protected void writeDDL(List<TapEvent> events) {
 		List<TapDDLEvent> tapDDLEvents = new ArrayList<>();
 		events.forEach(event -> {
 			if (event instanceof TapCreateTableEvent) {
