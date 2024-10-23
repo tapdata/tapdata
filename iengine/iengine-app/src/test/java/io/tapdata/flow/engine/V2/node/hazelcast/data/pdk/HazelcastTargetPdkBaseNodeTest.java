@@ -972,6 +972,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			tapTable.setId("test");
 			LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
 			TapField primary = new TapField();
+			primary.setPrimaryKeyPos(1);
 			primary.setPrimaryKey(true);
 			nameFieldMap.put("primary", primary);
 			tapTable.setNameFieldMap(nameFieldMap);

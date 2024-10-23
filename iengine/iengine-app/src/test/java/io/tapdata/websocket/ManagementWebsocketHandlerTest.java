@@ -3,6 +3,7 @@ package io.tapdata.websocket;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.tm.worker.WorkerSingletonLock;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -13,10 +14,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.concurrent.ListenableFuture;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -126,5 +130,30 @@ class ManagementWebsocketHandlerTest {
             TextMessage textMessage = new TextMessage("test");
             Assertions.assertThrows(RuntimeException.class,()->sessionOption.sendMessage(textMessage));
         }
+
+        @Test
+        void SessionOptionTest_Interrupt_Exception() throws ExecutionException, InterruptedException {
+            ListenableFuture mockListenableFuture = mock(ListenableFuture.class);
+            ReflectionTestUtils.setField(managementWebsocketHandlerTest, "listenableFuture", mockListenableFuture);
+            doThrow(new InterruptedException()).when(mockListenableFuture).get();
+            StandardWebSocketClient mockClient = mock(StandardWebSocketClient.class);
+            when(mockClient.doHandshake(any(), any(), any(URI.class))).thenReturn(mockListenableFuture);
+            Logger mockLogger = mock(Logger.class);
+            ReflectionTestUtils.setField(managementWebsocketHandlerTest, "logger", mockLogger);
+
+            ManagementWebsocketHandler spyManagementWebsocketHandlerTest = spy(managementWebsocketHandlerTest);
+
+            try (MockedStatic<WorkerSingletonLock> mockedStatic = Mockito.mockStatic(WorkerSingletonLock.class);
+                 MockedStatic<Version> versionMockedStatic = Mockito.mockStatic(Version.class);
+                 MockedStatic<ManagementWebsocketHandler> managementWebsocketHandlerMockedStatic = mockStatic(ManagementWebsocketHandler.class);) {
+                mockedStatic.when(() -> WorkerSingletonLock.addTag2WsUrl(anyString())).thenReturn("ws://test:8080/ws/agent?agentId=test&access_token=test");
+                versionMockedStatic.when(Version::get).thenReturn("test");
+                managementWebsocketHandlerMockedStatic.when(() -> ManagementWebsocketHandler.createWebSocketClient()).thenReturn(mockClient);
+                String baseStr = "http://test:8080/api/";
+                spyManagementWebsocketHandlerTest.connect(baseStr);
+                verify(mockLogger, times(1)).warn("Connect to web socket Thread interrupted,Thread name:{}", Thread.currentThread().getName());
+            }
+        }
+
     }
 }
