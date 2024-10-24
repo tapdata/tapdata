@@ -136,7 +136,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 	}
 
-	private void initTargetDB() {
+	protected void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
 				.tapTableMap(tapTableMap)
