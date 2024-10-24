@@ -320,7 +320,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
-        Page<MetadataDefinitionDto> dtoPage = settingsService.isCloud()? super.find(filter, user) : super.find(filter);
+        Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
         if (filter.getOrder() == null) {
             dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
             dtoPage.getItems().sort(Comparator.comparing(s -> {
