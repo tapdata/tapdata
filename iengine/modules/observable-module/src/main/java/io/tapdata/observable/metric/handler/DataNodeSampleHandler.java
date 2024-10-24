@@ -403,7 +403,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	AtomicBoolean firstTableCount = new AtomicBoolean(true);
 
 	public void handleTableCountAccept(String table ,long count) {
-		currentSnapshotTableRowTotalMap.putIfAbsent(table, count);
+		currentSnapshotTableRowTotalMap.put(table, count);
 		Optional.ofNullable(snapshotRowCounter).ifPresent(counter -> counter.inc(count));
 	}
 

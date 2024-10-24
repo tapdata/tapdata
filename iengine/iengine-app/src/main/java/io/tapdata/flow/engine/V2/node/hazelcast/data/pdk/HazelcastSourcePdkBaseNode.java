@@ -1270,27 +1270,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		if (dataProcessorContext.getTapTableMap().keySet().size() > ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD) {
-			logger.info("Start to asynchronously count the size of rows for the source table(s)");
-			AtomicReference<TaskDto> task = new AtomicReference<>(dataProcessorContext.getTaskDto());
-			AtomicReference<Node<?>> node = new AtomicReference<>(dataProcessorContext.getNode());
-			snapshotRowSizeThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
-			CompletableFuture.runAsync(() -> {
-						String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
-								task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
-						Thread.currentThread().setName(name);
-
-						doCountSynchronously(batchCountFunction, tableList);
-					}, snapshotRowSizeThreadPool)
-					.whenComplete((v, e) -> {
-						if (null != e) {
-							obsLogger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-						} else {
-							obsLogger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
-						}
-						ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
-					});
+			asyncCountTable(batchCountFunction, tableList);
 		} else {
-			doCountSynchronously(batchCountFunction, tableList);
+			doCountSynchronously(batchCountFunction, tableList, false);
 		}
 	}
 
@@ -1304,7 +1286,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@SneakyThrows
-	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
+	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList, boolean displayTableListFirst) {
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
 			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
@@ -1324,13 +1306,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							createPdkMethodInvoker().runnable(
 									() -> {
 										try {
-											long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
-
-											if (null == snapshotRowSizeMap) {
-												snapshotRowSizeMap = new HashMap<>();
+											long count;
+											if (displayTableListFirst) {
+												count = -1;
+											} else {
+												count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+												if (null == snapshotRowSizeMap) {
+													snapshotRowSizeMap = new HashMap<>();
+												}
+												snapshotRowSizeMap.putIfAbsent(tableName, count);
 											}
-											snapshotRowSizeMap.putIfAbsent(tableName, count);
-
 											if (null != tableCountFuncAspect) {
 												AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
 											}
@@ -1343,6 +1328,35 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					));
 		}
 	}
+
+	@SneakyThrows
+	protected void doTableNameSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
+		doCountSynchronously(batchCountFunction, tableList, true);
+		asyncCountTable(batchCountFunction, tableList);
+	}
+
+	protected void asyncCountTable(BatchCountFunction batchCountFunction, List<String> tableList) {
+		logger.info("Start to asynchronously count the size of rows for the source table(s)");
+		AtomicReference<TaskDto> task = new AtomicReference<>(dataProcessorContext.getTaskDto());
+		AtomicReference<Node<?>> node = new AtomicReference<>(dataProcessorContext.getNode());
+		snapshotRowSizeThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+		CompletableFuture.runAsync(() -> {
+					String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
+							task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
+					Thread.currentThread().setName(name);
+
+					doCountSynchronously(batchCountFunction, tableList, false);
+				}, snapshotRowSizeThreadPool)
+				.whenComplete((v, e) -> {
+					if (null != e) {
+						obsLogger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					} else {
+						obsLogger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
+					}
+					ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
+				});
+	}
+
 
 	protected Long doBatchCountFunction(BatchCountFunction batchCountFunction, TapTable table) {
 		AtomicReference<Long> counts = new AtomicReference<>();
