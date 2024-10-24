@@ -1,5 +1,9 @@
 package com.tapdata.tm.commons.util;
 
+import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.parser.DefaultJSONParser;
+import com.alibaba.fastjson.parser.ParserConfig;
+import com.alibaba.fastjson.parser.deserializer.ObjectDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -7,14 +11,19 @@ import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.tapdata.manager.common.utils.Utils;
-import com.tapdata.tm.commons.task.dto.Status;
+import io.tapdata.entity.schema.partition.type.TapPartitionType;
 import io.tapdata.entity.schema.type.TapType;
 import lombok.extern.slf4j.Slf4j;
 import ognl.Ognl;
@@ -25,6 +34,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 public class JsonUtil {
@@ -59,6 +69,7 @@ public class JsonUtil {
 			}
 			SimpleModule simpleModule = new SimpleModule();
 			simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
+			simpleModule.addDeserializer(TapPartitionType.class, new TapPartitionTypeDeserializer());
 			objectMapper.registerModule(simpleModule);
 			objectMapper.registerModule(new JavaTimeModule());
 		}
@@ -164,9 +175,45 @@ public class JsonUtil {
 		}
 	}
 
+	public static class TapPartitionTypeDeserializer extends JsonDeserializer<TapPartitionType> {
+		@Override
+		public TapPartitionType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+			ObjectCodec codec = p.getCodec();
+			TreeNode treeNode = codec.readTree(p);
+			if (null == treeNode) return null;
+			TextNode partitionTypeNode = (TextNode) treeNode.get(TapPartitionType.KEY_NAME);
+			if (null == partitionTypeNode) return null;
+			String type = partitionTypeNode.textValue();
+			Class<? extends TapPartitionType> tapTypeClass = TapPartitionType.getTapPartitionTypeClass(type);
+			if (Objects.isNull(tapTypeClass)) {
+				throw new IllegalArgumentException("Unsupported tap type: " + type);
+			} else {
+				return codec.treeToValue(treeNode, tapTypeClass);
+			}
+		}
+	}
+
 	public static <T> T getValue(Map map, String path, Class<T> clazz) throws Exception {
 		OgnlContext ctx = new OgnlContext();
 		ctx.setRoot(map);
 		return (T) Ognl.getValue(path, ctx, ctx.getRoot());
+	}
+
+	static {
+		ParserConfig.getGlobalInstance().putDeserializer(TapPartitionType.class, new ObjectDeserializer() {
+			@Override
+			public TapPartitionType deserialze(DefaultJSONParser parser, Type type, Object fieldName) {
+				JSONObject jsonObject = parser.parseObject(JSONObject.class);
+				if (null == jsonObject) return null;
+				String typeStr = jsonObject.getString(TapPartitionType.KEY_NAME);
+				if (null == typeStr) return null;
+				return jsonObject.toJavaObject(TapPartitionType.getTapPartitionTypeClass(typeStr));
+			}
+
+			@Override
+			public int getFastMatchToken() {
+				return 0;
+			}
+		});
 	}
 }

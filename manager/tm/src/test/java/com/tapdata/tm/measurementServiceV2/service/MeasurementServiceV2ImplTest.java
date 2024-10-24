@@ -1,14 +1,9 @@
 package com.tapdata.tm.measurementServiceV2.service;
 
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2Impl;
-import com.tapdata.tm.task.service.TaskService;
 import org.junit.jupiter.api.*;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;

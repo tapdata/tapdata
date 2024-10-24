@@ -6,13 +6,17 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.schema.TapTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -27,7 +31,9 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
@@ -37,9 +43,16 @@ import static org.mockito.Mockito.when;
 
 class DAGDataServiceImplTest {
     DAGDataServiceImpl service;
+    Map<String, DataSourceConnectionDto> dataSourceMap;
+    Map<String, DataSourceDefinitionDto> definitionDtoMap;
     @BeforeEach
     void init() {
         service = mock(DAGDataServiceImpl.class);
+        dataSourceMap = mock(Map.class);
+        definitionDtoMap = mock(Map.class);
+
+        ReflectionTestUtils.setField(service, "dataSourceMap", dataSourceMap);
+        ReflectionTestUtils.setField(service, "definitionDtoMap", definitionDtoMap);
     }
 
     @Nested
@@ -296,6 +309,55 @@ class DAGDataServiceImplTest {
                 verify(service, times(0)).getMetadata(anyString());
                 verify(service).getTaskById(anyString());
                 verify(taskDto).getDag();
+            }
+        }
+    }
+
+    @Nested
+    class ProcessFieldFromDBTest {
+        MetadataInstancesDto metadataInstances;
+        Schema schema;
+        SourceDto sourceDto;
+        DataSourceConnectionDto dataSourceConnectionDto;
+        DataSourceDefinitionDto definitionDto;
+        TapTable tapTable;
+        Schema schema1;
+
+        @BeforeEach
+        void init() {
+            metadataInstances = mock(MetadataInstancesDto.class);
+            schema = mock(Schema.class);
+            sourceDto = mock(SourceDto.class);
+            dataSourceConnectionDto = mock(DataSourceConnectionDto.class);
+            definitionDto = mock(DataSourceDefinitionDto.class);
+            tapTable = mock(TapTable.class);
+            schema1 = mock(Schema.class);
+
+            when(metadataInstances.getSource()).thenReturn(sourceDto);
+            when(sourceDto.get_id()).thenReturn("_id");
+            when(dataSourceMap.get("_id")).thenReturn(dataSourceConnectionDto);
+            when(dataSourceConnectionDto.getDb_version()).thenReturn("1.0");
+            when(dataSourceConnectionDto.getDatabase_type()).thenReturn("mysql");
+            when(schema.getFields()).thenReturn(new ArrayList<>());
+            when(definitionDtoMap.get("mysql")).thenReturn(definitionDto);
+            when(definitionDto.getExpression()).thenReturn(".*");
+            when(tapTable.getNameFieldMap()).thenReturn(null);
+            when(schema1.getFields()).thenReturn(new ArrayList<>());
+            doNothing().when(schema).setFields(anyList());
+            doNothing().when(schema).setInvalidFields(anyList());
+            when(metadataInstances.getPartitionInfo()).thenReturn(null);
+            when(metadataInstances.getPartitionMasterTableId()).thenReturn(null);
+            doNothing().when(schema).setPartitionInfo(null);
+            doNothing().when(schema).setPartitionMasterTableId(null);
+            when(service.processFieldFromDB(metadataInstances, schema)).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            try(MockedStatic<PdkSchemaConvert> psc = mockStatic(PdkSchemaConvert.class)) {
+                psc.when(() -> PdkSchemaConvert.toPdk(schema)).thenReturn(tapTable);
+                psc.when(() -> PdkSchemaConvert.fromPdkSchema(tapTable)).thenReturn(schema1);
+                Assertions.assertDoesNotThrow(() -> service.processFieldFromDB(metadataInstances, schema));
             }
         }
     }
