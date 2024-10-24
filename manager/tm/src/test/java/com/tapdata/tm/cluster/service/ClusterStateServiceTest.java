@@ -6,14 +6,17 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.worker.dto.TcmInfo;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -28,14 +31,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class ClusterStateServiceTest {
     ClusterStateService clusterStateService;
@@ -188,6 +189,39 @@ class ClusterStateServiceTest {
                     0,
                     1, 2, 5,
                     1);
+        }
+    }
+    @Nested
+    class deleteClusterTest{
+        @Test
+        public void testDeleteCluster() {
+            Field field = new Field();
+            field.put("systemInfo", 1);
+            WorkerDto worker = new WorkerDto();
+            worker.setLicenseBind(true);
+            when(workerService.findByProcessId(anyString(), any(UserDetail.class), anyString())).thenReturn(worker);
+            ObjectId id = new ObjectId();
+            UserDetail user = mock(UserDetail.class);
+            when(clusterStateService.deleteById(id)).thenReturn(true);
+            doCallRealMethod().when(clusterStateService).deleteCluster(id, user);
+            boolean result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
+
+            when(clusterStateService.findById(id, field)).thenReturn(null);
+            result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
+
+            ClusterStateDto clusterStateDto = new ClusterStateDto();
+            SystemInfo systemInfo = mock(SystemInfo.class);
+            clusterStateDto.setSystemInfo(systemInfo);
+            when(systemInfo.getProcess_id()).thenReturn("123");
+            when(clusterStateService.findById(id, field)).thenReturn(clusterStateDto);
+            result = clusterStateService.deleteCluster(id, user);
+            assertFalse(result);
+
+            when(workerService.unbindByProcessId("123")).thenReturn(true);
+            result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
         }
     }
 }
