@@ -64,7 +64,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		return true;
 	}
 
-	protected Map<String,SyncProgress> foundAllSyncProgress(Map<String, Object> attrs) {
+	public Map<String,SyncProgress> foundAllSyncProgress(Map<String, Object> attrs) {
 		Map<String, SyncProgress> allSyncProgressMap = new HashMap<>();
 		try {
 			if (org.apache.commons.collections.MapUtils.isEmpty(attrs)) {

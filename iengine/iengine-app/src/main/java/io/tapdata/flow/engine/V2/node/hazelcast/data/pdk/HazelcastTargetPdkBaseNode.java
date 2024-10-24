@@ -199,7 +199,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void initSyncProgressMap() {
-		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(processorBaseContext.getTaskDto().getAttrs());
+		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
 			readBatchOffset(entry.getValue());
 		}

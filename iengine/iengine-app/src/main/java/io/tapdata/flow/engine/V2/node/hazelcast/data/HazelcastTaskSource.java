@@ -131,7 +131,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 		}
 	}
 
-	private void initJobOffset() {
+	protected void initJobOffset() {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(taskDto.getAttrs());
