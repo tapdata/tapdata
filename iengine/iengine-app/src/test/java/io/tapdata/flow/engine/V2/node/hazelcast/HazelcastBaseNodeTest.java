@@ -341,6 +341,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			ObsLogger obsLogger = mock(ObsLogger.class);
 			ReflectionTestUtils.setField(mockHazelcastBaseNode,"obsLogger",obsLogger);
 			doCallRealMethod().when(mockHazelcastBaseNode).buildLogListener();
+			doCallRealMethod().when(mockHazelcastBaseNode).logListener();
 			TapTableMap tapTableMap = TapTableMap.create("111");
 			when(processorBaseContext.getTapTableMap()).thenReturn(tapTableMap);
 			mockHazelcastBaseNode.buildLogListener();

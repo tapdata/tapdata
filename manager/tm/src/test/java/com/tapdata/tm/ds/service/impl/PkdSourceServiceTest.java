@@ -95,6 +95,10 @@ public class PkdSourceServiceTest {
             }).when(result).forEach(any());
             pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
             verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());
+
+            /*pkdSourceService.uploadPdk(files, pdkSourceDtos, true, user);
+            verify(fileService).scheduledDeleteFiles(any(), anyString(), anyString(), any(), any());*/
+
         }
     }
     @Nested

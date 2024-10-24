@@ -1045,7 +1045,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
             Number snapshotSyncRate = vs.get("snapshotSyncRate");
             BigDecimal syncRate;
-            if (Objects.nonNull(snapshotSyncRate)) {
+            if (snapshotRowTotal.get() == -1L && snapshotInsertRowTotal.get() > 0L) {
+                syncRate = new BigDecimal(-1);
+            } else if (Objects.nonNull(snapshotSyncRate)) {
                 syncRate = BigDecimal.valueOf(snapshotSyncRate.doubleValue());
             } else if (snapshotRowTotal.get() != 0L) {
                 syncRate = new BigDecimal(snapshotInsertRowTotal.get()).divide(new BigDecimal(snapshotRowTotal.get()), 2, RoundingMode.HALF_UP);
@@ -1059,6 +1061,8 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                 syncRate = BigDecimal.ONE;
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
+            } else if (syncRate.intValue() == -1) {
+                fullSyncStatus = "COUNTING";
             } else {
                 fullSyncStatus = "ING";
             }

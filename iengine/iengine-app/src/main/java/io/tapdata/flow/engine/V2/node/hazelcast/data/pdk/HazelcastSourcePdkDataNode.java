@@ -449,6 +449,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				.tables(tableList)
 		);
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+		doCount(tableList);
 		ConnectorNode connectorNode = getConnectorNode();
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
@@ -457,6 +458,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			setDefaultRowSizeMap();
 			obsLogger.warn("PDK node does not support table batch count: {}", databaseType);
 		}
+		doTableNameSynchronously(batchCountFunction, tableList);
 		BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
 		ExecuteCommandFunction executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
@@ -480,7 +482,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
 
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
+		try {
 			executeDataFuncAspect(
 					BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 							.eventBatchSize(readBatchSize)
