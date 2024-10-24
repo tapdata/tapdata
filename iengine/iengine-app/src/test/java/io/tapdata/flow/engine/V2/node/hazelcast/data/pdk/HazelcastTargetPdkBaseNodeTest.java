@@ -861,6 +861,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				verify(hazelcastTargetPdkBaseNode).initTargetConcurrentProcessorIfNeed();
 				verify(hazelcastTargetPdkBaseNode).initTapEventFilter();
 				verify(hazelcastTargetPdkBaseNode).initIllegalDateAcceptable();
+				verify(hazelcastTargetPdkBaseNode).initSyncProgressMap();
 				verify(flushOffsetExecutor).scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
 				assertTrue(Thread.currentThread().getName().startsWith("Target-Process"));
 				verify(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();

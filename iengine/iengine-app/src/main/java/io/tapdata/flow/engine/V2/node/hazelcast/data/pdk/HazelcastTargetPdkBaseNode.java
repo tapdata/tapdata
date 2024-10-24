@@ -198,7 +198,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
-	private void initSyncProgressMap() {
+	protected void initSyncProgressMap() {
 		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(processorBaseContext.getTaskDto().getAttrs());
 		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
 			readBatchOffset(entry.getValue());
