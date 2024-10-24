@@ -5,6 +5,7 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.cluster.dto.*;
 import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -157,7 +158,7 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Boolean> delete(@PathVariable("id") String id) {
-        return success(clusterStateService.deleteById(MongoUtils.toObjectId(id)));
+        return success(clusterStateService.deleteCluster(MongoUtils.toObjectId(id), getLoginUser()));
     }
 
     /**

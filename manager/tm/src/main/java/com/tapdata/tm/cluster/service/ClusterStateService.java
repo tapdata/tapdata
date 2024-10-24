@@ -11,6 +11,7 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.SettingsEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.service.AgentGroupService;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -27,6 +28,7 @@ import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.service.MessageService;
+import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.NonNull;
@@ -420,5 +422,26 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
             });
         });
         return page;
+    }
+
+    public boolean deleteCluster(ObjectId id, UserDetail user) {
+        Field field = new Field();
+        field.put("systemInfo", 1);
+        ClusterStateDto clusterStateDto = findById(id);
+        boolean unBind = true;
+        if (null != clusterStateDto && null != clusterStateDto.getSystemInfo()) {
+            String processId = clusterStateDto.getSystemInfo().getProcess_id();
+            if (null == processId) {
+                unBind = false;
+            }
+            WorkerDto worker = workerService.findByProcessId(processId, user, "licenseBind");
+            if (null != worker && worker.getLicenseBind()) {
+                unBind = workerService.unbindByProcessId(processId);
+            }
+        }
+        if (unBind) {
+            return deleteById(id);
+        }
+        return false;
     }
 }
