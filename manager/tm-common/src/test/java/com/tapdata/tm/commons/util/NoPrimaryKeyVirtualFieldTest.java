@@ -119,6 +119,7 @@ public class NoPrimaryKeyVirtualFieldTest {
 
             graph.setEdge(sourceNode.getId(), targetNode.getId());
             targetNode.setGraph(graph);
+            sourceNode.setGraph(graph);
 
             // not add to source
             NoPrimaryKeyVirtualField.addVirtualField((Object) schema, (Node<?>) sourceNode);
@@ -148,6 +149,7 @@ public class NoPrimaryKeyVirtualFieldTest {
 
             graph.setEdge(sourceNode.getId(), targetNode.getId());
             targetNode.setGraph(graph);
+            sourceNode.setGraph(graph);
 
             // not add to source
             NoPrimaryKeyVirtualField.addVirtualField(schemas, sourceNode);
