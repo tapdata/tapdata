@@ -427,7 +427,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
     public boolean deleteCluster(ObjectId id, UserDetail user) {
         Field field = new Field();
         field.put("systemInfo", 1);
-        ClusterStateDto clusterStateDto = findById(id);
+        ClusterStateDto clusterStateDto = findById(id, field);
         boolean unBind = true;
         if (null != clusterStateDto && null != clusterStateDto.getSystemInfo()) {
             String processId = clusterStateDto.getSystemInfo().getProcess_id();

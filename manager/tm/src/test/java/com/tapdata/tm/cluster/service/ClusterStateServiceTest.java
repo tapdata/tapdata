@@ -196,7 +196,7 @@ class ClusterStateServiceTest {
         @Test
         public void testDeleteCluster() {
             Field field = new Field();
-            field.put("systemInfo.process_id", 1);
+            field.put("systemInfo", 1);
             WorkerDto worker = new WorkerDto();
             worker.setLicenseBind(true);
             when(workerService.findByProcessId(anyString(), any(UserDetail.class), anyString())).thenReturn(worker);
