@@ -51,6 +51,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto, MetadataDefinitionEntity, ObjectId, MetadataDefinitionRepository> {
 
+    public static final String ITEM_TYPE = "item_type";
     @Autowired
     MongoTemplate mongoTemplate;
 
@@ -317,8 +318,8 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage;
         Where where = new Where();
-        HashMap itemMap = new HashMap();
-        itemMap.put("item_type", "dataflow");
+        Map<String, String> itemMap = new HashMap<>();
+        itemMap.put(ITEM_TYPE, "dataflow");
         where.put("or", com.tapdata.tm.utils.Lists.of(itemMap));
         if (null != filter && where.equals(filter.getWhere())) {
             dtoPage = settingsService.isCloud() ? super.find(filter, user) : super.find(filter);
