@@ -8,7 +8,6 @@ import com.tapdata.tm.commons.exception.NoPrimaryKeyException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
-import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -85,15 +84,12 @@ public class NoPrimaryKeyVirtualField {
     // ---------- 以下为静态函数 ----------
 
     public static void addVirtualField(Object schemaObj, Node<?> node) {
-        // 只处理目标节点
-        if (!Optional.ofNullable(node.getGraph())
-            .map(Graph::getSinks)
-            .map(set -> set.contains(node.getId()))
-            .orElse(false)) {
-            return;
+        // 只处理数据节点
+        if (node instanceof DataParentNode) {
+            // 没有前置节点，跳过
+            if (node.predecessors().isEmpty()) return;
+            checkAndAddVirtualField(schemaObj, node);
         }
-
-        checkAndAddVirtualField(schemaObj, node);
     }
 
     public static Collection<String> getVirtualHashFieldNames(TapTable table) {
