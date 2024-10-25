@@ -1,11 +1,15 @@
 package com.tapdata.tm.base.aop;
 
 import com.google.common.collect.Maps;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
@@ -38,6 +42,7 @@ public class MeasureAOPTest {
         private TaskService taskService;
         private AlarmService alarmService;
         private UserService userService;
+        private AlarmSettingService alarmSettingService;
         Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
         String taskId = "66837fb973828322f83f7074";
         List<AlarmInfo> alarmInfos=new ArrayList<>();
@@ -47,6 +52,7 @@ public class MeasureAOPTest {
             taskService = mock(TaskService.class);
             alarmService = mock(AlarmService.class);
             userService = mock(UserService.class);
+            alarmSettingService = mock(AlarmSettingService.class);
             Map<String,AtomicInteger> infoMap=new HashMap<>();
             infoMap.put(taskId+"-replicateLag",new AtomicInteger(50000));
             obsMap.put(taskId,infoMap);
@@ -61,7 +67,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -80,7 +86,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -100,7 +106,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
                 assertEquals(Level.RECOVERY,alarmInfo.getLevel());
@@ -118,7 +124,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -141,7 +147,7 @@ public class MeasureAOPTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId(taskId));
             taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
-            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService);
+            MeasureAOP measureAOP = new MeasureAOP(taskService, alarmService, userService,alarmSettingService);
             ReflectionTestUtils.setField(measureAOP, "obsMap", obsMap);
             doAnswer(invocationOnMock -> {
                 AlarmInfo alarmInfo = (AlarmInfo)invocationOnMock.getArgument(0);
@@ -161,6 +167,7 @@ public class MeasureAOPTest {
         private TaskService taskService;
         private AlarmService alarmService;
         private UserService userService;
+        private AlarmSettingService alarmSettingService;
         private MeasureAOP measureAOP;
         private TaskDto taskDto;
         UserDetail userDetail;
@@ -177,20 +184,23 @@ public class MeasureAOPTest {
             alarmService = mock(AlarmService.class);
             userService = mock(UserService.class);
             measureAOP = mock(MeasureAOP.class);
+            alarmSettingService = mock(AlarmSettingService.class);
             ReflectionTestUtils.setField(measureAOP, "taskService", taskService);
             ReflectionTestUtils.setField(measureAOP, "alarmService", alarmService);
             ReflectionTestUtils.setField(measureAOP, "userService", userService);
+            ReflectionTestUtils.setField(measureAOP, "alarmSettingService", alarmSettingService);
 
             taskDto = new TaskDto();
             taskDto.setId(MongoUtils.toObjectId(taskId));
+            taskDto.setCurrentEventTimestamp(System.currentTimeMillis());
             when(taskService.findByTaskId(any())).thenReturn(taskDto);
-
             alarmRuleDto = getAlarmRuleDto();
             List<AlarmRuleDto> alarmRuleDtoList=new ArrayList<>();
             alarmRuleDtoList.add(alarmRuleDto);
 
             Map<String, List<AlarmRuleDto>> ruleMap=new HashMap<>();
             ruleMap.put(taskId,alarmRuleDtoList);
+            ruleMap.put("test", alarmRuleDtoList);
             when(alarmService.getAlarmRuleDtos(any())).thenReturn(ruleMap);
 
             userDetail = mock(UserDetail.class);
@@ -201,7 +211,8 @@ public class MeasureAOPTest {
         @DisplayName("test addAgentMeasurement when sample type is task and have alarmRule is TASK_INCREMENT_DELAY")
         @Test
         void test1(){
-            when(alarmService.checkOpen(taskDto,null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, userDetail)).thenReturn(true);
+            when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -226,6 +237,126 @@ public class MeasureAOPTest {
             doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
             measureAOP.addAgentMeasurement(joinPoint);
             verify(measureAOP,times(1)).taskIncrementDelayAlarm(taskDto,taskId, 20000, alarmRuleDto);
+        }
+
+        @DisplayName("test addAgentMeasurement when sample type is node")
+        @Test
+        void test2(){
+            DAG dag = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            TableNode node = new TableNode();
+            node.setId("test");
+            node.setName("table");
+            nodes.add(node);
+            when(dag.getSources()).thenReturn(nodes);
+            when(dag.getNode("test")).thenReturn((Node)node);
+            taskDto.setDag(dag);
+            when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","node");
+            tags.put("taskId",taskId);
+            tags.put("nodeId","test");
+            sampleRequest.setTags(tags);
+
+            Map<String,Number> vs=new HashMap<>();
+            vs.put("replicateLag",20000);
+            Sample sample=new Sample();
+            sample.setVs(vs);
+            sampleRequest.setSample(sample);
+
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+            measureAOP.addAgentMeasurement(joinPoint);
+            verify(measureAOP,times(1)).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
+        }
+
+        @DisplayName("test addAgentMeasurement when sample type is node")
+        @Test
+        void test3(){
+            DAG dag = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            TableNode node = new TableNode();
+            node.setId("test");
+            node.setName("table");
+            nodes.add(node);
+            when(dag.getTargets()).thenReturn(nodes);
+            when(dag.getNode("test")).thenReturn((Node)node);
+            taskDto.setDag(dag);
+            when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","node");
+            tags.put("taskId",taskId);
+            tags.put("nodeId","test");
+            sampleRequest.setTags(tags);
+
+            Map<String,Number> vs=new HashMap<>();
+            vs.put("replicateLag",20000);
+            Sample sample=new Sample();
+            sample.setVs(vs);
+            sampleRequest.setSample(sample);
+
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+            measureAOP.addAgentMeasurement(joinPoint);
+            verify(measureAOP,times(1)).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
+        }
+
+        @DisplayName("test addAgentMeasurement when sample type is node")
+        @Test
+        void test4(){
+            DAG dag = mock(DAG.class);
+            TableNode node = new TableNode();
+            node.setId("test");
+            node.setName("table");
+            when(dag.getNode("test")).thenReturn((Node)node);
+            taskDto.setDag(dag);
+            when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            List<SampleRequest> list = new ArrayList<>();
+            SampleRequest sampleRequest=new SampleRequest();
+
+            Map<String, String> tags =new HashMap<>();
+            tags.put("type","node");
+            tags.put("taskId",taskId);
+            tags.put("nodeId","test");
+            sampleRequest.setTags(tags);
+
+            Map<String,Number> vs=new HashMap<>();
+            vs.put("replicateLag",20000);
+            Sample sample=new Sample();
+            sample.setVs(vs);
+            sampleRequest.setSample(sample);
+
+            list.add(sampleRequest);
+
+            JoinPoint joinPoint = mock(JoinPoint.class);
+
+            Object[] objects = new Object[10];
+            objects[0]=list;
+            when(joinPoint.getArgs()).thenReturn(objects);
+            doCallRealMethod().when(measureAOP).addAgentMeasurement(joinPoint);
+            measureAOP.addAgentMeasurement(joinPoint);
+            verify(measureAOP,times(1)).supplmentDelayAvg(any(),any(),any(),any(),any(),any(),any());
         }
     }
 
