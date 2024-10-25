@@ -4,6 +4,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository;
@@ -16,6 +17,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.HashMap;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -99,7 +101,31 @@ class MetadataDefinitionServiceTest {
             when(settingsService.isCloud()).thenReturn(false);
             Filter filter = new Filter();
             metadataDefinitionService.find(filter,mock(UserDetail.class));
+            verify(metadataDefinitionRepository,times(1)).findAll(any(Filter.class), any(UserDetail.class));
+        }
+        @Test
+        void testDassTag() {
+            when(settingsService.isCloud()).thenReturn(false);
+            Filter filter = new Filter();
+            Where where = new Where();
+            HashMap itemMap = new HashMap();
+            itemMap.put("item_type", "dataflow");
+            where.put("or", com.tapdata.tm.utils.Lists.of(itemMap));
+            filter.setWhere(where);
+            metadataDefinitionService.find(filter,mock(UserDetail.class));
             verify(metadataDefinitionRepository,times(1)).findAll(any(Filter.class));
+        }
+        @Test
+        void testCloudTag() {
+            when(settingsService.isCloud()).thenReturn(true);
+            Filter filter = new Filter();
+            Where where = new Where();
+            HashMap itemMap = new HashMap();
+            itemMap.put("item_type", "dataflow");
+            where.put("or", com.tapdata.tm.utils.Lists.of(itemMap));
+            filter.setWhere(where);
+            metadataDefinitionService.find(filter,mock(UserDetail.class));
+            verify(metadataDefinitionRepository,times(1)).findAll(any(Filter.class), any(UserDetail.class));
         }
     }
 }
