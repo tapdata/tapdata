@@ -1,13 +1,17 @@
 package com.tapdata.tm.commons.util;
 
+import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.exception.NoPrimaryKeyException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -25,6 +29,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -54,38 +59,56 @@ public class NoPrimaryKeyVirtualField {
     public static final TapType FIELD_TAP_TYPE = new TapString((long) FIELD_LENGTH, false);
     public static final byte SPLIT_CHAR = ',';
 
+    protected Consumer<TapTable> addTable;
+    protected Predicate<TapRecordEvent> addHashValue;
     protected final Map<String, HashValueAppender> noPkTables = new HashMap<>();
 
-    public void add(TapTable table) {
-        // 过滤：有主键、有唯一索引的表
-        if (Optional.ofNullable(table.primaryKeys()).map(keys -> !keys.isEmpty()).orElse(false)) return;
-        if (Optional.ofNullable(table.getIndexList()).map(list -> {
-            for (TapIndex index : list) {
-                if (Boolean.TRUE.equals(index.getPrimary())) return true;
-                if (Boolean.TRUE.equals(index.isUnique())) return true;
-            }
-            return false;
-        }).orElse(false)) return;
+    public void init(Graph<? extends Element, ? extends Element> graph) {
+        if (isEnable(graph)) {
+            this.noPkTables.clear();
+            this.addTable = table -> {
+                // 过滤：有主键、有唯一索引的表
+                if (Optional.ofNullable(table.primaryKeys()).map(keys -> !keys.isEmpty()).orElse(false)) return;
+                if (Optional.ofNullable(table.getIndexList()).map(list -> {
+                    for (TapIndex index : list) {
+                        if (Boolean.TRUE.equals(index.getPrimary())) return true;
+                        if (Boolean.TRUE.equals(index.isUnique())) return true;
+                    }
+                    return false;
+                }).orElse(false)) return;
 
-        // 添加 hash 列到数据上
-        String tableName = table.getName();
-        List<String> keys = new ArrayList<>(table.getNameFieldMap().keySet());
-        noPkTables.put(tableName, new HashValueAppender(tableName, keys));
+                // 添加 hash 列到数据上
+                String tableName = table.getName();
+                List<String> keys = new ArrayList<>(table.getNameFieldMap().keySet());
+                noPkTables.put(tableName, new HashValueAppender(tableName, keys));
+            };
+            this.addHashValue = event -> {
+                HashValueAppender handle = noPkTables.get(event.getTableId());
+                if (null != handle) {
+                    return handle.apply(event);
+                }
+                return true;
+            };
+        } else {
+            this.noPkTables.clear();
+            this.addTable = table -> {
+            };
+            this.addHashValue = table -> true;
+        }
+    }
+
+    public void add(TapTable table) {
+        this.addTable.accept(table);
     }
 
     public boolean addHashValue(TapRecordEvent event) {
-        HashValueAppender handle = noPkTables.get(event.getTableId());
-        if (null != handle) {
-            return handle.apply(event);
-        }
-        return true;
+        return this.addHashValue.test(event);
     }
 
     // ---------- 以下为静态函数 ----------
 
     public static void addVirtualField(Object schemaObj, Node<?> node) {
-        // 只处理数据节点
-        if (node instanceof DataParentNode) {
+        if (isEnable(node.getGraph())) {
             // 没有前置节点，跳过
             if (node.predecessors().isEmpty()) return;
             checkAndAddVirtualField(schemaObj, node);
@@ -116,12 +139,31 @@ public class NoPrimaryKeyVirtualField {
         return virtualHashFields;
     }
 
+    public static boolean isEnable(Graph<? extends Element, ? extends Element> graph) {
+        for (String id : graph.getNodes()) {
+            // 存在表合并，不启用
+            Element graphNode = graph.getNode(id);
+            if (graphNode instanceof MergeTableNode) return false;
+            // 存在表关联，不启用
+            if (graphNode instanceof JoinProcessorNode) return false;
+            // 过滤：追加写入模式
+            if (graphNode instanceof DataParentNode) {
+                // 没有前置节点，跳过
+                DataParentNode<?> dataParentNode = (DataParentNode<?>) graphNode;
+                if (!dataParentNode.predecessors().isEmpty() && NoPrimaryKeySyncMode.ADD_HASH == dataParentNode.getNoPrimaryKeySyncMode()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ---------- 以下为内部函数 ----------
 
     protected static void checkAndAddVirtualField(Object schemaObj, Node<?> node) {
         if (schemaObj instanceof Schema) {
             Schema schema = (Schema) schemaObj;
-            if (isEnable(schema, node)) {
+            if (isNeed2AddField(schema, node)) {
                 addVirtualField2Schema(schema, node);
             }
         } else if (schemaObj instanceof List) {
@@ -131,15 +173,9 @@ public class NoPrimaryKeyVirtualField {
         }
     }
 
-    protected static boolean isEnable(Schema schema, Node<?> node) {
+    protected static boolean isNeed2AddField(Schema schema, Node<?> node) {
         // 过滤：主键，唯一索引
-        if (hasPrimaryOrUniqueOrKeys(schema)) {
-            return false;
-        }
-        // 过滤：追加写入模式
-        if (node instanceof DataParentNode && "appendWrite".equals(((DataParentNode<?>) node).getWriteStrategy())) {
-            return false;
-        }
+        if (hasPrimaryOrUniqueOrKeys(schema)) return false;
 
         // 过滤：指定关联字段
         if (node instanceof TableNode) {

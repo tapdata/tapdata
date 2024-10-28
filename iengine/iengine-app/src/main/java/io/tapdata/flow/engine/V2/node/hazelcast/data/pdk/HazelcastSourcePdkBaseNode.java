@@ -214,6 +214,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+        noPrimaryKeyVirtualField.init(getNode().getGraph());
         AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
 		ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
 		ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
