@@ -22,6 +22,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -116,6 +117,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void beforeEach() {
 			TaskResourceSupervisorManager taskResourceSupervisorManager = new TaskResourceSupervisorManager();
 			ReflectionTestUtils.setField(mockInstance, "taskResourceSupervisorManager", taskResourceSupervisorManager);
+			ReflectionTestUtils.setField(mockInstance, "noPrimaryKeyVirtualField", new NoPrimaryKeyVirtualField());
 			doCallRealMethod().when(mockInstance).doInit(jetContext);
 		}
 
