@@ -77,6 +77,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
         query.with(pageable);
         query.with(Sort.by("createTime").descending());
+        query.fields().include("id","taskId","user_id","taskSnapshot.status", "inputTotal", "outputTotal", "statusStack");
 
         List<TaskRecord> taskRecords = mongoTemplate.find(query, TaskRecord.class);
 
