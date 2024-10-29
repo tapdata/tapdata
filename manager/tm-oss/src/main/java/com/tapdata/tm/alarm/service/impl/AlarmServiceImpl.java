@@ -147,6 +147,11 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
+    public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, List<AlarmSettingDto> settingDtos) {
+        throw new BizException(ERROR);
+    }
+
+    @Override
     public boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type, UserDetail userDetail) {
         throw new BizException(ERROR);
     }

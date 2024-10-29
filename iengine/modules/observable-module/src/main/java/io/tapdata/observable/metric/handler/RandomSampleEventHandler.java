@@ -43,12 +43,12 @@ public class RandomSampleEventHandler {
         if (null == events) return 0L;
         List<Object> samples = Collections.singletonList(events.get(0));
         totalSize = events.size();
-		long sizeOfSampleListByte = 0L;
+		long sizeOfSampleByte = 0L;
         for (Object item : samples) {
             TapEvent tapEvent = handle.handel(item);
-            sizeOfSampleListByte += sizeOfTapEvent(tapEvent);
+            sizeOfSampleByte += sizeOfTapEvent(tapEvent);
         }
-        return sizeOfSampleListByte * getTotalSize();
+        return sizeOfSampleByte;
     }
 
     protected long sizeOfTapEvent(TapEvent tapEvent) {
@@ -83,7 +83,7 @@ public class RandomSampleEventHandler {
 
     protected void unitConversion(HandlerUtil.EventTypeRecorder recorder, long sizeOfSampleListByte) {
         long size = sizeOfSampleListByte * getTotalSize();
-        recorder.setMemorySize(size / 10);
+        recorder.setMemorySize(size / 4);
         recorder.setMemoryUtil("B");
     }
 

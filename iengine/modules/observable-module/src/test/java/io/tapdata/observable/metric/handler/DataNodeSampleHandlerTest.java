@@ -9,9 +9,13 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -152,6 +156,19 @@ public class DataNodeSampleHandlerTest {
             verify(handler.outputDeleteCounter, times(1)).inc(result.getModifiedCount());
             verify(handler.outputSpeed, times(1)).add(result.getInsertedCount() + result.getRemovedCount() + result.getModifiedCount());
             verify(handler.outputSizeSpeed, times(1)).add(recorder.getMemorySize());
+        }
+    }
+    @Nested
+    class handleTableCountAcceptTest{
+        @Test
+        void testHandleTableCountAcceptSample() {
+            Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+            ReflectionTestUtils.setField(handler, "currentSnapshotTableRowTotalMap", currentSnapshotTableRowTotalMap);
+            String table = "table1";
+            doCallRealMethod().when(handler).handleTableCountAccept(anyString(), anyLong());
+            handler.handleTableCountAccept(table, -1L);
+            handler.handleTableCountAccept(table, 10L);
+            assertEquals(10L, currentSnapshotTableRowTotalMap.get(table));
         }
     }
 }
