@@ -57,9 +57,11 @@ public class ShareCdcTableMappingServiceImpl extends ShareCdcTableMappingService
 		if (!newTask) {
 			existsLogCollectorTask = taskService.findByTaskId(logCollectorTask.getId(), "dag");
 		}
+		log.info("not exist Task {}", logCollectorTask);
 		Map<String, List<String>> connId2TableNames = getConnId2TableNames(logCollectorTask);
 		if (MapUtils.isEmpty(connId2TableNames)) return;
 		Map<String, List<String>> existsConnId2TableNames = getConnId2TableNames(existsLogCollectorTask);
+		log.info("exist Task {}, exist tableName is {}", existsLogCollectorTask.getName(), existsConnId2TableNames);
 		List<ShareCdcTableMappingEntity> wait2SaveShareCdcTableMappingEntities = new ArrayList<>();
 		BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 		for (Map.Entry<String, List<String>> entry : connId2TableNames.entrySet()) {
