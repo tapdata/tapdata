@@ -1,6 +1,8 @@
 package io.tapdata.observable.logging.appender;
 
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import lombok.SneakyThrows;
@@ -173,9 +175,21 @@ public class AppenderFactory implements Serializable {
 				valueOut.writeString(logsDto.getNodeName());
 				valueOut.writeString(logsDto.getErrorCode());
 				valueOut.writeString(logsDto.getFullErrorCode());
+				String[] dynamicDescriptionParameters = logsDto.getDynamicDescriptionParameters();
+				if(null != dynamicDescriptionParameters && dynamicDescriptionParameters.length > 0) {
+					try {
+						String dynamicDescriptionParametersJson = JSONUtil.obj2Json(dynamicDescriptionParameters);
+						valueOut.writeString(dynamicDescriptionParametersJson);
+					} catch (JsonProcessingException e) {
+						logger.error("Failed to convert dynamicDescriptionParameters to JSON: {}", dynamicDescriptionParameters, e);
+						valueOut.writeString("[]");
+					}
+				} else {
+					valueOut.writeString("[]");
+				}
 				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
 				valueOut.writeString(logTagsJoinStr);
-				if (null != logsDto.getData()) {
+					if (null != logsDto.getData()) {
 					valueOut.writeString(JSON.toJSON(logsDto.getData()).toString());
 				}
 			});
@@ -215,6 +229,8 @@ public class AppenderFactory implements Serializable {
 		builder.errorCode(errorCode);
 		final String fullErrorCode = valueIn.readString();
 		builder.fullErrorCode(fullErrorCode);
+		String dynamicDescriptionJson = valueIn.readString();
+		builder.dynamicDescriptionParameters(JSONUtil.json2POJO(dynamicDescriptionJson, String[].class));
 		final String logTaskStr = valueIn.readString();
 		if (StringUtils.isNotBlank(logTaskStr)) {
 			builder.logTags(Arrays.asList(logTaskStr.split(",")));
