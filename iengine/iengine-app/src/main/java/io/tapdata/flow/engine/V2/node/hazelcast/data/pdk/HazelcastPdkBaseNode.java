@@ -6,7 +6,6 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
@@ -90,6 +89,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
 	private static final String DOUBLE_ACTIVE = "doubleActive";
+	private static final String WRITE_THREAD_SIZE = "writeThreadSize";
 	protected TapRecordSkipDetector skipDetector;
 	private PdkStateMap pdkStateMap;
 
@@ -249,6 +249,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (null == nodeConfig) {
 			nodeConfig = new HashMap<>();
 		}
+        if (node instanceof DataParentNode) {
+            Integer initialConcurrentWriteNum = Optional.ofNullable(((DataParentNode<?>) node).getInitialConcurrentWriteNum()).orElse(1);
+			Integer cdcConcurrentWriteNum = Optional.ofNullable(((DataParentNode<?>) node).getCdcConcurrentWriteNum()).orElse(1);
+            nodeConfig.put(WRITE_THREAD_SIZE, Math.max(initialConcurrentWriteNum, cdcConcurrentWriteNum));
+        }
 		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
 		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
 		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);

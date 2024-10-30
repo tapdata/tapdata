@@ -42,9 +42,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
@@ -1080,14 +1078,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void replaceIllegalDate(Map<String, Object> data){
-		for(Map.Entry<String, Object> entry : data.entrySet()){
-			if(entry.getValue() instanceof TapDateTimeValue){
+		for (Map.Entry<String, Object> entry : data.entrySet()) {
+			if (entry.getValue() instanceof TapDateTimeValue) {
 				TapDateTimeValue tapDateTimeValue = (TapDateTimeValue) entry.getValue();
-				DateTime dateTime = tapDateTimeValue.getValue();
-				if (dateTime.isContainsIllegal()){
-					entry.setValue(null);
-				}
+				replaceIllegalDateTime2Null(tapDateTimeValue.getValue(), entry);
+			} else if (entry.getValue() instanceof TapDateValue) {
+				TapDateValue tapDateValue = (TapDateValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapDateValue.getValue(), entry);
+			}else if (entry.getValue() instanceof TapTimeValue){
+				TapTimeValue tapTimeValue = (TapTimeValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapTimeValue.getValue(),entry);
+			} else if (entry.getValue() instanceof TapYearValue) {
+				TapYearValue tapYearValue = (TapYearValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapYearValue.getValue(),entry);
 			}
+		}
+	}
+
+	protected void replaceIllegalDateTime2Null(DateTime tapDateValue, Map.Entry<String, Object> entry) {
+		DateTime dateTime = tapDateValue;
+		if (dateTime.isContainsIllegal()) {
+			entry.setValue(null);
 		}
 	}
 
