@@ -1,6 +1,7 @@
 package com.tapdata.tm.user.service;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -61,5 +62,11 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract String getServerPort();
 
     public abstract void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail);
+
+    public abstract boolean checkLdapLoginEnable();
+
+    public abstract TestResponseDto testLoginByLdap(TestLdapDto testAdDto);
+
+    public abstract boolean loginByLdap(String username, String password);
 }
 

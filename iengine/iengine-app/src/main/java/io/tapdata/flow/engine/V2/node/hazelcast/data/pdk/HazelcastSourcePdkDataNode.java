@@ -363,6 +363,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				.tables(tableList)
 		);
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+		doCount(tableList);
 		ConnectorNode connectorNode = getConnectorNode();
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		BatchCountFunction batchCountFunction = connectorFunctions.getBatchCountFunction();
@@ -371,6 +372,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			setDefaultRowSizeMap();
 			obsLogger.warn("PDK node does not support table batch count: {}", databaseType);
 		}
+		doTableNameSynchronously(batchCountFunction, tableList);
 		BatchReadFunction batchReadFunction = connectorFunctions.getBatchReadFunction();
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
 		ExecuteCommandFunction executeCommandFunction = connectorFunctions.getExecuteCommandFunction();
@@ -394,7 +396,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		ExecuteCommandFunction executeCommandFunction = functions.getExecuteCommandFunction();
 
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		try (AutoCloseable ignoreTableCountCloseable = doAsyncTableCount(batchCountFunction, tableName)) {
+		try {
 			executeDataFuncAspect(
 					BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 							.eventBatchSize(readBatchSize)
@@ -420,7 +422,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													if (null == event.getTime()) {
 														throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 													}
-													return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
+													return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 												}).collect(Collectors.toList());
 
 												if (batchReadFuncAspect != null)
@@ -812,7 +814,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (null == event.getTime()) {
 							throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
 						}
-						return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
+						return cdcDelayCalculation.filterAndCalcDelay(event, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 					}).collect(Collectors.toList());
 
 					if (streamReadFuncAspect != null) {
@@ -912,15 +914,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		Optional.of(cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet())))
+				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext();
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		List<String> tables = new ArrayList<>(tapTableMap.keySet());
 		excludeRemoveTable(tables);
-		Optional.of(cdcDelayCalculation.addHeartbeatTable(tables))
-				.map(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-		ShareCdcTaskContext shareCdcTaskContext = createShareCDCTaskContext();
 		this.syncProgressType = SyncProgress.Type.SHARE_CDC;
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		shareCdcTaskContext.setTableNames(tables);
 		try {
 			executeDataFuncAspect(StreamReadFuncAspect.class,
 					() -> new StreamReadFuncAspect()

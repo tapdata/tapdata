@@ -6,7 +6,7 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
-import com.tapdata.tm.Settings.dto.SendMailResponseDto;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -454,55 +454,17 @@ public class MailUtils {
     /**
      * 发送HTML邮件
      */
-    public static SendMailResponseDto sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
+    public static TestResponseDto sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
         adressees = filterBlackList(adressees);
-        if (adressees == null) return new SendMailResponseDto(false,"Please check your configuration, receivers cannot be empty.");
+        if (adressees == null) return new TestResponseDto(false,"Please check your configuration, receivers cannot be empty.");
 
         boolean flag = true;
         if (StringUtils.isAnyBlank(parms.getHost(), parms.getFrom(),parms.getUser(), parms.getPass()) || CollectionUtils.isEmpty(adressees)) {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
-            return new SendMailResponseDto(false,"Please check your configuration, mail account information cannot be empty.");
+            return new TestResponseDto(false,"Please check your configuration, mail account information cannot be empty.");
         } else {
-            if (StringUtils.isNotBlank(parms.getProxyHost()) && 0 != parms.getProxyPort()) {
-                return sendEmailForProxy(parms, adressees, title, content, flag);
-            }
-            try {
-                MailAccount account = new MailAccount();
-                account.setHost(parms.getHost());
-                account.setPort(parms.getPort());
-                account.setAuth(true);
-                account.setFrom(parms.getFrom());
-                account.setUser(parms.getUser());
-                account.setPass(parms.getPass());
-                if ("SSL".equals(parms.getProtocol())) {
-                    // 使用SSL安全连接
-                    account.setSslEnable(true);
-                    //指定实现javax.net.SocketFactory接口的类的名称,这个类将被用于创建SMTP的套接字
-                    account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
-                } else if ("TLS".equals(parms.getProtocol())) {
-                    account.setStarttlsEnable(true);
-                    account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
-                } else {
-                    account.setSslEnable(false);
-                    account.setStarttlsEnable(false);
-                }
-
-                //如果设置为true,未能创建一个套接字使用指定9的套接字工厂类将导致使用java.net.Socket创建的套接字类, 默认值为true
-                account.setSocketFactoryFallback(true);
-                // 指定的端口连接到在使用指定的套接字工厂。如果没有设置,将使用默认端口456
-                account.setSocketFactoryPort(465);
-                Map<String, Object> oemConfig = OEMReplaceUtil.getOEMConfigMap("email/replace.json");
-                title = OEMReplaceUtil.replace(title, oemConfig);
-                content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
-                MailUtil.send(account, adressees, title ,content, true);
-            } catch (Exception e) {
-                log.error("mail send error：{}", e.getMessage(), e);
-                flag = false;
-                return new SendMailResponseDto(flag, TapSimplify.getStackTrace(e));
-            }
+            return sendEmailForProxy(parms, adressees, title, content, flag);
         }
-        log.debug("mail send status：{}", flag ? "suc" : "error");
-        return new SendMailResponseDto(flag, null);
     }
 
     @Nullable
@@ -526,15 +488,15 @@ public class MailUtils {
         return adressees;
     }
 
-    protected static SendMailResponseDto sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
+    protected static TestResponseDto sendEmailForProxy(MailAccountDto parms, List<String> adressees, String title, String content, boolean flag) {
         final String username = parms.getUser();
         final String password = parms.getPass();
 
         Properties properties = new Properties();
         properties.put("mail.smtp.host", parms.getHost());
-        properties.put("mail.smtp.port", parms.getPort());
+        properties.put("mail.smtp.port", String.valueOf(parms.getPort()));
         properties.put("mail.smtp.auth", "true");
-        if ("SSL".equals(parms.getProtocol())){
+        if ("SSL".equals(parms.getProtocol())) {
             properties.put("mail.smtp.ssl.enable", "true");
         } else if ("TLS".equals(parms.getProtocol())) {
             properties.put("mail.smtp.starttls.enable", "true");
@@ -543,9 +505,10 @@ public class MailUtils {
             properties.put("mail.smtp.starttls.enable", "false");
         }
         //set proxy server
-        properties.put("mail.smtp.socks.host", parms.getProxyHost());
-        properties.put("mail.smtp.socks.port", parms.getProxyPort());
-
+        if (StringUtils.isNotBlank(parms.getProxyHost()) && 0 != parms.getProxyPort()){
+            properties.put("mail.smtp.socks.host", parms.getProxyHost());
+            properties.put("mail.smtp.socks.port", parms.getProxyPort());
+        }
         Session session = Session.getInstance(properties, new Authenticator() {
             protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(username, password);
@@ -577,10 +540,10 @@ public class MailUtils {
         } catch (Exception e) {
             flag = false;
             log.error("mail send error：{}", e.getMessage(), e);
-            return new SendMailResponseDto(flag, TapSimplify.getStackTrace(e));
+            return new TestResponseDto(flag, TapSimplify.getStackTrace(e));
         }
         log.debug("mail send status：{}", flag ? "suc" : "error");
-        return new SendMailResponseDto(flag,null);
+        return new TestResponseDto(flag,null);
     }
 
     protected static String assemblyMessageBody(String message) {

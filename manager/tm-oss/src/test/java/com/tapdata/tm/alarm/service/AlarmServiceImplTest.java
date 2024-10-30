@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
+
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 
@@ -54,10 +56,17 @@ public class AlarmServiceImplTest {
     }
 
     @Test
-    void testCheckOpen(){
+    void testCheckOpen1(){
         try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)){
             messageUtilMockedStatic.when(()->MessageUtil.getMessage(anyString())).thenReturn("error");
-            Assertions.assertThrows(BizException.class,()->alarmService.checkOpen(null,null,null,null,null));
+            Assertions.assertThrows(BizException.class,()->alarmService.checkOpen(null,null,null,null,mock(UserDetail.class)));
+        }
+    }
+    @Test
+    void testCheckOpen3(){
+        try(MockedStatic<MessageUtil> messageUtilMockedStatic = Mockito.mockStatic(MessageUtil.class)){
+            messageUtilMockedStatic.when(()->MessageUtil.getMessage(anyString())).thenReturn("error");
+            Assertions.assertThrows(BizException.class,()->alarmService.checkOpen(null,null,null,null,new ArrayList<>()));
         }
     }
 

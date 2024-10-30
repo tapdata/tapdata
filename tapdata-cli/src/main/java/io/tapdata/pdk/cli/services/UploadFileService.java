@@ -181,6 +181,7 @@ public class UploadFileService {
       request = new HttpRequest(url, method);
     }
     request.connectTimeout(180000).readTimeout(180000);//连接超时设置
+    //request.progress((uploaded, total) -> System.out.println("uploaded: " + uploaded + " total: " + total + " time: " + System.currentTimeMillis()));
     if (file != null) {
       request.part("file", file.getName(), "application/java-archive", file);
     }
@@ -218,7 +219,7 @@ public class UploadFileService {
     } else {
       printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s Completed", file.getName()));
     }
-    printUtil.print(PrintUtil.TYPE.DEBUG, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
+    printUtil.print(PrintUtil.TYPE.WARN, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {

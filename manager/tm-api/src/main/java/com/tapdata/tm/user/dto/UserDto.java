@@ -26,6 +26,7 @@ public class UserDto extends BaseDto {
     private String accessCode;
     private String username;
     private String email;
+    private String ldapAccount;
     private Integer role;
     private String phone;
     private String photo;

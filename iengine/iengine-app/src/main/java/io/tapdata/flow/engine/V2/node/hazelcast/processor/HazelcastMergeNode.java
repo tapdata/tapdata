@@ -494,9 +494,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				}
 				int mergeCacheInMemSize = CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE);
 				ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(mergeCacheInMemSize);
-				ConstructIMap<Document> hazelcastConstruct = buildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
+				ConstructIMap<Document> hazelcastConstruct = checkBuildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				obsLogger.info("Create merge cache imap name: {}, external storage: {}", cacheName, externalStorageDtoCopy);
+				obsLogger.info("Create merge cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 			}
 		}
 	}
@@ -761,6 +761,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (null == externalStorageDto) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.COPY_EXTERNAL_STORAGE_FAILED_SOURCE_IS_NULL);
 		}
+		return copyExternalStorage(externalStorageDto, inMemSize);
+	}
+
+	protected static ExternalStorageDto copyExternalStorage(ExternalStorageDto externalStorageDto,int inMemSize){
 		ExternalStorageDto externalStorageDtoCopy = new ExternalStorageDto();
 		BeanUtils.copyProperties(externalStorageDto, externalStorageDtoCopy);
 		externalStorageDtoCopy.setTable(null);
@@ -770,7 +774,43 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return externalStorageDtoCopy;
 	}
 
-	protected ConstructIMap<Document> buildConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String cacheName, ExternalStorageDto externalStorageDtoCopy) {
+	protected static ConstructIMap<Document> checkBuildConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String cacheName, ExternalStorageDto externalStorageDtoCopy){
+		ConstructIMap<Document> constructIMapV2;
+		try{
+			constructIMapV2 = buildConstructIMap(hazelcastInstance, referenceId, String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
+		}catch (Exception e) {
+			throw new TapCodeException(TaskMergeProcessorExCode_16.INIT_CACHE_FAILED, String.format("Cache name: %s", cacheName), e);
+		}
+		if(constructIMapV2.isEmpty()){
+			ConstructIMap<Document> constructIMapV1;
+			try {
+				constructIMapV1 = buildConstructIMap(hazelcastInstance, referenceId, cacheName, externalStorageDtoCopy);
+			} catch (Exception e) {
+				return constructIMapV2;
+			}
+			if (!constructIMapV1.isEmpty()) {
+				try {
+					constructIMapV2.clear();
+					constructIMapV2.destroy();
+				} catch (Exception e) {
+				}
+				return constructIMapV1;
+			} else {
+				try {
+					constructIMapV1.clear();
+					constructIMapV1.destroy();
+				} catch (Exception e) {
+				}
+				return constructIMapV2;
+			}
+
+		}else {
+			return constructIMapV2;
+		}
+
+	}
+
+	protected static ConstructIMap<Document> buildConstructIMap(HazelcastInstance hazelcastInstance, String referenceId, String cacheName, ExternalStorageDto externalStorageDtoCopy) {
 		return new ConstructIMap<>(hazelcastInstance, referenceId, cacheName, externalStorageDtoCopy);
 	}
 
@@ -962,7 +1002,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return name;
 	}
 
-	private static String getCheckUpdateJoinKeyValueCacheName(String nodeId) {
+	protected static String getCheckUpdateJoinKeyValueCacheName(String nodeId) {
 		if (StringUtils.isBlank(nodeId)) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_NAME_FAILED_NODE_ID_CANNOT_NULL);
 		}
@@ -1632,13 +1672,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static void clearCache(Node<?> node) {
 		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
-		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+		ExternalStorageDto copyExternalStorage = copyExternalStorage(externalStorage,CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE));
+		recursiveClearCache(copyExternalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
 	public static void clearCache(Node<?> node, List<Node> nodes, List<Edge> edges) {
 		if (!(node instanceof MergeTableNode)) return;
 		ExternalStorageDto externalStorage = ExternalStorageUtil.getTargetNodeExternalStorage(node, edges, ConnectorConstant.clientMongoOperator, nodes);
-		recursiveClearCache(externalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
+		ExternalStorageDto copyExternalStorage = copyExternalStorage(externalStorage,CommonUtils.getPropertyInt(MERGE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_MERGE_CACHE_IN_MEM_SIZE));
+		recursiveClearCache(copyExternalStorage, ((MergeTableNode) node).getMergeProperties(), HazelcastUtil.getInstance());
 	}
 
 	private static void recursiveClearCache(ExternalStorageDto externalStorageDto, List<MergeTableProperties> mergeTableProperties, HazelcastInstance hazelcastInstance) {
@@ -1646,7 +1688,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		CommonUtils.handleAnyErrors((Consumer<Throwable> consumer) -> {
 			for (MergeTableProperties mergeTableProperty : mergeTableProperties) {
 				try {
-					ConstructIMap<Document> mergeCache = new ConstructIMap<>(hazelcastInstance, HazelcastMergeNode.class.getSimpleName(),
+					ConstructIMap<Document> mergeCache = checkBuildConstructIMap(hazelcastInstance, HazelcastMergeNode.class.getSimpleName(),
 							getMergeCacheName(mergeTableProperty.getId(), mergeTableProperty.getTableName()), externalStorageDto);
 					try {
 						mergeCache.clear();

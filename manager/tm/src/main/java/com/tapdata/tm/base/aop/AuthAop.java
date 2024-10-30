@@ -58,34 +58,6 @@ public class AuthAop {
     return ignoreUserIdWhenUpdate(pjp, userDetail);
   }
 
-  @Around("execution(public * com.tapdata.tm.base.service.BaseService.*(..)) && target(com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService) && args(.., filter, user)")
-  public Object metadataDefinitionService_filter(ProceedingJoinPoint pjp, Filter filter, UserDetail user) throws Throwable {
-    if (productComponent.isCloud()) {
-      return pjp.proceed();
-    }
-    boolean isChange = false;
-    try {
-      if (user != null && !user.isRoot() && !user.isFreeAuth()) {
-        user.setFreeAuth();
-        filter.setWhere(new Where()
-                .and("and", new ArrayList<Map<String, Object>>() {{
-                  add(filter.getWhere());
-                  add(new HashMap<String, Object>() {{
-                    put("user_id", new HashMap<String, Object>() {{
-                      put("$in", Arrays.asList(user.getUserId(), null, ""));
-                    }});
-
-                  }});
-                }}));
-        isChange = true;
-      }
-      return pjp.proceed();
-    } finally {
-      if (isChange) {
-        user.setAuth();
-      }
-    }
-  }
 
   @Around("execution(public * com.tapdata.tm.base.service.BaseService.*(..)) && target(com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService) && args(.., query, user)")
   public Object metadataDefinitionService_query(ProceedingJoinPoint pjp, Query query, UserDetail user) throws Throwable {

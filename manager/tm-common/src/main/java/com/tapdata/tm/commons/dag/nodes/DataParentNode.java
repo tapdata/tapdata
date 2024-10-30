@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.NoPrimaryKeySyncMode;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -101,6 +102,9 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     /** 根据更新条件创建唯一索引或普通索引，默认为 true，创建唯一索引*/
     private Boolean uniqueIndexEnable;
+
+    /** 无主键表同步模式， */
+    private String noPkSyncMode;
     /**
      * constructor for node
      *
@@ -265,6 +269,10 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     public void setReadPartitionOptions(ReadPartitionOptions readPartitionOptions) {
         this.readPartitionOptions = readPartitionOptions;
+    }
+
+    public NoPrimaryKeySyncMode getNoPrimaryKeySyncMode() {
+        return NoPrimaryKeySyncMode.fromValue(getNoPkSyncMode());
     }
 
     protected void removeAllPrimaryKeys(Schema schema) {

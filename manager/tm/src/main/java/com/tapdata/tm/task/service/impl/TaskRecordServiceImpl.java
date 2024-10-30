@@ -40,6 +40,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
     private MongoTemplate mongoTemplate;
     private MeasurementServiceV2 measurementServiceV2;
     private UserService userService;
+    private static final String TASK_ID = "taskId";
 
     @Override
     public void createRecord(TaskRecord taskRecord) {
@@ -64,7 +65,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         Integer page = dto.getPage();
         Integer size = dto.getSize();
 
-        Query query = new Query(Criteria.where("taskId").is(taskId));
+        Query query = new Query(Criteria.where(TASK_ID).is(taskId));
         long count = mongoTemplate.count(query, TaskRecord.class);
         if (count == 0) {
             return new Page<>(0, Collections.emptyList());
@@ -77,6 +78,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
         query.with(pageable);
         query.with(Sort.by("createTime").descending());
+        query.fields().include("id",TASK_ID,"user_id","taskSnapshot.status", "inputTotal", "outputTotal", "statusStack");
 
         List<TaskRecord> taskRecords = mongoTemplate.find(query, TaskRecord.class);
 
@@ -174,7 +176,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
     @Override
     public void cleanTaskRecord(String taskId) {
-        Query query = new Query(Criteria.where("taskId").is(taskId));
+        Query query = new Query(Criteria.where(TASK_ID).is(taskId));
         mongoTemplate.remove(query, TaskRecord.class);
     }
 }

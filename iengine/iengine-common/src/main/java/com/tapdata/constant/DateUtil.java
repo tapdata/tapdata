@@ -472,17 +472,11 @@ public class DateUtil {
 			return TimeZone.getDefault();
 		}
 		StringBuilder sb = new StringBuilder("GMT");
-		String str = String.valueOf(timeZoneOffset);
-		if (str.length() <= 1 || (str.contains("-") && str.length() <= 2)) {
-			if (str.contains("-")) {
-				sb.append("-0").append(Math.abs(timeZoneOffset));
-			} else {
-				sb.append("+0").append(timeZoneOffset);
-			}
-		} else {
-			sb.append(str);
-		}
-		sb.append(":00");
+        if (timeZoneOffset < 0) {
+            sb.append(String.format("%02d:00", timeZoneOffset));
+        } else {
+            sb.append(String.format("+%02d:00", timeZoneOffset));
+        }
 
 		return TimeZone.getTimeZone(sb.toString());
 	}

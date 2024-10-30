@@ -1078,7 +1078,7 @@ public class LdpServiceImpl implements LdpService {
                         if (ldpNewTables == null) {
                             ldpNewTables = new ArrayList<>();
                         }
-                        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                        if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus()) || TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus())) {
                             String state = "running";
                             for (String tableName : tableNames) {
                                 if (map.containsKey(tableName)) {
@@ -1124,7 +1124,7 @@ public class LdpServiceImpl implements LdpService {
                         if (target instanceof TableNode) {
                             String tableName = ((TableNode) target).getTableName();
                             if (tableNames.contains(tableName)) {
-                                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                                if (TaskDto.STATUS_RUNNING.equals(taskDto.getStatus()) || TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus())) {
                                     tableStatusMap.put(tableName, "running");
                                 } else {
                                     if (!"running".equals(tableStatusMap.get(tableName))) {

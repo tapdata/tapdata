@@ -3,9 +3,11 @@ package com.tapdata.tm.metadatadefinition.service;
 import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -37,13 +39,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -55,6 +51,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto, MetadataDefinitionEntity, ObjectId, MetadataDefinitionRepository> {
 
+    public static final String ITEM_TYPE = "item_type";
     @Autowired
     MongoTemplate mongoTemplate;
 
@@ -73,6 +70,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     private LdpService ldpService;
+
+    @Autowired
+    private SettingsService settingsService;
 
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
@@ -316,7 +316,16 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
-        Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
+        Page<MetadataDefinitionDto> dtoPage;
+        Where where = new Where();
+        Map<String, String> itemMap = new HashMap<>();
+        itemMap.put(ITEM_TYPE, "dataflow");
+        where.put("or", com.tapdata.tm.utils.Lists.of(itemMap));
+        if (null != filter && where.equals(filter.getWhere())) {
+            dtoPage = settingsService.isCloud() ? super.find(filter, user) : super.find(filter);
+        } else {
+            dtoPage = super.find(filter, user);
+        }
         if (filter.getOrder() == null) {
             dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
             dtoPage.getItems().sort(Comparator.comparing(s -> {

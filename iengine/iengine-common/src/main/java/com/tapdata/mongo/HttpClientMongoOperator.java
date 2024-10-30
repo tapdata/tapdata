@@ -34,6 +34,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -750,7 +754,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		return result;
 	}
 
-	private void validateToken() {
+	protected void validateToken() {
 
 		LoginResp loginResp = (LoginResp) configCenter.getConfig(ConfigurationCenter.LOGIN_INFO);
 
@@ -758,13 +762,15 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			refreshToken();
 		} else {
 			long expiredTimestamp = loginResp.getExpiredTimestamp();
-			if (expiredTimestamp - System.currentTimeMillis() <= 86400 * 1000) {
+			Long ttl = loginResp.getTtl();
+			long bufferTime = ttl > 0 ? ttl / 10 : 0;
+			if (expiredTimestamp - System.currentTimeMillis() < bufferTime) {
 				refreshToken();
 			}
 		}
 	}
 
-	private void refreshToken() {
+	protected void refreshToken() {
 		String accessCode = (String) configCenter.getConfig(ConfigurationCenter.ACCESS_CODE);
 
 		LoginResp loginResp = null;
@@ -776,8 +782,13 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			try {
 				loginResp = restTemplateOperator.postOne(params, "users/generatetoken", LoginResp.class);
 				if (loginResp != null) {
-					Date date = (Date) DateUtil.parse(loginResp.getCreated());
-					long expiredTimestamp = date.getTime() + (loginResp.getTtl() * 1000);
+					String parsePattern = DateUtil.determineDateFormat(loginResp.getCreated());
+					DateTimeFormatter formatter = DateTimeFormatter.ofPattern(parsePattern);
+					ZonedDateTime utcZonedDateTime = ZonedDateTime.parse(loginResp.getCreated(), formatter.withZone(ZoneOffset.UTC));
+					ZonedDateTime systemZonedDateTime = utcZonedDateTime.withZoneSameInstant(ZoneId.systemDefault());
+					Date date = Date.from(systemZonedDateTime.toInstant());
+
+					long expiredTimestamp = date.getTime() + loginResp.getTtl() * 1000;
 					loginResp.setExpiredTimestamp(expiredTimestamp);
 
 					configCenter.putConfig(ConfigurationCenter.TOKEN, loginResp.getId());
@@ -797,6 +808,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 					}
 				}
 			} catch (Exception e) {
+				retryCount++;
 				logger.error("refresh token failed {}", e.getMessage(), e);
 			}
 		}

@@ -87,6 +87,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 						.append("totalResponseTime", Arrays.asList(new Document("$group", new Document("_id", "$allPathId").append("data", new Document("$sum", "$totalResponseTime")))))
 						.append("alarmApiTotalCount", Arrays.asList(new Document("$match", new Document("accessFailureRate", new Document("$gt", 0))),
 								new Document("$group", new Document("_id", null).append("data", new Document("$sum", 1L)))))
+						.append("lastUpdAt", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$max", "$last_updated")))))
 		)));
 		if (log.isDebugEnabled()) {
 			StringBuilder pipelineString = new StringBuilder();
@@ -148,6 +149,17 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 					tempList = (List<?>) alarmApiTotalCount;
 					if (!tempList.isEmpty()) {
 						apiCallStatsDto.setAlarmApiTotalCount(DocumentUtils.getLong((Document) tempList.get(0), "data"));
+					}
+				}
+				// max last update time
+				Object lastUpdAt = doc.get("lastUpdAt");
+				if (lastUpdAt instanceof List) {
+					tempList = (List<?>) lastUpdAt;
+					if (!tempList.isEmpty()) {
+						Object data = ((Document) tempList.get(0)).get("data");
+						if (data instanceof Date) {
+							apiCallStatsDto.setLastUpdAt((Date) data);
+						}
 					}
 				}
 			}

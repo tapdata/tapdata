@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
@@ -39,7 +40,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TapdataEventException;
@@ -871,7 +872,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						this.tapEventProcessQueue = new LinkedBlockingQueue<>(newQueueSize);
 						this.queueConsumerThreadPool.shutdownNow();
 						if(this.queueConsumerThreadPool.isShutdown()){
-							initQueueConsumerThreadPool();
+							ThreadGroup connectorOnTaskThreadGroup = Thread.currentThread().getThreadGroup();
+							queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
 							initTargetQueueConsumer();
 						}
 						obsLogger.info("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
@@ -1069,24 +1071,38 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		boolean containsIllegalDate = event.getContainsIllegalDate();
 		if (containsIllegalDate && !illegalDateAcceptable){
 			Map<String, Object> before = Optional.ofNullable(TapEventUtil.getBefore(event)).orElse(new HashMap<>());
-			Map<String, List<String>> illegalFieldMap = Optional.ofNullable(TapEventUtil.getIllegalField(event)).orElse(new HashMap<>());
-			List<String> beforeIllegal = Optional.ofNullable(illegalFieldMap.get("before")).orElse(new ArrayList<>());
-			List<String> afterIllegal = Optional.ofNullable(illegalFieldMap.get("after")).orElse(new ArrayList<>());
-			for (String filedName : beforeIllegal) {
-				Object value = before.get(filedName);
-				if (null != value){
-					before.put(filedName, null);
-				}
-			}
-			Map<String, Object> after = TapEventUtil.getAfter(event);
-			for (String filedName : afterIllegal) {
-				Object value = after.get(filedName);
-				if (null != value){
-					after.put(filedName, null);
-				}
+			replaceIllegalDate(before);
+			Map<String, Object> after = Optional.ofNullable(TapEventUtil.getAfter(event)).orElse(new HashMap<>());
+			replaceIllegalDate(after);
+		}
+	}
+
+	protected void replaceIllegalDate(Map<String, Object> data){
+		for (Map.Entry<String, Object> entry : data.entrySet()) {
+			if (entry.getValue() instanceof TapDateTimeValue) {
+				TapDateTimeValue tapDateTimeValue = (TapDateTimeValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapDateTimeValue.getValue(), entry);
+			} else if (entry.getValue() instanceof TapDateValue) {
+				TapDateValue tapDateValue = (TapDateValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapDateValue.getValue(), entry);
+			}else if (entry.getValue() instanceof TapTimeValue){
+				TapTimeValue tapTimeValue = (TapTimeValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapTimeValue.getValue(),entry);
+			} else if (entry.getValue() instanceof TapYearValue) {
+				TapYearValue tapYearValue = (TapYearValue) entry.getValue();
+				replaceIllegalDateTime2Null(tapYearValue.getValue(),entry);
 			}
 		}
 	}
+
+	protected void replaceIllegalDateTime2Null(DateTime tapDateValue, Map.Entry<String, Object> entry) {
+		DateTime dateTime = tapDateValue;
+		if (dateTime.isContainsIllegal()) {
+			entry.setValue(null);
+		}
+	}
+
+
 	private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
 		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
 			return false;
@@ -1196,7 +1212,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} else {
 				Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
 				if (CollectionUtils.isEmpty(logicUniqueKey)) {
-					tapTable.setLogicPrimaries(Collections.emptyList());
+					tapTable.setLogicPrimaries(NoPrimaryKeyVirtualField.getVirtualHashFieldNames(tapTable));
 				}
 			}
 		} else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {

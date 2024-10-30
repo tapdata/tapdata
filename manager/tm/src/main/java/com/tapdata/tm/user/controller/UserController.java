@@ -4,6 +4,7 @@ import cn.hutool.crypto.digest.BCrypt;
 import com.mongodb.BasicDBObject;
 import com.tapdata.tm.Permission.dto.PermissionDto;
 import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.controller.BaseController;
@@ -22,6 +23,7 @@ import com.tapdata.tm.user.dto.*;
 import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.param.ResetPasswordParam;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.user.dto.TestLdapDto;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.RC4Util;
@@ -300,7 +302,45 @@ public class UserController extends BaseController {
         } catch (Exception e) {
             return failed(e);
         }
-        User user = userService.findOneByEmail(loginRequest.getEmail());
+        User user;
+        // 从setting中获取是否开启AD
+        boolean adLoginEnable = userService.checkLdapLoginEnable();
+        //若开启，走AD校验，校验通过创建用户，未通过登录失败
+        if (adLoginEnable && !"admin@admin.com".equals(loginRequest.getEmail())) {
+            boolean login = userService.loginByLdap(loginRequest.getEmail(), password);
+            if (!login) {
+                throw new BizException("Incorrect.Password");
+            }
+            //登录成功查询用户是否存在没有就创建用户
+            if (StringUtils.isNotBlank(loginRequest.getEmail())) {
+                String[] split = loginRequest.getEmail().split("@");
+                if (split != null && split.length > 1) {
+                    loginRequest.setEmail(split[0]);
+                }
+            }
+            UserDto adUser = userService.findOne(new Query(Criteria.where("ldapAccount").regex(loginRequest.getEmail(), "i").and("source").is("createLdap")
+                    .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
+            if (null == adUser) {
+                CreateUserRequest request = new CreateUserRequest();
+                request.setLdapAccount(loginRequest.getEmail());
+                request.setUsername(loginRequest.getEmail());
+                request.setAccesscode("");
+                request.setAccountStatus(1);
+                request.setPassword(password);
+                request.setSource("createLdap");
+                request.setEmailVerified(true);
+                List<Object> roleusers = new ArrayList<>();
+                roleusers.add("5d31ae1ab953565ded04badd");
+                request.setRoleusers(roleusers);
+                UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
+                adUser = userService.save(request, userDetail);
+            }
+            user = userService.convertToEntity(User.class, adUser);
+            user.setPassword(BCrypt.hashpw(password));
+        } else {
+            //未开启走原来的逻辑
+            user = userService.findOneByEmail(loginRequest.getEmail());
+        }
         if (user.getAccountStatus() == 2) {
             return failed("110500", user.isEmailVerified() ? "WAITING_APPROVE" : "EMAIL_NON_VERIFLED");
         } else if (user.getAccountStatus() == 0) {
@@ -481,5 +521,19 @@ public class UserController extends BaseController {
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
         userService.delete(id);
         return success();
+    }
+
+    @Operation(summary = "test ldap login")
+    @PostMapping("testLdapLogin")
+    public ResponseMessage<TestResponseDto> testLoginByLdap(@RequestBody TestLdapDto testldapDto) {
+        TestResponseDto res = userService.testLoginByLdap(testldapDto);
+        return success(res);
+    }
+
+    @Operation(summary = "check ldap login enable")
+    @GetMapping("checkLdapLoginEnable")
+    public ResponseMessage<Boolean> checkADLoginEnable() {
+        Boolean res = userService.checkLdapLoginEnable();
+        return success(res);
     }
 }

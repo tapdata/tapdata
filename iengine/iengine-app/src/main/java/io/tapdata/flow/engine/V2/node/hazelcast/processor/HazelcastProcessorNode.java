@@ -17,7 +17,11 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
@@ -80,7 +84,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		}
 	}
 
-	private void initDataFlowProcessor() throws TapCodeException {
+	protected void initDataFlowProcessor() throws TapCodeException {
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
 		Job job = new Job();
@@ -105,6 +109,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		);
 		try {
 			dataFlowProcessor.initialize(processorContext, stage);
+			dataFlowProcessor.logListener(logListener());
 		} catch (Exception e) {
 			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e);
 		}
@@ -139,7 +144,17 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				} else {
 					TapEventUtil.setBefore(tapRecordEvent, processedMessage.getBefore());
 					TapEventUtil.setAfter(tapRecordEvent, processedMessage.getAfter());
+					List<String> removedFields = null;
+					if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+						removedFields = ((TapUpdateRecordEvent) tapRecordEvent).getRemovedFields();
+					}
+					tapRecordEvent = message2TapEvent(processedMessage);
+					if (null != removedFields) {
+						TapEventUtil.setRemoveFields(tapRecordEvent, removedFields);
+					}
+					tapdataEvent.setTapEvent(tapRecordEvent);
 				}
+				handleRemoveFields(tapdataEvent);
 				consumer.accept(tapdataEvent, getProcessResult(processedMessage.getTableName()));
 			}
 		}
@@ -201,7 +216,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	}
 
-	private DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
+	protected DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
 		NodeTypeEnum nodeType = NodeTypeEnum.get(node.getType());
 		DataFlowProcessor dataFlowProcessor = null;
 		switch (nodeType) {
@@ -368,6 +383,60 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 					if (item instanceof Map || item instanceof List) {
 						queue.add(item);
 					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Handles the removal of fields from the TapEvent within the given TapdataEvent.
+	 *
+	 * @param tapdataEvent the TapdataEvent containing the TapEvent to process
+	 */
+	protected void handleRemoveFields(TapdataEvent tapdataEvent) {
+	    // Get the TapEvent object
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+	    // Get the list of fields to be removed
+		List<String> removeFields = TapEventUtil.getRemoveFields(tapEvent);
+		if (CollectionUtils.isEmpty(removeFields)) {
+			return;
+		}
+	    // If there is a field rename processor, perform field renaming
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			List<String> newRemoveFields = new ArrayList<>();
+			removeFields.forEach(field->{
+				String newField = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+				newRemoveFields.add(newField);
+			});
+	        // Update the removeFields in TapEvent
+			TapEventUtil.setRemoveFields(tapEvent, newRemoveFields);
+			removeFields = newRemoveFields;
+		}
+	    // Get the current node
+		Node<?> node = getNode();
+	    // If the current node is an instance of FieldProcessorNode, process field operations
+		if (node instanceof FieldProcessorNode) {
+			List<FieldProcessorNode.Operation> operations = ((FieldProcessorNode) node).getOperations();
+			if (CollectionUtils.isEmpty(operations)) {
+				return;
+			}
+	        // Iterate through the operations and update the removeFields list based on the operation type
+			for (FieldProcessorNode.Operation operation : operations) {
+				String op = operation.getOp();
+				switch (op) {
+					case "RENAME":
+						boolean removed = removeFields.remove(operation.getField());
+						if (removed) {
+							removeFields.add(operation.getOperand());
+						}
+						break;
+					case "REMOVE":
+						removeFields.remove(operation.getField());
+						break;
+					default:
+						break;
 				}
 			}
 		}

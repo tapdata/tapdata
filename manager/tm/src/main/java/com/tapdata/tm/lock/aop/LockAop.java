@@ -42,18 +42,20 @@ public class LockAop {
 		Lock annotation = methodSignature.getMethod().getAnnotation(Lock.class);
 		//锁的key 一般为taskId等
 		String value = annotation.value();
-		String customValue = annotation.customValue();
+		String valueType = annotation.valueType();
 		String type = annotation.type().name();
 		//锁设置的过期时间
 		int expireSeconds = annotation.expireSeconds();
 		//获取锁失败后的重试等待时间
 		int sleepMillis = annotation.sleepMillis();
 
-		if (StringUtils.isBlank(value) && StringUtils.isBlank(customValue)) {
+		if (StringUtils.isBlank(value)) {
 			throw new BizException("SystemError");
 		}
 		Object obj;
-		if (StringUtils.isNotBlank(value)) {
+		if (Lock.CUSTOM.equals(valueType)) {
+			obj = value;
+		} else {
 			List<String> values = Arrays.asList(value.split("\\."));
 			String param = values.get(0);
 			String [] parameters = methodSignature.getParameterNames();
@@ -75,8 +77,6 @@ public class LockAop {
 				Map<String, Object> objectMap = bean2Map(obj);
 				obj = objectMap.get(values.get(i));
 			}
-		} else {
-			obj = customValue;
 		}
 
 		String key = obj instanceof String ? (String) obj : obj.toString();

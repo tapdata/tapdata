@@ -105,7 +105,9 @@ class PartitionConcurrentProcessorTest {
         list.add(generateDDLEvent(new TapField("ddl3", "string"))); // need after ddl1,ddl2,1,2,3,4,5,6
         list.add(generateInsertEvent("i", 7, null));
         list.add(new TapdataCompleteSnapshotEvent());
-        list.add(new TapdataCompleteTableSnapshotEvent());
+        TapdataCompleteTableSnapshotEvent tapdataCompleteTableSnapshotEvent = new TapdataCompleteTableSnapshotEvent();
+        tapdataCompleteTableSnapshotEvent.setBatchOffset("OVER");
+        list.add(tapdataCompleteTableSnapshotEvent);
         list.add(new TapdataStartingCdcEvent());
         list.add(TapdataStartedCdcEvent.create());
         list.add(generateInsertEvent("u", 8, null));
@@ -637,6 +639,7 @@ class PartitionConcurrentProcessorTest {
         PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class);
         when(processor.isRunning()).thenReturn(true);
         doCallRealMethod().when(processor).process(anyList(), anyBoolean());
+        doCallRealMethod().when(processor).getOffsetEvent(any(),anyList());
         doAnswer(invocationOnMock -> {
             offsetEvent.set(invocationOnMock.getArgument(0));
             return null;

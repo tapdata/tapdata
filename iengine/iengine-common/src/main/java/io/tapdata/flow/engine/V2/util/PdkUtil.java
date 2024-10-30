@@ -108,11 +108,11 @@ public class PdkUtil {
 	}
 
 	public static boolean reDownloadIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, File theFilePath){
-		String md5 = httpClientMongoOperator.findOne(
-				new HashMap<String, Object>(1) {{
-					put("pdkHash", pdkHash);
-					put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
-				}}, "/pdk/checkMd5/v2", String.class);
+		Map<String, Object> params = new HashMap(1);
+		params.put("pdkHash", pdkHash);
+		params.put("fileName", fileName);
+		params.put("pdkBuildNumber", CommonUtils.getPdkBuildNumer());
+		String md5 = httpClientMongoOperator.findOne(params, "/pdk/checkMd5/v3", String.class);
 		String theFilePathMd5 = PdkSourceUtils.getFileMD5(theFilePath);
 		if (null != md5 && !md5.equals(theFilePathMd5)){
 			FileUtils.deleteQuietly(theFilePath);

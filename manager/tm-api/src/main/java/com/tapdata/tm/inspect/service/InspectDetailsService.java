@@ -14,6 +14,7 @@ import com.tapdata.tm.inspect.entity.InspectDetailsEntity;
 import com.tapdata.tm.inspect.repository.InspectDetailsRepository;
 import com.tapdata.tm.inspect.vo.FailTableAndRowsVo;
 import lombok.NonNull;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -110,6 +111,9 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
         Map<String,Object> resultSource = new HashMap<>();
         Map<String,Object> resultTarget = new HashMap<>();
         String message = inspectDetailsDtoTmp.getMessage();
+        if (StringUtils.isBlank(message)) {
+            return;
+        }
         if (message.contains("Different fields")) {
             List<String> diffFields = Arrays.stream(message.split(":")[1].split(",")).collect(Collectors.toList());
             diffFields.forEach(diffField -> {

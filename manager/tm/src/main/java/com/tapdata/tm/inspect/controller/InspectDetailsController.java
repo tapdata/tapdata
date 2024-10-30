@@ -1,5 +1,6 @@
 package com.tapdata.tm.inspect.controller;
 
+import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -11,11 +12,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -231,19 +234,23 @@ public class InspectDetailsController extends BaseController {
         String date = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
         String filename = inspectDetails.getInspectResultId() + "-" + date;
 
-        response.setContentType("application/zip");
-        response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + ".zip\"");
-        ZipOutputStream zipOutputStream = new ZipOutputStream(response.getOutputStream());
-        zipOutputStream.putNextEntry(new ZipEntry(filename + ".json"));
-        try {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+            zipOutputStream.putNextEntry(new ZipEntry(filename + ".json"));
             inspectDetailsService.export(inspectDetails, zipOutputStream, getLoginUser(), inspectResultService);
+
+            zipOutputStream.closeEntry();
+            zipOutputStream.flush();
+            zipOutputStream.close();
+
+            response.setContentType("application/zip");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + ".zip\"");
+            response.getOutputStream().write(byteArrayOutputStream.toByteArray());
         } catch (Exception e) {
             log.error("Export inspectDetails failed", e);
             throw new BizException("export.inspectDetails.failed",e.getMessage());
         } finally {
-            zipOutputStream.closeEntry();
-            zipOutputStream.flush();
-            zipOutputStream.close();
+            byteArrayOutputStream.close();
         }
     }
 

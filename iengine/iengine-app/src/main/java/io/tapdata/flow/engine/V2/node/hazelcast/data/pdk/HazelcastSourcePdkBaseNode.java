@@ -26,12 +26,14 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
+import com.tapdata.tm.commons.exception.NoPrimaryKeyException;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
@@ -183,6 +185,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private SimpleConcurrentProcessorImpl<List<TapdataEvent>, List<TapdataEvent>> toTapValueConcurrentProcessor;
 	private int drainSize;
 	private int toTapValueBatchSize;
+    protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -211,6 +214,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+        noPrimaryKeyVirtualField.init(getNode().getGraph());
         AutoRecovery.setEnqueueConsumer(getNode().getTaskId(), this::enqueue);
 		ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
 		ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
@@ -231,6 +235,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				throw new NodeException(e).context(getProcessorBaseContext());
 			}
+            dataProcessorContext.getTapTableMap().forEach((id, table) -> noPrimaryKeyVirtualField.add(table));
 			initSourceReadBatchSize();
 			initSourceEventQueue();
 			initSyncProgress();
@@ -915,6 +920,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 
 					tapdataEvents.add(tapdataEvent);
+                    noPrimaryKeyVirtualField.add(addTapTable);
 				}
 				if (!isRunning()) {
 					return true;
@@ -982,7 +988,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == tapEvent.getTime()) {
 				throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
 			}
-			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)),this.dataProcessorContext.getTaskDto().getSyncType());
+			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 			boolean isLast = i == (size - 1);
 			TapdataEvent tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
 			if (null == tapdataEvent) {
@@ -1063,20 +1069,32 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		tapdataEvent.setTapEvent(tapEvent);
 		tapdataEvent.setSyncStage(syncStage);
 		if (tapEvent instanceof TapRecordEvent) {
+            TapRecordEvent recordEvent = (TapRecordEvent) tapEvent;
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-					tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, ((TapRecordEvent) tapEvent).getTableId()));
+					tapdataEvent.setBatchOffset(BatchOffsetUtil.getTableOffsetInfo(syncProgress, recordEvent.getTableId()));
 					tapdataEvent.setStreamOffset(syncProgress.getStreamOffsetObj());
 					tapdataEvent.setSourceTime(syncProgress.getSourceTime());
 				}
 			} else if (SyncStage.CDC == syncStage) {
 				tapdataEvent.setStreamOffset(offsetObj);
-				if (null == ((TapRecordEvent) tapEvent).getReferenceTime())
+				if (null == recordEvent.getReferenceTime())
 					throw new RuntimeException("Tap CDC event's reference time is null");
-				tapdataEvent.setSourceTime(((TapRecordEvent) tapEvent).getReferenceTime());
+				tapdataEvent.setSourceTime(recordEvent.getReferenceTime());
 			}
-		} else if (tapEvent instanceof HeartbeatEvent) {
+            try {
+                if (!noPrimaryKeyVirtualField.addHashValue(recordEvent)) return null;
+            } catch (NoPrimaryKeyException e) {
+                if (NoPrimaryKeyException.CODE_INCOMPLETE_FIELDS == e.getCode()) {
+                    obsLogger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
+                    logger.warn("Table '{}' user lacks complete before information, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
+                } else {
+                    obsLogger.warn("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored: {}", recordEvent.getTableId(), e.getMessage());
+                    logger.error("Table '{}' add hash filed failed, and subsequent update and delete events will be ignored", recordEvent.getTableId(), e);
+                }
+            }
+        } else if (tapEvent instanceof HeartbeatEvent) {
 			tapdataEvent = TapdataHeartbeatEvent.create(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
 			obsLogger.info("Source node received an ddl event: " + tapEvent);
@@ -1251,27 +1269,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		if (dataProcessorContext.getTapTableMap().keySet().size() > ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD) {
-			logger.info("Start to asynchronously count the size of rows for the source table(s)");
-			AtomicReference<TaskDto> task = new AtomicReference<>(dataProcessorContext.getTaskDto());
-			AtomicReference<Node<?>> node = new AtomicReference<>(dataProcessorContext.getNode());
-			snapshotRowSizeThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
-			CompletableFuture.runAsync(() -> {
-						String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
-								task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
-						Thread.currentThread().setName(name);
-
-						doCountSynchronously(batchCountFunction, tableList);
-					}, snapshotRowSizeThreadPool)
-					.whenComplete((v, e) -> {
-						if (null != e) {
-							obsLogger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-						} else {
-							obsLogger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
-						}
-						ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
-					});
+			asyncCountTable(batchCountFunction, tableList);
 		} else {
-			doCountSynchronously(batchCountFunction, tableList);
+			doCountSynchronously(batchCountFunction, tableList, false);
 		}
 	}
 
@@ -1285,7 +1285,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@SneakyThrows
-	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
+	protected void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList, boolean displayTableListFirst) {
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
 			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
@@ -1305,13 +1305,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							createPdkMethodInvoker().runnable(
 									() -> {
 										try {
-											long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
-
-											if (null == snapshotRowSizeMap) {
-												snapshotRowSizeMap = new HashMap<>();
+											long count;
+											if (displayTableListFirst) {
+												count = -1;
+											} else {
+												count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+												if (null == snapshotRowSizeMap) {
+													snapshotRowSizeMap = new HashMap<>();
+												}
+												snapshotRowSizeMap.putIfAbsent(tableName, count);
 											}
-											snapshotRowSizeMap.putIfAbsent(tableName, count);
-
 											if (null != tableCountFuncAspect) {
 												AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
 											}
@@ -1324,6 +1327,35 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					));
 		}
 	}
+
+	@SneakyThrows
+	protected void doTableNameSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
+		doCountSynchronously(batchCountFunction, tableList, true);
+		asyncCountTable(batchCountFunction, tableList);
+	}
+
+	protected void asyncCountTable(BatchCountFunction batchCountFunction, List<String> tableList) {
+		logger.info("Start to asynchronously count the size of rows for the source table(s)");
+		AtomicReference<TaskDto> task = new AtomicReference<>(dataProcessorContext.getTaskDto());
+		AtomicReference<Node<?>> node = new AtomicReference<>(dataProcessorContext.getNode());
+		snapshotRowSizeThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+		CompletableFuture.runAsync(() -> {
+					String name = String.format("Snapshot-Row-Size-Query-Thread-%s(%s)-%s(%s)",
+							task.get().getName(), task.get().getId().toHexString(), node.get().getName(), node.get().getId());
+					Thread.currentThread().setName(name);
+
+					doCountSynchronously(batchCountFunction, tableList, false);
+				}, snapshotRowSizeThreadPool)
+				.whenComplete((v, e) -> {
+					if (null != e) {
+						obsLogger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					} else {
+						obsLogger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
+					}
+					ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
+				});
+	}
+
 
 	protected Long doBatchCountFunction(BatchCountFunction batchCountFunction, TapTable table) {
 		AtomicReference<Long> counts = new AtomicReference<>();

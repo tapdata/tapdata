@@ -829,6 +829,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		previewVo.setWarningApiCount(apiCallStatsDto.getAlarmApiTotalCount());
 		previewVo.setWarningVisitTotalCount(apiCallStatsDto.getCallAlarmTotalCount());
 		previewVo.setVisitTotalLine(apiCallStatsDto.getResponseDataRowTotalCount());
+		previewVo.setLastUpdAt(null != apiCallStatsDto.getLastUpdAt() ? apiCallStatsDto.getLastUpdAt().getTime() : 0L);
 		return previewVo;
 	}
 

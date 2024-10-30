@@ -3,6 +3,7 @@ package io.tapdata.observable.metric.handler;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.Assert;
@@ -18,6 +19,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.*;
+
 public class RandomSampleEventHandlerTest {
 
     @Nested
@@ -25,18 +29,18 @@ public class RandomSampleEventHandlerTest {
         @Test
         void rangeLessThenZero() {
             RandomSampleEventHandler r = new RandomSampleEventHandler(-1);
-            Assertions.assertEquals(1, r.sampleRate);
+            assertEquals(1, r.sampleRate);
         }
         @Test
         void rangeLagerThenOne() {
             RandomSampleEventHandler r = new RandomSampleEventHandler(21);
-            Assertions.assertEquals(1, r.sampleRate);
+            assertEquals(1, r.sampleRate);
         }
 
         @Test
         void rangeBetweenZeroAndOne() {
             RandomSampleEventHandler r = new RandomSampleEventHandler(0.8);
-            Assertions.assertEquals(0.8, r.sampleRate);
+            assertEquals(0.8, r.sampleRate);
         }
     }
 
@@ -263,7 +267,7 @@ public class RandomSampleEventHandlerTest {
             events.add(event);
             RandomSampleEventHandler.HandleEvent handle = (e) -> (TapEvent) e;
             handler.sampleMemoryTapEvent(recorder, events, handle);
-            Assertions.assertEquals( 0, recorder.getMemorySize());
+            assertEquals( 0, recorder.getMemorySize());
         }
     }
 
@@ -301,4 +305,20 @@ public class RandomSampleEventHandlerTest {
         return RandomUtils.nextInt();
     }
 
+    @Nested
+    class sampleMemoryTapEventTest {
+        @Test
+        void testSampleMemoryTapEvent() {
+            RandomSampleEventHandler handler = mock(RandomSampleEventHandler.class);
+            List events = new ArrayList<>();
+            TapInsertRecordEvent tapEvent = mock(TapInsertRecordEvent.class);
+            events.add(tapEvent);
+            RandomSampleEventHandler.HandleEvent handle = mock(RandomSampleEventHandler.HandleEvent.class);
+            when(handle.handel(events.get(0))).thenReturn(tapEvent);
+            when(handler.sizeOfTapEvent(any())).thenReturn(100L);
+            doCallRealMethod().when(handler).sampleMemoryTapEvent(events, handle);
+            long actual = handler.sampleMemoryTapEvent(events, handle);
+            assertEquals(100L, actual);
+        }
+    }
 }
