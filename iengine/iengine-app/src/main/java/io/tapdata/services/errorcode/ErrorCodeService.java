@@ -45,7 +45,7 @@ public class ErrorCodeService implements MemoryFetcher {
 		String describe = "";
 		String solution;
 		boolean hasDescribe = false;
-		String dynamicDescribe = "";
+		String dynamicDescribe;
 
 		Class<?> sourceExClass = errorCode.getSourceExClass();
 		TapExClass tapExClass = null;

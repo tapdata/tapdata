@@ -203,7 +203,7 @@ public class AppenderFactory implements Serializable {
 	}
 
 	@SneakyThrows
-	private void decodeFromWireIn(ValueIn valueIn, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
+	protected void decodeFromWireIn(ValueIn valueIn, MonitoringLogsDto.MonitoringLogsDtoBuilder builder) {
 		final String dateString = valueIn.readString();
 		final Date date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse(dateString);
 		builder.date(date);
