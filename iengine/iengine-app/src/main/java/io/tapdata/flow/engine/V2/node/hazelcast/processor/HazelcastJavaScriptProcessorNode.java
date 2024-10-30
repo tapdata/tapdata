@@ -417,4 +417,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	public boolean needCopyBatchEventWrapper() {
 		return true;
 	}
+
+	@Override
+	protected List<String> getLogTags() {
+		return Collections.singletonList("src=user_script");
+	}
 }

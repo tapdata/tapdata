@@ -41,11 +41,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import java.io.Closeable;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -301,5 +297,10 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     @Override
     public boolean needCopyBatchEventWrapper() {
         return true;
+    }
+
+    @Override
+    protected List<String> getLogTags() {
+        return Collections.singletonList("src=user_script");
     }
 }

@@ -302,8 +302,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return ObsLoggerFactory.getInstance().getObsLogger(
 				processorBaseContext.getTaskDto(),
 				processorBaseContext.getNode().getId(),
-				processorBaseContext.getNode().getName()
+				processorBaseContext.getNode().getName(),
+				getLogTags()
 		);
+	}
+
+	protected List<String> getLogTags() {
+		return null;
 	}
 
 	protected void setThreadName() {
