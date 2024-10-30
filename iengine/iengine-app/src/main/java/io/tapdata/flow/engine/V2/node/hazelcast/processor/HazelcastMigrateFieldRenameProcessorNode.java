@@ -18,6 +18,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -297,6 +298,7 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 				return false;
 			}
 			Map<String, FieldInfo> fieldInfoMap = fieldInfoMaps.get(tableName);
+			Map<String, String> fieldInfoTempMap = new HashMap<>();
 			for (Map.Entry<String, FieldInfo> entry : fieldInfoMap.entrySet()) {
 				String key = entry.getKey();
 				FieldInfo fieldInfo = entry.getValue();
@@ -304,9 +306,23 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 					operator.deleteField(operatorParam, key);
 				}
 				if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
+					String targetFieldName = fieldInfo.getTargetFieldName();
+					 boolean replaced = false;
+					if (operatorParam instanceof Map && ((Map) operatorParam).containsKey(fieldInfo.getTargetFieldName())) {
+						String tempKey = fieldInfo.getTargetFieldName() + UUID.randomUUID();
+						fieldInfoTempMap.put(key, tempKey);
+						fieldInfo.setTargetFieldName(tempKey);
+						replaced = true;
+					}
 					operator.renameField(operatorParam, key, fieldInfo.getTargetFieldName());
+					if (replaced) {
+						fieldInfo.setTargetFieldName(targetFieldName);
+					}
 				}
 			}
+			fieldInfoTempMap.forEach((k ,v) -> {
+				operator.renameField(operatorParam, v, fieldInfoMap.get(k).getTargetFieldName());
+			});
 			return true;
 		}
 	}
