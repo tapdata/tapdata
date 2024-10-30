@@ -2,21 +2,21 @@ package com.tapdata.processor;
 
 import com.tapdata.entity.FieldProcess;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.internal.verification.Times;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 
 import static com.tapdata.processor.FieldProcessUtil.fieldProcess;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 public class FieldProcessUtilTest {
     @Nested
@@ -110,6 +110,28 @@ public class FieldProcessUtilTest {
             assertEquals(1, record.get("id"));
             assertEquals("Alice", record.get("name"));
             assertEquals(30, record.get("age"));
+        }
+    }
+
+    @Nested
+    class convertTest{
+        @Test
+        @DisplayName("test when origin value is Long")
+        void test1() {
+            TapDateTimeValue value = mock(TapDateTimeValue.class);
+            when(value.getOriginValue()).thenReturn(1730281800L);
+            String newDataType = "String";
+            Object actual = FieldProcessUtil.convert(value, newDataType);
+            assertEquals("2024-10-30T09:50:00Z", actual);
+        }
+        @Test
+        @DisplayName("test when origin value is LocalDateTime")
+        void test2() {
+            TapDateTimeValue value = mock(TapDateTimeValue.class);
+            when(value.getOriginValue()).thenReturn(LocalDateTime.now());
+            String newDataType = "String";
+            Object actual = FieldProcessUtil.convert(value, newDataType);
+            assertNotNull(actual);
         }
     }
 }
