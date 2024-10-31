@@ -58,7 +58,7 @@ public class TaskLogger extends ObsLogger {
 		return testTask;
 	}
 
-	private TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
+	protected TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
 		String taskId = taskDto.getId().toHexString();
 		this.taskId = taskId;
 		this.taskName = taskDto.getName();
@@ -77,7 +77,7 @@ public class TaskLogger extends ObsLogger {
 			);
 
 		} else if (taskDto.isPreviewTask()) {
-			this.witAppender(this.fileAppender(taskId));
+			// when preview task, no need to add any appender
 		} else {
 			this.witAppender(this.fileAppender(taskId))
 					.witAppender(this.obsHttpTMAppender(taskId));

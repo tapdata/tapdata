@@ -1367,6 +1367,39 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         return null;
     }
 
+    public Map<String, List<TapTableDto>> getMetadataV3(Map<String, FindMetadataDto> params, UserDetail user) {
+        Map<String, List<TapTableDto>> result = new HashMap<>();
+        for (Map.Entry<String, FindMetadataDto> entry : params.entrySet()) {
+            String connectionId = entry.getKey();
+            FindMetadataDto findMetadataDto = entry.getValue();
+            List<TapTableDto> tapTableDtoList = new ArrayList<>();
+            result.put(connectionId, tapTableDtoList);
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
+            if (connectionDto == null) {
+                continue;
+            }
+            DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+
+            connectionDto.setDefinitionGroup(definitionDto.getGroup());
+            connectionDto.setDefinitionPdkId(definitionDto.getPdkId());
+            connectionDto.setDefinitionScope(definitionDto.getScope());
+            connectionDto.setDefinitionVersion(definitionDto.getVersion());
+            String metaType = findMetadataDto.getMetaType();
+            List<String> tableNames = findMetadataDto.getTableNames();
+            List<String> qualifiedNames = new ArrayList<>();
+            tableNames.forEach(tableName -> qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, connectionDto, tableName)));
+            Criteria criteria = Criteria.where(QUALIFIED_NAME).in(qualifiedNames);
+            List<MetadataInstancesDto> metadataInstancesDtoList = findAll(Query.query(criteria));
+            if (null == metadataInstancesDtoList) {
+                continue;
+            }
+            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
+                tapTableDtoList.add(new TapTableDto(metadataInstancesDto.getQualifiedName(), PdkSchemaConvert.toPdk(metadataInstancesDto)));
+            }
+        }
+        return result;
+    }
+
     public List<Table> findOldByNodeId(Filter filter, UserDetail user) {
         Where where = filter.getWhere();
         if (where == null) {

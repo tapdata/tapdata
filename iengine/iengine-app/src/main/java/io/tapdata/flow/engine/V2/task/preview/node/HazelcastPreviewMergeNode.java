@@ -89,17 +89,21 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 			}
 			consumer.accept(tapdataEvent, null);
 		} else {
-			TapEvent tapEvent = tapdataEvent.getTapEvent();
-			if (!(tapEvent instanceof TapInsertRecordEvent)) {
-				consumer.accept(tapdataEvent, null);
-			}
-			TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) tapEvent;
-			List<String> nodeIds = tapdataEvent.getNodeIds();
-			String preNodeId = nodeIds.get(nodeIds.size() - 1);
-			mergeCacheMap.get(preNodeId).data(new HashMap<>(tapInsertRecordEvent.getAfter()));
-			Object previewOperation = tapdataEvent.getInfo(PreviewOperation.class.getSimpleName());
-			if (previewOperation instanceof PreviewMergeReadOperation) {
-				((PreviewMergeReadOperation) previewOperation).getMergeNodeReceived().countDown();
+			try {
+				TapEvent tapEvent = tapdataEvent.getTapEvent();
+				if (!(tapEvent instanceof TapInsertRecordEvent)) {
+					consumer.accept(tapdataEvent, null);
+				}
+				TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) tapEvent;
+				List<String> nodeIds = tapdataEvent.getNodeIds();
+				String preNodeId = nodeIds.get(nodeIds.size() - 1);
+				mergeCacheMap.get(preNodeId).data(new HashMap<>(tapInsertRecordEvent.getAfter()));
+				Object previewOperation = tapdataEvent.getInfo(PreviewOperation.class.getSimpleName());
+				if (previewOperation instanceof PreviewMergeReadOperation) {
+					((PreviewMergeReadOperation) previewOperation).getMergeNodeReceived().countDown();
+				}
+			} catch (Exception e) {
+				errorHandle(e);
 			}
 		}
 	}

@@ -33,6 +33,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	private final Logger logger = LogManager.getLogger(ObsLoggerFactory.class);
 
 	private volatile static ObsLoggerFactory INSTANCE;
+	private static final ObsLogger BLANK_LOGGER = new BlankObsLogger();
 
 	public static ObsLoggerFactory getInstance() {
 		if (INSTANCE == null) {
@@ -113,6 +114,9 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task) {
+		if (task.isPreviewTask()) {
+			return BLANK_LOGGER;
+		}
 		String taskId = task.getId().toHexString();
 		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.computeIfAbsent(taskId, k -> {
@@ -154,6 +158,9 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName) {
+		if (task.isPreviewTask()) {
+			return BLANK_LOGGER;
+		}
 		TaskLogger taskLogger = (TaskLogger) getObsLogger(task);
 
 		String taskId = task.getId().toHexString();

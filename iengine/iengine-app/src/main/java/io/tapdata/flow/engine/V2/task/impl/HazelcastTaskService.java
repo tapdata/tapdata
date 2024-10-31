@@ -259,7 +259,33 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce) {
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
 		if (deduce) {
-			tapTableMapHashMap = engineTransformSchema(taskDto);
+			if (taskDto.isPreviewTask()) {
+				tapTableMapHashMap = new HashMap<>();
+				boolean needTransformSchema = false;
+				List<Node> sourceNodes = taskDto.getDag().getSourceNodes();
+				for (Node sourceNode : sourceNodes) {
+					if (sourceNode instanceof TableNode) {
+						TableNode tableNode = (TableNode) sourceNode;
+						String previewQualifiedName = tableNode.getPreviewQualifiedName();
+						TapTable previewTapTable = tableNode.getPreviewTapTable();
+						if (StringUtils.isBlank(previewQualifiedName) || null == previewTapTable) {
+							needTransformSchema = true;
+							break;
+						}
+						TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(tableNode.getId());
+						tapTableMap.putNew(tableNode.getTableName(), previewTapTable, previewQualifiedName);
+						tapTableMapHashMap.put(tableNode.getId(), tapTableMap);
+					} else {
+						needTransformSchema = true;
+						break;
+					}
+				}
+				if (needTransformSchema) {
+					tapTableMapHashMap = engineTransformSchema(taskDto);
+				}
+			} else {
+				tapTableMapHashMap = engineTransformSchema(taskDto);
+			}
 		} else {
 			tapTableMapHashMap = new HashMap<>();
 		}
@@ -391,7 +417,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				dag.vertex(vertex);
 				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent, tableNode);
 			}
-
 			handleEdge(dag, edges, nodeMap, vertexMap);
 		}
 
@@ -995,11 +1020,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
 					TransformerWsMessageDto.class);
-			transformerWsMessageDto.getTaskDto().setDag(dag);
-			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto, taskService, tapTableMapHashMap, clientMongoOperator);
 			if (taskDto.isPreviewTask()) {
+				transformerWsMessageDto.getTaskDto().setSyncType(taskDto.getSyncType());
+				transformerWsMessageDto.getTaskDto().setTestTaskId(taskDto.getTestTaskId());
 				transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
 			}
+			transformerWsMessageDto.getTaskDto().setDag(dag);
+			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto, taskService, tapTableMapHashMap, clientMongoOperator);
 			dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions(), (e) -> {
 				throw new RuntimeException(e);
 			});

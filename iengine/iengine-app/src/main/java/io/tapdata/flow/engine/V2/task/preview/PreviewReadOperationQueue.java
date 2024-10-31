@@ -34,4 +34,9 @@ public class PreviewReadOperationQueue {
 		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
 		return queue.take();
 	}
+
+	public PreviewOperation poll(String nodeId) throws InterruptedException {
+		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
+		return queue.poll();
+	}
 }

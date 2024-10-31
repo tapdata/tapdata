@@ -8,7 +8,9 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.schema.FindMetadataDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.TapTableDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
@@ -570,6 +572,10 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.getMetadataV2(connectionId, metaType, tableName, getLoginUser()));
     }
 
+    @PostMapping("metadata/v3")
+    public ResponseMessage<Map<String, List<TapTableDto>>> getMetadatav3(@RequestBody Map<String, FindMetadataDto> params) {
+        return success(metadataInstancesService.getMetadataV3(params, getLoginUser()));
+    }
 
     @GetMapping("tapTables")
     public ResponseMessage<Page<TapTable>> getTapTable(@RequestParam(value = "filter", required = false) String filterJson) {

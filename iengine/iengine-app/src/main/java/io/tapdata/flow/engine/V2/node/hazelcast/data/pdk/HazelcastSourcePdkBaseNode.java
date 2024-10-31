@@ -284,7 +284,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	private void initTapCodecsFilterManager() {
+	protected void initTapCodecsFilterManager() {
 		ConnectorNode connectorNode = getConnectorNode();
 		List<String> tags = connectorNode.getConnectorContext().getSpecification().getTags();
 		this.connectorNodeSchemaFree = tags.contains("schema-free");
@@ -694,7 +694,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	final public boolean complete() {
+	public boolean complete() {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			if (firstComplete) {
@@ -779,12 +779,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				continue;
 			}
 			transformToTapValue(tapdataEvent);
-			if (dataProcessorContext.getTaskDto().isPreviewTask()) {
-				Map<String, Object> after = TapEventUtil.getAfter(tapdataEvent.getTapEvent());
-				if (null != after) {
-					fromTapValue(after, defaultCodecsFilterManager, TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
-				}
-			}
 		}
 	}
 

@@ -74,6 +74,8 @@ import io.tapdata.websocket.handler.TestRunTaskHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -92,6 +94,7 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
+	private static final Logger logger = LogManager.getLogger(HazelcastBaseNode.class);
 	public static final String TARGET_TAG = "target";
 	public static final String SOURCE_TAG = "source";
 	/**
@@ -650,6 +653,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		if (taskDto.isPreviewTask() && null != taskPreviewInstance) {
 			taskPreviewInstance.getTaskPreviewResultVO().failed(currentEx);
+			logger.error("Preview task node {}[{}] have error", getNode().getName(), getNode().getId(), currentEx);
 		}
 		return currentEx;
 	}

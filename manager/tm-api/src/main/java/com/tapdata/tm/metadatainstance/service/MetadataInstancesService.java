@@ -6,10 +6,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -129,6 +126,8 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
     public abstract Table getMetadata(String connectionId, String metaType, String tableName, UserDetail user);
 
     public abstract TapTable getMetadataV2(String connectionId, String metaType, String tableName, UserDetail user);
+
+    public abstract Map<String, List<TapTableDto>> getMetadataV3(Map<String, FindMetadataDto> params, UserDetail user);
 
     public abstract List<Table> findOldByNodeId(Filter filter, UserDetail user);
 

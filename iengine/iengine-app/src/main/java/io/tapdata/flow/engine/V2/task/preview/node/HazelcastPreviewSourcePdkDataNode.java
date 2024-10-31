@@ -2,11 +2,12 @@ package io.tapdata.flow.engine.V2.task.preview.node;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataPreviewCompleteEvent;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -20,11 +21,9 @@ import io.tapdata.entity.simplify.pretty.ClassHandlersV2;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.task.preview.PreviewReadOperationQueue;
-import io.tapdata.flow.engine.V2.task.preview.StopBatchReadException;
-import io.tapdata.flow.engine.V2.task.preview.TaskPreviewExCode_37;
-import io.tapdata.flow.engine.V2.task.preview.TaskPreviewReadStatsVO;
+import io.tapdata.flow.engine.V2.task.preview.*;
 import io.tapdata.flow.engine.V2.task.preview.operation.*;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -74,13 +73,19 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
-		super.doInit(context);
-		TapCodecsRegistry codecsRegistry = this.defaultCodecsFilterManager.getCodecsRegistry();
-		codecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant().toString());
-		codecsRegistry.registerFromTapValue(TapDateValue.class, tapValue -> tapValue.getValue().toInstant().toString());
-		codecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> tapValue.getValue().toTimeStr());
-		codecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> tapValue.getValue().toLocalDateTime().getYear());
-		codecsRegistry.registerFromTapValue(TapNumberValue.class, tapValue -> {
+		initTapLogger();
+		createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+		connectorNodeInit(dataProcessorContext);
+		initTapCodecsFilterManager();
+	}
+
+	@Override
+	protected void initTapCodecsFilterManager() {
+		this.defaultCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant().toString());
+		this.defaultCodecsRegistry.registerFromTapValue(TapDateValue.class, tapValue -> tapValue.getValue().toInstant().toString());
+		this.defaultCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> tapValue.getValue().toTimeStr());
+		this.defaultCodecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> tapValue.getValue().toLocalDateTime().getYear());
+		this.defaultCodecsRegistry.registerFromTapValue(TapNumberValue.class, tapValue -> {
 			Double value = tapValue.getValue();
 			// Determine if the decimal place of value is 0, convert it to Long, otherwise keep Double
 			if (null != value && value % 1 == 0) {
@@ -89,6 +94,7 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 				return value;
 			}
 		});
+		this.defaultCodecsFilterManager = TapCodecsFilterManager.create(this.defaultCodecsRegistry);
 	}
 
 	private PreviewFinishReadOperation finishRead(PreviewFinishReadOperation previewFinishReadOperation) {
@@ -184,6 +190,59 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 			));
 		}
 		return data.get();
+	}
+
+	private List<TapdataEvent> offerPendingTapdataEvents = new ArrayList<>();
+
+	@Override
+	public boolean complete() {
+		if (!isRunning()) {
+			return true;
+		}
+		try {
+			Node<?> node = getNode();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			List<TapdataEvent> tapdataEvents = null;
+			if (CollectionUtils.isNotEmpty(offerPendingTapdataEvents)) {
+				tapdataEvents = offerPendingTapdataEvents;
+				offerPendingTapdataEvents.clear();
+			} else {
+				PreviewReadOperationQueue previewReadOperationQueue = taskPreviewInstance.getPreviewReadOperationQueue();
+				PreviewOperation previewOperation = previewReadOperationQueue.poll(node.getId());
+				if (null != previewOperation) {
+					Object handleResult = previewOperationHandlers.handle(previewOperation);
+					mockIfNeed(handleResult, previewOperation);
+					try {
+						replyPreviewOperationData(handleResult, previewOperation);
+					} catch (InterruptedException e) {
+						return false;
+					}
+					tapdataEvents = wrapTapdataEvents(handleResult, previewOperation);
+				}
+			}
+
+			if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+				for (int i = 0; i < tapdataEvents.size(); i++) {
+					boolean offered = offer(tapdataEvents.get(i));
+					if (!offered) {
+						offerPendingTapdataEvents = new ArrayList<>(tapdataEvents.subList(i, tapdataEvents.size()));
+						return false;
+					}
+				}
+			}
+
+			if (CollectionUtils.isEmpty(offerPendingTapdataEvents)) {
+				Map<String, Object> taskGlobalVariablePreview = TaskGlobalVariable.INSTANCE
+						.getTaskGlobalVariable(TaskPreviewService.taskPreviewInstanceId(taskDto));
+				Object previewComplete = taskGlobalVariablePreview.get(TaskGlobalVariable.PREVIEW_COMPLETE_KEY);
+				if (Boolean.TRUE.equals(previewComplete)) {
+					this.running.set(false);
+				}
+			}
+		} catch (Exception e) {
+			errorHandle(e);
+		}
+		return false;
 	}
 
 	@Override
@@ -298,6 +357,10 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 				tapdataEvent.setTapEvent(events.get(i));
 				if (isLast) {
 					tapdataEvent.addInfo(PreviewOperation.class.getSimpleName(), previewOperation);
+				}
+				Map<String, Object> after = TapEventUtil.getAfter(tapdataEvent.getTapEvent());
+				if (null != after) {
+					fromTapValue(after, defaultCodecsFilterManager, TapEventUtil.getTableId(tapdataEvent.getTapEvent()));
 				}
 				tapdataEvents.add(tapdataEvent);
 			}

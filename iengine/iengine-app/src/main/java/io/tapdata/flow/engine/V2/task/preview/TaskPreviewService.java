@@ -26,6 +26,7 @@ import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewMergeReadTasklet;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewNormalReadTasklet;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewReadTasklet;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -65,6 +66,7 @@ public class TaskPreviewService implements MemoryFetcher {
 			stopWatch.start("parseTaskJson");
 			taskDto = parseTaskJson(taskJson);
 		} catch (TaskPreviewParseException e) {
+			logger.error("Parse task json failed: {}", taskJson, e);
 			return TaskPreviewResultVO.parseFailed(e);
 		}
 		stopWatch.start("before");
@@ -122,6 +124,7 @@ public class TaskPreviewService implements MemoryFetcher {
 
 	private static void clearAfterPreview(TaskDto taskDto) {
 		TaskGlobalVariable.INSTANCE.removeTask(taskPreviewInstanceId(taskDto));
+		ObsLoggerFactory.getInstance().removeFromFactory(taskDto.getTestTaskId());
 	}
 
 	private void transformFromTapValue(TaskPreviewResultVO taskPreviewResultVO) {
