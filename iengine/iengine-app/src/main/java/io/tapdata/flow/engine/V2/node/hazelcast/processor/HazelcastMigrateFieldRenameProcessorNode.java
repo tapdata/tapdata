@@ -306,7 +306,7 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 					operator.deleteField(operatorParam, key);
 				}
 				if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
-					String targetFieldName = fieldInfo.getTargetFieldName();
+					String originTargetFieldName = fieldInfo.getTargetFieldName();
 					 boolean replaced = false;
 					if (operatorParam instanceof Map && ((Map) operatorParam).containsKey(fieldInfo.getTargetFieldName())) {
 						String tempKey = fieldInfo.getTargetFieldName() + UUID.randomUUID();
@@ -316,13 +316,11 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 					}
 					operator.renameField(operatorParam, key, fieldInfo.getTargetFieldName());
 					if (replaced) {
-						fieldInfo.setTargetFieldName(targetFieldName);
+						fieldInfo.setTargetFieldName(originTargetFieldName);
 					}
 				}
 			}
-			fieldInfoTempMap.forEach((k ,v) -> {
-				operator.renameField(operatorParam, v, fieldInfoMap.get(k).getTargetFieldName());
-			});
+			fieldInfoTempMap.forEach((k ,v) -> operator.renameField(operatorParam, v, fieldInfoMap.get(k).getTargetFieldName()));
 			return true;
 		}
 	}
