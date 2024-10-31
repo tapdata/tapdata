@@ -245,6 +245,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
 			initIllegalDateAcceptable();
+			initSyncProgressMap();
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 			initCodecsFilterManager();
 		});
@@ -260,6 +261,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void initSyncPartitionTableEnable() {
 		Node<?> node = getNode();
 		this.syncTargetPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncTargetPartitionTableEnable());
+	}
+
+	protected void initSyncProgressMap() {
+		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
+			readBatchOffset(entry.getValue());
+		}
+		syncProgressMap.putAll(allSyncProgress);
 	}
 
 	protected void initCodecsFilterManager() {

@@ -3,6 +3,7 @@ package com.tapdata.tm.base.aop;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
@@ -13,12 +14,14 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.common.sample.request.SampleRequest;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
@@ -28,10 +31,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -46,34 +46,55 @@ public class MeasureAOP {
     private final TaskService taskService;
     private final AlarmService alarmService;
     private final UserService userService;
+    private final AlarmSettingService alarmSettingService;
 //    private final InspectService inspectService;
     private final Map<String, Map<String, AtomicInteger>> obsMap = Maps.newConcurrentMap();
 
-    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService) {
+    private final String TASK_ID = "taskId";
+
+    private final String CURRENT_EVENT_TIMESTAMP = "currentEventTimestamp";
+
+    public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService,AlarmSettingService alarmSettingService) {
         this.taskService = taskService;
         this.alarmService = alarmService;
         this.userService = userService;
+        this.alarmSettingService = alarmSettingService;
     }
 
 
     @AfterReturning("execution(* com.tapdata.tm.monitor.service.MeasurementServiceV2.addAgentMeasurement(..))")
     public void addAgentMeasurement(JoinPoint joinPoint) {
         List<SampleRequest> samples = (List<SampleRequest>) joinPoint.getArgs()[0];
-
+        Set<String> taskIds = samples.stream().filter(sampleRequest -> sampleRequest.getTags().containsKey(TASK_ID)).map(sampleRequest -> sampleRequest.getTags().get(TASK_ID)).collect(Collectors.toSet());
+        Map<String, TaskDto> taskDtoMap = new HashMap<>();
+        Map<String, UserDetail> userDetailMap = new HashMap<>();
+        Map<String, List<AlarmSettingDto>> alarmSettingMap = new HashMap<>();
+        if(CollectionUtils.isNotEmpty(taskIds)){
+            taskIds.forEach(taskId -> {
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name",CURRENT_EVENT_TIMESTAMP,"alarmSettings");
+                taskDtoMap.put(taskId, taskDto);
+            });
+            taskDtoMap.values().forEach(taskDto -> {
+                UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+                List<AlarmSettingDto> alarmSettingDtos = alarmSettingService.findAllAlarmSetting(userDetail);
+                userDetailMap.put(taskDto.getUserId(), userDetail);
+                alarmSettingMap.put(userDetail.getUserId(), alarmSettingDtos);
+            });
+        }
         samples.forEach(sampleRequest -> {
             String type = sampleRequest.getTags().get("type");
-            String taskId = sampleRequest.getTags().get("taskId");
+            String taskId = sampleRequest.getTags().get(TASK_ID);
             Map<String, Number> vs = sampleRequest.getSample().getVs();
 
             if (StringUtils.isNotBlank(taskId)) {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId));
+                TaskDto taskDto = taskDtoMap.get(taskId);
                 // task alarm
                 Map<String, List<AlarmRuleDto>> ruleMap = alarmService.getAlarmRuleDtos(taskDto);
                 if (null != ruleMap && !ruleMap.isEmpty()) {
-                    UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(taskDto.getUserId()));
+                    UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
                     if ("task".equals(type)) {
 
-                        boolean checkOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, userDetail);
+                        boolean checkOpen =alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_DELAY, null, alarmSettingMap.get(userDetail.getUserId()));
                         if (checkOpen) {
                             Optional.ofNullable(ruleMap.get(taskId)).ifPresent(rules -> {
                                 Map<AlarmKeyEnum, AlarmRuleDto> collect = rules.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
@@ -95,13 +116,13 @@ public class MeasureAOP {
                                 String nodeName = dag.getNode(nodeId).getName();
                                 boolean checkOpen;
                                 if (sourceNode.isPresent()) {
-                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, userDetail);
+                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
                                     template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, true);
                                 } else if (targetNode.isPresent()) {
-                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, userDetail);
+                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
                                     template = getTemplate(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME, false);
                                 } else {
-                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null, userDetail);
+                                    checkOpen = alarmService.checkOpen(taskDto, nodeId, AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null, alarmSettingMap.get(userDetail.getUserId()));
                                     template = getTemplate(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME, null);
                                 }
 
@@ -151,7 +172,7 @@ public class MeasureAOP {
 
         }
 
-        Number currentEventTimestamp = vs.get("currentEventTimestamp");
+        Number currentEventTimestamp = vs.get(CURRENT_EVENT_TIMESTAMP);
         boolean checkCdcOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_START, null, userDetail);
         if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0L  && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
             Map<String, Object> param = Maps.newHashMap();
@@ -175,7 +196,7 @@ public class MeasureAOP {
         }
         if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())
                 && !currentEventTimestamp.equals(0)) {
-            update.set("currentEventTimestamp", currentEventTimestamp);
+            update.set(CURRENT_EVENT_TIMESTAMP, currentEventTimestamp);
         }
 
         if (update.getUpdateObject().size() > 0) {
@@ -284,7 +305,7 @@ public class MeasureAOP {
         }
     }
 
-    private void supplmentDelayAvg(TaskDto task, String taskId, Number number, AlarmRuleDto alarmRuleDto, String nodeId, String nodeName, String[] template) {
+    protected void supplmentDelayAvg(TaskDto task, String taskId, Number number, AlarmRuleDto alarmRuleDto, String nodeId, String nodeName, String[] template) {
         if (Objects.isNull(number) || Objects.isNull(alarmRuleDto)) {
             return;
         }

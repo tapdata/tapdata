@@ -184,19 +184,19 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 	}
 
-	protected Set<String> filterSubPartitionTableTableMap() {
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		if (syncTargetPartitionTableEnable) {
-			//开启分区表时建表需要过滤掉子表
-			return tapTableMap.keySet().stream().filter(name -> {
-				TapTable tapTable = tapTableMap.get(name);
-				return Objects.nonNull(tapTable) && !tapTable.checkIsSubPartitionTable();
-			}).collect(Collectors.toSet());
-		}
-		return tapTableMap.keySet();
-	}
+    protected Set<String> filterSubPartitionTableTableMap() {
+        TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+        if (syncTargetPartitionTableEnable) {
+            //开启分区表时建表需要过滤掉子表
+            return tapTableMap.keySet().stream().filter(name -> {
+                TapTable tapTable = tapTableMap.get(name);
+                return Objects.nonNull(tapTable) && !tapTable.checkIsSubPartitionTable();
+            }).collect(Collectors.toSet());
+        }
+        return tapTableMap.keySet();
+    }
 
-	private void initTargetDB() {
+	protected void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		Set<String> tableIds = filterSubPartitionTableTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
@@ -206,7 +206,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				.start(), (funcAspect -> {
 			Node<?> node = dataProcessorContext.getNode();
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
-			SyncProgress syncProgress = foundSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress);
 			if (null == syncProgress) {
 				for (String tableId : tableIds) {
 					if (!isRunning()) {

@@ -28,6 +28,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.Runnable.LoadSchemaRunner;
+import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -149,6 +150,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void beforeEach() {
 			TaskResourceSupervisorManager taskResourceSupervisorManager = new TaskResourceSupervisorManager();
 			ReflectionTestUtils.setField(mockInstance, "taskResourceSupervisorManager", taskResourceSupervisorManager);
+			ReflectionTestUtils.setField(mockInstance, "noPrimaryKeyVirtualField", new NoPrimaryKeyVirtualField());
 			doCallRealMethod().when(mockInstance).doInit(jetContext);
 		}
 
@@ -278,6 +280,23 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				try (AutoCloseable autoCloseable = mockInstance.doAsyncTableCount(null, testTableName)) {
 				}
 			});
+		}
+		@Nested
+		class TestInitSyncProgress{
+			@SneakyThrows
+			@Test
+			void test1(){
+				TaskDto taskDto = new TaskDto();
+				taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+				taskDto.setType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+				DataProcessorContext dataProcessorContext = DataProcessorContext.newBuilder().withTaskDto(taskDto).build();
+				ObsLogger obsLogger = mock(ObsLogger.class);
+				HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(instance);
+				ReflectionTestUtils.setField(spyInstance,"dataProcessorContext",dataProcessorContext);
+				ReflectionTestUtils.setField(spyInstance,"obsLogger",obsLogger);
+				spyInstance.initSyncProgress();
+				verify(obsLogger,times(1)).info(anyString(),anyString());
+			}
 		}
 
 		@Test
@@ -462,10 +481,10 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	@DisplayName("Method readBatchAndStreamOffset test")
 	void testReadBatchAndStreamOffset() {
 		HazelcastSourcePdkDataNode hazelcastSourcePdkDataNode = spy(new HazelcastSourcePdkDataNode(dataProcessorContext));
-		doAnswer(invocationOnMock -> null).when(hazelcastSourcePdkDataNode).readBatchOffset();
+		doAnswer(invocationOnMock -> null).when(hazelcastSourcePdkDataNode).readBatchOffset(syncProgress);
 		doAnswer(invocationOnMock -> null).when(hazelcastSourcePdkDataNode).readStreamOffset(any(TaskDto.class));
 		hazelcastSourcePdkDataNode.readBatchAndStreamOffset(dataProcessorContext.getTaskDto());
-		verify(hazelcastSourcePdkDataNode, times(1)).readBatchOffset();
+		verify(hazelcastSourcePdkDataNode, times(1)).readBatchOffset(any());
 		verify(hazelcastSourcePdkDataNode, times(1)).readStreamOffset(any(TaskDto.class));
 	}
 
@@ -786,7 +805,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> fakeBatchOffset = new HashMap<>();
 			fakeBatchOffset.put("test", 1);
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
-			instance.readBatchOffset();
+			instance.readBatchOffset(syncProgress);
 			assertNotNull(syncProgress.getBatchOffsetObj());
 			assertInstanceOf(Map.class, syncProgress.getBatchOffsetObj());
 			assertEquals(1, ((Map) syncProgress.getBatchOffsetObj()).get("test"));
@@ -796,14 +815,14 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test sync progress is null")
 		void testSyncProgressIsNull() {
 			ReflectionTestUtils.setField(instance, "syncProgress", null);
-			assertDoesNotThrow(() -> instance.readBatchOffset());
+			assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
 		}
 
 		@Test
 		@DisplayName("test batch offset is null")
 		void testBatchOffsetIsNull() {
 			syncProgress.setBatchOffset(null);
-			assertDoesNotThrow(() -> instance.readBatchOffset());
+			assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
 
 			assertNotNull(syncProgress.getBatchOffsetObj());
 			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
