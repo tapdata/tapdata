@@ -3,26 +3,29 @@ package io.tapdata.observable.metric;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.DropTableFuncAspect;
-import io.tapdata.aspect.TaskStartAspect;
-import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
-import io.tapdata.observable.metric.handler.DataNodeSampleHandler;
-import io.tapdata.observable.metric.handler.ProcessorNodeSampleHandler;
-import io.tapdata.observable.metric.handler.TableSampleHandler;
-import io.tapdata.observable.metric.handler.TaskSampleHandler;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.observable.metric.handler.*;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
+import io.tapdata.observable.metric.util.TapCompletableFutureEx;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.*;
 
@@ -231,5 +234,81 @@ public class ObservableAspectTaskTest {
             observableAspectTask.handleDropTableFunc(aspect);
             verify(taskSampleHandler,times(1)).handleDdlEnd();
         }
+    }
+    @Nested
+    class handleWriteRecordFunc {
+        TapCompletableFutureEx writeRecordFuture;
+        @BeforeEach
+        void setUp(){
+            writeRecordFuture = mock(TapCompletableFutureEx.class);
+            ReflectionTestUtils.setField(observableAspectTask,"writeRecordFuture",writeRecordFuture);
+            doAnswer(invocationOnMock -> {
+                Runnable runnable = invocationOnMock.getArgument(0);
+                runnable.run();
+                return null;
+            }).when(writeRecordFuture).thenRun(any());
+        }
+        @Test
+        void testBatchSplit_isTaskSampleHandlerV2(){
+            TaskSampleHandlerV2 taskSampleHandler = mock(TaskSampleHandlerV2.class);
+            doNothing().when(taskSampleHandler).handleWriteBatchSplit();
+            ReflectionTestUtils.setField(observableAspectTask,"taskSampleHandler",taskSampleHandler);
+            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT);
+            observableAspectTask.handleWriteRecordFunc(aspect);
+            verify(taskSampleHandler, times(1)).handleWriteBatchSplit();
+        }
+
+        @Test
+        void testStateStart(){
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+            TableNode node = new TableNode();
+            node.setId("id");
+            when(dataProcessorContext.getNode()).thenReturn((Node)node);
+            List<TapRecordEvent> results = new ArrayList<TapRecordEvent>();
+            TapRecordEvent tapRecordEvent = new TapInsertRecordEvent();
+            results.add(tapRecordEvent);
+            TapTable tapTable = new TapTable();
+            tapTable.setName("test");
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            DataNodeSampleHandler dataNodeSampleHandler = mock(DataNodeSampleHandler.class);
+            doNothing().when(dataNodeSampleHandler).handleWriteRecordStart(any(),any());
+            doNothing().when(dataNodeSampleHandler).handleWriteRecordAccept(any(),any(),any());
+            dataNodeSampleHandlers.put("id",dataNodeSampleHandler);
+            ReflectionTestUtils.setField(observableAspectTask,"dataNodeSampleHandlers",dataNodeSampleHandlers);
+            TaskSampleHandlerV2 taskSampleHandler = mock(TaskSampleHandlerV2.class);
+            doNothing().when(taskSampleHandler).handleWriteRecordAccept(any(),any(),any());
+            ReflectionTestUtils.setField(observableAspectTask,"taskSampleHandler",taskSampleHandler);
+            ReflectionTestUtils.setField(observableAspectTask,"pipelineDelay",mock(PipelineDelayImpl.class));
+            try(MockedStatic<HandlerUtil> handlerUtilMock = Mockito.mockStatic(HandlerUtil.class)){
+                WriteRecordFuncAspect aspect = spy(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.STATE_START).recordEvents(results).dataProcessorContext(dataProcessorContext).table(tapTable));
+                handlerUtilMock.when(() -> HandlerUtil.countTapEvent(any())).thenReturn(mock(HandlerUtil.EventTypeRecorder.class));
+                HandlerUtil.EventTypeRecorder inner = new HandlerUtil.EventTypeRecorder();
+                inner.incrInsertTotal();
+                ReflectionTestUtils.setField(inner,"newestEventTimestamp",1L);
+                inner.incrProcessTimeTotal(1L, 1L);
+                handlerUtilMock.when(() -> HandlerUtil.countTapEvent(any(),any())).thenReturn(inner);
+                doAnswer(invocationOnMock -> {
+                    BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> biConsumer = invocationOnMock.getArgument(0);
+                    biConsumer.accept(results,new WriteListResult<TapRecordEvent>());
+                    return null;
+                }).when(aspect).consumer(any());
+                observableAspectTask.handleWriteRecordFunc(aspect);
+                verify(dataNodeSampleHandler, times(1)).handleWriteRecordAccept(any(),any(),any());
+
+            }
+        }
+
+        @Test
+        void test_handleWriteBatchSplit(){
+            TaskSampleHandlerV2 taskSampleHandler = mock(TaskSampleHandlerV2.class);
+            doNothing().when(taskSampleHandler).handleWriteBatchSplit();
+            ReflectionTestUtils.setField(observableAspectTask,"taskSampleHandler",taskSampleHandler);
+            TaskBatchSplitAspect aspect = new TaskBatchSplitAspect();
+            observableAspectTask.handleWriteBatchSplit(aspect);
+            verify(taskSampleHandler, times(1)).handleWriteBatchSplit();
+        }
+
+
+
     }
 }
