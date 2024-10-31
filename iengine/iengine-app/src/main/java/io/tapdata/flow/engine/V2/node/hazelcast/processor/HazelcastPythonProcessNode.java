@@ -91,12 +91,12 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 null,
                 null,
                 scriptCacheService,
-                new ObsScriptLogger(obsLogger, logger),
+                new ObsScriptLogger(getScriptObsLogger(), logger),
                 Application.class.getClassLoader());
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         this.globalMap = new HashMap<>();
         this.scriptExecutorsManager = new ScriptExecutorsManager(
-            new ObsScriptLogger(obsLogger),
+            new ObsScriptLogger(getScriptObsLogger()),
             clientMongoOperator,
             jetContext.hazelcastInstance(),
             node.getTaskId(),
@@ -249,7 +249,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                     if (nodes.size() > 1) {
                         obsLogger.warn("Use the first node as the default python executor, please use it with caution.");
                     }
-                    return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger));
+                    return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(getScriptObsLogger()));
                 }
             }
         }
@@ -297,10 +297,5 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
     @Override
     public boolean needCopyBatchEventWrapper() {
         return true;
-    }
-
-    @Override
-    protected List<String> getLogTags() {
-        return Collections.singletonList("src=user_script");
     }
 }

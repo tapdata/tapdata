@@ -32,7 +32,7 @@ public class TokenBucketRateLimiter {
     public static TokenBucketRateLimiter get() {
         if (instance == null) {
             synchronized (TokenBucketRateLimiter.class) {
-                instance = new TokenBucketRateLimiter()
+                instance = new TokenBucketRateLimiter();
             }
         }
         return instance;
