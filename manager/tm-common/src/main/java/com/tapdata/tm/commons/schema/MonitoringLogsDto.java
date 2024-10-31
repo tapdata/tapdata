@@ -38,6 +38,7 @@ public class MonitoringLogsDto extends BaseDto {
     private List<Map<String, Object>> data;
     private String errorCode;
     private String fullErrorCode;
+    private String[] dynamicDescriptionParameters;
 
     public String formatMonitoringLog() {
         return "[" + level + "] " + date + " " + formatMonitoringLogMessage();

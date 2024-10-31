@@ -67,10 +67,8 @@ public class MonitoringLogsController extends BaseController {
         for (String json : list) {
             MonitoringLogsDto monitoringLogsDto = JsonUtil.parseJsonUseJackson(json, new TypeReference<MonitoringLogsDto>() {
             });
+            monitoringLogsDto.setId(null);
             monitoringLoges.add(monitoringLogsDto);
-        }
-        for (MonitoringLogsDto monitoringLoge : monitoringLoges) {
-            monitoringLoge.setId(null);
         }
         monitoringLogsService.batchSave(monitoringLoges, getLoginUser());
 

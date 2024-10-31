@@ -1,8 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -52,6 +54,7 @@ import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -62,6 +65,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -446,6 +450,18 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			MapUtil.removeKey(data, notSupportField);
 		}
 	}
+	protected void readBatchOffset(SyncProgress syncProgress) {
+		if (null == syncProgress) {
+			return;
+		}
+		String batchOffset = syncProgress.getBatchOffset();
+		if (StringUtils.isNotBlank(batchOffset)) {
+			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
+		} else {
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+		}
+	}
+
 
 	protected ThreadGroup getReuseOrNewThreadGroup(ConcurrentHashSet<TaskNodeInfo> taskNodeInfos) {
 		Optional<TaskNodeInfo> leakTaskNodeInfo = taskNodeInfos.stream().filter(
