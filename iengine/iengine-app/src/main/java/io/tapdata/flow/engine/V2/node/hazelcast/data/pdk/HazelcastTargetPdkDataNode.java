@@ -990,7 +990,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							if (MapUtils.isNotEmpty(errorMap)) {
 								Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
 								Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
-								throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
+								throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue())
+										.dynamicDescriptionParameters(next.getKey(),next.getValue());
 							}
 						})
 				));

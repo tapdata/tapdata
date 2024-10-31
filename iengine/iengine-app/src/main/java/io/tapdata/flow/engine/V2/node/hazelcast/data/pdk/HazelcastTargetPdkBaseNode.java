@@ -107,8 +107,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author samuel
@@ -181,6 +180,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		queueConsumerThreadPool.submitSync(() -> {
 			super.doInit(context);
 			createPdkAndInit(context);
+			everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 			initExactlyOnceWriteIfNeed();
 			initTargetVariable();
 			initTargetQueueConsumer();
@@ -192,7 +192,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
-		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 	}
 
 	protected void initCodecsFilterManager() {
@@ -719,9 +718,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
 
             flushOffsetByTapdataEventForNoConcurrent(lastTapdataEvent);
-        } catch (Throwable throwable) {
-            throw new TapdataEventException(TaskTargetProcessorExCode_15.PROCESS_EVENTS_FAILED, throwable).addEvent(lastTapdataEvent.get());
-        }
+		} catch (Throwable throwable) {
+			Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+			if (null != matchThrowable) {
+				throw (TapCodeException) matchThrowable;
+			} else {
+				throw new TapdataEventException(TaskTargetProcessorExCode_15.PROCESS_EVENTS_FAILED, throwable).addEvent(lastTapdataEvent.get());
+			}
+		}
 
 		if (firstStreamEvent.get()) {
 			executeAspect(new CDCHeartbeatWriteAspect().tapdataEvents(tapdataEvents).dataProcessorContext(dataProcessorContext));
@@ -1103,7 +1107,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 
-	private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
+	protected boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
 		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
 			return false;
 		}
@@ -1522,7 +1526,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		return CheckExactlyOnceWriteEnableResult.createEnable();
 	}
 
-	private boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
+	protected boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
 		return SyncStage.CDC.equals(syncStage) && exactlyOnceWriteTables.contains(tableId);
 	}
 

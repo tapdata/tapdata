@@ -40,10 +40,12 @@ import io.tapdata.flow.engine.V2.common.TapdataEventsRunner;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
+import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.metric.collector.SyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
@@ -1578,6 +1580,38 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(queueExecutorEx.isShutdown()).thenReturn(false);
 			hazelcastTargetPdkBaseNode.handleTapdataAdjustMemoryEvent(tapdataEvent);
 			verify(queueExecutorEx,times(1)).shutdownNow();
+		}
+
+		@DisplayName("test timestamp is null")
+		@Test
+		void test() {
+			List<String> exactlyOnceWriteTables = new ArrayList<>();
+			exactlyOnceWriteTables.add("testTableId");
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables", exactlyOnceWriteTables);
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setSyncStage(SyncStage.CDC);
+			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create();
+			tapUpdateRecordEvent.setTableId("testTableId");
+			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+			List<TapRecordEvent> exactlyOnceWriteCache = new ArrayList<>();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleExactlyOnceWriteCacheIfNeed(any(), anyList());
+			when(hazelcastTargetPdkBaseNode.tableEnableExactlyOnceWrite(any(), any())).thenReturn(true);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastTargetPdkBaseNode.handleExactlyOnceWriteCacheIfNeed(tapdataEvent, exactlyOnceWriteCache);
+			});
+			assertEquals(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, tapCodeException.getCode());
+		}
+
+		@DisplayName("test exactly once id is blank")
+		@Test
+		void test2() {
+			String nodeId = "nodeId";
+			String tableName = "tableName";
+			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create();
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				ExactlyOnceUtil.generateExactlyOnceCacheRow(nodeId, tableName, tapUpdateRecordEvent, 0L);
+			});
+			assertEquals(TapExactlyOnceWriteExCode_22.EXACTLY_ONCE_ID_IS_BLANK, tapCodeException.getCode());
 		}
 	}
 }
