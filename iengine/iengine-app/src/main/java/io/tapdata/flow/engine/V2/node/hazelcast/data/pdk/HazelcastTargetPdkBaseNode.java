@@ -189,12 +189,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			initTargetConcurrentProcessorIfNeed();
 			initTapEventFilter();
 			initIllegalDateAcceptable();
+			initSyncProgressMap();
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 			initCodecsFilterManager();
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
 		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
+	}
+
+	protected void initSyncProgressMap() {
+		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
+			readBatchOffset(entry.getValue());
+		}
+		syncProgressMap.putAll(allSyncProgress);
 	}
 
 	protected void initCodecsFilterManager() {
