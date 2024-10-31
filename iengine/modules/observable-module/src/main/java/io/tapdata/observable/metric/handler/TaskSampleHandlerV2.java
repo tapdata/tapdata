@@ -40,6 +40,7 @@ public class TaskSampleHandlerV2 extends TaskSampleHandler {
 					try {
 						consumeQueue(TimeUnit.SECONDS.toMillis(5L));
 					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
 						break;
 					}
 				}
@@ -92,7 +93,7 @@ public class TaskSampleHandlerV2 extends TaskSampleHandler {
 		try {
 			sourceTaskInputOutputCounterQueue.put(taskInputOutputRecordCounter);
 		} catch (InterruptedException ignored) {
-			// do nothing
+			Thread.currentThread().interrupt();
 		}
 		inputSpeed.add(size);
 	}
@@ -109,7 +110,7 @@ public class TaskSampleHandlerV2 extends TaskSampleHandler {
 		try {
 			sourceTaskInputOutputCounterQueue.put(taskInputOutputRecordCounter);
 		} catch (InterruptedException ignored) {
-			// do nothing
+			Thread.currentThread().interrupt();
 		}
 		inputDdlCounter.inc(recorder.getDdlTotal());
 		inputOthersCounter.inc(recorder.getOthersTotal());
@@ -169,6 +170,7 @@ public class TaskSampleHandlerV2 extends TaskSampleHandler {
 		try {
 			targetTaskInputOutputCounterQueue.put(taskInputOutputRecordCounter);
 		} catch (InterruptedException ignored) {
+			Thread.currentThread().interrupt();
 			// do nothing
 		}
 		this.tempInputOutputCounter = null;
