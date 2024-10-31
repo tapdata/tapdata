@@ -2414,6 +2414,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
 			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
 			spySourcePdkBaseNod.handleNewTables(tables);
 
 			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
