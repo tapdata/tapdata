@@ -5,6 +5,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -18,9 +19,12 @@ import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.error.TapEventException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastBlank;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -373,7 +377,37 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 			};
 			Assertions.assertThrows(TapCodeException.class,()->hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer));
 		}
+	}
 
+	@Test
+	void testGetScriptObsLogger() {
+		DatabaseNode node = new DatabaseNode();
+		node.setId("nodeId");
+		node.setName("nodeName");
+		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder()
+				.withNode(node)
+				.withTaskDto(new TaskDto())
+				.build();
+		HazelcastProcessorBaseNode processorBaseNode = new HazelcastProcessorBaseNode(processorBaseContext) {
+			@Override
+			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 
+			}
+		};
+
+		try (MockedStatic<ObsLoggerFactory> mockObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			ObsLogger logger = mock(ObsLogger.class);
+
+			mockObsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+
+			Assertions.assertEquals(obsLoggerFactory, ObsLoggerFactory.getInstance());
+
+			doReturn(logger).when(obsLoggerFactory).getObsLogger(any(TaskDto.class), anyString(), anyString(), anyList());
+
+			ObsLogger log = processorBaseNode.getScriptObsLogger();
+			Assertions.assertNotNull(log);
+		}
 	}
 }
