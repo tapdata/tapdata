@@ -294,11 +294,11 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 
 		protected <T> boolean applyFieldInfo(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
-			if (MapUtils.isEmpty(fieldInfoMaps) || !fieldInfoMaps.containsKey(tableName)) {
+			if (MapUtils.isEmpty(fieldInfoMaps) || !fieldInfoMaps.containsKey(tableName) || MapUtils.isEmpty(fieldInfoTempMaps) || !fieldInfoTempMaps.containsKey(tableName)) {
 				return false;
 			}
 			Map<String, FieldInfo> fieldInfoMap = fieldInfoMaps.get(tableName);
-			Map<String, String> fieldInfoTempMap = new HashMap<>();
+			Map<String, String> fieldInfoTempMap = fieldInfoTempMaps.get(tableName);
 			for (Map.Entry<String, FieldInfo> entry : fieldInfoMap.entrySet()) {
 				String key = entry.getKey();
 				FieldInfo fieldInfo = entry.getValue();
@@ -307,11 +307,15 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 				}
 				if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
 					String originTargetFieldName = fieldInfo.getTargetFieldName();
-					 boolean replaced = false;
+					boolean replaced = false;
 					if (operatorParam instanceof Map && ((Map) operatorParam).containsKey(fieldInfo.getTargetFieldName())) {
-						String tempKey = fieldInfo.getTargetFieldName() + UUID.randomUUID();
-						fieldInfoTempMap.put(key, tempKey);
-						fieldInfo.setTargetFieldName(tempKey);
+						if (MapUtils.isNotEmpty(fieldInfoTempMap) && fieldInfoTempMap.containsKey(key)) {
+							fieldInfo.setTargetFieldName(fieldInfoTempMap.get(key));
+						} else {
+							String tempKey = fieldInfo.getTargetFieldName() + UUID.randomUUID();
+							fieldInfoTempMap.put(key, tempKey);
+							fieldInfo.setTargetFieldName(tempKey);
+						}
 						replaced = true;
 					}
 					operator.renameField(operatorParam, key, fieldInfo.getTargetFieldName());

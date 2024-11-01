@@ -18,6 +18,7 @@ import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -121,11 +122,16 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		protected final Operation fieldsOperation;
 		protected final Map<String, TableFieldInfo> tableFieldInfoMap;
 		protected final Map<String, Map<String, FieldInfo>> fieldInfoMaps;
+		protected final Map<String, Map<String, String>> fieldInfoTempMaps;
 
+		public Map<String, Map<String, String>> getFieldInfoTempMaps() {
+			return fieldInfoTempMaps;
+		}
 
 		public ApplyConfig(MigrateFieldRenameProcessorNode node) {
 			fieldsOperation = node.getFieldsOperation();
 			fieldInfoMaps = new HashMap<>();
+			fieldInfoTempMaps = new HashMap<>();
 			tableFieldInfoMap = Optional.ofNullable(node.getFieldsMapping()).map(tableFieldInfos -> {
 				Map<String, TableFieldInfo> tableMap = new HashMap<>();
 				for (TableFieldInfo info : tableFieldInfos) {
@@ -137,6 +143,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 						}
 					}
 					fieldInfoMaps.put(info.getPreviousTableName(), fieldMap);
+					fieldInfoTempMaps.put(info.getPreviousTableName(), new HashMap<>());
 				}
 				return tableMap;
 			}).orElse(new HashMap<>());

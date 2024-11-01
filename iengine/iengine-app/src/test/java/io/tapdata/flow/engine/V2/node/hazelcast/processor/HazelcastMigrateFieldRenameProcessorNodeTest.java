@@ -20,8 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -106,6 +105,9 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 			fieldInfoMap.put("B", fieldB);
 			fieldInfoMaps.put("test", fieldInfoMap);
 			ReflectionTestUtils.setField(applyConfig, "fieldInfoMaps", fieldInfoMaps);
+			Map<String, Map<String, FieldInfo>> fieldInfoTempMaps = new HashMap<>();
+			fieldInfoTempMaps.put("test", new HashMap<>());
+			ReflectionTestUtils.setField(applyConfig, "fieldInfoTempMaps", fieldInfoTempMaps);
 
 			Map<String, Object> operatorParam = new HashMap<>();
 			operatorParam.put("A",1);
