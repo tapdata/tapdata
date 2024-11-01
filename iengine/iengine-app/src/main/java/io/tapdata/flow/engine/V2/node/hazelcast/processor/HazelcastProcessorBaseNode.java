@@ -573,7 +573,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		return false;
 	}
 
-	protected ObsLogger getScriptObsLogger() {
+	public ObsLogger getScriptObsLogger() {
 		if (this.scriptObsLogger == null) {
 			Set<String> tags = new HashSet<>();
 			tags.add("src=user_script");

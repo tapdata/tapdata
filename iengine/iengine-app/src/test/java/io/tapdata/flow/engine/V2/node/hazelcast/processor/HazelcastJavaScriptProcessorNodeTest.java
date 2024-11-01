@@ -3,15 +3,23 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import base.hazelcast.BaseHazelcastNodeTest;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TransformToTapValueResult;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -210,5 +218,41 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 				}}));
 		hazelcastJavaScriptProcessorNode.handleTransformToTapValueResult(tapdataEvent);
 		assertNull(tapdataEvent.getTransformToTapValueResult());
+	}
+
+	@Test
+	void testGetScriptObsLogger() {
+		ProcessorNode node = new JsProcessorNode();
+		node.setId("nodeId");
+		node.setName("nodeName");
+		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder()
+				.withNode(node)
+				.withTaskDto(new TaskDto())
+				.build();
+		processorBaseContext.getTaskDto().setId(new ObjectId());
+		HazelcastProcessorBaseNode processorBaseNode = new HazelcastProcessorBaseNode(processorBaseContext) {
+			@Override
+			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+
+			}
+		};
+
+		try (MockedStatic<ObsLoggerFactory> mockObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			ObsLogger logger = mock(ObsLogger.class);
+
+			mockObsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+
+			Assertions.assertEquals(obsLoggerFactory, ObsLoggerFactory.getInstance());
+
+			doReturn(logger).when(obsLoggerFactory).getObsLogger(any(TaskDto.class), anyString(), anyString(), anyList());
+
+			ObsLogger log = processorBaseNode.getScriptObsLogger();
+			Assertions.assertNotNull(log);
+
+			ObsLogger log1 = processorBaseNode.getScriptObsLogger();
+			Assertions.assertEquals(log, log1);
+		}
 	}
 }
