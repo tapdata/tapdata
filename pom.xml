@@ -16,7 +16,6 @@
     <properties>
         <sonar.coverage.exclusions>
             manager/**/dto/*,
-            manager/**/entity/*,
             manager/**/vo/*,
             manager/**/param/*,
             manager/tm/**/controller/*,
@@ -24,7 +23,6 @@
             manager/tm/**/ex/*,
             **/*Dto.java,
             **/*Enum.java,
-            iengine/iengine-common/src/main/java/com/tapdata/entity/**,
             tapdata-cli/**,
             iengine/iengine-common/src/main/java/com/tapdata/exception/**,
             manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
@@ -39,11 +37,11 @@
             **/*Exception.java,
             **/*Controller.java,
             iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java,
-            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/task/preview/operation/**
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/task/preview/operation/**,
+            **/entity/**
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
-            manager/**/entity/*,
             manager/**/vo/*,
             manager/**/param/*,
             manager/tm/**/controller/*,
@@ -52,7 +50,6 @@
             **/*Dto.java,
             **/*Enum.java,
             **/src/main/java/io/tapdata/**/exception/**,
-            iengine/iengine-common/src/main/java/com/tapdata/entity/**,
             tapdata-cli/**,
             manager/tm-common/src/main/java/com/tapdata/tm/commons/task/dto/**,
             manager/tm/src/main/java/com/tapdata/tm/init/patches/daas/*,
@@ -61,7 +58,8 @@
             **/*Exception.java,
             **/*Controller.java,
             iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java,
-            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/task/preview/operation/**
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/task/preview/operation/**,
+            **/entity/**
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**

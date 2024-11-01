@@ -167,10 +167,6 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 		return false;
 	}
 
-	private static void sendFinishRead(PreviewReadOperationQueue previewReadOperationQueue, String sourceNodeId) {
-		previewReadOperationQueue.addOperation(sourceNodeId, PreviewFinishReadOperation.create());
-	}
-
 	protected Object findTargetKeyValue(MergeTableLoopProperty mergeTableLoopProperty, String target) {
 		List<MergeTableLoopProperty> parentProperties = mergeTableLoopProperty.getParentProperties();
 		for (int i = parentProperties.size() - 1; i >= 0; i--) {
