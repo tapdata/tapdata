@@ -138,7 +138,7 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 				List<Map<String, Object>> mergeCacheData = mergeCache.getData();
 				MergeTableProperties.MergeType mergeType = childProperty.getMergeType();
 				List<Map<String, String>> joinKeys = childProperty.getJoinKeys();
-				String targetPath = childProperty.getTargetPath();
+				String targetPath = null == childProperty.getTargetPath() ? "" : childProperty.getTargetPath();
 				for (Map<String, Object> parentMergeDatum : parentMergeData) {
 					if (MergeTableProperties.MergeType.updateWrite == mergeType) {
 						String parentJoinKeyValue = dataJoinKeyValueString(parentMergeDatum, joinKeys, JoinKeyEnum.TARGET);
@@ -146,7 +146,11 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 								.filter(d -> dataJoinKeyValueString(d, joinKeys, JoinKeyEnum.SOURCE).equals(parentJoinKeyValue))
 								.findFirst().orElse(null);
 						try {
-							MapUtilV2.putValueInMap(parentMergeDatum, targetPath, childData);
+							if (StringUtils.isNotBlank(targetPath)) {
+								MapUtilV2.putValueInMap(parentMergeDatum, targetPath, childData);
+							} else {
+								parentMergeDatum.putAll(childData);
+							}
 							addFieldMapping(childPreNodeId, targetPath, childData);
 						} catch (Exception e) {
 							throw new MemoryMergeException(e, parentMergeDatum, childData, mergeTableProperties);
