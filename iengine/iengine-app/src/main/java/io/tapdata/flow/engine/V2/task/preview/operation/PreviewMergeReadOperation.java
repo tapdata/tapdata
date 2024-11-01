@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.task.preview.operation;
 
-import io.tapdata.flow.engine.V2.task.preview.tasklet.MergeTableLoopProperty;
+import io.tapdata.flow.engine.V2.task.preview.entity.MergeReadData;
+import io.tapdata.flow.engine.V2.task.preview.entity.MergeTableLoopProperty;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 
 import java.util.StringJoiner;

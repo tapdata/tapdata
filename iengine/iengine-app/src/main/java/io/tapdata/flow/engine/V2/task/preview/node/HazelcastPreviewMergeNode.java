@@ -15,6 +15,8 @@ import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.task.preview.*;
+import io.tapdata.flow.engine.V2.task.preview.entity.MemoryMergeData;
+import io.tapdata.flow.engine.V2.task.preview.entity.MergeCache;
 import io.tapdata.flow.engine.V2.task.preview.operation.PreviewMergeReadOperation;
 import io.tapdata.flow.engine.V2.task.preview.operation.PreviewOperation;
 import org.apache.commons.collections4.CollectionUtils;

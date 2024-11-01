@@ -22,6 +22,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.task.preview.*;
+import io.tapdata.flow.engine.V2.task.preview.entity.MergeReadData;
 import io.tapdata.flow.engine.V2.task.preview.operation.*;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;

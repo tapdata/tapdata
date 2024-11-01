@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.task.preview.operation;
+package io.tapdata.flow.engine.V2.task.preview.entity;
 
 import java.util.List;
 import java.util.Map;

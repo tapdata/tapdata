@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.task.preview.tasklet;
+package io.tapdata.flow.engine.V2.task.preview.entity;
 
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import io.tapdata.entity.utils.DataMap;
