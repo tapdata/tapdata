@@ -59,16 +59,14 @@ class ErrorCodeServiceTest {
 				Map<String, Object> result = errorCodeService.getErrorCodeWithDynamic(ErrorCodeTestClass.TEST_ERROR, "en", new String[]{"xxx"});
 				assertNotNull(result);
 				assertFalse(result.isEmpty());
+				assertInstanceOf(String.class, result.get("errorCode"));
+				assertInstanceOf(String.class, result.get("fullErrorCode"));
+				assertInstanceOf(String.class, result.get("module"));
+				assertInstanceOf(Integer.class, result.get("moduleCode"));
 				assertInstanceOf(String.class, result.get("describe"));
-				assertInstanceOf(Boolean.class, result.get("hasDescribe"));
-				assertTrue((Boolean) result.get("hasDescribe"));
 				assertInstanceOf(String[].class, result.get("seeAlso"));
 				assertInstanceOf(String.class, result.get("dynamicDescribe"));
-				assertEquals("Module - test(99999): testError describe\n" +
-						"describe\n" +
-						"\n" +
-						"Solution\n" +
-						"solution", result.get("describe"));
+				assertEquals(errorCodeEntity.getDescribe(), result.get("describe"));
 				assertEquals("dynamic description: xxx", result.get("dynamicDescribe"));
 			}
 		}
@@ -92,17 +90,30 @@ class ErrorCodeServiceTest {
 				Map<String, Object> result = errorCodeService.getErrorCodeWithDynamic(ErrorCodeTestClass.TEST_ERROR, "cn", new String[]{"xxx"});
 				assertNotNull(result);
 				assertFalse(result.isEmpty());
+				assertInstanceOf(String.class, result.get("errorCode"));
+				assertInstanceOf(String.class, result.get("fullErrorCode"));
+				assertInstanceOf(String.class, result.get("module"));
+				assertInstanceOf(Integer.class, result.get("moduleCode"));
 				assertInstanceOf(String.class, result.get("describe"));
-				assertInstanceOf(Boolean.class, result.get("hasDescribe"));
-				assertTrue((Boolean) result.get("hasDescribe"));
 				assertInstanceOf(String[].class, result.get("seeAlso"));
 				assertInstanceOf(String.class, result.get("dynamicDescribe"));
-				assertEquals("Module - test(99999): test错误描述\n" +
-						"描述\n" +
-						"\n" +
-						"解决方案\n" +
-						"解决方案", result.get("describe"));
+				assertEquals(errorCodeEntity.getDescribeCN(), result.get("describe"));
 				assertEquals("动态描述: xxx", result.get("dynamicDescribe"));
+			}
+		}
+
+		@Test
+		@DisplayName("test error code not found")
+		void test3() {
+			try (
+					MockedStatic<ErrorCodeConfig> errorCodeConfigMockedStatic = mockStatic(ErrorCodeConfig.class)
+			) {
+				ErrorCodeConfig errorCodeConfig = mock(ErrorCodeConfig.class);
+				errorCodeConfigMockedStatic.when(ErrorCodeConfig::getInstance).thenReturn(errorCodeConfig);
+				when(errorCodeConfig.getErrorCode(ErrorCodeTestClass.TEST_ERROR)).thenReturn(null);
+				Map<String, Object> result = errorCodeService.getErrorCodeWithDynamic(ErrorCodeTestClass.TEST_ERROR, "cn", new String[]{"xxx"});
+				assertNotNull(result);
+				assertTrue(result.isEmpty());
 			}
 		}
 	}
@@ -160,7 +171,6 @@ class ErrorCodeServiceTest {
 
 	@TapExClass(code = 99999, module = "test", describe = "test", prefix = "test")
 	interface ErrorCodeTestClass {
-		@TapExCode
 		String TEST_ERROR = "99999001";
 	}
 }

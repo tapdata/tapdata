@@ -24,6 +24,12 @@ public class TapScriptLogger implements Log {
 	}
 
 	@Override
+	public void trace(String message, Object... params) {
+		Log4jUtil.setThreadContext(taskId);
+		TapLogger.info("", message, params);
+	}
+
+	@Override
 	public void warn(String message, Object... params) {
 		Log4jUtil.setThreadContext(taskId);
 		TapLogger.warn("", message, params);
