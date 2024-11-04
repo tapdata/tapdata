@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -19,6 +21,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -134,6 +137,56 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 			assertEquals(1, operatorParam.get("B"));
 			assertEquals(2, operatorParam.get("D"));
 			assertEquals(3, operatorParam.get("C"));
+		}
+		@Test
+		@DisplayName("test when operatorParam contains targetFieldName and fieldInfoTempMap is not empty")
+		void test3() {
+			try (MockedStatic<UUID> mb = Mockito
+					.mockStatic(UUID.class)) {
+				mb.when(UUID::randomUUID).thenReturn(mock(UUID.class));
+				Map<String, Map<String, FieldInfo>> fieldInfoMaps = new HashMap<>();
+				HashMap<String, FieldInfo> fieldInfoMap = new HashMap<>();
+				FieldInfo fieldA = new FieldInfo();
+				fieldA.setTargetFieldName("B");
+				fieldInfoMap.put("A", fieldA);
+				FieldInfo fieldB = new FieldInfo();
+				fieldB.setTargetFieldName("D");
+				fieldInfoMap.put("B", fieldB);
+				fieldInfoMaps.put("test", fieldInfoMap);
+				ReflectionTestUtils.setField(applyConfig, "fieldInfoMaps", fieldInfoMaps);
+				Map<String, Map<String, String>> fieldInfoTempMaps = new HashMap<>();
+				HashMap<String, String> fieldInfoTempMap = new HashMap<>();
+				fieldInfoTempMap.put("A", "B1111");
+				fieldInfoTempMaps.put("test", fieldInfoTempMap);
+				ReflectionTestUtils.setField(applyConfig, "fieldInfoTempMaps", fieldInfoTempMaps);
+
+				Map<String, Object> operatorParam = new HashMap<>();
+				operatorParam.put("A",1);
+				operatorParam.put("B",2);
+				operatorParam.put("C",3);
+
+				MigrateFieldRenameProcessorNode.IOperator operator = new MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>>() {
+					@Override
+					public void renameField(Map<String, Object> param, String fromName, String toName) {
+						MapUtil.replaceKey(fromName, param, toName);
+					}
+
+					@Override
+					public void deleteField(Map<String, Object> param, String originalName) {
+					}
+
+					@Override
+					public Object renameFieldWithReturn(Map<String, Object> param, String fromName, String toName) {
+						return null;
+					}
+				};
+				doCallRealMethod().when(applyConfig).applyFieldInfo("test", operatorParam, operator);
+				applyConfig.applyFieldInfo("test", operatorParam, operator);
+				assertEquals(1, operatorParam.get("B"));
+				assertEquals(2, operatorParam.get("D"));
+				assertEquals(3, operatorParam.get("C"));
+				mb.verify(() -> UUID.randomUUID(),new Times(0));
+			}
 		}
 	}
 }
