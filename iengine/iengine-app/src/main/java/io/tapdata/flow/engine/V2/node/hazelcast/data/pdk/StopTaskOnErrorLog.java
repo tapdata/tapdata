@@ -28,6 +28,11 @@ public class StopTaskOnErrorLog implements Log {
 	}
 
 	@Override
+	public void trace(String message, Object... params) {
+		log.info(message, params);
+	}
+
+	@Override
 	public void warn(String message, Object... params) {
 		log.warn(message, params);
 	}

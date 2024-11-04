@@ -27,6 +27,16 @@ public class Log4jScriptLogger implements Log {
 	}
 
 	@Override
+	public void trace(CharSequence message) {
+		logger.info(message);
+	}
+
+	@Override
+	public void trace(String message, Object... params) {
+		logger.info(message, params);
+	}
+
+	@Override
 	public void warn(String message, Object... params) {
 		logger.warn(message, params);
 	}

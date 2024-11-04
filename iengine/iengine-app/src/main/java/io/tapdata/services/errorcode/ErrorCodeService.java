@@ -8,6 +8,7 @@ import io.tapdata.exception.TapExClass;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -28,6 +29,10 @@ public class ErrorCodeService implements MemoryFetcher {
 	}
 
 	public Map<String, Object> getErrorCode(String code, String language) {
+		return getErrorCodeWithDynamic(code, language, null);
+	}
+
+	public Map<String, Object> getErrorCodeWithDynamic(String code, String language, String[] dynamicDescriptionParameters) {
 		ErrorCodeEntity errorCode = ErrorCodeConfig.getInstance().getErrorCode(code);
 		Map<String, Object> res = new HashMap<>();
 		if (null == errorCode) {
@@ -37,9 +42,12 @@ public class ErrorCodeService implements MemoryFetcher {
 		Language languageEnum = Language.fromValue(language);
 		languageEnum = null == languageEnum ? Language.EN : languageEnum;
 
-		String describe = "";
+		String module = "";
+		int moduleCode = 0;
+		String describe;
 		String solution;
-		boolean hasDescribe = false;
+		String dynamicDescribe;
+		String fullErrorCode = code;
 
 		Class<?> sourceExClass = errorCode.getSourceExClass();
 		TapExClass tapExClass = null;
@@ -47,41 +55,35 @@ public class ErrorCodeService implements MemoryFetcher {
 			tapExClass = sourceExClass.getAnnotation(TapExClass.class);
 		}
 		if (null != tapExClass) {
-			describe = String.format("Module - %s(%s)", tapExClass.module(), tapExClass.code());
-			if (StringUtils.isNotBlank(tapExClass.describe())) {
-				describe += String.format(": %s", tapExClass.describe());
-				hasDescribe = true;
-			} else {
-				describe += "\n\n";
-			}
+			module = tapExClass.module();
+			moduleCode = tapExClass.code();
+			fullErrorCode = (StringUtils.isNotBlank(tapExClass.prefix()) ? tapExClass.prefix() : tapExClass.module()) + code;
 		}
-		switch (languageEnum) {
-			case CN:
-				if (StringUtils.isNotBlank(errorCode.getDescribeCN())) {
-					describe += "错误描述\n" + errorCode.getDescribeCN();
-					hasDescribe = true;
-				}
-				solution = errorCode.getSolutionCN();
-				if (StringUtils.isNotBlank(solution)) {
-					solution = "\n\n解决方案\n" + solution;
-				}
-				break;
-			default:
-				if (StringUtils.isNotBlank(errorCode.getDescribe())) {
-					describe += "Error describe\n" + errorCode.getDescribe();
-				}
-				solution = errorCode.getSolution();
-				if (StringUtils.isNotBlank(solution)) {
-					solution = "\n\nSolution\n" + solution;
-				}
-				break;
+		if (languageEnum == Language.CN) {
+			describe = errorCode.getDescribeCN();
+			solution = errorCode.getSolutionCN();
+			dynamicDescribe = getDynamicDescribe(dynamicDescriptionParameters, errorCode.getDynamicDescriptionCN());
+		} else {
+			describe = errorCode.getDescribe();
+			solution = errorCode.getSolution();
+			dynamicDescribe = getDynamicDescribe(dynamicDescriptionParameters, errorCode.getDynamicDescription());
 		}
-		if (StringUtils.isNotBlank(solution)) {
-			describe = describe + solution;
-		}
+		res.put("errorCode", code);
+		res.put("fullErrorCode", fullErrorCode);
+		res.put("module", module);
+		res.put("moduleCode", moduleCode);
 		res.put("describe", describe);
-		res.put("hasDescribe", hasDescribe);
+		res.put("solution", solution);
 		res.put("seeAlso", errorCode.getSeeAlso());
+		res.put("dynamicDescribe", dynamicDescribe);
+		return res;
+	}
+
+	protected String getDynamicDescribe(String[] dynamicDescriptionParameters, String dynamicDescribe) {
+		String res = "";
+		if (null != dynamicDescriptionParameters && dynamicDescriptionParameters.length > 0 && StringUtils.isNotBlank(dynamicDescribe)) {
+			res = new ParameterizedMessage(dynamicDescribe, (Object[]) dynamicDescriptionParameters).getFormattedMessage();
+		}
 		return res;
 	}
 

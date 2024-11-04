@@ -181,6 +181,10 @@ public abstract class ObsLogger implements Serializable, TapLogger {
 			if (null != errorCodeEntity) {
 				builder.fullErrorCode(errorCodeEntity.fullErrorCode());
 			}
+			String[] dynamicDescriptionParameters = ((TapCodeException) throwable).getDynamicDescriptionParameters();
+			if (null != dynamicDescriptionParameters && dynamicDescriptionParameters.length > 0) {
+				builder.dynamicDescriptionParameters(dynamicDescriptionParameters);
+			}
 			String simpleStack = ((TapCodeException) throwable).simpleStack();
 			if (StringUtils.isNotBlank(simpleStack)) {
 				stackString = "<-- Error Message -->\n" + formattedMessage+"\n\n"
