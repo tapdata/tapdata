@@ -13,7 +13,7 @@ import java.util.Map;
 public class BatchOffsetUtil {
     @Deprecated
     protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
-    protected static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
+    public static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
     private BatchOffsetUtil(){
 
     }

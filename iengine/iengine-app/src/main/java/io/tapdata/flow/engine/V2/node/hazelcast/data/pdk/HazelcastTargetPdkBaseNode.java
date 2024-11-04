@@ -187,7 +187,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             initTargetConcurrentProcessorIfNeed();
             initTapEventFilter();
             initIllegalDateAcceptable();
-            flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
+            initSyncProgressMap();
+			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
             initCodecsFilterManager();
         });
         Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
@@ -195,7 +196,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
     }
 
-    protected void initCodecsFilterManager() {
+    protected void initSyncProgressMap() {
+		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
+			readBatchOffset(entry.getValue());
+		}
+		syncProgressMap.putAll(allSyncProgress);
+	}
+
+	protected void initCodecsFilterManager() {
         Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManager = connectorNode.getCodecsFilterManager());
         Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManagerForBatchRead = connectorNode.getCodecsFilterManagerSchemaEnforced());
     }

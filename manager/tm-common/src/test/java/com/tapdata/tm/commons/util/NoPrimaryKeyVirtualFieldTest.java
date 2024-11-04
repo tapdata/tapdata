@@ -5,6 +5,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.exception.NoPrimaryKeyException;
 import com.tapdata.tm.commons.schema.*;
 import io.github.openlg.graphlib.Graph;
@@ -59,11 +61,76 @@ public class NoPrimaryKeyVirtualFieldTest {
     }
 
     @Nested
+    class init {
+        String tableNameNoPk = "no_pk_tab";
+        NoPrimaryKeyVirtualField instance;
+
+        @BeforeEach
+        void setUp() {
+            instance = new NoPrimaryKeyVirtualField();
+        }
+
+        @Test
+        void testTrue() {
+            try (MockedStatic<NoPrimaryKeyVirtualField> mockedStatic = Mockito.mockStatic(NoPrimaryKeyVirtualField.class)) {
+                mockedStatic.when(() -> NoPrimaryKeyVirtualField.isEnable(Mockito.any())).thenReturn(true);
+                instance.init(null);
+
+                // add no pk table
+                instance.add(Optional.of(new Schema()).map(schema -> {
+                    schema.setOriginalName(tableNameNoPk);
+                    schema.setFields(new ArrayList<>());
+                    schema.getFields().add(createNormalField(schema.getName(), "title"));
+                    schema.getFields().add(createNormalField(schema.getName(), "created"));
+                    return PdkSchemaConvert.toPdk(schema);
+                }).get());
+                Assertions.assertTrue(instance.noPkTables.containsKey(tableNameNoPk));
+                Assertions.assertTrue(instance.addHashValue(TapInsertRecordEvent
+                    .create()
+                    .table(tableNameNoPk)
+                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
+                        data.put("title", "init");
+                        data.put("created", System.currentTimeMillis());
+                        return data;
+                    }).get())
+                ));
+            }
+        }
+
+        @Test
+        void testFalse() {
+            try (MockedStatic<NoPrimaryKeyVirtualField> mockedStatic = Mockito.mockStatic(NoPrimaryKeyVirtualField.class)) {
+                mockedStatic.when(() -> NoPrimaryKeyVirtualField.isEnable(Mockito.any())).thenReturn(false);
+                instance.init(null);
+
+                // add no pk table
+                instance.add(Optional.of(new Schema()).map(schema -> {
+                    schema.setOriginalName(tableNameNoPk);
+                    schema.setFields(new ArrayList<>());
+                    schema.getFields().add(createNormalField(schema.getName(), "title"));
+                    schema.getFields().add(createNormalField(schema.getName(), "created"));
+                    return PdkSchemaConvert.toPdk(schema);
+                }).get());
+                Assertions.assertTrue(instance.noPkTables.isEmpty());
+                Assertions.assertTrue(instance.addHashValue(TapInsertRecordEvent
+                    .create()
+                    .table(tableNameNoPk)
+                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
+                        data.put("title", "init");
+                        data.put("created", System.currentTimeMillis());
+                        return data;
+                    }).get())
+                ));
+            }
+        }
+    }
+
+    @Nested
     class addVirtualField {
         String tableName;
         List<Field> fields;
         Schema schema;
-        Graph<? extends Element, ? extends Element> graph;
+        Graph<Element, Element> graph;
 
         @BeforeEach
         void setUp() {
@@ -114,12 +181,14 @@ public class NoPrimaryKeyVirtualFieldTest {
             TableNode sourceNode = new TableNode();
             sourceNode.setId(UUID.randomUUID().toString());
             TableNode targetNode = new TableNode();
-            targetNode.setWriteStrategy("updateOrInsert");
             targetNode.setId(UUID.randomUUID().toString());
+            targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ADD_HASH.name());
 
             graph.setEdge(sourceNode.getId(), targetNode.getId());
-            targetNode.setGraph(graph);
+            graph.setNode(sourceNode.getId(), sourceNode);
+            graph.setNode(targetNode.getId(), targetNode);
             sourceNode.setGraph(graph);
+            targetNode.setGraph(graph);
 
             // not add to source
             NoPrimaryKeyVirtualField.addVirtualField((Object) schema, (Node<?>) sourceNode);
@@ -148,6 +217,8 @@ public class NoPrimaryKeyVirtualFieldTest {
             targetNode.setId(UUID.randomUUID().toString());
 
             graph.setEdge(sourceNode.getId(), targetNode.getId());
+            graph.setNode(sourceNode.getId(), sourceNode);
+            graph.setNode(targetNode.getId(), targetNode);
             targetNode.setGraph(graph);
             sourceNode.setGraph(graph);
 
@@ -155,10 +226,10 @@ public class NoPrimaryKeyVirtualFieldTest {
             NoPrimaryKeyVirtualField.addVirtualField(schemas, sourceNode);
             Assertions.assertEquals(0, fields.stream().filter(f -> NoPrimaryKeyVirtualField.FIELD_NAME.equals(f.getFieldName())).count());
             // not add with appendWrite
-            targetNode.setWriteStrategy("appendWrite");
+            targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ALL_COLUMNS.name());
             NoPrimaryKeyVirtualField.addVirtualField(schemas, targetNode);
             Assertions.assertEquals(0, fields.stream().filter(f -> NoPrimaryKeyVirtualField.FIELD_NAME.equals(f.getFieldName())).count());
-            targetNode.setWriteStrategy("updateOrInsert");
+            targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ADD_HASH.name());
             // not add with appoint conditions
             targetNode.setUpdateConditionFieldMap(new HashMap<>());
             targetNode.getUpdateConditionFieldMap().put(schema.getName(), Collections.singletonList("title"));
@@ -286,6 +357,10 @@ public class NoPrimaryKeyVirtualFieldTest {
         @BeforeEach
         void setUp() {
             instance = new NoPrimaryKeyVirtualField();
+            try (MockedStatic<NoPrimaryKeyVirtualField> mockedStatic = Mockito.mockStatic(NoPrimaryKeyVirtualField.class)) {
+                mockedStatic.when(() -> NoPrimaryKeyVirtualField.isEnable(Mockito.any())).thenReturn(true);
+                instance.init(null);
+            }
 
             // add primary key table
             instance.add(Optional.of(new Schema()).map(schema -> {
@@ -544,6 +619,10 @@ public class NoPrimaryKeyVirtualFieldTest {
         @BeforeEach
         void setUp() {
             instance = new NoPrimaryKeyVirtualField();
+            try (MockedStatic<NoPrimaryKeyVirtualField> mockedStatic = Mockito.mockStatic(NoPrimaryKeyVirtualField.class)) {
+                mockedStatic.when(() -> NoPrimaryKeyVirtualField.isEnable(Mockito.any())).thenReturn(true);
+                instance.init(null);
+            }
             instance.add(Optional.of(new Schema()).map(schema -> {
                 schema.setOriginalName(tableName);
                 schema.setFields(new ArrayList<>());
@@ -606,6 +685,65 @@ public class NoPrimaryKeyVirtualFieldTest {
             assertType("map", new HashMap<String, Object>() {{
                 put("hello", "world");
             }});
+        }
+    }
+
+    @Nested
+    class isEnable {
+        TableNode sourceNode;
+        TableNode targetNode;
+        Graph<Element, Element> graph;
+
+        @BeforeEach
+        void setUp() {
+            graph = new Graph<>();
+
+            sourceNode = new TableNode();
+            sourceNode.setId(UUID.randomUUID().toString());
+            targetNode = new TableNode();
+            targetNode.setId(UUID.randomUUID().toString());
+            targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ADD_HASH.name());
+        }
+
+        void addNodes(Element... elements) {
+            String preId = null;
+            for (Element e : elements) {
+                if (null != preId) {
+                    graph.setEdge(preId, e.getId());
+                }
+                graph.setNode(e.getId(), e);
+                e.setGraph(graph);
+                preId = e.getId();
+            }
+        }
+
+        @Test
+        void testTrue() {
+            addNodes(sourceNode, targetNode);
+            Assertions.assertTrue(NoPrimaryKeyVirtualField.isEnable(graph));
+        }
+
+        @Test
+        void testFalseWithMode() {
+            targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ALL_COLUMNS.name());
+            addNodes(sourceNode, targetNode);
+            Assertions.assertFalse(NoPrimaryKeyVirtualField.isEnable(graph));
+        }
+
+        @Test
+        void testFalseWithMergeNode() {
+            MergeTableNode mergeNode = new MergeTableNode();
+            mergeNode.setId(UUID.randomUUID().toString());
+            addNodes(sourceNode, mergeNode, targetNode);
+            Assertions.assertFalse(NoPrimaryKeyVirtualField.isEnable(graph));
+        }
+
+        @Test
+        void testFalseWithJoinNode() {
+            JoinProcessorNode joinNode = new JoinProcessorNode();
+            joinNode.setId(UUID.randomUUID().toString());
+            addNodes(sourceNode, joinNode, targetNode);
+            Assertions.assertFalse(NoPrimaryKeyVirtualField.isEnable(graph));
         }
     }
 }
