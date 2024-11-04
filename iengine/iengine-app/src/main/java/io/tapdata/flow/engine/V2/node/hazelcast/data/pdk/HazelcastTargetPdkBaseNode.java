@@ -736,7 +736,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 throw (TapCodeException) matched;
             } else {
                 TapdataEventException eventException = new TapdataEventException(TaskTargetProcessorExCode_15.PROCESS_EVENTS_FAILED, throwable);
-                if (String.valueOf(lastTapdataEvent.get().getTapEvent()).length() < 1000000L) {
+                if (null != lastTapdataEvent.get() && String.valueOf(lastTapdataEvent.get().getTapEvent()).length() < 1000000L) {
                     eventException.addEvent(lastTapdataEvent.get());
                 }
                 throw eventException;
