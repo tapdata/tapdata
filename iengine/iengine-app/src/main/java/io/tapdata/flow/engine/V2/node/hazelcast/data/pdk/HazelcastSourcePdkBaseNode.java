@@ -350,10 +350,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		});
 	}
 
-	private void initSyncProgress() throws JsonProcessingException {
+	protected void initSyncProgress() throws JsonProcessingException {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node node = getNode();
-		this.syncProgress = foundSyncProgress(taskDto.getAttrs());
+		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(taskDto.getAttrs());
+		this.syncProgress = foundNodeSyncProgress(allSyncProgress);
 		if (null == this.syncProgress) {
 			obsLogger.info("On the first run, the breakpoint will be initialized", node.getName());
 		} else {
@@ -376,6 +377,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			obsLogger.info(offsetLog);
 		}
 	}
+
+
 
 	private void initSourceRunnerOnce() {
 		this.endSnapshotLoop = new AtomicBoolean(false);
@@ -476,7 +479,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void readBatchAndStreamOffset(TaskDto taskDto) {
-		readBatchOffset();
+		readBatchOffset(syncProgress);
 		readStreamOffset(taskDto);
 	}
 
@@ -568,17 +571,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	protected void readBatchOffset() {
-		if (null == syncProgress) {
-			return;
-		}
-		String batchOffset = syncProgress.getBatchOffset();
-		if (StringUtils.isNotBlank(batchOffset)) {
-			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
-		} else {
-			syncProgress.setBatchOffsetObj(new HashMap<>());
-		}
-	}
+
 
 	protected void initBatchAndStreamOffsetFirstTime(TaskDto taskDto) {
 		syncProgress = new SyncProgress();
