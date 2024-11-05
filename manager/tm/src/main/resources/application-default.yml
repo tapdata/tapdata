@@ -8,7 +8,9 @@ application:
 spring:
   application:
     name: TCMApplication
-
+  jmx:
+    enabled: false
+    default-domain: 'tm'
   thymeleaf:
     cache: false
 

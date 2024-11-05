@@ -40,6 +40,7 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -80,8 +81,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class WorkerServiceImpl extends WorkerService{
 
-    @Autowired
-    private DataFlowService dataFlowService;
     @Autowired
     private ClusterStateService clusterStateService;
     @Autowired
@@ -210,6 +209,7 @@ public class WorkerServiceImpl extends WorkerService{
         });
         Query query = Query.query(Criteria.where("id").in(runningJobs));
         query.fields().include("id", "name");
+        DataFlowService dataFlowService = SpringContextHelper.getBean(DataFlowService.class);
         List<DataFlowDto> list = dataFlowService.findAll(query);
 
         page.getItems().forEach(workerDto -> {

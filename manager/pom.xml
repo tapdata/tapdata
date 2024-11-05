@@ -28,6 +28,8 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>4.7.0</mongo.version>
+		<tcm.artifactId>tcm</tcm.artifactId>
+		<tcm.module>tcm-module</tcm.module>
 	</properties>
 
 	<modules>
@@ -54,10 +56,26 @@
 				<tm.oss.module>../../tapdata-enterprise/tm-enterprise</tm.oss.module>
 			</properties>
 		</profile>
+		<profile>
+			<id>cloud</id>
+			<properties>
+				<tcm.artifactId>tcm</tcm.artifactId>
+				<tcm.module>../../tapdata-cloud/drs/tcm</tcm.module>
+			</properties>
+			<modules>
+				<module>${tcm.module}</module>
+			</modules>
+		</profile>
 	</profiles>
 
 	<dependencyManagement>
 		<dependencies>
+			<dependency>
+				<groupId>com.tapdata</groupId>
+				<artifactId>tcm</artifactId>
+				<version>0.0.1</version>
+				<scope>compile</scope>
+			</dependency>
 			<dependency>
 				<groupId>com.tapdata</groupId>
 				<artifactId>tm-oss</artifactId>
