@@ -12,16 +12,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
-import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -43,6 +37,7 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 		setupContext(migrateFieldRenameProcessorNode);
 		hazelcastMigrateFieldRenameProcessorNode = new HazelcastMigrateFieldRenameProcessorNode(processorBaseContext);
 	}
+
 	@Nested
 	@DisplayName("Method tryProcess test")
 	class tryProcessTest {
@@ -77,12 +72,14 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 		}
 	}
 	@Nested
-	class applyFieldInfo{
+	class applyFieldInfo {
 		private HazelcastMigrateFieldRenameProcessorNode.DataExecutor applyConfig;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			applyConfig = mock(HazelcastMigrateFieldRenameProcessorNode.DataExecutor.class);
 		}
+
 		@Test
 		@DisplayName("test when fieldInfoMaps is empty or not contains tableName")
 		void test1() {
@@ -95,6 +92,7 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 			actual = applyConfig.applyFieldInfo("test", new HashMap<>(), mock(MigrateFieldRenameProcessorNode.IOperator.class));
 			assertFalse(actual);
 		}
+
 		@Test
 		@DisplayName("test when operatorParam contains targetFieldName")
 		void test2() {
@@ -108,19 +106,31 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 			fieldInfoMap.put("B", fieldB);
 			fieldInfoMaps.put("test", fieldInfoMap);
 			ReflectionTestUtils.setField(applyConfig, "fieldInfoMaps", fieldInfoMaps);
-			Map<String, Map<String, FieldInfo>> fieldInfoTempMaps = new HashMap<>();
-			fieldInfoTempMaps.put("test", new HashMap<>());
-			ReflectionTestUtils.setField(applyConfig, "fieldInfoTempMaps", fieldInfoTempMaps);
-
+			Map<String, List<String>> targetFieldExistMaps = new HashMap<>();
+			List<String> targetFieldExists = new ArrayList<>();
+			targetFieldExists.add("B");
+			targetFieldExistMaps.put("test", targetFieldExists);
+			ReflectionTestUtils.setField(applyConfig, "targetFieldExistMaps", targetFieldExistMaps);
 			Map<String, Object> operatorParam = new HashMap<>();
-			operatorParam.put("A",1);
-			operatorParam.put("B",2);
-			operatorParam.put("C",3);
+			operatorParam.put("A", 1);
+			operatorParam.put("B", 2);
+			operatorParam.put("C", 3);
 
 			MigrateFieldRenameProcessorNode.IOperator operator = new MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>>() {
 				@Override
 				public void renameField(Map<String, Object> param, String fromName, String toName) {
 					MapUtil.replaceKey(fromName, param, toName);
+				}
+
+				@Override
+				public void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, Map<String, Object> param) {
+					Object originValue = param.get(newKey);
+					originValueMap.put(newKey, originValue);
+					if (originValueMap.containsKey(oldKey)) {
+						param.put(newKey, originValueMap.get(oldKey));
+					} else {
+						MapUtil.replaceKey(oldKey, param, newKey);
+					}
 				}
 
 				@Override
@@ -138,55 +148,34 @@ class HazelcastMigrateFieldRenameProcessorNodeTest extends BaseTaskTest {
 			assertEquals(2, operatorParam.get("D"));
 			assertEquals(3, operatorParam.get("C"));
 		}
+	}
+	@Nested
+	class replaceValueIfNeedTest {
+		String oldKey;
+		String newKey;
+		Map<String, Object> originValueMap;
+		Map<String, Object> param;
+		@BeforeEach
+		void beforeEach() {
+			oldKey = "A";
+			newKey = "B";
+			originValueMap = new HashMap<>();
+			param = new HashMap<>();
+			param.put("A", 1);
+			param.put("B", 2);
+		}
 		@Test
-		@DisplayName("test when operatorParam contains targetFieldName and fieldInfoTempMap is not empty")
-		void test3() {
-			try (MockedStatic<UUID> mb = Mockito
-					.mockStatic(UUID.class)) {
-				mb.when(UUID::randomUUID).thenReturn(mock(UUID.class));
-				Map<String, Map<String, FieldInfo>> fieldInfoMaps = new HashMap<>();
-				HashMap<String, FieldInfo> fieldInfoMap = new HashMap<>();
-				FieldInfo fieldA = new FieldInfo();
-				fieldA.setTargetFieldName("B");
-				fieldInfoMap.put("A", fieldA);
-				FieldInfo fieldB = new FieldInfo();
-				fieldB.setTargetFieldName("D");
-				fieldInfoMap.put("B", fieldB);
-				fieldInfoMaps.put("test", fieldInfoMap);
-				ReflectionTestUtils.setField(applyConfig, "fieldInfoMaps", fieldInfoMaps);
-				Map<String, Map<String, String>> fieldInfoTempMaps = new HashMap<>();
-				HashMap<String, String> fieldInfoTempMap = new HashMap<>();
-				fieldInfoTempMap.put("A", "B1111");
-				fieldInfoTempMaps.put("test", fieldInfoTempMap);
-				ReflectionTestUtils.setField(applyConfig, "fieldInfoTempMaps", fieldInfoTempMaps);
-
-				Map<String, Object> operatorParam = new HashMap<>();
-				operatorParam.put("A",1);
-				operatorParam.put("B",2);
-				operatorParam.put("C",3);
-
-				MigrateFieldRenameProcessorNode.IOperator operator = new MigrateFieldRenameProcessorNode.IOperator<Map<String, Object>>() {
-					@Override
-					public void renameField(Map<String, Object> param, String fromName, String toName) {
-						MapUtil.replaceKey(fromName, param, toName);
-					}
-
-					@Override
-					public void deleteField(Map<String, Object> param, String originalName) {
-					}
-
-					@Override
-					public Object renameFieldWithReturn(Map<String, Object> param, String fromName, String toName) {
-						return null;
-					}
-				};
-				doCallRealMethod().when(applyConfig).applyFieldInfo("test", operatorParam, operator);
-				applyConfig.applyFieldInfo("test", operatorParam, operator);
-				assertEquals(1, operatorParam.get("B"));
-				assertEquals(2, operatorParam.get("D"));
-				assertEquals(3, operatorParam.get("C"));
-				mb.verify(() -> UUID.randomUUID(),new Times(0));
-			}
+		@DisplayName("test when originValueMap not contains old key")
+		void test1() {
+			hazelcastMigrateFieldRenameProcessorNode.replaceValueIfNeed(oldKey, newKey, originValueMap, param);
+			assertNull(param.get("A"));
+		}
+		@Test
+		@DisplayName("test when originValueMap contains old key")
+		void test2() {
+			hazelcastMigrateFieldRenameProcessorNode.replaceValueIfNeed("B", newKey, originValueMap, param);
+			assertEquals(1, param.get("A"));
+			assertEquals(2, param.get("B"));
 		}
 	}
 }
