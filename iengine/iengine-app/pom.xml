@@ -32,6 +32,12 @@
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
             <version>1.0-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>tapdata-api</artifactId>
+                    <groupId>io.tapdata</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
