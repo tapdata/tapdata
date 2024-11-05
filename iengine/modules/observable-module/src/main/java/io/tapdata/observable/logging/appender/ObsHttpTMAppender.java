@@ -39,7 +39,7 @@ public class ObsHttpTMAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	@Override
 	public void start() {
 		this.obsHttpTMLog4jAppender = ObsHttpTMLog4jAppender.createAppender(String.join("-", ObsHttpTMLog4jAppender.class.getSimpleName(), taskId),
-				null, null, false, null, clientMongoOperator, AppenderFactory.BATCH_SIZE);
+				null, null, false, null, clientMongoOperator, AppenderFactory.BATCH_SIZE, taskId);
 		org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
 		coreLogger.addAppender(obsHttpTMLog4jAppender);
 		coreLogger.setAdditive(false);

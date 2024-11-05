@@ -157,7 +157,6 @@ class ProcessNodeSchemaUtilTest {
     }
 
     @Nested
-    @DisplayName("")
     class ScanTapFieldTest {
         ObsLogger obsLogger;
         TapTable tapTable;

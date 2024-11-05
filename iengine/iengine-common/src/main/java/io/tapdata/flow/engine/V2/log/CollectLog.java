@@ -62,6 +62,11 @@ public class CollectLog implements Log {
 	}
 
 	@Override
+	public void trace(String message, Object... params) {
+		logs.add(new Log("TRACE", FormatUtils.format(message, params), System.currentTimeMillis()));
+	}
+
+	@Override
 	public void warn(String message, Object... params) {
 		logs.add(new Log("WARN", FormatUtils.format(message, params), System.currentTimeMillis()));
 	}
