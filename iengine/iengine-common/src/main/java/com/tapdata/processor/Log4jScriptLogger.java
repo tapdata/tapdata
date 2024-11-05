@@ -46,4 +46,8 @@ public class Log4jScriptLogger implements Log {
 		logger.fatal(message, params);
 	}
 
+	@Override
+	public void trace(String message, Object... params) {
+		logger.trace(message, params);
+	}
 }

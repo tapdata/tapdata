@@ -80,4 +80,9 @@ public class CollectLog implements Log {
 	public void fatal(String message, Object... params) {
 		logs.add(new Log("FATAL", FormatUtils.format(message, params), System.currentTimeMillis()));
 	}
+
+	@Override
+	public void trace(String message, Object... params) {
+		logs.add(new Log("TRACE", FormatUtils.format(message, params), System.currentTimeMillis()));
+	}
 }
