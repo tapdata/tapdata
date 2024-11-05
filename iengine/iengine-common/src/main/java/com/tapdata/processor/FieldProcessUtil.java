@@ -452,18 +452,9 @@ public class FieldProcessUtil {
 					} catch (Throwable e) {
 						throw new FieldProcessRuntimeException(String.format("Convert %s to json string failed, value: %s", value.getClass().getSimpleName(), value), e);
 					}
-				} else if (value instanceof TapDateTimeValue) {
-					value = ((TapDateTimeValue) value).getOriginValue();
-					if (value instanceof Long) {
-						value = padLongTo16Digits((Long) value);
-						LocalDateTime dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli((Long) value / 1000), ZoneOffset.UTC);
-						DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
- 						value = dateTime.format(formatter);
-					}
-					if (value instanceof LocalDateTime) {
-						DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
-						value = ((LocalDateTime)value).format(formatter);
-					}
+				} else if (value instanceof DateTime) {
+					Instant instant = ((DateTime) value).toInstant();
+					value = instant.toString();
 				} else {
 					value = String.valueOf(value);
 				}
@@ -534,22 +525,6 @@ public class FieldProcessUtil {
 		}
 
 		return value;
-	}
-
-	public static Long padLongTo16Digits(long timestamp) {
-		String numberStr = String.valueOf(timestamp);
-		int currentLength = numberStr.length();
-
-		if (currentLength < 16) {
-			int zerosToAdd = 16 - currentLength;
-			StringBuilder sb = new StringBuilder(numberStr);
-			for (int i = 0; i < zerosToAdd; i++) {
-				sb.append('0');
-			}
-			return Long.valueOf(sb.toString());
-		}
-
-		return timestamp;
 	}
 
 	public static Date convert2Date(Object value) {

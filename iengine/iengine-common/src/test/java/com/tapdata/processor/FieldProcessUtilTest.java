@@ -118,20 +118,10 @@ public class FieldProcessUtilTest {
         @Test
         @DisplayName("test when origin value is Long")
         void test1() {
-            TapDateTimeValue value = mock(TapDateTimeValue.class);
-            when(value.getOriginValue()).thenReturn(1730281800L);
+            DateTime value = new DateTime(1730281800000L);
             String newDataType = "String";
             Object actual = FieldProcessUtil.convert(value, newDataType);
             assertEquals("2024-10-30T09:50:00Z", actual);
-        }
-        @Test
-        @DisplayName("test when origin value is LocalDateTime")
-        void test2() {
-            TapDateTimeValue value = mock(TapDateTimeValue.class);
-            when(value.getOriginValue()).thenReturn(LocalDateTime.now());
-            String newDataType = "String";
-            Object actual = FieldProcessUtil.convert(value, newDataType);
-            assertNotNull(actual);
         }
     }
 }
