@@ -22,6 +22,7 @@ import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -207,6 +208,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
 		);
 		CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
+		CommonUtils.ignoreAnyError(() -> TokenBucketRateLimiter.get().remove(taskDto.getId().toHexString()), TAG);
 	}
 
 	@Override

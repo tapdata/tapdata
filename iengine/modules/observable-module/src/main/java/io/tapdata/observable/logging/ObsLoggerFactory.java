@@ -158,6 +158,10 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName) {
+		return getObsLogger(task, nodeId, nodeName, null);
+	}
+
+	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName, List<String> tags) {
 		if (task.isPreviewTask()) {
 			return BLANK_LOGGER;
 		}
@@ -166,7 +170,10 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		String taskId = task.getId().toHexString();
 		taskLoggerNodeProxyMap.putIfAbsent(taskId, new ConcurrentHashMap<>());
 		taskLoggerNodeProxyMap.get(taskId).putIfAbsent(nodeId,
-				new TaskLoggerNodeProxy().withTaskLogger(taskLogger).withNode(nodeId, nodeName));
+				new TaskLoggerNodeProxy()
+						.withTaskLogger(taskLogger)
+						.withNode(nodeId, nodeName)
+						.withTags(tags));
 
 		return taskLoggerNodeProxyMap.get(taskId).get(nodeId);
 	}

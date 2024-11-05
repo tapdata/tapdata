@@ -25,6 +25,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.DelayHandler;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
@@ -34,9 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,6 +69,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private int concurrentNum;
 	private SimpleConcurrentProcessorImpl<List<BatchEventWrapper>, List<TapdataEvent>> simpleConcurrentProcessor;
 	private int concurrentBatchSize;
+
+	private ObsLogger scriptObsLogger;
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
@@ -584,5 +586,27 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			tableName = node.getId();
 		}
 		return tableName;
+	}
+
+	public ObsLogger getScriptObsLogger() {
+		if (this.scriptObsLogger == null) {
+			Set<String> tags = new HashSet<>();
+			tags.add("src=user_script");
+			List<String> otherTags = getLogTags();
+			if (CollectionUtils.isNotEmpty(otherTags)) {
+				tags.addAll(otherTags);
+			}
+			this.scriptObsLogger = ObsLoggerFactory.getInstance().getObsLogger(
+					processorBaseContext.getTaskDto(),
+					String.format("%s.script", processorBaseContext.getNode().getId()),
+					processorBaseContext.getNode().getName(),
+					new ArrayList<>(tags)
+			);
+		}
+		return this.scriptObsLogger;
+	}
+
+	protected List<String> getLogTags() {
+		return Collections.emptyList();
 	}
 }
