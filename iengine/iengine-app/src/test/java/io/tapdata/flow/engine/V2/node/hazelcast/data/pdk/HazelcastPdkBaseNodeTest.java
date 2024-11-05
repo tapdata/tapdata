@@ -13,6 +13,8 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
@@ -26,12 +28,15 @@ import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryLifeCycle;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -41,6 +46,8 @@ import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
@@ -581,6 +588,39 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(node.getId()).thenReturn(nodeName);
 			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
 			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
+		}
+	}
+
+	@Test
+	void testCreateRetryLifeCycle() {
+		HazelcastPdkBaseNode baseNode = new HazelcastSourcePdkDataNode(dataProcessorContext);
+		Assertions.assertNotNull(baseNode.createRetryLifeCycle());
+
+		try (MockedStatic<AspectUtils> mockAspect = mockStatic(AspectUtils.class)) {
+
+			AtomicReference<RetryLifeCycleAspect> aspect = new AtomicReference<>();
+			mockAspect.when(() -> AspectUtils.executeDataFuncAspect(eq(RetryLifeCycleAspect.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class)))
+					.then(answer -> {
+
+						Callable arg1 = answer.getArgument(1);
+						CommonUtils.AnyErrorConsumer arg2 = answer.getArgument(2);
+
+						Object result = arg1.call();
+						Assertions.assertNotNull(result);
+
+						arg2.accept(result);
+
+						aspect.set((RetryLifeCycleAspect) result);
+
+						return null;
+					});
+
+			RetryLifeCycle retryLifeCycle = baseNode.createRetryLifeCycle();
+
+			retryLifeCycle.startRetry(15, false, 10, TimeUnit.SECONDS, "WRITE");
+
+			Assertions.assertNotNull(aspect.get().isRetrying());
+			Assertions.assertEquals(true, aspect.get().isRetrying());
 		}
 	}
 }
