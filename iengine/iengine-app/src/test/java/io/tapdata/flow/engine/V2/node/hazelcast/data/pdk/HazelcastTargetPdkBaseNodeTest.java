@@ -2,10 +2,15 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import cn.hutool.core.collection.ConcurrentHashSet;
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.SyncProgress;
+import com.tapdata.entity.dataflow.TableBatchReadStatus;
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.DAG;
@@ -45,6 +50,7 @@ import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.metric.collector.SyncMetricCollector;
@@ -65,6 +71,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.utils.UnitTestUtils;
+import lombok.SneakyThrows;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -910,6 +917,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				verify(hazelcastTargetPdkBaseNode).initTargetConcurrentProcessorIfNeed();
 				verify(hazelcastTargetPdkBaseNode).initTapEventFilter();
 				verify(hazelcastTargetPdkBaseNode).initIllegalDateAcceptable();
+				verify(hazelcastTargetPdkBaseNode).initSyncProgressMap();
 				verify(flushOffsetExecutor).scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
 				assertTrue(Thread.currentThread().getName().startsWith("Target-Process"));
 				verify(hazelcastTargetPdkBaseNode).checkUnwindConfiguration();
@@ -1613,5 +1621,44 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			});
 			assertEquals(TapExactlyOnceWriteExCode_22.EXACTLY_ONCE_ID_IS_BLANK, tapCodeException.getCode());
 		}
+	}
+	@Nested
+	class InitSyncProgressMapTest{
+		@SneakyThrows
+		@Test
+		void test1(){
+			Map<String, SyncProgress> allSyncProgressMap = new ConcurrentHashMap<>();
+			HazelcastTargetPdkBaseNode hazelcastTargetPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
+			Map<String, Object> attrs = new HashMap<>();
+			TaskDto taskDto=new TaskDto();
+			Map<String, String> syncProgressMap = genSyncProgress();
+			attrs.put("syncProgress",syncProgressMap);
+			taskDto.setAttrs(attrs);
+			DataProcessorContext dataProcessorContext = DataProcessorContext.newBuilder().withTaskDto(taskDto).build();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).getDataProcessorContext();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"syncProgressMap",allSyncProgressMap);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initSyncProgressMap();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).foundAllSyncProgress(attrs);
+			hazelcastTargetPdkBaseNode.initSyncProgressMap();
+			assertEquals(allSyncProgressMap.size()>0,true);
+		}
+		@SneakyThrows
+		public Map<String, String> genSyncProgress() {
+			List<String> keyList = new ArrayList<>();
+			keyList.add("sourceId");
+			keyList.add("targetId");
+			String jsonString = JSON.toJSONString(keyList);
+			SyncProgress syncProgress = new SyncProgress();
+			Map<String, String> syncProgressMap = new HashMap<>();
+			Map<String, Object> batchOffset = new HashMap<>();
+			batchOffset.put(BatchOffsetUtil.BATCH_READ_CONNECTOR_STATUS, TableBatchReadStatus.OVER);
+			syncProgress.setBatchOffsetObj(batchOffset);
+			syncProgress.setBatchOffset(PdkUtil.encodeOffset(batchOffset));
+			String syncProgressString = JSONUtil.obj2Json(syncProgress);
+			syncProgressMap.put(jsonString, syncProgressString);
+			return syncProgressMap;
+		}
+
 	}
 }

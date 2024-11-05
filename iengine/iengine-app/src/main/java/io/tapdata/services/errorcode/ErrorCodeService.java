@@ -42,10 +42,12 @@ public class ErrorCodeService implements MemoryFetcher {
 		Language languageEnum = Language.fromValue(language);
 		languageEnum = null == languageEnum ? Language.EN : languageEnum;
 
-		String describe = "";
+		String module = "";
+		int moduleCode = 0;
+		String describe;
 		String solution;
-		boolean hasDescribe = false;
-		String dynamicDescribe = "";
+		String dynamicDescribe;
+		String fullErrorCode = code;
 
 		Class<?> sourceExClass = errorCode.getSourceExClass();
 		TapExClass tapExClass = null;
@@ -53,39 +55,25 @@ public class ErrorCodeService implements MemoryFetcher {
 			tapExClass = sourceExClass.getAnnotation(TapExClass.class);
 		}
 		if (null != tapExClass) {
-			describe = String.format("Module - %s(%s)", tapExClass.module(), tapExClass.code());
-			if (StringUtils.isNotBlank(tapExClass.describe())) {
-				describe += String.format(": %s", tapExClass.describe());
-				hasDescribe = true;
-			} else {
-				describe += "\n\n";
-			}
+			module = tapExClass.module();
+			moduleCode = tapExClass.code();
+			fullErrorCode = (StringUtils.isNotBlank(tapExClass.prefix()) ? tapExClass.prefix() : tapExClass.module()) + code;
 		}
 		if (languageEnum == Language.CN) {
-			if (StringUtils.isNotBlank(errorCode.getDescribeCN())) {
-				describe += "错误描述\n" + errorCode.getDescribeCN();
-				hasDescribe = true;
-			}
+			describe = errorCode.getDescribeCN();
 			solution = errorCode.getSolutionCN();
-			if (StringUtils.isNotBlank(solution)) {
-				solution = "\n\n解决方案\n" + solution;
-			}
 			dynamicDescribe = getDynamicDescribe(dynamicDescriptionParameters, errorCode.getDynamicDescriptionCN());
 		} else {
-			if (StringUtils.isNotBlank(errorCode.getDescribe())) {
-				describe += "Error describe\n" + errorCode.getDescribe();
-			}
+			describe = errorCode.getDescribe();
 			solution = errorCode.getSolution();
-			if (StringUtils.isNotBlank(solution)) {
-				solution = "\n\nSolution\n" + solution;
-			}
 			dynamicDescribe = getDynamicDescribe(dynamicDescriptionParameters, errorCode.getDynamicDescription());
 		}
-		if (StringUtils.isNotBlank(solution)) {
-			describe = describe + solution;
-		}
+		res.put("errorCode", code);
+		res.put("fullErrorCode", fullErrorCode);
+		res.put("module", module);
+		res.put("moduleCode", moduleCode);
 		res.put("describe", describe);
-		res.put("hasDescribe", hasDescribe);
+		res.put("solution", solution);
 		res.put("seeAlso", errorCode.getSeeAlso());
 		res.put("dynamicDescribe", dynamicDescribe);
 		return res;

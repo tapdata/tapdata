@@ -262,6 +262,10 @@ public class ExactlyOnceWriteCleaner {
 		}
 
 		@Override
+		public void trace(String message, Object... params) {
+		}
+
+		@Override
 		public void warn(String message, Object... params) {
 
 		}
