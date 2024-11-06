@@ -332,15 +332,8 @@ public class ObservableAspectTaskTest {
             verify(taskSampleHandler, times(1)).handleWriteBatchSplit();
         }
 
-
-
-    }
-
-    @Nested
-    class handleWriteRecordFunc {
-
         @Test
-        void testStateStart() {
+        void testStateStart_1() {
             TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
 
             TaskDto taskDto = new TaskDto();
@@ -392,10 +385,10 @@ public class ObservableAspectTaskTest {
             when(aspect.getState()).thenReturn(WriteRecordFuncAspect.STATE_START);
 
             List<TapRecordEvent> recordEvents = Stream.generate(() -> {
-                        TapRecordEvent event = new TapInsertRecordEvent();
-                        event.setReferenceTime(System.currentTimeMillis());
-                        event.setTime(System.currentTimeMillis()- 10000);
-                        return event;
+                TapRecordEvent event = new TapInsertRecordEvent();
+                event.setReferenceTime(System.currentTimeMillis());
+                event.setTime(System.currentTimeMillis()- 10000);
+                return event;
             }).limit(RandomUtils.nextInt()% 10).collect(Collectors.toList());
 
             when(aspect.getRecordEvents()).thenReturn(recordEvents);
@@ -419,7 +412,7 @@ public class ObservableAspectTaskTest {
         }
 
         @Test
-        void testStateStart_1() {
+        void testStateStart_2() {
             TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
 
             TaskDto taskDto = new TaskDto();
@@ -497,5 +490,8 @@ public class ObservableAspectTaskTest {
             Assertions.assertEquals(0, snapshotInsertRowCounter.value().intValue());
         }
 
+
+
     }
+
 }
