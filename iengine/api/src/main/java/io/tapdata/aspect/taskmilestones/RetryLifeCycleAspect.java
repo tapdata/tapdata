@@ -1,10 +1,6 @@
 package io.tapdata.aspect.taskmilestones;
 
 import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.entity.aspect.Aspect;
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 import java.util.Map;
 

@@ -27,11 +27,7 @@ public class MilestoneEntity implements Serializable {
     private Long endRetryTs;   // 重试结束时间
     private Long nextRetryTs; // 下次重试时间
     private Long totalOfRetries;// 重试总次数
-    // 重试操作代码，可依据具体操作定义操作代码
-    // RE_SCHEDULE  重新调度
-    // RE_CONNECT   重新连接
-    // RE_WRITE     重新写入
-    private String retryOp;
+    private String retryOp;    // 操作代码，详细值参考 PDKMethod 或者自定义
     private Boolean retrySuccess;
     private Map<String, Object> retryMetadata;  // 可选，用于存储重试操作的上下文元信息
 
