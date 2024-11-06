@@ -15,6 +15,7 @@ import com.tapdata.processor.dataflow.RowFilterProcessor;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -379,6 +380,34 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 				hazelcastProcessorNode.initDataFlowProcessor();
 				verify(dataFlowProcessor, new Times(1)).logListener(any());
 			}
+		}
+	}
+	@Nested
+	class needTransformValueTest {
+		private ProcessorBaseContext processorBaseContext;
+		private Node node;
+		@BeforeEach
+		void beforeEach() {
+			processorBaseContext = mock(ProcessorBaseContext.class);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "processorBaseContext", processorBaseContext);
+			node = mock(ProcessorNode.class);
+			when(processorBaseContext.getNode()).thenReturn(node);
+		}
+		@Test
+		@DisplayName("test for node type is field_mod_type_processor")
+		void test1() {
+			when(node.getType()).thenReturn("field_mod_type_processor");
+			doCallRealMethod().when(hazelcastProcessorNode).needTransformValue();
+			boolean actual = hazelcastProcessorNode.needTransformValue();
+			assertTrue(actual);
+		}
+		@Test
+		@DisplayName("test for other node type")
+		void test2() {
+			when(node.getType()).thenReturn("field_rename_processor");
+			doCallRealMethod().when(hazelcastProcessorNode).needTransformValue();
+			boolean actual = hazelcastProcessorNode.needTransformValue();
+			assertFalse(actual);
 		}
 	}
 }
