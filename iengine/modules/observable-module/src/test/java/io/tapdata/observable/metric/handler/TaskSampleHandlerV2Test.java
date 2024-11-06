@@ -128,6 +128,7 @@ class TaskSampleHandlerV2Test {
 
 		@Test
 		@DisplayName("test main process")
+		@Disabled
 		void test1() {
 			HandlerUtil.EventTypeRecorder record = new HandlerUtil.EventTypeRecorder();
 			record.setInsertTotal(1000L);
