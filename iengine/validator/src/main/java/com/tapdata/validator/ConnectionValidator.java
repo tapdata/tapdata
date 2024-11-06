@@ -218,7 +218,10 @@ public class ConnectionValidator {
 								anyErrorOccurred.set(true);
 							}
 							resultDetail.setRequired(result != TestItem.RESULT_SUCCESSFULLY_WITH_WARN);
-							Optional.ofNullable(testItem.getTapTestItemException()).ifPresent(v -> resultDetail.setError_code(v.getErrorCode()));
+							Optional.ofNullable(testItem.getTapTestItemException()).ifPresent(v -> {
+								resultDetail.setError_code(v.getErrorCode());
+								resultDetail.setDynamicDescriptionParameters(v.getDynamicDescriptionParameters());
+							});
 							resultDetail.setItem_exception(testItem.getTapTestItemException());
 							resultDetail.setFail_message(testItem.getInformation());
 							resultDetail.setShow_msg(item);
