@@ -1,10 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -19,8 +17,10 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.PDKNodeInitAspect;
+import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
@@ -51,11 +51,12 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryLifeCycle;
+import io.tapdata.pdk.core.utils.SampleRetryLifeCycle;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -66,8 +67,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -161,7 +162,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.startRetry(taskRetryService::start)
 				.resetRetry(taskRetryService::reset)
 				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
-				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()));
+				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()))
+				.retryLifeCycle(createRetryLifeCycle());
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
@@ -461,6 +463,23 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		} else {
 			syncProgress.setBatchOffsetObj(new HashMap<>());
 		}
+		cleanTableBatchOffsetIfNeed(syncProgress);
+	}
+
+	private void cleanTableBatchOffsetIfNeed(SyncProgress syncProgress) {
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+		if (batchOffsetObj instanceof Map) {
+			Set<String> tableIds = tapTableMap.keySet();
+			Iterator<?> iterator = ((Map<?, ?>) batchOffsetObj).keySet().iterator();
+			while (iterator.hasNext()) {
+				Object next = iterator.next();
+				if (!tableIds.contains(next)) {
+					iterator.remove();
+				}
+			}
+			syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+		}
 	}
 
 
@@ -486,5 +505,38 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			connectorOnTaskThreadGroup.set(new ConnectorOnTaskThreadGroup(dataProcessorContext));
 		}
 		return connectorOnTaskThreadGroup.get();
+	}
+
+	public RetryLifeCycle createRetryLifeCycle() {
+		return new SampleRetryLifeCycle() {
+			@Override
+			public void onChange() {
+				boolean retrying = startRetryTs.get() > 0 && success == null;
+				long retryTimes = this.retryTimes.get();
+				long startRetryTs = this.startRetryTs.get();
+				Long endRetryTs = this.endRetryTs.get() > 0 ? this.endRetryTs.get() : null;
+				Long nextRetryTs = getNextRetryTimestamp();
+				Long totalRetries = this.totalRetries.get();
+				String retryOp = this.retryOp;
+				Boolean success = this.success;
+
+				AspectUtils.executeDataFuncAspect(RetryLifeCycleAspect.class, () -> {
+					RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();
+
+					aspect.setRetrying(retrying);
+					aspect.setRetryTimes(retryTimes);
+					aspect.setStartRetryTs(startRetryTs);
+					aspect.setEndRetryTs(endRetryTs);
+					aspect.setNextRetryTs(nextRetryTs);
+					aspect.setTotalRetries(totalRetries);
+					aspect.setRetryOp(retryOp);
+					aspect.setSuccess(success);
+
+					return aspect;
+				}, aspect -> {
+					aspect.dataProcessorContext(getDataProcessorContext());
+				});
+			}
+		};
 	}
 }

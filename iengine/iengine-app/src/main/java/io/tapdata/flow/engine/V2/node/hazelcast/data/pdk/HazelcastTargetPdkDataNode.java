@@ -13,13 +13,28 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.AlterFieldAttributesFuncAspect;
+import io.tapdata.aspect.AlterFieldNameFuncAspect;
+import io.tapdata.aspect.ClearTableFuncAspect;
+import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.aspect.DropFieldFuncAspect;
+import io.tapdata.aspect.DropTableFuncAspect;
+import io.tapdata.aspect.NewFieldFuncAspect;
+import io.tapdata.aspect.SkipErrorDataAspect;
+import io.tapdata.aspect.TableInitFuncAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
@@ -45,7 +60,20 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
-import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.functions.connector.target.AlterFieldAttributesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.AlterFieldNameFunction;
+import io.tapdata.pdk.apis.functions.connector.target.ClearTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropFieldFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropPartitionTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.NewFieldFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryIndexesFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionBeginFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionCommitFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionRollbackFunction;
+import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -55,18 +83,36 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.utils.CloneUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.beans.BeanUtils;
 
-import java.util.*;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.simplify.TapSimplify.clearTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
+import static io.tapdata.entity.simplify.TapSimplify.dropTableEvent;
 
 /**
  * @author jackin
@@ -80,6 +126,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
 	private WritePolicyService writePolicyService;
+	private Map<String, TapTable> partitionTapTables;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -87,6 +134,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+		this.partitionTapTables = new ConcurrentHashMap<>();
 		try {
 			super.doInit(context);
 			if (getNode() instanceof TableNode) {
@@ -136,10 +184,24 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 	}
 
+    protected Set<String> filterSubPartitionTableTableMap() {
+        TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+        if (syncTargetPartitionTableEnable) {
+            //开启分区表时建表需要过滤掉子表
+            return tapTableMap.keySet().stream().filter(name -> {
+                TapTable tapTable = tapTableMap.get(name);
+                return Objects.nonNull(tapTable) && !tapTable.checkIsSubPartitionTable();
+            }).collect(Collectors.toSet());
+        }
+        return tapTableMap.keySet();
+    }
+
 	protected void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		Set<String> tableIds = filterSubPartitionTableTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
 				.tapTableMap(tapTableMap)
+				.totals(tableIds.size())
 				.dataProcessorContext(dataProcessorContext)
 				.start(), (funcAspect -> {
 			Node<?> node = dataProcessorContext.getNode();
@@ -147,7 +209,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress);
 			if (null == syncProgress) {
-				for (String tableId : tapTableMap.keySet()) {
+				for (String tableId : tableIds) {
 					if (!isRunning()) {
 						return;
 					}
@@ -201,7 +263,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
 			return;
 		}
-		dropTable(existsDataProcessEnum, tableId, init);
+		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
@@ -454,14 +516,34 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId, boolean init) {
+	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, TapTable table, boolean init) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.DROP_TABLE) return;
 
 		AtomicReference<TapDropTableEvent> tapDropTableEvent = new AtomicReference<>();
+		final String tableId = table.getId();
 		try {
 			DropTableFunction dropTableFunction = getConnectorNode().getConnectorFunctions().getDropTableFunction();
-			if (dropTableFunction != null) {
-				tapDropTableEvent.set(dropTableEvent(tableId));
+			DropPartitionTableFunction dropPartitionTableFunction = getConnectorNode().getConnectorFunctions().getDropPartitionTableFunction();
+			final boolean needDropPartitionTable = syncTargetPartitionTableEnable
+					&& Objects.nonNull(table.getPartitionInfo())
+					&& Objects.nonNull(dropPartitionTableFunction);
+			tapDropTableEvent.set(dropTableEvent(tableId));
+			masterTableId(tapDropTableEvent.get(), table);
+			if (needDropPartitionTable) {
+				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
+						.setInit(init)
+						.dropTableEvent(tapDropTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(), (dropTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.DROP_PARTITION_TABLE_FUNCTION, () ->
+									dropPartitionTableFunction.dropTable(
+										getConnectorNode().getConnectorContext(),
+										tapDropTableEvent.get()),
+										TAG,
+										buildErrorConsumer(tapDropTableEvent.get().getTableId())))
+				);
+			} else if (dropTableFunction != null) {
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
 						.setInit(init)
 						.dropTableEvent(tapDropTableEvent.get())
@@ -538,9 +620,15 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void writeDDL(List<TapEvent> events) {
+	protected void writeDDL(List<TapEvent> events) {
 		List<TapDDLEvent> tapDDLEvents = new ArrayList<>();
 		events.forEach(event -> {
+			if (event instanceof TapCreateTableEvent) {
+				TapCreateTableEvent createTableEvent = (TapCreateTableEvent) event;
+				// 当前节点未启用分区表，忽略创建分区子表事件
+				if (!syncTargetPartitionTableEnable
+						&& createTableEvent.getTable().checkIsSubPartitionTable()) return;
+			}
 			TapDDLEvent tapDDLEvent = (TapDDLEvent) event;
 			tapDDLEvent.setTableId(getTgtTableNameFromTapEvent(tapDDLEvent));
 			tapDDLEvents.add(tapDDLEvent);
@@ -806,18 +894,40 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
-		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
+
+		tapRecordEvents.forEach(t -> {
+			removeNotSupportFields(t, tapTable.getId());
+		});
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 			try {
-				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
-						.recordEvents(tapRecordEvents)
-						.table(tapTable)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (writeRecordFuncAspect ->
+				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> {
+
+					TapTable tapTableForObs = tapTable;
+					if (firstEvent.getPartitionMasterTableId() != null) {
+						tapTableForObs = partitionTapTables.computeIfAbsent(firstEvent.getPartitionMasterTableId(), key -> {
+							TapTable cloneObj = new TapTable();
+							BeanUtils.copyProperties(tapTable, cloneObj);
+							cloneObj.setId(key);
+							TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+							String ancestorsName = tapTableMap.containsKey(firstEvent.getPartitionMasterTableId()) ?
+									tapTableMap.get(firstEvent.getPartitionMasterTableId()).getAncestorsName() : null;
+							if (ancestorsName == null)
+								ancestorsName = tapTable.getAncestorsName() != null ? tapTable.getAncestorsName() : key;
+							cloneObj.setName(ancestorsName);
+							return cloneObj;
+						});
+					}
+
+					return new WriteRecordFuncAspect()
+							.recordEvents(tapRecordEvents)
+							.table(tapTableForObs)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start();
+				}, (writeRecordFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 								pdkMethodInvoker.runnable(
 										() -> {

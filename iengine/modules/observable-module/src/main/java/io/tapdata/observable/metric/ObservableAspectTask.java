@@ -474,7 +474,11 @@ public class ObservableAspectTask extends AspectTask {
 										} else {
 											LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
 											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
-											return Optional.ofNullable(handlers.get(targetTableName));
+											if (handlers.containsKey(targetTableName)) {
+												return Optional.ofNullable(handlers.get(targetTableName));
+											}
+											return Optional.ofNullable(handlers.get(table));
+
 										}
 									})
 									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));

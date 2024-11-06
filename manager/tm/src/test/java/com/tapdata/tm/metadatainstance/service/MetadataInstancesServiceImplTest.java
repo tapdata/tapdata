@@ -72,6 +72,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -1614,7 +1615,7 @@ public class MetadataInstancesServiceImplTest {
 			map.put("test", "map");
 			list.add(map);
 			when(aggregate.getMappedResults()).thenReturn(list);
-			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit);
+			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
 			assertEquals(map, actual.getItems().get(0));
 		}
 
@@ -1624,7 +1625,7 @@ public class MetadataInstancesServiceImplTest {
 			regex = "tableName";
 			limit = 1;
 			when(mongoTemplate.count(any(Query.class), any(Class.class))).thenReturn(0L);
-			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit);
+			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
 			assertEquals(0, actual.getItems().size());
 		}
 
@@ -1640,7 +1641,7 @@ public class MetadataInstancesServiceImplTest {
 			map.put("test", "map");
 			list.add(map);
 			when(aggregate.getMappedResults()).thenReturn(list);
-			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit);
+			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
 			assertEquals(map, actual.getItems().get(0));
 		}
 	}
@@ -3094,6 +3095,26 @@ public class MetadataInstancesServiceImplTest {
 
 		DAG dag = new DAG(graph);
 		return dag;
+	}
+
+	@Nested
+	class SetPartitionFilterIfNeedTest {
+		Criteria criteria;
+		Boolean syncPartitionTableEnable;
+		@BeforeEach
+		void init() {
+			criteria = new Criteria();
+		}
+		@Test
+		void testNeedSetPartitionFilterIfNeed() {
+			syncPartitionTableEnable = true;
+			Assertions.assertDoesNotThrow(() -> metadataInstancesService.setPartitionFilterIfNeed(criteria, syncPartitionTableEnable));
+		}
+		@Test
+		void testNotNeedSetPartitionFilterIfNeed() {
+			syncPartitionTableEnable = false;
+			Assertions.assertDoesNotThrow(() -> metadataInstancesService.setPartitionFilterIfNeed(criteria, syncPartitionTableEnable));
+		}
 	}
 
 	@Nested

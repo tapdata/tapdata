@@ -7,10 +7,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.bean.Relation;
-import com.tapdata.tm.commons.schema.bean.SourceDto;
-import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import io.tapdata.entity.conversion.PossibleDataTypes;
-import io.tapdata.entity.result.ResultItem;
+import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Getter;
 import lombok.Setter;
 import org.bson.types.ObjectId;
@@ -115,6 +113,9 @@ public class Schema implements Cloneable, Serializable {
 
     private String beforeDynamicTableName;
     private String afterDynamicTableName;
+
+    private String partitionMasterTableId;
+    private TapPartition partitionInfo;
 
     /**
      * 是否是虚拟表 'virtual' 'source'
