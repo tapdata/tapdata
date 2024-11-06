@@ -12,14 +12,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.LockUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.StringCompression;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
-import com.tapdata.entity.TransformToTapValueResult;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -1185,22 +1178,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected List<TapdataEvent> wrapTapdataEvent(List<TapEvent> events, SyncStage syncStage, Object offsetObj) {
 		int size = events.size();
 		List<TapdataEvent> tapdataEvents = new ArrayList<>(size + 1);
-		List<TapEvent> eventCache = new ArrayList<>();
 		for (int i = 0; i < size; i++) {
 			TapEvent tapEvent = events.get(i);
 			if (null == tapEvent.getTime()) {
 				throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(tapEvent);
 			}
 			TapEvent tapEventCache = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
-			eventCache.add(tapEventCache);
 			boolean isLast = i == (size - 1);
-			TapdataEvent tapdataEvent;
-			tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
+			TapdataEvent tapdataEvent = wrapTapdataEvent(tapEventCache, syncStage, offsetObj, isLast);
 			if (null == tapdataEvent) {
 				continue;
 			}
 			tapdataEvents.add(tapdataEvent);
 		}
+		tapdataEvents.add(new TapdataSourceBatchSplitEvent());
 		return tapdataEvents;
 	}
 

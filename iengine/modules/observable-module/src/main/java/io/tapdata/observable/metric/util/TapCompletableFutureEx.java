@@ -41,6 +41,7 @@ public class TapCompletableFutureEx {
 	protected ExecutorService joinThreadPool;
 	private final int[] joinLock = new int[0];
 	protected final AtomicBoolean firstTime = new AtomicBoolean(true);
+	private CompletableFuture<Void> lastFuture;
 
 	protected TapCompletableFutureEx(int queueSize, int joinWatermark, String threadName) {
 		this.running = new AtomicBoolean(false);
@@ -49,6 +50,8 @@ public class TapCompletableFutureEx {
 		this.completableFutureQueue = new LinkedBlockingQueue<>(this.queueSize);
 		this.joinThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(),
 				r -> new Thread(r, threadName));
+		this.lastFuture = CompletableFuture.runAsync(() -> {
+		});
 	}
 
 	public static TapCompletableFutureEx create(int queueSize, int joinWatermark) {
@@ -70,6 +73,14 @@ public class TapCompletableFutureEx {
 			throw new IllegalStateException("TapCompletableFutureEx not started");
 		}
 		enqueue(CompletableFuture.runAsync(runnable));
+	}
+
+	public void thenRun(Runnable runnable) {
+		if (!running.get() && firstTime.compareAndSet(true, false)) {
+			throw new IllegalStateException("TapCompletableFutureEx not started");
+		}
+		lastFuture = lastFuture.thenRun(runnable);
+		enqueue(lastFuture);
 	}
 
 	private void enqueue(CompletableFuture<Void> completableFuture) {
@@ -116,6 +127,7 @@ public class TapCompletableFutureEx {
 			stopCheckJoin();
 		});
 		waitDone(future, timeout, timeUnit);
+		this.lastFuture = null;
 		Thread.currentThread().interrupt();
 	}
 
