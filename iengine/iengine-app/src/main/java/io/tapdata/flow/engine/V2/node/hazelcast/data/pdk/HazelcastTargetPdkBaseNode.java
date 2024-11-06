@@ -458,7 +458,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 throw (TapCodeException) matched;
             } else {
                 throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-                        .addEvent(tapCreateTableEvent.get());
+                        .addEvent(tapCreateTableEvent.get())
+                        .dynamicDescriptionParameters(tapTable.getId());
             }
         }
         return createdTable;

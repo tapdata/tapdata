@@ -29,7 +29,7 @@ public interface TaskTargetProcessorExCode_15 {
 			dynamicDescription = "1. When enabling target node configuration advanced Settings > When creating the synchronized index option, the target side will synchronize the source side index, and when the source side index applies the function, this error will be thrown\n" +
 								"2. This error will also occur when the update condition field has a type that does not support index creation, such as the TEXT type of some structural databases\n" +
 								"3. The account connected to the destination node lacks permission to create an index" +
-					"Index creation failed for table {}",
+					"Index creation failed for table:{},Index:{}",
 			dynamicDescriptionCN = "1. 当开启目标节点配置中高级设置->建表同步索引选项时，目标端会同步源端的索引，当源端索引应用函数时，会报此错误\n" +
 								"2. 当更新条件字段存在不支持创建索引的类型时如某些结构型数据库的TEXT类型，执行创建索引时也会报此错误\n" +
 								"3. 目标节点使用的连接的账号缺少创建索引的权限\n" +
@@ -52,7 +52,7 @@ public interface TaskTargetProcessorExCode_15 {
 					"Failed to delete table, table name {}",
 			dynamicDescriptionCN = "1.目标节点的连接使用的账号没有删除表的权限\n" +
 					"2.目标表被其他表的外键引用，导致无法删除表\n" +
-					"删除表失败，表名为{}",
+					"删除表失败，表名为：{}",
 			solution = "1. the target node connection to use user delete table permissions\n"+
 						"2. Remove the foreign key constraint from the associated table and restart the task",
 			solutionCN = "1、授予目标节点连接使用用户删除表权限\n"+
@@ -88,7 +88,7 @@ public interface TaskTargetProcessorExCode_15 {
 			describe = "When writing data, the target table name cannot be retrieved from the source table name in the table name mapping relationship",
 			describeCN = "写入数据时，无法通过源端表名在表名映射关系中获取到目标表名",
 			dynamicDescription = "According to the source table name: {}",
-			dynamicDescriptionCN = "根据源表名为：{}"
+			dynamicDescriptionCN = "源表名为：{}"
 	)
 	String WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED = "15007";
 	@TapExCode(
@@ -127,9 +127,11 @@ public interface TaskTargetProcessorExCode_15 {
 			describe = "The target node fails to modify the field name",
 			describeCN = "目标节点在执行修改字段名操作时失败",
 			dynamicDescription = "1. The change field name event is repeated by the target node. If the target has executed the field name modification operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the field name modification event, the target node will repeatedly execute the field name renaming operation and an error will occur\n" +
-					"2. The account that the destination node is connecting to does not have the appropriate Alter permission, resulting in the failure to modify the field name",
+					"2. The account that the destination node is connecting to does not have the appropriate Alter permission, resulting in the failure to modify the field name\n" +
+					" name change :{}",
 			dynamicDescriptionCN = "1.修改字段名事件被目标节点重复执行。如果目标已经执行了修改字段名操作后，停止任务后以“增量”的同步方式启动任务并且增量采集开始时刻在修改字段名事件之前，导致目标节点重复执行字段改名操作而发生报错\n" +
-					"2. 目标节点使用连接的账号没有相应的Alter权限，导致修改字段名失败",
+					"2. 目标节点使用连接的账号没有相应的权限，导致修改字段名失败\n" +
+					"字段名的变化:{}",
 			solution = "1. When the task is started in the \"incremental\" synchronous way, the specified incremental acquisition start time needs to modify the time point of the field name event, so as to avoid the error caused by the repeated execution of the field renaming operation by the target node \n"+
 						"2. Grant the target node the appropriate permission to use the connected account",
 			solutionCN = "1. 以“增量”的同步方式启动任务时，指定的增量采集开始时刻需要再修改字段名事件的时间点后，避免目标节点重复执行字段改名操作发生报错\n" +
@@ -149,22 +151,26 @@ public interface TaskTargetProcessorExCode_15 {
 					"2. The account used by the target node to connect does not have the corresponding Alter permission, resulting in the failure to modify the field name",
 			describeCN = "目标节点执行修改字段属性操作时失败",
 			dynamicDescription = "1. The change field property event is repeatedly executed by the destination node. If the target has executed the field attribute modification operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the field attribute modification event, the target node executes the field repeatedly and an error is reported\n" +
-					"2. The account that the destination node uses to connect does not have the corresponding permission, resulting in the failure to modify the field attribute",
+					"2. The account that the destination node uses to connect does not have the corresponding permission, resulting in the failure to modify the field attribute\n" +
+					"The name of the table is :{}, and the name of the field that modifies the field attribute is :{}",
 			dynamicDescriptionCN = "1. 修改字段属性事件被目标节点重复执行。如果目标已经执行了修改字段属性操作后，停止任务后以“增量”的同步方式启动任务并且增量采集开始时刻在修改字段属性事件之前，导致目标节点重复执行字段而发生报错\n" +
-					"2. 目标节点使用连接的账号没有相应的权限，导致修改字段属性失败",
+					"2. 目标节点使用连接的账号没有相应的权限，导致修改字段属性失败\n" +
+					"表名为:{}，修改字段属性的字段名为:{}",
 			solution = "1. When the task is started in the \"incremental\" synchronous way, the specified incremental acquisition start time needs to modify the time point of the field name event, so as to avoid the error caused by the repeated execution of the field renaming operation by the target node"+
 						"2. Grant the target node the appropriate permission to use the connected account",
-			solutionCN = "1、以“增量”的同步方式启动任务时，指定的增量采集开始时刻需要再修改字段名事件的时间点后，避免目标节点重复执行字段改名操作发生报错\n" +
-					"2、授予目标节点使用连接的账号相应的权限"
+			solutionCN = "1. 以“增量”的同步方式启动任务时，指定的增量采集开始时刻需要再修改字段名事件的时间点后，避免目标节点重复执行字段改名操作发生报错\n" +
+					"2. 授予目标节点使用连接的账号相应的权限"
 	)
 	String ALTER_FIELD_ATTR_EXECUTE_FAILED = "15014";
 	@TapExCode(
 			describe = "The target node fails to delete the field operation",
 			describeCN = "The target node failed to perform the delete field operation",
 			dynamicDescription = "1. The deletion event is repeatedly executed by the destination node. If the target has executed the field attribute modification operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the field attribute modification event, the target node executes the field repeatedly and an error is reported\n" +
-					"2. The account used by the target node to connect does not have the corresponding permission, resulting in the failure to delete the field",
+					"2. The account used by the target node to connect does not have the corresponding permission, resulting in the failure to delete the field\n" +
+					"Table name for deletion event :{}, field name for deletion field :{}",
 			dynamicDescriptionCN = "1. 删除事件被目标节点重复执行。如果目标已经执行了修改字段属性操作后，停止任务后以“增量”的同步方式启动任务并且增量采集开始时刻在修改字段属性事件之前，导致目标节点重复执行字段而发生报错\n" +
-					"2. 目标节点使用连接的账号没有相应的权限，导致删除字段失败",
+					"2. 目标节点使用连接的账号没有相应的权限，导致删除字段失败\n" +
+					"删除事件的表名:{}，删除字段的字段名:{}",
 			solution = "1. When the task is started in the \"incremental\" synchronous way, the specified time point of deleting the field event needs to be repaired at the beginning of the specified incremental collection time, so as to avoid the error caused by the target node repeatedly executing deleting the field operation\n" +
 					"2. Grant the destination node the appropriate permissions to use the connected account",
 			solutionCN = "1. 以“增量”的同步方式启动任务时，指定的增量采集开始时刻需要再修删除字段事件的时间点后，避免目标节点重复执行删除字段操作发生报错\n"+

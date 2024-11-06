@@ -503,10 +503,10 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class))).thenThrow(new RuntimeException("drop table failed"));
 			ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, "test", true);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, tapTable, true);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-				hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test", true);
+				hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, tapTable, true);
 			});
 			assertEquals(tapCodeException.getCode(),TaskTargetProcessorExCode_15.DROP_TABLE_FAILED);
 
