@@ -41,6 +41,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.Cache;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -89,6 +92,13 @@ public class UserController extends BaseController {
 
     @Autowired
     UserLogService userLogService;
+
+    @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+    private List<String> productList;
+    @Autowired
+    @Qualifier("userCache")
+    private Cache userCache;
+
 
     private static final String RC4_KEY = "Gotapd8";
 
@@ -182,28 +192,12 @@ public class UserController extends BaseController {
      */
     @GetMapping("{userId}")
     public ResponseMessage<UserDto> getUser(@PathVariable(value = "userId") String userId) {
-        UserDto userDto = userService.findById(toObjectId(userId));
-
-        //userDto.setLastUpdAt(userDto.getLastUpdAt());
-        userDto.setCreateTime(userDto.getCreateAt());
-        List<RoleMappingDto> roleMappingDtoList = roleMappingService.getUser(PrincipleType.USER, userId);
-        if (CollectionUtils.isNotEmpty(roleMappingDtoList)) {
-            List<ObjectId> objectIds = roleMappingDtoList.stream().map(RoleMappingDto::getRoleId).collect(Collectors.toList());
-            List<RoleDto> roleDtos = roleService.findAll(Query.query(Criteria.where("_id").in(objectIds)));
-            if (CollectionUtils.isNotEmpty(roleDtos)) {
-                roleDtos.forEach(roleDto -> roleMappingDtoList.stream()
-                        .filter(roleMappingDto -> roleDto.getId().toHexString().equals(roleMappingDto.getRoleId().toHexString()))
-                        .findFirst().ifPresent(roleMappingDto -> roleMappingDto.setRole(roleDto)));
-            }
-            userDto.setRoleMappings(roleMappingDtoList);
+        if (productList != null && productList.contains("dfs")){
+            return success(userCache.get(userId, () -> userService.getUserDetail(userId)));
         }
-
-        if (StringUtils.isNotBlank(userId)) {
-            userDto.setPermissions(permissionService.getCurrentPermission(userId));
-        }
-
-        return success(userDto);
+        return success(userService.getUserDetail(userId));
     }
+
 
 
     /**

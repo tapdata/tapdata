@@ -860,6 +860,25 @@ public class UserServiceImpl extends UserService{
         return false;
     }
 
+    @Override
+    public UserDto getUserDetail(String userId) {
+        UserDto userDto = findById(toObjectId(userId));
+        userDto.setCreateTime(userDto.getCreateAt());
+        List<RoleMappingDto> roleMappingDtoList = roleMappingService.getUser(PrincipleType.USER, userId);
+        if (CollectionUtils.isNotEmpty(roleMappingDtoList)) {
+            List<ObjectId> objectIds = roleMappingDtoList.stream().map(RoleMappingDto::getRoleId).collect(Collectors.toList());
+            List<RoleDto> roleDtos = roleService.findAll(Query.query(Criteria.where("_id").in(objectIds)));
+            if (CollectionUtils.isNotEmpty(roleDtos)) {
+                roleDtos.forEach(roleDto -> roleMappingDtoList.stream()
+                        .filter(roleMappingDto -> roleDto.getId().toHexString().equals(roleMappingDto.getRoleId().toHexString()))
+                        .findFirst().ifPresent(roleMappingDto -> roleMappingDto.setRole(roleDto)));
+            }
+            userDto.setRoleMappings(roleMappingDtoList);
+        }
+        userDto.setPermissions(permissionService.getCurrentPermission(userId));
+        return userDto;
+    }
+
     protected boolean searchUser(LdapLoginDto ldapLoginDto, String username) throws NamingException {
         String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
         String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
