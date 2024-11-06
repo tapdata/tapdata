@@ -10,21 +10,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StringCompression;
 import com.tapdata.constant.StringUtil;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataAdjustMemoryEvent;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
-import com.tapdata.entity.TapdataCountDownLatchEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataRecoveryEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataStartedCdcEvent;
-import com.tapdata.entity.TapdataStartingCdcEvent;
-import com.tapdata.entity.TapdataTaskErrorEvent;
-import com.tapdata.entity.TransformToTapValueResult;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -45,9 +31,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
-import io.tapdata.aspect.CreateTableFuncAspect;
-import io.tapdata.aspect.NewFieldFuncAspect;
-import io.tapdata.aspect.TaskMilestoneFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
@@ -933,16 +917,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 handleTapdataCompleteTableSnapshotEvent((TapdataCompleteTableSnapshotEvent) tapdataEvent);
             } else if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
                 handleTapdataAdjustMemoryEvent((TapdataAdjustMemoryEvent) tapdataEvent);
-            } else if (tapdataEvent instanceof TapdataCountDownLatchEvent) {
-                Optional.of(tapdataEvent)
-                        .flatMap(event -> Optional.ofNullable(((TapdataCountDownLatchEvent) event).getCountDownLatch()))
-                        .ifPresent(CountDownLatch::countDown);
-            } else {
-                handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
-                if (tapdataEvent instanceof TapdataRecoveryEvent) {
-                    AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
-                }
-            }
+			} else if (tapdataEvent instanceof TapdataCountDownLatchEvent) {
+				Optional.of(tapdataEvent)
+						.flatMap(event -> Optional.ofNullable(((TapdataCountDownLatchEvent) event).getCountDownLatch()))
+						.ifPresent(CountDownLatch::countDown);
+			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
+				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
+			} else {
+				handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				if (tapdataEvent instanceof TapdataRecoveryEvent) {
+					AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
+				}
+			}
         } catch (Throwable throwable) {
             throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
         }
