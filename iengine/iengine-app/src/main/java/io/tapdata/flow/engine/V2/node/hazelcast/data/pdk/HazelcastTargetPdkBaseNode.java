@@ -5,12 +5,31 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
-import com.tapdata.constant.*;
-import com.tapdata.entity.*;
+import com.tapdata.constant.ConnectionUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.StringCompression;
+import com.tapdata.constant.StringUtil;
+import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataAdjustMemoryEvent;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataCompleteTableSnapshotEvent;
+import com.tapdata.entity.TapdataCountDownLatchEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataRecoveryEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataStartedCdcEvent;
+import com.tapdata.entity.TapdataStartingCdcEvent;
+import com.tapdata.entity.TapdataTaskErrorEvent;
+import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
@@ -30,7 +49,12 @@ import io.tapdata.aspect.CreateTableFuncAspect;
 import io.tapdata.aspect.NewFieldFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
-import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
+import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
+import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -42,6 +66,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapEventException;
@@ -73,13 +98,23 @@ import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreatePartitionSubTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreatePartitionTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionBeginFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionCommitFunction;
+import io.tapdata.pdk.apis.functions.connector.target.TransactionRollbackFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
@@ -98,14 +133,36 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
 import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
@@ -162,6 +219,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
     TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
     private TapCodecsFilterManager codecsFilterManagerForBatchRead;
+	protected boolean syncTargetPartitionTableEnable;
 
     public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -189,12 +247,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             initIllegalDateAcceptable();
             initSyncProgressMap();
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
-            initCodecsFilterManager();
-        });
-        Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
-        checkUnwindConfiguration();
-        everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
-    }
+			initCodecsFilterManager();
+		});
+		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
+		checkUnwindConfiguration();
+		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
+		initSyncPartitionTableEnable();
+	}
+
+	/**
+	 * Initialization: Whether the target has enabled synchronization of partition tables
+	 * */
+	protected void initSyncPartitionTableEnable() {
+		Node<?> node = getNode();
+		this.syncTargetPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncTargetPartitionTableEnable());
+	}
 
     protected void initSyncProgressMap() {
 		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
@@ -297,54 +364,150 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected boolean createTable(TapTable tapTable, AtomicBoolean succeed, boolean init) {
-        if (getNode().disabledNode()) {
-            obsLogger.info("Target node has been disabled, task will skip: create table");
-            return false;
-        }
-        AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
-        boolean createdTable;
-        try {
-            CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
-            CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
-            createdTable = createTableV2Function != null || createTableFunction != null;
-            TapTable finalTapTable = new TapTable();
-            if (createdTable) {
-                handleTapTablePrimaryKeys(tapTable);
-                BeanUtil.copyProperties(tapTable, finalTapTable);
-                if (unwindProcess) {
-                    ignorePksAndIndices(finalTapTable, null);
-                }
-                tapCreateTableEvent.set(createTableEvent(finalTapTable));
-                executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
-                        .createTableEvent(tapCreateTableEvent.get())
-                        .setInit(init)
-                        .connectorContext(getConnectorNode().getConnectorContext())
-                        .dataProcessorContext(dataProcessorContext)
-                        .start(), (createTableFuncAspect ->
-                        PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
-                            if (createTableV2Function != null) {
-                                CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-                                succeed.set(!createTableOptions.getTableExists());
-                                if (createTableFuncAspect != null)
-                                    createTableFuncAspect.createTableOptions(createTableOptions);
-                            } else {
-                                createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
-                            }
-                        }, TAG, buildErrorConsumer(tapCreateTableEvent.get().getTableId()))));
-                clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
-                        ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
-            } else {
-                // only execute start function aspect so that it would be cheated as input
-                AspectUtils.executeAspect(new CreateTableFuncAspect()
-                        .createTableEvent(tapCreateTableEvent.get())
-                        .setInit(init)
-                        .connectorContext(getConnectorNode().getConnectorContext())
-                        .dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
-                clientMongoOperator.insertOne(Collections.singletonList(tapTable),
-                        ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
-            }
+    protected void doCreateTable(TapTable tapTable, AtomicReference<TapCreateTableEvent> tapCreateTableEvent, Runnable runnable) {
+		TapTable finalTapTable = new TapTable();
+		handleTapTablePrimaryKeys(tapTable);
+		BeanUtil.copyProperties(tapTable, finalTapTable);
+		if(unwindProcess){
+			ignorePksAndIndices(finalTapTable, null);
+		}
+		tapCreateTableEvent.set(createTableEvent(finalTapTable));
+		masterTableId(tapCreateTableEvent.get(), tapTable);
+		runnable.run();
+		clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
+				ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+	}
 
+	protected boolean createPartitionTable(CreatePartitionTableFunction createPartitionTableFunction,
+										   AtomicBoolean succeed,
+										   TapTable tapTable,
+										   boolean init,
+										   AtomicReference<TapCreateTableEvent> tapCreateTableEvent) {
+		doCreateTable(tapTable, tapCreateTableEvent, () -> {
+			final ConnectorNode connectorNode = getConnectorNode();
+			final TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+			final TapCreateTableEvent createTableEvent = tapCreateTableEvent.get();
+			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+					.createTableEvent(createTableEvent)
+					.setInit(init)
+					.connectorContext(connectorContext)
+					.dataProcessorContext(dataProcessorContext)
+					.start(), (createTableFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.CREATE_PARTITION_TABLE_FUNCTION, () -> {
+						final CreateTableOptions createTableOptions = createPartitionTableFunction.createTable(connectorContext, createTableEvent);
+						succeed.set(!createTableOptions.getTableExists());
+						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
+					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
+		});
+		return true;
+	}
+
+	protected boolean createSubPartitionTable(CreatePartitionSubTableFunction createSubPartitionTableFunction,
+										   AtomicBoolean succeed,
+										   TapTable tapTable,
+										   boolean init,
+										   AtomicReference<TapCreateTableEvent> tapCreateTableEvent) {
+		final ConnectorNode connectorNode = getConnectorNode();
+		final TapConnectorContext connectorContext = connectorNode.getConnectorContext();
+		final String subTableId = tapTable.getId();
+		doCreateTable(tapTable, tapCreateTableEvent, () -> {
+			final TapCreateTableEvent createTableEvent = tapCreateTableEvent.get();
+			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+					.createTableEvent(createTableEvent)
+					.setInit(init)
+					.connectorContext(connectorContext)
+					.dataProcessorContext(dataProcessorContext)
+					.start(), (createTableFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.CREATE_PARTITION_SUB_TABLE_FUNCTION, () -> {
+						final CreateTableOptions createTableOptions = createSubPartitionTableFunction.createSubPartitionTable(
+									connectorContext,
+									createTableEvent,
+									subTableId
+								);
+						succeed.set(!Boolean.TRUE.equals(createTableOptions.getTableExists()));
+						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
+					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
+		});
+		return true;
+	}
+
+	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed,boolean init) {
+		if (getNode().disabledNode()) {
+			obsLogger.info("Target node has been disabled, task will skip: create table");
+			return false;
+		}
+		if (!this.syncTargetPartitionTableEnable && tapTable.checkIsSubPartitionTable()) {
+			obsLogger.info("Target node not enable partition, task will skip: create subpartition table {}",
+					tapTable.getId());
+			return false;
+		}
+		AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
+		boolean createdTable;
+		boolean createPartitionTable;
+		boolean createSubPartitionTable;
+		try {
+			CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
+			CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
+			createdTable = createTableV2Function != null || createTableFunction != null;
+
+			CreatePartitionTableFunction createPartitionTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionTableFunction();
+			CreatePartitionSubTableFunction createPartitionSubTableFunction = getConnectorNode().getConnectorFunctions().getCreatePartitionSubTableFunction();
+			createPartitionTable = this.syncTargetPartitionTableEnable
+					&& tapTable.checkIsMasterPartitionTable()
+					&& Objects.nonNull(createPartitionTableFunction);
+			createSubPartitionTable = tapTable.checkIsSubPartitionTable()
+					&& Objects.nonNull(createPartitionSubTableFunction);
+            if (createSubPartitionTable && !this.syncTargetPartitionTableEnable) {
+                obsLogger.warn("Target has be close partition table sync, create sub partition table [{}] be ignore", tapTable.getId());
+                return false;
+			}
+			if (createSubPartitionTable && null != tapTable.getPartitionInfo() && tapTable.getPartitionInfo().isInvalidType()) {
+				obsLogger.warn("Target has be not support invalid partition sub table, create sub partition table [{}] be ignore {}", tapTable.getId(), tapTable.getPartitionInfo().getInvalidMsg());
+				return false;
+			}
+			if (createPartitionTable && null != tapTable.getPartitionInfo() && tapTable.getPartitionInfo().isInvalidType()) {
+				obsLogger.warn("Target can not support to create invalid partition master table [{}] be ignore {}, may create as a normal table", tapTable.getId(), tapTable.getPartitionInfo().getInvalidMsg());
+				createPartitionTable = false;
+			}
+
+			if (createPartitionTable) {
+				obsLogger.info("Will create master partition table [{}] to target, init sub partition list: {}",
+						tapTable.getId(),
+						Optional.ofNullable(tapTable.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>())
+								.stream().map(TapSubPartitionTableInfo::getTableName).collect(Collectors.toList()));
+				return createPartitionTable(createPartitionTableFunction, succeed, tapTable, init, tapCreateTableEvent);
+			} else if (createSubPartitionTable) {
+				obsLogger.info("Will create sub partition table [{}] to target, master table is: {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
+				return createSubPartitionTable(createPartitionSubTableFunction, succeed, tapTable, init, tapCreateTableEvent);
+			} else if (createdTable) {
+				doCreateTable(tapTable, tapCreateTableEvent, () ->
+					executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+							.createTableEvent(tapCreateTableEvent.get())
+							.setInit(init)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start(), (createTableFuncAspect ->
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
+								if (createTableV2Function != null) {
+									CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+									succeed.set(!createTableOptions.getTableExists());
+									if (createTableFuncAspect != null)
+										createTableFuncAspect.createTableOptions(createTableOptions);
+								} else {
+									createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
+								}
+							}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId()))))
+                );
+			} else {
+				// only execute start function aspect so that it would be cheated as input
+				AspectUtils.executeAspect(new CreateTableFuncAspect()
+						.createTableEvent(tapCreateTableEvent.get())
+						.setInit(init)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
+				clientMongoOperator.insertOne(Collections.singletonList(tapTable),
+						ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+			}
         } catch (Throwable throwable) {
             Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
             if (null != matched) {
@@ -1150,13 +1313,36 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (updateMetadata instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) updateMetadata)) {
             this.updateMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) updateMetadata);
         }
-        Object insertMetadata = tapDDLEvent.getInfo(INSERT_METADATA_INFO_KEY);
-        if (insertMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) insertMetadata)) {
-            this.insertMetadata.addAll((Collection<? extends MetadataInstancesDto>) insertMetadata);
-        }
-        Object removeMetadata = tapDDLEvent.getInfo(REMOVE_METADATA_INFO_KEY);
-        if (removeMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) removeMetadata)) {
-            this.removeMetadata.addAll((Collection<? extends String>) removeMetadata);
+        if (tapDDLEvent instanceof TapCreateTableEvent) {
+			TapCreateTableEvent createTableEvent = (TapCreateTableEvent) tapDDLEvent;
+			boolean isSubPartitionTable = createTableEvent.getTable() != null &&
+					createTableEvent.getTable().checkIsSubPartitionTable();
+			if (isSubPartitionTable) {
+				Object dagDataServiceObj = tapdataEvent.getTapEvent().getInfo(DAG_DATA_SERVICE_INFO_KEY);
+				DAGDataServiceImpl dagDataService = null;
+				if (dagDataServiceObj instanceof DAGDataServiceImpl) {
+					dagDataService = (DAGDataServiceImpl) dagDataServiceObj;
+				}
+				if (dagDataService != null) {
+					String partitionMasterTableId = createTableEvent.getPartitionMasterTableId() != null ?
+							createTableEvent.getPartitionMasterTableId() : createTableEvent.getTable().getPartitionMasterTableId();
+					MetadataInstancesDto metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), partitionMasterTableId);
+					if (metadata != null && metadata.getId() != null) {
+						this.updateMetadata.put(metadata.getId().toHexString(), metadata);
+					}
+				}
+			}
+		}
+		Object insertMetadata = tapDDLEvent.getInfo(INSERT_METADATA_INFO_KEY);
+		if (insertMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) insertMetadata)) {
+			this.insertMetadata.addAll((Collection<? extends MetadataInstancesDto>) insertMetadata);
+		}
+		Object removeMetadata = tapDDLEvent.getInfo(REMOVE_METADATA_INFO_KEY);
+		if (removeMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) removeMetadata)) {
+			this.removeMetadata.addAll((Collection<? extends String>) removeMetadata);
+		}
+		if (tapDDLEvent instanceof TapCreateTableEvent && tapdataEvent.getBatchOffset() != null) {
+			flushSyncProgressMap(tapdataEvent);
         }
         tapEvents.add(tapDDLEvent);
         if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
@@ -1182,40 +1368,42 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null != tapdataEvent.getBatchOffset()) {
                 syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
             }
-            syncProgress.setSourceTime(tapdataEvent.getSourceTime());
-            syncProgress.setEventTime(tapdataEvent.getSourceTime());
-            flushOffset.set(true);
-        } else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
-            if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
-                ((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
-            }
-        } else {
-            if (null == tapdataEvent.getSyncStage()) return;
-            if (null == tapdataEvent.getBatchOffset() && null == tapdataEvent.getStreamOffset()) return;
-            if (SyncStage.CDC == tapdataEvent.getSyncStage() && null == tapdataEvent.getSourceTime()) return;
-            if (null != tapdataEvent.getBatchOffset()) {
-                if (tapdataEvent.getTapEvent() instanceof TapRecordEvent && syncProgress.getBatchOffsetObj() instanceof Map) {
-                    ((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId(), tapdataEvent.getBatchOffset());
-                } else {
-                    syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
-                }
-            }
-            if (null != tapdataEvent.getStreamOffset()) {
-                syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
-            }
-            syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
-            syncProgress.setSourceTime(tapdataEvent.getSourceTime());
-            if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
-                syncProgress.setEventTime(((TapRecordEvent) tapdataEvent.getTapEvent()).getReferenceTime());
-            }
-            syncProgress.setType(tapdataEvent.getType());
-            flushOffset.set(true);
-        }
-        syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
-        if (syncProgress.getSyncStage() == null) {
-            obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
-        }
-    }
+            if (tapdataEvent.getSourceTime() != null)
+				syncProgress.setSourceTime(tapdataEvent.getSourceTime());
+			if (tapdataEvent.getSourceTime() != null)
+				syncProgress.setEventTime(tapdataEvent.getSourceTime());
+			flushOffset.set(true);
+		} else if (tapdataEvent instanceof TapdataCompleteTableSnapshotEvent) {
+			if (null != tapdataEvent.getBatchOffset() && syncProgress.getBatchOffsetObj() instanceof Map) {
+				((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapdataCompleteTableSnapshotEvent) tapdataEvent).getSourceTableName(), tapdataEvent.getBatchOffset());
+			}
+		} else {
+			if (null == tapdataEvent.getSyncStage()) return;
+			if (null == tapdataEvent.getBatchOffset() && null == tapdataEvent.getStreamOffset()) return;
+			if (SyncStage.CDC == tapdataEvent.getSyncStage() && null == tapdataEvent.getSourceTime()) return;
+			if (null != tapdataEvent.getBatchOffset()) {
+				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent && syncProgress.getBatchOffsetObj() instanceof Map) {
+					((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId(), tapdataEvent.getBatchOffset());
+				} else {
+					syncProgress.setBatchOffsetObj(tapdataEvent.getBatchOffset());
+				}
+			}
+			if (null != tapdataEvent.getStreamOffset()) {
+				syncProgress.setStreamOffsetObj(tapdataEvent.getStreamOffset());
+			}
+			syncProgress.setSyncStage(tapdataEvent.getSyncStage().name());
+			syncProgress.setSourceTime(tapdataEvent.getSourceTime());
+			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+				syncProgress.setEventTime(((TapRecordEvent) tapdataEvent.getTapEvent()).getReferenceTime());
+			}
+			syncProgress.setType(tapdataEvent.getType());
+			flushOffset.set(true);
+		}
+		syncProgress.setEventSerialNo(syncProgress.addAndGetSerialNo(1));
+		if (syncProgress.getSyncStage() == null) {
+			obsLogger.warn(String.format("Found sync stage is null when flush sync progress, event: %s[%s]", tapdataEvent, tapdataEvent.getClass().getName()));
+		}
+	}
 
     protected void handleTapTablePrimaryKeys(TapTable tapTable) {
         everHandleTapTablePrimaryKeysMap.computeIfAbsent(tapTable.getId(), (value) -> {
@@ -1275,23 +1463,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX + compress);
                     }
                 }
-                try {
-                    syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
-                }
-            }
-            TaskDto taskDto = dataProcessorContext.getTaskDto();
-            String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
-            try {
-                clientMongoOperator.insertOne(syncProgressJsonMap, collection);
-            } catch (Exception e) {
-                obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
-                return false;
-            }
-            if (uploadDagService.get()) {
-                synchronized (this.saveSnapshotLock) {
-                    // Upload DAG
+                //System.out.println(JSONUtil.obj2JsonPretty(syncProgress.getBatchOffsetObj()));
+				try {
+					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
+				} catch (JsonProcessingException e) {
+					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+				}
+			}
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
+			try {
+				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+			} catch (Exception e) {
+				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
+				return false;
+			}
+			if (uploadDagService.get()) {
+				synchronized (this.saveSnapshotLock) {
+					// Upload DAG
 //					TaskDto updateTaskDto = new TaskDto();
 //					updateTaskDto.setId(taskDto.getId());
 //					updateTaskDto.setDag(taskDto.getDag());

@@ -19,13 +19,21 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.DataFunctionAspect;
+import io.tapdata.aspect.DataNodeCloseAspect;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.ProcessorNodeCloseAspect;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -76,7 +84,11 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -822,20 +834,50 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		String qualifiedName;
 		Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 		if (insertMetadata instanceof List) {
-			MetadataInstancesDto metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
+			TapCreateTableEvent event = (TapCreateTableEvent)tapEvent;
+			Node<?> node = getNode();
+			MetadataInstancesDto metadata;
+			boolean isSubPartitionTable = event.getTable().checkIsSubPartitionTable();
+
+			if (isSubPartitionTable) {
+				if (node instanceof DatabaseNode
+						&& !Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())) {
+					obsLogger.info("Target node not enable partition, task will skip: update metadata instances for subpartition table {}",
+							event.getTable().getId());
+					return;
+				}
+				if (node instanceof MigrateProcessorNode) {
+					obsLogger.info("Processor node skip create partition table event.");
+					return;
+				}
+
+				String partitionMasterTableId = event.getPartitionMasterTableId() != null ?
+						event.getPartitionMasterTableId() : event.getTable().getPartitionMasterTableId();
+				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), partitionMasterTableId);
+				metadata.setPartitionInfo(event.getTable().getPartitionInfo());
+				/*metadata.setName(tableName);
+				metadata.setOriginalName(tableName);
+				metadata.setAncestorsName(event.getTable().getId());*/
+			} else {
+				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
+			}
 			if (null != metadata) {
 				qualifiedName = metadata.getQualifiedName();
 				if (null == metadata.getId()) {
 					metadata.setId(new ObjectId());
 				}
 				dagDataService.setMetaDataMap(metadata);
-				((List<MetadataInstancesDto>) insertMetadata).add(metadata);
+				if (!isSubPartitionTable) {
+					((List<MetadataInstancesDto>) insertMetadata).add(metadata);
+				}
 				TapTable tapTable = dagDataService.getTapTable(qualifiedName);
 				if (tapTableMap.containsKey(tableName)) {
 					tapTableMap.put(tableName, tapTable);
 				} else {
 					tapTableMap.putNew(tableName, tapTable, qualifiedName);
 				}
+				tapTable.setPartitionInfo(metadata.getPartitionInfo());
+				tapTable.setAncestorsName(event.getTable().getId());
 			} else {
 				throw new TapCodeException(TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED, String.format("Node: %s(%s), table name: %s", getNode().getName(), getNode().getId(), tableName));
 			}
@@ -847,12 +889,22 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		String tableId = TapEventUtil.getTableId(tapEvent);
+		return getTgtTableNameFromTapEvent(tapEvent, tableId);
+	}
+
+	public void masterTableId(TapEvent event, TapTable table) {
+		Optional.ofNullable(table.getPartitionMasterTableId()).ifPresent(masterSourceTableId -> {
+			table.setPartitionMasterTableId(getTgtTableNameFromTapEvent(event, masterSourceTableId));
+		});
+	}
+
+	public String getTgtTableNameFromTapEvent(TapEvent tapEvent, String masterTableId) {
 		Object dagDataService = tapEvent.getInfo(DAG_DATA_SERVICE_INFO_KEY);
 		if (!(dagDataService instanceof DAGDataServiceImpl)) {
-			return StringUtils.isNotBlank(lastTableName) ? lastTableName : tableId;
+			return StringUtils.isNotBlank(lastTableName) ? lastTableName : masterTableId;
 		}
 		String nodeId = getNode().getId();
-		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, tableId);
+		return ((DAGDataServiceImpl) dagDataService).getNameByNodeAndTableName(nodeId, masterTableId);
 	}
 
 	protected boolean whetherToSkip(List<ErrorEvent> errorEvents,ErrorEvent event,SkipError skipError){
