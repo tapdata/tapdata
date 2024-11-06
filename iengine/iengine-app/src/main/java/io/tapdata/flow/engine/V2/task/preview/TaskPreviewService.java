@@ -13,14 +13,6 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.utils.StopWatch;
-import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
-import io.tapdata.entity.memory.MemoryFetcher;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.entity.schema.value.TapYearValue;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewMergeReadTasklet;
@@ -43,7 +35,7 @@ import java.util.concurrent.*;
  * @create 2024-09-18 17:08
  **/
 @RemoteService
-public class TaskPreviewService implements MemoryFetcher {
+public class TaskPreviewService {
 	public static final String TAG = TaskPreviewService.class.getSimpleName();
 	private static final Logger logger = LogManager.getLogger(TaskPreviewService.class);
 	private static final Map<String, TaskPreviewInstance> taskPreviewInstanceMap = new ConcurrentHashMap<>();
@@ -171,12 +163,12 @@ public class TaskPreviewService implements MemoryFetcher {
 					try {
 						TimeUnit.MILLISECONDS.sleep(1L);
 					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
 						break;
 					}
 				}
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
 			taskPreviewResultVO.failed(e);
 		} finally {
 			Optional.ofNullable(previewReadTaskletExecutor).ifPresent(ExecutorService::shutdownNow);
@@ -298,10 +290,5 @@ public class TaskPreviewService implements MemoryFetcher {
 
 	public static TaskPreviewInstance taskPreviewInstance(TaskDto taskDto) {
 		return taskPreviewInstanceMap.get(taskPreviewInstanceId(taskDto));
-	}
-
-	@Override
-	public DataMap memory(String keyRegex, String memoryLevel) {
-		return null;
 	}
 }

@@ -73,7 +73,7 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 					PreviewMergeReadOperation previewMergeReadOperation = new PreviewMergeReadOperation(
 							sourceNode.getId(), mergeTableLoopProperty, previewRows
 					);
-					if (buildTapAdvanceFilter(taskDto, mergeTableLoopProperty, mergeTableProperties, previewMergeReadOperation))
+					if (buildTapAdvanceFilter(mergeTableLoopProperty, mergeTableProperties, previewMergeReadOperation))
 						continue;
 					previewReadOperationQueue.addOperation(sourceNode.getId(), previewMergeReadOperation);
 					previewReadOperations.add(previewMergeReadOperation);
@@ -120,6 +120,7 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 			try {
 				previewMergeReadOperation.getMergeNodeReceived().await();
 			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
 				return;
 			}
 		}
@@ -130,8 +131,7 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 		}
 	}
 
-	private boolean buildTapAdvanceFilter(TaskDto taskDto,
-										  MergeTableLoopProperty mergeTableLoopProperty,
+	private boolean buildTapAdvanceFilter(MergeTableLoopProperty mergeTableLoopProperty,
 										  MergeTableProperties mergeTableProperties,
 										  PreviewMergeReadOperation previewMergeReadOperation) {
 		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();

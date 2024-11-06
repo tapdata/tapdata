@@ -28,15 +28,11 @@ public class PreviewReadOperationQueue {
 			queue.put(previewOperation);
 		} catch (InterruptedException ignored) {
 			// do nothing
+			Thread.currentThread().interrupt();
 		}
 	}
 
-	public PreviewOperation take(String nodeId) throws InterruptedException {
-		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
-		return queue.take();
-	}
-
-	public PreviewOperation poll(String nodeId) throws InterruptedException {
+	public PreviewOperation poll(String nodeId) {
 		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
 		return queue.poll();
 	}

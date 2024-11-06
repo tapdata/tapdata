@@ -217,6 +217,7 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 					try {
 						replyPreviewOperationData(handleResult, previewOperation);
 					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
 						return false;
 					}
 					tapdataEvents = wrapTapdataEvents(handleResult, previewOperation);
