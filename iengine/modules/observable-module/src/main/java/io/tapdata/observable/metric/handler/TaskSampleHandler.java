@@ -11,7 +11,6 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,19 +53,19 @@ public class TaskSampleHandler extends AbstractHandler {
     SpeedSampler outputSpeed;
     AverageSampler timeCostAverage;
 
-    private CounterSampler createTableTotal;
-    private CounterSampler snapshotTableTotal;
-    private CounterSampler snapshotRowTotal;
-    private CounterSampler snapshotInsertRowTotal;
-    private Long snapshotStartAt = null;
-    private Long snapshotDoneAt = null;
-    private Long snapshotDoneCost = null;
-    private String currentSnapshotTable = null;
-    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
-    private Long currentSnapshotTableInsertRowTotal = 0L;
-    private Long currentSnapshotTableRowTotal = null;
-    private Double outputQpsMax;
-    private Double outputQpsAvg;
+    protected CounterSampler createTableTotal;
+    protected CounterSampler snapshotTableTotal;
+    protected CounterSampler snapshotRowTotal;
+    protected CounterSampler snapshotInsertRowTotal;
+    protected Long snapshotStartAt = null;
+    protected Long snapshotDoneAt = null;
+    protected Long snapshotDoneCost = null;
+    protected String currentSnapshotTable = null;
+    protected final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+    protected Long currentSnapshotTableInsertRowTotal = 0L;
+    protected Long currentSnapshotTableRowTotal = null;
+    protected Double outputQpsMax;
+    protected Double outputQpsAvg;
 
     private final Set<String> taskTables = new HashSet<>();
 
@@ -289,16 +288,9 @@ public class TaskSampleHandler extends AbstractHandler {
         outputDdlCounter.inc();
     }
 
-    AtomicBoolean firstBatchRead = new AtomicBoolean(true);
     public void handleBatchReadStart(String table) {
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
-//        if (firstBatchRead.get()) {
-//            if (Objects.nonNull(snapshotTableTotal)) {
-//                snapshotTableTotal.reset();
-//            }
-//            firstBatchRead.set(false);
-//        }
     }
 
     public void handleBatchReadAccept(HandlerUtil.EventTypeRecorder recorder) {
@@ -306,9 +298,6 @@ public class TaskSampleHandler extends AbstractHandler {
         inputSizeSpeed.add(recorder.getMemorySize());
         inputInsertCounter.inc(size);
         inputSpeed.add(size);
-//        currentSnapshotTableInsertRowTotal += size;
-
-//        snapshotInsertRowTotal.inc(size);
     }
 
     public void handleBatchReadFuncEnd() {

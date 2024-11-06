@@ -147,7 +147,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 								javaScriptFunctions,
 								clientMongoOperator,
 								scriptCacheService,
-								new ObsScriptLogger(obsLogger, logger),
+								new ObsScriptLogger(getScriptObsLogger(), logger),
 								this.standard)
 						: ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
@@ -157,13 +157,13 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						null,
 						null,
 						scriptCacheService,
-						new ObsScriptLogger(obsLogger, logger),
+						new ObsScriptLogger(getScriptObsLogger(), logger),
 						this.standard);
 			} catch (ScriptException e) {
 				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e);
 			}
 			if (!this.standard) {
-				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
+				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
 						node.getTaskId(), node.getId(),
 						StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 								TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
@@ -195,7 +195,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					if (nodes.size() > 1) {
 						obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
 					}
-					return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger));
+					return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(getScriptObsLogger()));
 				}
 			}
 		}
@@ -245,6 +245,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		contextMap.put(BEFORE, before);
 		contextMap.put("info", tapEvent.getInfo());
 		contextMap.put("global", this.globalTaskContent);
+        contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
 		Map<String, Object> context = this.processContextThreadLocal.get();
 		context.putAll(contextMap);
 

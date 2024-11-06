@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
+import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -437,7 +438,7 @@ public class FieldProcessUtil {
 		}
 	}
 
-	private static Object convert(Object value, String newDataType) {
+	protected static Object convert(Object value, String newDataType) {
 		if (value == null || StringUtils.isBlank(newDataType)) {
 			return value;
 		}
@@ -449,6 +450,9 @@ public class FieldProcessUtil {
 					} catch (Throwable e) {
 						throw new FieldProcessRuntimeException(String.format("Convert %s to json string failed, value: %s", value.getClass().getSimpleName(), value), e);
 					}
+				} else if (value instanceof DateTime) {
+					Instant instant = ((DateTime) value).toInstant();
+					value = instant.toString();
 				} else {
 					value = String.valueOf(value);
 				}

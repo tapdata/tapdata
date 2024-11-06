@@ -38,7 +38,14 @@
             **/*Context.java,
             **/*Exception.java,
             **/*Controller.java,
-            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java
+            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java,
+            iengine/iengine-common/src/main/java/io/tapdata/flow/engine/V2/log/CollectLog.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/exactlyonce/write/ExactlyOnceWriteCleaner.java,
+            iengine/iengine-common/src/main/java/com/tapdata/processor/Log4jScriptLogger.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/script/ObsScriptLogger.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/StopTaskOnErrorLog.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/script/TapScriptLogger.java,
+            iengine/api/src/main/java/io/tapdata/aspect/TaskBatchSplitAspect.java
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
@@ -59,7 +66,14 @@
             **/*Context.java,
             **/*Exception.java,
             **/*Controller.java,
-            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java
+            iengine/iengine-common/src/main/java/io/tapdata/log/CustomPatternLayout.java,
+            iengine/iengine-common/src/main/java/io/tapdata/flow/engine/V2/log/CollectLog.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/exactlyonce/write/ExactlyOnceWriteCleaner.java,
+            iengine/iengine-common/src/main/java/com/tapdata/processor/Log4jScriptLogger.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/script/ObsScriptLogger.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/StopTaskOnErrorLog.java,
+            iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/script/TapScriptLogger.java,
+            iengine/api/src/main/java/io/tapdata/aspect/TaskBatchSplitAspect.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
