@@ -10,7 +10,6 @@ import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -22,8 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
+import java.util.stream.Collectors;
 
 @NodeType("migrate_field_rename_processor")
 @Getter
@@ -112,6 +110,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		default void renameField(T param, String fromName, String toName) {
 		}
 
+		default void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, T param) {
+		}
+
 		default Object renameFieldWithReturn(T param, String fromName, String toName) {
 			return null;
 		}
@@ -121,22 +122,33 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		protected final Operation fieldsOperation;
 		protected final Map<String, TableFieldInfo> tableFieldInfoMap;
 		protected final Map<String, Map<String, FieldInfo>> fieldInfoMaps;
-
+		protected final Map<String, List<String>> targetFieldExistMaps;
 
 		public ApplyConfig(MigrateFieldRenameProcessorNode node) {
 			fieldsOperation = node.getFieldsOperation();
 			fieldInfoMaps = new HashMap<>();
+			targetFieldExistMaps = new HashMap<>();
 			tableFieldInfoMap = Optional.ofNullable(node.getFieldsMapping()).map(tableFieldInfos -> {
 				Map<String, TableFieldInfo> tableMap = new HashMap<>();
 				for (TableFieldInfo info : tableFieldInfos) {
 					tableMap.put(info.getPreviousTableName(), info);
 					Map<String, FieldInfo> fieldMap = new HashMap<>();
+					List<String> sourceFieldNames = new ArrayList<>();
+					List<String> targetFieldNames = new ArrayList<>();
 					if (null != info.getFields()) {
 						for (FieldInfo fieldInfo : info.getFields()) {
 							fieldMap.put(fieldInfo.getSourceFieldName(), fieldInfo);
+							String sourceFieldName = fieldInfo.getSourceFieldName();
+							String targetFieldName = fieldInfo.getTargetFieldName();
+							sourceFieldNames.add(sourceFieldName);
+							if (null != sourceFieldName && !sourceFieldName.equals(targetFieldName)) {
+								targetFieldNames.add(targetFieldName);
+							}
 						}
 					}
+					List<String> targetFieldExists = targetFieldNames.stream().filter(fieldName -> sourceFieldNames.contains(fieldName)).collect(Collectors.toList());
 					fieldInfoMaps.put(info.getPreviousTableName(), fieldMap);
+					targetFieldExistMaps.put(info.getPreviousTableName(), targetFieldExists);
 				}
 				return tableMap;
 			}).orElse(new HashMap<>());
