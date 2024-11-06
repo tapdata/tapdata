@@ -1,6 +1,8 @@
 package io.tapdata.milestone.entity;
 
 import io.tapdata.milestone.constants.MilestoneStatus;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -10,6 +12,8 @@ import java.util.Optional;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2023/2/13 14:25 Create
  */
+@Getter
+@Setter
 public class MilestoneEntity implements Serializable {
     private String code;
     private MilestoneStatus status;
@@ -37,154 +41,6 @@ public class MilestoneEntity implements Serializable {
     public MilestoneEntity(String code, MilestoneStatus status) {
         this.code = code;
         this.status = status;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
-    }
-
-    public MilestoneStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(MilestoneStatus status) {
-        this.status = status;
-    }
-
-    public String getErrorCode() {
-        return errorCode;
-    }
-
-    public void setErrorCode(String errorCode) {
-        this.errorCode = errorCode;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    public String getStackMessage() {
-        return stackMessage;
-    }
-
-    public void setStackMessage(String stackMessage) {
-        this.stackMessage = stackMessage;
-    }
-
-    public Long getBegin() {
-        return begin;
-    }
-
-    public void setBegin(Long begin) {
-        this.begin = begin;
-    }
-
-    public Long getEnd() {
-        return end;
-    }
-
-    public void setEnd(Long end) {
-        this.end = end;
-    }
-
-    public Long getProgress() {
-        return progress;
-    }
-
-    public void setProgress(Long progress) {
-        this.progress = progress;
-    }
-
-    public synchronized void addProgress(int size) {
-        this.progress += size;
-    }
-
-    public Long getTotals() {
-        return totals;
-    }
-
-    public void setTotals(Long totals) {
-        this.totals = totals;
-    }
-
-    public Boolean getRetrying() {
-        return retrying;
-    }
-
-    public void setRetrying(Boolean retrying) {
-        this.retrying = retrying;
-    }
-
-    public Long getRetryTimes() {
-        return retryTimes;
-    }
-
-    public void setRetryTimes(Long retryTimes) {
-        this.retryTimes = retryTimes;
-    }
-
-    public Long getStartRetryTs() {
-        return startRetryTs;
-    }
-
-    public void setStartRetryTs(Long startRetryTs) {
-        this.startRetryTs = startRetryTs;
-    }
-
-    public Long getEndRetryTs() {
-        return endRetryTs;
-    }
-
-    public void setEndRetryTs(Long endRetryTs) {
-        this.endRetryTs = endRetryTs;
-    }
-
-    public Long getNextRetryTs() {
-        return nextRetryTs;
-    }
-
-    public void setNextRetryTs(Long nextRetryTs) {
-        this.nextRetryTs = nextRetryTs;
-    }
-
-    public Long getTotalOfRetries() {
-        return totalOfRetries;
-    }
-
-    public void setTotalOfRetries(Long totalOfRetries) {
-        this.totalOfRetries = totalOfRetries;
-    }
-
-    public String getRetryOp() {
-        return retryOp;
-    }
-
-    public void setRetryOp(String retryOp) {
-        this.retryOp = retryOp;
-    }
-
-    public Map<String, Object> getRetryMetadata() {
-        return retryMetadata;
-    }
-
-    public void setRetryMetadata(Map<String, Object> retryMetadata) {
-        this.retryMetadata = retryMetadata;
-    }
-
-    public Boolean getRetrySuccess() {
-        return retrySuccess;
-    }
-
-    public void setRetrySuccess(Boolean retrySuccess) {
-        this.retrySuccess = retrySuccess;
     }
 
     public static MilestoneEntity valueOf(Object o) {
