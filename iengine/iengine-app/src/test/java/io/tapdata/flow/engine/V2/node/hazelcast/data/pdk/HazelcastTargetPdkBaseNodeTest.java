@@ -359,6 +359,29 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastTargetPdkBaseNode.createTable(tapTable, succeed, true);
 			verify(hazelcastTargetPdkBaseNode, new Times(1)).buildErrorConsumer("test");
 		}
+		@Test
+		void testCreateTableForException() {
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "unwindProcess", false);
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			AtomicBoolean succeed = new AtomicBoolean(true);
+			Node node = mock(Node.class);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
+			when(node.disabledNode()).thenReturn(false);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getCreateTableFunction()).thenReturn(mock(CreateTableFunction.class));
+			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
+			doThrow(new RuntimeException("create table failed")).when(hazelcastTargetPdkBaseNode).executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).createTable(tapTable, succeed, true);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).throwTapCodeException(any(),any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastTargetPdkBaseNode.createTable(tapTable, succeed, true);
+			});
+			assertEquals(tapCodeException.getCode(),TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED);
+		}
 
 		@Test
 		void createTableTestForInit() {
@@ -449,6 +472,37 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, "test", true);
 			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test", true);
+		}
+		@Test
+		void dropTableTestForException() {
+			TaskDto taskDto = new TaskDto();
+			taskDto.setType("initial_sync");
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			HazelcastTargetPdkDataNode hazelcastTargetPdkDataNode = mock(HazelcastTargetPdkDataNode.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "dataProcessorContext", dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "clientMongoOperator", mockClientMongoOperator);
+			TapTable tapTable = new TapTable();
+			tapTable.setId("test");
+			Node node = mock(Node.class);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			when(node.disabledNode()).thenReturn(false);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			ConnectorFunctions functions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+			when(functions.getDropTableFunction()).thenReturn(mock(DropTableFunction.class));
+			when(dataProcessorContext.getTargetConn()).thenReturn(mock(Connections.class));
+
+
+			when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(Class.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class))).thenThrow(new RuntimeException("drop table failed"));
+			ExistsDataProcessEnum existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum, "test", true);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum, "test", true);
+			});
+			assertEquals(tapCodeException.getCode(),TaskTargetProcessorExCode_15.DROP_TABLE_FAILED);
+
 		}
 
 		@Test

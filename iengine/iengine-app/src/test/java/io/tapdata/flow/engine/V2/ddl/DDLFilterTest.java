@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.ddl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
 import org.junit.jupiter.api.Assertions;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
 class DDLFilterTest {
@@ -20,7 +22,8 @@ class DDLFilterTest {
     void testDDL_Error(){
         DDLFilter ddlFilter = DDLFilter.create(new ArrayList<>(), DDLConfiguration.ERROR,null,null);
         TapAlterFieldNameEvent tapAlterFieldNameEvent = new TapAlterFieldNameEvent();
-        Assertions.assertThrows(TapCodeException.class,()->ddlFilter.test(tapAlterFieldNameEvent));
+        TapCodeException tapCodeException = Assertions.assertThrows(TapCodeException.class, () -> ddlFilter.test(tapAlterFieldNameEvent));
+        assertEquals(TaskProcessorExCode_11.ENCOUNTERED_DDL_EVENT_REPORT_ERROR,tapCodeException.getCode());
     }
 
     @Test
@@ -67,6 +70,7 @@ class DDLFilterTest {
         disabledEvents.add("alter_field_name_event");
         DDLFilter ddlFilter = DDLFilter.create(disabledEvents, DDLConfiguration.SYNCHRONIZATION,null,null);
         TapDDLUnknownEvent tapDDLUnknownEvent = new TapDDLUnknownEvent();
-        Assertions.assertThrows(TapCodeException.class,()->ddlFilter.test(tapDDLUnknownEvent));
+        TapCodeException tapCodeException = Assertions.assertThrows(TapCodeException.class, () -> ddlFilter.test(tapDDLUnknownEvent));
+        assertEquals(tapCodeException.getCode(),TaskProcessorExCode_11.UNABLE_TO_SYNCHRONIZE_DDL_EVENT);
     }
 }

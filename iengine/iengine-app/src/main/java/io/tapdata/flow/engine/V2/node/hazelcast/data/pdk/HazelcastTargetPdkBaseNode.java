@@ -302,7 +302,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             return false;
         }
         AtomicReference<TapCreateTableEvent> tapCreateTableEvent = new AtomicReference<>();
-        boolean createdTable;
+        boolean createdTable = false;
         try {
             CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
             CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
@@ -345,13 +345,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             }
 
         } catch (Throwable throwable) {
-            Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-            if (null != matched) {
-                throw (TapCodeException) matched;
-            } else {
-                throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-                        .addEvent(tapCreateTableEvent.get());
-            }
+            TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
+                    .addEvent(tapCreateTableEvent.get())
+                    .dynamicDescriptionParameters(tapTable.getId());
+            throwTapCodeException(throwable,tapEventException);
         }
         return createdTable;
     }
@@ -1132,7 +1129,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         TapRecordEvent tapEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
         Long timestamp = TapEventUtil.getTimestamp(tapEvent);
         if (null == timestamp) {
-            throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, "Event: " + tapEvent);
+            throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, String.format("Event from tableId:%s,exactlyOnceId is %s", tapEvent.getTableId(), tapEvent.getExactlyOnceId()))
+                    .dynamicDescriptionParameters(tapEvent.getTableId(), tapEvent.getExactlyOnceId());
         }
         Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()), tapEvent, timestamp);
         TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create()
@@ -1541,7 +1539,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         return CheckExactlyOnceWriteEnableResult.createEnable();
     }
 
-    private boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
+    protected boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
         return SyncStage.CDC.equals(syncStage) && exactlyOnceWriteTables.contains(tableId);
     }
 

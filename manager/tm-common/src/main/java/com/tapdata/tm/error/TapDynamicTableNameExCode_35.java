@@ -51,14 +51,14 @@ public interface TapDynamicTableNameExCode_35 {
     String DYNAMIC_METHOD_ACCESS_FAILED = "35005";
 
     @TapExCode(
-            describe = "Table renamed DDL conflicts with the custom table name.\n" +
-                    "Reason:\n1. The task assigns a new table name to the table, which cannot be automatically processed when the table is renamed DDL.",
-            solution = "1. The task configuration needs to be analyzed and resolved.",
-            describeCN = "当复制任务有表编辑节点时，并且源端出现表改名DDL操作时，表编辑节点与改名DDL会发生冲突，则会报此错误",
-            solutionCN = "1、修改任务配置，删除表编辑节点" +
-                    "2、修改任务配置，在源节点-高级设置中-忽略表改名DDL事件",
-            dynamicDescription = "Can't apply table rename DDL because it conflicts with custom-table-name from {} to {}",
-            dynamicDescriptionCN = "不能应用表重命名DDL，因为它与表编辑自定义表名冲突，从 {} 到 {}"
+            describe = "The conflict between the table renaming DDL event and the table renaming node in the task is identified in the source node",
+            describeCN = "源节点中识别出表改名DDL事件与任务中的表编辑节点产生冲突",
+            solution = "1. Modify the task configuration to remove the table editor node\n+" +
+                    "2. Change the -Advanced Settings -DDL synchronization configuration in the node configuration of the source node to automatically ignore all DDLS, so that the source node will ignore DDL events and will not conflict with the table editor node",
+            solutionCN = "1. 修改任务配置，删除表编辑节点" +
+                    "2. 将源节点的节点配置中-高级设置-DDL同步配置修改为自动忽略所有DDL，这样源节点将忽略DDL事件，不会与表编辑节点产生冲突",
+            dynamicDescription = "Cannot apply the table renaming DDL because it conflicts with the custom table name in the table editor node, from {} to {}",
+            dynamicDescriptionCN = "不能应用表重命名DDL，因为它与表编辑节点中的自定义表名冲突，从 {} 到 {}"
     )
     String RENAME_DDL_CONFLICTS_WITH_CUSTOM_TABLE_NAME = "35006";
 }

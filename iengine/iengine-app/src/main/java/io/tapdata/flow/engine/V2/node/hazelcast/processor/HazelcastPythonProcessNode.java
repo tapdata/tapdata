@@ -12,6 +12,7 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
@@ -186,7 +187,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 thread.interrupt();
             }
             if (errorAtomicRef.get() != null) {
-                throw new TapCodeException(TaskProcessorExCode_11.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
+                throw new TapCodeException(ScriptProcessorExCode_30.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
             }
 
         } else {

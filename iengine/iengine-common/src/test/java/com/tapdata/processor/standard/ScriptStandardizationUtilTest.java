@@ -185,7 +185,7 @@ class ScriptStandardizationUtilTest {
                 try {
                     ScriptStandardizationUtil.eval(e, "", "");
                 } catch (TapCodeException e) {
-                    Assertions.assertEquals(ScriptProcessorExCode_30.GET_SCRIPT_STANDARDIZATION_ENGINE_FAILED, e.getCode());
+                    Assertions.assertEquals(ScriptProcessorExCode_30.EVAL_SOURCE_ERROR, e.getCode());
                     throw e;
                 }
             });

@@ -10,6 +10,7 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
@@ -83,7 +84,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
-				throw new TapCodeException(TaskProcessorExCode_11.SCRIPT_INIT_FAILED, "Init script engine failed", e);
+				throw new TapCodeException(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED, "Init script engine failed", e);
 			}
 		}
 	}

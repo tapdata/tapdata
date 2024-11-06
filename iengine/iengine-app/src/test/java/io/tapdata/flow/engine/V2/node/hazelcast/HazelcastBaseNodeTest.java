@@ -20,6 +20,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -74,6 +75,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode.INSERT_METADATA_INFO_KEY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -290,6 +292,14 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			doThrow(new RuntimeException()).when(tapTableMap).preLoadSchema();
 			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
 			assertThrows(RuntimeException.class, () -> mockHazelcastBaseNode.init(jetContext));
+		}
+		@Test
+		void testInitSettingService(){
+			try{
+				hazelcastBaseNode.initSettingService();
+			}catch (TapCodeException e){
+				assertEquals(TaskProcessorExCode_11.INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL,e.getCode());
+			}
 		}
 	}
 
@@ -2005,6 +2015,32 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test buildErrorConsumer method for RuntimeException")
 		void test3(){
 			assertThrows(RuntimeException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(mock(RuntimeException.class)));
+		}
+	}
+	@Nested
+	class UpdateTapTableWhenDDLEventTest{
+		@DisplayName("test updateTapTableWhenDDLEvent for exception UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY")
+		@Test
+		void test1(){
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				HazelcastBaseNode.updateTapTableWhenDDLEvent("TestTableName", null, null, null, null);
+			});
+			assertEquals(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY,tapCodeException.getCode());
+		}
+		@DisplayName("test updateTapTableWhenCreateTableEvent for exception GET_NODE_METADATA_BY_TABLE_NAME_FAILED")
+		@Test
+		void test2(){
+			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create();
+			List<MetadataInstancesDto> metadataInstancesDtos=new ArrayList<>();
+			tapUpdateRecordEvent.addInfo(INSERT_METADATA_INFO_KEY,metadataInstancesDtos);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			doCallRealMethod().when(mockHazelcastBaseNode).updateTapTableWhenCreateTableEvent(anyString(),any(),any(),any());
+			Node mockNode = mock(Node.class);
+			when(mockHazelcastBaseNode.getNode()).thenReturn(mockNode);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastBaseNode.updateTapTableWhenCreateTableEvent("testTableName", tapUpdateRecordEvent, dagDataService, null);
+			});
+			assertEquals(tapCodeException.getCode(),TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED);
 		}
 	}
 }

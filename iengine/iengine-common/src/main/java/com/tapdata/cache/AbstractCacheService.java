@@ -62,7 +62,7 @@ public abstract class AbstractCacheService implements ICacheService {
 			try {
 				encodeCacheName = URLEncoder.encode(cacheName, "UTF-8");
 			} catch (UnsupportedEncodingException e) {
-				throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName);
+				throw new EncoderCacheNameException(ShareCacheExCode_20.ENCODE_CACHE_NAME, e).cacheName(cacheName).dynamicDescriptionParameters(cacheName);
 			}
 			// 如果不存在，则向tm查询
 			TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + encodeCacheName, TaskDto.class);

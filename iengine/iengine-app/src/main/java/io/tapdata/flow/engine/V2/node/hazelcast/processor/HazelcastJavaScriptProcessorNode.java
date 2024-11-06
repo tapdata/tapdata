@@ -15,6 +15,7 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.processor.standard.ScriptStandardizationUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -159,7 +160,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						new ObsScriptLogger(obsLogger, logger),
 						this.standard);
 			} catch (ScriptException e) {
-				throw new TapCodeException(TaskProcessorExCode_11.INIT_SCRIPT_ENGINE_FAILED, e);
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e);
 			}
 			if (!this.standard) {
 				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
@@ -275,14 +276,18 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
-				throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
 			}
 
 		} else {
-			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
-			// handle before
-			if (standard && TapUpdateRecordEvent.TYPE == tapEvent.getType() && MapUtils.isNotEmpty(before)) {
-				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
+			try {
+				scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
+				// handle before
+				if (standard && TapUpdateRecordEvent.TYPE == tapEvent.getType() && MapUtils.isNotEmpty(before)) {
+					scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
+				}
+			} catch (Exception e) {
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, e.getCause()).dynamicDescriptionParameters(e.getMessage());
 			}
 		}
 
