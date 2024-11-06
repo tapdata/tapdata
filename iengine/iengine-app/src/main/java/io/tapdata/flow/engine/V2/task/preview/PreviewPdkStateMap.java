@@ -1,7 +1,5 @@
 package io.tapdata.flow.engine.V2.task.preview;
 
-import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 
 import java.util.HashMap;
@@ -16,12 +14,6 @@ public class PreviewPdkStateMap extends PdkStateMap {
 	private Map<String, Object> map = new HashMap<>();
 
 	public PreviewPdkStateMap() {
-	}
-
-	public PreviewPdkStateMap(String nodeId, HazelcastInstance hazelcastInstance) {
-	}
-
-	public PreviewPdkStateMap(HazelcastInstance hazelcastInstance, Node<?> node) {
 	}
 
 	@Override
