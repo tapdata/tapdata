@@ -18,6 +18,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -36,6 +37,11 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		@Override
 		public void renameField(Map<String, Object> param, String fromName, String toName) {
 			MapUtil.replaceKey(fromName, param, toName);
+		}
+
+		@Override
+		public void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, Map<String, Object> param) {
+			replaceValueIfNeed(oldKey, newKey, originValueMap, param);
 		}
 
 		@Override
@@ -293,10 +299,12 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 
 		protected <T> boolean applyFieldInfo(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
-			if (MapUtils.isEmpty(fieldInfoMaps) || !fieldInfoMaps.containsKey(tableName)) {
+			if (MapUtils.isEmpty(fieldInfoMaps) || !fieldInfoMaps.containsKey(tableName) || MapUtils.isEmpty(targetFieldExistMaps) || !targetFieldExistMaps.containsKey(tableName)) {
 				return false;
 			}
 			Map<String, FieldInfo> fieldInfoMap = fieldInfoMaps.get(tableName);
+			List<String> targetFieldExists = targetFieldExistMaps.get(tableName);
+			Map<String, Object> originValueMap = new HashMap<>();
 			for (Map.Entry<String, FieldInfo> entry : fieldInfoMap.entrySet()) {
 				String key = entry.getKey();
 				FieldInfo fieldInfo = entry.getValue();
@@ -304,10 +312,24 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 					operator.deleteField(operatorParam, key);
 				}
 				if (StringUtils.isNotBlank(fieldInfo.getTargetFieldName())) {
-					operator.renameField(operatorParam, key, fieldInfo.getTargetFieldName());
+					if (targetFieldExists.contains(key) || targetFieldExists.contains(fieldInfo.getTargetFieldName())) {
+						operator.renameField(key, fieldInfo.getTargetFieldName(), originValueMap, operatorParam);
+					} else {
+						operator.renameField(operatorParam, key, fieldInfo.getTargetFieldName());
+					}
 				}
 			}
 			return true;
+		}
+	}
+
+	protected void replaceValueIfNeed(String oldKey, String newKey, Map<String, Object> originValueMap, Map<String, Object> param) {
+		Object originValue = param.get(newKey);
+		originValueMap.put(newKey, originValue);
+		if (originValueMap.containsKey(oldKey)) {
+			param.put(newKey, originValueMap.get(oldKey));
+		} else {
+			MapUtil.replaceKey(oldKey, param, newKey);
 		}
 	}
 

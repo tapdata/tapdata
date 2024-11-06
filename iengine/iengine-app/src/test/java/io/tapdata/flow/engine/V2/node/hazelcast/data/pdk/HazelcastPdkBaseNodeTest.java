@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import cn.hutool.core.collection.ConcurrentHashSet;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -25,6 +26,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
@@ -38,9 +40,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
@@ -581,6 +581,27 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(node.getId()).thenReturn(nodeName);
 			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
 			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
+		}
+	}
+
+	@Nested
+	class cleanTableBatchOffsetIfNeedTest {
+		@Test
+		void testCleanTableBatchOffsetIfNeed() {
+			hazelcastPdkBaseNode = spy(hazelcastPdkBaseNode);
+			when(hazelcastPdkBaseNode.getConnectorNode()).thenReturn(mock(ConnectorNode.class));
+			SyncProgress syncProgress = new SyncProgress();
+			syncProgress.setBatchOffset("gAFkABFqYXZhLnV0aWwuSGFzaE1hcAEUAAp0YWJsZV8xTV80AWQAEWphdmEudXRpbC5IYXNoTWFw\n" +
+					"ARQAG2JhdGNoX3JlYWRfY29ubmVjdG9yX3N0YXR1cwEUAARPVkVSqAEUAAt0YWJsZV8yMEtfNwFk\n" +
+					"ABFqYXZhLnV0aWwuSGFzaE1hcAEUABtiYXRjaF9yZWFkX2Nvbm5lY3Rvcl9zdGF0dXMBFAAET1ZF\n" +
+					"Uqio");
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			Set<String> tableIds = new HashSet<>();
+			tableIds.add("table_1M_4");
+			when(tapTableMap.keySet()).thenReturn(tableIds);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			hazelcastPdkBaseNode.readBatchOffset(syncProgress);
+			assertEquals(1, ((Map)syncProgress.getBatchOffsetObj()).size());
 		}
 	}
 }
