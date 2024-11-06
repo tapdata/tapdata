@@ -4,11 +4,14 @@ import com.tapdata.mongo.ClientMongoOperator;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.Message;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +33,8 @@ class ObsHttpTMLog4jAppenderTest {
 	@BeforeEach
 	void setUp() {
 		clientMongoOperator = mock(ClientMongoOperator.class);
-		obsHttpTMLog4jAppender = new ObsHttpTMLog4jAppender("test", null, null, false, null, clientMongoOperator, 10);
+		obsHttpTMLog4jAppender = new ObsHttpTMLog4jAppender("test", null, null, false,
+				null, clientMongoOperator, 10, "taskId");
 		obsHttpTMLog4jAppender = spy(obsHttpTMLog4jAppender);
 	}
 
@@ -74,5 +78,15 @@ class ObsHttpTMLog4jAppenderTest {
 		assertFalse(running.get());
 		assertTrue(consumeMessageThreadPool.isShutdown());
 		assertTrue(consumeMessageThreadPool.isTerminated());
+	}
+
+	@Test
+	void testCallTmApiInsertLogs() {
+		List<String> logs = new ArrayList<>(Arrays.asList("test 1", "test 2", "INFO src=user_script test 3"));
+		obsHttpTMLog4jAppender.callTmApiInsertLogs(logs);
+
+		verify(clientMongoOperator, times(1)).insertMany(anyList(), eq("MonitoringLogs/batchJson"));
+
+		Assertions.assertEquals(0, logs.size());
 	}
 }

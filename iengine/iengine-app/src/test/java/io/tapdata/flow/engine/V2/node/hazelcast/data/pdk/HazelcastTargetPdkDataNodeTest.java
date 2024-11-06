@@ -17,35 +17,50 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.*;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.ReflectionUtils;
 
 import java.sql.Ref;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -640,6 +655,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		@Test
 		@DisplayName("test dropTable method for build error consumer")
 		void test1(){
+			TapTable mockTable = mock(TapTable.class);
+			when(mockTable.getId()).thenReturn(tableId);
 			SyncTypeEnum syncType = SyncTypeEnum.INITIAL_SYNC;
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"syncType",syncType);
 			existsDataProcessEnum = ExistsDataProcessEnum.DROP_TABLE;
@@ -649,8 +666,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
 			when(functions.getDropTableFunction()).thenReturn(mock(DropTableFunction.class));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,tableId,true);
-			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,tableId,true);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).dropTable(existsDataProcessEnum,mockTable,true);
+			hazelcastTargetPdkDataNode.dropTable(existsDataProcessEnum,mockTable,true);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
 		}
 	}
@@ -859,6 +876,247 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node1);
 			boolean actual = hazelcastTargetPdkDataNode.checkCreateUniqueIndexOpen();
 			assertEquals(true, actual);
+		}
+	}
+
+	@Nested
+	class testFilterSubPartitionTableTableMap {
+		@Test
+		void testFilterSubPartitionTableTableMap() {
+
+			DataProcessorContext context = mock(DataProcessorContext.class);
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("test");
+
+			TapTable table = new TapTable();
+			table.setId("test");
+			table.setName("test");
+			table.setPartitionInfo(new TapPartition());
+			table.setPartitionMasterTableId("test");
+			tableMap.putNew("test", table, "test");
+
+			table = new TapTable();
+			table.setId("test1");
+			table.setName("test1");
+			table.setPartitionInfo(new TapPartition());
+			table.setPartitionMasterTableId("test1_1");
+			tableMap.putNew("test1", table, "test1");
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+			when(context.getTapTableMap()).thenReturn(tableMap);
+			Node node = new DatabaseNode();
+			node.setId("test");
+			node.setName("test");
+			when(context.getNode()).thenReturn(node);
+
+			HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
+			targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.TRUE;
+
+			Set<String> result = targetPdkDataNode.filterSubPartitionTableTableMap();
+
+			Assertions.assertNotNull(result);
+			Assertions.assertEquals(1, result.size());
+
+			targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.FALSE;
+			result = targetPdkDataNode.filterSubPartitionTableTableMap();
+
+			Assertions.assertNotNull(result);
+			Assertions.assertEquals(2, result.size());
+
+		}
+	}
+
+	@Test
+	public void testDropTable() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		node.setId("test");
+		node.setName("test");
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
+		targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.TRUE;
+
+		HazelcastTargetPdkDataNode spyTargetPdkDataNode = spy(targetPdkDataNode);
+
+		ConnectorNode connectorNode = mock(ConnectorNode.class);
+		ConnectorFunctions connectorFunction = mock(ConnectorFunctions.class);
+		DropTableFunction dropTableFunction = new DropTableFunction() {
+			@Override
+			public void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Throwable {
+
+			}
+		};
+		DropPartitionTableFunction dropPartititonTableFunction = new DropPartitionTableFunction() {
+			@Override
+			public void dropTable(TapConnectorContext connectorContext, TapDropTableEvent dropTableEvent) throws Exception {
+
+			}
+		};
+		when(connectorFunction.getDropTableFunction()).thenReturn(dropTableFunction);
+
+		when(connectorFunction.getDropPartitionTableFunction()).thenReturn(dropPartititonTableFunction);
+		when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunction);
+		when(spyTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+		doAnswer(answer -> {
+			Callable aspectCallable = answer.getArgument(1);
+			aspectCallable.call();
+			return null;
+		}).when(spyTargetPdkDataNode).executeDataFuncAspect(any(), any(), any());
+
+		doAnswer(answer -> {
+			Callable aspectCallable = answer.getArgument(1);
+			CommonUtils.AnyErrorConsumer anyErrorConsumer = answer.getArgument(2);
+			aspectCallable.call();
+			anyErrorConsumer.accept(null);
+			return null;
+		}).when(spyTargetPdkDataNode).executeDataFuncAspect(any(), any(), any());
+
+		TapTable table = new TapTable();
+		table.setId("test");
+		table.setName("test");
+		table.setPartitionInfo(new TapPartition());
+		spyTargetPdkDataNode.dropTable(ExistsDataProcessEnum.DROP_TABLE, table, true);
+
+		verify(spyTargetPdkDataNode, times(1)).executeDataFuncAspect(any(), any(), any());
+	}
+
+	@Test
+	void testWriteDDL() {
+		DataProcessorContext context = mock(DataProcessorContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+		when(context.getTaskDto()).thenReturn(taskDto);
+
+		Node node = new DatabaseNode();
+		node.setId("test");
+		node.setName("test");
+		when(context.getNode()).thenReturn(node);
+
+		HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
+		targetPdkDataNode.syncTargetPartitionTableEnable = true;
+		targetPdkDataNode.uploadDagService = new AtomicBoolean();
+		ClassHandlers ddlEventHandlers = mock(ClassHandlers.class);
+		ObsLogger obsLogger = mock(ObsLogger.class);
+		ReflectionTestUtils.setField(targetPdkDataNode, "ddlEventHandlers", ddlEventHandlers);
+		ReflectionTestUtils.setField(targetPdkDataNode, "obsLogger", obsLogger);
+
+
+		List<TapEvent> events = new ArrayList<>();
+		TapCreateTableEvent createEvent = new TapCreateTableEvent();
+		createEvent.setTableId("test");
+		createEvent.setTable(new TapTable());
+		events.add(createEvent);
+		createEvent = new TapCreateTableEvent();
+		createEvent.setTableId("test1");
+		TapTable partitionTable = new TapTable();
+		partitionTable.setId("test_2");
+		partitionTable.setName("test_2");
+		partitionTable.setPartitionMasterTableId("test");
+		partitionTable.setPartitionInfo(new TapPartition());
+		createEvent.setTable(partitionTable);
+		events.add(createEvent);
+		TapDropTableEvent dropEvent = new TapDropTableEvent();
+		dropEvent.setTableId("test_1");
+		events.add(dropEvent);
+
+		targetPdkDataNode.writeDDL(events);
+
+		targetPdkDataNode.syncTargetPartitionTableEnable = false;
+		targetPdkDataNode.writeDDL(events);
+
+		verify(ddlEventHandlers,times(5)).handle(any());
+	}
+
+	@Nested
+	class testWriteRecord {
+
+		private HazelcastTargetPdkDataNode targetDataNode;
+		private DataProcessorContext context;
+		private TapTableMap<String, TapTable> tableMap;
+		private ISyncMetricCollector syncMetricCollector;
+
+		@BeforeEach
+		void beforeEach() {
+			context = mock(DataProcessorContext.class);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setSyncType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(context.getTaskDto()).thenReturn(taskDto);
+
+			Node node = new DatabaseNode();
+			node.setId("test");
+			node.setName("test");
+			when(context.getNode()).thenReturn(node);
+
+			tableMap = TapTableMap.create("nodeId");
+			when(context.getTapTableMap()).thenReturn(tableMap);
+
+			targetDataNode = new HazelcastTargetPdkDataNode(context);
+			ReflectionTestUtils.setField(targetDataNode, "partitionTapTables", new HashMap<>());
+			syncMetricCollector = mock(ISyncMetricCollector.class);;
+			targetDataNode.syncMetricCollector = syncMetricCollector;
+		}
+
+		@Test
+		void testWriteRecord() {
+
+			List<TapEvent> events = Stream.generate(() -> {
+				TapInsertRecordEvent e = new TapInsertRecordEvent();
+				e.setTableId("test");
+				e.setPartitionMasterTableId("test_1");
+				return e;
+			}).limit(5).collect(Collectors.toList());
+
+			TapTable table = new TapTable();
+			table.setId("test");
+			table.setName("test");
+			table.setPartitionMasterTableId("test");
+			table.setPartitionInfo(new TapPartition());
+			tableMap.putNew("test", table, "node_id_test");
+
+			HazelcastTargetPdkDataNode spyTargetDataNode = spy(targetDataNode);
+			doNothing().when(spyTargetDataNode).handleTapTablePrimaryKeys(any());
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			WriteRecordFunction writeRecord = new WriteRecordFunction() {
+				@Override
+				public void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> recordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+
+				}
+			};
+			when(connectorFunctions.getWriteRecordFunction()).thenReturn(writeRecord);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(connectorNode.getDagId()).thenReturn("test");
+			when(connectorNode.getAssociateId()).thenReturn("test");
+			TapNodeInfo tapNodeInfo = new TapNodeInfo();
+			tapNodeInfo.setTapNodeSpecification(new TapNodeSpecification());
+			tapNodeInfo.getTapNodeSpecification().setGroup("mysql");
+			tapNodeInfo.getTapNodeSpecification().setVersion("v1.0.0");
+			when(connectorNode.getTapNodeInfo()).thenReturn(tapNodeInfo);
+			when(spyTargetDataNode.getConnectorNode()).thenReturn(connectorNode);
+			PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+			doReturn(pdkMethodInvoker).when(spyTargetDataNode).createPdkMethodInvoker();
+
+			doAnswer(answer -> {
+				Callable aspectCallable = answer.getArgument(1);
+				aspectCallable.call();
+				return null;
+			}).when(spyTargetDataNode).executeDataFuncAspect(any(), any(), any());
+
+			Assertions.assertDoesNotThrow(() -> {
+				spyTargetDataNode.writeRecord(events);
+			});
+			verify(syncMetricCollector, times(1)).log(anyList());
+
 		}
 	}
 }

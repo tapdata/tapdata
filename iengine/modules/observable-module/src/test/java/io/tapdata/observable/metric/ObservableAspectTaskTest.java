@@ -3,16 +3,36 @@ package io.tapdata.observable.metric;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
+import io.tapdata.aspect.DropTableFuncAspect;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.aspect.*;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.observable.metric.handler.DataNodeSampleHandler;
+import io.tapdata.observable.metric.handler.ProcessorNodeSampleHandler;
+import io.tapdata.observable.metric.handler.TableSampleHandler;
+import io.tapdata.observable.metric.handler.TaskSampleHandler;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.observable.metric.handler.*;
 import io.tapdata.observable.metric.util.SyncGetMemorySizeHandler;
+import io.tapdata.observable.metric.util.TapCompletableFutureTaskEx;
+import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import net.sf.jsqlparser.statement.insert.Insert;
+import org.apache.commons.lang3.RandomUtils;
 import io.tapdata.observable.metric.util.TapCompletableFutureEx;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.bson.types.ObjectId;
@@ -24,7 +44,11 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.function.BiConsumer;
 
 import static org.mockito.Mockito.*;
@@ -309,6 +333,169 @@ public class ObservableAspectTaskTest {
         }
 
 
+
+    }
+
+    @Nested
+    class handleWriteRecordFunc {
+
+        @Test
+        void testStateStart() {
+            TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setTaskRecordId(new ObjectId().toHexString());
+            taskDto.setStartTime(new Date());
+            taskDto.setSyncType("migrate");
+            Node node = new DatabaseNode();
+            node.setId("nodeId");
+            List<SyncObjects> syncObjects = new ArrayList<>();
+            SyncObjects syncObject = new SyncObjects();
+            LinkedHashMap<String, String> tableNameRelation = new LinkedHashMap<>();
+            tableNameRelation.put("test", "test");
+            syncObject.setTableNameRelation(tableNameRelation);
+            syncObjects.add(syncObject);
+            ((DatabaseNode)node).setSyncObjects(syncObjects);
+
+            ObservableAspectTask task = new ObservableAspectTask();
+            task.initCompletableFuture();
+            task.setTask(taskDto);
+
+            Map<String, DataNodeSampleHandler> sampleHandler = new HashMap<>();
+
+            sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
+
+            Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            tableSampleHandler.init();
+            tableSampleHandlers.put("test", tableSampleHandler);
+            TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);
+            taskSampleHandler.init();
+
+            ReflectionTestUtils.setField(task, "dataNodeSampleHandlers", sampleHandler);
+            ReflectionTestUtils.setField(task, "tableSampleHandlers", tableSampleHandlers);
+            ReflectionTestUtils.setField(task, "taskSampleHandler", taskSampleHandler);
+
+            WriteRecordFuncAspect aspect = mock(WriteRecordFuncAspect.class);
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+            when(aspect.getDataProcessorContext()).thenReturn(dataProcessorContext);
+
+            when(dataProcessorContext.getNode()).thenReturn(node);
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+
+            TapTable tapTable = new TapTable();
+            tapTable.setName("test");
+            when(aspect.getTable()).thenReturn(tapTable);
+            when(aspect.getTime()).thenReturn(System.currentTimeMillis());
+
+            when(aspect.getState()).thenReturn(WriteRecordFuncAspect.STATE_START);
+
+            List<TapRecordEvent> recordEvents = Stream.generate(() -> {
+                        TapRecordEvent event = new TapInsertRecordEvent();
+                        event.setReferenceTime(System.currentTimeMillis());
+                        event.setTime(System.currentTimeMillis()- 10000);
+                        return event;
+            }).limit(RandomUtils.nextInt()% 10).collect(Collectors.toList());
+
+            when(aspect.getRecordEvents()).thenReturn(recordEvents);
+
+            WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+            when(aspect.consumer(any())).then(answer -> {
+                BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer = answer.getArgument(0);
+                resultConsumer.accept(recordEvents, result);
+                return aspect;
+            });
+
+            task.handleWriteRecordFunc(aspect);
+
+            task.closeCompletableFuture();
+
+            CounterSampler snapshotInsertRowCounter = (CounterSampler) ReflectionTestUtils.getField(tableSampleHandler, "snapshotInsertRowCounter");
+
+            Assertions.assertNotNull(snapshotInsertRowCounter);
+            Assertions.assertNotNull(snapshotInsertRowCounter.value());
+            Assertions.assertEquals(recordEvents.size(), snapshotInsertRowCounter.value().intValue());
+        }
+
+        @Test
+        void testStateStart_1() {
+            TaskSampleRetriever.getInstance().start(mock(RestTemplateOperator.class));
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setTaskRecordId(new ObjectId().toHexString());
+            taskDto.setStartTime(new Date());
+            taskDto.setSyncType("migrate");
+            Node node = new DatabaseNode();
+            node.setId("nodeId");
+            List<SyncObjects> syncObjects = new ArrayList<>();
+            SyncObjects syncObject = new SyncObjects();
+            LinkedHashMap<String, String> tableNameRelation = new LinkedHashMap<>();
+            tableNameRelation.put("test", "test");
+            syncObject.setTableNameRelation(tableNameRelation);
+            syncObjects.add(syncObject);
+            ((DatabaseNode)node).setSyncObjects(syncObjects);
+
+            ObservableAspectTask task = new ObservableAspectTask();
+            task.initCompletableFuture();
+            task.setTask(taskDto);
+
+            Map<String, DataNodeSampleHandler> sampleHandler = new HashMap<>();
+
+            sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
+
+            Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            tableSampleHandler.init();
+            tableSampleHandlers.put("test_1", tableSampleHandler);
+            TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);
+            taskSampleHandler.init();
+
+            ReflectionTestUtils.setField(task, "dataNodeSampleHandlers", sampleHandler);
+            ReflectionTestUtils.setField(task, "tableSampleHandlers", tableSampleHandlers);
+            ReflectionTestUtils.setField(task, "taskSampleHandler", taskSampleHandler);
+
+            WriteRecordFuncAspect aspect = mock(WriteRecordFuncAspect.class);
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+            when(aspect.getDataProcessorContext()).thenReturn(dataProcessorContext);
+
+            when(dataProcessorContext.getNode()).thenReturn(node);
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+
+            TapTable tapTable = new TapTable();
+            tapTable.setName("test");
+            when(aspect.getTable()).thenReturn(tapTable);
+            when(aspect.getTime()).thenReturn(System.currentTimeMillis());
+
+            when(aspect.getState()).thenReturn(WriteRecordFuncAspect.STATE_START);
+
+            List<TapRecordEvent> recordEvents = Stream.generate(() -> {
+                TapRecordEvent event = new TapInsertRecordEvent();
+                event.setReferenceTime(System.currentTimeMillis());
+                event.setTime(System.currentTimeMillis()- 10000);
+                return event;
+            }).limit(RandomUtils.nextInt()% 10).collect(Collectors.toList());
+
+            when(aspect.getRecordEvents()).thenReturn(recordEvents);
+
+            WriteListResult<TapRecordEvent> result = new WriteListResult<>();
+            when(aspect.consumer(any())).then(answer -> {
+                BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer = answer.getArgument(0);
+                resultConsumer.accept(recordEvents, result);
+                return aspect;
+            });
+
+            task.handleWriteRecordFunc(aspect);
+
+            task.closeCompletableFuture();
+
+            CounterSampler snapshotInsertRowCounter = (CounterSampler) ReflectionTestUtils.getField(tableSampleHandler, "snapshotInsertRowCounter");
+
+            Assertions.assertNotNull(snapshotInsertRowCounter);
+            Assertions.assertNotNull(snapshotInsertRowCounter.value());
+            Assertions.assertEquals(0, snapshotInsertRowCounter.value().intValue());
+        }
 
     }
 }

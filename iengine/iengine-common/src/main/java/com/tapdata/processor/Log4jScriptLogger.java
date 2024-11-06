@@ -55,5 +55,4 @@ public class Log4jScriptLogger implements Log {
 	public void fatal(String message, Object... params) {
 		logger.fatal(message, params);
 	}
-
 }

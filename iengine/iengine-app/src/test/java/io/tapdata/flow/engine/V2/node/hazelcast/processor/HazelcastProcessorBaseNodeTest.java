@@ -373,7 +373,5 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 			};
 			Assertions.assertThrows(TapCodeException.class,()->hazelcastProcessorBaseNode.tryProcess(tapdataEvents,consumer));
 		}
-
-
 	}
 }
