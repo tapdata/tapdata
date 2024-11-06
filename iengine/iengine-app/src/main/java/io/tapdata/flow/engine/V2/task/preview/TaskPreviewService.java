@@ -170,6 +170,7 @@ public class TaskPreviewService {
 			}
 		} catch (Exception e) {
 			taskPreviewResultVO.failed(e);
+			Thread.currentThread().interrupt();
 		} finally {
 			Optional.ofNullable(previewReadTaskletExecutor).ifPresent(ExecutorService::shutdownNow);
 		}

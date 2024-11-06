@@ -244,6 +244,7 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 			}
 		} catch (Exception e) {
 			errorHandle(e);
+			Thread.currentThread().interrupt();
 		}
 		return false;
 	}
