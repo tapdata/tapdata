@@ -14,7 +14,7 @@ public class PreviewReadOperation extends PreviewOperation {
 	protected String sourceNodeId;
 	protected TapAdvanceFilter tapAdvanceFilter;
 
-	public PreviewReadOperation(String sourceNodeId, int queueLimit) {
+	public PreviewReadOperation(String sourceNodeId) {
 		super(TYPE);
 		this.sourceNodeId = sourceNodeId;
 	}

@@ -32,9 +32,13 @@ import java.util.stream.Collectors;
  **/
 public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 
+	private Integer previewRows;
+
 	@Override
 	public void execute(TaskDto taskDto, PreviewReadOperationQueue previewReadOperationQueue) throws TaskPreviewException {
 		DAG dag = taskDto.getDag();
+		previewRows = taskDto.getPreviewRows();
+		previewRows = null == previewRows ? 1 : previewRows;
 		List<Node> nodes = dag.getNodes();
 		Node<?> foundMergeTableNode = nodes.stream().filter(n -> n instanceof MergeTableNode).findFirst().orElse(null);
 		if (foundMergeTableNode == null) {
@@ -67,7 +71,7 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 				sourceNodes.addAll(allSourceNodes);
 				for (Node<?> sourceNode : allSourceNodes) {
 					PreviewMergeReadOperation previewMergeReadOperation = new PreviewMergeReadOperation(
-							sourceNode.getId(), mergeTableLoopProperty, taskDto.getPreviewRows()
+							sourceNode.getId(), mergeTableLoopProperty, previewRows
 					);
 					if (buildTapAdvanceFilter(taskDto, mergeTableLoopProperty, mergeTableProperties, previewMergeReadOperation))
 						continue;
@@ -132,7 +136,7 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 										  PreviewMergeReadOperation previewMergeReadOperation) {
 		TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 		if (mergeTableLoopProperty.getLevel() == 1) {
-			tapAdvanceFilter.limit(taskDto.getPreviewRows());
+			tapAdvanceFilter.limit(previewRows);
 		} else {
 			List<MergeTableLoopProperty> parentProperties = mergeTableLoopProperty.getParentProperties();
 			DataMap parentData = parentProperties.get(parentProperties.size() - 1).getData();

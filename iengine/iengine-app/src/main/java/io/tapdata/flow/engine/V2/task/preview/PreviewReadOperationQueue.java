@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author samuel
@@ -38,5 +39,10 @@ public class PreviewReadOperationQueue {
 	public PreviewOperation poll(String nodeId) throws InterruptedException {
 		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
 		return queue.poll();
+	}
+
+	public PreviewOperation poll(String nodeId, long timeout, TimeUnit timeUnit) throws InterruptedException {
+		BlockingQueue<PreviewOperation> queue = nodeOperationQueueMap.computeIfAbsent(nodeId, k -> new ArrayBlockingQueue<>(queueLimit + 10));
+		return queue.poll(timeout, timeUnit);
 	}
 }

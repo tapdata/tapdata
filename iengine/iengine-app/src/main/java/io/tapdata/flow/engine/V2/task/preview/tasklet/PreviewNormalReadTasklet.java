@@ -20,10 +20,12 @@ public class PreviewNormalReadTasklet implements PreviewReadTasklet {
 	@Override
 	public void execute(TaskDto taskDto, PreviewReadOperationQueue previewReadOperationQueue) throws TaskPreviewException {
 		DAG dag = taskDto.getDag();
+		Integer previewRows = taskDto.getPreviewRows();
+		previewRows = null == previewRows ? 1 : previewRows;
 		List<Node> sourceNodes = dag.getSourceNodes();
 		for (Node sourceNode : sourceNodes) {
-			PreviewReadOperation previewReadOperation = new PreviewReadOperation(sourceNode.getId(), taskDto.getPreviewRows());
-			TapAdvanceFilter filter = TapAdvanceFilter.create().limit(taskDto.getPreviewRows());
+			PreviewReadOperation previewReadOperation = new PreviewReadOperation(sourceNode.getId());
+			TapAdvanceFilter filter = TapAdvanceFilter.create().limit(previewRows);
 			previewReadOperation.setTapAdvanceFilter(filter);
 
 			previewReadOperationQueue.addOperation(sourceNode.getId(), previewReadOperation);

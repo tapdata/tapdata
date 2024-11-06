@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.task.preview.node;
 
+import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TapdataPreviewCompleteEvent;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -98,7 +99,7 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 		this.defaultCodecsFilterManager = TapCodecsFilterManager.create(this.defaultCodecsRegistry);
 	}
 
-	private PreviewFinishReadOperation finishRead(PreviewFinishReadOperation previewFinishReadOperation) {
+	protected PreviewFinishReadOperation finishRead(PreviewFinishReadOperation previewFinishReadOperation) {
 		finishPreviewRead.set(true);
 		if (previewFinishReadOperation.isLast()) {
 			return previewFinishReadOperation;
@@ -106,7 +107,7 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 		return null;
 	}
 
-	private List<TapInsertRecordEvent> read(PreviewOperation previewOperation) {
+	protected List<TapInsertRecordEvent> read(PreviewOperation previewOperation) {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		ConnectorNode connectorNode = getConnectorNode();
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
@@ -246,38 +247,6 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 		return false;
 	}
 
-	@Override
-	public void startSourceRunner() {
-		try {
-			Node<?> node = getNode();
-			PreviewReadOperationQueue previewReadOperationQueue = taskPreviewInstance.getPreviewReadOperationQueue();
-			while (isRunning() && !finishPreviewRead.get()) {
-				PreviewOperation previewOperation;
-				try {
-					previewOperation = previewReadOperationQueue.take(node.getId());
-				} catch (InterruptedException e) {
-					break;
-				}
-				if (null == previewOperation) {
-					continue;
-				}
-				Object handleResult = previewOperationHandlers.handle(previewOperation);
-				mockIfNeed(handleResult, previewOperation);
-				try {
-					replyPreviewOperationData(handleResult, previewOperation);
-				} catch (InterruptedException e) {
-					break;
-				}
-				List<TapdataEvent> tapdataEvents = wrapTapdataEvents(handleResult, previewOperation);
-				if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-					tapdataEvents.forEach(this::enqueue);
-				}
-			}
-		} catch (Exception e) {
-			errorHandle(e);
-		}
-	}
-
 	protected void mockIfNeed(Object handleResult, PreviewOperation previewOperation) {
 		if (handleResult instanceof List && ((List<TapInsertRecordEvent>) handleResult).isEmpty()) {
 			long startMs = System.currentTimeMillis();
@@ -377,5 +346,30 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 	@Override
 	public void doClose() throws TapCodeException {
 		super.doClose();
+	}
+
+	@Override
+	protected void createPdkConnectorNode(DataProcessorContext dataProcessorContext, HazelcastInstance hazelcastInstance) {
+		super.createPdkConnectorNode(dataProcessorContext, hazelcastInstance);
+	}
+
+	@Override
+	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
+		super.connectorNodeInit(dataProcessorContext);
+	}
+
+	@Override
+	protected void initTapLogger() {
+		super.initTapLogger();
+	}
+
+	@Override
+	protected boolean isRunning() {
+		return super.isRunning();
+	}
+
+	@Override
+	protected boolean offer(TapdataEvent dataEvent) {
+		return super.offer(dataEvent);
 	}
 }
