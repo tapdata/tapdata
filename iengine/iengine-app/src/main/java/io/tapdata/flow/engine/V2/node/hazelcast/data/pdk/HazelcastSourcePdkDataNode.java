@@ -435,7 +435,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 	protected void handleThrowable(String tableName, Throwable throwable) throws Throwable {
 		executeAspect(new SnapshotReadTableErrorAspect().dataProcessorContext(dataProcessorContext).tableName(tableName).error(throwable));
-		Throwable throwableWrapper = throwable;
+		Throwable throwableWrapper = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 		if (!(throwableWrapper instanceof TapCodeException)) {
 			throwableWrapper = new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, throwable);
 		}

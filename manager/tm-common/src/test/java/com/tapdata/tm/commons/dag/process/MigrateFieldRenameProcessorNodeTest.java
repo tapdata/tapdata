@@ -10,6 +10,7 @@ import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
@@ -19,6 +20,11 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -200,6 +206,37 @@ public class MigrateFieldRenameProcessorNodeTest {
             Assertions.assertEquals("name_1", fieldMapping.get(0).getFields().get(0).getSourceFieldName());
         });
 
+    }
+
+    @Nested
+    class ApplyConfigTest {
+        @Test
+        void testApplyConfigConstructor() {
+            MigrateFieldRenameProcessorNode.ApplyConfig config = new MigrateFieldRenameProcessorNode.ApplyConfig(mock(MigrateFieldRenameProcessorNode.class));
+            assertNotNull(config.targetFieldExistMaps);
+        }
+        @Test
+        void testApplyConfigConstructorWithTableFieldInfos() {
+            MigrateFieldRenameProcessorNode node = mock(MigrateFieldRenameProcessorNode.class);
+            LinkedList<TableFieldInfo> tableFieldInfos = new LinkedList<>();
+            TableFieldInfo tableFieldInfo = new TableFieldInfo();
+            tableFieldInfo.setPreviousTableName("t1");
+            LinkedList<FieldInfo> fields = new LinkedList<>();
+            FieldInfo fieldInfo = new FieldInfo();
+            fieldInfo.setSourceFieldName("A");
+            fieldInfo.setTargetFieldName("B");
+            FieldInfo fieldInfo1 = new FieldInfo();
+            fieldInfo1.setSourceFieldName("B");
+            fieldInfo1.setTargetFieldName("C");
+            fields.add(fieldInfo);
+            fields.add(fieldInfo1);
+            tableFieldInfo.setFields(fields);
+            tableFieldInfos.add(tableFieldInfo);
+            when(node.getFieldsMapping()).thenReturn(tableFieldInfos);
+            MigrateFieldRenameProcessorNode.ApplyConfig config = new MigrateFieldRenameProcessorNode.ApplyConfig(node);
+            assertTrue(config.targetFieldExistMaps.containsKey("t1"));
+            assertTrue(config.targetFieldExistMaps.get("t1").contains("B"));
+        }
     }
 
 }

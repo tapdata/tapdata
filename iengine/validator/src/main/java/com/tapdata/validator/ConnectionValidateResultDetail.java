@@ -14,6 +14,8 @@ public class ConnectionValidateResultDetail {
 
 	private String error_code;
 
+	private String[] dynamicDescriptionParameters;
+
 	private String fail_message;
 	private TapTestItemException item_exception;
 
@@ -75,6 +77,14 @@ public class ConnectionValidateResultDetail {
 
 	public void setError_code(String error_code) {
 		this.error_code = error_code;
+	}
+
+	public String[] getDynamicDescriptionParameters() {
+		return dynamicDescriptionParameters;
+	}
+
+	public void setDynamicDescriptionParameters(String[] dynamicDescriptionParameters) {
+		this.dynamicDescriptionParameters = dynamicDescriptionParameters;
 	}
 
 	public String getFail_message() {

@@ -797,6 +797,11 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
 			ConnectorNode connectorNode = mock(ConnectorNode.class);
 			doReturn(connectorNode).when(instance).getConnectorNode();
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			Set<String> tableIds = new HashSet<>();
+			tableIds.add("test");
+			when(tapTableMap.keySet()).thenReturn(tableIds);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
 		}
 
 		@Test

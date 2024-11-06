@@ -3,6 +3,7 @@ package io.tapdata.observable.logging.appender;
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.core.Appender;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -38,13 +40,15 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 	private final ExecutorService consumeMessageThreadPool;
 	private final int batchSize;
 	private final AtomicBoolean running = new AtomicBoolean(true);
+	private final String taskId;
 
 	protected ObsHttpTMLog4jAppender(String name, Filter filter, Layout<? extends Serializable> layout, boolean ignoreExceptions, Property[] properties,
-									 ClientMongoOperator clientMongoOperator, int batchSize) {
+									 ClientMongoOperator clientMongoOperator, int batchSize, String taskId) {
 		super(name, filter, layout, ignoreExceptions, properties);
 		this.clientMongoOperator = clientMongoOperator;
 		this.batchSize = Math.max(batchSize, MIN_BATCH_SIZE);
 		this.messageQueue = new LinkedBlockingQueue<>(QUEUE_CAPACITY);
+		this.taskId = taskId;
 		this.consumeMessageThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>(),
 				r -> new Thread(r, "Consume-" + ObsHttpTMLog4jAppender.class.getSimpleName() + "-" + name));
 		this.consumeMessageThreadPool.submit(this::consumeAndInsertLogs);
@@ -79,10 +83,16 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 		}
 	}
 
-	private void callTmApiInsertLogs(List<String> bufferList) {
-		this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
-		bufferList.clear();
-	}
+	protected void callTmApiInsertLogs(List<String> bufferList) {
+		List<String> tmp = bufferList.stream()
+				.filter(r -> !r.contains("src=user_script") || TokenBucketRateLimiter.get().tryAcquire(taskId))
+				.collect(Collectors.toList());
+
+        if (CollectionUtils.isNotEmpty(tmp)) {
+            this.clientMongoOperator.insertMany(bufferList, "MonitoringLogs/batchJson");
+        }
+        bufferList.clear();
+    }
 
 	@PluginFactory
 	public static ObsHttpTMLog4jAppender createAppender(
@@ -90,9 +100,10 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 			@PluginElement("Filter") Filter filter,
 			Layout<? extends Serializable> layout,
 			boolean ignoreExceptions, Property[] properties,
-			ClientMongoOperator clientMongoOperator, int batchSize) {
+			ClientMongoOperator clientMongoOperator, int batchSize,
+			String taskId) {
 
-		return new ObsHttpTMLog4jAppender(name, filter, layout, ignoreExceptions, properties, clientMongoOperator, batchSize);
+		return new ObsHttpTMLog4jAppender(name, filter, layout, ignoreExceptions, properties, clientMongoOperator, batchSize, taskId);
 	}
 
 	@Override

@@ -1274,6 +1274,9 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			when(obsLoggerFactory.getObsLogger(processorBaseContext.getTaskDto(),
 					processorBaseContext.getNode().getId(),
 					processorBaseContext.getNode().getName())).thenReturn(mockObsLogger);
+			when(obsLoggerFactory.getObsLogger(processorBaseContext.getTaskDto(),
+					processorBaseContext.getNode().getId(),
+					processorBaseContext.getNode().getName(), null)).thenReturn(mockObsLogger);
 			try (MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class)) {
 				obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
 				ObsLogger actual = hazelcastBaseNode.initObsLogger();

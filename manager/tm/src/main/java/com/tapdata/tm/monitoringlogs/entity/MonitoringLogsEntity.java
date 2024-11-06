@@ -33,4 +33,5 @@ public class MonitoringLogsEntity extends BaseEntity {
     private String dataJson;
     private String errorCode;
     private String fullErrorCode;
+    private String[] dynamicDescriptionParameters;
 }

@@ -1,0 +1,54 @@
+[
+  {
+    "createIndexes": "monitoringLogs",
+    "indexes":[
+      {
+        "name" : "logTags_1",
+        "key" : {
+          "logTags": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "Log",
+        "category_sort": "98",
+        "default_value": "100",
+        "documentation": "Maximum number of log lines per upload",
+        "hot_reloading": true,
+        "key": "log.upload.max",
+        "key_label": "Maximum number of log lines per upload",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "8",
+        "user_visible": false,
+        "value": "100"
+      }
+    ]
+  },
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "Log",
+        "category_sort": "98",
+        "default_value": "10",
+        "documentation": "Increase the number of log lines allowed to be uploaded per second",
+        "hot_reloading": true,
+        "key": "log.upload.perSecond",
+        "key_label": "Increase the number of log lines allowed to be uploaded per second",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "8",
+        "user_visible": false,
+        "value": "10"
+      }
+    ]
+  }
+]

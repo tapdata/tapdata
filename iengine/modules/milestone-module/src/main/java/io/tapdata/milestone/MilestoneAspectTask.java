@@ -18,6 +18,8 @@ import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -91,6 +93,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         observerHandlers.register(ProcessorNodeCloseAspect.class, this::handleProcessNodeClose);
         observerHandlers.register(TableInitFuncAspect.class, this::handleTableInit);
         observerHandlers.register(EngineDeductionAspect.class,this::handleEngineDeduction);
+        observerHandlers.register(RetryLifeCycleAspect.class, this::handleRetry);
         nodeRegister(SnapshotReadBeginAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
             m.setProgress(0L);
             m.setTotals((long) aspect.getTables().size());
@@ -296,6 +299,31 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         return null;
     }
 
+    protected Void handleRetry(RetryLifeCycleAspect aspect) {
+//        log.info("Handle retry data, retry op: {}, retrying: {}, start ts: {}, retry times: {}/{}, success: {}",
+//                aspect.getRetryOp(),
+//                aspect.isRetrying(),
+//                aspect.getStartRetryTs(),
+//                aspect.getRetryTimes(),
+//                aspect.getTotalRetries(),
+//                aspect.getSuccess());
+        // 1. get running milestone
+        MilestoneEntity runningMilestone = milestones.values().stream().filter(m -> m.getStatus() == MilestoneStatus.RUNNING).findFirst().orElse(null);
+        // 2. update retry status to milestone
+        Optional.ofNullable(runningMilestone).ifPresent(milestoneEntity -> {
+            milestoneEntity.setRetrying(aspect.isRetrying());
+            milestoneEntity.setRetryTimes(aspect.getRetryTimes());
+            milestoneEntity.setStartRetryTs(aspect.getStartRetryTs());
+            milestoneEntity.setEndRetryTs(aspect.getEndRetryTs());
+            milestoneEntity.setNextRetryTs(aspect.getNextRetryTs());
+            milestoneEntity.setTotalOfRetries(aspect.getTotalRetries());
+            milestoneEntity.setRetryOp(aspect.getRetryOp());
+            milestoneEntity.setRetrySuccess(aspect.getSuccess());
+            milestoneEntity.setRetryMetadata(aspect.getRetryMetadata());
+        });
+        return null;
+    }
+
     protected void storeMilestoneWhenTargetNodeTableInit(MilestoneEntity milestone, String nid, AtomicLong totals, AtomicLong completed) {
         nodeMilestones(nid, KPI_TABLE_INIT, m -> {
             milestone.setBegin(Math.min(milestone.getBegin(), m.getBegin()));
@@ -468,11 +496,23 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         m.setEnd(System.currentTimeMillis());
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
+        if (aspect.getError() != null && m.getErrorCode() == null) {
+            m.setErrorCode(CommonUtils.describeErrorCode(aspect.getError()));
+        }
+        if (aspect.getError() != null && m.getStackMessage() == null) {
+            m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
+        }
     }
     protected <T extends EngineDeductionAspect> void setError(T aspect, MilestoneEntity m) {
         m.setEnd(System.currentTimeMillis());
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
+        if (aspect.getError() != null && m.getErrorCode() == null) {
+            m.setErrorCode(CommonUtils.describeErrorCode(aspect.getError()));
+        }
+        if (aspect.getError() != null && m.getStackMessage() == null) {
+            m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
+        }
     }
 
     protected Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {

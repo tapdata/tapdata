@@ -1,19 +1,24 @@
 package io.tapdata.observable.logging.appender;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.tapdata.constant.JSONUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import lombok.SneakyThrows;
+import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.wire.ValueIn;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class AppenderFactoryTest {
+
+    public static final String PATH_NAME = "." + File.separator + "test-ChronicleQueue";
+
     @Test
     void testGetInstance(){
         assertDoesNotThrow(()->{
@@ -195,15 +203,263 @@ public class AppenderFactoryTest {
     }
     @Nested
     class AppendLogTest{
+
+        private ChronicleQueue chronicleQueue;
+        private AppenderFactory appenderFactory;
+
+        @BeforeEach
+        void setUp() {
+            chronicleQueue = ChronicleQueue.singleBuilder(PATH_NAME).build();
+            appenderFactory = mock(AppenderFactory.class);
+            ReflectionTestUtils.setField(appenderFactory, "cacheLogsQueue", chronicleQueue);
+            doCallRealMethod().when(appenderFactory).appendLog(any(MonitoringLogsDto.class));
+            Semaphore emptyWaiting = new Semaphore(1);
+            ReflectionTestUtils.setField(appenderFactory, "emptyWaiting", emptyWaiting);
+            Logger logger = mock(Logger.class);
+            ReflectionTestUtils.setField(appenderFactory, "logger", logger);
+        }
+
+        @SneakyThrows
+		@AfterEach
+        void tearDown() {
+            FileUtils.deleteDirectory(new File(PATH_NAME));
+        }
+
         @DisplayName("test Append log when value is null")
         @Test
         void test1(){
             MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder().taskId("123").build();
             AppenderFactory instance = AppenderFactory.getInstance();
-            instance.appendLog(monitoringLogsDto);
-            assertDoesNotThrow(()->{instance.appendLog(monitoringLogsDto);});
+            assertDoesNotThrow(() -> instance.appendLog(monitoringLogsDto));
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test2() {
+            MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
+                    .date(new Date())
+                    .level("INFO")
+                    .errorStack("error stack")
+                    .message("message")
+                    .taskId("task id")
+                    .taskRecordId("task record id")
+                    .timestamp(System.currentTimeMillis())
+                    .taskName("task name")
+                    .nodeId("node id")
+                    .nodeName("node name")
+                    .errorCode("11001")
+                    .fullErrorCode("TAP11001")
+                    .dynamicDescriptionParameters(new String[]{"test", Instant.now().toString()})
+                    .build();
+            ExcerptTailer tailer = chronicleQueue.createTailer();
+            appenderFactory.appendLog(monitoringLogsDto);
+            boolean read = tailer.readDocument(r -> {
+                ValueIn valueIn = r.getValueIn();
+                assertEquals(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(monitoringLogsDto.getDate()), valueIn.readString());
+                assertEquals(monitoringLogsDto.getLevel(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getErrorStack(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getMessage(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTaskId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTaskRecordId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTimestamp(), valueIn.readLong());
+                assertEquals(monitoringLogsDto.getTaskName(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getNodeId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getNodeName(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getErrorCode(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getFullErrorCode(), valueIn.readString());
+                assertDoesNotThrow(() -> assertArrayEquals(monitoringLogsDto.getDynamicDescriptionParameters(), JSONUtil.json2POJO(valueIn.readString(), String[].class)));
+            });
+            assertTrue(read);
+        }
+
+        @Test
+        @DisplayName("test dynamicDescriptionParameters is null")
+        void test3() {
+            MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
+                    .date(new Date())
+                    .level("INFO")
+                    .errorStack("error stack")
+                    .message("message")
+                    .taskId("task id")
+                    .taskRecordId("task record id")
+                    .timestamp(System.currentTimeMillis())
+                    .taskName("task name")
+                    .nodeId("node id")
+                    .nodeName("node name")
+                    .errorCode("11001")
+                    .fullErrorCode("TAP11001")
+                    .dynamicDescriptionParameters(null)
+                    .build();
+            ExcerptTailer tailer = chronicleQueue.createTailer();
+            appenderFactory.appendLog(monitoringLogsDto);
+            boolean read = tailer.readDocument(r -> {
+                ValueIn valueIn = r.getValueIn();
+                assertEquals(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(monitoringLogsDto.getDate()), valueIn.readString());
+                assertEquals(monitoringLogsDto.getLevel(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getErrorStack(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getMessage(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTaskId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTaskRecordId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTimestamp(), valueIn.readLong());
+                assertEquals(monitoringLogsDto.getTaskName(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getNodeId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getNodeName(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getErrorCode(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getFullErrorCode(), valueIn.readString());
+                assertEquals("[]", valueIn.readString());
+            });
+            assertTrue(read);
+        }
+
+        @Test
+        @DisplayName("test dynamicDescriptionParameters is empty array")
+        void test4() {
+            MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
+                    .date(new Date())
+                    .level("INFO")
+                    .errorStack("error stack")
+                    .message("message")
+                    .taskId("task id")
+                    .taskRecordId("task record id")
+                    .timestamp(System.currentTimeMillis())
+                    .taskName("task name")
+                    .nodeId("node id")
+                    .nodeName("node name")
+                    .errorCode("11001")
+                    .fullErrorCode("TAP11001")
+                    .dynamicDescriptionParameters(new String[]{})
+                    .build();
+            ExcerptTailer tailer = chronicleQueue.createTailer();
+            appenderFactory.appendLog(monitoringLogsDto);
+            boolean read = tailer.readDocument(r -> {
+                ValueIn valueIn = r.getValueIn();
+                assertEquals(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(monitoringLogsDto.getDate()), valueIn.readString());
+                assertEquals(monitoringLogsDto.getLevel(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getErrorStack(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getMessage(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTaskId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTaskRecordId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getTimestamp(), valueIn.readLong());
+                assertEquals(monitoringLogsDto.getTaskName(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getNodeId(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getNodeName(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getErrorCode(), valueIn.readString());
+                assertEquals(monitoringLogsDto.getFullErrorCode(), valueIn.readString());
+                assertEquals("[]", valueIn.readString());
+            });
+            assertTrue(read);
+        }
+
+        @Test
+        @DisplayName("test json parse dynamicDescriptionParameters error")
+        void test5() {
+            try (
+                    MockedStatic<JSONUtil> jsonUtilMockedStatic = mockStatic(JSONUtil.class)
+            ) {
+                JsonProcessingException jsonProcessingException = mock(JsonProcessingException.class);
+                jsonUtilMockedStatic.when(() -> JSONUtil.obj2Json(any())).thenThrow(jsonProcessingException);
+                MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
+                        .date(new Date())
+                        .level("INFO")
+                        .errorStack("error stack")
+                        .message("message")
+                        .taskId("task id")
+                        .taskRecordId("task record id")
+                        .timestamp(System.currentTimeMillis())
+                        .taskName("task name")
+                        .nodeId("node id")
+                        .nodeName("node name")
+                        .errorCode("11001")
+                        .fullErrorCode("TAP11001")
+                        .dynamicDescriptionParameters(new String[]{"xxx"})
+                        .build();
+                ExcerptTailer tailer = chronicleQueue.createTailer();
+                appenderFactory.appendLog(monitoringLogsDto);
+                boolean read = tailer.readDocument(r -> {
+                    ValueIn valueIn = r.getValueIn();
+                    assertEquals(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(monitoringLogsDto.getDate()), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getLevel(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getErrorStack(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getMessage(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getTaskId(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getTaskRecordId(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getTimestamp(), valueIn.readLong());
+                    assertEquals(monitoringLogsDto.getTaskName(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getNodeId(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getNodeName(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getErrorCode(), valueIn.readString());
+                    assertEquals(monitoringLogsDto.getFullErrorCode(), valueIn.readString());
+                    assertEquals("[]", valueIn.readString());
+                });
+                assertTrue(read);
+            }
         }
     }
 
+    @Nested
+    @DisplayName("Method decodeFromWireIn test")
+    class decodeFromWireInTest {
+        private ChronicleQueue chronicleQueue;
+        private AppenderFactory appenderFactory;
 
+        @BeforeEach
+        void setUp() {
+            chronicleQueue = ChronicleQueue.singleBuilder(PATH_NAME).build();
+            appenderFactory = mock(AppenderFactory.class);
+            ReflectionTestUtils.setField(appenderFactory, "cacheLogsQueue", chronicleQueue);
+            doCallRealMethod().when(appenderFactory).appendLog(any(MonitoringLogsDto.class));
+            Semaphore emptyWaiting = new Semaphore(1);
+            ReflectionTestUtils.setField(appenderFactory, "emptyWaiting", emptyWaiting);
+            Logger logger = mock(Logger.class);
+            ReflectionTestUtils.setField(appenderFactory, "logger", logger);
+            doCallRealMethod().when(appenderFactory).decodeFromWireIn(any(ValueIn.class), any(MonitoringLogsDto.MonitoringLogsDtoBuilder.class));
+        }
+
+        @SneakyThrows
+        @AfterEach
+        void tearDown() {
+            FileUtils.deleteDirectory(new File(PATH_NAME));
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
+                    .date(new Date())
+                    .level("INFO")
+                    .errorStack("error stack")
+                    .message("message")
+                    .taskId("task id")
+                    .taskRecordId("task record id")
+                    .timestamp(System.currentTimeMillis())
+                    .taskName("task name")
+                    .nodeId("node id")
+                    .nodeName("node name")
+                    .errorCode("11001")
+                    .fullErrorCode("TAP11001")
+                    .dynamicDescriptionParameters(new String[]{"test", Instant.now().toString()})
+                    .build();
+            ExcerptTailer tailer = chronicleQueue.createTailer();
+            appenderFactory.appendLog(monitoringLogsDto);
+            MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+            tailer.readDocument(w -> {
+                ValueIn valueIn = w.getValueIn();
+                appenderFactory.decodeFromWireIn(valueIn, builder);
+            });
+            MonitoringLogsDto result = builder.build();
+            assertEquals(monitoringLogsDto.getDate().toString(), result.getDate().toString());
+            assertEquals(monitoringLogsDto.getLevel(), result.getLevel());
+            assertEquals(monitoringLogsDto.getErrorStack(), result.getErrorStack());
+            assertEquals(monitoringLogsDto.getMessage(), result.getMessage());
+            assertEquals(monitoringLogsDto.getTaskId(), result.getTaskId());
+            assertEquals(monitoringLogsDto.getTaskRecordId(), result.getTaskRecordId());
+            assertEquals(monitoringLogsDto.getTimestamp(), result.getTimestamp());
+            assertEquals(monitoringLogsDto.getTaskName(), result.getTaskName());
+            assertEquals(monitoringLogsDto.getNodeId(), result.getNodeId());
+            assertEquals(monitoringLogsDto.getNodeName(), result.getNodeName());
+            assertEquals(monitoringLogsDto.getErrorCode(), result.getErrorCode());
+            assertEquals(monitoringLogsDto.getFullErrorCode(), result.getFullErrorCode());
+            assertArrayEquals(monitoringLogsDto.getDynamicDescriptionParameters(), result.getDynamicDescriptionParameters());
+        }
+    }
 }
