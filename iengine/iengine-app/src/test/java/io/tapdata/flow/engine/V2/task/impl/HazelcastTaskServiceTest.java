@@ -1,10 +1,15 @@
 package io.tapdata.flow.engine.V2.task.impl;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.jet.Jet;
+import com.hazelcast.jet.JetService;
+import com.hazelcast.jet.Job;
+import com.hazelcast.jet.config.JobConfig;
 import com.mongodb.MongoClientException;
 import com.tapdata.constant.*;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.JetDag;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -23,13 +28,17 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
+import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
@@ -47,23 +56,24 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 
 public class HazelcastTaskServiceTest {
     @Nested
-    class GetTaskRetryConfigTest{
+    class GetTaskRetryConfigTest {
         private HazelcastTaskService hazelcastTaskService;
+
         @BeforeEach
-        void setUp(){
+        void setUp() {
             HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
             hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
         }
+
         @DisplayName("test get task retry config default")
         @Test
-        void test1(){
+        void test1() {
             SettingService settingService = mock(SettingService.class);
             when(settingService.getLong(eq("retry_interval_second"), eq(60L))).thenReturn(60L);
             when(settingService.getLong(eq("max_retry_time_minute"), eq(60L))).thenReturn(60L);
@@ -73,8 +83,9 @@ public class HazelcastTaskServiceTest {
             assertEquals(60L * 60, taskRetryConfig.getMaxRetryTimeSecond());
         }
     }
+
     @Nested
-    class CreateNodeTest{
+    class CreateNodeTest {
         private TaskDto taskDto;
         private List<Node> nodes;
         private List<Edge> edges;
@@ -87,8 +98,9 @@ public class HazelcastTaskServiceTest {
         private Map<String, MergeTableNode> mergeTableMap;
         private TapTableMap<String, TapTable> tapTableMap;
         private TaskConfig taskConfig;
+
         @BeforeEach
-        void beforeEach(){
+        void beforeEach() {
             taskDto = mock(TaskDto.class);
             nodes = new ArrayList<>();
             edges = new ArrayList<>();
@@ -104,90 +116,97 @@ public class HazelcastTaskServiceTest {
             tapTableMap = mock(TapTableMap.class);
             taskConfig = mock(TaskConfig.class);
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method when read partition option is enable")
-        void testCreateNode1(){
+        void testCreateNode1() {
             when(node.getType()).thenReturn("table");
             successors.add(mock(Node.class));
             when(connection.getPdkType()).thenReturn("pdk");
             ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
-            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(((DataParentNode) node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
             when(readPartitionOptions.isEnable()).thenReturn(true);
             when(readPartitionOptions.getSplitType()).thenReturn(10);
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastSourcePartitionReadDataNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method when read partition option is enable and task type is cdc")
-        void testCreateNode2(){
+        void testCreateNode2() {
             when(node.getType()).thenReturn("table");
             successors.add(mock(Node.class));
             when(connection.getPdkType()).thenReturn("pdk");
             ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
-            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(((DataParentNode) node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
             when(readPartitionOptions.isEnable()).thenReturn(true);
             when(readPartitionOptions.getSplitType()).thenReturn(10);
             when(taskDto.getType()).thenReturn("cdc");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastSourcePdkDataNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast blank")
-        void testCreateNode3(){
+        void testCreateNode3() {
             node = mock(ProcessorNode.class);
             when(node.disabledNode()).thenReturn(true);
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastBlank.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast task source")
-        void testCreateNode22(){
+        void testCreateNode22() {
             when(node.getType()).thenReturn("table");
             successors.add(mock(Node.class));
             ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
-            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(((DataParentNode) node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
             when(readPartitionOptions.isEnable()).thenReturn(true);
             when(readPartitionOptions.getSplitType()).thenReturn(10);
             when(taskDto.getType()).thenReturn("cdc");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTaskSource.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast target pdk data node")
-        void testCreateNode23(){
+        void testCreateNode23() {
             when(node.getType()).thenReturn("table");
             when(connection.getPdkType()).thenReturn("pdk");
             ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
-            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(((DataParentNode) node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
             when(readPartitionOptions.isEnable()).thenReturn(true);
             when(readPartitionOptions.getSplitType()).thenReturn(10);
             when(taskDto.getType()).thenReturn("cdc");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTargetPdkDataNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast task target")
-        void testCreateNode24(){
+        void testCreateNode24() {
             when(node.getType()).thenReturn("table");
             ReadPartitionOptions readPartitionOptions = mock(ReadPartitionOptions.class);
-            when(((DataParentNode)node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
+            when(((DataParentNode) node).getReadPartitionOptions()).thenReturn(readPartitionOptions);
             when(readPartitionOptions.isEnable()).thenReturn(true);
             when(readPartitionOptions.getSplitType()).thenReturn(10);
             when(taskDto.getType()).thenReturn("cdc");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTaskTarget.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast pdk source and target table node")
-        void testCreateNode4(){
+        void testCreateNode4() {
             when(node.getType()).thenReturn("table");
             predecessors.add(mock(Node.class));
             successors.add(mock(Node.class));
@@ -196,10 +215,11 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastPdkSourceAndTargetTableNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for hazelcast task source and target")
-        void testCreateNode25(){
+        void testCreateNode25() {
             when(node.getType()).thenReturn("table");
             predecessors.add(mock(Node.class));
             successors.add(mock(Node.class));
@@ -207,14 +227,15 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTaskSourceAndTarget.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for cache node")
-        void testCreateNode5(){
+        void testCreateNode5() {
             node = mock(CacheNode.class);
             try (MockedStatic<ExternalStorageUtil> mb = Mockito
                     .mockStatic(ExternalStorageUtil.class)) {
-                mb.when(()->ExternalStorageUtil.getExternalStorage(node)).thenReturn(mock(ExternalStorageDto.class));
+                mb.when(() -> ExternalStorageUtil.getExternalStorage(node)).thenReturn(mock(ExternalStorageDto.class));
                 try (MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = Mockito
                         .mockStatic(HazelcastUtil.class)) {
                     hazelcastUtilMockedStatic.when(HazelcastUtil::getInstance).thenReturn(mock(HazelcastInstance.class));
@@ -228,14 +249,15 @@ public class HazelcastTaskServiceTest {
                 }
             }
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for cache target")
-        void testCreateNode26(){
+        void testCreateNode26() {
             node = mock(CacheNode.class);
             try (MockedStatic<ExternalStorageUtil> mb = Mockito
                     .mockStatic(ExternalStorageUtil.class)) {
-                mb.when(()->ExternalStorageUtil.getExternalStorage(node)).thenReturn(mock(ExternalStorageDto.class));
+                mb.when(() -> ExternalStorageUtil.getExternalStorage(node)).thenReturn(mock(ExternalStorageDto.class));
                 try (MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = Mockito
                         .mockStatic(HazelcastUtil.class)) {
                     hazelcastUtilMockedStatic.when(HazelcastUtil::getInstance).thenReturn(mock(HazelcastInstance.class));
@@ -248,32 +270,35 @@ public class HazelcastTaskServiceTest {
                 }
             }
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for auto inspect node")
-        void testCreateNode6(){
+        void testCreateNode6() {
             node = mock(AutoInspectNode.class);
-            when(((AutoInspectNode)node).getToNode()).thenReturn(mock(DatabaseNode.class));
+            when(((AutoInspectNode) node).getToNode()).thenReturn(mock(DatabaseNode.class));
             when(node.getType()).thenReturn("auto_inspect");
             when(connection.getPdkType()).thenReturn("pdk");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTargetPdkAutoInspectNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for virtual target node")
-        void testCreateNode7(){
+        void testCreateNode7() {
             when(node.getType()).thenReturn("VirtualTarget");
             when(taskDto.getType()).thenReturn("initial_sync");
             when(taskDto.getSyncType()).thenReturn("testRun");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastVirtualTargetNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for join processor")
-        void testCreateNode8(){
+        void testCreateNode8() {
             HashSet set = new HashSet();
             set.add("test");
             when(tapTableMap.keySet()).thenReturn(set);
@@ -282,112 +307,124 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastJoinProcessor.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for js processor")
-        void testCreateNode9(){
+        void testCreateNode9() {
             when(node.getType()).thenReturn("js_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastJavaScriptProcessorNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for python processor")
-        void testCreateNode10(){
+        void testCreateNode10() {
             when(node.getType()).thenReturn("python_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastPythonProcessNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for unwind processor")
-        void testCreateNode11(){
+        void testCreateNode11() {
             when(node.getType()).thenReturn("unwind_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastUnwindProcessNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for field processor")
-        void testCreateNode12(){
+        void testCreateNode12() {
             when(node.getType()).thenReturn("field_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastProcessorNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for table rename processor")
-        void testCreateNode13(){
+        void testCreateNode13() {
             node = mock(TableRenameProcessNode.class);
             when(node.getType()).thenReturn("table_rename_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastRenameTableProcessorNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for migrate field rename processor")
-        void testCreateNode14(){
+        void testCreateNode14() {
             node = mock(MigrateFieldRenameProcessorNode.class);
             when(node.getType()).thenReturn("migrate_field_rename_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastMigrateFieldRenameProcessorNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for share cdc node")
-        void testCreateNode15(){
+        void testCreateNode15() {
             when(node.getType()).thenReturn("logCollector");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastSourcePdkShareCDCNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for custom processor")
-        void testCreateNode17(){
+        void testCreateNode17() {
             when(node.getType()).thenReturn("custom_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastCustomProcessor.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for merge table processor")
-        void testCreateNode18(){
+        void testCreateNode18() {
             when(node.getType()).thenReturn("merge_table_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastMergeNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for date processor")
-        void testCreateNode19(){
+        void testCreateNode19() {
             node = mock(DateProcessorNode.class);
             when(node.getType()).thenReturn("date_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastDateProcessorNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for field mod type filter processor")
-        void testCreateNode20(){
+        void testCreateNode20() {
             when(node.getType()).thenReturn("field_mod_type_filter_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastTypeFilterProcessorNode.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for add date field processor")
-        void testCreateNode21(){
+        void testCreateNode21() {
             node = mock(AddDateFieldProcessorNode.class);
             when(node.getType()).thenReturn("add_date_field_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
@@ -398,7 +435,7 @@ public class HazelcastTaskServiceTest {
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for add date field processor")
-        void testCreateNodeTestRunTask(){
+        void testCreateNodeTestRunTask() {
             node = mock(AddDateFieldProcessorNode.class);
             when(node.getType()).thenReturn("add_date_field_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
@@ -410,7 +447,7 @@ public class HazelcastTaskServiceTest {
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for add date field processor")
-        void testCreateNodeDeduceSchemaTask(){
+        void testCreateNodeDeduceSchemaTask() {
             node = mock(AddDateFieldProcessorNode.class);
             when(node.getType()).thenReturn("add_date_field_processor");
             when(taskDto.getType()).thenReturn("initial_sync");
@@ -422,7 +459,7 @@ public class HazelcastTaskServiceTest {
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for add date field processor")
-        void testCreateNodeSyncTask(){
+        void testCreateNodeSyncTask() {
             node = mock(AddDateFieldProcessorNode.class);
             when(node.getType()).thenReturn("add_date_field_processor");
             when(node.disabledNode()).thenReturn(true);
@@ -435,7 +472,7 @@ public class HazelcastTaskServiceTest {
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for migrate js processor")
-        void testCreateNodeMigrateTask(){
+        void testCreateNodeMigrateTask() {
             node = mock(MigrateJsProcessorNode.class);
             when(node.getType()).thenReturn("migrate_js_processor");
             when(node.disabledNode()).thenReturn(true);
@@ -444,10 +481,11 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastBlank.class, actual.getClass());
         }
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for migrate js processor")
-        void testCreateNodeMigrateTaskDisableIsFalse(){
+        void testCreateNodeMigrateTaskDisableIsFalse() {
             node = mock(MigrateJsProcessorNode.class);
             when(node.getType()).thenReturn("migrate_js_processor");
             when(node.disabledNode()).thenReturn(false);
@@ -456,21 +494,23 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastJavaScriptProcessorNode.class, actual.getClass());
         }
-		@Test
-		@SneakyThrows
-		@DisplayName("test createNode method for migrate union processor")
-		void testCreateNodeMigrateUnionProcessorNode(){
-			node = mock(MigrateUnionProcessorNode.class);
-			when(node.getType()).thenReturn("migrate_union_processor");
-			when(taskDto.getType()).thenReturn("initial_sync");
-			when(taskDto.getSyncType()).thenReturn("migrate");
-			HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
-			assertEquals(HazelcastMigrateUnionProcessorNode.class, actual.getClass());
-		}
+
         @Test
         @SneakyThrows
         @DisplayName("test createNode method for migrate union processor")
-        void testCreateNodeSourceConcurrentReadDataNode(){
+        void testCreateNodeMigrateUnionProcessorNode() {
+            node = mock(MigrateUnionProcessorNode.class);
+            when(node.getType()).thenReturn("migrate_union_processor");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("migrate");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastMigrateUnionProcessorNode.class, actual.getClass());
+        }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for migrate union processor")
+        void testCreateNodeSourceConcurrentReadDataNode() {
             successors.add(mock(Node.class));
             node = mock(DatabaseNode.class);
             when(node.getType()).thenReturn("database");
@@ -492,6 +532,7 @@ public class HazelcastTaskServiceTest {
 
         List<ErrorEvent> errorEvents;
         ErrorEvent errorEvent;
+
         @BeforeEach
         void init() {
             clientMongoOperator = mock(ClientMongoOperator.class);
@@ -511,10 +552,11 @@ public class HazelcastTaskServiceTest {
 
             doCallRealMethod().when(hazelcastTaskService).cleanAllUnselectedError(taskDto, obsLogger);
         }
+
         @Test
         void testNormal() {
             errorEvents.add(errorEvent);
-            try(MockedStatic<TaskDtoUtil> tdu = mockStatic(TaskDtoUtil.class)) {
+            try (MockedStatic<TaskDtoUtil> tdu = mockStatic(TaskDtoUtil.class)) {
                 tdu.when(() -> TaskDtoUtil.updateErrorEvent(any(ClientMongoOperator.class), anyList(), any(ObjectId.class), any(ObsLogger.class), anyString())).thenAnswer(a -> null);
                 hazelcastTaskService.cleanAllUnselectedError(taskDto, obsLogger);
                 verify(taskDto).getErrorEvents();
@@ -525,7 +567,7 @@ public class HazelcastTaskServiceTest {
 
         @Test
         void testEmpty() {
-            try(MockedStatic<TaskDtoUtil> tdu = mockStatic(TaskDtoUtil.class)) {
+            try (MockedStatic<TaskDtoUtil> tdu = mockStatic(TaskDtoUtil.class)) {
                 tdu.when(() -> TaskDtoUtil.updateErrorEvent(any(ClientMongoOperator.class), anyList(), any(ObjectId.class), any(ObsLogger.class), anyString())).thenAnswer(a -> null);
                 hazelcastTaskService.cleanAllUnselectedError(taskDto, obsLogger);
                 verify(taskDto).getErrorEvents();
@@ -534,19 +576,22 @@ public class HazelcastTaskServiceTest {
             }
         }
     }
+
     @Nested
-    class Task2HazelcastDAGTest{
+    class Task2HazelcastDAGTest {
         HazelcastTaskService hazelcastTaskService;
         ClientMongoOperator clientMongoOperator;
         ConfigurationCenter configurationCenter;
+
         @BeforeEach
-        void init(){
+        void init() {
             clientMongoOperator = mock(ClientMongoOperator.class);
             hazelcastTaskService = mock(HazelcastTaskService.class);
             configurationCenter = mock(ConfigurationCenter.class);
             ReflectionTestUtils.setField(hazelcastTaskService, "clientMongoOperator", clientMongoOperator);
             ReflectionTestUtils.setField(hazelcastTaskService, "configurationCenter", configurationCenter);
         }
+
         @DisplayName("test task2HazelcastDAG method when node is tableNode")
         @Test
         void test1() {
@@ -554,7 +599,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto,true);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -570,8 +615,8 @@ public class HazelcastTaskServiceTest {
                 TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testNodeId", tableNameAndQualifiedNameMap);
                 tapTableMap.put("testNodeId", new TapTable());
 
-                when(hazelcastTaskService.getTapTableMap(any(), any(), any(),any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto,true);
+                when(hazelcastTaskService.getTapTableMap(any(), any(), any(), any())).thenReturn(tapTableMap);
+                hazelcastTaskService.task2HazelcastDAG(taskDto, true);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
@@ -583,7 +628,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto,false);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -599,17 +644,19 @@ public class HazelcastTaskServiceTest {
                 TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testNodeId", tableNameAndQualifiedNameMap);
                 tapTableMap.put("testNodeId", new TapTable());
 
-                when(hazelcastTaskService.getTapTableMap(any(), any(), any(),any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto,false);
+                when(hazelcastTaskService.getTapTableMap(any(), any(), any(), any())).thenReturn(tapTableMap);
+                hazelcastTaskService.task2HazelcastDAG(taskDto, false);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
     }
+
     @Nested
-    class SingleTaskFilterEventDataIfNeedTest{
+    class SingleTaskFilterEventDataIfNeedTest {
         HazelcastTaskService hazelcastTaskService;
+
         @BeforeEach
-        void init(){
+        void init() {
             hazelcastTaskService = mock(HazelcastTaskService.class);
         }
 
@@ -618,7 +665,7 @@ public class HazelcastTaskServiceTest {
         void test1() {
             AtomicBoolean needFilterEvent = new AtomicBoolean(true);
             TableNode tableNode = new TableNode();
-            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(null,needFilterEvent,tableNode);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(null, needFilterEvent, tableNode);
             hazelcastTaskService.singleTaskFilterEventDataIfNeed(null, needFilterEvent, tableNode);
             assertEquals(true, needFilterEvent.get());
         }
@@ -627,7 +674,7 @@ public class HazelcastTaskServiceTest {
         @Test
         void test2() {
             Connections connections = new Connections();
-            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,null,null);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections, null, null);
             assertDoesNotThrow(() -> hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, null, null));
         }
 
@@ -639,13 +686,14 @@ public class HazelcastTaskServiceTest {
             definitionTags.add("schema-free");
             connections.setDefinitionTags(definitionTags);
             AtomicBoolean needFilterEvent = new AtomicBoolean(true);
-            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,null);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
             hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
             assertEquals(false, needFilterEvent.get());
         }
+
         @DisplayName("test SingleTaskFilterEventDataIfNeed when connections is not schema-free")
         @Test
-        void test4(){
+        void test4() {
             Connections connections = new Connections();
             List<String> definitionTags = new ArrayList<>();
             definitionTags.add("Database");
@@ -653,13 +701,14 @@ public class HazelcastTaskServiceTest {
             definitionTags.add("doubleActive");
             connections.setDefinitionTags(definitionTags);
             AtomicBoolean needFilterEvent = new AtomicBoolean(true);
-            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,null);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
             hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
             assertEquals(true, needFilterEvent.get());
         }
+
         @DisplayName("test SingleTaskFilterEventDataIfNeed when connections is not schema-free and tableNode is enableCustomSql")
         @Test
-        void test5(){
+        void test5() {
             Connections connections = new Connections();
             List<String> definitionTags = new ArrayList<>();
             definitionTags.add("Database");
@@ -667,31 +716,34 @@ public class HazelcastTaskServiceTest {
             definitionTags.add("doubleActive");
             connections.setDefinitionTags(definitionTags);
             AtomicBoolean needFilterEvent = new AtomicBoolean(true);
-            TableNode tableNode=new TableNode();
+            TableNode tableNode = new TableNode();
             tableNode.setEnableCustomCommand(true);
-            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,tableNode);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections, needFilterEvent, tableNode);
             hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, tableNode);
             assertEquals(false, needFilterEvent.get());
         }
+
         @DisplayName("test SingleTaskFilterEventDataIfNeed when connections tags is null")
         @Test
-        void test6(){
+        void test6() {
             Connections connections = new Connections();
             connections.setDefinitionTags(null);
             AtomicBoolean needFilterEvent = new AtomicBoolean(true);
-            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections,needFilterEvent,null);
+            doCallRealMethod().when(hazelcastTaskService).singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
             hazelcastTaskService.singleTaskFilterEventDataIfNeed(connections, needFilterEvent, null);
             assertEquals(true, needFilterEvent.get());
         }
 
 
     }
+
     @Nested
-    class EngineTransformSchemaTest{
+    class EngineTransformSchemaTest {
         HazelcastTaskService hazelcastTaskService;
         ClientMongoOperator clientMongoOperator;
+
         @BeforeEach
-        void init(){
+        void init() {
             clientMongoOperator = mock(ClientMongoOperator.class);
             hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
         }
@@ -705,8 +757,8 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
             taskDto.setSyncType("sync");
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
-            try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
-                MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
+            try (MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                 MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)) {
                 obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
                 ObsLogger obsLogger = mock(ObsLogger.class);
                 when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
@@ -721,12 +773,12 @@ public class HazelcastTaskServiceTest {
                 transformerWsMessageDto.setTransformerDtoMap(new HashMap<>());
                 transformerWsMessageDto.setTaskDto(taskDto);
                 mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
-                when(clientMongoOperator.findOne(any(Query.class),any(),any())).thenReturn(transformerWsMessageDto);
+                when(clientMongoOperator.findOne(any(Query.class), any(), any())).thenReturn(transformerWsMessageDto);
                 DAG cloneDag = mock(DAG.class);
 
                 when(dag.clone()).thenReturn(cloneDag);
-                when(cloneDag.transformSchema(any(),any(),any())).thenReturn(new HashMap<>());
-                Map<String,TapTableMap<String, TapTable>> result = hazelcastTaskService.engineTransformSchema(taskDto);
+                when(cloneDag.transformSchema(any(), any(), any())).thenReturn(new HashMap<>());
+                Map<String, TapTableMap<String, TapTable>> result = hazelcastTaskService.engineTransformSchema(taskDto);
                 Assertions.assertNotNull(result);
             } catch (CloneNotSupportedException e) {
                 throw new RuntimeException(e);
@@ -744,8 +796,8 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
             taskDto.setSyncType("migrate");
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
-            try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
-                MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
+            try (MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                 MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)) {
                 obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
                 ObsLogger obsLogger = mock(ObsLogger.class);
                 when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
@@ -760,11 +812,11 @@ public class HazelcastTaskServiceTest {
                 transformerWsMessageDto.setTransformerDtoMap(new HashMap<>());
                 transformerWsMessageDto.setTaskDto(taskDto);
                 mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
-                when(clientMongoOperator.findOne(any(Query.class),any(),any())).thenReturn(transformerWsMessageDto);
+                when(clientMongoOperator.findOne(any(Query.class), any(), any())).thenReturn(transformerWsMessageDto);
                 DAG cloneDag = mock(DAG.class);
                 when(dag.clone()).thenReturn(cloneDag);
-                doThrow(new MongoClientException("")).when(cloneDag).transformSchema(any(),any(),any(),any());
-                Assertions.assertThrows(TapCodeException.class,()->{
+                doThrow(new MongoClientException("")).when(cloneDag).transformSchema(any(), any(), any(), any());
+                Assertions.assertThrows(TapCodeException.class, () -> {
                     hazelcastTaskService.engineTransformSchema(taskDto);
                 });
             } catch (CloneNotSupportedException e) {
@@ -782,13 +834,13 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
             taskDto.setSyncType("migrate");
             ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
-            try(MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
-                MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)){
+            try (MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);
+                 MockedStatic<AspectUtils> mockedStatic = mockStatic(AspectUtils.class)) {
                 mockedStatic.when(() -> AspectUtils.executeAspect(any(), any())).thenReturn(null);
                 obsLoggerFactoryMockedStatic.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
                 ObsLogger obsLogger = mock(ObsLogger.class);
                 when(obsLoggerFactory.getObsLogger(any(TaskDto.class))).thenReturn(obsLogger);
-                Assertions.assertThrows(TapCodeException.class,()->{
+                Assertions.assertThrows(TapCodeException.class, () -> {
                     hazelcastTaskService.engineTransformSchema(taskDto);
                 });
             }
@@ -797,63 +849,64 @@ public class HazelcastTaskServiceTest {
     }
 
     @Nested
-    class GetTapTableMapTest{
+    class GetTapTableMapTest {
         @Test
-        void testTaskTypeIsTestRun(){
+        void testTaskTypeIsTestRun() {
             TaskDto taskDto = new TaskDto();
             taskDto.setSyncType("testRun");
             DatabaseNode databaseNode = new DatabaseNode();
             databaseNode.setId("databaseNode");
-            try(MockedStatic<TapTableUtil> tapTableUtilMockedStatic = mockStatic(TapTableUtil.class)){
-                tapTableUtilMockedStatic.when(()->TapTableUtil.getTapTableMapByNodeId(anyString(),any())).thenAnswer(invocationOnMock -> {
-                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+            try (MockedStatic<TapTableUtil> tapTableUtilMockedStatic = mockStatic(TapTableUtil.class)) {
+                tapTableUtilMockedStatic.when(() -> TapTableUtil.getTapTableMapByNodeId(anyString(), any())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode", invocationOnMock.getArgument(0));
                     return null;
                 });
-                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+                HazelcastTaskService.getTapTableMap(taskDto, 1L, databaseNode, new HashMap<>());
             }
         }
 
         @Test
-        void testNormalTask(){
+        void testNormalTask() {
             TaskDto taskDto = new TaskDto();
             taskDto.setSyncType("sync");
             DatabaseNode databaseNode = new DatabaseNode();
             databaseNode.setId("databaseNode");
-            try(MockedStatic<TapTableMap> tableMapMockedStatic = mockStatic(TapTableMap.class)){
-                tableMapMockedStatic.when(()->TapTableMap.create(anyString())).thenAnswer(invocationOnMock -> {
-                    Assertions.assertEquals("databaseNode",invocationOnMock.getArgument(0));
+            try (MockedStatic<TapTableMap> tableMapMockedStatic = mockStatic(TapTableMap.class)) {
+                tableMapMockedStatic.when(() -> TapTableMap.create(anyString())).thenAnswer(invocationOnMock -> {
+                    Assertions.assertEquals("databaseNode", invocationOnMock.getArgument(0));
                     return null;
                 });
-                HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,new HashMap<>());
+                HazelcastTaskService.getTapTableMap(taskDto, 1L, databaseNode, new HashMap<>());
             }
         }
 
         @Test
-        void testNormalTaskTapTableMapHashMapIsNotNull(){
+        void testNormalTaskTapTableMapHashMapIsNotNull() {
             TaskDto taskDto = new TaskDto();
             taskDto.setSyncType("sync");
             DatabaseNode databaseNode = new DatabaseNode();
             databaseNode.setId("databaseNode");
             Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
-            TapTableMap<String, TapTable> except =  TapTableMap.create("databaseNode");
-            tapTableMapHashMap.put("databaseNode",except);
-            TapTableMap<String, TapTable> result = HazelcastTaskService.getTapTableMap(taskDto,1L,databaseNode,tapTableMapHashMap);
-            Assertions.assertEquals(except,result);
+            TapTableMap<String, TapTable> except = TapTableMap.create("databaseNode");
+            tapTableMapHashMap.put("databaseNode", except);
+            TapTableMap<String, TapTable> result = HazelcastTaskService.getTapTableMap(taskDto, 1L, databaseNode, tapTableMapHashMap);
+            Assertions.assertEquals(except, result);
         }
     }
 
     @Nested
-    class CleanMergeNodeTest{
+    class CleanMergeNodeTest {
         HazelcastTaskService hazelcastTaskService = mock(HazelcastTaskService.class);
+
         @Test
-        void test_cleanMergeNode(){
+        void test_cleanMergeNode() {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
             taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
             taskDto.setAttrs(new HashMap<>());
             List<Node> nodes = new ArrayList<>();
             MergeTableNode node = new MergeTableNode();
-            node.setAttrs(new HashMap<String, Object>(){{
+            node.setAttrs(new HashMap<String, Object>() {{
                 put("disabled", false);
             }});
             nodes.add(node);
@@ -864,21 +917,21 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
-                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test");
-                hazelcastTaskService.cleanMergeNode(taskDto,"test");
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto, "test");
+                hazelcastTaskService.cleanMergeNode(taskDto, "test");
                 verify(clientMongoOperator, times(1)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
         }
 
         @Test
-        void test_ContainDisabledNode(){
+        void test_ContainDisabledNode() {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
             taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
             List<Node> nodes = new ArrayList<>();
             MergeTableNode node = new MergeTableNode();
             TableNode tableNode = new TableNode();
-            tableNode.setAttrs(new HashMap<String, Object>(){{
+            tableNode.setAttrs(new HashMap<String, Object>() {{
                 put("disabled", true);
             }});
             nodes.add(node);
@@ -890,21 +943,21 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
-                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test");
-                hazelcastTaskService.cleanMergeNode(taskDto,"test");
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto, "test");
+                hazelcastTaskService.cleanMergeNode(taskDto, "test");
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
         }
 
         @Test
-        void test_TaskTypeCDC(){
+        void test_TaskTypeCDC() {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
             taskDto.setType(TaskDto.TYPE_CDC);
             List<Node> nodes = new ArrayList<>();
             MergeTableNode node = new MergeTableNode();
             Map<String, Object> attrs = new HashMap<>();
-            attrs.put("disabled",false);
+            attrs.put("disabled", false);
             node.setAttrs(attrs);
             nodes.add(node);
             DAG dag = mock(DAG.class);
@@ -914,24 +967,24 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
-                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test");
-                hazelcastTaskService.cleanMergeNode(taskDto,"test");
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto, "test");
+                hazelcastTaskService.cleanMergeNode(taskDto, "test");
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
         }
 
         @Test
-        void test_ContainSyncProgresse(){
+        void test_ContainSyncProgresse() {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
             taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
             Map<String, Object> taskAttrs = new HashMap<>();
-            taskAttrs.put("syncProgress",new SyncProgress());
+            taskAttrs.put("syncProgress", new SyncProgress());
             taskDto.setAttrs(taskAttrs);
             List<Node> nodes = new ArrayList<>();
             MergeTableNode node = new MergeTableNode();
             Map<String, Object> attrs = new HashMap<>();
-            attrs.put("disabled",false);
+            attrs.put("disabled", false);
             node.setAttrs(attrs);
             nodes.add(node);
             DAG dag = mock(DAG.class);
@@ -941,8 +994,8 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
-                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test");
-                hazelcastTaskService.cleanMergeNode(taskDto,"test");
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto, "test");
+                hazelcastTaskService.cleanMergeNode(taskDto, "test");
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
         }
@@ -956,7 +1009,7 @@ public class HazelcastTaskServiceTest {
             List<Node> nodes = new ArrayList<>();
             MergeTableNode node = new MergeTableNode();
             Map<String, Object> attrs = new HashMap<>();
-            attrs.put("disabled",false);
+            attrs.put("disabled", false);
             node.setAttrs(attrs);
             nodes.add(node);
             DAG dag = mock(DAG.class);
@@ -966,10 +1019,124 @@ public class HazelcastTaskServiceTest {
                 ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
                 when(clientMongoOperator.findOne(any(Query.class), anyString(), eq(TaskDto.class))).thenReturn(null);
                 beanUtilMockedStatic.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
-                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto,"test");
-                hazelcastTaskService.cleanMergeNode(taskDto,"test");
+                doCallRealMethod().when(hazelcastTaskService).cleanMergeNode(taskDto, "test");
+                hazelcastTaskService.cleanMergeNode(taskDto, "test");
                 verify(clientMongoOperator, times(0)).findOne(any(Query.class), anyString(), eq(TaskDto.class));
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Method startPreviewTask test")
+    class startPreviewTaskTest {
+
+        private HazelcastTaskService hazelcastTaskService;
+		private HazelcastInstance hazelcastInstance;
+
+        @BeforeEach
+        void setUp() {
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            hazelcastInstance = mock(HazelcastInstance.class);
+            ReflectionTestUtils.setField(hazelcastTaskService, "hazelcastInstance", hazelcastInstance);
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            JetDag jetDag = mock(JetDag.class);
+            com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
+            when(jetDag.getDag()).thenReturn(dag);
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true);
+            JetService jet = mock(JetService.class);
+            when(hazelcastInstance.getJet()).thenReturn(jet);
+            Job job = mock(Job.class);
+            when(jet.newLightJob(eq(dag), any(JobConfig.class))).thenReturn(job);
+            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
+            assertNotNull(taskDtoTaskClient);
+            assertSame(job, ReflectionTestUtils.getField(taskDtoTaskClient, "job"));
+            assertSame(taskDto, taskDtoTaskClient.getTask());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method transformSchemaWhenPreview test")
+    class transformSchemaWhenPreviewTest {
+
+        private HazelcastTaskService hazelcastTaskService;
+
+		@BeforeEach
+        void setUp() {
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            Node node = taskDto.getDag().getNodes().get(0);
+            TableNode tableNode = assertInstanceOf(TableNode.class, node);
+            TapTable tapTable = new TapTable("POLICY");
+            tapTable.add(new TapField("POLICY_ID", "varchar(50)").tapType(new TapString()))
+                    .add(new TapField("QUOTE_DAY", "datetime").tapType(new TapDateTime()));
+            tableNode.setPreviewTapTable(tapTable);
+            tableNode.setPreviewQualifiedName("1");
+            Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = hazelcastTaskService.transformSchemaWhenPreview(taskDto);
+            assertNotNull(nodeTapTableMap);
+            TapTableMap<String, TapTable> tapTableMap = nodeTapTableMap.get(tableNode.getId());
+            assertSame(tapTable, tapTableMap.get("POLICY"));
+            verify(hazelcastTaskService, never()).engineTransformSchema(any(TaskDto.class));
+        }
+
+        @Test
+        @DisplayName("test previewQualifiedName is empty")
+        void test2() {
+            TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            Node node = taskDto.getDag().getNodes().get(0);
+            TableNode tableNode = assertInstanceOf(TableNode.class, node);
+            TapTable tapTable = new TapTable("POLICY");
+            tapTable.add(new TapField("POLICY_ID", "varchar(50)").tapType(new TapString()))
+                    .add(new TapField("QUOTE_DAY", "datetime").tapType(new TapDateTime()));
+            tableNode.setPreviewTapTable(tapTable);
+            tableNode.setPreviewQualifiedName(null);
+            Map mockNodeTapTableMap = mock(Map.class);
+            doReturn(mockNodeTapTableMap).when(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
+            Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = hazelcastTaskService.transformSchemaWhenPreview(taskDto);
+            assertSame(mockNodeTapTableMap, nodeTapTableMap);
+            verify(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
+        }
+
+        @Test
+        @DisplayName("test previewTapTable is empty")
+        void test3() {
+            TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            Node node = taskDto.getDag().getNodes().get(0);
+            TableNode tableNode = assertInstanceOf(TableNode.class, node);
+            tableNode.setPreviewTapTable(null);
+            tableNode.setPreviewQualifiedName("1");
+            Map mockNodeTapTableMap = mock(Map.class);
+            doReturn(mockNodeTapTableMap).when(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
+            Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = hazelcastTaskService.transformSchemaWhenPreview(taskDto);
+            assertSame(mockNodeTapTableMap, nodeTapTableMap);
+            verify(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
+        }
+
+        @Test
+        @DisplayName("test is not table node")
+        void test4() {
+            TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview4.json");
+            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            Map mockNodeTapTableMap = mock(Map.class);
+            doReturn(mockNodeTapTableMap).when(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
+            Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = hazelcastTaskService.transformSchemaWhenPreview(taskDto);
+            assertSame(mockNodeTapTableMap, nodeTapTableMap);
+            verify(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
         }
     }
 }

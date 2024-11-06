@@ -260,29 +260,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
 		if (deduce) {
 			if (taskDto.isPreviewTask()) {
-				tapTableMapHashMap = new HashMap<>();
-				boolean needTransformSchema = false;
-				List<Node> sourceNodes = taskDto.getDag().getSourceNodes();
-				for (Node sourceNode : sourceNodes) {
-					if (sourceNode instanceof TableNode) {
-						TableNode tableNode = (TableNode) sourceNode;
-						String previewQualifiedName = tableNode.getPreviewQualifiedName();
-						TapTable previewTapTable = tableNode.getPreviewTapTable();
-						if (StringUtils.isBlank(previewQualifiedName) || null == previewTapTable) {
-							needTransformSchema = true;
-							break;
-						}
-						TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(tableNode.getId());
-						tapTableMap.putNew(tableNode.getTableName(), previewTapTable, previewQualifiedName);
-						tapTableMapHashMap.put(tableNode.getId(), tapTableMap);
-					} else {
-						needTransformSchema = true;
-						break;
-					}
-				}
-				if (needTransformSchema) {
-					tapTableMapHashMap = engineTransformSchema(taskDto);
-				}
+				tapTableMapHashMap = transformSchemaWhenPreview(taskDto);
 			} else {
 				tapTableMapHashMap = engineTransformSchema(taskDto);
 			}
@@ -421,6 +399,34 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	protected Map<String, TapTableMap<String, TapTable>> transformSchemaWhenPreview(TaskDto taskDto) {
+		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
+		tapTableMapHashMap = new HashMap<>();
+		boolean needTransformSchema = false;
+		List<Node> sourceNodes = taskDto.getDag().getSourceNodes();
+		for (Node sourceNode : sourceNodes) {
+			if (sourceNode instanceof TableNode) {
+				TableNode tableNode = (TableNode) sourceNode;
+				String previewQualifiedName = tableNode.getPreviewQualifiedName();
+				TapTable previewTapTable = tableNode.getPreviewTapTable();
+				if (StringUtils.isBlank(previewQualifiedName) || null == previewTapTable) {
+					needTransformSchema = true;
+					break;
+				}
+				TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(tableNode.getId());
+				tapTableMap.putNew(tableNode.getTableName(), previewTapTable, previewQualifiedName);
+				tapTableMapHashMap.put(tableNode.getId(), tapTableMap);
+			} else {
+				needTransformSchema = true;
+				break;
+			}
+		}
+		if (needTransformSchema) {
+			tapTableMapHashMap = engineTransformSchema(taskDto);
+		}
+		return tapTableMapHashMap;
 	}
 
 	protected void singleTaskFilterEventDataIfNeed(Connections conn, AtomicBoolean needFilterEvent, TableNode tableNode) {
