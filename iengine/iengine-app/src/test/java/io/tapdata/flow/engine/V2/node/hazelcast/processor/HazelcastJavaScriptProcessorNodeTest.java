@@ -8,12 +8,15 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.observable.logging.LogLevel;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.TaskLogger;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.LogManager;
 import org.bson.types.ObjectId;
@@ -25,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.script.Invocable;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -230,6 +234,57 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 				.withTaskDto(new TaskDto())
 				.build();
 		processorBaseContext.getTaskDto().setId(new ObjectId());
+		List<String> logTags = new ArrayList<>();
+		logTags.add("type=test_process");
+		HazelcastProcessorBaseNode processorBaseNode = new HazelcastProcessorBaseNode(processorBaseContext) {
+			@Override
+			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+
+			}
+
+			private int counter = -1;
+			@Override
+			protected List<String> getLogTags() {
+				counter++;
+				if (counter == 0)
+					return Collections.emptyList();
+				return logTags;
+			}
+		};
+
+		try (MockedStatic<ObsLoggerFactory> mockObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+
+			ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+			ObsLogger logger = mock(ObsLogger.class);
+
+			mockObsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(obsLoggerFactory);
+
+			Assertions.assertEquals(obsLoggerFactory, ObsLoggerFactory.getInstance());
+
+			doReturn(logger).when(obsLoggerFactory).getObsLogger(any(TaskDto.class), anyString(), anyString(), anyList());
+
+			ObsLogger log = processorBaseNode.getScriptObsLogger();
+			Assertions.assertNotNull(log);
+
+			ObsLogger log1 = processorBaseNode.getScriptObsLogger();
+			Assertions.assertEquals(log, log1);
+
+			ReflectionTestUtils.setField(processorBaseNode, "scriptObsLogger", null);
+			ObsLogger log2 = processorBaseNode.getScriptObsLogger();
+			Assertions.assertNotNull(log2);
+		}
+	}
+
+	@Test
+	void testGetScriptObsLoggerWithDefaultLogTag() {
+		ProcessorNode node = new JsProcessorNode();
+		node.setId("nodeId");
+		node.setName("nodeName");
+		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder()
+				.withNode(node)
+				.withTaskDto(new TaskDto())
+				.build();
+		processorBaseContext.getTaskDto().setId(new ObjectId());
 		HazelcastProcessorBaseNode processorBaseNode = new HazelcastProcessorBaseNode(processorBaseContext) {
 			@Override
 			protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
@@ -251,8 +306,6 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			ObsLogger log = processorBaseNode.getScriptObsLogger();
 			Assertions.assertNotNull(log);
 
-			ObsLogger log1 = processorBaseNode.getScriptObsLogger();
-			Assertions.assertEquals(log, log1);
 		}
 	}
 }
