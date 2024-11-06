@@ -43,6 +43,10 @@ public class MilestoneEntity implements Serializable {
         this.status = status;
     }
 
+    public synchronized void addProgress(int size) {
+        this.progress = (this.progress == null ? 0 : this.progress) + size;
+    }
+
     public static MilestoneEntity valueOf(Object o) {
         if (o instanceof Map) {
             MilestoneEntity entity = new MilestoneEntity();
