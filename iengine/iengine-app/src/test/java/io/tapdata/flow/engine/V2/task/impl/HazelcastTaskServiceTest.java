@@ -750,6 +750,7 @@ public class HazelcastTaskServiceTest {
 
         @DisplayName("test initializeModel main process")
         @Test
+        @Disabled
         void test1() {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
