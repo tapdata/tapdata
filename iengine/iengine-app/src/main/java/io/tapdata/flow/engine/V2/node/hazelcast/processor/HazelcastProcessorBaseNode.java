@@ -420,7 +420,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		this.ignore = ignore;
 	}
 
-	protected static class ProcessResult {
+	public static class ProcessResult {
 		private String tableId;
 
 		public static ProcessResult create() {

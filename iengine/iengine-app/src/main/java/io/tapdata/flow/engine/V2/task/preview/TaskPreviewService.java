@@ -48,16 +48,6 @@ public class TaskPreviewService implements MemoryFetcher {
 	private static final Logger logger = LogManager.getLogger(TaskPreviewService.class);
 	private static final Map<String, TaskPreviewInstance> taskPreviewInstanceMap = new ConcurrentHashMap<>();
 	public static final int DEFAULT_PREVIEW_ROWS = 1;
-	private static final TapCodecsFilterManager tapCodecsFilterManager;
-
-	static {
-		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant().toString());
-		tapCodecsRegistry.registerFromTapValue(TapDateValue.class, tapValue -> tapValue.getValue().toInstant().toString());
-		tapCodecsRegistry.registerFromTapValue(TapTimeValue.class, tapValue -> tapValue.getValue().toTimeStr());
-		tapCodecsRegistry.registerFromTapValue(TapYearValue.class, tapValue -> tapValue.getValue().toLocalDateTime().getYear());
-		tapCodecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-	}
 
 	public TaskPreviewResultVO preview(String taskJson, List<String> includeNodeIds, Integer previewRows) {
 		StopWatch stopWatch = StopWatch.create(String.join("_", TAG, System.currentTimeMillis() + ""));
@@ -122,22 +112,9 @@ public class TaskPreviewService implements MemoryFetcher {
 		stats.setAllTaken(stopWatch.getTotalTimeMillis());
 	}
 
-	private static void clearAfterPreview(TaskDto taskDto) {
+	protected void clearAfterPreview(TaskDto taskDto) {
 		TaskGlobalVariable.INSTANCE.removeTask(taskPreviewInstanceId(taskDto));
 		ObsLoggerFactory.getInstance().removeFromFactory(taskDto.getTestTaskId());
-	}
-
-	private void transformFromTapValue(TaskPreviewResultVO taskPreviewResultVO) {
-		Map<String, TaskPreviewNodeResultVO> nodeResult = taskPreviewResultVO.getNodeResult();
-		for (TaskPreviewNodeResultVO nodeResultVO : nodeResult.values()) {
-			List<Map<String, Object>> data = nodeResultVO.getData();
-			if (CollectionUtils.isEmpty(data)) {
-				continue;
-			}
-			for (Map<String, Object> datum : data) {
-				tapCodecsFilterManager.transformFromTapValueMap(datum);
-			}
-		}
 	}
 
 	private TaskPreviewInstance wrapTaskPreviewInstance(TaskDto taskDto) {
@@ -152,7 +129,7 @@ public class TaskPreviewService implements MemoryFetcher {
 		return taskPreviewInstance;
 	}
 
-	private void previewPrivate(TaskDto taskDto, StopWatch stopWatch) {
+	protected void previewPrivate(TaskDto taskDto, StopWatch stopWatch) {
 		stopWatch.start("execTask");
 		String taskId = taskDto.getId().toHexString();
 		Integer previewRows = taskDto.getPreviewRows();

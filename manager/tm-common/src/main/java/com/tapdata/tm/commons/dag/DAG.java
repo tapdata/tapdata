@@ -296,7 +296,7 @@ public class DAG implements Serializable, Cloneable {
         }
 
         List<Node> nodes = dag.getNodes();
-        Map<String, Node> nodeMap = nodes.stream().collect(Collectors.toMap(Element::getId, n -> n, (m1, m2) -> m1));
+        Map<String, Node> nodeMap = nodes.stream().filter(Objects::nonNull).collect(Collectors.toMap(Element::getId, n -> n, (m1, m2) -> m1));
         for (String s : list) {
             linkedNode.add(nodeMap.get(s));
         }
@@ -1247,7 +1247,7 @@ public class DAG implements Serializable, Cloneable {
 
     public List<Node> getAllTypeTargetNodes() {
         Set<String> sinks = graph.getSinks();
-        return getNodes().stream().filter(node -> sinks.contains(node.getId())).collect(Collectors.toList());
+        return getNodes().stream().filter(node -> null != node && sinks.contains(node.getId())).collect(Collectors.toList());
     }
 
     public void replaceNode(Node oldNode, Node newNode) {

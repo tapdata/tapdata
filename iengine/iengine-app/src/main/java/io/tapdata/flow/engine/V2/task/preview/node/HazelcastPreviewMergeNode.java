@@ -95,6 +95,7 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 				TapEvent tapEvent = tapdataEvent.getTapEvent();
 				if (!(tapEvent instanceof TapInsertRecordEvent)) {
 					consumer.accept(tapdataEvent, null);
+					return;
 				}
 				TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) tapEvent;
 				List<String> nodeIds = tapdataEvent.getNodeIds();
@@ -110,7 +111,7 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 		}
 	}
 
-	private List<Map<String, Object>> memoryMerge() throws MemoryMergeException {
+	protected List<Map<String, Object>> memoryMerge() throws MemoryMergeException {
 		List<MergeTableProperties> mergeProperties = this.mergeTableNode.getMergeProperties();
 		List<Map<String, Object>> result = new ArrayList<>();
 		LinkedList<MemoryMergeData> queue = new LinkedList<>();
@@ -273,5 +274,10 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 		public MergeData(Map<String, Object> map) {
 			this.map = map;
 		}
+	}
+
+	@Override
+	protected boolean isRunning() {
+		return super.isRunning();
 	}
 }
