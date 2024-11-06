@@ -95,4 +95,19 @@ public class RetryLifeCycleAspect extends DataFunctionAspect<RetryLifeCycleAspec
     public void setRetryMetadata(Map<String, Object> retryMetadata) {
         this.retryMetadata = retryMetadata;
     }
+
+    @Override
+    public String toString() {
+        return "RetryLifeCycleAspect{" +
+                "retrying=" + retrying +
+                ", retryTimes=" + retryTimes +
+                ", startRetryTs=" + startRetryTs +
+                ", endRetryTs=" + endRetryTs +
+                ", nextRetryTs=" + nextRetryTs +
+                ", totalRetries=" + totalRetries +
+                ", retryOp='" + retryOp + '\'' +
+                ", success=" + success +
+                ", retryMetadata=" + retryMetadata +
+                '}';
+    }
 }
