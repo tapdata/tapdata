@@ -28,10 +28,14 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
+import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.FilterResults;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
@@ -115,6 +119,101 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			});
 			assertEquals(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED,tapCodeException.getCode());
 
+		}
+		@Nested
+		class testProcessExactlyOnceWriteCache{
+			@BeforeEach
+			void init(){
+
+			}
+			@Test
+			void test1(){
+				List<TapdataEvent> tapdataEvents=new ArrayList<>();
+				TapdataEvent tapdataEvent=new TapdataEvent();
+				TapInsertRecordEvent tapInsertRecordEvent=TapInsertRecordEvent.create();
+				Map<String,Object> after=new HashMap<>();
+				after.put("exactlyId","scn");
+				after.put("timestamp",System.currentTimeMillis());
+				tapInsertRecordEvent.setAfter(after);
+				tapdataEvent.setExactlyOnceWriteCache(tapInsertRecordEvent);
+				tapdataEvents.add(tapdataEvent);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+				ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+				when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+				when(connectorFunctions.getWriteRecordFunction()).thenReturn(new mockWriteFunction());
+				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+				when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
+				doCallRealMethod().when(pdkMethodInvoker).runnable(any());
+				doCallRealMethod().when(pdkMethodInvoker).getRunnable();
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).processExactlyOnceWriteCache(tapdataEvents);
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
+				try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);){
+					pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
+						PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
+						CommonUtils.AnyError runnable = argument.getRunnable();
+						TapCodeException tapCodeException = assertThrows(TapCodeException.class, runnable::run);
+						assertEquals(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED,tapCodeException.getCode());
+						return null;
+					}));
+					hazelcastTargetPdkDataNode.processExactlyOnceWriteCache(tapdataEvents);
+				}
+			}
+			class mockWriteFunction implements WriteRecordFunction{
+
+				@Override
+				public void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> recordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+					throw new RuntimeException("write failed");
+				}
+			}
+		}
+		@Nested
+		class testeventExactlyOnceWriteCheckExists{
+			@Test
+			void test2(){
+				TapdataEvent tapdataEvent=new TapdataEvent();
+				TapInsertRecordEvent tapInsertRecordEvent=TapInsertRecordEvent.create();
+				Map<String,Object> after=new HashMap<>();
+				after.put("exactlyId","scn");
+				after.put("timestamp",System.currentTimeMillis());
+				tapInsertRecordEvent.setAfter(after);
+				tapdataEvent.setExactlyOnceWriteCache(tapInsertRecordEvent);
+				TapTableMap tapTableMap = mock(TapTableMap.class);
+				DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+				when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+				TapTable tapTable = mock(TapTable.class);
+				when(tapTableMap.get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)).thenReturn(tapTable);
+				List<String> primaryKey=new ArrayList<>();
+				primaryKey.add("exactlyId");
+				when(tapTable.primaryKeys()).thenReturn(primaryKey);
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"dataProcessorContext",dataProcessorContext);
+				ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+				PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+				when(hazelcastTargetPdkDataNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
+				doCallRealMethod().when(pdkMethodInvoker).runnable(any());
+				doCallRealMethod().when(pdkMethodInvoker).getRunnable();
+				when(connectorFunctions.getQueryByAdvanceFilterFunction()).thenReturn(new QueryByAdvanceFilterFunction() {
+					@Override
+					public void query(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
+						throw new RuntimeException("queryFailed");
+					}
+				});
+				when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+				when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).eventExactlyOnceWriteCheckExists(any());
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
+				try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)){
+					pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
+						PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
+						CommonUtils.AnyError runnable = argument.getRunnable();
+						TapCodeException tapCodeException = assertThrows(TapCodeException.class, runnable::run);
+						assertEquals(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED,tapCodeException.getCode());
+						return null;
+					}));
+					hazelcastTargetPdkDataNode.eventExactlyOnceWriteCheckExists(tapdataEvent);
+				}
+			}
 		}
 
 		@NotNull
@@ -206,7 +305,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			createIndexFunction = mock(CreateIndexFunction.class);
 			getTableInfoFunction = mock(GetTableInfoFunction.class);
 			queryIndexesFunction = mock(QueryIndexesFunction.class);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
+
 		}
 		@Test
 		@DisplayName("test sync method when sync index switch is off")
@@ -308,6 +407,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		@DisplayName("test sync method when exists index with same name")
 		@SneakyThrows
 		void testSyncIndex7(){
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
 			autoCreateTable = true;
 			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
 			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
@@ -338,6 +438,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		@DisplayName("test sync method when exists index with same field")
 		@SneakyThrows
 		void testSyncIndex8(){
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
 			autoCreateTable = true;
 			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
 			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
@@ -423,7 +524,9 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(tapIndex.getIndexFields()).thenReturn(indexFields);
 			indices.add(tapIndex);
 			when(tapTable.getIndexList()).thenReturn(indices);
-			doThrow(new TapCodeException("15003")).when(queryIndexesFunction).query(any(TapConnectorContext.class),any(TapTable.class),any(Consumer.class));
+			List<TapIndex> tapIndices=new ArrayList<>();
+			when(hazelcastTargetPdkDataNode.queryExistsIndexes(any(),any())).thenReturn(tapIndices);
+			when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class))).thenThrow(new RuntimeException("failed"));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable));
@@ -525,6 +628,42 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			assertEquals(1, tapCreateIndexEvent.getIndexList().size());
 			verify(hazelcastTargetPdkDataNode).queryExistsIndexes(tapTable, tapIndices);
 			verify(createIndexFunction).createIndex(connectorContext, tapTable, tapCreateIndexEvent);
+		}
+		@Test
+		@DisplayName("test main process")
+		@SneakyThrows
+		void testException() {
+			List<TapIndex> tapIndices = new ArrayList<>();
+			tapIndices.add(new TapIndex()
+					.indexField(new TapIndexField().name("test_id").fieldAsc(true))
+					.indexField(new TapIndexField().name("test_id1").fieldAsc(false)));
+			tapIndices.add(new TapIndex()
+					.name("dup_index")
+					.indexField(new TapIndexField().name("dup_id").fieldAsc(true)));
+			TapCreateIndexEvent tapCreateIndexEvent = new TapCreateIndexEvent()
+					.indexList(tapIndices);
+			tapCreateIndexEvent.setTableId("test");
+			TapTable tapTable = new TapTable("test");
+			when(tapTableMap.get("test")).thenReturn(tapTable);
+			CreateIndexFunction createIndexFunction = mock(CreateIndexFunction.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+			List<TapIndex> existsIndexes = new ArrayList<>();
+			existsIndexes.add(tapIndices.get(1));
+			when(hazelcastTargetPdkDataNode.queryExistsIndexes(tapTable, tapIndices)).thenReturn(existsIndexes);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doCallRealMethod().when(connectorNode).applyClassLoaderContext(any());
+			doThrow(new RuntimeException("create failed")).when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(), any(), any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastTargetPdkDataNode.executeCreateIndexFunction(tapCreateIndexEvent);
+			});
+			assertEquals(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED,tapCodeException.getCode());
+
+
 		}
 
 		@Test

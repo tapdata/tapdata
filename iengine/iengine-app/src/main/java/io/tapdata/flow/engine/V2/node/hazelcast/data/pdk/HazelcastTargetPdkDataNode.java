@@ -1044,8 +1044,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											if (MapUtils.isNotEmpty(errorMap)) {
 												Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
 												Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
-												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue())
-														.dynamicDescriptionParameters(next.getKey(), next.getValue());
+												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
 											}
 										});
 							} catch (Exception e) {
@@ -1056,7 +1055,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
+	protected boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) return false;
 		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
 		ConnectorNode connectorNode = getConnectorNode();
