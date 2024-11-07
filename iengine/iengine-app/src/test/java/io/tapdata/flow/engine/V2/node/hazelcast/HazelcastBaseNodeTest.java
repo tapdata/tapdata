@@ -2158,15 +2158,18 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test updateTapTableWhenCreateTableEvent for exception GET_NODE_METADATA_BY_TABLE_NAME_FAILED")
 		@Test
 		void test2(){
-			TapUpdateRecordEvent tapUpdateRecordEvent = TapUpdateRecordEvent.create();
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
 			List<MetadataInstancesDto> metadataInstancesDtos=new ArrayList<>();
-			tapUpdateRecordEvent.addInfo(INSERT_METADATA_INFO_KEY,metadataInstancesDtos);
+			tapCreateTableEvent.addInfo(INSERT_METADATA_INFO_KEY,metadataInstancesDtos);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTable.checkIsSubPartitionTable()).thenReturn(false);
+			tapCreateTableEvent.setTable(tapTable);
 			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
 			doCallRealMethod().when(mockHazelcastBaseNode).updateTapTableWhenCreateTableEvent(anyString(),any(),any(),any());
 			Node mockNode = mock(Node.class);
 			when(mockHazelcastBaseNode.getNode()).thenReturn(mockNode);
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-				mockHazelcastBaseNode.updateTapTableWhenCreateTableEvent("testTableName", tapUpdateRecordEvent, dagDataService, null);
+				mockHazelcastBaseNode.updateTapTableWhenCreateTableEvent("testTableName", tapCreateTableEvent, dagDataService, null);
 			});
 			assertEquals(tapCodeException.getCode(),TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED);
 		}
