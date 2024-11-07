@@ -596,6 +596,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			assertEquals(1, tapEventException.getEvents().size());
 			assertEquals(tapCreateIndexEvent, tapEventException.getEvents().get(0));
 		}
+
 	}
 	@Nested
 	class createTargetIndexTest{

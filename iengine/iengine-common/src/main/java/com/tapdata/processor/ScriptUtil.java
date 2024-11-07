@@ -419,7 +419,7 @@ public class ScriptUtil {
 				consumer.accept(urlClassLoader);
 			}
 		}catch (IOException e){
-			throw new TapCodeException(ScriptProcessorExCode_30.SCRIPT_IO,String.format("Url class loader failed: %s",urlList),e);
+			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,String.format("Failed to get script engine: %s", e.getMessage()),e);
 		}
 	}
 

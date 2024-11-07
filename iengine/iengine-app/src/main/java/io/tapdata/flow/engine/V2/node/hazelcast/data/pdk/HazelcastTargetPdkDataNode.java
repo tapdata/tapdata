@@ -302,7 +302,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		} catch (Throwable throwable) {
 			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
 					.addEvent(indexEvent.get())
-					.dynamicDescriptionParameters(tableId, null != indexEvent.get() ? indexEvent.get().getIndexList() : "");
+					.dynamicDescriptionParameters(tableId, indexEvent.get().getIndexList());
 			throwTapCodeException(throwable,tapEventException);
 		}
 	}
@@ -392,7 +392,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		} catch (Throwable throwable) {
 			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
 					.addEvent(indexEvent.get())
-					.dynamicDescriptionParameters(tableId, null != indexEvent.get() ? indexEvent.get().getIndexList() : "");
+					.dynamicDescriptionParameters(tableId, indexEvent.get().getIndexList());
 			throwTapCodeException(throwable,tapEventException);
 		}
 		long end = System.currentTimeMillis();
