@@ -265,7 +265,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	public void handleMessage(final WebSocketSession session, final WebSocketMessage<?> message) throws Exception {
 		Runnable runnable = () -> {
 			try {
-				logger.info("Received message {}", message);
+				logger.debug("Received message {}", message);
 
 				String payload = (String) message.getPayload();
 
