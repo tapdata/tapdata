@@ -86,7 +86,7 @@ public class ObservableAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
-		taskSampleHandler = new TaskSampleHandlerV2(task);
+		taskSampleHandler = new TaskSampleHandler(task);
 		taskSampleHandler.init();
 		initCompletableFuture();
 	}
