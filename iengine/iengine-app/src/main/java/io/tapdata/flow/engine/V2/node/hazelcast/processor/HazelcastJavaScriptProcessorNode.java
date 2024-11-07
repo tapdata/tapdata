@@ -203,6 +203,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		return null;
 	}
 
+
 	@SneakyThrows
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {

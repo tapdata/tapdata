@@ -196,7 +196,7 @@ public class ScriptUtil {
 
 			return (Invocable) e;
 		} catch (IOException e) {
-			throw new TapCodeException(ScriptProcessorExCode_30.SCRIPT_IO,String.format("Failed to get script engine: %s", e.getMessage()),e);
+			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,String.format("Failed to get script engine: %s", e.getMessage()),e);
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);
 		}
@@ -390,7 +390,7 @@ public class ScriptUtil {
 									}
 									Files.createFile(filePath);
 									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-								} catch (IOException e) {
+								} catch (Exception e) {
 									throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
 								}
 							}
@@ -398,9 +398,9 @@ public class ScriptUtil {
 						try {
 							URL url = filePath.toUri().toURL();
 							urlList.add(url);
-						} catch (MalformedURLException e) {
-							throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
-                        }
+						} catch (Exception e) {
+							throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,String.format("create function jar file %s", filePath), e);
+						}
                     }
 				}
 			}
@@ -547,7 +547,7 @@ public class ScriptUtil {
 				consumer.accept(urlClassLoader);
 			}
 		}catch (IOException e){
-			throw new TapCodeException(ScriptProcessorExCode_30.SCRIPT_IO,String.format("Init python build in method failed,url:%s", urls[0]),e);
+			throw new TapCodeException(ScriptProcessorExCode_30.INIT_PYTHON_METHOD_ERROR,String.format("Init python build in method failed,url:%s", urls[0]),e);
 		}
 		return  "import com.tapdata.constant.DateUtil as DateUtil\n" +
 				"import com.tapdata.constant.UUIDGenerator as UUIDGenerator\n" +

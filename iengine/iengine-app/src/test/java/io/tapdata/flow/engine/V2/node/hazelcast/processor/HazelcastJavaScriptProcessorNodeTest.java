@@ -6,6 +6,7 @@ import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
@@ -13,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.LogLevel;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -27,6 +29,7 @@ import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.script.Invocable;
+import javax.script.ScriptException;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
@@ -179,6 +182,48 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(tapEvent,event.getTapEvent());
 			assertEquals(beforeResult.get(1),((TapUpdateRecordEvent) event.getTapEvent()).getBefore());
 			assertEquals(listResult.get(1),((TapUpdateRecordEvent) event.getTapEvent()).getAfter());
+		}
+		@DisplayName("test tryProcess for exception JAVA_SCRIPT_PROCESS_FAILED")
+		@Test
+		void test5() throws ScriptException, NoSuchMethodException {
+			boolean standard = true;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			Map<String, Object> before = mock(HashMap.class);
+			tapEvent = new TapUpdateRecordEvent();
+			tapEvent.setAfter(after);
+			tapEvent.setBefore(before);
+			tapEvent.setTableId("tableId");
+			when(tapdataEvent.getTapEvent()).thenReturn(tapEvent);
+
+			doThrow(new ScriptException("a is not defeind")).when(engine).invokeFunction(anyString(),any());
+			when(tapdataEvent.clone()).thenReturn(tapdataEvent);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			});
+			assertEquals(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,tapCodeException.getCode());
+		}
+		@DisplayName("test try tryProcess for testRun exception")
+		@Test
+		void test6() throws ScriptException, NoSuchMethodException {
+			boolean standard = true;
+			ReflectionTestUtils.setField(hazelcastJavaScriptProcessorNode,"standard",standard);
+			Map<String, Object> after = mock(HashMap.class);
+			Map<String, Object> before = mock(HashMap.class);
+			tapEvent = new TapUpdateRecordEvent();
+			tapEvent.setAfter(after);
+			tapEvent.setBefore(before);
+			tapEvent.setTableId("tableId");
+			when(tapdataEvent.getTapEvent()).thenReturn(tapEvent);
+			TaskDto taskDto2 = new TaskDto();
+			taskDto2.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
+			when(processorBaseContext.getTaskDto()).thenReturn(taskDto2);
+			doThrow(new ScriptException("a is not defeind")).when(engine).invokeFunction(anyString(),any());
+			when(tapdataEvent.clone()).thenReturn(tapdataEvent);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastJavaScriptProcessorNode.tryProcess(tapdataEvent, consumer);
+			});
+			assertEquals(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED,tapCodeException.getCode());
 		}
 		@Test
 		@SneakyThrows

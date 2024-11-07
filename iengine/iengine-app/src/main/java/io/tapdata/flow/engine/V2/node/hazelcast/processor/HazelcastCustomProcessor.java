@@ -93,7 +93,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		return HazelcastCustomProcessor.class.getSimpleName() + "-" + nodeId;
 	}
 
-	private static StateMap getStateMap(HazelcastInstance hazelcastInstance, String nodeId) {
+	protected static StateMap getStateMap(HazelcastInstance hazelcastInstance, String nodeId) {
 		StateMap stateMap = new StateMap()
 				/*.hazelcastInstance(hazelcastInstance)*/;
 		stateMap.init(getStateMapName(nodeId), Object.class);
