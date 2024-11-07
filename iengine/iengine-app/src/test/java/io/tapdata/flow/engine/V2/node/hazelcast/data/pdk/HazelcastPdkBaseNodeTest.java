@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -24,12 +25,15 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.RetryLifeCycle;
 import io.tapdata.schema.TapTableMap;
@@ -551,6 +555,45 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> nodeConfig = hazelcastPdkBaseNode.generateNodeConfig(node, taskDto);
 			assertTrue(nodeConfig.containsKey(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
 			assertFalse((Boolean) nodeConfig.get(HazelcastPdkBaseNode.OLD_VERSION_TIMEZONE));
+		}
+	}
+	@Nested
+	class throwTapCodeExceptionTest{
+		@DisplayName("test throwTapCodeException when tapException")
+		@Test
+		void test(){
+			hazelcastPdkBaseNode=mock(HazelcastPdkBaseNode.class);
+			TapCodeException engineTapCodeException = new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED);
+			doCallRealMethod().when(hazelcastPdkBaseNode).throwTapCodeException(any(),any());
+			TapCodeException tapCodeException = new TapCodeException(PDKExCode_10.OFFSET_OUT_OF_LOG);
+			TapCodeException returnTapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastPdkBaseNode.throwTapCodeException(tapCodeException, engineTapCodeException);
+			});
+			assertEquals(returnTapCodeException.getCode(),PDKExCode_10.OFFSET_OUT_OF_LOG);
+		}
+		@DisplayName("test throwTapCodeException when TapPdkRunnerUnknownException ")
+		@Test
+		void test2(){
+			hazelcastPdkBaseNode=mock(HazelcastPdkBaseNode.class);
+			TapCodeException engineTapCodeException = new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED);
+			doCallRealMethod().when(hazelcastPdkBaseNode).throwTapCodeException(any(),any());
+			TapPdkRunnerUnknownException tapCodeException=new TapPdkRunnerUnknownException(new RuntimeException("writeFaild"));
+			TapCodeException returnTapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastPdkBaseNode.throwTapCodeException(tapCodeException, engineTapCodeException);
+			});
+			assertEquals(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,returnTapCodeException.getCode());
+		}
+		@DisplayName("test throwTapCodeException when RuntimeException")
+		@Test
+		void test3(){
+			hazelcastPdkBaseNode=mock(HazelcastPdkBaseNode.class);
+			TapCodeException engineTapCodeException = new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED);
+			doCallRealMethod().when(hazelcastPdkBaseNode).throwTapCodeException(any(),any());
+			RuntimeException runtimeException=new RuntimeException("run failed");
+			TapCodeException returnTapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastPdkBaseNode.throwTapCodeException(runtimeException, engineTapCodeException);
+			});
+			assertEquals(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,returnTapCodeException.getCode());
 		}
 	}
 	@Nested
