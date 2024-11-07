@@ -11,7 +11,6 @@ import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.LockUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.StringCompression;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
@@ -79,6 +78,7 @@ import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
+import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
@@ -118,16 +118,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1160,7 +1156,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
 			createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
 			connectorNodeInit(dataProcessorContext);
-
+			Monitor<?> monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			if (monitor instanceof TableMonitor) {
+				((TableMonitor) monitor).setAssociateId(this.associateId);
+			}
 			this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
 			initAndStartSourceRunner();
 		} else {

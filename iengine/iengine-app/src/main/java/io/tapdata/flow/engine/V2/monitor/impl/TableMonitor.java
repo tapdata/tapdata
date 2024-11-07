@@ -353,4 +353,8 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 			return removeList;
 		}
 	}
+
+	public void setAssociateId(String associateId) {
+		this.associateId = associateId;
+	}
 }
