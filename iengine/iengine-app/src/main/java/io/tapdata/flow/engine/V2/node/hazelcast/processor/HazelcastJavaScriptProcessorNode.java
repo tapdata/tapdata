@@ -164,8 +164,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			if (!this.standard) {
 				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
 						node.getTaskId(), node.getId(),
-						StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-								TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
+						!processorBaseContext.getTaskDto().isNormalTask()
+				);
 				((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
 				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 				List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
@@ -254,9 +254,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
 		AtomicReference<Object> scriptInvokeBeforeResult = new AtomicReference<>();
-		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_TEST_RUN,
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+		if (!processorBaseContext.getTaskDto().isNormalTask()) {
 			Map<String, Object> finalRecord = afterMapInRecord;
 			CountDownLatch countDownLatch = new CountDownLatch(1);
 			AtomicReference<Throwable> errorAtomicRef = new AtomicReference<>();

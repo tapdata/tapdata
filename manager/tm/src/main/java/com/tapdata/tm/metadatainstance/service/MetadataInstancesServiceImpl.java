@@ -24,13 +24,7 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.SchemaUtils;
-import com.tapdata.tm.commons.schema.TableIndex;
-import com.tapdata.tm.commons.schema.TableIndexColumn;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -1416,6 +1410,39 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             return PdkSchemaConvert.toPdk(metedata);
         }
         return null;
+    }
+
+    public Map<String, List<TapTableDto>> getMetadataV3(Map<String, FindMetadataDto> params, UserDetail user) {
+        Map<String, List<TapTableDto>> result = new HashMap<>();
+        for (Map.Entry<String, FindMetadataDto> entry : params.entrySet()) {
+            String connectionId = entry.getKey();
+            FindMetadataDto findMetadataDto = entry.getValue();
+            List<TapTableDto> tapTableDtoList = new ArrayList<>();
+            result.put(connectionId, tapTableDtoList);
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
+            if (connectionDto == null) {
+                continue;
+            }
+            DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+
+            connectionDto.setDefinitionGroup(definitionDto.getGroup());
+            connectionDto.setDefinitionPdkId(definitionDto.getPdkId());
+            connectionDto.setDefinitionScope(definitionDto.getScope());
+            connectionDto.setDefinitionVersion(definitionDto.getVersion());
+            String metaType = findMetadataDto.getMetaType();
+            List<String> tableNames = findMetadataDto.getTableNames();
+            List<String> qualifiedNames = new ArrayList<>();
+            tableNames.forEach(tableName -> qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, connectionDto, tableName)));
+            Criteria criteria = Criteria.where(QUALIFIED_NAME).in(qualifiedNames);
+            List<MetadataInstancesDto> metadataInstancesDtoList = findAll(Query.query(criteria));
+            if (null == metadataInstancesDtoList) {
+                continue;
+            }
+            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
+                tapTableDtoList.add(new TapTableDto(metadataInstancesDto.getQualifiedName(), PdkSchemaConvert.toPdk(metadataInstancesDto)));
+            }
+        }
+        return result;
     }
 
     public List<Table> findOldByNodeId(Filter filter, UserDetail user) {

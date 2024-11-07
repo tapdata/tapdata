@@ -2,23 +2,26 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.task.dto.Message;
+import io.github.openlg.graphlib.Graph;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class DAGTest {
     DAG dag;
+
     @BeforeEach
     void init() {
         dag = mock(DAG.class);
@@ -36,66 +39,72 @@ public class DAGTest {
             when(dag.getTaskDtoIsomorphism(anyList())).thenCallRealMethod();
             when(dag.getTaskDtoIsomorphism(null)).thenCallRealMethod();
         }
+
         @Nested
-        class getConvertTableNameMapTest{
+        class getConvertTableNameMapTest {
             TableRenameProcessNode tableRenameProcessNode;
+
             @BeforeEach
-            void setUp(){
+            void setUp() {
                 tableRenameProcessNode = mock(TableRenameProcessNode.class);
             }
+
             @DisplayName("test get convert table name map")
             @Test
-            void test1(){
-                String tableName="beforeTableName";
-                ArrayList<String> tableNames=new ArrayList<>();
+            void test1() {
+                String tableName = "beforeTableName";
+                ArrayList<String> tableNames = new ArrayList<>();
                 tableNames.add(tableName);
                 Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
                 when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
-                when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
+                when(tableRenameProcessNode.convertTableName(anyMap(), anyString(), eq(false))).thenReturn("convertNewTableName");
                 Map<String, String> convertTableNameMap = DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames);
-                assertEquals("convertNewTableName",convertTableNameMap.get("beforeTableName"));
+                assertEquals("convertNewTableName", convertTableNameMap.get("beforeTableName"));
             }
         }
+
         @Nested
-        class GenerateTableNameRelationTest{
+        class GenerateTableNameRelationTest {
             DatabaseNode sourceNode;
             DatabaseNode targetNode;
 
             @BeforeEach
-            void setUp(){
-                sourceNode=mock(DatabaseNode.class);
-                targetNode=mock(DatabaseNode.class);
+            void setUp() {
+                sourceNode = mock(DatabaseNode.class);
+                targetNode = mock(DatabaseNode.class);
             }
+
             @DisplayName("test generateTableNameRelation when hava rename node")
             @Test
-            void test1(){
-                String tableName="beforeTableName";
-                ArrayList<String> tableNames=new ArrayList<>();
+            void test1() {
+                String tableName = "beforeTableName";
+                ArrayList<String> tableNames = new ArrayList<>();
                 tableNames.add(tableName);
                 TableRenameProcessNode tableRenameProcessNode = mock(TableRenameProcessNode.class);
                 Map<String, TableRenameTableInfo> tableRenameTableInfoMap = new HashMap<>();
                 when(tableRenameProcessNode.originalMap()).thenReturn(tableRenameTableInfoMap);
-                when(tableRenameProcessNode.convertTableName(anyMap(),anyString(),eq(false))).thenReturn("convertNewTableName");
-                LinkedList<Node> nodes=new LinkedList<>();
+                when(tableRenameProcessNode.convertTableName(anyMap(), anyString(), eq(false))).thenReturn("convertNewTableName");
+                LinkedList<Node> nodes = new LinkedList<>();
                 nodes.add(sourceNode);
                 nodes.add(targetNode);
                 nodes.add(tableRenameProcessNode);
                 LinkedHashMap<String, String> tableNameRelation = DAG.generateTableNameRelation(nodes, tableNames);
-                assertEquals("convertNewTableName",tableNameRelation.get("beforeTableName"));
-                assertEquals("convertNewTableName",tableNames.get(0));
+                assertEquals("convertNewTableName", tableNameRelation.get("beforeTableName"));
+                assertEquals("convertNewTableName", tableNames.get(0));
             }
+
             @DisplayName("test generateTableNameRelation when not hava rename node")
             @Test
-            void test2(){
-                String tableName="beforeTableName";
-                ArrayList<String> tableNames=new ArrayList<>();
+            void test2() {
+                String tableName = "beforeTableName";
+                ArrayList<String> tableNames = new ArrayList<>();
                 tableNames.add(tableName);
-                LinkedList<Node> nodes=new LinkedList<>();
+                LinkedList<Node> nodes = new LinkedList<>();
                 nodes.add(sourceNode);
                 nodes.add(targetNode);
                 LinkedHashMap<String, String> tableNameRelation = DAG.generateTableNameRelation(nodes, tableNames);
-                assertEquals("beforeTableName",tableNameRelation.get("beforeTableName"));
-                assertEquals("beforeTableName",tableNames.get(0));
+                assertEquals("beforeTableName", tableNameRelation.get("beforeTableName"));
+                assertEquals("beforeTableName", tableNames.get(0));
             }
 
         }
@@ -317,25 +326,136 @@ public class DAGTest {
         }
 
     }
+
     @Nested
-    class TransformSchemaTest{
+    class TransformSchemaTest {
         @BeforeEach
-        void setUp(){
-            ReflectionTestUtils.setField(dag,"taskId",new ObjectId());
+        void setUp() {
+            ReflectionTestUtils.setField(dag, "taskId", new ObjectId());
         }
+
         @Test
-        void testConsumerIsNotNull(){
-            doCallRealMethod().when(dag).transformSchema(any(),any(DAGDataService.class),any(DAG.Options.class),any());
-            Assertions.assertThrows(RuntimeException.class,()->{
-                dag.transformSchema("test",mock(DAGDataServiceImpl.class),mock(DAG.Options.class),(e) -> {throw new RuntimeException(e);});
+        void testConsumerIsNotNull() {
+            doCallRealMethod().when(dag).transformSchema(any(), any(DAGDataService.class), any(DAG.Options.class), any());
+            Assertions.assertThrows(RuntimeException.class, () -> {
+                dag.transformSchema("test", mock(DAGDataServiceImpl.class), mock(DAG.Options.class), (e) -> {
+                    throw new RuntimeException(e);
+                });
             });
         }
 
         @Test
-        void testConsumerIsNull(){
-            doCallRealMethod().when(dag).transformSchema(any(),any(DAGDataService.class),any(DAG.Options.class),any());
-            Map<String,List<Message>> result = dag.transformSchema("test",mock(DAGDataServiceImpl.class),mock(DAG.Options.class),null);
-            Assertions.assertEquals(1,result.size());
+        void testConsumerIsNull() {
+            doCallRealMethod().when(dag).transformSchema(any(), any(DAGDataService.class), any(DAG.Options.class), any());
+            Map<String, List<Message>> result = dag.transformSchema("test", mock(DAGDataServiceImpl.class), mock(DAG.Options.class), null);
+            Assertions.assertEquals(1, result.size());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method getAllTypeTargetNodes test")
+    class getAllTypeTargetNodesTest {
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            Graph<Node, Edge> graph = new Graph<>();
+            TableNode node1 = new TableNode();
+            node1.setId("node 1");
+            TableNode node2 = new TableNode();
+            node2.setId("node 2");
+            TableNode node3 = new TableNode();
+            node3.setId("node 3");
+            graph.setNode(node1.getId(), node1);
+            graph.setNode(node2.getId(), node2);
+            graph.setNode(node3.getId(), node3);
+            graph.setEdge(node1.getId(), node2.getId());
+            graph.setEdge(node1.getId(), node3.getId());
+            DAG dag = new DAG(graph);
+            List<Node> allTypeTargetNodes = dag.getAllTypeTargetNodes();
+            assertEquals(2, allTypeTargetNodes.size());
+            assertSame(node2, allTypeTargetNodes.get(0));
+            assertSame(node3, allTypeTargetNodes.get(1));
+        }
+    }
+
+    @Nested
+    @DisplayName("Method replaceNode test")
+    class replaceNodeTest {
+
+        private TableNode node1;
+        private TableNode node2;
+        private TableNode node3;
+        private DAG dag;
+
+        @BeforeEach
+        void setUp() {
+            Graph<Node, Edge> graph = new Graph<>();
+            node1 = new TableNode();
+            node1.setId("node 1");
+            node2 = new TableNode();
+            node2.setId("node 2");
+            node3 = new TableNode();
+            node3.setId("node 3");
+            graph.setNode(node1.getId(), node1);
+            graph.setNode(node2.getId(), node2);
+            graph.setEdge(node1.getId(), node2.getId(), new Edge(node1.getId(), node2.getId()));
+            dag = new DAG(graph);
+        }
+
+        @Test
+        @DisplayName("test replace source node")
+        void test1() {
+            dag.replaceNode(node1, node3);
+            assertNull(dag.getNode(node1.getId()));
+            assertNotNull(dag.getNode(node3.getId()));
+            LinkedList<Edge> edges = dag.getEdges();
+            assertEquals(1, edges.size());
+            Edge edge = edges.get(0);
+            assertEquals(node3.getId(), edge.getSource());
+            assertEquals(node2.getId(), edge.getTarget());
+        }
+
+        @Test
+        @DisplayName("test replace target node")
+        void test2() {
+            Graph<Node, Edge> graph = new Graph<>();
+            TableNode node1 = new TableNode();
+            node1.setId("node 1");
+            TableNode node2 = new TableNode();
+            node2.setId("node 2");
+            TableNode node3 = new TableNode();
+            node3.setId("node 3");
+            graph.setNode(node1.getId(), node1);
+            graph.setNode(node2.getId(), node2);
+            graph.setEdge(node1.getId(), node2.getId(), new Edge(node1.getId(), node2.getId()));
+            DAG dag = new DAG(graph);
+            dag.replaceNode(node2, node3);
+            assertNull(dag.getNode(node2.getId()));
+            assertNotNull(dag.getNode(node3.getId()));
+            LinkedList<Edge> edges = dag.getEdges();
+            assertEquals(1, edges.size());
+            Edge edge = edges.get(0);
+            assertEquals(node1.getId(), edge.getSource());
+            assertEquals(node3.getId(), edge.getTarget());
+        }
+    }
+
+    @Nested
+    @DisplayName("Method addTargetNode test")
+    class addTargetNodeTest {
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            Graph<Node, Edge> graph = new Graph<>();
+            TableNode node1 = new TableNode();
+            node1.setId("node 1");
+            graph.setNode(node1.getId(), node1);
+            TableNode node2 = new TableNode();
+            node2.setId("node 2");
+            DAG dag = new DAG(graph);
+            dag.addTargetNode(node1, node2);
+            assertNotNull(graph.getNode(node2.getId()));
+            assertNotNull(graph.getEdge(node1.getId(), node2.getId()));
         }
     }
 }

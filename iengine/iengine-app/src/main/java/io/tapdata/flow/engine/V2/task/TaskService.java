@@ -28,6 +28,8 @@ public interface TaskService<T> {
 		return null;
 	}
 
+	TaskClient<TaskDto> startPreviewTask(TaskDto taskDto);
+
 	/**
 	 * Returns the active or last started task client with the given taskId or {@code
 	 * null}

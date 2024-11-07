@@ -7,6 +7,7 @@ import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
@@ -81,6 +82,8 @@ public class ProxyController extends BaseController {
 	private SettingsService settingsService;
     @Autowired
     private WorkerService workerService;
+	@Autowired
+	ProductComponent productComponent;
 
 	private static final int wsPort = 8246;
 
@@ -689,11 +692,7 @@ public class ProxyController extends BaseController {
 			throw new BizException("Missing method");
 
         UserDetail userDetail = getLoginUser();
-        boolean isCloud = false;
-        if (productList != null && productList.contains("dfs")) { //is cloud env
-            isCloud = true;
-        }
-        if(isCloud) {
+        if(productComponent.isCloud()) {
             serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
             WorkerExpireDto shareWorker = workerService.getShareWorker(userDetail);
             if (shareWorker != null) {
