@@ -2,6 +2,7 @@ package io.tapdata.observable.metric.util;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -60,6 +61,7 @@ class TapCompletableFutureExTest {
 		assertTrue(((AtomicBoolean) running).get());
 		Object joinThreadPool = ReflectionTestUtils.getField(tapCompletableFutureEx, "joinThreadPool");
 		assertNotNull(joinThreadPool);
+		assertDoesNotThrow(() -> TimeUnit.MILLISECONDS.sleep(5L));
 		assertEquals(1, ((ThreadPoolExecutor) joinThreadPool).getActiveCount());
 	}
 
