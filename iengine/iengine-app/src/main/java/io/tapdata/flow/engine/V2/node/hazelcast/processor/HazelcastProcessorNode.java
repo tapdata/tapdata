@@ -120,6 +120,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (!(tapEvent instanceof TapRecordEvent)) {
+			consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
 			return;
 		}
 		if (null != fieldRenameProcessorNode && null != capitalized) {

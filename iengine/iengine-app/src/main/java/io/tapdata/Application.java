@@ -8,6 +8,7 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.tm.utils.OEMReplaceUtil;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.LoggerInitAspect;
@@ -19,6 +20,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.log.CustomPatternLayout;
 import io.tapdata.observable.logging.util.LogUtil;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -193,6 +195,7 @@ public class Application {
 			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 			run.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();
 			run.getBean(TapdataTaskScheduler.class).runTaskIfNeedWhenEngineStart();
+			PDKIntegration.registerMemoryFetcher(TaskGlobalVariable.class.getSimpleName(), TaskGlobalVariable.INSTANCE);
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);

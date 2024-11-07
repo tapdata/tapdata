@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionServiceImpl;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
@@ -105,13 +106,21 @@ public class MetadataInstancesServiceImplTest {
 	private MetadataInstancesRepository metadataInstancesRepository;
 	private MetadataInstancesServiceImpl metadataInstancesService;
 	private UserDetail userDetail;
+	private DataSourceServiceImpl dataSourceService;
+	private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+	private PdkSchemaConvert pdkSchemaConvert;
 
 	@BeforeEach
 	void setUp() {
 		metadataInstancesRepository = mock(MetadataInstancesRepository.class);
+//		pdkSchemaConvert = mock(PdkSchemaConvert.class);
 		metadataInstancesService = new MetadataInstancesServiceImpl(metadataInstancesRepository);
 		metadataInstancesService = spy(metadataInstancesService);
 		userDetail = mock(UserDetail.class);
+		dataSourceService = mock(DataSourceServiceImpl.class);
+		ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+		dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
+		ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		new DataPermissionHelper(mock(IDataPermissionHelper.class));
 	}
 
@@ -304,53 +313,57 @@ public class MetadataInstancesServiceImplTest {
 			}
 		}
 	}
+
 	@Nested
-	class ModifyByIdTest{
+	class ModifyByIdTest {
 		@Test
-		void testModifyByIdNormal(){
+		void testModifyByIdNormal() {
 			ObjectId id = mock(ObjectId.class);
 			MetadataInstancesDto record = new MetadataInstancesDto();
 			MetadataInstancesEntity entity = new MetadataInstancesEntity();
-			doReturn(entity).when(metadataInstancesRepository).save(any(MetadataInstancesEntity.class),any(UserDetail.class));
+			doReturn(entity).when(metadataInstancesRepository).save(any(MetadataInstancesEntity.class), any(UserDetail.class));
 			MetadataInstancesDto actual = metadataInstancesService.modifyById(id, record, userDetail);
-			verify(metadataInstancesService,new Times(2)).beforeCreateOrUpdate(record,userDetail);
-			verify(metadataInstancesService,new Times(1)).beforeUpdateById(id,record);
-			verify(metadataInstancesService,new Times(1)).save(record,userDetail);
-			verify(metadataInstancesService,new Times(1)).afterUpdateById(id,record);
-			assertEquals(null,actual);
+			verify(metadataInstancesService, new Times(2)).beforeCreateOrUpdate(record, userDetail);
+			verify(metadataInstancesService, new Times(1)).beforeUpdateById(id, record);
+			verify(metadataInstancesService, new Times(1)).save(record, userDetail);
+			verify(metadataInstancesService, new Times(1)).afterUpdateById(id, record);
+			assertEquals(null, actual);
 		}
 	}
+
 	@Nested
-	class beforeSaveTest{
+	class beforeSaveTest {
 		@Test
 		@DisplayName("test beforeSave method when record is null")
-		void test1(){
+		void test1() {
 			MetadataInstancesDto record = null;
 			try (MockedStatic<ObjectId> mb = Mockito
 					.mockStatic(ObjectId.class)) {
 				mb.when(ObjectId::get).thenReturn(mock(ObjectId.class));
-				metadataInstancesService.beforeSave(record,userDetail);
-				mb.verify(() -> ObjectId.get(),new Times(0));
-				verify(metadataInstancesService,new Times(0)).beforeCreateOrUpdate(record,userDetail);
+				metadataInstancesService.beforeSave(record, userDetail);
+				mb.verify(() -> ObjectId.get(), new Times(0));
+				verify(metadataInstancesService, new Times(0)).beforeCreateOrUpdate(record, userDetail);
 			}
 		}
+
 		@Test
 		@DisplayName("test beforeSave method when record fields is empty")
-		void test2(){
+		void test2() {
 			MetadataInstancesDto record = new MetadataInstancesDto();
 			ArrayList<Field> fields = new ArrayList<>();
 			record.setFields(fields);
 			try (MockedStatic<ObjectId> mb = Mockito
 					.mockStatic(ObjectId.class)) {
 				mb.when(ObjectId::get).thenReturn(mock(ObjectId.class));
-				metadataInstancesService.beforeSave(record,userDetail);
-				mb.verify(() -> ObjectId.get(),new Times(0));
-				verify(metadataInstancesService,new Times(1)).beforeCreateOrUpdate(record,userDetail);
+				metadataInstancesService.beforeSave(record, userDetail);
+				mb.verify(() -> ObjectId.get(), new Times(0));
+				verify(metadataInstancesService, new Times(1)).beforeCreateOrUpdate(record, userDetail);
 			}
 		}
+
 		@Test
 		@DisplayName("test beforeSave method when record fields is not empty")
-		void test3(){
+		void test3() {
 			MetadataInstancesDto record = new MetadataInstancesDto();
 			ArrayList<Field> fields = new ArrayList<>();
 			fields.add(new Field());
@@ -361,146 +374,161 @@ public class MetadataInstancesServiceImplTest {
 			try (MockedStatic<ObjectId> mb = Mockito
 					.mockStatic(ObjectId.class)) {
 				mb.when(ObjectId::get).thenReturn(mock(ObjectId.class));
-				metadataInstancesService.beforeSave(record,userDetail);
-				mb.verify(() -> ObjectId.get(),new Times(1));
-				verify(metadataInstancesService,new Times(1)).beforeCreateOrUpdate(record,userDetail);
+				metadataInstancesService.beforeSave(record, userDetail);
+				mb.verify(() -> ObjectId.get(), new Times(1));
+				verify(metadataInstancesService, new Times(1)).beforeCreateOrUpdate(record, userDetail);
 			}
 		}
 	}
+
 	@Nested
-	class ListTest{
+	class ListTest {
 		private Filter filter;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			filter = new Filter();
 		}
+
 		@Test
 		@DisplayName("test list method normal")
-		void test1(){
+		void test1() {
 			Where where = new Where();
-			where.put("source.id","111");
+			where.put("source.id", "111");
 			Map<String, List> classficitionIn = new HashMap<>();
 			List<String> classficitionIds = new ArrayList<>();
 			classficitionIds.add("65bc933c6129fe73d7858b40");
-			classficitionIn.put("$in",classficitionIds);
-			where.put("classifications.id",classficitionIn);
-			where.put("taskId","333");
+			classficitionIn.put("$in", classficitionIds);
+			where.put("classifications.id", classficitionIn);
+			where.put("taskId", "333");
 			filter.setWhere(where);
 			when(metadataInstancesRepository.whereToCriteria(where)).thenReturn(mock(Criteria.class));
 			doNothing().when(metadataInstancesService).afterFindAll(anyList());
-			metadataInstancesService.list(filter,userDetail);
-			verify(metadataInstancesService,new Times(1)).findAll(any(Query.class));
-			verify(metadataInstancesService,new Times(0)).find(filter);
+			metadataInstancesService.list(filter, userDetail);
+			verify(metadataInstancesService, new Times(1)).findAll(any(Query.class));
+			verify(metadataInstancesService, new Times(0)).find(filter);
 		}
+
 		@Test
 		@DisplayName("test list method simple")
-		void test2(){
+		void test2() {
 			Where where = new Where();
 			filter.setWhere(where);
 			when(metadataInstancesRepository.whereToCriteria(where)).thenReturn(mock(Criteria.class));
 			doNothing().when(metadataInstancesService).afterFindAll(anyList());
-			metadataInstancesService.list(filter,userDetail);
-			verify(metadataInstancesService,new Times(0)).findAll(any(Query.class));
-			verify(metadataInstancesService,new Times(1)).find(filter);
+			metadataInstancesService.list(filter, userDetail);
+			verify(metadataInstancesService, new Times(0)).findAll(any(Query.class));
+			verify(metadataInstancesService, new Times(1)).find(filter);
 		}
+
 		@Test
 		@DisplayName("test list method when filter getLimit equals 0")
-		void test3(){
+		void test3() {
 			Where where = new Where();
-			where.put("taskId","333");
+			where.put("taskId", "333");
 			filter.setWhere(where);
 			filter.setSize(0);
 			when(metadataInstancesRepository.whereToCriteria(where)).thenReturn(mock(Criteria.class));
 			doNothing().when(metadataInstancesService).afterFindAll(anyList());
-			metadataInstancesService.list(filter,userDetail);
-			verify(metadataInstancesService,new Times(1)).findAll(any(Query.class));
-			verify(metadataInstancesService,new Times(0)).find(filter);
+			metadataInstancesService.list(filter, userDetail);
+			verify(metadataInstancesService, new Times(1)).findAll(any(Query.class));
+			verify(metadataInstancesService, new Times(0)).find(filter);
 		}
 	}
+
 	@Nested
-	class FindInspectTest{
+	class FindInspectTest {
 		private Filter filter;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			filter = new Filter();
 		}
+
 		@Test
 		@DisplayName("test findInspect method when metadataInstancesDtoList is not empty")
-		void test1(){
+		void test1() {
 			Where where = new Where();
-			where.put("source.id","111");
+			where.put("source.id", "111");
 			filter.setWhere(where);
 			List metadataInstancesDtoList = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
 			metadataInstancesDtoList.add(metadataInstancesDto);
 			when(metadataInstancesService.findAll(filter)).thenReturn(metadataInstancesDtoList);
 			List<MetadataInstancesVo> actual = metadataInstancesService.findInspect(filter, userDetail);
-			assertEquals(BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class),actual.get(0));
+			assertEquals(BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class), actual.get(0));
 		}
+
 		@Test
 		@DisplayName("test findInspect method when metadataInstancesDtoList is empty")
-		void test2(){
+		void test2() {
 			Where where = new Where();
 			filter.setWhere(where);
 			List<MetadataInstancesVo> actual = metadataInstancesService.findInspect(filter, userDetail);
-			assertEquals(0,actual.size());
+			assertEquals(0, actual.size());
 		}
 	}
+
 	@Nested
-	class QueryByIdTest{
+	class QueryByIdTest {
 		@Test
-		void testQueryByIdNormal(){
+		void testQueryByIdNormal() {
 			ObjectId id = mock(ObjectId.class);
 			com.tapdata.tm.base.dto.Field fields = mock(com.tapdata.tm.base.dto.Field.class);
 			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).findById(id,fields,userDetail);
-			metadataInstancesService.queryById(id,fields,userDetail);
-			verify(metadataInstancesService).afterFindOne(metadataInstancesDto,userDetail);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).findById(id, fields, userDetail);
+			metadataInstancesService.queryById(id, fields, userDetail);
+			verify(metadataInstancesService).afterFindOne(metadataInstancesDto, userDetail);
 			verify(metadataInstancesService).afterFindById(metadataInstancesDto);
 			verify(metadataInstancesService).afterFind(metadataInstancesDto);
 		}
 	}
+
 	@Nested
-	class QueryByOneTest{
+	class QueryByOneTest {
 		private Filter filter;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			filter = new Filter();
 		}
+
 		@Test
 		@DisplayName("test queryByOne method normal")
-		void test1(){
+		void test1() {
 			Where where = new Where();
-			where.put("source.id","111");
+			where.put("source.id", "111");
 			filter.setWhere(where);
 			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).findOne(filter,userDetail);
-			metadataInstancesService.queryByOne(filter,userDetail);
-			verify(metadataInstancesService).afterFindOne(metadataInstancesDto,userDetail);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).findOne(filter, userDetail);
+			metadataInstancesService.queryByOne(filter, userDetail);
+			verify(metadataInstancesService).afterFindOne(metadataInstancesDto, userDetail);
 			verify(metadataInstancesService).afterFind(metadataInstancesDto);
 		}
+
 		@Test
 		@DisplayName("test queryByOne method when sourceId is null")
-		void test2(){
+		void test2() {
 			Where where = new Where();
 			filter.setWhere(where);
 			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).findOne(filter,userDetail);
-			metadataInstancesService.queryByOne(filter,userDetail);
-			verify(metadataInstancesService).afterFindOne(metadataInstancesDto,userDetail);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).findOne(filter, userDetail);
+			metadataInstancesService.queryByOne(filter, userDetail);
+			verify(metadataInstancesService).afterFindOne(metadataInstancesDto, userDetail);
 			verify(metadataInstancesService).afterFind(metadataInstancesDto);
 		}
 	}
+
 	@Nested
-	class JobStatsTest{
+	class JobStatsTest {
 		@Test
-		void testJobStatsNormal(){
+		void testJobStatsNormal() {
 			long skip = 3L;
 			int limit = 1;
 			MongoTemplate template = mock(MongoTemplate.class);
 			when(metadataInstancesRepository.getMongoOperations()).thenReturn(template);
 			AggregationResults aggregationResults = mock(AggregationResults.class);
-			when(template.aggregate(any(Aggregation.class),anyString(),any(Class.class))).thenReturn(aggregationResults);
+			when(template.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(aggregationResults);
 			List result = new ArrayList();
 			MetadataInstancesEntity entity = new MetadataInstancesEntity();
 			ObjectId id = mock(ObjectId.class);
@@ -508,28 +536,31 @@ public class MetadataInstancesServiceImplTest {
 			result.add(entity);
 			when(aggregationResults.getMappedResults()).thenReturn(result);
 			List<MetadataInstancesDto> actual = metadataInstancesService.jobStats(skip, limit);
-			assertEquals(id,actual.get(0).getId());
+			assertEquals(id, actual.get(0).getId());
 		}
 	}
+
 	@Nested
-	class SchemaTest{
+	class SchemaTest {
 		private Filter filter = mock(Filter.class);
+
 		@Test
 		@DisplayName("test schema method when page getTotal equals 0")
-		void test1(){
+		void test1() {
 			Page<MetadataInstancesDto> page = new Page<>();
 			page.setTotal(0);
-			doReturn(page).when(metadataInstancesService).find(filter,userDetail);
+			doReturn(page).when(metadataInstancesService).find(filter, userDetail);
 			List<MetadataInstancesDto> actual = metadataInstancesService.schema(filter, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test schema method normal")
-		void test2(){
+		void test2() {
 			try (MockedStatic<SchemaTransformUtils> mb = Mockito
 					.mockStatic(SchemaTransformUtils.class)) {
 				Schema schema = mock(Schema.class);
-				mb.when(()->SchemaTransformUtils.newSchema2oldSchema(anyList())).thenReturn(schema);
+				mb.when(() -> SchemaTransformUtils.newSchema2oldSchema(anyList())).thenReturn(schema);
 				Page<MetadataInstancesDto> page = new Page<>();
 				page.setTotal(1);
 				List<MetadataInstancesDto> metadataInstancesDtoList = new ArrayList<>();
@@ -541,22 +572,23 @@ public class MetadataInstancesServiceImplTest {
 				meta2.setMetaType("job");
 				metadataInstancesDtoList.add(meta2);
 				page.setItems(metadataInstancesDtoList);
-				doReturn(page).when(metadataInstancesService).find(filter,userDetail);
+				doReturn(page).when(metadataInstancesService).find(filter, userDetail);
 				List<MetadataInstancesDto> actual = metadataInstancesService.schema(filter, userDetail);
-				assertEquals(2,actual.size());
-				assertEquals(schema,actual.get(0).getSchema());
-				mb.verify(() -> SchemaTransformUtils.newSchema2oldSchema(anyList()),new Times(1));
+				assertEquals(2, actual.size());
+				assertEquals(schema, actual.get(0).getSchema());
+				mb.verify(() -> SchemaTransformUtils.newSchema2oldSchema(anyList()), new Times(1));
 			}
 		}
 	}
+
 	@Nested
-	class LienageTest{
+	class LienageTest {
 		@Test
-		void testLienageNormal(){
+		void testLienageNormal() {
 			MongoTemplate template = mock(MongoTemplate.class);
 			when(metadataInstancesRepository.getMongoOperations()).thenReturn(template);
 			AggregationResults aggregationResults = mock(AggregationResults.class);
-			when(template.aggregate(any(Aggregation.class),anyString(),any(Class.class))).thenReturn(aggregationResults);
+			when(template.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(aggregationResults);
 			List result = new ArrayList();
 			MetadataInstancesEntity entity = new MetadataInstancesEntity();
 			ObjectId id = mock(ObjectId.class);
@@ -564,24 +596,27 @@ public class MetadataInstancesServiceImplTest {
 			result.add(entity);
 			when(aggregationResults.getMappedResults()).thenReturn(result);
 			List<MetadataInstancesDto> actual = metadataInstancesService.lienage("111");
-			assertEquals(id,actual.get(0).getId());
+			assertEquals(id, actual.get(0).getId());
 		}
 	}
+
 	@Nested
-	class BeforeCreateOrUpdateTest{
+	class BeforeCreateOrUpdateTest {
 		private MetadataInstancesDto data;
 		private DataSourceServiceImpl dataSourceService;
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			dataSourceService = mock(DataSourceServiceImpl.class);
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
 			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
 			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
 		@DisplayName("test beforeCreateOrUpdate method normal")
-		void test1(){
+		void test1() {
 			try (MockedStatic<PdkSchemaConvert> mb = Mockito
 					.mockStatic(PdkSchemaConvert.class)) {
 				TapTable tapTable = mock(TapTable.class);
@@ -594,37 +629,40 @@ public class MetadataInstancesServiceImplTest {
 				field.setId("111");
 				fields.add(field);
 				data.setFields(fields);
-				mb.when(()->PdkSchemaConvert.toPdk(data)).thenReturn(tapTable);
+				mb.when(() -> PdkSchemaConvert.toPdk(data)).thenReturn(tapTable);
 				DataSourceConnectionDto connectionDto = mock(DataSourceConnectionDto.class);
 				when(connectionDto.getId()).thenReturn(mock(ObjectId.class));
-				when(dataSourceService.findById(toObjectId("65bc933f6129fe73d7858d6f"),userDetail)).thenReturn(connectionDto);
+				when(dataSourceService.findById(toObjectId("65bc933f6129fe73d7858d6f"), userDetail)).thenReturn(connectionDto);
 				MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
 				doReturn(metadataInstancesDto).when(metadataInstancesService).findOne(any(Query.class));
 				when(metadataInstancesDto.getId()).thenReturn(mock(ObjectId.class));
 				LinkedHashMap<String, TapField> nameFiledMap = new LinkedHashMap<>();
 				TapField tapField = mock(TapField.class);
-				nameFiledMap.put("test",tapField);
+				nameFiledMap.put("test", tapField);
 				when(tapTable.getNameFieldMap()).thenReturn(nameFiledMap);
-				when(dataSourceDefinitionService.getByDataSourceType(anyString(),any(UserDetail.class))).thenReturn(mock(DataSourceDefinitionDto.class));
-				mb.when(()->PdkSchemaConvert.fromPdk(tapTable)).thenReturn(mock(MetadataInstancesDto.class));
-				metadataInstancesService.beforeCreateOrUpdate(data,userDetail);
+				when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(mock(DataSourceDefinitionDto.class));
+				mb.when(() -> PdkSchemaConvert.fromPdk(tapTable)).thenReturn(mock(MetadataInstancesDto.class));
+				metadataInstancesService.beforeCreateOrUpdate(data, userDetail);
 			}
 		}
 	}
+
 	@Nested
-	class AfterFindByIdTest{
+	class AfterFindByIdTest {
 		private MetadataInstancesDto result;
+
 		@Test
 		@DisplayName("test afterFindById method when result fields is empty")
-		void test1(){
+		void test1() {
 			result = mock(MetadataInstancesDto.class);
 			when(result.getFields()).thenReturn(new ArrayList<>());
 			metadataInstancesService.afterFindById(result);
-			assertEquals(0,result.getFields().size());
+			assertEquals(0, result.getFields().size());
 		}
+
 		@Test
 		@DisplayName("test afterFindById method normal")
-		void test2(){
+		void test2() {
 			result = mock(MetadataInstancesDto.class);
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
@@ -633,24 +671,26 @@ public class MetadataInstancesServiceImplTest {
 			fields.add(field);
 			when(result.getFields()).thenReturn(fields);
 			metadataInstancesService.afterFindById(result);
-			assertEquals(true,field.getPrimaryKey());
-			assertEquals(true,field.getForeignKey());
+			assertEquals(true, field.getPrimaryKey());
+			assertEquals(true, field.getForeignKey());
 		}
+
 		@Test
 		@DisplayName("test afterFindById method when key position is null")
-		void test3(){
+		void test3() {
 			result = mock(MetadataInstancesDto.class);
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
 			fields.add(field);
 			when(result.getFields()).thenReturn(fields);
 			metadataInstancesService.afterFindById(result);
-			assertEquals(false,field.getPrimaryKey());
-			assertEquals(false,field.getForeignKey());
+			assertEquals(false, field.getPrimaryKey());
+			assertEquals(false, field.getForeignKey());
 		}
+
 		@Test
 		@DisplayName("test afterFindById method when key position less than 0")
-		void test4(){
+		void test4() {
 			result = mock(MetadataInstancesDto.class);
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
@@ -659,74 +699,83 @@ public class MetadataInstancesServiceImplTest {
 			fields.add(field);
 			when(result.getFields()).thenReturn(fields);
 			metadataInstancesService.afterFindById(result);
-			assertEquals(false,field.getPrimaryKey());
-			assertEquals(false,field.getForeignKey());
+			assertEquals(false, field.getPrimaryKey());
+			assertEquals(false, field.getForeignKey());
 		}
 	}
+
 	@Nested
-	class AfterFindOneTest{
+	class AfterFindOneTest {
 		private MetadataInstancesDto result;
+
 		@Test
 		@DisplayName("test afterFindOne method when result is null")
-		void test1(){
+		void test1() {
 			result = null;
-			metadataInstancesService.afterFindOne(result,userDetail);
-			verify(metadataInstancesService,never()).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.afterFindOne(result, userDetail);
+			verify(metadataInstancesService, never()).findAllDto(any(Query.class), any(UserDetail.class));
 		}
+
 		@Test
 		@DisplayName("test afterFindOne method when metaType is database")
-		void test2(){
+		void test2() {
 			result = mock(MetadataInstancesDto.class);
 			when(result.getMetaType()).thenReturn("database");
 			when(result.getId()).thenReturn(mock(ObjectId.class));
-			metadataInstancesService.afterFindOne(result,userDetail);
-			verify(metadataInstancesService,new Times(1)).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.afterFindOne(result, userDetail);
+			verify(metadataInstancesService, new Times(1)).findAllDto(any(Query.class), any(UserDetail.class));
 		}
+
 		@Test
 		@DisplayName("test afterFindOne method when metaType is collection")
-		void test3(){
+		void test3() {
 			result = mock(MetadataInstancesDto.class);
 			when(result.getMetaType()).thenReturn("collection");
 			when(result.getId()).thenReturn(mock(ObjectId.class));
-			metadataInstancesService.afterFindOne(result,userDetail);
-			verify(metadataInstancesService,new Times(1)).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.afterFindOne(result, userDetail);
+			verify(metadataInstancesService, new Times(1)).findAllDto(any(Query.class), any(UserDetail.class));
 		}
+
 		@Test
 		@DisplayName("test afterFindOne method when metaType is collection and collections is not empty")
-		void test4(){
+		void test4() {
 			result = mock(MetadataInstancesDto.class);
 			when(result.getMetaType()).thenReturn("collection");
 			List<MetadataInstancesDto> collections = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setOriginalName("111");
 			collections.add(metadataInstancesDto);
-			doReturn(collections).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.afterFindOne(result,userDetail);
-			verify(metadataInstancesService,new Times(1)).findAllDto(any(Query.class),any(UserDetail.class));
-			verify(result,new Times(1)).setDatabase(anyString());
+			doReturn(collections).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
+			metadataInstancesService.afterFindOne(result, userDetail);
+			verify(metadataInstancesService, new Times(1)).findAllDto(any(Query.class), any(UserDetail.class));
+			verify(result, new Times(1)).setDatabase(anyString());
 		}
+
 		@Test
 		@DisplayName("test afterFindOne method when metaType is view")
-		void test5(){
+		void test5() {
 			result = mock(MetadataInstancesDto.class);
 			when(result.getMetaType()).thenReturn("view");
 			when(result.getId()).thenReturn(mock(ObjectId.class));
-			metadataInstancesService.afterFindOne(result,userDetail);
-			verify(metadataInstancesService,new Times(1)).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.afterFindOne(result, userDetail);
+			verify(metadataInstancesService, new Times(1)).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class AfterFindAllTest{
+	class AfterFindAllTest {
 		private List<MetadataInstancesDto> results;
 		private UserService userService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			userService = mock(UserService.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"userService",userService);
+			ReflectionTestUtils.setField(metadataInstancesService, "userService", userService);
 		}
+
 		@Test
 		@DisplayName("test afterFindAll method normal")
-		void test1(){
+		void test1() {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setDatabaseId("65bc933c6129fe73d7858b40");
 			SourceDto sourceDto = new SourceDto();
@@ -752,11 +801,12 @@ public class MetadataInstancesServiceImplTest {
 			collections.add(meta);
 			doReturn(collections).when(metadataInstancesService).findAll(any(Query.class));
 			metadataInstancesService.afterFindAll(results);
-			assertEquals("test comment",results.get(0).getComment());
+			assertEquals("test comment", results.get(0).getComment());
 		}
+
 		@Test
 		@DisplayName("test afterFindAll method simple")
-		void test2(){
+		void test2() {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setDatabaseId("65bc933c6129fe73d7858b40");
 			metadataInstancesDto.setDatabaseId("222");
@@ -771,38 +821,42 @@ public class MetadataInstancesServiceImplTest {
 			collections.add(meta);
 			doReturn(collections).when(metadataInstancesService).findAll(any(Query.class));
 			metadataInstancesService.afterFindAll(results);
-			assertEquals("",results.get(0).getComment());
+			assertEquals("", results.get(0).getComment());
 		}
 	}
+
 	@Nested
-	class AfterFindTest{
+	class AfterFindTest {
 		private MetadataInstancesDto metadata;
+
 		@Test
 		@DisplayName("test afterFind method when metadata is null")
-		void test1(){
+		void test1() {
 			try (MockedStatic<CollectionUtils> mb = Mockito
 					.mockStatic(CollectionUtils.class)) {
 				metadata = null;
 				metadataInstancesService.afterFind(metadata);
-				verify(metadataInstancesService,new Times(1)).afterFind(metadata);
-				mb.verify(() -> CollectionUtils.isNotEmpty(anyCollection()),new Times(0));
+				verify(metadataInstancesService, new Times(1)).afterFind(metadata);
+				mb.verify(() -> CollectionUtils.isNotEmpty(anyCollection()), new Times(0));
 			}
 		}
+
 		@Test
 		@DisplayName("test afterFind method normal")
-		void test2(){
+		void test2() {
 			try (MockedStatic<CollectionUtils> mb = Mockito
 					.mockStatic(CollectionUtils.class)) {
 				metadata = new MetadataInstancesDto();
 				metadata.setFields(new ArrayList<>());
 				metadataInstancesService.afterFind(metadata);
-				verify(metadataInstancesService,new Times(1)).afterFind(metadata);
-				mb.verify(() -> CollectionUtils.isNotEmpty(anyCollection()),new Times(1));
+				verify(metadataInstancesService, new Times(1)).afterFind(metadata);
+				mb.verify(() -> CollectionUtils.isNotEmpty(anyCollection()), new Times(1));
 			}
 		}
 	}
+
 	@Nested
-	class AfterFindForListTest{
+	class AfterFindForListTest {
 		private List<MetadataInstancesDto> metadatas;
 		private DataSourceService dataSourceService;
 
@@ -812,9 +866,10 @@ public class MetadataInstancesServiceImplTest {
 			dataSourceService = mock(DataSourceServiceImpl.class);
 			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
 		}
+
 		@Test
 		@DisplayName("test afterFind for List normal")
-		void test1(){
+		void test1() {
 			MetadataInstancesDto metadata = new MetadataInstancesDto();
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
@@ -831,11 +886,12 @@ public class MetadataInstancesServiceImplTest {
 			connectionDto.setId(new ObjectId("65bc933c6129fe73d7858b41"));
 			when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
 			metadataInstancesService.afterFind(metadatas);
-			assertEquals("65bc933c6129fe73d7858b41",metadatas.get(0).getSource().get_id());
+			assertEquals("65bc933c6129fe73d7858b41", metadatas.get(0).getSource().get_id());
 		}
+
 		@Test
 		@DisplayName("test afterFind for List when result fields is empty and metaType is job")
-		void test2(){
+		void test2() {
 			MetadataInstancesDto metadata = new MetadataInstancesDto();
 			List<Field> fields = new ArrayList<>();
 			metadata.setFields(fields);
@@ -844,21 +900,23 @@ public class MetadataInstancesServiceImplTest {
 			metadata.setMetaType("job");
 			metadatas.add(metadata);
 			metadataInstancesService.afterFind(metadatas);
-			verify(dataSourceService,new Times(0)).findById(any(ObjectId.class));
+			verify(dataSourceService, new Times(0)).findById(any(ObjectId.class));
 		}
+
 		@Test
 		@DisplayName("test afterFind for List when result source is null")
-		void test3(){
+		void test3() {
 			MetadataInstancesDto metadata = new MetadataInstancesDto();
 			List<Field> fields = new ArrayList<>();
 			metadata.setFields(fields);
 			metadatas.add(metadata);
 			metadataInstancesService.afterFind(metadatas);
-			verify(dataSourceService,new Times(0)).findById(any(ObjectId.class));
+			verify(dataSourceService, new Times(0)).findById(any(ObjectId.class));
 		}
+
 		@Test
 		@DisplayName("test afterFind for List when connectionId is null")
-		void test4(){
+		void test4() {
 			try (MockedStatic<MongoUtils> mb = Mockito
 					.mockStatic(MongoUtils.class)) {
 				MetadataInstancesDto metadata = new MetadataInstancesDto();
@@ -881,21 +939,24 @@ public class MetadataInstancesServiceImplTest {
 				connectionDto.setId(new ObjectId("65bc933c6129fe73d7858b41"));
 				when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
 				metadataInstancesService.afterFind(metadatas);
-				assertEquals("65bc933c6129fe73d7858b40",metadatas.get(0).getSource().get_id());
-				mb.verify(() -> MongoUtils.toObjectId(anyString()),new Times(1));
+				assertEquals("65bc933c6129fe73d7858b40", metadatas.get(0).getSource().get_id());
+				mb.verify(() -> MongoUtils.toObjectId(anyString()), new Times(1));
 			}
 		}
 	}
+
 	@Nested
-	class ClassificationsTest{
+	class ClassificationsTest {
 		private List<ClassificationParam> classificationParamList;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			classificationParamList = new ArrayList<>();
 		}
+
 		@Test
 		@DisplayName("test classifications method normal")
-		void test1(){
+		void test1() {
 			ClassificationParam classificationParam = new ClassificationParam();
 			classificationParam.setId("65bc933c6129fe73d7858b40");
 			List<Tag> classifications = new ArrayList<>();
@@ -905,7 +966,7 @@ public class MetadataInstancesServiceImplTest {
 			MongoTemplate template = mock(MongoTemplate.class);
 			when(metadataInstancesRepository.getMongoOperations()).thenReturn(template);
 			UpdateResult updateResult = mock(UpdateResult.class);
-			when(template.upsert(any(Query.class),any(Update.class),anyString())).thenReturn(updateResult);
+			when(template.upsert(any(Query.class), any(Update.class), anyString())).thenReturn(updateResult);
 			when(updateResult.getModifiedCount()).thenReturn(1L);
 			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
 			doReturn(metadataInstancesDto).when(metadataInstancesService).findById(any(ObjectId.class));
@@ -914,11 +975,12 @@ public class MetadataInstancesServiceImplTest {
 			when(metadataInstancesDto.getSource()).thenReturn(sourceDto);
 			when(sourceDto.get_id()).thenReturn("65bc933c6129fe73d7858b40");
 			Map<String, Object> actual = metadataInstancesService.classifications(classificationParamList);
-			assertEquals(1,actual.get("rows"));
+			assertEquals(1, actual.get("rows"));
 		}
+
 		@Test
 		@DisplayName("test classifications method when updateResult is null")
-		void test2(){
+		void test2() {
 			ClassificationParam classificationParam = new ClassificationParam();
 			classificationParam.setId("65bc933c6129fe73d7858b40");
 			List<Tag> classifications = new ArrayList<>();
@@ -927,14 +989,15 @@ public class MetadataInstancesServiceImplTest {
 			classificationParamList.add(classificationParam);
 			MongoTemplate template = mock(MongoTemplate.class);
 			when(metadataInstancesRepository.getMongoOperations()).thenReturn(template);
-			when(template.upsert(any(Query.class),any(Update.class),anyString())).thenReturn(null);
+			when(template.upsert(any(Query.class), any(Update.class), anyString())).thenReturn(null);
 			Map<String, Object> actual = metadataInstancesService.classifications(classificationParamList);
-			assertEquals(0,actual.get("rows"));
-			verify(metadataInstancesService,new Times(0)).findById(any(ObjectId.class));
+			assertEquals(0, actual.get("rows"));
+			verify(metadataInstancesService, new Times(0)).findById(any(ObjectId.class));
 		}
+
 		@Test
 		@DisplayName("test classifications method when collectionName is empty")
-		void test3(){
+		void test3() {
 			ClassificationParam classificationParam = new ClassificationParam();
 			classificationParam.setId("65bc933c6129fe73d7858b40");
 			List<Tag> classifications = new ArrayList<>();
@@ -944,7 +1007,7 @@ public class MetadataInstancesServiceImplTest {
 			MongoTemplate template = mock(MongoTemplate.class);
 			when(metadataInstancesRepository.getMongoOperations()).thenReturn(template);
 			UpdateResult updateResult = mock(UpdateResult.class);
-			when(template.upsert(any(Query.class),any(Update.class),anyString())).thenReturn(updateResult);
+			when(template.upsert(any(Query.class), any(Update.class), anyString())).thenReturn(updateResult);
 			when(updateResult.getModifiedCount()).thenReturn(1L);
 			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
 			doReturn(metadataInstancesDto).when(metadataInstancesService).findById(any(ObjectId.class));
@@ -953,26 +1016,29 @@ public class MetadataInstancesServiceImplTest {
 			when(metadataInstancesDto.getSource()).thenReturn(sourceDto);
 			when(sourceDto.get_id()).thenReturn("65bc933c6129fe73d7858b40");
 			Map<String, Object> actual = metadataInstancesService.classifications(classificationParamList);
-			assertEquals(1,actual.get("rows"));
-			verify(template,never()).updateFirst(any(Query.class),any(Update.class),anyString());
+			assertEquals(1, actual.get("rows"));
+			verify(template, never()).updateFirst(any(Query.class), any(Update.class), anyString());
 		}
 
 	}
+
 	@Nested
-	class BeforeUpdateByIdTest{
+	class BeforeUpdateByIdTest {
 		private ObjectId id;
 		private MetadataInstancesDto data;
+
 		@Test
 		@DisplayName("test beforeUpdateById method when id is null")
-		void test1(){
+		void test1() {
 			id = null;
 			data = mock(MetadataInstancesDto.class);
-			metadataInstancesService.beforeUpdateById(id,data);
-			verify(metadataInstancesService,never()).findById(any(ObjectId.class));
+			metadataInstancesService.beforeUpdateById(id, data);
+			verify(metadataInstancesService, never()).findById(any(ObjectId.class));
 		}
+
 		@Test
 		@DisplayName("test beforeUpdateById method normal")
-		void test2(){
+		void test2() {
 			id = new ObjectId("65bc933c6129fe73d7858b40");
 			data = new MetadataInstancesDto();
 			List<Field> fieldsAfter = new ArrayList<>();
@@ -980,33 +1046,37 @@ public class MetadataInstancesServiceImplTest {
 			data.setFieldsAfter(fieldsAfter);
 			MetadataInstancesDto metadata = new MetadataInstancesDto();
 			doReturn(metadata).when(metadataInstancesService).findById(id);
-			metadataInstancesService.beforeUpdateById(id,data);
-			verify(metadataInstancesService,new Times(1)).findById(any(ObjectId.class));
+			metadataInstancesService.beforeUpdateById(id, data);
+			verify(metadataInstancesService, new Times(1)).findById(any(ObjectId.class));
 		}
 	}
+
 	@Nested
-	class CompareHistoryTest{
+	class CompareHistoryTest {
 		private ObjectId id;
 		private int historyVersion;
+
 		@Test
 		@DisplayName("test compareHistory method when metadata is null")
-		void test1(){
+		void test1() {
 			id = mock(ObjectId.class);
 			historyVersion = 1;
-			assertThrows(BizException.class,()->metadataInstancesService.compareHistory(id,historyVersion));
+			assertThrows(BizException.class, () -> metadataInstancesService.compareHistory(id, historyVersion));
 		}
+
 		@Test
 		@DisplayName("test compareHistory method when histories is empty")
-		void test2(){
+		void test2() {
 			id = mock(ObjectId.class);
 			historyVersion = 1;
 			MetadataInstancesDto metadata = new MetadataInstancesDto();
 			doReturn(metadata).when(metadataInstancesService).findById(id);
-			assertThrows(BizException.class,()->metadataInstancesService.compareHistory(id,historyVersion));
+			assertThrows(BizException.class, () -> metadataInstancesService.compareHistory(id, historyVersion));
 		}
+
 		@Test
 		@DisplayName("test compareHistory method normal")
-		void test3(){
+		void test3() {
 			try (MockedStatic<MetadataUtil> mb = Mockito
 					.mockStatic(MetadataUtil.class)) {
 				id = mock(ObjectId.class);
@@ -1018,13 +1088,14 @@ public class MetadataInstancesServiceImplTest {
 				history.setVersion(1);
 				metadata.setHistories(histories);
 				doReturn(metadata).when(metadataInstancesService).findById(id);
-				metadataInstancesService.compareHistory(id,historyVersion);
-				mb.verify(() -> MetadataUtil.compare(any(MetadataInstancesDto.class),any(MetadataInstancesDto.class)),new Times(1));
+				metadataInstancesService.compareHistory(id, historyVersion);
+				mb.verify(() -> MetadataUtil.compare(any(MetadataInstancesDto.class), any(MetadataInstancesDto.class)), new Times(1));
 			}
 		}
+
 		@Test
 		@DisplayName("test compareHistory method when secondMeta is null")
-		void test4(){
+		void test4() {
 			try (MockedStatic<MetadataUtil> mb = Mockito
 					.mockStatic(MetadataUtil.class)) {
 				id = mock(ObjectId.class);
@@ -1036,17 +1107,18 @@ public class MetadataInstancesServiceImplTest {
 				history.setVersion(1);
 				metadata.setHistories(histories);
 				doReturn(metadata).when(metadataInstancesService).findById(id);
-				assertThrows(BizException.class,()->metadataInstancesService.compareHistory(id,historyVersion));
-				mb.verify(() -> MetadataUtil.compare(any(MetadataInstancesDto.class),any(MetadataInstancesDto.class)),new Times(0));
+				assertThrows(BizException.class, () -> metadataInstancesService.compareHistory(id, historyVersion));
+				mb.verify(() -> MetadataUtil.compare(any(MetadataInstancesDto.class), any(MetadataInstancesDto.class)), new Times(0));
 			}
 		}
 
 	}
+
 	@Nested
-	class TableConnectionTest{
+	class TableConnectionTest {
 		@Test
 		@DisplayName("test tableConnection method normal")
-		void test1(){
+		void test1() {
 			String name = "test";
 			List<MetadataInstancesDto> metaArr = new ArrayList<>();
 			MetadataInstancesDto meta = new MetadataInstancesDto();
@@ -1054,154 +1126,170 @@ public class MetadataInstancesServiceImplTest {
 			sourceDto.setId(mock(ObjectId.class));
 			meta.setSource(sourceDto);
 			metaArr.add(meta);
-			doReturn(metaArr).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metaArr).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<MetadataInstancesDto> actual = metadataInstancesService.tableConnection(name, userDetail);
-			assertEquals(metaArr,actual);
+			assertEquals(metaArr, actual);
 		}
+
 		@Test
 		@DisplayName("test tableConnection method when source is null")
-		void test2(){
+		void test2() {
 			String name = "test";
 			List<MetadataInstancesDto> metaArr = new ArrayList<>();
 			MetadataInstancesDto meta = new MetadataInstancesDto();
 			metaArr.add(meta);
-			doReturn(metaArr).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metaArr).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<MetadataInstancesDto> actual = metadataInstancesService.tableConnection(name, userDetail);
-			assertEquals(metaArr,actual);
+			assertEquals(metaArr, actual);
 		}
+
 		@Test
 		@DisplayName("test tableConnection method when metaArr is null")
-		void test3(){
+		void test3() {
 			String name = "test";
-			doReturn(new ArrayList<>()).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(new ArrayList<>()).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<MetadataInstancesDto> actual = metadataInstancesService.tableConnection(name, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
 	}
+
 	@Nested
-	class OriginalDataTest{
+	class OriginalDataTest {
 		private String isTarget;
 		private String qualified_name;
+
 		@Test
-		void testOriginalDataNormal(){
-			metadataInstancesService.originalData(isTarget,qualified_name,userDetail);
-			verify(metadataInstancesService).findByQualifiedName(qualified_name,userDetail);
+		void testOriginalDataNormal() {
+			metadataInstancesService.originalData(isTarget, qualified_name, userDetail);
+			verify(metadataInstancesService).findByQualifiedName(qualified_name, userDetail);
 		}
 	}
+
 	@Nested
-	class FindBySourceIdAndTableNameTest{
+	class FindBySourceIdAndTableNameTest {
 		@Test
-		void testFindBySourceIdAndTableNameNormal(){
+		void testFindBySourceIdAndTableNameNormal() {
 			String sourceId = "111";
 			String tableName = "test";
 			String taskId = "222";
-			metadataInstancesService.findBySourceIdAndTableName(sourceId,tableName,taskId,userDetail);
-			verify(metadataInstancesService).findOne(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findBySourceIdAndTableName(sourceId, tableName, taskId, userDetail);
+			verify(metadataInstancesService).findOne(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindSourceSchemaBySourceIdTest{
+	class FindSourceSchemaBySourceIdTest {
 		private String sourceId;
 		private List<String> tableNames;
 		private String fields;
+
 		@Test
 		@DisplayName("test findSourceSchemaBySourceId method when tableName is empty and fields is null")
-		void test1(){
+		void test1() {
 			sourceId = "111";
 			tableNames = new ArrayList<>();
 			fields = null;
-			metadataInstancesService.findSourceSchemaBySourceId(sourceId,tableNames,userDetail,fields);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findSourceSchemaBySourceId(sourceId, tableNames, userDetail, fields);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
+
 		@Test
 		@DisplayName("test findSourceSchemaBySourceId method normal")
-		void test2(){
+		void test2() {
 			sourceId = "111";
 			tableNames = new ArrayList<>();
 			tableNames.add("test");
 			fields = "test_field";
-			metadataInstancesService.findSourceSchemaBySourceId(sourceId,tableNames,userDetail,fields);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findSourceSchemaBySourceId(sourceId, tableNames, userDetail, fields);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindBySourceIdAndTableNameListTest{
+	class FindBySourceIdAndTableNameListTest {
 		@Test
-		void testFindBySourceIdAndTableNameListNormal(){
+		void testFindBySourceIdAndTableNameListNormal() {
 			String sourceId = "111";
 			List<String> tableNames = new ArrayList<>();
 			tableNames.add("test");
 			String taskId = "222";
-			metadataInstancesService.findBySourceIdAndTableNameList(sourceId,tableNames,userDetail,taskId);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findBySourceIdAndTableNameList(sourceId, tableNames, userDetail, taskId);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindBySourceIdAndTableNameListNeTaskIdTest{
+	class FindBySourceIdAndTableNameListNeTaskIdTest {
 		@Test
-		void testFindBySourceIdAndTableNameListNeTaskIdNormal(){
+		void testFindBySourceIdAndTableNameListNeTaskIdNormal() {
 			String sourceId = "111";
 			List<String> tableNames = new ArrayList<>();
 			tableNames.add("test");
-			metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceId,tableNames,userDetail);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceId, tableNames, userDetail);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindEntityBySourceIdAndTableNameListTest{
+	class FindEntityBySourceIdAndTableNameListTest {
 		@Test
-		void testfindEntityBySourceIdAndTableNameListNormal(){
+		void testfindEntityBySourceIdAndTableNameListNormal() {
 			String sourceId = "111";
 			List<String> tableNames = new ArrayList<>();
 			tableNames.add("test");
 			String taskId = "222";
-			metadataInstancesService.findEntityBySourceIdAndTableNameList(sourceId,tableNames,userDetail,taskId);
-			verify(metadataInstancesService).findAll(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findEntityBySourceIdAndTableNameList(sourceId, tableNames, userDetail, taskId);
+			verify(metadataInstancesService).findAll(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindByQualifiedNameListTest{
+	class FindByQualifiedNameListTest {
 		@Test
-		void testFindByQualifiedNameListNormal(){
+		void testFindByQualifiedNameListNormal() {
 			List<String> qualifiedNames = new ArrayList<>();
 			qualifiedNames.add("test");
 			String taskId = "111";
-			metadataInstancesService.findByQualifiedNameList(qualifiedNames,taskId);
+			metadataInstancesService.findByQualifiedNameList(qualifiedNames, taskId);
 			verify(metadataInstancesService).findAll(any(Query.class));
 		}
 	}
+
 	@Nested
-	class FindByQualifiedNameNotDeleteTest{
+	class FindByQualifiedNameNotDeleteTest {
 		@Test
-		void testFindByQualifiedNameNotDeleteNJormal(){
+		void testFindByQualifiedNameNotDeleteNJormal() {
 			List<String> qualifiedNames = new ArrayList<>();
 			qualifiedNames.add("test");
 			String excludeFiled = "field";
-			metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames,userDetail,excludeFiled);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, userDetail, excludeFiled);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 
 	}
+
 	@Nested
-	class FindDatabaseSchemeNoHistoryTest{
+	class FindDatabaseSchemeNoHistoryTest {
 		@Test
-		void testFindDatabaseSchemeNoHistoryNormal(){
+		void testFindDatabaseSchemeNoHistoryNormal() {
 			List<String> databaseIds = new ArrayList<>();
 			databaseIds.add("111");
-			metadataInstancesService.findDatabaseSchemeNoHistory(databaseIds,userDetail);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findDatabaseSchemeNoHistory(databaseIds, userDetail);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 
 	}
+
 	@Nested
-	class BulkSaveTest{
+	class BulkSaveTest {
 		private List<MetadataInstancesDto> metadataInstancesDtos;
 		private MetadataInstancesDto dataSourceMetadataInstance;
 		private DataSourceConnectionDto dataSourceConnectionDto;
 		private DAG.Options options;
 		private Map<String, MetadataInstancesEntity> existsMetadataInstances;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("test_qualifiedName");
@@ -1228,118 +1316,128 @@ public class MetadataInstancesServiceImplTest {
 			field1.setScale(1);
 			fields1.add(field1);
 			entity.setFields(fields1);
-			existsMetadataInstances.put("test_qualifiedName",entity);
+			existsMetadataInstances.put("test_qualifiedName", entity);
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when existsMetadataInstances contains qualifiedName and fieldsNameTransform is toUpperCase")
-		void test1(){
+		void test1() {
 			options.setRollback("table");
 			options.setFieldsNameTransform("toUpperCase");
 			options.setRollbackTable("table1");
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
-			metadataInstancesService.bulkSave(metadataInstancesDtos,dataSourceMetadataInstance,dataSourceConnectionDto,options,userDetail,existsMetadataInstances);
-			assertEquals("ORIGINNAME",metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+			assertEquals("ORIGINNAME", metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when existsMetadataInstances contains qualifiedName and fieldsNameTransform is toLowerCase")
-		void test2(){
+		void test2() {
 			options.setRollback("table");
 			options.setFieldsNameTransform("toLowerCase");
 			options.setRollbackTable("table1");
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
-			metadataInstancesService.bulkSave(metadataInstancesDtos,dataSourceMetadataInstance,dataSourceConnectionDto,options,userDetail,existsMetadataInstances);
-			assertEquals("originname",metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+			assertEquals("originname", metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when existsMetadataInstances contains qualifiedName")
-		void test3(){
+		void test3() {
 			options.setRollback("table");
 			options.setFieldsNameTransform("testTransform");
 			options.setRollbackTable("table1");
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
-			metadataInstancesService.bulkSave(metadataInstancesDtos,dataSourceMetadataInstance,dataSourceConnectionDto,options,userDetail,existsMetadataInstances);
-			assertEquals("originName",metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
-			verify(bulkOperations).updateOne(any(Query.class),any(Update.class));
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+			assertEquals("originName", metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
+			verify(bulkOperations).updateOne(any(Query.class), any(Update.class));
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when existsMetadataInstances not contains qualifiedName and database type is vika")
-		void test4(){
+		void test4() {
 			existsMetadataInstances.clear();
 			dataSourceConnectionDto.setId(mock(ObjectId.class));
 			dataSourceConnectionDto.setDatabase_type("vika");
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
-			when(metadataInstancesRepository.buildUpdateSet(any(MetadataInstancesEntity.class),any(UserDetail.class))).thenReturn(mock(Update.class));
-			metadataInstancesService.bulkSave(metadataInstancesDtos,dataSourceMetadataInstance,dataSourceConnectionDto,options,userDetail,existsMetadataInstances);
-			verify(bulkOperations).upsert(any(Query.class),any(Update.class));
+			when(metadataInstancesRepository.buildUpdateSet(any(MetadataInstancesEntity.class), any(UserDetail.class))).thenReturn(mock(Update.class));
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+			verify(bulkOperations).upsert(any(Query.class), any(Update.class));
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when existsMetadataInstances not contains qualifiedName and database type is qingflow")
-		void test5(){
+		void test5() {
 			existsMetadataInstances.clear();
 			dataSourceConnectionDto.setId(mock(ObjectId.class));
 			dataSourceConnectionDto.setDatabase_type("qingflow");
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
-			when(metadataInstancesRepository.buildUpdateSet(any(MetadataInstancesEntity.class),any(UserDetail.class))).thenReturn(mock(Update.class));
-			metadataInstancesService.bulkSave(metadataInstancesDtos,dataSourceMetadataInstance,dataSourceConnectionDto,options,userDetail,existsMetadataInstances);
-			verify(bulkOperations).upsert(any(Query.class),any(Update.class));
+			when(metadataInstancesRepository.buildUpdateSet(any(MetadataInstancesEntity.class), any(UserDetail.class))).thenReturn(mock(Update.class));
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+			verify(bulkOperations).upsert(any(Query.class), any(Update.class));
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when existsMetadataInstances contains qualifiedName and fieldsNameTransform is blank")
-		void test6(){
+		void test6() {
 			options.setRollback("table");
 			options.setRollbackTable("table1");
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
-			metadataInstancesService.bulkSave(metadataInstancesDtos,dataSourceMetadataInstance,dataSourceConnectionDto,options,userDetail,existsMetadataInstances);
-			assertEquals("originName",metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
+			metadataInstancesService.bulkSave(metadataInstancesDtos, dataSourceMetadataInstance, dataSourceConnectionDto, options, userDetail, existsMetadataInstances);
+			assertEquals("originName", metadataInstancesDtos.get(0).getFields().get(0).getFieldName());
 		}
 	}
+
 	@Nested
-	class BulkSaveTest2{
+	class BulkSaveTest2 {
 		private List<MetadataInstancesDto> insertMetaDataDtos;
 		private Map<String, MetadataInstancesDto> updateMetaMap;
 		private boolean saveHistory;
 		private String taskId;
 		private String uuid;
 		private MetaDataHistoryService metaDataHistoryService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			metaDataHistoryService = mock(MetaDataHistoryService.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"metaDataHistoryService",metaDataHistoryService);
+			ReflectionTestUtils.setField(metadataInstancesService, "metaDataHistoryService", metaDataHistoryService);
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(metadataInstancesRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
 			when(bulkOperations.execute()).thenReturn(mock(BulkWriteResult.class));
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when insertMetaDataDtos is null and updateMetaMap is not null")
-		void test1(){
+		void test1() {
 			uuid = "111";
 			saveHistory = false;
 			updateMetaMap = new HashMap<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("qualifiedName");
-			updateMetaMap.put("test_updateMap",metadataInstancesDto);
+			updateMetaMap.put("test_updateMap", metadataInstancesDto);
 			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto meta = new MetadataInstancesDto();
 			meta.setId(mock(ObjectId.class));
-			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid);
-			verify(metadataInstancesService).deleteAll(any(Query.class),any(UserDetail.class));
+			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
+			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(metadataInstancesService).deleteAll(any(Query.class), any(UserDetail.class));
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when insertMetaDataDtos is not empty and saveHistory is true")
-		void test2(){
+		void test2() {
 			uuid = "111";
 			taskId = "222";
 			saveHistory = true;
@@ -1353,21 +1451,23 @@ public class MetadataInstancesServiceImplTest {
 			meta.setId(mock(ObjectId.class));
 			meta.setTransformUuid("333");
 			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid);
-			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(),any(UserDetail.class),anyString());
+			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(), any(UserDetail.class), anyString());
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when write is false")
-		void test3(){
+		void test3() {
 			uuid = "111";
 			taskId = "222";
 			saveHistory = true;
 			int actual = metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
-			assertEquals(0,actual);
+			assertEquals(0, actual);
 		}
+
 		@Test
 		@DisplayName("test bulkSave method when updateMetaMap is not empty and saveHistory is true")
-		void test4(){
+		void test4() {
 			uuid = "111";
 			taskId = "222";
 			saveHistory = true;
@@ -1375,22 +1475,24 @@ public class MetadataInstancesServiceImplTest {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("qualifiedName_222");
 			ObjectId id = new ObjectId("65bc933f6129fe73d7858d6f");
-			updateMetaMap.put(id.toHexString(),metadataInstancesDto);
+			updateMetaMap.put(id.toHexString(), metadataInstancesDto);
 			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto meta = new MetadataInstancesDto();
 			meta.setId(id);
 			metadataInstancesDtos.add(meta);
-			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.bulkSave(insertMetaDataDtos,updateMetaMap,userDetail,saveHistory,taskId,uuid);
-			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(),any(UserDetail.class),anyString());
+			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
+			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(), any(UserDetail.class), anyString());
 		}
 	}
+
 	@Nested
-	class BulkUpsetByWhereTest{
+	class BulkUpsetByWhereTest {
 		private List<MetadataInstancesDto> metadataInstancesDtos;
 		private BulkOperations bulkOperations;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("test_qualifiedName");
@@ -1402,151 +1504,165 @@ public class MetadataInstancesServiceImplTest {
 			when(execute.getModifiedCount()).thenReturn(1);
 			when(execute.getInsertedCount()).thenReturn(1);
 		}
+
 		@Test
 		@DisplayName("test bulkUpsetByWhere method when num mod 1000 not equals 0")
-		void test1(){
+		void test1() {
 			Pair<Integer, Integer> actual = metadataInstancesService.bulkUpsetByWhere(metadataInstancesDtos, userDetail);
 			verify(bulkOperations).execute();
-			assertEquals(1,actual.getLeft());
-			assertEquals(1,actual.getRight());
+			assertEquals(1, actual.getLeft());
+			assertEquals(1, actual.getRight());
 		}
+
 		@Test
 		@DisplayName("test bulkUpsetByWhere method when num mod 1000 equals 0")
-		void test2(){
-			for (int i=1;i<1000;i++){
+		void test2() {
+			for (int i = 1; i < 1000; i++) {
 				MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 				metadataInstancesDto.setQualifiedName("test_qualifiedName");
 				metadataInstancesDtos.add(metadataInstancesDto);
 			}
 			Pair<Integer, Integer> actual = metadataInstancesService.bulkUpsetByWhere(metadataInstancesDtos, userDetail);
-			verify(bulkOperations,new Times(2)).execute();
-			assertEquals(2,actual.getLeft());
-			assertEquals(2,actual.getRight());
+			verify(bulkOperations, new Times(2)).execute();
+			assertEquals(2, actual.getLeft());
+			assertEquals(2, actual.getRight());
 		}
 	}
+
 	@Nested
-	class TablesTest{
+	class TablesTest {
 		@Test
-		void testTablesNormal(){
+		void testTablesNormal() {
 			MongoTemplate mongoTemplate = mock(MongoTemplate.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"mongoTemplate",mongoTemplate);
+			ReflectionTestUtils.setField(metadataInstancesService, "mongoTemplate", mongoTemplate);
 			String connectId = "111";
 			String sourceType = "mysql";
 			List<MetadataInstancesEntity> list = new ArrayList<>();
 			MetadataInstancesEntity entity = new MetadataInstancesEntity();
 			entity.setOriginalName("originalName");
 			list.add(entity);
-			when(mongoTemplate.find(any(Query.class),any(Class.class))).thenReturn(list);
+			when(mongoTemplate.find(any(Query.class), any(Class.class))).thenReturn(list);
 			List<String> actual = metadataInstancesService.tables(connectId, sourceType);
-			assertEquals("originalName",actual.get(0));
+			assertEquals("originalName", actual.get(0));
 		}
 	}
+
 	@Nested
-	class TableValuesTest{
+	class TableValuesTest {
 		private String connectId;
 		private String sourceType;
 		private MongoTemplate mongoTemplate;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			mongoTemplate = mock(MongoTemplate.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"mongoTemplate",mongoTemplate);
+			ReflectionTestUtils.setField(metadataInstancesService, "mongoTemplate", mongoTemplate);
 			connectId = "111";
 			sourceType = "mysql";
 		}
+
 		@Test
 		@DisplayName("test tableValues method when list is empty")
-		void test1(){
-			when(mongoTemplate.find(any(Query.class),any(Class.class))).thenReturn(new ArrayList());
+		void test1() {
+			when(mongoTemplate.find(any(Query.class), any(Class.class))).thenReturn(new ArrayList());
 			List<Map<String, String>> actual = metadataInstancesService.tableValues(connectId, sourceType);
-			assertEquals(0,actual.size());
+			assertEquals(0, actual.size());
 		}
+
 		@Test
 		@DisplayName("test tableValues method normal")
-		void test2(){
+		void test2() {
 			List<MetadataInstancesEntity> list = new ArrayList();
 			MetadataInstancesEntity entity = new MetadataInstancesEntity();
 			entity.setOriginalName("originalName");
 			entity.setId(new ObjectId("65bc933f6129fe73d7858d6f"));
 			list.add(entity);
-			when(mongoTemplate.find(any(Query.class),any(Class.class))).thenReturn(list);
+			when(mongoTemplate.find(any(Query.class), any(Class.class))).thenReturn(list);
 			List<Map<String, String>> actual = metadataInstancesService.tableValues(connectId, sourceType);
-			assertEquals("originalName",actual.get(0).get("tableName"));
-			assertEquals("65bc933f6129fe73d7858d6f",actual.get(0).get("tableId"));
-			assertEquals("",actual.get(0).get("tableComment"));
+			assertEquals("originalName", actual.get(0).get("tableName"));
+			assertEquals("65bc933f6129fe73d7858d6f", actual.get(0).get("tableId"));
+			assertEquals("", actual.get(0).get("tableComment"));
 		}
 	}
+
 	@Nested
-	class PageTablesTest{
+	class PageTablesTest {
 		private String connectId;
 		private String sourceType;
 		private String regex;
 		private int skip;
 		private int limit;
 		private MongoTemplate mongoTemplate;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			mongoTemplate = mock(MongoTemplate.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"mongoTemplate",mongoTemplate);
+			ReflectionTestUtils.setField(metadataInstancesService, "mongoTemplate", mongoTemplate);
 			connectId = "111";
 			sourceType = "mysql";
 		}
+
 		@Test
 		@DisplayName("test pageTables method when totals greater than 0")
-		void test1(){
+		void test1() {
 			regex = "tableName";
 			limit = 1;
-			when(mongoTemplate.count(any(Query.class),any(Class.class))).thenReturn(1L);
+			when(mongoTemplate.count(any(Query.class), any(Class.class))).thenReturn(1L);
 			AggregationResults<Map> aggregate = mock(AggregationResults.class);
-			when(mongoTemplate.aggregate(any(Aggregation.class),anyString(),any(Class.class))).thenReturn(aggregate);
+			when(mongoTemplate.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(aggregate);
 			List<Map> list = new ArrayList<>();
 			Map map = new HashMap();
-			map.put("test","map");
+			map.put("test", "map");
 			list.add(map);
 			when(aggregate.getMappedResults()).thenReturn(list);
 			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
-			assertEquals(map,actual.getItems().get(0));
+			assertEquals(map, actual.getItems().get(0));
 		}
+
 		@Test
 		@DisplayName("test pageTables method when totals equals 0")
-		void test2(){
+		void test2() {
 			regex = "tableName";
 			limit = 1;
-			when(mongoTemplate.count(any(Query.class),any(Class.class))).thenReturn(0L);
+			when(mongoTemplate.count(any(Query.class), any(Class.class))).thenReturn(0L);
 			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
-			assertEquals(0,actual.getItems().size());
+			assertEquals(0, actual.getItems().size());
 		}
+
 		@Test
 		@DisplayName("test pageTables method when limit equals 0")
-		void test3(){
+		void test3() {
 			limit = 0;
-			when(mongoTemplate.count(any(Query.class),any(Class.class))).thenReturn(1L);
+			when(mongoTemplate.count(any(Query.class), any(Class.class))).thenReturn(1L);
 			AggregationResults<Map> aggregate = mock(AggregationResults.class);
-			when(mongoTemplate.aggregate(any(Aggregation.class),anyString(),any(Class.class))).thenReturn(aggregate);
+			when(mongoTemplate.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(aggregate);
 			List<Map> list = new ArrayList<>();
 			Map map = new HashMap();
-			map.put("test","map");
+			map.put("test", "map");
 			list.add(map);
 			when(aggregate.getMappedResults()).thenReturn(list);
 			Page<Map<String, Object>> actual = metadataInstancesService.pageTables(connectId, sourceType, regex, skip, limit, null);
-			assertEquals(map,actual.getItems().get(0));
+			assertEquals(map, actual.getItems().get(0));
 		}
 	}
+
 	@Nested
-	class TableSupportInspectTest{
+	class TableSupportInspectTest {
 		@Test
 		@DisplayName("test tableSupportInspect method when fields is empty")
-		void test1(){
+		void test1() {
 			String connectId = "111";
 			String tableName = "tableName";
 			MetadataInstancesDto metadataInstancesDtos = new MetadataInstancesDto();
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findOne(any(Query.class));
 			TableSupportInspectVo actual = metadataInstancesService.tableSupportInspect(connectId, tableName);
-			assertEquals("tableName",actual.getTableName());
-			assertEquals(false,actual.getSupportInspect());
+			assertEquals("tableName", actual.getTableName());
+			assertEquals(false, actual.getSupportInspect());
 		}
+
 		@Test
 		@DisplayName("test tableSupportInspect method normal")
-		void testTableSupportInspectNormal(){
+		void testTableSupportInspectNormal() {
 			String connectId = "111";
 			String tableName = "tableName";
 			MetadataInstancesDto metadataInstancesDtos = new MetadataInstancesDto();
@@ -1557,36 +1673,40 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesDtos.setFields(list);
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findOne(any(Query.class));
 			TableSupportInspectVo actual = metadataInstancesService.tableSupportInspect(connectId, tableName);
-			assertEquals("tableName",actual.getTableName());
-			assertEquals(true,actual.getSupportInspect());
+			assertEquals("tableName", actual.getTableName());
+			assertEquals(true, actual.getSupportInspect());
 		}
 	}
+
 	@Nested
-	class TablesSupportInspectTest{
+	class TablesSupportInspectTest {
 		private TablesSupportInspectParam tablesSupportInspectParam;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			tablesSupportInspectParam = new TablesSupportInspectParam();
 			tablesSupportInspectParam.setConnectionId("111");
 			List<String> tableNames = new ArrayList<>();
 			tableNames.add("tableName");
 			tablesSupportInspectParam.setTableNames(tableNames);
 		}
+
 		@Test
 		@DisplayName("test tablesSupportInspect method when fields is empty")
-		void test1(){
+		void test1() {
 			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setOriginalName("originalName");
 			metadataInstancesDtos.add(metadataInstancesDto);
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAll(any(Query.class));
 			List<TableSupportInspectVo> actual = metadataInstancesService.tablesSupportInspect(tablesSupportInspectParam);
-			assertEquals("originalName",actual.get(0).getTableName());
-			assertEquals(false,actual.get(0).getSupportInspect());
+			assertEquals("originalName", actual.get(0).getTableName());
+			assertEquals(false, actual.get(0).getSupportInspect());
 		}
+
 		@Test
 		@DisplayName("test tablesSupportInspect method normal")
-		void testTableSupportInspectNormal(){
+		void testTableSupportInspectNormal() {
 			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			List<Field> list = new ArrayList<>();
@@ -1598,43 +1718,48 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesDtos.add(metadataInstancesDto);
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAll(any(Query.class));
 			List<TableSupportInspectVo> actual = metadataInstancesService.tablesSupportInspect(tablesSupportInspectParam);
-			assertEquals("originalName",actual.get(0).getTableName());
-			assertEquals(true,actual.get(0).getSupportInspect());
+			assertEquals("originalName", actual.get(0).getTableName());
+			assertEquals(true, actual.get(0).getSupportInspect());
 		}
 	}
+
 	@Nested
-	class GetMetadataTest{
+	class GetMetadataTest {
 		private String connectionId;
 		private String metaType;
 		private String tableName;
 		private DataSourceServiceImpl dataSourceService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			connectionId = "65bc933f6129fe73d7858d6f";
 			dataSourceService = mock(DataSourceServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceService",dataSourceService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
 		}
+
 		@Test
 		@DisplayName("test getMetadata method when connectionDto is null")
-		void test1(){
+		void test1() {
 			when(dataSourceService.findById(toObjectId(connectionId), userDetail)).thenReturn(null);
 			Table actual = metadataInstancesService.getMetadata(connectionId, metaType, tableName, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test getMetadata method when metedata is null")
-		void test2(){
+		void test2() {
 			metaType = "table";
 			DataSourceConnectionDto dto = new DataSourceConnectionDto();
 			dto.setId(mock(ObjectId.class));
 			when(dataSourceService.findById(toObjectId(connectionId), userDetail)).thenReturn(dto);
 			doReturn(null).when(metadataInstancesService).findOne(any(Query.class));
 			Table actual = metadataInstancesService.getMetadata(connectionId, metaType, tableName, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test getMetadata method normal")
-		void test3(){
+		void test3() {
 			metaType = "table";
 			DataSourceConnectionDto dto = new DataSourceConnectionDto();
 			dto.setId(mock(ObjectId.class));
@@ -1644,147 +1769,163 @@ public class MetadataInstancesServiceImplTest {
 			meta.setOriginalName("origin");
 			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
 			Table actual = metadataInstancesService.getMetadata(connectionId, metaType, tableName, userDetail);
-			assertEquals("origin",actual.getTableName());
+			assertEquals("origin", actual.getTableName());
 		}
 	}
+
 	@Nested
-	class GetMetadataV2Test{
+	class GetMetadataV2Test {
 		private String connectionId;
 		private String metaType;
 		private String tableName;
 		private DataSourceServiceImpl dataSourceService;
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			connectionId = "65bc933f6129fe73d7858d6f";
 			dataSourceService = mock(DataSourceServiceImpl.class);
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceService",dataSourceService);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceDefinitionService",dataSourceDefinitionService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
 		@DisplayName("test getMetadataV2 method when connectionDto is null")
-		void test1(){
+		void test1() {
 			when(dataSourceService.findById(toObjectId(connectionId), userDetail)).thenReturn(null);
 			TapTable actual = metadataInstancesService.getMetadataV2(connectionId, metaType, tableName, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test getMetadataV2 method when metedata is null")
-		void test2(){
+		void test2() {
 			metaType = "table";
 			DataSourceConnectionDto dto = new DataSourceConnectionDto();
 			dto.setId(mock(ObjectId.class));
 			dto.setDatabase_type("mysql");
 			when(dataSourceService.findById(toObjectId(connectionId), userDetail)).thenReturn(dto);
-			when(dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(),userDetail)).thenReturn(mock(DataSourceDefinitionDto.class));
+			when(dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(), userDetail)).thenReturn(mock(DataSourceDefinitionDto.class));
 			doReturn(null).when(metadataInstancesService).findOne(any(Query.class));
 			TapTable actual = metadataInstancesService.getMetadataV2(connectionId, metaType, tableName, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
-//		@Test
+
+		//		@Test
 		@DisplayName("test getMetadataV2 method normal")
-		void test3(){
+		void test3() {
 			metaType = "table";
 			DataSourceConnectionDto dto = new DataSourceConnectionDto();
 			dto.setId(mock(ObjectId.class));
 			when(dataSourceService.findById(toObjectId(connectionId), userDetail)).thenReturn(dto);
-			when(dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(),userDetail)).thenReturn(mock(DataSourceDefinitionDto.class));
+			when(dataSourceDefinitionService.getByDataSourceType(dto.getDatabase_type(), userDetail)).thenReturn(mock(DataSourceDefinitionDto.class));
 			MetadataInstancesDto meta = new MetadataInstancesDto();
 			meta.setId(mock(ObjectId.class));
 			meta.setOriginalName("origin");
 			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
 			TapTable actual = metadataInstancesService.getMetadataV2(connectionId, metaType, tableName, userDetail);
-			assertEquals("origin",actual.getName());
+			assertEquals("origin", actual.getName());
 		}
 	}
+
 	@Nested
-	class FindOldByNodeIdTest{
+	class FindOldByNodeIdTest {
 		private Filter filter;
+
 		@Test
 		@DisplayName("test findOldByNodeId method when where is null")
-		void test1(){
+		void test1() {
 			filter = new Filter();
 			filter.setWhere(null);
 			List<Table> actual = metadataInstancesService.findOldByNodeId(filter, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test findOldByNodeId method when metadatas is empty")
-		void test2(){
+		void test2() {
 			filter = new Filter();
 			Where where = new Where();
-			where.put("nodeId","111");
+			where.put("nodeId", "111");
 			filter.setWhere(where);
-			doReturn(null).when(metadataInstancesService).findByNodeId("111",null,userDetail,null);
+			doReturn(null).when(metadataInstancesService).findByNodeId("111", null, userDetail, null);
 			List<Table> actual = metadataInstancesService.findOldByNodeId(filter, userDetail);
-			assertEquals(0,actual.size());
+			assertEquals(0, actual.size());
 		}
+
 		@Test
 		@DisplayName("test findOldByNodeId method normal")
-		void test3(){
+		void test3() {
 			filter = new Filter();
 			Where where = new Where();
-			where.put("nodeId","111");
+			where.put("nodeId", "111");
 			filter.setWhere(where);
 			List<MetadataInstancesDto> metadatas = new ArrayList<>();
 			MetadataInstancesDto dto = new MetadataInstancesDto();
 			dto.setId(mock(ObjectId.class));
 			dto.setOriginalName("origin");
 			metadatas.add(dto);
-			doReturn(metadatas).when(metadataInstancesService).findByNodeId("111",null,userDetail,null);
+			doReturn(metadatas).when(metadataInstancesService).findByNodeId("111", null, userDetail, null);
 			List<Table> actual = metadataInstancesService.findOldByNodeId(filter, userDetail);
-			assertEquals("origin",actual.get(0).getTableName());
+			assertEquals("origin", actual.get(0).getTableName());
 		}
 	}
+
 	@Nested
-	class FindTableMapByNodeIdTest{
+	class FindTableMapByNodeIdTest {
 		private Filter filter;
 		private TaskService taskService;
 		private UserService userService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			filter = new Filter();
 			taskService = mock(TaskService.class);
 			userService = mock(UserService.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"taskService",taskService);
-			ReflectionTestUtils.setField(metadataInstancesService,"userService",userService);
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "userService", userService);
 		}
+
 		@Test
 		@DisplayName("test findTableMapByNodeId method when where is null")
-		void test1(){
+		void test1() {
 			filter.setWhere(null);
 			Map<String, String> actual = metadataInstancesService.findTableMapByNodeId(filter);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test findTableMapByNodeId method normal")
-		void test2(){
+		void test2() {
 			Where where = new Where();
-			where.put("nodeId","111");
+			where.put("nodeId", "111");
 			filter.setWhere(where);
 			TaskDto taskDto = new TaskDto();
 			taskDto.setUserId("65bc933f6129fe73d7858d6f");
 			when(taskService.findOne(any(Query.class))).thenReturn(taskDto);
 			Map<String, String> actual = metadataInstancesService.findTableMapByNodeId(filter);
-			assertEquals(0,actual.size());
+			assertEquals(0, actual.size());
 		}
 	}
+
 	@Nested
-	class FindKVByNodeTest{
+	class FindKVByNodeTest {
 		private String nodeId;
 		private TaskService taskService;
 		private UserService userService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			nodeId = "111";
 			taskService = mock(TaskService.class);
 			userService = mock(UserService.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"taskService",taskService);
-			ReflectionTestUtils.setField(metadataInstancesService,"userService",userService);
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "userService", userService);
 		}
+
 		@Test
-		void testFindKVByNodeNormal(){
+		void testFindKVByNodeNormal() {
 			TaskDto taskDto = new TaskDto();
 			taskDto.setUserId("65bc933f6129fe73d7858d6f");
 			DAG dag = mock(DAG.class);
@@ -1794,17 +1935,19 @@ public class MetadataInstancesServiceImplTest {
 			when(taskService.findOne(any(Query.class))).thenReturn(taskDto);
 			when(userService.loadUserById(any(ObjectId.class))).thenReturn(mock(UserDetail.class));
 			Map<String, String> actual = metadataInstancesService.findKVByNode(nodeId);
-			assertEquals(0,actual.size());
+			assertEquals(0, actual.size());
 		}
 	}
+
 	@Nested
-	class GetNodeMappingTest{
+	class GetNodeMappingTest {
 		TaskDto taskDto;
 		Map<String, String> kv;
 		Node node;
+
 		@Test
 		@DisplayName("test getNodeMapping method when node is processorNode")
-		void test1(){
+		void test1() {
 			kv = new HashMap<>();
 			node = new MergeTableNode();
 			node.setId("111");
@@ -1815,53 +1958,58 @@ public class MetadataInstancesServiceImplTest {
 			List<Node> predecessors = new ArrayList<>();
 			LogCollectorNode logCollectorNode = new LogCollectorNode();
 			Map<String, LogCollecotrConnConfig> connConfigs = new HashMap<>();
-			connConfigs.put("test",mock(LogCollecotrConnConfig.class));
+			connConfigs.put("test", mock(LogCollecotrConnConfig.class));
 			logCollectorNode.setId("222");
 			logCollectorNode.setLogCollectorConnConfigs(connConfigs);
 			predecessors.add(logCollectorNode);
 			when(dag.predecessors("111")).thenReturn(predecessors);
 			List<MetadataInstancesDto> metadatas = new ArrayList<>();
 			metadatas.add(mock(MetadataInstancesDto.class));
-			doReturn(metadatas).when(metadataInstancesService).findByNodeId(anyString(),anyList(),any(UserDetail.class),any(TaskDto.class));
-			assertThrows(RuntimeException.class,()->metadataInstancesService.getNodeMapping(userDetail,taskDto,kv,node));
+			doReturn(metadatas).when(metadataInstancesService).findByNodeId(anyString(), anyList(), any(UserDetail.class), any(TaskDto.class));
+			assertThrows(RuntimeException.class, () -> metadataInstancesService.getNodeMapping(userDetail, taskDto, kv, node));
 		}
 	}
+
 	@Nested
-	class FindHeartbeatQualifiedNameByNodeIdTest{
+	class FindHeartbeatQualifiedNameByNodeIdTest {
 		private Filter filter;
 		private TaskService taskService;
 		private DataSourceServiceImpl dataSourceService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			filter = new Filter();
 			taskService = mock(TaskService.class);
 			dataSourceService = mock(DataSourceServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"taskService",taskService);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceService",dataSourceService);
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
 		}
+
 		@Test
 		@DisplayName("test findHeartbeatQualifiedNameByNodeId method when where is null")
-		void test1(){
+		void test1() {
 			filter.setWhere(null);
 			String actual = metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test findHeartbeatQualifiedNameByNodeId method when nodeId is null")
-		void test2(){
+		void test2() {
 			filter = new Filter();
 			Where where = new Where();
-			where.put("nodeId",null);
+			where.put("nodeId", null);
 			filter.setWhere(where);
 			String actual = metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test findHeartbeatQualifiedNameByNodeId method when where is null")
-		void test3(){
+		void test3() {
 			filter = new Filter();
 			Where where = new Where();
-			where.put("nodeId","111");
+			where.put("nodeId", "111");
 			filter.setWhere(where);
 			TaskDto task = new TaskDto();
 			DAG dag = mock(DAG.class);
@@ -1874,66 +2022,73 @@ public class MetadataInstancesServiceImplTest {
 			when(dag.getTargets()).thenReturn(targets);
 			task.setDag(dag);
 			task.setId(new ObjectId("65bc933c6129fe73d7858b40"));
-			when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(task);
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(task);
 			String actual = metadataInstancesService.findHeartbeatQualifiedNameByNodeId(filter, userDetail);
-			assertNotEquals(null,actual);
+			assertNotEquals(null, actual);
 		}
 	}
+
 	@Nested
-	class GetQualifiedNameByNodeIdTest{
+	class GetQualifiedNameByNodeIdTest {
 		private Node node;
 		private DataSourceConnectionDto dataSource;
 		private DataSourceDefinitionDto definitionDto;
 		private String taskId;
 		private DataSourceServiceImpl dataSourceService;
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			dataSourceService = mock(DataSourceServiceImpl.class);
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceService",dataSourceService);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceDefinitionService",dataSourceDefinitionService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
 		@DisplayName("test getQualifiedNameByNodeId method when node is null")
-		void test1(){
+		void test1() {
 			node = null;
 			String actual = metadataInstancesService.getQualifiedNameByNodeId(node, userDetail, dataSource, definitionDto, taskId);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test getQualifiedNameByNodeId method for TableNode")
-		void test2(){
+		void test2() {
 			node = new TableNode();
-			((TableNode)node).setConnectionId("65bc933c6129fe73d7858b40");
-			((TableNode)node).setTableName("tableName");
+			((TableNode) node).setConnectionId("65bc933c6129fe73d7858b40");
+			((TableNode) node).setTableName("tableName");
 			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
 			connectionDto.setId(mock(ObjectId.class));
 			connectionDto.setDatabase_type("mongodb");
 			connectionDto.setDatabase_uri("mongodb://localhost:27017");
 			when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
 			DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
-			when(dataSourceDefinitionService.getByDataSourceType(anyString(),any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
+			when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
 			String actual = metadataInstancesService.getQualifiedNameByNodeId(node, userDetail, dataSource, definitionDto, taskId);
-			assertNotEquals(null,actual);
+			assertNotEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test getQualifiedNameByNodeId method for ProcessorNode")
-		void test3(){
+		void test3() {
 			node = new MergeTableNode();
 			String actual = metadataInstancesService.getQualifiedNameByNodeId(node, userDetail, dataSource, definitionDto, taskId);
-			assertNotEquals(null,actual);
+			assertNotEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test getQualifiedNameByNodeId method for node")
-		void test4(){
+		void test4() {
 			node = new VirtualTargetNode();
 			String actual = metadataInstancesService.getQualifiedNameByNodeId(node, userDetail, dataSource, definitionDto, taskId);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
 	}
+
 	@Nested
-	class FindDatabaseNodeQualifiedNameTest{
+	class FindDatabaseNodeQualifiedNameTest {
 		private String nodeId;
 		private TaskDto taskDto;
 		private DataSourceConnectionDto dataSource;
@@ -1942,18 +2097,20 @@ public class MetadataInstancesServiceImplTest {
 		private TaskService taskService;
 		private DataSourceServiceImpl dataSourceService;
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			taskService = mock(TaskService.class);
 			dataSourceService = mock(DataSourceServiceImpl.class);
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"taskService",taskService);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceService",dataSourceService);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceDefinitionService",dataSourceDefinitionService);
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
 		@DisplayName("test findDatabaseNodeQualifiedName method when includes is not empty")
-		void test1(){
+		void test1() {
 			nodeId = "111";
 			includes = new ArrayList<>();
 			includes.add("tableName");
@@ -1961,9 +2118,9 @@ public class MetadataInstancesServiceImplTest {
 			DAG dag = mock(DAG.class);
 			task.setDag(dag);
 			task.setId(mock(ObjectId.class));
-			when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(task);
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(task);
 			Node node = new TableNode();
-			((TableNode)node).setConnectionId("65bc933c6129fe73d7858b40");
+			((TableNode) node).setConnectionId("65bc933c6129fe73d7858b40");
 			List<String> tableNames = new ArrayList<>();
 			tableNames.add("tableName");
 			when(dag.getNode(nodeId)).thenReturn(node);
@@ -1973,63 +2130,66 @@ public class MetadataInstancesServiceImplTest {
 			connectionDto.setDatabase_uri("mongodb://localhost:27017");
 			when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
 			DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
-			when(dataSourceDefinitionService.getByDataSourceType(anyString(),any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
+			when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
 			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId, userDetail, taskDto, dataSource, definitionDto, includes);
-			assertNotEquals(null,actual.get(0));
+			assertNotEquals(null, actual.get(0));
 		}
+
 		@Test
 		@DisplayName("test findDatabaseNodeQualifiedName method sources or targets not contains tableNode")
-		void test2(){
+		void test2() {
 			nodeId = "111";
 			includes = new ArrayList<>();
 			dataSource = new DataSourceConnectionDto();
-			definitionDto =new DataSourceDefinitionDto();
+			definitionDto = new DataSourceDefinitionDto();
 			TaskDto task = new TaskDto();
 			DAG dag = mock(DAG.class);
 			task.setDag(dag);
 			task.setId(mock(ObjectId.class));
-			when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(task);
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(task);
 			Node node = new DatabaseNode();
 			when(dag.getNode(nodeId)).thenReturn(node);
-			assertThrows(BizException.class,()->metadataInstancesService.findDatabaseNodeQualifiedName(nodeId,userDetail,taskDto,dataSource,definitionDto,includes));
+			assertThrows(BizException.class, () -> metadataInstancesService.findDatabaseNodeQualifiedName(nodeId, userDetail, taskDto, dataSource, definitionDto, includes));
 		}
+
 		@Test
 		@DisplayName("test findDatabaseNodeQualifiedName method sources contains tableNode")
-		void test3(){
+		void test3() {
 			nodeId = "111";
 			includes = new ArrayList<>();
 			dataSource = new DataSourceConnectionDto();
 			dataSource.setId(mock(ObjectId.class));
-			definitionDto =new DataSourceDefinitionDto();
+			definitionDto = new DataSourceDefinitionDto();
 			TaskDto task = new TaskDto();
 			DAG dag = mock(DAG.class);
 			task.setDag(dag);
 			task.setId(mock(ObjectId.class));
-			when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(task);
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(task);
 			Node node = new DatabaseNode();
 			List<String> tableNames = new ArrayList<>();
 			tableNames.add("table1");
-			((DatabaseNode)node).setTableNames(tableNames);
+			((DatabaseNode) node).setTableNames(tableNames);
 			when(dag.getNode(nodeId)).thenReturn(node);
 			List<Node> source = new ArrayList<>();
 			source.add(node);
 			when(dag.getSources()).thenReturn(source);
-			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId,userDetail,taskDto,dataSource,definitionDto,includes);
-			assertNotEquals(null,actual.get(0));
+			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId, userDetail, taskDto, dataSource, definitionDto, includes);
+			assertNotEquals(null, actual.get(0));
 		}
+
 		@Test
 		@DisplayName("test findDatabaseNodeQualifiedName method targets not contains tableNode")
-		void test4(){
+		void test4() {
 			nodeId = "111";
 			includes = new ArrayList<>();
 			dataSource = new DataSourceConnectionDto();
 			dataSource.setId(mock(ObjectId.class));
-			definitionDto =new DataSourceDefinitionDto();
+			definitionDto = new DataSourceDefinitionDto();
 			TaskDto task = new TaskDto();
 			DAG dag = mock(DAG.class);
 			task.setDag(dag);
 			task.setId(mock(ObjectId.class));
-			when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(task);
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(task);
 			Node node = new DatabaseNode();
 			when(dag.getNode(nodeId)).thenReturn(node);
 			List<SyncObjects> list = new ArrayList<>();
@@ -2038,59 +2198,64 @@ public class MetadataInstancesServiceImplTest {
 			tableNames.add("table1");
 			syncObjects.setObjectNames(tableNames);
 			list.add(syncObjects);
-			((DatabaseNode)node).setSyncObjects(list);
+			((DatabaseNode) node).setSyncObjects(list);
 			List<Node> target = new ArrayList<>();
 			target.add(node);
 			when(dag.getTargets()).thenReturn(target);
-			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId,userDetail,taskDto,dataSource,definitionDto,includes);
-			assertNotEquals(null,actual.get(0));
+			List<String> actual = metadataInstancesService.findDatabaseNodeQualifiedName(nodeId, userDetail, taskDto, dataSource, definitionDto, includes);
+			assertNotEquals(null, actual.get(0));
 		}
 	}
+
 	@Nested
-	class FindByNodeIdTest{
+	class FindByNodeIdTest {
 		@Test
-		void testFindByNodeIdWithFieldNormal(){
+		void testFindByNodeIdWithFieldNormal() {
 			String nodeId = "111";
-			metadataInstancesService.findByNodeId(nodeId,userDetail);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findByNodeId(nodeId, userDetail);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindByNodeIdWithFieldsTest{
+	class FindByNodeIdWithFieldsTest {
 		@Test
-		void testFindByNodeIdWithFieldNormal(){
+		void testFindByNodeIdWithFieldNormal() {
 			String nodeId = "111";
 			String taskId = "222";
 			String fields = "test";
-			metadataInstancesService.findByNodeId(nodeId,userDetail,taskId,fields);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findByNodeId(nodeId, userDetail, taskId, fields);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindByTaskIdTest{
+	class FindByTaskIdTest {
 		@Test
-		void testFindByTaskIdNormal(){
+		void testFindByTaskIdNormal() {
 			String taskId = "111";
-			metadataInstancesService.findByTaskId(taskId,userDetail);
-			verify(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.findByTaskId(taskId, userDetail);
+			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class FindByNodeIdWithTaskDtoTest{
+	class FindByNodeIdWithTaskDtoTest {
 		@Test
-		void testFindByNodeIdWithTaskDtoNormal(){
+		void testFindByNodeIdWithTaskDtoNormal() {
 			String nodeId = "111";
 			List<String> fields = new ArrayList<>();
 			TaskDto taskDto = new TaskDto();
 			doReturn(mock(Page.class)).when(metadataInstancesService).findByNodeId(nodeId, fields, userDetail, taskDto, null, null, 1, 0);
-			metadataInstancesService.findByNodeId(nodeId,fields,userDetail,taskDto);
+			metadataInstancesService.findByNodeId(nodeId, fields, userDetail, taskDto);
 			verify(metadataInstancesService).findByNodeId(nodeId, fields, userDetail, taskDto, null, null, 1, 0);
 		}
 	}
+
 	@Nested
-	class FindByNodeIdsTest{
+	class FindByNodeIdsTest {
 		@Test
-		void testFindByNodeIdsNormal(){
+		void testFindByNodeIdsNormal() {
 			List<String> nodeIds = new ArrayList<>();
 			String nodeId = "111";
 			nodeIds.add(nodeId);
@@ -2103,11 +2268,12 @@ public class MetadataInstancesServiceImplTest {
 			page.setItems(items);
 			doReturn(page).when(metadataInstancesService).findByNodeId(nodeId, fields, userDetail, taskDto, null, null, 1, 0);
 			Map<String, List<MetadataInstancesDto>> actual = metadataInstancesService.findByNodeIds(nodeIds, fields, userDetail, taskDto);
-			assertEquals(items,actual.get(nodeId));
+			assertEquals(items, actual.get(nodeId));
 		}
 	}
+
 	@Nested
-	class findByNodeIdWithTableFilterTest{
+	class findByNodeIdWithTableFilterTest {
 		String nodeId;
 		List<String> fields;
 		TaskDto taskDto;
@@ -2116,20 +2282,23 @@ public class MetadataInstancesServiceImplTest {
 		int page;
 		int pageSize;
 		private TaskService taskService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			taskService = mock(TaskService.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"taskService",taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
 		}
+
 		@Test
 		@DisplayName("test findByNodeId method when taskDto is null")
-		void test1(){
-			when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
-			assertThrows(BizException.class,()->metadataInstancesService.findByNodeId(nodeId,fields,userDetail,taskDto,tableFilter,filterType,page,pageSize));
+		void test1() {
+			when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
+			assertThrows(BizException.class, () -> metadataInstancesService.findByNodeId(nodeId, fields, userDetail, taskDto, tableFilter, filterType, page, pageSize));
 		}
-//		@Test
+
+		//		@Test
 		@DisplayName("test findByNodeId method for MigrateProcessorNode")
-		void test2(){
+		void test2() {
 			nodeId = "111";
 			page = 1;
 			pageSize = 10;
@@ -2143,18 +2312,20 @@ public class MetadataInstancesServiceImplTest {
 			List<MetadataInstancesDto> all = new ArrayList<>();
 			all.add(mock(MetadataInstancesDto.class));
 			doReturn(all).when(metadataInstancesService).findAll(any(Query.class));
-			metadataInstancesService.findByNodeId(nodeId,fields,userDetail,taskDto,tableFilter,filterType,page,pageSize);
+			metadataInstancesService.findByNodeId(nodeId, fields, userDetail, taskDto, tableFilter, filterType, page, pageSize);
 		}
 	}
+
 	@Nested
-	class SearchTest{
+	class SearchTest {
 		String type;
 		String keyword;
 		String lastId;
 		Integer pageSize;
+
 		@Test
 		@DisplayName("test search method for table")
-		void test1(){
+		void test1() {
 			type = "table";
 			lastId = "65bc933c6129fe73d7858b40";
 			keyword = "test";
@@ -2165,14 +2336,15 @@ public class MetadataInstancesServiceImplTest {
 			dto.setName("name");
 			dto.setOriginalName("originalName");
 			metadatas.add(dto);
-			doReturn(metadatas).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metadatas).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<Map<String, Object>> actual = metadataInstancesService.search(type, keyword, lastId, pageSize, userDetail);
-			assertEquals("name",((HashMap)actual.get(0).get("table")).get("name"));
-			assertEquals("originalName",((HashMap)actual.get(0).get("table")).get("original_name"));
+			assertEquals("name", ((HashMap) actual.get(0).get("table")).get("name"));
+			assertEquals("originalName", ((HashMap) actual.get(0).get("table")).get("original_name"));
 		}
+
 		@Test
 		@DisplayName("test search method for column")
-		void test2(){
+		void test2() {
 			type = "column";
 			keyword = "comment";
 			pageSize = 10;
@@ -2191,25 +2363,27 @@ public class MetadataInstancesServiceImplTest {
 			fields.add(field);
 			dto.setFields(fields);
 			metadatas.add(dto);
-			doReturn(metadatas).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metadatas).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<Map<String, Object>> actual = metadataInstancesService.search(type, keyword, lastId, pageSize, userDetail);
-			assertEquals("name",((HashMap)actual.get(0).get("table")).get("name"));
-			assertEquals("originalName",((HashMap)actual.get(0).get("table")).get("original_name"));
-			assertEquals("fieldName",((HashMap)((List)actual.get(0).get("columns")).get(0)).get("field_name"));
-			assertEquals("origin_fieldName",((HashMap)((List)actual.get(0).get("columns")).get(0)).get("original_field_name"));
-			assertEquals("comment",((HashMap)((List)actual.get(0).get("columns")).get(0)).get("comment"));
-			assertEquals("javaType",((HashMap)((List)actual.get(0).get("columns")).get(0)).get("type"));
+			assertEquals("name", ((HashMap) actual.get(0).get("table")).get("name"));
+			assertEquals("originalName", ((HashMap) actual.get(0).get("table")).get("original_name"));
+			assertEquals("fieldName", ((HashMap) ((List) actual.get(0).get("columns")).get(0)).get("field_name"));
+			assertEquals("origin_fieldName", ((HashMap) ((List) actual.get(0).get("columns")).get(0)).get("original_field_name"));
+			assertEquals("comment", ((HashMap) ((List) actual.get(0).get("columns")).get(0)).get("comment"));
+			assertEquals("javaType", ((HashMap) ((List) actual.get(0).get("columns")).get(0)).get("type"));
 		}
 	}
+
 	@Nested
-	class TableSearchTest{
+	class TableSearchTest {
 		String connectionId;
 		String keyword;
 		String lastId;
 		Integer pageSize;
+
 		@Test
 		@DisplayName("test tableSearch method normal")
-		void test1(){
+		void test1() {
 			lastId = "65bc933c6129fe73d7858b40";
 			pageSize = 10;
 			keyword = "test";
@@ -2220,36 +2394,39 @@ public class MetadataInstancesServiceImplTest {
 			dto.setOriginalName("originalName");
 			dto.setComment("");
 			metaData.add(dto);
-			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<MetaTableVo> actual = metadataInstancesService.tableSearch(connectionId, keyword, lastId, pageSize, userDetail);
-			assertEquals("name",actual.get(0).getName());
-			assertEquals("originalName",actual.get(0).getOriginalName());
-			assertEquals("",actual.get(0).getComment());
+			assertEquals("name", actual.get(0).getName());
+			assertEquals("originalName", actual.get(0).getOriginalName());
+			assertEquals("", actual.get(0).getComment());
 		}
+
 		@Test
 		@DisplayName("test tableSearch method simple")
-		void test2(){
+		void test2() {
 			keyword = "test";
 			pageSize = 0;
 			List<MetadataInstancesDto> metaData = new ArrayList<>();
-			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			List<MetaTableVo> actual = metadataInstancesService.tableSearch(connectionId, keyword, lastId, pageSize, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
 	}
+
 	@Nested
-	class CheckTableNamesTest{
+	class CheckTableNamesTest {
 		@Test
 		@DisplayName("test checkTableNames method when metaData is null")
-		void test1(){
+		void test1() {
 			String connectionId = "111";
 			List<String> names = new ArrayList<>();
 			MetaTableCheckVo actual = metadataInstancesService.checkTableNames(connectionId, names, userDetail);
-			assertEquals(null,actual);
+			assertEquals(null, actual);
 		}
+
 		@Test
 		@DisplayName("test checkTableNames method when collect is null")
-		void test2(){
+		void test2() {
 			String connectionId = "111";
 			List<String> names = new ArrayList<>();
 			names.add("name");
@@ -2258,28 +2435,31 @@ public class MetadataInstancesServiceImplTest {
 			MetadataInstancesDto dto = new MetadataInstancesDto();
 			dto.setName("name");
 			metaData.add(dto);
-			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class),any(UserDetail.class));
+			doReturn(metaData).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			MetaTableCheckVo actual = metadataInstancesService.checkTableNames(connectionId, names, userDetail);
-			assertEquals(1,actual.getExitsTables().size());
-			assertEquals(1,actual.getErrorTables().size());
+			assertEquals(1, actual.getExitsTables().size());
+			assertEquals(1, actual.getErrorTables().size());
 		}
 	}
+
 	@Nested
-	class BatchImportTest{
+	class BatchImportTest {
 		List<MetadataInstancesDto> metadataInstancesDtos;
 		boolean cover;
 		Map<String, DataSourceConnectionDto> conMap;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			metadataInstancesDtos = new ArrayList<>();
 			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
 			connectionDto.setId(mock(ObjectId.class));
 			conMap = new HashMap<>();
-			conMap.put("662877df9179877be8b37074",connectionDto);
+			conMap.put("662877df9179877be8b37074", connectionDto);
 		}
+
 		@Test
 		@DisplayName("test batchImport method normal")
-		void test1(){
+		void test1() {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("qualifiedName");
 			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
@@ -2287,24 +2467,26 @@ public class MetadataInstancesServiceImplTest {
 			sourceDto.setId(new ObjectId("662877df9179877be8b37074"));
 			metadataInstancesDto.setSource(sourceDto);
 			metadataInstancesDtos.add(metadataInstancesDto);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto,userDetail);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto, userDetail);
 			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
-			assertEquals(metadataInstancesDto,actual.get("662877df9179877be8b37075"));
+			assertEquals(metadataInstancesDto, actual.get("662877df9179877be8b37075"));
 		}
+
 		@Test
 		@DisplayName("test batchImport method simple")
-		void test2(){
+		void test2() {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("qualifiedName");
 			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
 			metadataInstancesDtos.add(metadataInstancesDto);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto,userDetail);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto, userDetail);
 			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
-			assertEquals(metadataInstancesDto,actual.get("662877df9179877be8b37075"));
+			assertEquals(metadataInstancesDto, actual.get("662877df9179877be8b37075"));
 		}
+
 		@Test
 		@DisplayName("test batchImport method when connectionId not null and connectionDto is null")
-		void test3(){
+		void test3() {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("qualifiedName");
 			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
@@ -2313,29 +2495,34 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesDto.setSource(sourceDto);
 			metadataInstancesDtos.add(metadataInstancesDto);
 			conMap.clear();
-			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto,userDetail);
+			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto, userDetail);
 			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
-			assertEquals(metadataInstancesDto,actual.get("662877df9179877be8b37075"));
+			assertEquals(metadataInstancesDto, actual.get("662877df9179877be8b37075"));
 		}
 	}
+
 	@Nested
-	class GetTapTableTest{
+	class GetTapTableTest {
 
 	}
+
 	@Nested
-	class GetTapTableWithNodeTest{
+	class GetTapTableWithNodeTest {
 
 	}
+
 	@Nested
-	class GetMergeNodeParentFieldTest{
+	class GetMergeNodeParentFieldTest {
 
 	}
+
 	@Nested
-	class GetParentNodeTest{
+	class GetParentNodeTest {
 
 	}
+
 	@Nested
-	class LinkLogicTest{
+	class LinkLogicTest {
 		@DisplayName("test linkLogic method normal update")
 		@Test
 		void test1() {
@@ -2370,41 +2557,45 @@ public class MetadataInstancesServiceImplTest {
 				metadataInstancesDtos.add(metadataInstancesDto);
 				doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 				metadataInstancesService.linkLogic(metadataInstancesDtos, userDetail, "65d31d426a7c0d7571db82a7");
-				verify(metadataInstancesService,times(1)).bulkUpsetByWhere(any(List.class),any(UserDetail.class));
+				verify(metadataInstancesService, times(1)).bulkUpsetByWhere(any(List.class), any(UserDetail.class));
 			}
 		}
 	}
+
 	@Nested
-	class DeleteTaskMetadataTest{
+	class DeleteTaskMetadataTest {
 		@Test
-		void testDeleteTaskMetadataNormal(){
+		void testDeleteTaskMetadataNormal() {
 			String taskId = "111";
-			metadataInstancesService.deleteTaskMetadata(taskId,userDetail);
-			verify(metadataInstancesService).deleteAll(any(Query.class),any(UserDetail.class));
+			metadataInstancesService.deleteTaskMetadata(taskId, userDetail);
+			verify(metadataInstancesService).deleteAll(any(Query.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class DataType2TapTypeTest{
+	class DataType2TapTypeTest {
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceDefinitionService",dataSourceDefinitionService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
-		void testDataType2TapTypeNormal(){
+		void testDataType2TapTypeNormal() {
 			CommonUtils.setProperty(SystemConstants.JUNIT_TEST_PROP_KEY, "true");
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
 				try (MockedStatic<InstanceFactory> instanceFactory = Mockito
 						.mockStatic(InstanceFactory.class)) {
-					instanceFactory.when(()->InstanceFactory.instance(TableFieldTypesGenerator.class)).thenReturn(mock(TableFieldTypesGenerator.class));
+					instanceFactory.when(() -> InstanceFactory.instance(TableFieldTypesGenerator.class)).thenReturn(mock(TableFieldTypesGenerator.class));
 					try (MockedStatic<PdkSchemaConvert> pdkSchemaConvertMockedStatic = Mockito
 							.mockStatic(PdkSchemaConvert.class)) {
 						mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mock(DefaultExpressionMatchingMap.class));
 						TableFieldTypesGenerator generator = mock(TableFieldTypesGenerator.class);
 						pdkSchemaConvertMockedStatic.when(PdkSchemaConvert::getTableFieldTypesGenerator).thenReturn(generator);
-						doNothing().when(generator).autoFill(any(LinkedHashMap.class),any(DefaultExpressionMatchingMap.class));
+						doNothing().when(generator).autoFill(any(LinkedHashMap.class), any(DefaultExpressionMatchingMap.class));
 						DataType2TapTypeDto dto = new DataType2TapTypeDto();
 						dto.setDatabaseType("databaseType");
 						Set<String> dataTypes = new HashSet<>();
@@ -2414,191 +2605,211 @@ public class MetadataInstancesServiceImplTest {
 						definitionDto.setExpression("expression");
 						when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
 						Map<String, TapType> actual = metadataInstancesService.dataType2TapType(dto, userDetail);
-						assertEquals(1,actual.size());
+						assertEquals(1, actual.size());
 					}
 				}
 			}
 		}
 	}
+
 	@Nested
-	class CheckTableExistTest{
+	class CheckTableExistTest {
 		@Test
-		void testCheckTableExistNormal(){
+		void testCheckTableExistNormal() {
 			String connectionId = "111";
 			String tableName = "table";
-			doReturn(1L).when(metadataInstancesService).count(any(Query.class),any(UserDetail.class));
+			doReturn(1L).when(metadataInstancesService).count(any(Query.class), any(UserDetail.class));
 			boolean actual = metadataInstancesService.checkTableExist(connectionId, tableName, userDetail);
-			assertEquals(true,actual);
+			assertEquals(true, actual);
 		}
 	}
+
 	@Nested
-	class CountUpdateExNumTest{
+	class CountUpdateExNumTest {
 		@Test
-		void testDeleteLogicModelNormal(){
+		void testDeleteLogicModelNormal() {
 			String nodeId = "111";
 			metadataInstancesService.countUpdateExNum(nodeId);
 			verify(metadataInstancesService).count(any(Query.class));
 		}
 	}
+
 	@Nested
-	class CountTransformExNumTest{
+	class CountTransformExNumTest {
 		@Test
-		void testCountTransformExNumNormal(){
+		void testCountTransformExNumNormal() {
 			String nodeId = "111";
 			metadataInstancesService.countTransformExNum(nodeId);
 			verify(metadataInstancesService).count(any(Query.class));
 		}
 	}
+
 	@Nested
-	class CountTotalNumTest{
+	class CountTotalNumTest {
 		@Test
-		void testCountTotalNumNormal(){
+		void testCountTotalNumNormal() {
 			String nodeId = "111";
 			metadataInstancesService.countTotalNum(nodeId);
 			verify(metadataInstancesService).count(any(Query.class));
 		}
 	}
+
 	@Nested
-	class DeleteLogicModelTest{
+	class DeleteLogicModelTest {
 		@Test
-		void testDeleteLogicModelNormal(){
+		void testDeleteLogicModelNormal() {
 			String taskId = "111";
 			String nodeId = "222";
-			metadataInstancesService.deleteLogicModel(taskId,nodeId);
+			metadataInstancesService.deleteLogicModel(taskId, nodeId);
 			verify(metadataInstancesService).deleteAll(any(Query.class));
 		}
 	}
+
 	@Nested
-	class UpdateTableDescTest{
+	class UpdateTableDescTest {
 		private MetadataInstancesDto metadataInstances;
+
 		@Test
 		@DisplayName("test updateTableDesc method when metadataInstances id is empty")
-		void test1(){
+		void test1() {
 			metadataInstances = new MetadataInstancesDto();
-			assertThrows(BizException.class,()->metadataInstancesService.updateTableDesc(metadataInstances,userDetail));
+			assertThrows(BizException.class, () -> metadataInstancesService.updateTableDesc(metadataInstances, userDetail));
 		}
+
 		@Test
 		@DisplayName("test updateTableDesc method normal")
-		void test2(){
+		void test2() {
 			metadataInstances = new MetadataInstancesDto();
 			metadataInstances.setId(new ObjectId());
-			metadataInstancesService.updateTableDesc(metadataInstances,userDetail);
-			verify(metadataInstancesService).update(any(Query.class),any(Update.class),any(UserDetail.class));
+			metadataInstancesService.updateTableDesc(metadataInstances, userDetail);
+			verify(metadataInstancesService).update(any(Query.class), any(Update.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class UpdateTableFieldDescTest{
+	class UpdateTableFieldDescTest {
 		private String id;
 		private DiscoveryFieldDto discoveryFieldDto;
+
 		@Test
 		@DisplayName("test updateTableFieldDesc method when id is empty")
-		void test1(){
+		void test1() {
 			id = "";
-			assertThrows(BizException.class,()->metadataInstancesService.updateTableFieldDesc(id,discoveryFieldDto,userDetail));
+			assertThrows(BizException.class, () -> metadataInstancesService.updateTableFieldDesc(id, discoveryFieldDto, userDetail));
 		}
+
 		@Test
 		@DisplayName("test updateTableFieldDesc method normal")
-		void test2(){
+		void test2() {
 			id = "65bc933c6129fe73d7858b40";
 			discoveryFieldDto = new DiscoveryFieldDto();
 			discoveryFieldDto.setId("222");
-			metadataInstancesService.updateTableFieldDesc(id,discoveryFieldDto,userDetail);
-			verify(metadataInstancesService).update(any(Query.class),any(Update.class),any(UserDetail.class));
+			metadataInstancesService.updateTableFieldDesc(id, discoveryFieldDto, userDetail);
+			verify(metadataInstancesService).update(any(Query.class), any(Update.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class ImportEntityTest{
+	class ImportEntityTest {
 		@Test
-		void testImportEntityNormal(){
+		void testImportEntityNormal() {
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 			metadataInstancesDto.setQualifiedName("qualifiedName");
-			metadataInstancesService.importEntity(metadataInstancesDto,userDetail);
-			verify(metadataInstancesService).upsert(any(Query.class),any(MetadataInstancesDto.class),any(UserDetail.class));
+			metadataInstancesService.importEntity(metadataInstancesDto, userDetail);
+			verify(metadataInstancesService).upsert(any(Query.class), any(MetadataInstancesDto.class), any(UserDetail.class));
 		}
 	}
+
 	@Nested
-	class UpdateFieldCustomDescTest{
+	class UpdateFieldCustomDescTest {
 		String qualifiedName;
 		Map<String, String> fieldCustomDescMap;
+
 		@Test
-		void testUpdateFieldCustomDescNormal(){
+		void testUpdateFieldCustomDescNormal() {
 			fieldCustomDescMap = new HashMap<>();
-			fieldCustomDescMap.put("fieldName","test_fieldName");
+			fieldCustomDescMap.put("fieldName", "test_fieldName");
 			MetadataInstancesDto dto = new MetadataInstancesDto();
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
 			field.setFieldName("fieldName");
 			fields.add(field);
 			dto.setFields(fields);
-			doReturn(dto).when(metadataInstancesService).findOne(any(Query.class),any(UserDetail.class));
-			metadataInstancesService.updateFieldCustomDesc(qualifiedName,fieldCustomDescMap,userDetail);
-			verify(metadataInstancesService).update(any(Query.class),any(Update.class),any(UserDetail.class));
-			assertEquals("test_fieldName",field.getDescription());
+			doReturn(dto).when(metadataInstancesService).findOne(any(Query.class), any(UserDetail.class));
+			metadataInstancesService.updateFieldCustomDesc(qualifiedName, fieldCustomDescMap, userDetail);
+			verify(metadataInstancesService).update(any(Query.class), any(Update.class), any(UserDetail.class));
+			assertEquals("test_fieldName", field.getDescription());
 		}
 	}
+
 	@Nested
-	class DataTypeCheckMultipleTest{
+	class DataTypeCheckMultipleTest {
 		private String databaseType;
 		private String dataType;
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceDefinitionService",dataSourceDefinitionService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
 		@DisplayName("test dataTypeCheckMultiple method when definitionDto is null")
-		void test1(){
+		void test1() {
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
 				mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mock(DefaultExpressionMatchingMap.class));
 				DataTypeCheckMultipleVo actual = metadataInstancesService.dataTypeCheckMultiple(databaseType, dataType, userDetail);
-				assertEquals(false,actual.isResult());
-				mb.verify(()->DefaultExpressionMatchingMap.map(anyString()),new Times(0));
+				assertEquals(false, actual.isResult());
+				mb.verify(() -> DefaultExpressionMatchingMap.map(anyString()), new Times(0));
 			}
 		}
+
 		@Test
 		@DisplayName("test dataTypeCheckMultiple method when exprResult is null")
-		void test2(){
+		void test2() {
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
 				DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
 				definitionDto.setExpression("expression");
-				when(dataSourceDefinitionService.getByDataSourceType(databaseType,userDetail)).thenReturn(definitionDto);
+				when(dataSourceDefinitionService.getByDataSourceType(databaseType, userDetail)).thenReturn(definitionDto);
 				DefaultExpressionMatchingMap map = mock(DefaultExpressionMatchingMap.class);
 				mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(map);
 				when(map.get(anyString())).thenReturn(null);
 				DataTypeCheckMultipleVo actual = metadataInstancesService.dataTypeCheckMultiple(databaseType, dataType, userDetail);
-				assertEquals(false,actual.isResult());
+				assertEquals(false, actual.isResult());
 			}
 		}
+
 		@Test
 		@DisplayName("test dataTypeCheckMultiple method when exprResult getParams is null")
-		void test3(){
+		void test3() {
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
 				DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
 				definitionDto.setExpression("expression");
-				when(dataSourceDefinitionService.getByDataSourceType(databaseType,userDetail)).thenReturn(definitionDto);
+				when(dataSourceDefinitionService.getByDataSourceType(databaseType, userDetail)).thenReturn(definitionDto);
 				DefaultExpressionMatchingMap map = mock(DefaultExpressionMatchingMap.class);
 				mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(map);
 				TypeExprResult<DataMap> exprResult = mock(TypeExprResult.class);
 				when(map.get(anyString())).thenReturn(exprResult);
 				when(exprResult.getParams()).thenReturn(null);
 				DataTypeCheckMultipleVo actual = metadataInstancesService.dataTypeCheckMultiple(databaseType, dataType, userDetail);
-				assertEquals(false,actual.isResult());
-				verify(exprResult,never()).getValue();
+				assertEquals(false, actual.isResult());
+				verify(exprResult, never()).getValue();
 			}
 		}
+
 		@Test
 		@DisplayName("test dataTypeCheckMultiple method for TapStringMapping")
-		void test4(){
+		void test4() {
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
 				dataType = "data(Type";
 				DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
 				definitionDto.setExpression("expression");
-				when(dataSourceDefinitionService.getByDataSourceType(databaseType,userDetail)).thenReturn(definitionDto);
+				when(dataSourceDefinitionService.getByDataSourceType(databaseType, userDetail)).thenReturn(definitionDto);
 				DefaultExpressionMatchingMap map = mock(DefaultExpressionMatchingMap.class);
 				mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(map);
 				TypeExprResult<DataMap> exprResult = mock(TypeExprResult.class);
@@ -2608,15 +2819,16 @@ public class MetadataInstancesServiceImplTest {
 				when(exprResult.getValue()).thenReturn(dataMap);
 				when(dataMap.get("_tapMapping")).thenReturn(mock(TapStringMapping.class));
 				DataTypeCheckMultipleVo actual = metadataInstancesService.dataTypeCheckMultiple(databaseType, dataType, userDetail);
-				assertEquals(true,actual.isResult());
-				assertEquals("data",actual.getOriginType());
+				assertEquals(true, actual.isResult());
+				assertEquals("data", actual.getOriginType());
 			}
 		}
 	}
+
 	@Nested
-	class GetTypeFilterTest{
+	class GetTypeFilterTest {
 		@Test
-		void testGetTypeFilterNormal(){
+		void testGetTypeFilterNormal() {
 			String nodeId = "111";
 			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
@@ -2626,43 +2838,48 @@ public class MetadataInstancesServiceImplTest {
 			fields.add(field);
 			metadataInstancesDto.setFields(fields);
 			metadataInstancesDtos.add(metadataInstancesDto);
-			doReturn(metadataInstancesDtos).when(metadataInstancesService).findByNodeId(nodeId,null,userDetail,null);
+			doReturn(metadataInstancesDtos).when(metadataInstancesService).findByNodeId(nodeId, null, userDetail, null);
 			Set<String> actual = metadataInstancesService.getTypeFilter(nodeId, userDetail);
-			assertEquals("dataType",actual.stream().findFirst().get());
+			assertEquals("dataType", actual.stream().findFirst().get());
 		}
 	}
+
 	@Nested
-	class MultiTransformTest{
+	class MultiTransformTest {
 		private MultiPleTransformReq multiPleTransformReq;
 		private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
+
 		@BeforeEach
-		void beforeEach(){
+		void beforeEach() {
 			dataSourceDefinitionService = mock(DataSourceDefinitionServiceImpl.class);
-			ReflectionTestUtils.setField(metadataInstancesService,"dataSourceDefinitionService",dataSourceDefinitionService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceDefinitionService", dataSourceDefinitionService);
 		}
+
 		@Test
 		@DisplayName("test multiTransform method when fields is empty")
-		void test1(){
+		void test1() {
 			multiPleTransformReq = new MultiPleTransformReq();
 			MetadataInstancesDto actual = metadataInstancesService.multiTransform(multiPleTransformReq, userDetail);
-			assertEquals(null,actual.getFields());
+			assertEquals(null, actual.getFields());
 		}
+
 		@Test
 		@DisplayName("test multiTransform method when rules is empty")
-		void test2(){
-			multiPleTransformReq= new MultiPleTransformReq();
+		void test2() {
+			multiPleTransformReq = new MultiPleTransformReq();
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
 			fields.add(field);
 			multiPleTransformReq.setFields(fields);
 			MetadataInstancesDto actual = metadataInstancesService.multiTransform(multiPleTransformReq, userDetail);
-			assertEquals(fields,actual.getFields());
-			verify(dataSourceDefinitionService,never()).getByDataSourceType(anyString(),any(UserDetail.class));
+			assertEquals(fields, actual.getFields());
+			verify(dataSourceDefinitionService, never()).getByDataSourceType(anyString(), any(UserDetail.class));
 		}
+
 		@Test
 		@DisplayName("test multiTransform method when dataSourceDefinitionDto is null")
-		void test3(){
-			multiPleTransformReq= new MultiPleTransformReq();
+		void test3() {
+			multiPleTransformReq = new MultiPleTransformReq();
 			List<Field> fields = new ArrayList<>();
 			Field field = new Field();
 			fields.add(field);
@@ -2672,15 +2889,16 @@ public class MetadataInstancesServiceImplTest {
 			rules.add(rule);
 			multiPleTransformReq.setRules(rules);
 			MetadataInstancesDto actual = metadataInstancesService.multiTransform(multiPleTransformReq, userDetail);
-			assertEquals(fields,actual.getFields());
+			assertEquals(fields, actual.getFields());
 		}
+
 		@Test
 		@DisplayName("test multiTransform method normal")
-		void test4(){
+		void test4() {
 			try (MockedStatic<DefaultExpressionMatchingMap> mb = Mockito
 					.mockStatic(DefaultExpressionMatchingMap.class)) {
-				mb.when(()->DefaultExpressionMatchingMap.map(anyString())).thenReturn(mock(DefaultExpressionMatchingMap.class));
-				multiPleTransformReq= new MultiPleTransformReq();
+				mb.when(() -> DefaultExpressionMatchingMap.map(anyString())).thenReturn(mock(DefaultExpressionMatchingMap.class));
+				multiPleTransformReq = new MultiPleTransformReq();
 				List<Field> fields = new ArrayList<>();
 				Field field = new Field();
 				field.setDataTypeTemp("temp");
@@ -2695,19 +2913,21 @@ public class MetadataInstancesServiceImplTest {
 				multiPleTransformReq.setQualifiedName("qualifiedName");
 				DataSourceDefinitionDto dataSourceDefinitionDto = new DataSourceDefinitionDto();
 				dataSourceDefinitionDto.setExpression("test_expression");
-				when(dataSourceDefinitionService.getByDataSourceType(anyString(),any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
+				when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(dataSourceDefinitionDto);
 				MetadataInstancesDto actual = metadataInstancesService.multiTransform(multiPleTransformReq, userDetail);
-				assertEquals(fields,actual.getFields());
+				assertEquals(fields, actual.getFields());
 			}
 		}
 	}
+
 	@Nested
-	class CheckMetadataInstancesIndexTest{
+	class CheckMetadataInstancesIndexTest {
 		String cacheKeys;
 		String id;
+
 		@Test
 		@DisplayName("test checkMetadataInstancesIndex method when columnName is not blank")
-		void test1(){
+		void test1() {
 			id = "65bc933c6129fe73d7858b40";
 			cacheKeys = "col1";
 			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
@@ -2722,14 +2942,15 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesDto.setIndices(indices);
 			doReturn(metadataInstancesDto).when(metadataInstancesService).findById(any(ObjectId.class));
 			Boolean actual = metadataInstancesService.checkMetadataInstancesIndex(cacheKeys, id);
-			assertEquals(true,actual);
+			assertEquals(true, actual);
 		}
+
 		@Test
 		@DisplayName("test checkMetadataInstancesIndex method when columnName is blank and dIndex is null")
-		void test2(){
+		void test2() {
 			try (MockedStatic<Document> mb = Mockito
 					.mockStatic(Document.class)) {
-				mb.when(()->Document.parse(anyString())).thenReturn(null);
+				mb.when(() -> Document.parse(anyString())).thenReturn(null);
 				id = "65bc933c6129fe73d7858b40";
 				cacheKeys = "col1";
 				MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
@@ -2744,17 +2965,18 @@ public class MetadataInstancesServiceImplTest {
 				metadataInstancesDto.setIndices(indices);
 				doReturn(metadataInstancesDto).when(metadataInstancesService).findById(any(ObjectId.class));
 				Boolean actual = metadataInstancesService.checkMetadataInstancesIndex(cacheKeys, id);
-				assertEquals(false,actual);
+				assertEquals(false, actual);
 			}
 		}
+
 		@Test
 		@DisplayName("test checkMetadataInstancesIndex method when columnName is blank")
-		void test3(){
+		void test3() {
 			try (MockedStatic<Document> mb = Mockito
 					.mockStatic(Document.class)) {
 				Document document = new Document();
-				document.put("key",mock(Document.class));
-				mb.when(()->Document.parse(anyString())).thenReturn(document);
+				document.put("key", mock(Document.class));
+				mb.when(() -> Document.parse(anyString())).thenReturn(document);
 				id = "65bc933c6129fe73d7858b40";
 				cacheKeys = "col1";
 				MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
@@ -2769,7 +2991,7 @@ public class MetadataInstancesServiceImplTest {
 				metadataInstancesDto.setIndices(indices);
 				doReturn(metadataInstancesDto).when(metadataInstancesService).findById(any(ObjectId.class));
 				Boolean actual = metadataInstancesService.checkMetadataInstancesIndex(cacheKeys, id);
-				assertEquals(false,actual);
+				assertEquals(false, actual);
 			}
 		}
 
@@ -2892,6 +3114,75 @@ public class MetadataInstancesServiceImplTest {
 		void testNotNeedSetPartitionFilterIfNeed() {
 			syncPartitionTableEnable = false;
 			Assertions.assertDoesNotThrow(() -> metadataInstancesService.setPartitionFilterIfNeed(criteria, syncPartitionTableEnable));
+		}
+	}
+
+	@Nested
+	@DisplayName("Method getMetadataV3 test")
+	class getMetadataV3Test {
+		@Test
+		void test1() {
+			Map<String, FindMetadataDto> params = new HashMap<>();
+			FindMetadataDto findMetadataDto1 = new FindMetadataDto();
+			findMetadataDto1.setMetaType(MetaType.table.name());
+			findMetadataDto1.setTableNames(Arrays.asList("table1", "table2"));
+			ObjectId connId = new ObjectId();
+			params.put(connId.toString(), findMetadataDto1);
+			DataSourceConnectionDto dataSourceConnectionDto1 = new DataSourceConnectionDto();
+			dataSourceConnectionDto1.setId(connId);
+			dataSourceConnectionDto1.setDatabase_type("mongodb");
+			dataSourceConnectionDto1.setPdkType(DataSourceDefinitionDto.PDK_TYPE);
+			DataSourceDefinitionDto dataSourceDefinitionDto1 = new DataSourceDefinitionDto();
+			dataSourceDefinitionDto1.setGroup("group1");
+			dataSourceDefinitionDto1.setPdkId("pdk1");
+			dataSourceDefinitionDto1.setScope("scope1");
+			dataSourceDefinitionDto1.setVersion("version1");
+			when(dataSourceService.findById(any(ObjectId.class), any(UserDetail.class))).thenAnswer(invocation -> {
+				assertEquals(connId.toString(), invocation.getArgument(0).toString());
+				return dataSourceConnectionDto1;
+			});
+			when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenAnswer(invocation -> {
+				assertEquals(dataSourceConnectionDto1.getDatabase_type(), invocation.getArgument(0).toString());
+				return dataSourceDefinitionDto1;
+			});
+
+			MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+			metadataInstancesDto1.setQualifiedName("q1");
+			MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+			metadataInstancesDto2.setQualifiedName("q2");
+			List<MetadataInstancesDto> metadataInstancesDtoList = Arrays.asList(metadataInstancesDto1, metadataInstancesDto2);
+			doAnswer(invocation -> {
+				Object arg1 = invocation.getArgument(0);
+				assertTrue(arg1 instanceof Query);
+				Query query = (Query) arg1;
+				Document queryObject = query.getQueryObject();
+				assertTrue(queryObject.containsKey(MetadataInstancesServiceImpl.QUALIFIED_NAME));
+				Object qualifiedNameObj = queryObject.get(MetadataInstancesServiceImpl.QUALIFIED_NAME);
+				assertTrue(qualifiedNameObj instanceof Document);
+				Document qualifiedNameDoc = (Document) qualifiedNameObj;
+				assertTrue(qualifiedNameDoc.containsKey("$in"));
+				Object inObj = qualifiedNameDoc.get("$in");
+				assertTrue(inObj instanceof ArrayList);
+				ArrayList<String> inList = (ArrayList<String>) inObj;
+				assertEquals(2, inList.size());
+				return metadataInstancesDtoList;
+			}).when(metadataInstancesService).findAll(any(Query.class));
+
+			try (
+					MockedStatic<PdkSchemaConvert> pdkSchemaConvertMockedStatic = mockStatic(PdkSchemaConvert.class)
+			) {
+				TapTable tapTable1 = new TapTable("table1");
+				TapTable tapTable2 = new TapTable("table2");
+				pdkSchemaConvertMockedStatic.when(() -> PdkSchemaConvert.toPdk(metadataInstancesDto1)).thenReturn(tapTable1);
+				pdkSchemaConvertMockedStatic.when(() -> PdkSchemaConvert.toPdk(metadataInstancesDto2)).thenReturn(tapTable2);
+				Map<String, List<TapTableDto>> result = metadataInstancesService.getMetadataV3(params, userDetail);
+
+				assertNotNull(result);
+				assertEquals(1, result.size());
+				assertTrue(result.containsKey(connId.toString()));
+				List<TapTableDto> tapTableDtoList = result.get(connId.toString());
+				assertEquals(2, tapTableDtoList.size());
+			}
 		}
 	}
 }

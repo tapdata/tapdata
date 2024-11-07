@@ -2,12 +2,8 @@ package io.tapdata.websocket;
 
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
-import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.sdk.util.Version;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import io.tapdata.common.SettingService;
-import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.websocket.handler.BaseEventHandler;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +21,6 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 
 import java.net.URI;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.ExecutionException;

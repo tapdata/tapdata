@@ -4,6 +4,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.utils.PdkSourceUtils;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLogger;
@@ -57,7 +58,13 @@ public class PdkUtil {
 	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId) {
 		downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,null);
 	}
+	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, boolean needRetry) {
+		downloadPdkFileIfNeed(httpClientMongoOperator,pdkHash,fileName,resourceId,null, needRetry);
+	}
 	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, RestTemplateOperator.Callback callback) {
+		downloadPdkFileIfNeed(httpClientMongoOperator, pdkHash, fileName, resourceId, callback, true);
+	}
+	public static void downloadPdkFileIfNeed(HttpClientMongoOperator httpClientMongoOperator, String pdkHash, String fileName, String resourceId, RestTemplateOperator.Callback callback, boolean needRetry) {
 		final Object lock = pdkDownloadLock(pdkHash);
 		synchronized (lock) {
 			try {
@@ -96,7 +103,11 @@ public class PdkUtil {
 					} else if (!PDKIntegration.hasJar(theFilePath.getName())) {
 						PDKIntegration.refreshJars(filePath.toString());
 					}
-					needDownload = reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath);
+					if (needRetry) {
+						needDownload = reDownloadIfNeed(httpClientMongoOperator, pdkHash, fileName, theFilePath);
+					} else {
+						needDownload = false;
+					}
 					retries++;
 				}
 			} catch (IOException e) {
@@ -192,10 +203,34 @@ public class PdkUtil {
 			ConfigContext configContext,
 			Log log
 	) {
+		return createNode(
+				dagId, databaseType, clientMongoOperator, associateId,
+				connectionConfig, nodeConfig, pdkTableMap, pdkStateMap,
+				globalStateMap, connectorCapabilities, configContext, log, null
+		);
+	}
+
+	public static ConnectorNode createNode(
+			String dagId,
+			DatabaseTypeEnum.DatabaseType databaseType,
+			ClientMongoOperator clientMongoOperator,
+			String associateId,
+			Map<String, Object> connectionConfig,
+			Map<String, Object> nodeConfig,
+			KVReadOnlyMap<TapTable> pdkTableMap,
+			PdkStateMap pdkStateMap,
+			PdkStateMap globalStateMap,
+			ConnectorCapabilities connectorCapabilities,
+			ConfigContext configContext,
+			Log log,
+			TaskDto taskDto
+	) {
 		ConnectorNode connectorNode;
 		try {
+			boolean needRetryDownload = null == taskDto || !taskDto.isPreviewTask();
 			downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
-					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
+					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid(),
+					needRetryDownload);
 			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
 					.withLog(log)
 					.withDagId(dagId)

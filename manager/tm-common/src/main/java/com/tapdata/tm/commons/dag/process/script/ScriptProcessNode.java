@@ -61,8 +61,7 @@ public class ScriptProcessNode extends ProcessorNode {
     }
 
     @Override
-    protected Schema loadSchema(List<String> includes) {
-//        List<Node<Schema>> predecessors = this.predecessors();
+    protected Schema loadSchema(DAG.Options options) {
         final List<String> predIds = new ArrayList<>();
         getPrePre(this, predIds);
         predIds.add(this.getId());
@@ -113,8 +112,11 @@ public class ScriptProcessNode extends ProcessorNode {
         if (CollectionUtils.isEmpty(inputSchema)) {
             return null;
         }
-        ////用于预跑数据得到模型
-        TapTable tapTable = getTapTable(target, taskDtoCopy);
+        // Used to test-run data to get the model
+        TapTable tapTable = null;
+        if (!TaskDto.SYNC_TYPE_PREVIEW.equals(options.getSyncType())) {
+            tapTable = getTapTable(target, taskDtoCopy);
+        }
 
         if (tapTable == null) {
             return null;

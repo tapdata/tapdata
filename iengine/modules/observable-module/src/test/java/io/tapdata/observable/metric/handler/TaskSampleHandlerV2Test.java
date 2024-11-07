@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -100,6 +101,7 @@ class TaskSampleHandlerV2Test {
 			HandlerUtil.EventTypeRecorder record = new HandlerUtil.EventTypeRecorder();
 			record.setInsertTotal(1000L);
 			record.setMemorySize(1024L);
+			assertDoesNotThrow(() -> TimeUnit.MILLISECONDS.sleep(10L));
 			taskSampleHandlerV2.handleBatchReadAccept(record);
 
 			LinkedBlockingQueue<TaskInputOutputRecordCounter> sourceTaskInputOutputCounterQueue = (LinkedBlockingQueue<TaskInputOutputRecordCounter>) ReflectionTestUtils.getField(taskSampleHandlerV2, "sourceTaskInputOutputCounterQueue");
@@ -134,6 +136,7 @@ class TaskSampleHandlerV2Test {
 			record.setUpdateTotal(100L);
 			record.setDeleteTotal(10L);
 			record.setMemorySize(1024L);
+			assertDoesNotThrow(()->TimeUnit.MILLISECONDS.sleep(10L));
 			taskSampleHandlerV2.handleStreamReadAccept(record);
 
 			LinkedBlockingQueue<TaskInputOutputRecordCounter> sourceTaskInputOutputCounterQueue = (LinkedBlockingQueue<TaskInputOutputRecordCounter>) ReflectionTestUtils.getField(taskSampleHandlerV2, "sourceTaskInputOutputCounterQueue");
