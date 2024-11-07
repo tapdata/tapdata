@@ -71,7 +71,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.pdk.core.utils.CommonUtils.matchThrowableExcludedClasses;
 
 /**
  * @author jackin
