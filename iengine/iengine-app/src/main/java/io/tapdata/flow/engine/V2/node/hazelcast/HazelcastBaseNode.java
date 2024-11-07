@@ -807,7 +807,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected static void updateTapTableWhenDDLEvent(String tableName, String qualifiedName, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap, TapEvent tapEvent) {
 		if (StringUtils.isBlank(qualifiedName)) {
-			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY, String.format("Table name: %s", tableName));
+			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY, String.format("Table name: %s", tableName))
+					.dynamicDescriptionParameters(tableName);
 		}
 		TapTable tapTable = dagDataService.getTapTable(qualifiedName);
 		tapTableMap.put(tableName, tapTable);

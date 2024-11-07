@@ -35,8 +35,8 @@ public interface TaskProcessorExCode_11 {
 	String PYTHON_PROCESS_FAILED = "11005";
 
 	@TapExCode(
-			describe = "When the task starts, the engine will initialize the custom node based on the created custom node template. If the defined template information is not available during initialization, this error will be raised.",
-			describeCN = "任务启动时，引擎会根据创建的自定义节点模版初始化自定义节点，当初始化时获取不到定义的模版信息时，则会报此错误。",
+			describe = "When the task starts, the engine will initialize the custom node according to the created custom node template, when the initialization does not get the defined template information",
+			describeCN = "任务启动时，引擎会根据创建的自定义节点模版初始化自定义节点，当初始化时获取不到定义的模版信息时",
 			dynamicDescription = "The template for the custom node is removed before the task is started",
 			dynamicDescriptionCN = "自定义节点的模版在任务启动前被删除",
 			solution = "Click the Custom node of the Advanced functions sub-menu on the left side of the system to view the currently created custom template. If the custom template is deleted, you'll need to recreate the custom template and reconfigure the task",
@@ -158,7 +158,7 @@ public interface TaskProcessorExCode_11 {
 			dynamicDescription = "When the task switches from shared mining mode to normal task mode, the task can not be started normally due to the loss of task breakpoint information",
 			dynamicDescriptionCN = "任务由共享挖掘模式切换为普通任务模式时，由于任务断点信息丢失，导致任务无法正常启动",
 			solution = "Reset this task and run it",
-			solutionCN = "将此任务重置并且运行"
+			solutionCN = "将此任务重置后重新启动"
 	)
 	String SHARE_CDC_SWITCH_TO_NORMAL_TASK_FAILED = "11026";
 	@TapExCode(
