@@ -25,6 +25,7 @@ import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -78,12 +79,7 @@ import io.tapdata.schema.TapTableMap;
 import io.tapdata.task.skipError.SkipErrorStrategy;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -92,30 +88,9 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyList;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode.INSERT_METADATA_INFO_KEY;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * @author samuel
@@ -330,6 +305,14 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			doThrow(new RuntimeException()).when(tapTableMap).preLoadSchema();
 			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
 			assertThrows(RuntimeException.class, () -> mockHazelcastBaseNode.init(jetContext));
+		}
+		@Test
+		void testInitSettingService(){
+			try{
+				hazelcastBaseNode.initSettingService();
+			}catch (TapCodeException e){
+				assertEquals(TaskProcessorExCode_11.INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL,e.getCode());
+			}
 		}
 	}
 
@@ -2160,6 +2143,35 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertDoesNotThrow(() -> {
 				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
 			});
+		}
+	}
+	@Nested
+	class UpdateTapTableWhenDDLEventTest{
+		@DisplayName("test updateTapTableWhenDDLEvent for exception UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY")
+		@Test
+		void test1(){
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				HazelcastBaseNode.updateTapTableWhenDDLEvent("TestTableName", null, null, null, null);
+			});
+			assertEquals(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY,tapCodeException.getCode());
+		}
+		@DisplayName("test updateTapTableWhenCreateTableEvent for exception GET_NODE_METADATA_BY_TABLE_NAME_FAILED")
+		@Test
+		void test2(){
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+			List<MetadataInstancesDto> metadataInstancesDtos=new ArrayList<>();
+			tapCreateTableEvent.addInfo(INSERT_METADATA_INFO_KEY,metadataInstancesDtos);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTable.checkIsSubPartitionTable()).thenReturn(false);
+			tapCreateTableEvent.setTable(tapTable);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			doCallRealMethod().when(mockHazelcastBaseNode).updateTapTableWhenCreateTableEvent(anyString(),any(),any(),any());
+			Node mockNode = mock(Node.class);
+			when(mockHazelcastBaseNode.getNode()).thenReturn(mockNode);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastBaseNode.updateTapTableWhenCreateTableEvent("testTableName", tapCreateTableEvent, dagDataService, null);
+			});
+			assertEquals(tapCodeException.getCode(),TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED);
 		}
 	}
 }

@@ -5,11 +5,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
-import com.tapdata.constant.ConnectionUtil;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
-import com.tapdata.constant.StringCompression;
-import com.tapdata.constant.StringUtil;
+import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -33,12 +29,7 @@ import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
-import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
-import io.tapdata.aspect.taskmilestones.CDCWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteBeginAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteEndAspect;
-import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
-import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
+import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -89,16 +80,7 @@ import io.tapdata.pdk.apis.entity.merge.MergeInfo;
 import io.tapdata.pdk.apis.entity.merge.MergeLookupResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreatePartitionSubTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreatePartitionTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableFunction;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
-import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
-import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.target.TransactionBeginFunction;
-import io.tapdata.pdk.apis.functions.connector.target.TransactionCommitFunction;
-import io.tapdata.pdk.apis.functions.connector.target.TransactionRollbackFunction;
+import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
@@ -117,29 +99,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -148,8 +109,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
-import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 /**
  * @author samuel
@@ -220,22 +180,22 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     @Override
     protected void doInit(@NotNull Context context) throws TapCodeException {
         syncMetricCollector = ISyncMetricCollector.init(dataProcessorContext);
-        queueConsumerThreadPool.submitSync(() -> {
-            super.doInit(context);
-            createPdkAndInit(context);
-            initExactlyOnceWriteIfNeed();
-            initTargetVariable();
-            initTargetQueueConsumer();
-            initTargetConcurrentProcessorIfNeed();
-            initTapEventFilter();
-            initIllegalDateAcceptable();
+		queueConsumerThreadPool.submitSync(() -> {
+			super.doInit(context);
+			createPdkAndInit(context);
+			everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
+			initExactlyOnceWriteIfNeed();
+			initTargetVariable();
+			initTargetQueueConsumer();
+			initTargetConcurrentProcessorIfNeed();
+			initTapEventFilter();
+			initIllegalDateAcceptable();
             initSyncProgressMap();
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 			initCodecsFilterManager();
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
-		everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
 		initSyncPartitionTableEnable();
 	}
 
@@ -498,7 +458,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 throw (TapCodeException) matched;
             } else {
                 throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_TABLE_FAILED, "Table model: " + tapTable, throwable)
-                        .addEvent(tapCreateTableEvent.get());
+                        .addEvent(tapCreateTableEvent.get())
+                        .dynamicDescriptionParameters(tapTable.getId());
             }
         }
         return createdTable;
@@ -1272,7 +1233,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     }
 
 
-    private boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
+    protected boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
         if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
             return false;
         }
@@ -1282,7 +1243,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         TapRecordEvent tapEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
         Long timestamp = TapEventUtil.getTimestamp(tapEvent);
         if (null == timestamp) {
-            throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, "Event: " + tapEvent);
+            throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, String.format("Event from tableId:%s,exactlyOnceId is %s", tapEvent.getTableId(), tapEvent.getExactlyOnceId()))
+                    .dynamicDescriptionParameters(tapEvent.getTableId(), tapEvent.getExactlyOnceId());
         }
         Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()), tapEvent, timestamp);
         TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create()
@@ -1717,7 +1679,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         return CheckExactlyOnceWriteEnableResult.createEnable();
     }
 
-    private boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
+    protected boolean tableEnableExactlyOnceWrite(SyncStage syncStage, String tableId) {
         return SyncStage.CDC.equals(syncStage) && exactlyOnceWriteTables.contains(tableId);
     }
 

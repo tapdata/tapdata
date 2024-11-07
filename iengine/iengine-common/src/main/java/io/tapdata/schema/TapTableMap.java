@@ -417,7 +417,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 				tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 			}
 		}catch (Exception e){
-			throw new TapCodeException(TapTableMapExCode_29.FIND_SCHEMA_FAILED, String.format("Table [%s] find schema failed", k), e);
+			throw new TapCodeException(TapTableMapExCode_29.FIND_SCHEMA_FAILED, String.format("Table [%s] find schema failed", k), e)
+					.dynamicDescriptionParameters(k);
 		}
 		if (null == tapTable) {
 			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);

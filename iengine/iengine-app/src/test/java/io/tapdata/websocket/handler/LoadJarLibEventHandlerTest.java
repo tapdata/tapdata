@@ -8,6 +8,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,4 +42,15 @@ class LoadJarLibEventHandlerTest {
 		WebSocketEventResult webSocketEventResult = loadJarLibEventHandlerUnderTest.handle(event);
 		Assert.assertNotNull(webSocketEventResult);
 	}
+	@Test
+	void test() {
+		String fileId = "656d7741e7cf041007e6fb8a";
+		Path path = Paths.get("/null");
+//		URL url = path.toUri().toURL();
+        try {
+            System.out.println(path.toUri().toURL());
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

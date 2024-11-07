@@ -9,8 +9,10 @@ public interface TapConcurrentReadTableExCode_36 {
     String UNKNOWN_ERROR = "36001";
 
     @TapExCode(
-            describe = "Illegal node type",
-            describeCN = "不合法的节点类型"
+            describe = "The illegal node type is checked when multiple concurrent reads are enabled on the source side",
+            describeCN = "初始化多并发源节点失败，非预期的节点类型",
+            dynamicDescription = "Expected node type {}, actual node type {}",
+            dynamicDescriptionCN = "预期节点类型为{} ，实际节点类型为{}"
     )
     String ILLEGAL_NODE_TYPE = "36002";
 }

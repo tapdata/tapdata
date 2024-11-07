@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.dag.process;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.error.TapDynamicTableNameExCode_35;
 import io.tapdata.exception.TapCodeException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -163,7 +167,7 @@ class TableRenameProcessNodeTest {
         Assertions.assertEquals(customCurrent, instance.convertTableName(infoMap, customOrigin, false));
 
         // test in custom-table-name, conflict with RenameDDL
-        Assertions.assertThrows(TapCodeException.class, () -> instance.convertTableName(infoMap, customOrigin, true));
+        assertThrows(TapCodeException.class, () -> instance.convertTableName(infoMap, customOrigin, true));
 
         // test empty currentName
         Assertions.assertEquals(customEmptyCurrent, instance.convertTableName(infoMap, customEmptyCurrent, false));
@@ -178,6 +182,15 @@ class TableRenameProcessNodeTest {
         // test toLowerCase
         instance.setTransferCase("toLowerCase");
         Assertions.assertEquals(tableName.toLowerCase(Locale.ROOT), instance.convertTableName(tableName));
+    }
+
+    @Test
+    void testConvertTableNameConflict() {
+        Map<String, TableRenameTableInfo> infoMap = instance.originalMap();
+        TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+            instance.convertTableName(infoMap, "CustomEmptyCurrent", true);
+        });
+        assertEquals(TapDynamicTableNameExCode_35.RENAME_DDL_CONFLICTS_WITH_CUSTOM_TABLE_NAME, tapCodeException.getCode());
     }
 
     @Nested

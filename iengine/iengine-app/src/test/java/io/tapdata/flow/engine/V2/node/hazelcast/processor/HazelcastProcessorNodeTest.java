@@ -21,6 +21,9 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.observable.logging.ObsLogger;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
@@ -97,6 +100,27 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 
 			hazelcastProcessorNode.tryProcess(tapdataEvent, (event, processResult) -> assertEquals(data.get(1), (((TapUpdateRecordEvent) event.getTapEvent()).getAfter())));
 			assertEquals(removedFields, ((TapUpdateRecordEvent) tapdataEvent.getTapEvent()).getRemovedFields());
+		}
+
+		@Test
+		void test3(){
+			RowFilterProcessorNode rowFilterProcessor=new RowFilterProcessorNode();
+			rowFilterProcessor.setAction("test action");
+			rowFilterProcessor.setExpression("test expression");
+			ReflectionTestUtils.setField(dataProcessorContext, "node", rowFilterProcessor);
+			doCallRealMethod().when(dataProcessorContext).getNode();
+			doReturn(rowFilterProcessor).when(hazelcastProcessorNode).getNode();
+			try(MockedStatic<HazelcastUtil> hazelcastUtilMockedStatic = mockStatic(HazelcastUtil.class);){
+				Stage stage=new Stage();
+				hazelcastUtilMockedStatic.when(() -> {
+					HazelcastUtil.node2CommonStage(rowFilterProcessor);
+				}).thenReturn(stage);
+				try{
+					hazelcastProcessorNode.initDataFlowProcessor();
+				}catch (TapCodeException e){
+					assertEquals(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED,e.getCode());
+				}
+			}
 		}
 	}
 

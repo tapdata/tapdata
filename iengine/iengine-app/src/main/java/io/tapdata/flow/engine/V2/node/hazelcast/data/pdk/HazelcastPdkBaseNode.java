@@ -49,6 +49,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.RetryLifeCycle;
@@ -413,6 +414,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			}
 		}
 		return transformToTapValueResult;
+	}
+
+	protected void throwTapCodeException(Throwable e, TapCodeException tapCodeException) {
+		Throwable throwable = CommonUtils.matchThrowable(e, TapCodeException.class);
+		if (throwable instanceof TapPdkRunnerUnknownException) {
+			throw tapCodeException;
+		} else {
+			if (null == throwable) {
+				throw tapCodeException;
+			} else {
+				throw (TapCodeException)throwable;
+			}
+		}
 	}
 
 	protected String getCompletedInitialKey() {

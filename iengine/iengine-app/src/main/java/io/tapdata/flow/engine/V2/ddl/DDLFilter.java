@@ -91,7 +91,9 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 					return false;
 				case SYNCHRONIZATION:
 					if(tapDDLEvent instanceof TapDDLUnknownEvent){
-						throw new TapCodeException(TaskProcessorExCode_11.UNABLE_TO_SYNCHRONIZE_DDL_EVENT);
+						TapCodeException tapCodeException = new TapCodeException(TaskProcessorExCode_11.UNABLE_TO_SYNCHRONIZE_DDL_EVENT)
+								.dynamicDescriptionParameters(tapDDLEvent.getOriginDDL());
+						throw tapCodeException;
 					}
 					String key = tapDDLEvent.key();
 					if (null != disabledEvents && !disabledEvents.contains(key)) {

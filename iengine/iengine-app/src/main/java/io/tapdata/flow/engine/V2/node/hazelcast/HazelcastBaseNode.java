@@ -660,7 +660,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				}
 			}
 		} catch (Exception e) {
-			throw new ErrorHandleException(e, throwable);
+			throw new ErrorHandleException(e, throwable).dynamicDescriptionParameters(throwable);
 		}
 
 		if (taskDto.isPreviewTask() && null != taskPreviewInstance) {
@@ -836,9 +836,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	private static void updateTapTableWhenDDLEvent(String tableName, String qualifiedName, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap, TapEvent tapEvent) {
+	protected static void updateTapTableWhenDDLEvent(String tableName, String qualifiedName, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap, TapEvent tapEvent) {
 		if (StringUtils.isBlank(qualifiedName)) {
-			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY, String.format("Table name: %s", tableName));
+			throw new TapCodeException(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY, String.format("Table name: %s", tableName))
+					.dynamicDescriptionParameters(tableName);
 		}
 		TapTable tapTable = dagDataService.getTapTable(qualifiedName);
 		tapTableMap.put(tableName, tapTable);
@@ -863,7 +864,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 	}
 
-	private void updateTapTableWhenCreateTableEvent(String tableName, TapEvent tapEvent, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap) {
+	protected void updateTapTableWhenCreateTableEvent(String tableName, TapEvent tapEvent, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap) {
 		String qualifiedName;
 		Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 		if (insertMetadata instanceof List) {

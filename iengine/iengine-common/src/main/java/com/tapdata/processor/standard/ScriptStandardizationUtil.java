@@ -92,7 +92,7 @@ public class ScriptStandardizationUtil {
         try {
             e.eval(script);
         } catch (ScriptException es){
-            throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_STANDARDIZATION_ENGINE_FAILED, failedMessage, es);
+            throw new TapCodeException(ScriptProcessorExCode_30.EVAL_SOURCE_ERROR, failedMessage, es);
         }
     }
 

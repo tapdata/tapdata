@@ -1,26 +1,36 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import base.BaseTest;
+import base.hazelcast.BaseHazelcastNodeTest;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.Log4jScriptLogger;
 import com.tapdata.processor.LoggingOutputStream;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.exception.TapCodeException;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.graalvm.polyglot.Context;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.python.core.Py;
 import org.python.core.PySystemState;
 import org.python.util.PythonInterpreter;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineFactory;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
+import javax.script.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static org.mockito.Mockito.mock;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
  * @author GavinXiao
@@ -90,6 +100,7 @@ public class HazelcastPythonProcessorNodeTest extends BaseTest {
             unSupport.add(type);
         }
     }
+
 
     private void eval(ScriptEngine e, List<String> support, List<String> unSupport, String ... type) {
         for (String t : type) {
@@ -172,4 +183,36 @@ public class HazelcastPythonProcessorNodeTest extends BaseTest {
         HazelcastPythonProcessNode hazelcastPythonProcessNode =  new HazelcastPythonProcessNode(mock(ProcessorBaseContext.class));
         Assertions.assertTrue(hazelcastPythonProcessNode.needCopyBatchEventWrapper());
     }
+    @Test
+    public void test1() throws ScriptException, NoSuchMethodException {
+        HazelcastPythonProcessNode hazelcastPythonProcessNode = mock(HazelcastPythonProcessNode.class);
+        doCallRealMethod().when(hazelcastPythonProcessNode).tryProcess(any(TapdataEvent.class),any());
+        TapdataEvent tapdataEvent=new TapdataEvent();
+        TapUpdateRecordEvent tapUpdateRecordEvent=TapUpdateRecordEvent.create();
+        Map<String,Object> after=new HashMap<>();
+        after.put("name","test1");
+        tapdataEvent.setTapEvent(tapUpdateRecordEvent);
+        HazelcastProcessorBaseNode.ProcessResult processResult=new HazelcastProcessorBaseNode.ProcessResult();
+        when(hazelcastPythonProcessNode.getProcessResult(any())).thenReturn(processResult);
+        ProcessorBaseContext processorBaseContext = mock(ProcessorBaseContext.class);
+        TaskDto taskDto=new TaskDto();
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
+        when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+        Invocable engine = mock(Invocable.class);
+        when(engine.invokeFunction(anyString(),eq(null),anyMap())).thenThrow(new ScriptException("failed"));
+        ReflectionTestUtils.setField(hazelcastPythonProcessNode,"engine",engine);
+        ReflectionTestUtils.setField(hazelcastPythonProcessNode,"processorBaseContext",processorBaseContext);
+        ThreadLocal<Map<String, Object>> threadLocal=new ThreadLocal<>();
+        Map<String, Object> context =new HashMap<>();
+        threadLocal.set(context);
+        ReflectionTestUtils.setField(hazelcastPythonProcessNode,"processContextThreadLocal",threadLocal);
+        doCallRealMethod().when(hazelcastPythonProcessNode).getProcessorBaseContext();
+        TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+            hazelcastPythonProcessNode.tryProcess(tapdataEvent, (event, result) -> {
+
+            });
+        });
+        assertEquals(ScriptProcessorExCode_30.PYTHON_PROCESS_FAILED,tapCodeException.getCode());
+    }
+
 }
