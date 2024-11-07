@@ -99,7 +99,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		this.globalTaskContent = new ConcurrentHashMap<>();
 	}
 
-	private Invocable getOrInitEngine() {
+	protected Invocable getOrInitEngine() {
 		String threadName = Thread.currentThread().getName();
 		return engineMap.computeIfAbsent(threadName, tn -> {
 			Node<?> node = getNode();
