@@ -21,7 +21,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.observable.logging.ObsLogger;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
