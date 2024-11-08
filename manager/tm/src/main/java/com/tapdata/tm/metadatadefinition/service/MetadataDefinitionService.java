@@ -424,7 +424,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     public boolean deleteById(ObjectId id, UserDetail user) {
         MetadataDefinitionDto metadataDefinitionDto = findById(id, user);
         if (metadataDefinitionDto == null) {
-            return false;
+            throw new BizException("tag.delete.not.allowed");
         }
 
         if (CollectionUtils.isNotEmpty(metadataDefinitionDto.getItemType()) && metadataDefinitionDto.getItemType().contains(LdpDirEnum.LDP_DIR_MDM.getItemType())) {

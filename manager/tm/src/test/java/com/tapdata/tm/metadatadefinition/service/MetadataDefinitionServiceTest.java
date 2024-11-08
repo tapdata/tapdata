@@ -5,11 +5,15 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.GroupDto;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.repository.MetadataDefinitionRepository;
 import com.tapdata.tm.utils.Lists;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -20,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.HashMap;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -128,4 +133,18 @@ class MetadataDefinitionServiceTest {
             verify(metadataDefinitionRepository,times(1)).findAll(any(Filter.class), any(UserDetail.class));
         }
     }
+
+    @Nested
+    class deleteByIdTest {
+        @Test
+        @DisplayName("test for metadataDefinitionDto is null")
+        void test1() {
+            ObjectId id = mock(ObjectId.class);
+            UserDetail user = mock(UserDetail.class);
+            when(metadataDefinitionService.findById(id, user)).thenReturn(null);
+            doCallRealMethod().when(metadataDefinitionService).deleteById(id, user);
+            assertThrows(BizException.class, () -> metadataDefinitionService.deleteById(id, user));
+        }
+    }
+
 }
