@@ -59,6 +59,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
+import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
@@ -1211,6 +1212,10 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
 				StreamReadFuncAspect streamReadFuncAspect = mock(StreamReadFuncAspect.class);
 				ReflectionTestUtils.setField(instance, "streamReadFuncAspect", streamReadFuncAspect);
+				MonitorManager monitorManager = mock(MonitorManager.class);
+				TableMonitor monitor = mock(TableMonitor.class);
+				when(monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR)).thenAnswer(invocationOnMock -> monitor);
+				ReflectionTestUtils.setField(instance, "monitorManager", monitorManager);
 
 				assertDoesNotThrow(() -> instance.restartPdkConnector());
 
@@ -1227,6 +1232,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				assertNotEquals(sourceRunner, instance.sourceRunner);
 				verify(instance, times(1)).initAndStartSourceRunner();
 				verify(streamReadFuncAspect, times(1)).noMoreWaitRawData();
+				verify(monitor).setAssociateId(anyString());
 			}
 		}
 
