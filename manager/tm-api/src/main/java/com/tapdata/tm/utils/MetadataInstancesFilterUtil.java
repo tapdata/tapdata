@@ -6,7 +6,9 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -17,15 +19,35 @@ public class MetadataInstancesFilterUtil {
     private MetadataInstancesFilterUtil() {
         throw new IllegalStateException("Utility class");
     }
+
+    public static List<MetadataInstancesDto> filterBySyncSourcePartitionTableEnable(DatabaseNode sourceNode, List<MetadataInstancesDto> metaList) {
+        List<MetadataInstancesDto> realMetadata = new ArrayList<>();
+        if (Objects.nonNull(sourceNode.getSyncSourcePartitionTableEnable())) {
+            realMetadata.addAll(metaList.stream().filter(meta -> {
+                if (Objects.isNull(meta.getPartitionInfo())) return true;
+                String name = meta.getName();
+                String masterTableId = meta.getPartitionMasterTableId();
+                if (Boolean.TRUE.equals(sourceNode.getSyncSourcePartitionTableEnable())) {
+                    return String.valueOf(name).equals(masterTableId);
+                } else {
+                    return !String.valueOf(name).equals(masterTableId);
+                }
+            }).collect(Collectors.toList()));
+        } else {
+            realMetadata.addAll(metaList);
+        }
+        return realMetadata;
+    }
+
     public static List<String> getFilteredOriginalNames(List<MetadataInstancesDto> metaList, DatabaseNode sourceNode){
-        return metaList.stream()
+        return filterBySyncSourcePartitionTableEnable(sourceNode, metaList).stream()
                 .map(metadataInstancesDto -> getMetadataInstancesDtoOriginalName(sourceNode, metadataInstancesDto))
                 .filter(originalName -> isValidOriginalName(originalName, sourceNode))
                 .collect(Collectors.toList());
 
     }
     public static Long countFilteredOriginalNames(List<MetadataInstancesDto> metaInstances, DatabaseNode sourceNode) {
-        return metaInstances.stream()
+        return filterBySyncSourcePartitionTableEnable(sourceNode, metaInstances).stream()
                 .map(metadataInstancesDto -> getMetadataInstancesDtoOriginalName(sourceNode, metadataInstancesDto))
                 .filter(originalName -> isValidOriginalName(originalName, sourceNode))
                 .count();

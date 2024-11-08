@@ -1,6 +1,8 @@
 package io.tapdata.observable.metric.util;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -16,6 +18,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 /**
  * @author samuel
@@ -57,6 +61,7 @@ class TapCompletableFutureExTest {
 		assertTrue(((AtomicBoolean) running).get());
 		Object joinThreadPool = ReflectionTestUtils.getField(tapCompletableFutureEx, "joinThreadPool");
 		assertNotNull(joinThreadPool);
+		assertDoesNotThrow(() -> TimeUnit.MILLISECONDS.sleep(5L));
 		assertEquals(1, ((ThreadPoolExecutor) joinThreadPool).getActiveCount());
 	}
 
@@ -106,5 +111,25 @@ class TapCompletableFutureExTest {
 			qps = BigDecimal.valueOf(threadNum * threadBatch).divide(BigDecimal.valueOf(cost / 1000), 2, RoundingMode.HALF_UP);
 		}
 		System.out.println("cost: " + cost + ", qps: " + qps);
+	}
+	@Test
+	void testThenRunMain(){
+		TapCompletableFutureEx tapCompletableFutureEx = mock(TapCompletableFutureEx.class);
+		CompletableFuture<Void> future = mock(CompletableFuture.class);
+		when(future.thenRun(any())).thenReturn(future);
+		ReflectionTestUtils.setField(tapCompletableFutureEx, "running", new AtomicBoolean(true));
+		ReflectionTestUtils.setField(tapCompletableFutureEx, "completableFutureQueue", new LinkedBlockingQueue<CompletableFuture<Void>>());
+		ReflectionTestUtils.setField(tapCompletableFutureEx, "lastFuture", future);
+		doCallRealMethod().when(tapCompletableFutureEx).thenRun(any());
+		tapCompletableFutureEx.thenRun(() -> {});
+		verify(future,times(1)).thenRun(any());
+	}
+	@Test
+	void testThenRunError(){
+		TapCompletableFutureEx tapCompletableFutureEx = mock(TapCompletableFutureEx.class);
+		ReflectionTestUtils.setField(tapCompletableFutureEx, "running", new AtomicBoolean(false));
+		ReflectionTestUtils.setField(tapCompletableFutureEx, "firstTime", new AtomicBoolean(true));
+		doCallRealMethod().when(tapCompletableFutureEx).thenRun(any());
+		Assertions.assertThrows(IllegalStateException.class, () -> tapCompletableFutureEx.thenRun(() -> {}));
 	}
 }

@@ -1,10 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -19,8 +17,10 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.PDKNodeInitAspect;
+import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
@@ -36,6 +36,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMapEx;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
+import io.tapdata.flow.engine.V2.task.preview.PreviewPdkStateMap;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
@@ -48,13 +49,15 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryLifeCycle;
+import io.tapdata.pdk.core.utils.SampleRetryLifeCycle;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -65,8 +68,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -108,6 +111,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
+		initTapLogger();
+		skipDetector = getIsomorphism() ? new TapRecordSkipDetector() : null;
+	}
+
+	protected void initTapLogger() {
 		logListener = new TapLogger.LogListener() {
 			@Override
 			public void debug(String log) {
@@ -139,7 +147,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				info(memoryLog);
 			}
 		};
-		skipDetector = getIsomorphism() ? new TapRecordSkipDetector() : null;
 	}
 
 	public PDKMethodInvoker createPdkMethodInvoker() {
@@ -156,7 +163,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.startRetry(taskRetryService::start)
 				.resetRetry(taskRetryService::reset)
 				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
-				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()));
+				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()))
+				.retryLifeCycle(createRetryLifeCycle());
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
 	}
@@ -202,7 +210,11 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
-		pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
+		if (taskDto.isPreviewTask()) {
+			pdkStateMap = new PreviewPdkStateMap();
+		} else {
+			pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
+		}
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
@@ -212,7 +224,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				PdkUtil.createNode(taskDto.getId().toHexString(),
 						databaseType,
 						clientMongoOperator,
-						this.getClass().getSimpleName() + "-" + dataProcessorContext.getNode().getId(),
+						generateNodePdkAssociateId(dataProcessorContext),
 						connectionConfig,
 						nodeConfig,
 						pdkTableMap,
@@ -220,12 +232,22 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						globalStateMap,
 						connectorCapabilities,
 						() -> Log4jUtil.setThreadContext(taskDto),
-						new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this)
+						new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this),
+						taskDto
 				)
 		);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
 		processorBaseContext.setPdkAssociateId(this.associateId);
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+	}
+
+	protected String generateNodePdkAssociateId(DataProcessorContext dataProcessorContext) {
+		return String.join(
+				"_",
+				this.getClass().getSimpleName(),
+				dataProcessorContext.getNode().getId(),
+				String.valueOf(System.currentTimeMillis())
+		);
 	}
 
 	protected Map<String, Object> generateNodeConfig(Node<?> node, TaskDto taskDto) {
@@ -394,6 +416,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		return transformToTapValueResult;
 	}
 
+	protected void throwTapCodeException(Throwable e, TapCodeException tapCodeException) {
+		Throwable throwable = CommonUtils.matchThrowable(e, TapCodeException.class);
+		if (throwable instanceof TapPdkRunnerUnknownException) {
+			throw tapCodeException;
+		} else {
+			if (null == throwable) {
+				throw tapCodeException;
+			} else {
+				throw (TapCodeException)throwable;
+			}
+		}
+	}
+
 	protected String getCompletedInitialKey() {
 		return COMPLETED_INITIAL_SYNC_KEY_PREFIX + dataProcessorContext.getTaskDto().getId().toHexString();
 	}
@@ -484,5 +519,38 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			connectorOnTaskThreadGroup.set(new ConnectorOnTaskThreadGroup(dataProcessorContext));
 		}
 		return connectorOnTaskThreadGroup.get();
+	}
+
+	public RetryLifeCycle createRetryLifeCycle() {
+		return new SampleRetryLifeCycle() {
+			@Override
+			public void onChange() {
+				boolean retrying = startRetryTs.get() > 0 && success == null;
+				long retryTimes = this.retryTimes.get();
+				long startRetryTs = this.startRetryTs.get();
+				Long endRetryTs = this.endRetryTs.get() > 0 ? this.endRetryTs.get() : null;
+				Long nextRetryTs = getNextRetryTimestamp();
+				Long totalRetries = this.totalRetries.get();
+				String retryOp = this.retryOp;
+				Boolean success = this.success;
+
+				AspectUtils.executeDataFuncAspect(RetryLifeCycleAspect.class, () -> {
+					RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();
+
+					aspect.setRetrying(retrying);
+					aspect.setRetryTimes(retryTimes);
+					aspect.setStartRetryTs(startRetryTs);
+					aspect.setEndRetryTs(endRetryTs);
+					aspect.setNextRetryTs(nextRetryTs);
+					aspect.setTotalRetries(totalRetries);
+					aspect.setRetryOp(retryOp);
+					aspect.setSuccess(success);
+
+					return aspect;
+				}, aspect -> {
+					aspect.dataProcessorContext(getDataProcessorContext());
+				});
+			}
+		};
 	}
 }

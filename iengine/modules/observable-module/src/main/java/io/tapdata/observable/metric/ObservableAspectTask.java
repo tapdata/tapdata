@@ -72,6 +72,8 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
 		observerClassHandlers.register(ProcessorNodeCloseAspect.class, this::handleProcessorNodeClose);
 		observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcess);
+
+		observerClassHandlers.register(TaskBatchSplitAspect.class, this::handleWriteBatchSplit);
 	}
 
 	CompletableFuture<Void> batchReadFuture;
@@ -436,12 +438,11 @@ public class ObservableAspectTask extends AspectTask {
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
-		String nodeId = node.getId();
-		String table = aspect.getTable().getName();
-
 		switch (aspect.getState()) {
 			case WriteRecordFuncAspect.STATE_START:
+				Node<?> node = aspect.getDataProcessorContext().getNode();
+				String nodeId = node.getId();
+				String table = aspect.getTable().getName();
 				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(aspect.getRecordEvents());
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> {
@@ -450,17 +451,13 @@ public class ObservableAspectTask extends AspectTask {
 				);
 				aspect.consumer((events, result) -> {
 					try {
-						writeRecordFuture.runAsync(() -> {
+						writeRecordFuture.thenRun(() -> {
 							if (null == events || events.isEmpty()) {
 								return;
 							}
 
 							HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events, recorder.getMemorySize());
-							Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-									handler -> {
-										handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner);
-									}
-							);
+							Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner));
 
 							taskSampleHandler.handleWriteRecordAccept(result, events, inner);
 
@@ -474,7 +471,11 @@ public class ObservableAspectTask extends AspectTask {
 										} else {
 											LinkedHashMap<String, String> tableNameRelation = ((DatabaseNode) node).getSyncObjects().get(0).getTableNameRelation();
 											String targetTableName = HashBiMap.create(tableNameRelation).inverse().get(table);
-											return Optional.ofNullable(handlers.get(targetTableName));
+											if (handlers.containsKey(targetTableName)) {
+												return Optional.ofNullable(handlers.get(targetTableName));
+											}
+											return Optional.ofNullable(handlers.get(table));
+
 										}
 									})
 									.ifPresent(handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal()));
@@ -483,6 +484,13 @@ public class ObservableAspectTask extends AspectTask {
 						});
 					} catch (Exception e) {
 						TapLogger.info("Run async writeRecordFuture fail: {}", Log4jUtil.getStackString(e));
+					}
+				});
+				break;
+			case WriteRecordFuncAspect.BATCH_SPLIT:
+				writeRecordFuture.thenRun(() -> {
+					if (taskSampleHandler instanceof TaskSampleHandlerV2) {
+						((TaskSampleHandlerV2) taskSampleHandler).handleWriteBatchSplit();
 					}
 				});
 				break;
@@ -549,6 +557,13 @@ public class ObservableAspectTask extends AspectTask {
 				break;
 		}
 
+		return null;
+	}
+
+	public Void handleWriteBatchSplit(TaskBatchSplitAspect taskBatchSplitAspect) {
+		if (taskSampleHandler instanceof TaskSampleHandlerV2) {
+			((TaskSampleHandlerV2) taskSampleHandler).handleWriteBatchSplit();
+		}
 		return null;
 	}
 

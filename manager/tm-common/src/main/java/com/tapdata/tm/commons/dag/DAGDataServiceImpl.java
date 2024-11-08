@@ -4,13 +4,22 @@ import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.commons.dag.deduction.rule.ChangeRuleStage;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -35,7 +44,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -45,8 +65,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     private static Logger logger = LoggerFactory.getLogger(DAGDataServiceImpl.class);
 
     private final Map<String, MetadataInstancesDto> metadataMap;
-    private final Map<String, DataSourceConnectionDto> dataSourceMap;
-    private final Map<String, DataSourceDefinitionDto> definitionDtoMap;
+    protected final Map<String, DataSourceConnectionDto> dataSourceMap;
+    protected final Map<String, DataSourceDefinitionDto> definitionDtoMap;
 
     private final Map<String, MetadataTransformerDto> transformerDtoMap;
     private final Map<String, TaskDto> taskMap = new HashMap<>();
@@ -299,6 +319,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUserName(userName);
             metadataInstancesDto.setLastUpdBy(userId);
 
+            //传递分区属性
+            metadataInstancesDto.setPartitionInfo(schema.getPartitionInfo());
+            metadataInstancesDto.setPartitionMasterTableId(schema.getPartitionMasterTableId());
+
             String nodeTableName = appendNodeTableName ? schema.getOriginalName() : null;
             String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName, taskId);
             metadataInstancesDto.setQualifiedName(qualifiedName);
@@ -400,6 +424,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setBeforeDynamicTableName(schema.getBeforeDynamicTableName());
             metadataInstancesDto.setAfterDynamicTableName(schema.getAfterDynamicTableName());
 
+            metadataInstancesDto.setPartitionMasterTableId(schema.getPartitionMasterTableId());
+            metadataInstancesDto.setPartitionInfo(schema.getPartitionInfo());
+
             // 需要将 Connections 的id 转换为 metadata instance 中 meta_type=database 的 id
             //   使用 qualified name 作为条件查询
             metadataInstancesDto.setDatabaseId(dataSourceMetadataInstance.getId().toHexString());
@@ -448,6 +475,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, needPossibleDataTypes);
         //}
         //ChangeRuleStage.changeStart(metadataInstancesDto, options);
+        //传递分区属性
+        metadataInstancesDto.setPartitionInfo(schema.getPartitionInfo());
+        metadataInstancesDto.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         return metadataInstancesDto;
     }
     private Map<String, MetadataInstancesDto> rollbackOperation(List<MetadataInstancesDto> metadataInstancesDtos, String rollback, String rollbackTable) {
@@ -515,7 +545,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
      * @param metadataInstances 模型元数据记录
      * @param schema 映射后的字段类型将保存在这个对象上
      */
-    private Schema processFieldFromDB(MetadataInstancesDto metadataInstances, Schema schema) {
+    protected Schema processFieldFromDB(MetadataInstancesDto metadataInstances, Schema schema) {
         String sourceId = metadataInstances.getSource().get_id();
         DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(sourceId);
         String dbVersion = dataSourceConnectionDto.getDb_version();
@@ -554,6 +584,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
             field.setDataTypeTemp(originalDataType);
         });
+        //传递分区属性
+        schema.setPartitionInfo(metadataInstances.getPartitionInfo());
+        schema.setPartitionMasterTableId(metadataInstances.getPartitionMasterTableId());
 
         return schema;
     }

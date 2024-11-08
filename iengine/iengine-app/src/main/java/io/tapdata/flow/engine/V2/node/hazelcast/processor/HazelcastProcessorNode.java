@@ -111,7 +111,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			dataFlowProcessor.initialize(processorContext, stage);
 			dataFlowProcessor.logListener(logListener());
 		} catch (Exception e) {
-			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e);
+			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e)
+					.dynamicDescriptionParameters(processorBaseContext.getNode().getName(),processorBaseContext.getNode().getType());
 		}
 	}
 
@@ -119,6 +120,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (!(tapEvent instanceof TapRecordEvent)) {
+			consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
 			return;
 		}
 		if (null != fieldRenameProcessorNode && null != capitalized) {

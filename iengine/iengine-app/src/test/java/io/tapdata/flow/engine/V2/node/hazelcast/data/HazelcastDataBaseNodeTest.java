@@ -2,7 +2,9 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.hazelcast.jet.core.JobStatus;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.StringCompression;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
@@ -12,15 +14,14 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import lombok.SneakyThrows;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode.STREAM_OFFSET_COMPRESS_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -180,6 +182,64 @@ public class HazelcastDataBaseNodeTest {
             source2Progress.setEventSerialNo(1L);
             SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap);
             assertEquals(syncProgressResult.getEventSerialNo(), 1L);
+        }
+    }
+
+    @Nested
+    class testPartitionTableChange {
+        private HazelcastDataBaseNode dataBaseNode;
+
+        @BeforeEach
+        void beforeEach() {
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+
+            when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+
+            dataBaseNode = new HazelcastDataBaseNode(dataProcessorContext) {
+
+            };
+        }
+
+        @Test
+        void need2InitialSync() {
+            SyncProgress syncProgress = new SyncProgress();
+            dataBaseNode.running.set(false);
+            Assertions.assertFalse(dataBaseNode.need2InitialSync(syncProgress));
+
+            dataBaseNode.running.set(true);
+            ReflectionTestUtils.setField(dataBaseNode, "syncType", SyncTypeEnum.CDC);
+            Assertions.assertFalse(dataBaseNode.need2InitialSync(syncProgress));
+
+            ReflectionTestUtils.setField(dataBaseNode, "syncType", SyncTypeEnum.INITIAL_SYNC_CDC);
+            JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+            when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+            ReflectionTestUtils.setField(dataBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+            Assertions.assertTrue(dataBaseNode.need2InitialSync(syncProgress));
+
+            Map<String, Object> map = new HashMap<>();
+            Map<String, Object> offset = new HashMap<>();
+            offset.put("batch_read_connector_status", "over");
+            map.put("test", offset);
+            syncProgress.setBatchOffsetObj(map);
+
+            Assertions.assertTrue(dataBaseNode.need2InitialSync(syncProgress));
+
+            syncProgress.setBatchOffsetObj(null);
+            syncProgress.setSyncStage(SyncStage.CDC.name());
+            Assertions.assertFalse(dataBaseNode.need2InitialSync(syncProgress));
+        }
+
+        @Test
+        void testUncompressStreamOffsetIfNeed() throws IOException {
+            String str = StringCompression.compress("test");
+            String result = dataBaseNode.uncompressStreamOffsetIfNeed(STREAM_OFFSET_COMPRESS_PREFIX + str);
+
+            Assertions.assertEquals("test", result);
+
         }
     }
 }

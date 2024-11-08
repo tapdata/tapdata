@@ -16,6 +16,7 @@ public class WriteRecordFuncAspect extends DataFunctionAspect<WriteRecordFuncAsp
 	private static final String TAG = WriteRecordFuncAspect.class.getSimpleName();
 	private List<BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>>> consumers = new CopyOnWriteArrayList<>();
 	public static final int STATE_WRITING = 10;
+	public static final int BATCH_SPLIT = 11;
 	public WriteRecordFuncAspect consumer(BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer) {
 		this.consumers.add((theRecordEvents, writeListResult) -> {
 			try {

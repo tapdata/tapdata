@@ -24,14 +24,19 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.*;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.FilterMetadataInstanceUtil;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import com.tapdata.tm.commons.util.RemoveBracketsUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
@@ -44,7 +49,12 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
-import com.tapdata.tm.metadatainstance.vo.*;
+import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
+import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
+import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.metadatainstance.vo.TableListVo;
+import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
@@ -73,21 +83,44 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.MongoExpression;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.*;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationExpression;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.ComparisonOperators;
+import org.springframework.data.mongodb.core.aggregation.ConditionalOperators;
+import org.springframework.data.mongodb.core.aggregation.GraphLookupOperation;
+import org.springframework.data.mongodb.core.aggregation.LimitOperation;
+import org.springframework.data.mongodb.core.aggregation.LookupOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
+import org.springframework.data.mongodb.core.aggregation.SkipOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.applyField;
+import static com.tapdata.tm.utils.MongoUtils.applySort;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @Author: Zed
@@ -129,6 +162,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public static final String TABLE_ID = "tableId";
     public static final String ILLEGAL_ARGUMENT = "IllegalArgument";
     public static final String TABLE_COMMENT = "tableComment";
+    public static final String PARTITION_MASTER_TABLE_ID = "partitionMasterTableId";
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -1218,7 +1252,17 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         return values;
     }
 
-    public Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit) {
+    protected void setPartitionFilterIfNeed(Criteria criteria, Boolean syncPartitionTableEnable) {
+        Optional.ofNullable(syncPartitionTableEnable).ifPresent(syncMaster ->
+                criteria.orOperator(
+                        Criteria.where(PARTITION_MASTER_TABLE_ID).exists(false),
+                        Criteria.where(PARTITION_MASTER_TABLE_ID).is(null),
+                        Criteria.where("$expr").is(new Document(syncMaster ? "$eq" : "$ne", Arrays.asList("$partitionMasterTableId", "$name")))
+                )
+        );
+    }
+
+    public Page<Map<String, Object>> pageTables(String connectId, String sourceType, String regex, int skip, int limit, Boolean syncPartitionTableEnable) {
 			Criteria criteria = Criteria.where(SOURCE_ID).is(connectId)
 				.and(SOURCE_TYPE).is(sourceType)
 				.and(IS_DELETED).ne(true)
@@ -1230,6 +1274,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 				criteria.and(ORIGINAL_NAME).regex(regex);
 			}
 
+            setPartitionFilterIfNeed(criteria, syncPartitionTableEnable);
             Aggregation aggregation = Aggregation.newAggregation(
                     Aggregation.match(criteria),
                     Aggregation.unwind(FIELDS),
@@ -1365,6 +1410,39 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             return PdkSchemaConvert.toPdk(metedata);
         }
         return null;
+    }
+
+    public Map<String, List<TapTableDto>> getMetadataV3(Map<String, FindMetadataDto> params, UserDetail user) {
+        Map<String, List<TapTableDto>> result = new HashMap<>();
+        for (Map.Entry<String, FindMetadataDto> entry : params.entrySet()) {
+            String connectionId = entry.getKey();
+            FindMetadataDto findMetadataDto = entry.getValue();
+            List<TapTableDto> tapTableDtoList = new ArrayList<>();
+            result.put(connectionId, tapTableDtoList);
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
+            if (connectionDto == null) {
+                continue;
+            }
+            DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+
+            connectionDto.setDefinitionGroup(definitionDto.getGroup());
+            connectionDto.setDefinitionPdkId(definitionDto.getPdkId());
+            connectionDto.setDefinitionScope(definitionDto.getScope());
+            connectionDto.setDefinitionVersion(definitionDto.getVersion());
+            String metaType = findMetadataDto.getMetaType();
+            List<String> tableNames = findMetadataDto.getTableNames();
+            List<String> qualifiedNames = new ArrayList<>();
+            tableNames.forEach(tableName -> qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, connectionDto, tableName)));
+            Criteria criteria = Criteria.where(QUALIFIED_NAME).in(qualifiedNames);
+            List<MetadataInstancesDto> metadataInstancesDtoList = findAll(Query.query(criteria));
+            if (null == metadataInstancesDtoList) {
+                continue;
+            }
+            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
+                tapTableDtoList.add(new TapTableDto(metadataInstancesDto.getQualifiedName(), PdkSchemaConvert.toPdk(metadataInstancesDto)));
+            }
+        }
+        return result;
     }
 
     public List<Table> findOldByNodeId(Filter filter, UserDetail user) {

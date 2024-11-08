@@ -1,16 +1,18 @@
 package io.tapdata.flow.engine.V2.util;
 
-import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -278,6 +280,34 @@ class TapEventUtilTest {
 			tapEvent = new TapDeleteRecordEvent();
 			TapEventUtil.addAfterIllegalDateField(tapEvent, "test_field");
 			assertNotNull(tapEvent);
+		}
+	}
+
+	@Nested
+	class SwapTableIdAndMasterTableIdTest {
+		@Test
+		void testNotTapBaseEvent() {
+			TapEvent tapEvent = mock(TapEvent.class);
+			Assertions.assertDoesNotThrow(() -> TapEventUtil.swapTableIdAndMasterTableId(tapEvent));
+		}
+
+		@Test
+		void testPartitionMasterTableIdIsEmpty() {
+			TapBaseEvent tapEvent = new TapInsertRecordEvent();
+			tapEvent.setTableId("id");
+			tapEvent.setPartitionMasterTableId(null);
+			Assertions.assertDoesNotThrow(() -> TapEventUtil.swapTableIdAndMasterTableId(tapEvent));
+			Assertions.assertEquals("id", tapEvent.getPartitionMasterTableId());
+			Assertions.assertEquals("id", tapEvent.getTableId());
+		}
+		@Test
+		void testPartitionMasterTableIdNotEmpty() {
+			TapBaseEvent tapEvent = new TapInsertRecordEvent();
+			tapEvent.setTableId("id");
+			tapEvent.setPartitionMasterTableId("masterId");
+			Assertions.assertDoesNotThrow(() -> TapEventUtil.swapTableIdAndMasterTableId(tapEvent));
+			Assertions.assertEquals("id", tapEvent.getPartitionMasterTableId());
+			Assertions.assertEquals("masterId", tapEvent.getTableId());
 		}
 	}
 

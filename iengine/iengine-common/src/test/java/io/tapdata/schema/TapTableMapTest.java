@@ -5,6 +5,7 @@ import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.error.TapTableMapExCode_29;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.pdk.core.utils.RetryUtils;
 import org.apache.logging.log4j.Logger;
@@ -253,7 +254,8 @@ public class TapTableMapTest {
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
             when(tapTableMap.createClientMongoOperator()).thenReturn(clientMongoOperator);
             doThrow(new RuntimeException()).when(clientMongoOperator).findOne(anyMap(),anyString(),any());
-            assertThrows(TapCodeException.class,()->tapTableMap.findSchema("table1"));
+            TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> tapTableMap.findSchema("table1"));
+            assertEquals(tapCodeException.getCode(), TapTableMapExCode_29.FIND_SCHEMA_FAILED);
         }
     }
 }

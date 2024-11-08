@@ -1,8 +1,6 @@
 package io.tapdata.common;
 
 import com.alibaba.fastjson.JSON;
-import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.schema.SchemaApplyResult;
@@ -23,9 +21,7 @@ import com.tapdata.tm.commons.util.FilterMetadataInstanceUtil;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
-import io.tapdata.entity.conversion.PossibleDataTypes;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -70,7 +66,6 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
         this.uuid = transformerWsMessageDto.getOptions().getUuid();
         this.tapTableMapHashMap = tapTableMapHashMap;
         this.tableNodeSameMetadataInstances = transformerWsMessageDto.getTableNodeSameMetadataInstances();
-
     }
 
     public DAGDataEngineServiceImpl(DeduceSchemaHandler.DeduceSchemaRequest request,TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator) {

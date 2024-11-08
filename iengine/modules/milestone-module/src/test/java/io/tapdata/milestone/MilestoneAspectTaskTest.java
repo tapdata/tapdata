@@ -11,20 +11,14 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.PDKNodeInitAspect;
-import io.tapdata.aspect.ProcessorNodeCloseAspect;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
-import io.tapdata.aspect.TableInitFuncAspect;
-import io.tapdata.aspect.TaskStartAspect;
-import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
@@ -1353,6 +1347,73 @@ class MilestoneAspectTaskTest {
 			when(aspect.getState()).thenReturn(DEDUCTION_ERROR);
 			Assertions.assertNull(milestoneAspectTask.handleEngineDeduction(aspect));
 		}
+	}
+
+	@Test
+	void testHandleRetry() {
+
+		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+
+		RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();
+		Assertions.assertDoesNotThrow(() -> {
+			milestoneAspectTask.handleRetry(aspect);
+		});
+
+		Map<String, MilestoneEntity> milestones = (Map<String, MilestoneEntity>) ReflectionTestUtils.getField(milestoneAspectTask, "milestones");
+		MilestoneEntity entity = new MilestoneEntity();
+		entity.setStatus(MilestoneStatus.RUNNING);
+		milestones.put("test", entity);
+		entity = new MilestoneEntity();
+		entity.setStatus(MilestoneStatus.FINISH);
+		milestones.put("test1", entity);
+
+		aspect.setRetrying(true);
+
+		milestoneAspectTask.handleRetry(aspect);
+
+		Assertions.assertTrue(milestones.get("test").getRetrying());
+		Assertions.assertNull(milestones.get("test1").getRetrying());
+
+	}
+
+	@Test
+	void testSetError() {
+		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+
+		MilestoneEntity entity = new MilestoneEntity();
+		entity.setStatus(MilestoneStatus.RUNNING);
+
+		WriteErrorAspect aspect = new WriteErrorAspect();
+		aspect.error(new TapCodeException("test"));
+		milestoneAspectTask.setError(aspect, entity);
+
+		Assertions.assertEquals(MilestoneStatus.ERROR, entity.getStatus());
+		Assertions.assertEquals("test", entity.getErrorCode());
+
+		aspect = new WriteErrorAspect();
+		aspect.error(new TapCodeException("test1"));
+		milestoneAspectTask.setError(aspect, entity);
+		Assertions.assertEquals("test", entity.getErrorCode());
+	}
+
+	@Test
+	void testSetError_1() {
+		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+
+		MilestoneEntity entity = new MilestoneEntity();
+		entity.setStatus(MilestoneStatus.RUNNING);
+
+		EngineDeductionAspect aspect = new EngineDeductionAspect();
+		aspect.error(new TapCodeException("test"));
+		milestoneAspectTask.setError(aspect, entity);
+
+		Assertions.assertEquals(MilestoneStatus.ERROR, entity.getStatus());
+		Assertions.assertEquals("test", entity.getErrorCode());
+
+		aspect = new EngineDeductionAspect();
+		aspect.error(new TapCodeException("test1"));
+		milestoneAspectTask.setError(aspect, entity);
+		Assertions.assertEquals("test", entity.getErrorCode());
 	}
 
 }
