@@ -808,6 +808,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					Object id = ((Map<?, ?>) qualifiedNameIdMap).get(qualifiedName);
 					if (id instanceof String && StringUtils.isNotBlank((String) id)) {
 						metadata.setId(new ObjectId((String) id));
+					} else {
+						metadata.setId(new ObjectId());
 					}
 				}
 				if (null == metadata.getId()) {
