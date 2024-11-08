@@ -496,7 +496,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(mergeCacheInMemSize);
 				ConstructIMap<Document> hazelcastConstruct = checkBuildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				obsLogger.info("Create merge cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
+				obsLogger.info("Create merge cache, node id: {}, imap name: {}, external storage: {}", mergeProperty.getId(), String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 			}
 		}
 	}
