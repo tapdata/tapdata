@@ -31,6 +31,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -48,6 +50,9 @@ public class SettingsServiceImpl implements SettingsService {
     private MongoTemplate mongoTemplate;
 
     private AlarmMailService alarmMailService;
+
+    @Qualifier("caffeineCache")
+    private CaffeineCacheManager caffeineCacheManager;
 
     /**
      * 有value 则返回value, 没有则返回default_value
@@ -191,7 +196,11 @@ public class SettingsServiceImpl implements SettingsService {
             settingsList.add(settings);
         } else {
             if(isCloud()){
-                settingsList = findAll(Query.query(Criteria.where("key").in("buildProfile","threshold","logLevel","job_cdc_record")));
+                Query query = Query.query(Criteria.where("key").in("buildProfile", "threshold", "logLevel", "job_cdc_record"));
+                settingsList = Optional.ofNullable(caffeineCacheManager.getCache("cloudSettings"))
+                        .map(cache -> cache.get("cloudSettings", () -> findAll(query)))
+                        .orElseGet(() -> findAll(query));
+
             }else {
                 settingsList = settingsRepository.findAll();
             }

@@ -8,6 +8,7 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 import java.util.concurrent.TimeUnit;
 
@@ -24,15 +25,16 @@ public class CacheConfig {
         return new ConcurrentMapCacheManager();
     }
 
-    @Bean("userCache")
-    public Cache cacheManager() {
+    @Bean("caffeineCache")
+    @Primary
+    public CaffeineCacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager();
         cacheManager.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .initialCapacity(100)
-                .maximumSize(300)
+                .maximumSize(500)
         );
-        return cacheManager.getCache("userCache");
+        return cacheManager;
     }
 
 

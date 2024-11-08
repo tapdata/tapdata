@@ -43,7 +43,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.Cache;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -96,8 +96,8 @@ public class UserController extends BaseController {
     @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
     private List<String> productList;
     @Autowired
-    @Qualifier("userCache")
-    private Cache userCache;
+    @Qualifier("caffeineCache")
+    private CaffeineCacheManager userCache;
 
 
     private static final String RC4_KEY = "Gotapd8";
@@ -192,8 +192,10 @@ public class UserController extends BaseController {
      */
     @GetMapping("{userId}")
     public ResponseMessage<UserDto> getUser(@PathVariable(value = "userId") String userId) {
-        if (productList != null && productList.contains("dfs")){
-            return success(userCache.get(userId, () -> userService.getUserDetail(userId)));
+        if (productList != null && productList.contains("dfs")) {
+            return success(Optional.ofNullable(userCache.getCache("userCache"))
+                    .map(cache -> cache.get(userId, () -> userService.getUserDetail(userId)))
+                    .orElseGet(() -> userService.getUserDetail(userId)));
         }
         return success(userService.getUserDetail(userId));
     }
