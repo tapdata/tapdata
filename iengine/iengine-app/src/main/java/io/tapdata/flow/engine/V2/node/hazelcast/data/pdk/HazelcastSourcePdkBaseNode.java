@@ -1157,6 +1157,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
 			connectorNodeInit(dataProcessorContext);
 			Monitor<?> monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			if (monitor == null) {
+				monitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.PARTITION_TABLE_MONITOR);
+			}
 			if (monitor instanceof TableMonitor) {
 				((TableMonitor) monitor).setAssociateId(this.associateId);
 			}
