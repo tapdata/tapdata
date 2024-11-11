@@ -224,9 +224,9 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 	@Override
 	public void start() {
 		threadPool.scheduleAtFixedRate(() -> {
-			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
-			Thread.currentThread().setName("Table-Monitor-" + connectorNode.getAssociateId());
 			try {
+				ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
+				Thread.currentThread().setName("Table-Monitor-" + connectorNode.getAssociateId());
 				while (true) {
 					try {
 						if (lock.tryLock(1L, TimeUnit.SECONDS)) {
@@ -237,8 +237,8 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 					}
 				}
 				monitor(connectorNode);
-			} catch (IOException exception) {
-				logger.warn("Found add/remove table failed, will retry next time, error: " + exception.getMessage(), exception);
+			} catch (Exception exception) {
+				logger.warn("Found add/remove table failed, will retry next time, error: {}, {}", exception.getMessage(), Log4jUtil.getStackString(exception));
 			} finally {
 				try {
 					lock.unlock();
