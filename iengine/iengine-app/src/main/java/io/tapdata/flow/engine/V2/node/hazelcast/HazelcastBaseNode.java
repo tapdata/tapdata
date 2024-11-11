@@ -889,9 +889,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 						event.getPartitionMasterTableId() : event.getTable().getPartitionMasterTableId();
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), partitionMasterTableId);
 				metadata.setPartitionInfo(event.getTable().getPartitionInfo());
-				/*metadata.setName(tableName);
+				metadata.setName(tableName);
 				metadata.setOriginalName(tableName);
-				metadata.setAncestorsName(event.getTable().getId());*/
+				metadata.setAncestorsName(event.getTable().getId());
 			} else {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
 			}
