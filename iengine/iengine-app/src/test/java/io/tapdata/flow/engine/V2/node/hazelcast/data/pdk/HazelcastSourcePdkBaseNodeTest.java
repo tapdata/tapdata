@@ -62,6 +62,7 @@ import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
+import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -1245,6 +1246,45 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertDoesNotThrow(() -> instance.restartPdkConnector());
 
 			verify(instance, times(1)).errorHandle(any(Throwable.class), anyString());
+		}
+
+		@Test
+		void testPartitionTable() {
+			Node node = new DatabaseNode();
+			node.setId("nodeId");
+			node.setName("nodeName");
+			DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+			when(dataProcessorContext.getNode()).thenReturn(node);
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			HazelcastSourcePdkBaseNode baseNode = new HazelcastSourcePdkBaseNode(dataProcessorContext) {
+				@Override
+				void startSourceRunner() {
+
+				}
+			};
+
+			ThreadPoolExecutorEx sourceRunner = mock(ThreadPoolExecutorEx.class);
+			MonitorManager monitorManager = mock(MonitorManager.class);
+			ReflectionTestUtils.setField(baseNode, "sourceRunner", sourceRunner);
+			ReflectionTestUtils.setField(baseNode, "associateId", "associateId");
+			ReflectionTestUtils.setField(baseNode, "monitorManager", monitorManager);
+			ReflectionTestUtils.setField(baseNode, "jetContext", mock(Processor.Context.class));
+
+			HazelcastSourcePdkBaseNode spyBaseNode = spy(baseNode);
+
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			when(spyBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			doNothing().when(spyBaseNode).createPdkConnectorNode(any(), any());
+			doNothing().when(spyBaseNode).connectorNodeInit(any());
+			doNothing().when(spyBaseNode).initAndStartSourceRunner();
+
+			Monitor monitor = mock(PartitionTableMonitor.class);
+			when(monitorManager.getMonitorByType(eq(MonitorManager.MonitorType.TABLE_MONITOR))).thenReturn(null);
+			when(monitorManager.getMonitorByType(eq(MonitorManager.MonitorType.PARTITION_TABLE_MONITOR)))
+					.thenReturn(monitor);
+
+			Assertions.assertDoesNotThrow(spyBaseNode::restartPdkConnector);
+			verify(spyBaseNode, times(1)).initAndStartSourceRunner();
 		}
 	}
 

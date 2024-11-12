@@ -228,17 +228,16 @@ public class TableMonitor extends TaskMonitor<TableMonitor.TableResult> {
 				ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 				Thread.currentThread().setName("Table-Monitor-" + connectorNode.getAssociateId());
 				while (true) {
-					try {
-						if (lock.tryLock(1L, TimeUnit.SECONDS)) {
-							break;
-						}
-					} catch (InterruptedException e) {
+					if (lock.tryLock(1L, TimeUnit.SECONDS)) {
 						break;
 					}
 				}
 				monitor(connectorNode);
 			} catch (Exception exception) {
 				logger.warn("Found add/remove table failed, will retry next time, error: {}, {}", exception.getMessage(), Log4jUtil.getStackString(exception));
+				if (exception instanceof InterruptedException) {
+					Thread.currentThread().interrupt();
+				}
 			} finally {
 				try {
 					lock.unlock();
