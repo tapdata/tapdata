@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -465,6 +466,19 @@ class TableMonitorTest {
                 verify(tableMonitor, times(1)).monitor(any());
             });
 
+            Lock mockLock = mock(ReentrantLock.class);
+            when(mockLock.tryLock(anyLong(), any(TimeUnit.class))).thenThrow(InterruptedException.class);
+            ReflectionTestUtils.setField(tableMonitor, "lock", mockLock);
+
+            Assertions.assertDoesNotThrow(() -> {
+
+                tableMonitor.start();
+
+                verify(tableMonitor, times(1)).monitor(any());
+            });
+
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
     }
