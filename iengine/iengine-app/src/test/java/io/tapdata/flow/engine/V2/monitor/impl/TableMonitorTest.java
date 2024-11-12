@@ -7,6 +7,8 @@ import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
+import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -25,14 +27,14 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -429,5 +431,41 @@ class TableMonitorTest {
         tableResult.clear();
         Assertions.assertEquals(0, tableResult.getRemoveList().size());
         Assertions.assertEquals(0, tableResult.getAddList().size());
+    }
+
+    @Test
+    void testStart() {
+
+        ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
+
+        doAnswer(answer -> {
+            Runnable runnable = answer.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(threadPool).scheduleAtFixedRate(any(), anyLong(), anyLong(), any(TimeUnit.class));
+
+        ReentrantLock lock = new ReentrantLock();
+        ReflectionTestUtils.setField(tableMonitor, "threadPool", threadPool);
+        ReflectionTestUtils.setField(tableMonitor, "lock", lock);
+        ReflectionTestUtils.setField(tableMonitor, "logger", mock(ObsLogger.class));
+        ReflectionTestUtils.setField(tableMonitor, "associateId", "associateId");
+        doCallRealMethod().when(tableMonitor).start();
+
+        ConnectorNodeService nodeService = mock(ConnectorNodeService.class);
+        ConnectorNode connectorNode = mock(ConnectorNode.class);
+        when(nodeService.getConnectorNode(anyString())).thenReturn(connectorNode);
+
+        try (MockedStatic<ConnectorNodeService> staticMockConnectorNodeService = mockStatic(ConnectorNodeService.class)) {
+            staticMockConnectorNodeService.when(ConnectorNodeService::getInstance).thenReturn(nodeService);
+
+            Assertions.assertDoesNotThrow(() -> {
+
+                tableMonitor.start();
+
+                verify(tableMonitor, times(1)).monitor(any());
+            });
+
+        }
+
     }
 }
