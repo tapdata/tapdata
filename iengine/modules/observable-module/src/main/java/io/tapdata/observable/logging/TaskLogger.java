@@ -49,8 +49,7 @@ public class TaskLogger extends ObsLogger {
 	private String taskRecordId;
 	@Getter
 	private String taskName;
-	private LogLevel level;
-	private LogLevel formerLevel;
+	private boolean enableDebugLogger;
 	private Long recordCeiling;
 	private Long intervalCeiling;
 	private boolean testTask;
@@ -80,7 +79,8 @@ public class TaskLogger extends ObsLogger {
 			// when preview task, no need to add any appender
 		} else {
 			this.witAppender(this.fileAppender(taskId))
-					.witAppender(this.obsHttpTMAppender(taskId));
+					.witAppender(this.obsHttpTMAppender(taskId))
+					.witAppender(this.debugFileAppender(taskId));
 		}
 
 		// add close debug consumer
@@ -92,6 +92,15 @@ public class TaskLogger extends ObsLogger {
 			// add file appender
 			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
 			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, taskId);
+		};
+	}
+
+	private WithAppender<MonitoringLogsDto> debugFileAppender(String taskId){
+		return () -> {
+			// add file appender
+			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
+			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, taskId + "_debug")
+					.include(LogLevel.DEBUG);
 		};
 	}
 
@@ -123,28 +132,17 @@ public class TaskLogger extends ObsLogger {
 	}
 
 	TaskLogger withTaskLogSetting(String level, Long recordCeiling, Long intervalCeiling) {
-		LogLevel logLevel = LogLevel.getLogLevel(level);
-		if (this.level == logLevel) {
+		LogLevel logLevel = Optional.ofNullable(LogLevel.getLogLevel(level)).orElse(LogLevel.TRACE);
+
+		if (logLevel.isDebug() && !enableDebugLogger) {
+			enableDebugLogger = true;
+
+			this.recordCeiling = recordCeiling == null ? RECORD_CEILING_DEFAULT : recordCeiling;
+			this.intervalCeiling = intervalCeiling == null ?
+					System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000 :
+					System.currentTimeMillis() + intervalCeiling * 1000;
 			return this;
 		}
-		this.formerLevel = this.level;
-		this.level = logLevel;
-		if (this.level.isDebug()) {
-			if (null == recordCeiling && null == intervalCeiling) {
-				this.recordCeiling = RECORD_CEILING_DEFAULT;
-				this.intervalCeiling = System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000;
-				return this;
-			}
-
-			this.recordCeiling = recordCeiling;
-			if (intervalCeiling != null) {
-				this.intervalCeiling = System.currentTimeMillis() + intervalCeiling * 1000;
-			}
-			return this;
-		}
-
-		this.recordCeiling = null;
-		this.intervalCeiling = null;
 		return this;
 	}
 
@@ -153,9 +151,14 @@ public class TaskLogger extends ObsLogger {
 	}
 
 	public boolean noNeedLog(String level) {
-		if (!this.level.isDebug()) {
-			return !this.level.shouldLog(level);
+		LogLevel logLevel = Optional.ofNullable(LogLevel.getLogLevel(level)).orElse(LogLevel.TRACE);
+
+		if (!logLevel.isDebug()) {
+			return false;
 		}
+
+		if (!enableDebugLogger)
+			return true;
 
 		boolean noNeedLog = false;
 		if (null != recordCeiling) {
@@ -167,16 +170,12 @@ public class TaskLogger extends ObsLogger {
 			noNeedLog = intervalCeiling < System.currentTimeMillis();
 		}
 
-		if (noNeedLog && this.level.isDebug()) {
-			// fix NPE when task start as DEBUG level
-			if (null == formerLevel) {
-				formerLevel = LogLevel.INFO;
-			}
-			this.level = formerLevel;
+		if (noNeedLog) {
+			this.enableDebugLogger = false;
 			this.recordCeiling = null;
 			this.intervalCeiling = null;
 			if (null != closeDebugConsumer) {
-				closeDebugConsumer.accept(taskId, formerLevel);
+				closeDebugConsumer.accept(taskId, LogLevel.INFO);
 			}
 		}
 
@@ -189,6 +188,18 @@ public class TaskLogger extends ObsLogger {
 		} catch (Throwable throwable) {
 			throw new RuntimeException(throwable);
 		}
+	}
+
+	public void trace(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
+		if (noNeedLog(LogLevel.TRACE.getLevel())) {
+			return;
+		}
+
+		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
+		builder.level(Level.TRACE.toString());
+		builder.message(formatMessage(message, params));
+
+		logAppendFactory.appendLog(builder.build());
 	}
 
 	public void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
