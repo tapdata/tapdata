@@ -2550,7 +2550,7 @@ public class MetadataInstancesServiceImplTest {
 				doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 				List<MetadataInstancesDto> oneMetadata = generateMetaInstanceDtos(1);
 				metadataInstancesService.linkLogic(oneMetadata, userDetail, "65d31d426a7c0d7571db82a7");
-				verify(metadataInstancesService, times(1)).bulkUpsetByWhere(any(List.class), any(UserDetail.class));
+				verify(metadataInstancesService, times(10)).bulkUpsetByWhere(any(List.class), any(UserDetail.class));
 			}
 		}
 
