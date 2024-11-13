@@ -163,6 +163,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public static final String ILLEGAL_ARGUMENT = "IllegalArgument";
     public static final String TABLE_COMMENT = "tableComment";
     public static final String PARTITION_MASTER_TABLE_ID = "partitionMasterTableId";
+    public static final int UPSERT_BATCH_SIZE = 1000;
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -2210,8 +2211,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     //带有taskId的为ddl任务传过来的。所以不需要过滤一些运行状态的任务模型。
     public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, String taskId){
         try {
-            List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
+
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+
                 //查询得到所有的关联的逻辑模型表
                 Criteria criteria = Criteria.where(META_TYPE).is(metadataInstancesDto.getMetaType()).and(ORIGINAL_NAME).is(metadataInstancesDto.getOriginalName())
                         .and(SOURCE_ID).is(metadataInstancesDto.getSource().get_id())
@@ -2250,6 +2252,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
 
                     if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+                        List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
                         //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
                         for (MetadataInstancesDto taskMetadata : taskMetadatas) {
                             com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
@@ -2258,15 +2261,18 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                             if (metadataInstancesDto1 != null) {
                                 metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
                                 updateMetadatas.add(metadataInstancesDto1);
+                                if (updateMetadatas.size() % UPSERT_BATCH_SIZE  == 0) {
+                                    bulkUpsetByWhere(updateMetadatas, user);
+                                    updateMetadatas.clear();
+                                }
                             }
+                        }
+                        if (CollectionUtils.isNotEmpty(updateMetadatas)) {
+                            //批量入库
+                            bulkUpsetByWhere(updateMetadatas, user);
                         }
                     }
 
-                }
-
-                if (CollectionUtils.isNotEmpty(updateMetadatas)) {
-                    //批量入库
-                    bulkUpsetByWhere(updateMetadatas, user);
                 }
             }
         } catch (Exception e) {
