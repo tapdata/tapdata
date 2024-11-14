@@ -12,7 +12,8 @@ public enum Level {
     //校验内容有差异
     WARN("Warn"),
 
-    INFO("Info");
+    INFO("Info"),
+    DEBUG("Debug");
 
     private final String value;
     public String getValue() {
