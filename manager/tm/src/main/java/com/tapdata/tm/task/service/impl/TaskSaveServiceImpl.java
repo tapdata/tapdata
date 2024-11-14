@@ -56,6 +56,9 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
     @Override
     public void syncTaskSetting(TaskDto taskDto, UserDetail userDetail) {
+        if (null == taskDto) {
+            return;
+        }
         DAG dag = taskDto.getDag();
         if (Objects.isNull(dag) || org.apache.commons.collections4.CollectionUtils.isEmpty(dag.getNodes())) {
             return;
