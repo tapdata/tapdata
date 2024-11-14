@@ -2546,7 +2546,18 @@ public class MetadataInstancesServiceImplTest {
 				taskDtos.add(taskDto);
 				doReturn(taskDtos).when(taskService).findAllDto(any(Query.class), any(UserDetail.class));
 				doCallRealMethod().when(metadataInstancesService).linkLogic(any(), any(), any());
-				List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+				List<MetadataInstancesDto> metadataInstancesDtos = generateMetaInstanceDtos(1000);
+				doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
+				List<MetadataInstancesDto> oneMetadata = generateMetaInstanceDtos(1);
+				metadataInstancesService.linkLogic(oneMetadata, userDetail, "65d31d426a7c0d7571db82a7");
+				verify(metadataInstancesService, times(10)).bulkUpsetByWhere(any(List.class), any(UserDetail.class));
+			}
+		}
+
+		private List<MetadataInstancesDto> generateMetaInstanceDtos(int generateNum) {
+			List<MetadataInstancesDto> metadataInstancesDtos = new ArrayList<>();
+			for (int i = 0; i < generateNum; i++) {
+
 				MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
 				metadataInstancesDto.setMetaType("source");
 				metadataInstancesDto.setOriginalName("testOriginalName");
@@ -2555,10 +2566,8 @@ public class MetadataInstancesServiceImplTest {
 				sourceDto.set_id("test_Id");
 				metadataInstancesDto.setSource(sourceDto);
 				metadataInstancesDtos.add(metadataInstancesDto);
-				doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
-				metadataInstancesService.linkLogic(metadataInstancesDtos, userDetail, "65d31d426a7c0d7571db82a7");
-				verify(metadataInstancesService, times(1)).bulkUpsetByWhere(any(List.class), any(UserDetail.class));
 			}
+			return metadataInstancesDtos;
 		}
 	}
 
