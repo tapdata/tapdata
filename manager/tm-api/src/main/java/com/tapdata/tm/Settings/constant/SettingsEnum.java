@@ -33,7 +33,7 @@ public enum SettingsEnum {
     SMTP_PASSWORD("SMTP", "smtp.server.password"),
 
     SCHEDULED_LOAD_SCHEMA_COUNT_THRESHOLD("schema", "scheduled.load.schema.count.threshold"),
-    AD_PASSWORD("Active_Directory", "ad.bind.password")
+    LDAP_PASSWORD("LDAP", "ldap.bind.password")
     ;
 
     @Getter

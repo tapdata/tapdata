@@ -161,12 +161,26 @@ public class UserServiceImplTest {
         void testLoginByAD_EncryptedPassword() {
             try (MockedStatic<SettingUtil> mb = Mockito
                     .mockStatic(SettingUtil.class)) {
-                mb.when(() -> SettingUtil.getValue("Active_Directory", "ad.bind.password")).thenReturn("123456");
+                mb.when(() -> SettingUtil.getValue("LDAP", "ldap.bind.password")).thenReturn("123456");
                 testAdDto.setLdap_Bind_Password("*****");
                 when(userService.buildDirContext(any(LdapLoginDto.class))).thenReturn(dirContext);
                 TestResponseDto response = userService.testLoginByLdap(testAdDto);
                 assertTrue(response.isResult());
                 assertNull(response.getStack());
+            }
+        }
+
+        @Test
+        @SneakyThrows
+        void testLoginByAD_NPE() {
+            try (MockedStatic<SettingUtil> mb = Mockito
+                    .mockStatic(SettingUtil.class)) {
+                mb.when(() -> SettingUtil.getValue("LDAP", "ldap.bind.password")).thenReturn("123456");
+                testAdDto.setLdap_Bind_Password("*****");
+                when(userService.buildDirContext(any(LdapLoginDto.class))).thenThrow(NullPointerException.class);
+                TestResponseDto response = userService.testLoginByLdap(testAdDto);
+                assertFalse(response.isResult());
+                assertEquals("please check ldap configuration, such as bind dn or password", response.getStack());
             }
         }
     }

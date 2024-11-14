@@ -792,7 +792,7 @@ public class UserServiceImpl extends UserService{
         String ldapSslCert = testldapDto.getLdap_SSL_Cert();
         LdapLoginDto ldapLoginDto = LdapLoginDto.builder().ldapUrl(ldapUrl).bindDN(bindDN).password(bindPassword).sslEnable(sslEnable).cert(ldapSslCert).build();
         if ("*****".equals(ldapLoginDto.getPassword())) {
-            String value = SettingsEnum.AD_PASSWORD.getValue();
+            String value = SettingsEnum.LDAP_PASSWORD.getValue();
             ldapLoginDto.setPassword(value);
         }
         DirContext dirContext = null;
@@ -803,6 +803,8 @@ public class UserServiceImpl extends UserService{
             } else {
                 return new TestResponseDto(false, "connect to active directory server failed");
             }
+        } catch (NullPointerException e) {
+            return new TestResponseDto(false, "please check ldap configuration, such as bind dn or password");
         } catch (NamingException e) {
             return new TestResponseDto(false, TapSimplify.getStackTrace(e));
         } finally {
