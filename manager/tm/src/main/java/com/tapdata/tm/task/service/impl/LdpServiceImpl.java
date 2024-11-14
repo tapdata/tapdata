@@ -529,7 +529,7 @@ public class LdpServiceImpl implements LdpService {
 
 	@Override
 	public void afterLdpTask(String taskId, UserDetail user) {
-		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
+		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 		taskService.updateAfter(taskDto, user);
 		LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
         if (platformDto == null) {
