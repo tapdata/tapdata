@@ -24,9 +24,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author jackin
@@ -40,7 +38,7 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	private final Logger logger;
 	private final String workDir;
 	private String logsPath;
-	private List<String> includeLogLevel;
+	private Set<String> includeLogLevel;
 
 	public RollingFileAppender getRollingFileAppender() {
 		return rollingFileAppender;
@@ -147,11 +145,11 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	}
 
 	public FileAppender include(LogLevel... level) {
-		if (level == null || level.length == 0) {
+		if (level.length == 0) {
 			return this;
 		}
 		if (includeLogLevel == null) {
-			includeLogLevel = new ArrayList<>();
+			includeLogLevel = new HashSet<>();
 		}
 		Arrays.stream(level).map(LogLevel::getLevel).forEach(includeLogLevel::add);
 		return this;

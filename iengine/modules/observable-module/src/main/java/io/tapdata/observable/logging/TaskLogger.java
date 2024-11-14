@@ -132,7 +132,7 @@ public class TaskLogger extends ObsLogger {
 	}
 
 	TaskLogger withTaskLogSetting(String level, Long recordCeiling, Long intervalCeiling) {
-		LogLevel logLevel = Optional.ofNullable(LogLevel.getLogLevel(level)).orElse(LogLevel.TRACE);
+		LogLevel logLevel = LogLevel.getLogLevel(level);
 
 		if (logLevel.isDebug() && !enableDebugLogger) {
 			enableDebugLogger = true;
@@ -163,7 +163,7 @@ public class TaskLogger extends ObsLogger {
 		boolean noNeedLog = false;
 		if (null != recordCeiling) {
 			recordCeiling--;
-			noNeedLog = recordCeiling <= 0;
+			noNeedLog = recordCeiling < 0;
 		}
 
 		if (!noNeedLog && null != intervalCeiling) {
