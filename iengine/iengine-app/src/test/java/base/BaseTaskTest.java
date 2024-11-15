@@ -47,6 +47,21 @@ public abstract class BaseTaskTest extends BaseTest {
 		when(dataProcessorContext.getEdges()).thenReturn(taskDto.getDag().getEdges());
 		when(dataProcessorContext.getNodes()).thenReturn(taskDto.getDag().getNodes());
 	}
+
+	protected void setupContext(Node node) {
+		processorBaseContext = mock(ProcessorBaseContext.class);
+		when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+		when(processorBaseContext.getNode()).thenReturn(node);
+		when(processorBaseContext.getEdges()).thenReturn(taskDto.getDag().getEdges());
+		when(processorBaseContext.getNodes()).thenReturn(taskDto.getDag().getNodes());
+
+		dataProcessorContext = mock(DataProcessorContext.class);
+		when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+		when(dataProcessorContext.getNode()).thenReturn(node);
+		when(dataProcessorContext.getEdges()).thenReturn(taskDto.getDag().getEdges());
+		when(dataProcessorContext.getNodes()).thenReturn(taskDto.getDag().getNodes());
+	}
+
 	protected void setUpDatabaseNode() {
 		taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("migrationdummy2dummy.json");
 		databaseNode = (DatabaseNode) taskDto.getDag().getNodes().get(1);
