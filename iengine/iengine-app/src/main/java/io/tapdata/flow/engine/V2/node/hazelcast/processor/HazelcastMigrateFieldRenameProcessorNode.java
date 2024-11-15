@@ -34,6 +34,11 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 
 		@Override
+		public void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, Map<String, Object> param) {
+			replaceValueIfNeed(oldKey, newKey, originValueMap, param);
+		}
+
+		@Override
 		public void deleteField(Map<String, Object> param, String originalName) {
 			param.remove(originalName);
 		}
@@ -73,6 +78,16 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 			param.set(toName);
 		}
 	};
+
+	protected void replaceValueIfNeed(String oldKey, String newKey, Map<String, Object> originValueMap, Map<String, Object> param) {
+		Object originValue = param.get(newKey);
+		originValueMap.put(newKey, originValue);
+		if (originValueMap.containsKey(oldKey)) {
+			param.put(newKey, originValueMap.get(oldKey));
+		} else {
+			MapUtil.replaceKey(oldKey, param, newKey);
+		}
+	}
 	private final MigrateFieldRenameProcessorNode.IOperator<ListIterator<TapIndexField>> createIndexEventOperator = new MigrateFieldRenameProcessorNode.IOperator<ListIterator<TapIndexField>>() {
 		@Override
 		public void deleteField(ListIterator<TapIndexField> param, String originalName) {
@@ -182,8 +197,9 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 
 	private Map<String, Object> processData(Map<String, Object> data, String tableName) {
 		if (null != data) {
+			Map<String, Object> originValueMap = new HashMap<>();
 			for (String fieldName : new HashSet<>(data.keySet())) {
-				applyConfig.apply(tableName, fieldName, data, dataOperator);
+				applyConfig.apply(tableName, fieldName, data, dataOperator, originValueMap);
 			}
 		}
 		return data;

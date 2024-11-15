@@ -54,4 +54,16 @@ public class FieldProcessUtilTest {
             assertEquals(value, actual);
         }
     }
+
+    @Nested
+    class convertTest{
+        @Test
+        @DisplayName("test when origin value is Long")
+        void test1() {
+            DateTime value = new DateTime(1730281800000L);
+            String newDataType = "String";
+            Object actual = FieldProcessUtil.convert(value, newDataType);
+            assertEquals("2024-10-30T09:50:00Z", actual);
+        }
+    }
 }

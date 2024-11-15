@@ -22,6 +22,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
 
@@ -111,28 +112,42 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
 		default void renameField(T param, String fromName, String toName) {
 		}
+
+		default void renameField(String oldKey, String newKey, Map<String, Object> originValueMap, T param) {
+		}
 	}
 
 	public static class ApplyConfig {
 		private final Operation fieldsOperation;
 		private final Map<String, TableFieldInfo> tableFieldInfoMap;
 		private final Map<String, Map<String, FieldInfo>> fieldInfoMaps;
-
+		protected final Map<String, List<String>> targetFieldExistMaps;
 
 		public ApplyConfig(MigrateFieldRenameProcessorNode node) {
 			fieldsOperation = node.getFieldsOperation();
 			fieldInfoMaps = new HashMap<>();
+			targetFieldExistMaps = new HashMap<>();
 			tableFieldInfoMap = Optional.ofNullable(node.getFieldsMapping()).map(tableFieldInfos -> {
 				Map<String, TableFieldInfo> tableMap = new HashMap<>();
 				for (TableFieldInfo info : tableFieldInfos) {
 					tableMap.put(info.getPreviousTableName(), info);
 					Map<String, FieldInfo> fieldMap = new HashMap<>();
+					List<String> sourceFieldNames = new ArrayList<>();
+					List<String> targetFieldNames = new ArrayList<>();
 					if (null != info.getFields()) {
 						for (FieldInfo fieldInfo : info.getFields()) {
 							fieldMap.put(fieldInfo.getSourceFieldName(), fieldInfo);
+							String sourceFieldName = fieldInfo.getSourceFieldName();
+							String targetFieldName = fieldInfo.getTargetFieldName();
+							sourceFieldNames.add(sourceFieldName);
+							if (null != sourceFieldName && !sourceFieldName.equals(targetFieldName)) {
+								targetFieldNames.add(targetFieldName);
+							}
 						}
 					}
+					List<String> targetFieldExists = targetFieldNames.stream().filter(fieldName -> sourceFieldNames.contains(fieldName)).collect(Collectors.toList());
 					fieldInfoMaps.put(info.getPreviousTableName(), fieldMap);
+					targetFieldExistMaps.put(info.getPreviousTableName(), targetFieldExists);
 				}
 				return tableMap;
 			}).orElse(new HashMap<>());
@@ -157,6 +172,16 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			AtomicReference<String> newFieldName = new AtomicReference<>(fieldName);
 			newFieldName.set(apply(fieldsOperation, newFieldName.get())); // global settings
 
+			isShow = processNewField(tableName, fieldName, operatorParam, operator, newFieldName, isShow);
+
+			if (!fieldName.equals(newFieldName.get())) {
+				operator.renameField(operatorParam, fieldName, newFieldName.get());
+			}
+
+			return isShow;
+		}
+
+		private <T> boolean processNewField(String tableName, String fieldName, T operatorParam, IOperator<T> operator, AtomicReference<String> newFieldName, boolean isShow) {
 			// table settings
 			TableFieldInfo tableFieldInfo = getTableFieldInfo(tableName);
 			if (null != tableFieldInfo) {
@@ -174,9 +199,22 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 					}
 				}
 			}
+			return isShow;
+		}
 
+		public <T> boolean apply(String tableName, String fieldName, T operatorParam, IOperator<T> operator, Map<String, Object> originValueMap) {
+			boolean isShow = true;
+			AtomicReference<String> newFieldName = new AtomicReference<>(fieldName);
+			newFieldName.set(apply(fieldsOperation, newFieldName.get())); // global settings
+
+			isShow = processNewField(tableName, fieldName, operatorParam, operator, newFieldName, isShow);
+			List<String> targetFieldExists = targetFieldExistMaps.get(tableName);
 			if (!fieldName.equals(newFieldName.get())) {
-				operator.renameField(operatorParam, fieldName, newFieldName.get());
+				if (targetFieldExists.contains(fieldName) || targetFieldExists.contains(newFieldName.get())) {
+					operator.renameField(fieldName, newFieldName.get(), originValueMap, operatorParam);
+				} else {
+					operator.renameField(operatorParam, fieldName, newFieldName.get());
+				}
 			}
 
 			return isShow;
