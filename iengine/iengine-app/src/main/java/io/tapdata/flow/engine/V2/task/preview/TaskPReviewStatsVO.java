@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.task.preview;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author samuel
@@ -15,7 +16,7 @@ public class TaskPReviewStatsVO {
 	private long afterTaken;
 	private long allTaken;
 	private long taskletTaken;
-	private List<TaskPreviewReadStatsVO> readStats;
+	private Map<String, TaskPreviewReadStatsVO> readStats = new HashMap<>();
 
 	public long getParseTaskJsonTaken() {
 		return parseTaskJsonTaken;
@@ -73,11 +74,11 @@ public class TaskPReviewStatsVO {
 		this.stopTaskTaken = stopTaskTaken;
 	}
 
-	public List<TaskPreviewReadStatsVO> getReadStats() {
+	public Map<String, TaskPreviewReadStatsVO> getReadStats() {
 		return readStats;
 	}
 
-	public void setReadStats(List<TaskPreviewReadStatsVO> readStats) {
+	public void setReadStats(Map<String, TaskPreviewReadStatsVO> readStats) {
 		this.readStats = readStats;
 	}
 }

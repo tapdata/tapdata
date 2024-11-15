@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.task.preview;
+package io.tapdata.flow.engine.V2.entity;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,20 +14,20 @@ import static org.junit.jupiter.api.Assertions.*;
  * @Description
  * @create 2024-11-06 18:33
  **/
-class PreviewPdkStateMapTest {
+class PdkStateMemoryHashMapTest {
 
-	private PreviewPdkStateMap previewPdkStateMap;
+	private PdkStateMemoryHashMap pdkStateMemoryHashMap;
 
 	@BeforeEach
 	void setUp() {
-		previewPdkStateMap = new PreviewPdkStateMap();
+		pdkStateMemoryHashMap = new PdkStateMemoryHashMap();
 	}
 
 	@Test
 	@DisplayName("test put")
 	void test1() {
-		previewPdkStateMap.put("key", "value");
-		Object mapObj = ReflectionTestUtils.getField(previewPdkStateMap, "map");
+		pdkStateMemoryHashMap.put("key", "value");
+		Object mapObj = ReflectionTestUtils.getField(pdkStateMemoryHashMap, "map");
 		assertInstanceOf(Map.class, mapObj);
 		assertEquals(1, ((Map<?, ?>) mapObj).size());
 		assertEquals("value", ((Map<?, ?>) mapObj).get("key"));
@@ -36,9 +36,9 @@ class PreviewPdkStateMapTest {
 	@Test
 	@DisplayName("test putIfAbsent")
 	void test2() {
-		previewPdkStateMap.put("key", "value");
-		previewPdkStateMap.putIfAbsent("key", "value1");
-		Object mapObj = ReflectionTestUtils.getField(previewPdkStateMap, "map");
+		pdkStateMemoryHashMap.put("key", "value");
+		pdkStateMemoryHashMap.putIfAbsent("key", "value1");
+		Object mapObj = ReflectionTestUtils.getField(pdkStateMemoryHashMap, "map");
 		assertInstanceOf(Map.class, mapObj);
 		assertEquals(1, ((Map<?, ?>) mapObj).size());
 		assertEquals("value", ((Map<?, ?>) mapObj).get("key"));
@@ -47,9 +47,9 @@ class PreviewPdkStateMapTest {
 	@Test
 	@DisplayName("test remove")
 	void test3() {
-		previewPdkStateMap.put("key", "value");
-		previewPdkStateMap.remove("key");
-		Object mapObj = ReflectionTestUtils.getField(previewPdkStateMap, "map");
+		pdkStateMemoryHashMap.put("key", "value");
+		pdkStateMemoryHashMap.remove("key");
+		Object mapObj = ReflectionTestUtils.getField(pdkStateMemoryHashMap, "map");
 		assertInstanceOf(Map.class, mapObj);
 		assertTrue(((Map<?, ?>) mapObj).isEmpty());
 	}
@@ -57,9 +57,9 @@ class PreviewPdkStateMapTest {
 	@Test
 	@DisplayName("test clear")
 	void test4() {
-		previewPdkStateMap.put("key", "value");
-		previewPdkStateMap.clear();
-		Object mapObj = ReflectionTestUtils.getField(previewPdkStateMap, "map");
+		pdkStateMemoryHashMap.put("key", "value");
+		pdkStateMemoryHashMap.clear();
+		Object mapObj = ReflectionTestUtils.getField(pdkStateMemoryHashMap, "map");
 		assertInstanceOf(Map.class, mapObj);
 		assertTrue(((Map<?, ?>) mapObj).isEmpty());
 	}
@@ -67,10 +67,10 @@ class PreviewPdkStateMapTest {
 	@Test
 	@DisplayName("test reset")
 	void test5() {
-		Object mapObj1 = ReflectionTestUtils.getField(previewPdkStateMap, "map");
-		previewPdkStateMap.put("key", "value");
-		previewPdkStateMap.reset();
-		Object mapObj2 = ReflectionTestUtils.getField(previewPdkStateMap, "map");
+		Object mapObj1 = ReflectionTestUtils.getField(pdkStateMemoryHashMap, "map");
+		pdkStateMemoryHashMap.put("key", "value");
+		pdkStateMemoryHashMap.reset();
+		Object mapObj2 = ReflectionTestUtils.getField(pdkStateMemoryHashMap, "map");
 		assertInstanceOf(Map.class, mapObj2);
 		assertTrue(((Map<?, ?>) mapObj2).isEmpty());
 		assertNotSame(mapObj1, mapObj2);
@@ -79,7 +79,7 @@ class PreviewPdkStateMapTest {
 	@Test
 	@DisplayName("test get")
 	void test6() {
-		previewPdkStateMap.put("key", "value");
-		assertEquals("value", previewPdkStateMap.get("key"));
+		pdkStateMemoryHashMap.put("key", "value");
+		assertEquals("value", pdkStateMemoryHashMap.get("key"));
 	}
 }

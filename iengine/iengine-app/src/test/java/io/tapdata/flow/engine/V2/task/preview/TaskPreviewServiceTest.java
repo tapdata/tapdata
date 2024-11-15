@@ -45,6 +45,7 @@ class TaskPreviewServiceTest {
 			includeNodeIds.add("624e868d-419a-4693-9b71-e50c59b86bbf");
 			doAnswer(invocationOnMock -> null).when(taskPreviewService).previewPrivate(any(), any());
 			doAnswer(invocationOnMock -> null).when(taskPreviewService).clearAfterPreview(any());
+			doAnswer(invocationOnMock -> null).when(taskPreviewService).initNodeConnectionInfoMap(any(TaskDto.class));
 			TaskPreviewResultVO taskPreviewResultVO = assertDoesNotThrow(() -> taskPreviewService.preview(taskJson, includeNodeIds, 1));
 			assertEquals(200, taskPreviewResultVO.getCode());
 			assertNull(taskPreviewResultVO.getErrorMsg());
@@ -108,6 +109,7 @@ class TaskPreviewServiceTest {
 				when(hazelcastTaskService.startPreviewTask(any())).thenReturn(taskClient);
 				beanUtilMockedStatic.when(() -> BeanUtil.getBean(HazelcastTaskService.class)).thenReturn(hazelcastTaskService);
 				doAnswer(invocationOnMock -> null).when(taskPreviewService).clearAfterPreview(any());
+				doAnswer(invocationOnMock -> null).when(taskPreviewService).initNodeConnectionInfoMap(any(TaskDto.class));
 				TaskPreviewResultVO taskPreviewResultVO = taskPreviewService.preview(taskJson, new ArrayList<>(), 1);
 				assertEquals(200, taskPreviewResultVO.getCode());
 				assertNotNull(taskPreviewResultVO.getStats());

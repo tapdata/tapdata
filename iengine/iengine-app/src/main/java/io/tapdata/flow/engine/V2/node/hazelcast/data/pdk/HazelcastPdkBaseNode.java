@@ -20,7 +20,6 @@ import io.tapdata.aspect.PDKNodeInitAspect;
 import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
-import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
@@ -36,7 +35,7 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMapEx;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
-import io.tapdata.flow.engine.V2.task.preview.PreviewPdkStateMap;
+import io.tapdata.flow.engine.V2.entity.PdkStateMemoryHashMap;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryContext;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryFactory;
 import io.tapdata.flow.engine.V2.task.retry.task.TaskRetryService;
@@ -69,7 +68,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -98,7 +96,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private static final String DOUBLE_ACTIVE = "doubleActive";
 	private static final String WRITE_THREAD_SIZE = "writeThreadSize";
 	protected TapRecordSkipDetector skipDetector;
-	private PdkStateMap pdkStateMap;
+	protected PdkStateMap pdkStateMap;
 
 	protected TapRecordSkipDetector getSkipDetector() {
 		return skipDetector;
@@ -211,7 +209,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
 		if (taskDto.isPreviewTask()) {
-			pdkStateMap = new PreviewPdkStateMap();
+			pdkStateMap = new PdkStateMemoryHashMap();
 		} else {
 			pdkStateMap = new PdkStateMapEx(hazelcastInstance, getNode());
 		}

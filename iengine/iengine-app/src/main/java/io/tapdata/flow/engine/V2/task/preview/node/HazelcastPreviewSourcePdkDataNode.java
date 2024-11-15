@@ -24,7 +24,11 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.task.preview.*;
 import io.tapdata.flow.engine.V2.task.preview.entity.MergeReadData;
-import io.tapdata.flow.engine.V2.task.preview.operation.*;
+import io.tapdata.flow.engine.V2.task.preview.entity.PreviewConnectionInfo;
+import io.tapdata.flow.engine.V2.task.preview.operation.PreviewFinishReadOperation;
+import io.tapdata.flow.engine.V2.task.preview.operation.PreviewMergeReadOperation;
+import io.tapdata.flow.engine.V2.task.preview.operation.PreviewOperation;
+import io.tapdata.flow.engine.V2.task.preview.operation.PreviewReadOperation;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -77,7 +81,6 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		initTapLogger();
 		createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-		connectorNodeInit(dataProcessorContext);
 		initTapCodecsFilterManager();
 	}
 
@@ -182,14 +185,13 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 		}
 		long endMs = System.currentTimeMillis();
 		if (StringUtils.isNotBlank(method)) {
-			taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().add(new TaskPreviewReadStatsVO(
-					tableNode.getTableName(),
-					endMs - startMs,
-					tapAdvanceFilter.getLimit(),
-					tapAdvanceFilter.getMatch(),
-					method,
-					data.get().size()
-			));
+			TaskPreviewReadStatsVO readStatsVO = taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().computeIfAbsent(tableNode.getId(), k -> new TaskPreviewReadStatsVO());
+			readStatsVO.setTableName(tableNode.getTableName());
+			readStatsVO.setReadTaken(endMs - startMs);
+			readStatsVO.setLimit(tapAdvanceFilter.getLimit());
+			readStatsVO.setMatch(tapAdvanceFilter.getMatch());
+			readStatsVO.setMethod(method);
+			readStatsVO.setRows(data.get().size());
 		}
 		return data.get();
 	}
@@ -275,14 +277,13 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 				((List<TapInsertRecordEvent>) handleResult).add(tapInsertRecordEvent);
 			}
 			long endMs = System.currentTimeMillis();
-			taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().add(new TaskPreviewReadStatsVO(
-					tableNode.getTableName(),
-					endMs - startMs,
-					limit,
-					match,
-					MOCK_METHOD,
-					1
-			));
+			TaskPreviewReadStatsVO readStatsVO = taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().computeIfAbsent(tableNode.getId(), k -> new TaskPreviewReadStatsVO());
+			readStatsVO.setTableName(tableNode.getTableName());
+			readStatsVO.setReadTaken(endMs - startMs);
+			readStatsVO.setLimit(limit);
+			readStatsVO.setMatch(match);
+			readStatsVO.setMethod(MOCK_METHOD);
+			readStatsVO.setRows(1);
 		}
 	}
 
@@ -347,17 +348,17 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 
 	@Override
 	public void doClose() throws TapCodeException {
-		super.doClose();
+		long currentTimeMillis = System.currentTimeMillis();
+//		super.doClose();
+		long taken = System.currentTimeMillis() - currentTimeMillis;
+		taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().get(tableNode.getId()).setCloseTaken(taken);
 	}
 
 	@Override
 	protected void createPdkConnectorNode(DataProcessorContext dataProcessorContext, HazelcastInstance hazelcastInstance) {
-		super.createPdkConnectorNode(dataProcessorContext, hazelcastInstance);
-	}
-
-	@Override
-	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
-		super.connectorNodeInit(dataProcessorContext);
+		PreviewConnectionInfo previewConnectionInfo = taskPreviewInstance.getNodeConnectionInfoMap().get(tableNode.getConnectionId());
+		this.associateId = previewConnectionInfo.getAssociateId();
+		processorBaseContext.setPdkAssociateId(this.associateId);
 	}
 
 	@Override

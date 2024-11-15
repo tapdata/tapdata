@@ -19,6 +19,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.log.CustomPatternLayout;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.runtime.TapRuntime;
@@ -196,6 +197,7 @@ public class Application {
 			run.getBean(TapdataTaskScheduler.class).stopTaskIfNeed();
 			run.getBean(TapdataTaskScheduler.class).runTaskIfNeedWhenEngineStart();
 			PDKIntegration.registerMemoryFetcher(TaskGlobalVariable.class.getSimpleName(), TaskGlobalVariable.INSTANCE);
+			ConnectorNodeService.getInstance().startCleanGlobalConnectorThreadPool();
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);

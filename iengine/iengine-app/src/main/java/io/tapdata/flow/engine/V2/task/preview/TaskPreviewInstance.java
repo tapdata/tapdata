@@ -1,7 +1,13 @@
 package io.tapdata.flow.engine.V2.task.preview;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.preview.entity.PreviewConnectionInfo;
+import io.tapdata.schema.TapTableMap;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author samuel
@@ -13,6 +19,8 @@ public class TaskPreviewInstance {
 	private TaskPreviewResultVO taskPreviewResultVO;
 	private TaskClient<?> taskClient;
 	private PreviewReadOperationQueue previewReadOperationQueue;
+	private Map<String, PreviewConnectionInfo> nodeConnectionInfoMap = new HashMap<>();
+	private Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
 
 	public TaskDto getTaskDto() {
 		return taskDto;
@@ -44,5 +52,21 @@ public class TaskPreviewInstance {
 
 	public void setPreviewReadOperationQueue(PreviewReadOperationQueue previewReadOperationQueue) {
 		this.previewReadOperationQueue = previewReadOperationQueue;
+	}
+
+	public Map<String, PreviewConnectionInfo> getNodeConnectionInfoMap() {
+		return nodeConnectionInfoMap;
+	}
+
+	public void setNodeConnectionInfoMap(Map<String, PreviewConnectionInfo> nodeConnectionInfoMap) {
+		this.nodeConnectionInfoMap = nodeConnectionInfoMap;
+	}
+
+	public Map<String, TapTableMap<String, TapTable>> getTapTableMapHashMap() {
+		return tapTableMapHashMap;
+	}
+
+	public void setTapTableMapHashMap(Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap) {
+		this.tapTableMapHashMap = tapTableMapHashMap;
 	}
 }

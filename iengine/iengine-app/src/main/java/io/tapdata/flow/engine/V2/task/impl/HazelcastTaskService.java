@@ -73,6 +73,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
+import io.tapdata.flow.engine.V2.task.preview.TaskPreviewService;
+import io.tapdata.flow.engine.V2.task.preview.entity.PreviewConnectionInfo;
 import io.tapdata.flow.engine.V2.task.preview.node.HazelcastPreviewMergeNode;
 import io.tapdata.flow.engine.V2.task.preview.node.HazelcastPreviewSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.task.preview.node.HazelcastPreviewTargetNode;
@@ -85,6 +88,7 @@ import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -100,8 +104,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author jackin
@@ -337,8 +339,16 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				}
 
 				if (node instanceof DataParentNode) {
-					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
-					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+					if (taskDto.isPreviewTask()) {
+						TaskPreviewInstance taskPreviewInstance = TaskPreviewService.taskPreviewInstance(taskDto);
+						Map<String, PreviewConnectionInfo> nodeConnectionInfoMap = taskPreviewInstance.getNodeConnectionInfoMap();
+						PreviewConnectionInfo previewConnectionInfo = nodeConnectionInfoMap.get(((DataParentNode<?>) node).getConnectionId());
+						connection = previewConnectionInfo.getConnections();
+						databaseType = previewConnectionInfo.getDatabaseType();
+					} else {
+						connection = getConnection(((DataParentNode<?>) node).getConnectionId());
+						databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+					}
 					tableNode = node instanceof TableNode ? (TableNode) node : null;
 				} else if (node.isLogCollectorNode()) {
 					LogCollectorNode logCollectorNode = (LogCollectorNode) node;
@@ -402,28 +412,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	protected Map<String, TapTableMap<String, TapTable>> transformSchemaWhenPreview(TaskDto taskDto) {
-		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
-		tapTableMapHashMap = new HashMap<>();
-		boolean needTransformSchema = false;
-		List<Node> sourceNodes = taskDto.getDag().getSourceNodes();
-		for (Node sourceNode : sourceNodes) {
-			if (sourceNode instanceof TableNode) {
-				TableNode tableNode = (TableNode) sourceNode;
-				String previewQualifiedName = tableNode.getPreviewQualifiedName();
-				TapTable previewTapTable = tableNode.getPreviewTapTable();
-				if (StringUtils.isBlank(previewQualifiedName) || null == previewTapTable) {
-					needTransformSchema = true;
-					break;
-				}
-				TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(tableNode.getId());
-				tapTableMap.putNew(tableNode.getTableName(), previewTapTable, previewQualifiedName);
-				tapTableMapHashMap.put(tableNode.getId(), tapTableMap);
-			} else {
-				needTransformSchema = true;
-				break;
-			}
+		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = null;
+		TaskPreviewInstance taskPreviewInstance = TaskPreviewService.taskPreviewInstance(taskDto);
+		if (null != taskPreviewInstance) {
+			tapTableMapHashMap = taskPreviewInstance.getTapTableMapHashMap();
 		}
-		if (needTransformSchema) {
+		if (MapUtils.isEmpty(tapTableMapHashMap)) {
 			tapTableMapHashMap = engineTransformSchema(taskDto);
 		}
 		return tapTableMapHashMap;
@@ -969,27 +963,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	public Connections getConnection(String connectionId) {
-		return getConnection(connectionId, null);
-	}
-
-	private Connections getConnection(String connectionId, List<String> includeFields) {
-		Query query = new Query(where("_id").is(connectionId));
-		if (CollectionUtils.isNotEmpty(includeFields)) {
-			for (String includeField : includeFields) {
-				query.fields().include(includeField);
-			}
-		}
-		final Connections connections = clientMongoOperator.findOne(
-				query,
-				ConnectorConstant.CONNECTION_COLLECTION,
-				Connections.class
-		);
-		if (null == connections) {
-			throw new RuntimeException("Cannot find connection by id(" + connectionId + ")");
-		}
-		connections.decodeDatabasePassword();
-		connections.initCustomTimeZone();
-		return connections;
+		return ConnectionUtil.getConnection(connectionId, null);
 	}
 
 	protected TaskConfig getTaskConfig(TaskDto taskDto) {

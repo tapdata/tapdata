@@ -14,14 +14,10 @@ public class TaskPreviewReadStatsVO {
 	private DataMap match;
 	private String method;
 	private int rows;
+	private long initTaken;
+	private long closeTaken;
 
-	public TaskPreviewReadStatsVO(String tableName, long readTaken, int limit, DataMap match, String method, int rows) {
-		this.tableName = tableName;
-		this.readTaken = readTaken;
-		this.limit = limit;
-		this.match = match;
-		this.method = method;
-		this.rows = rows;
+	public TaskPreviewReadStatsVO() {
 	}
 
 	public String getTableName() {
@@ -46,5 +42,45 @@ public class TaskPreviewReadStatsVO {
 
 	public int getRows() {
 		return rows;
+	}
+
+	public long getInitTaken() {
+		return initTaken;
+	}
+
+	public void setInitTaken(long initTaken) {
+		this.initTaken = initTaken;
+	}
+
+	public void setTableName(String tableName) {
+		this.tableName = tableName;
+	}
+
+	public void setReadTaken(long readTaken) {
+		this.readTaken = readTaken;
+	}
+
+	public void setLimit(int limit) {
+		this.limit = limit;
+	}
+
+	public void setMatch(DataMap match) {
+		this.match = match;
+	}
+
+	public void setMethod(String method) {
+		this.method = method;
+	}
+
+	public void setRows(int rows) {
+		this.rows = rows;
+	}
+
+	public long getCloseTaken() {
+		return closeTaken;
+	}
+
+	public void setCloseTaken(long closeTaken) {
+		this.closeTaken = closeTaken;
 	}
 }
