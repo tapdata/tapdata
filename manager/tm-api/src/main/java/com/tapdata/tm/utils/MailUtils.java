@@ -499,6 +499,7 @@ public class MailUtils {
                 title = OEMReplaceUtil.replace(title, oemConfig);
                 content = OEMReplaceUtil.replace(assemblyMessageBody(content), oemConfig);
                 MailUtil.send(account, adressees, title ,content, true);
+                log.info("mail send successfully.");
             } catch (Exception e) {
                 log.error("mail send error：{}", e.getMessage(), e);
                 flag = false;
