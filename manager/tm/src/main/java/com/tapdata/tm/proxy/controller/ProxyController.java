@@ -7,6 +7,7 @@ import com.tapdata.tm.async.AsyncContextManager;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
@@ -59,6 +60,8 @@ import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
@@ -81,6 +84,8 @@ public class ProxyController extends BaseController {
 	private SettingsService settingsService;
     @Autowired
     private WorkerService workerService;
+	@Autowired
+	ProductComponent productComponent;
 
 	private static final int wsPort = 8246;
 
@@ -632,10 +637,23 @@ public class ProxyController extends BaseController {
 			newArgs[args.length] = context;
 			serviceCaller.setArgs(newArgs);
 		}
-
-//        if(locale != null)
-//            serviceCaller.setLocale(locale.toString());
 		executeEngineMessage(serviceCaller, request, response);
+	}
+
+	public void executeServiceCaller(ServiceCaller serviceCaller, BiConsumer<Object, Throwable> resultCallback) {
+		serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
+		serviceCaller.setReturnClass(Object.class.getName());
+		Object[] args = serviceCaller.getArgs();
+		DataMap context = null;
+		if (args == null) {
+			return;
+		} else {
+			Object[] newArgs = new Object[args.length + 1];
+			System.arraycopy(args, 0, newArgs, 0, args.length);
+			newArgs[args.length] = context;
+			serviceCaller.setArgs(newArgs);
+		}
+		executeEngineMessage(serviceCaller, resultCallback);
 	}
 
 	@Operation(summary = "External callback url")
@@ -689,18 +707,13 @@ public class ProxyController extends BaseController {
 			throw new BizException("Missing method");
 
         UserDetail userDetail = getLoginUser();
-        boolean isCloud = false;
-        if (productList != null && productList.contains("dfs")) { //is cloud env
-            isCloud = true;
-        }
-        if(isCloud) {
+        if(productComponent.isCloud()) {
             serviceCaller.subscribeIds("userId_" + userDetail.getUserId());
             WorkerExpireDto shareWorker = workerService.getShareWorker(userDetail);
             if (shareWorker != null) {
                 serviceCaller.orSubscribeIdSets(Sets.newHashSet("userId_" + shareWorker.getShareTmUserId()));
             }
         }
-//        Locale locale = WebUtils.getLocale(request);
 		executeServiceCaller(request, response, serviceCaller, userDetail);
 	}
 
@@ -765,6 +778,15 @@ public class ProxyController extends BaseController {
         }
     }
 
+	private void executeEngineMessage(EngineMessage engineMessage, BiConsumer<Object, Throwable> resultCallback) {
+		EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
+		try {
+			engineMessageExecutionService.call(engineMessage, resultCallback);
+		} catch(Throwable throwable) {
+			throw new RuntimeException(String.format("Error executing engineMessage: %s", engineMessage), throwable);
+		}
+	}
+
 	private void registerAsyncJob(String id, HttpServletRequest request, HttpServletResponse response) {
 		asyncContextManager.registerAsyncJob(id, request, (result, error) -> {
 			String responseStr;
@@ -810,5 +832,15 @@ public class ProxyController extends BaseController {
 			throw new BizException("commandExecutionService is null");
 		}
 		return engineMessageExecutionService;
+	}
+
+	@GetMapping("table/count")
+	public void count(@RequestParam String connectionId, @RequestParam String table, @RequestParam String readType, HttpServletRequest request, HttpServletResponse response) {
+		ServiceCaller serviceCaller = new ServiceCaller();
+		serviceCaller.setClassName("PdkCountService");
+		serviceCaller.setMethod("count");
+		Object[] args = {connectionId, table, readType};
+		serviceCaller.setArgs(args);
+		executeServiceCaller(request, response, serviceCaller, getLoginUser());
 	}
 }

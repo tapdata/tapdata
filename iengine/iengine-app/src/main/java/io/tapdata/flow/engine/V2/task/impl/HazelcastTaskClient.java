@@ -22,6 +22,7 @@ import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -73,16 +74,16 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		this.clientMongoOperator = clientMongoOperator;
 		this.configurationCenter = configurationCenter;
 		this.hazelcastInstance = hazelcastInstance;
-		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+		if (!taskDto.isTestTask() && !taskDto.isPreviewTask()) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop),new ConsumerImpl<>(this::terminalMode));
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop), new ConsumerImpl<>(this::terminalMode));
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			}
 			this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
-		}else{
+		} else {
 			this.autoRecovery = null;
 		}
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
@@ -207,6 +208,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 				error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))
 		);
 		CommonUtils.ignoreAnyError(() -> TaskGlobalVariable.INSTANCE.removeTask(taskDto.getId().toHexString()), TAG);
+		CommonUtils.ignoreAnyError(() -> TokenBucketRateLimiter.get().remove(taskDto.getId().toHexString()), TAG);
 	}
 
 	@Override

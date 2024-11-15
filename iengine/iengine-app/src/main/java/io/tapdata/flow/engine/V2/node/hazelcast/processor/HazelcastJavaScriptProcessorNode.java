@@ -15,6 +15,7 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.processor.standard.ScriptStandardizationUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -98,7 +99,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		this.globalTaskContent = new ConcurrentHashMap<>();
 	}
 
-	private Invocable getOrInitEngine() {
+	protected Invocable getOrInitEngine() {
 		String threadName = Thread.currentThread().getName();
 		return engineMap.computeIfAbsent(threadName, tn -> {
 			Node<?> node = getNode();
@@ -146,7 +147,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 								javaScriptFunctions,
 								clientMongoOperator,
 								scriptCacheService,
-								new ObsScriptLogger(obsLogger, logger),
+								new ObsScriptLogger(getScriptObsLogger(), logger),
 								this.standard)
 						: ScriptUtil.getScriptEngine(
 						JSEngineEnum.GRAALVM_JS.getEngineName(),
@@ -156,16 +157,16 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						null,
 						null,
 						scriptCacheService,
-						new ObsScriptLogger(obsLogger, logger),
+						new ObsScriptLogger(getScriptObsLogger(), logger),
 						this.standard);
 			} catch (ScriptException e) {
-				throw new TapCodeException(TaskProcessorExCode_11.INIT_SCRIPT_ENGINE_FAILED, e);
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e);
 			}
 			if (!this.standard) {
-				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(obsLogger), clientMongoOperator, jetContext.hazelcastInstance(),
+				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
 						node.getTaskId(), node.getId(),
-						StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-								TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA));
+						!processorBaseContext.getTaskDto().isNormalTask()
+				);
 				((ScriptEngine) engine).put("ScriptExecutorsManager", scriptExecutorsManager);
 				List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
 				List<Node<?>> successors = GraphUtil.successors(node, Node::isDataNode);
@@ -194,13 +195,14 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 					if (nodes.size() > 1) {
 						obsLogger.warn("Use the first node as the default script executor, please use it with caution.");
 					}
-					return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger));
+					return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(getScriptObsLogger()));
 				}
 			}
 		}
 		obsLogger.warn("The {} could not build the executor, please check", flag);
 		return null;
 	}
+
 
 	@SneakyThrows
 	@Override
@@ -244,6 +246,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		contextMap.put(BEFORE, before);
 		contextMap.put("info", tapEvent.getInfo());
 		contextMap.put("global", this.globalTaskContent);
+        contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
 		Map<String, Object> context = this.processContextThreadLocal.get();
 		context.putAll(contextMap);
 
@@ -253,9 +256,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		AtomicReference<Object> scriptInvokeResult = new AtomicReference<>();
 		AtomicReference<Object> scriptInvokeBeforeResult = new AtomicReference<>();
-		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-				TaskDto.SYNC_TYPE_TEST_RUN,
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+		if (!processorBaseContext.getTaskDto().isNormalTask()) {
 			Map<String, Object> finalRecord = afterMapInRecord;
 			CountDownLatch countDownLatch = new CountDownLatch(1);
 			AtomicReference<Throwable> errorAtomicRef = new AtomicReference<>();
@@ -275,14 +276,18 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
-				throw new TapCodeException(TaskProcessorExCode_11.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
 			}
 
 		} else {
-			scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
-			// handle before
-			if (standard && TapUpdateRecordEvent.TYPE == tapEvent.getType() && MapUtils.isNotEmpty(before)) {
-				scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
+			try {
+				scriptInvokeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, afterMapInRecord));
+				// handle before
+				if (standard && TapUpdateRecordEvent.TYPE == tapEvent.getType() && MapUtils.isNotEmpty(before)) {
+					scriptInvokeBeforeResult.set(engine.invokeFunction(ScriptUtil.FUNCTION_NAME, before));
+				}
+			} catch (Exception e) {
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, e.getCause()).dynamicDescriptionParameters(e.getMessage());
 			}
 		}
 

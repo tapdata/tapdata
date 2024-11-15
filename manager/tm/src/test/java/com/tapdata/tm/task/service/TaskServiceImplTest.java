@@ -5282,7 +5282,7 @@ class TaskServiceImplTest {
             timeout = 1000;
 
             DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
-            when(dataSourceService.getById(eq(connId), any(), any(), eq(user))).thenReturn(connDto);
+            when(dataSourceService.findById(any(ObjectId.class), any(Field.class))).thenReturn(connDto);
 
             doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
 
@@ -5294,7 +5294,7 @@ class TaskServiceImplTest {
             DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
             when(connDto.getLastUpdate()).thenReturn(beginTime + 1);
             when(connDto.getLoadFieldsStatus()).thenReturn(DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED);
-            when(dataSourceService.getById(eq(connId), any(), any(), eq(user))).thenReturn(connDto);
+            when(dataSourceService.findById(any(ObjectId.class), any(Field.class))).thenReturn(connDto);
 
             doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
 
@@ -5306,11 +5306,21 @@ class TaskServiceImplTest {
             DataSourceConnectionDto connDto = mock(DataSourceConnectionDto.class);
             when(connDto.getLastUpdate()).thenReturn(beginTime + 1);
             when(connDto.getLoadFieldsStatus()).thenReturn(DataSourceConnectionDto.LOAD_FIELD_STATUS_ERROR);
-            when(dataSourceService.getById(eq(connId), any(), any(), eq(user))).thenReturn(connDto);
+            when(dataSourceService.findById(any(ObjectId.class), any(Field.class))).thenReturn(connDto);
 
             doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
 
             taskService.wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, user);
+        }
+
+        @Test
+        void testNewConnIsNull() {
+            when(dataSourceService.findById(any(ObjectId.class), any(Field.class))).thenReturn(null);
+
+            doCallRealMethod().when(taskService).wait2ConnectionsLoadFinished(eq(taskId), eq(connId), eq(beginTime), eq(timeout), eq(user));
+
+            taskService.wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, user);
+
         }
     }
 }

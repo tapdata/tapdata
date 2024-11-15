@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.task.service.TaskService;
@@ -41,6 +42,7 @@ class LdpServiceImplTest {
 
     UserDetail user;
     MetadataInstancesService metadataInstancesService;
+    private TaskService taskService;
 
     @BeforeEach
     void init() {
@@ -52,6 +54,8 @@ class LdpServiceImplTest {
         metadataInstancesService = mock(MetadataInstancesServiceImpl.class);
         ReflectionTestUtils.setField(ldpService, "metadataInstancesService", metadataInstancesService);
         user = mock(UserDetail.class);
+        taskService = mock(TaskService.class);
+        ReflectionTestUtils.setField(ldpService,"taskService",taskService);
     }
 
     @Nested
@@ -193,14 +197,6 @@ class LdpServiceImplTest {
     }
     @Nested
     class ldpTableStatusTest{
-        private TaskService taskService;
-
-        @BeforeEach
-        void setUp() {
-            taskService = mock(TaskService.class);
-            ReflectionTestUtils.setField(ldpService,"taskService",taskService);
-        }
-
         @Test
         void testLdpTableStatus_FDM_RunningState() {
             String connectionId = "connection1";
@@ -333,6 +329,24 @@ class LdpServiceImplTest {
             Map<String, String> result = ldpService.ldpTableStatus(connectionId, tableNames, ldpType, user);
 
             assertEquals("running", result.get("table3"));
+        }
+    }
+
+    @Nested
+    class afterLdpTaskTest {
+        LiveDataPlatformService liveDataPlatformService;
+        @BeforeEach
+        void beforeEach() {
+            liveDataPlatformService = mock(LiveDataPlatformService.class);
+            ReflectionTestUtils.setField(ldpService, "liveDataPlatformService", liveDataPlatformService);
+        }
+        @Test
+        void testAfterLdpTaskSimple() {
+            user = mock(UserDetail.class);
+            String taskId = "6720c4a18c6b586b9e1b493b";
+            when(taskService.findById(any(ObjectId.class))).thenReturn(mock(TaskDto.class));
+            doCallRealMethod().when(ldpService).afterLdpTask(taskId, user);
+            ldpService.afterLdpTask(taskId, user);
         }
     }
 }

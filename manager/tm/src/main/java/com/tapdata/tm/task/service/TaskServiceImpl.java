@@ -5057,7 +5057,11 @@ public class TaskServiceImpl extends TaskService{
         fields.put(DataSourceConnectionDto.FIELD_LAST_UPDATE, 1);
         DataSourceConnectionDto newConn;
         do {
-            newConn = dataSourceService.getById(connId, fields, null, userDetail);
+            newConn = dataSourceService.findById(connId, fields);
+            if (null == newConn) {
+                log.info("Task '{}' connection '{}' refresh failed, not found", taskId, connId);
+                return;
+            }
             if (null != newConn.getLastUpdate() && beginTime < newConn.getLastUpdate()) {
                 if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(newConn.getLoadFieldsStatus())) {
                     log.info("Task '{}' connection '{}' refresh failed, status={}", taskId, connId, newConn.getStatus());

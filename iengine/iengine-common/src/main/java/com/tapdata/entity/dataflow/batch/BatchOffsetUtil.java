@@ -9,11 +9,12 @@ import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BatchOffsetUtil {
     @Deprecated
     protected static final String BATCH_READ_CONNECTOR_OFFSET = "batch_read_connector_offset";
-    protected static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
+    public static final String BATCH_READ_CONNECTOR_STATUS = "batch_read_connector_status";
     private BatchOffsetUtil(){
 
     }
@@ -55,6 +56,16 @@ public class BatchOffsetUtil {
             return tableBatchOffsetObj;
         }
         return batchOffsetObj;
+    }
+
+    public static Map<String, Boolean> getAllTableBatchOffsetInfo(SyncProgress syncProgress) {
+        Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+        Map<String, Boolean> tableOffset = new HashMap<>();
+        if (batchOffsetObj instanceof Map) {
+            Set<String> tables = ((Map<String, ?>) batchOffsetObj).keySet();
+            tables.forEach(key -> tableOffset.put(key, batchIsOverOfTable(syncProgress, key)));
+        }
+        return tableOffset;
     }
 
     public static void updateBatchOffset(SyncProgress syncProgress, String tableId, Object offset, String isOverTag) {

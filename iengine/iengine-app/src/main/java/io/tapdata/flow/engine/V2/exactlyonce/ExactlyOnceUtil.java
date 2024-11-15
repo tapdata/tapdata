@@ -52,7 +52,8 @@ public class ExactlyOnceUtil {
 					connectorNode.getCodecsFilterManager()
 			);
 		} catch (Exception e) {
-			throw new TapCodeException(TapExactlyOnceWriteExCode_22.TARGET_TYPES_GENERATOR_FAILED, "Name field: " + exactlyOnceTable.getNameFieldMap(), e);
+			throw new TapCodeException(TapExactlyOnceWriteExCode_22.TARGET_TYPES_GENERATOR_FAILED, "Name field: " + exactlyOnceTable.getNameFieldMap(), e)
+					.dynamicDescriptionParameters(exactlyOnceTable.getNameFieldMap());
 		}
 		exactlyOnceTable.setNameFieldMap(tapResult.getData());
 		exactlyOnceTable.add(new TapIndex().indexField(new TapIndexField().name("TIMESTAMP").fieldAsc(true)));
@@ -66,7 +67,8 @@ public class ExactlyOnceUtil {
 		exactlyOnceCacheRow.put(TABLE_NAME_COL_NAME, tableName);
 		String exactlyOnceId = tapRecordEvent.getExactlyOnceId();
 		if (StringUtils.isBlank(exactlyOnceId)) {
-			throw new TapCodeException(TapExactlyOnceWriteExCode_22.EXACTLY_ONCE_ID_IS_BLANK, "Record event: " + tapRecordEvent);
+			throw new TapCodeException(TapExactlyOnceWriteExCode_22.EXACTLY_ONCE_ID_IS_BLANK, "Record event tableId: " + tapRecordEvent.getTableId())
+					.dynamicDescriptionParameters(tapRecordEvent.getTableId());
 		}
 
 		if (exactlyOnceId.length() >= EXACTLY_ONCE_ID_COL_LENGTH) {

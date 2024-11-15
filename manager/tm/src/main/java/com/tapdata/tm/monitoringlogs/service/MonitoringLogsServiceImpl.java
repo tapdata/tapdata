@@ -250,6 +250,10 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
 
         criteria.and("timestamp").gte(param.getStart()).lt(param.getEnd());
 
+        if (CollectionUtils.isNotEmpty(param.getLogTags())) {
+            criteria.and("logTags").in(param.getLogTags());
+        }
+
         Query query = new Query(criteria);
         query.with(Sort.by("timestamp").ascending());
 

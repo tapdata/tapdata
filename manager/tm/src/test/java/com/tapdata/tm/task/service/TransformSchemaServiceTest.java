@@ -12,10 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -541,6 +538,30 @@ class TransformSchemaServiceTest {
             Assertions.assertEquals(0,result.size());
         }
 
+    }
+
+    @Nested
+    class transformerResultTest {
+        UserDetail user;
+        TransformerWsMessageResult result;
+        boolean saveHistory;
+        LdpService ldpService;
+        @BeforeEach
+        void beforeEach() {
+            user = mock(UserDetail.class);
+            result = mock(TransformerWsMessageResult.class);
+            saveHistory = true;
+            ldpService = mock(LdpService.class);
+            ReflectionTestUtils.setField(transformSchemaService, "ldpService", ldpService);
+        }
+        @Test
+        void testTransformerResultSimple() {
+            when(result.getTaskId()).thenReturn("6720c4a18c6b586b9e1b493b");
+            when(taskService.checkExistById(any(ObjectId.class), anyString())).thenReturn(mock(TaskDto.class));
+            doCallRealMethod().when(transformSchemaService).transformerResult(user, result, saveHistory);
+            transformSchemaService.transformerResult(user, result, saveHistory);
+            verify(ldpService, new Times(1)).afterLdpTask(anyString(), any(UserDetail.class));
+        }
     }
 
 }

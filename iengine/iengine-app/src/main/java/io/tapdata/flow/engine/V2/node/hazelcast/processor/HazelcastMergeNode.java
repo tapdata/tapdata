@@ -496,7 +496,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(mergeCacheInMemSize);
 				ConstructIMap<Document> hazelcastConstruct = checkBuildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				obsLogger.info("Create merge cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
+				obsLogger.info("Create merge cache, node id: {}, imap name: {}, external storage: {}", mergeProperty.getId(), String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 			}
 		}
 	}
@@ -1466,19 +1466,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			throw new TapCodeException(TaskMergeProcessorExCode_16.CANNOT_FOUND_PRE_NODE, String.format("Source id: %s", sourceId));
 		}
 		return predecessors.get(0);
-	}
-
-	private String getTableName(Node<?> preTableNode) {
-		String tableName;
-		if (preTableNode instanceof TableNode) {
-			tableName = ((TableNode) preTableNode).getTableName();
-			if (StringUtils.isBlank(tableName)) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK, String.format("Table node: %s", preTableNode));
-			}
-		} else {
-			tableName = preTableNode.getId();
-		}
-		return tableName;
 	}
 
 	private String getConnectionId(Node<?> preTableNode) {

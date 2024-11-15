@@ -33,6 +33,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	private final Logger logger = LogManager.getLogger(ObsLoggerFactory.class);
 
 	private volatile static ObsLoggerFactory INSTANCE;
+	private static final ObsLogger BLANK_LOGGER = new BlankObsLogger();
 
 	public static ObsLoggerFactory getInstance() {
 		if (INSTANCE == null) {
@@ -113,6 +114,9 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task) {
+		if (task.isPreviewTask()) {
+			return BLANK_LOGGER;
+		}
 		String taskId = task.getId().toHexString();
 		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.computeIfAbsent(taskId, k -> {
@@ -154,12 +158,22 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName) {
+		return getObsLogger(task, nodeId, nodeName, null);
+	}
+
+	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName, List<String> tags) {
+		if (task.isPreviewTask()) {
+			return BLANK_LOGGER;
+		}
 		TaskLogger taskLogger = (TaskLogger) getObsLogger(task);
 
 		String taskId = task.getId().toHexString();
 		taskLoggerNodeProxyMap.putIfAbsent(taskId, new ConcurrentHashMap<>());
 		taskLoggerNodeProxyMap.get(taskId).putIfAbsent(nodeId,
-				new TaskLoggerNodeProxy().withTaskLogger(taskLogger).withNode(nodeId, nodeName));
+				new TaskLoggerNodeProxy()
+						.withTaskLogger(taskLogger)
+						.withNode(nodeId, nodeName)
+						.withTags(tags));
 
 		return taskLoggerNodeProxyMap.get(taskId).get(nodeId);
 	}

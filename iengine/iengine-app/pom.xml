@@ -31,12 +31,12 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>async-tools-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
@@ -77,12 +77,12 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>service-skeleton-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>script-engine-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency> <!-- exclude掉spring-boot的默认log配置 -->
             <groupId>org.springframework.boot</groupId>

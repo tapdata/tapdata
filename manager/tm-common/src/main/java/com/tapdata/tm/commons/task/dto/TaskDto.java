@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.base.IDataPermissionDto;
 import com.tapdata.tm.commons.base.convert.DagDeserialize;
 import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
@@ -38,6 +39,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * 模型推演
      */
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
+    public static final String SYNC_TYPE_PREVIEW = "preview";
 
     public static final String LASTTASKRECORDID = "taskRecordId";
 
@@ -214,6 +216,14 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Long timeDifference;
 
+    private Integer previewRows;
+
+    /**
+     * Retry properties
+     */
+    private Long retryIntervalSecond = null;
+    private Long maxRetryTimeMinute = null;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
@@ -246,13 +256,29 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_TEST_RUN, SYNC_TYPE_DEDUCE_SCHEMA);
     }
 
+    public boolean isPreviewTask() {
+        return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_PREVIEW);
+    }
+
     public boolean isDeduceSchemaTask() {
         return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_DEDUCE_SCHEMA);
     }
 
     public boolean isNormalTask() {
-			return !isTestTask();
-		}
+        return !isTestTask() && !isPreviewTask();
+    }
+
+    public boolean isCDCTask() {
+        return TYPE_CDC.equals(getType());
+    }
+
+    public boolean hasSyncProgress() {
+        return null != getAttrs() && getAttrs().containsKey("syncProgress");
+    }
+
+    public boolean hasDisableNode() {
+        return null != dag && null != dag.getNodes() && dag.getNodes().stream().anyMatch(Element::disabledNode);
+    }
 
     @Data
     public static class SyncPoint implements Serializable {

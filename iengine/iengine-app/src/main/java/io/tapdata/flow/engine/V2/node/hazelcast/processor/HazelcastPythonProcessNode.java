@@ -12,6 +12,7 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.context.ProcessContext;
 import com.tapdata.processor.context.ProcessContextEvent;
+import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
@@ -41,11 +42,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import java.io.Closeable;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -95,12 +92,12 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 null,
                 null,
                 scriptCacheService,
-                new ObsScriptLogger(obsLogger, logger),
+                new ObsScriptLogger(getScriptObsLogger(), logger),
                 Application.class.getClassLoader());
         this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
         this.globalMap = new HashMap<>();
         this.scriptExecutorsManager = new ScriptExecutorsManager(
-            new ObsScriptLogger(obsLogger),
+            new ObsScriptLogger(getScriptObsLogger()),
             clientMongoOperator,
             jetContext.hazelcastInstance(),
             node.getTaskId(),
@@ -186,7 +183,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                 thread.interrupt();
             }
             if (errorAtomicRef.get() != null) {
-                throw new TapCodeException(TaskProcessorExCode_11.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
+                throw new TapCodeException(ScriptProcessorExCode_30.PYTHON_PROCESS_FAILED, errorAtomicRef.get());
             }
 
         } else {
@@ -253,7 +250,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
                     if (nodes.size() > 1) {
                         obsLogger.warn("Use the first node as the default python executor, please use it with caution.");
                     }
-                    return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(obsLogger));
+                    return this.scriptExecutorsManager.create(connections, clientMongoOperator, jetContext.hazelcastInstance(), new ObsScriptLogger(getScriptObsLogger()));
                 }
             }
         }

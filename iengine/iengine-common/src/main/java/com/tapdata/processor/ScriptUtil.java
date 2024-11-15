@@ -46,6 +46,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
@@ -178,12 +179,7 @@ public class ScriptUtil {
 				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
 			}
 			String scripts = script + System.lineSeparator() + buildInMethod;
-
-			try {
-				e.eval(scripts);
-			} catch (Exception ex) {
-				throw new TapCodeException(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader),ex);
-			}
+			e.eval(scripts);
 			if (source != null) {
 				e.put(SOURCE, source);
 			}
@@ -405,7 +401,7 @@ public class ScriptUtil {
 						} catch (Exception e) {
 							throw new TapCodeException(ScriptProcessorExCode_30.INIT_BUILD_IN_METHOD_FAILED,String.format("create function jar file %s", filePath), e);
 						}
-					}
+                    }
 				}
 			}
 			if (CollectionUtils.isNotEmpty(urlList)) {
@@ -422,8 +418,8 @@ public class ScriptUtil {
 			if (consumer != null) {
 				consumer.accept(urlClassLoader);
 			}
-		}catch (IOException e){
-			throw new TapCodeException(ScriptProcessorExCode_30.URL_CLASS_LOADER_ERROR,String.format("Url class loader failed: %s",urlList),e);
+		}catch (Exception e){
+			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,String.format("Failed to get script engine: %s", e.getMessage()),e);
 		}
 	}
 
@@ -525,7 +521,7 @@ public class ScriptUtil {
 		try {
 			e.eval(scripts);
 		} catch (Exception ex) {
-			throw new TapCodeException(ScriptProcessorExCode_30.GET_PYTHON_ENGINE_FAILED,String.format("Incorrect python code, script eval %s, please check your python code",e),ex);
+			throw new TapCodeException(ScriptProcessorExCode_30.GET_PYTHON_ENGINE_FAILED,String.format("Incorrect python code, script eval %s, please check your python code",e),ex).dynamicDescriptionParameters(ex.getMessage());
 		}
 		Optional.ofNullable(source).ifPresent(s -> e.put(SOURCE, s));
 		Optional.ofNullable(target).ifPresent(s -> e.put(TARGET, s));

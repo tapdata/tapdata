@@ -1,9 +1,10 @@
 package io.tapdata.observable.logging;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import org.apache.commons.collections.CollectionUtils;
 import org.jetbrains.annotations.NotNull;
-
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
@@ -14,6 +15,7 @@ class TaskLoggerNodeProxy extends ObsLogger {
 	private TaskLogger taskLogger;
 	private String nodeId;
 	private String nodeName;
+	private List<String> logTags;
 
 	TaskLoggerNodeProxy withTaskLogger(TaskLogger taskLogger) {
 		this.taskLogger = taskLogger;
@@ -23,6 +25,11 @@ class TaskLoggerNodeProxy extends ObsLogger {
 	TaskLoggerNodeProxy withNode(String nodeId, String nodeName) {
 		this.nodeId = nodeId;
 		this.nodeName = nodeName;
+		return this;
+	}
+
+	TaskLoggerNodeProxy withTags(List<String> tags) {
+		this.logTags = tags;
 		return this;
 	}
 
@@ -82,14 +89,16 @@ class TaskLoggerNodeProxy extends ObsLogger {
 	public MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilder() {
 		Date date = new Date();
 
-		return MonitoringLogsDto.builder()
+		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder()
 				.date(date)
 				.timestamp(date.getTime())
 				.taskId(taskLogger.getTaskId())
 				.taskName(taskLogger.getTaskName())
 				.taskRecordId(taskLogger.getTaskRecordId())
 				.nodeId(nodeId)
-				.nodeName(nodeName)
-				;
+				.nodeName(nodeName);
+		if (CollectionUtils.isNotEmpty(logTags))
+			builder.logTags(logTags);
+		return builder;
 	}
 }

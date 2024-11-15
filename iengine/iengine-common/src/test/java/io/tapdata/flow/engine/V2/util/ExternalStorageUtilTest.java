@@ -2,13 +2,20 @@ package io.tapdata.flow.engine.V2.util;
 
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.config.PersistenceRocksDBConfig;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.OsUtil;
+import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.error.ExternalStorageExCode_26;
+import io.tapdata.exception.TapCodeException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 
- class ExternalStorageUtilTest {
+class ExternalStorageUtilTest {
 
     @Test
      void getRocksDBConfigTest(){
@@ -33,5 +40,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
         assertEquals(exceptData,actualData.getPath());
 
     }
+    @DisplayName("testGetTapdataOrDefaultExternalStorage when ExternalStorage config is null")
+     @Test
+     void testGetTapdataOrDefaultExternalStorage() {
+         HttpClientMongoOperator httpClientMongoOperator = mock(HttpClientMongoOperator.class);
+         ConnectorConstant.clientMongoOperator=httpClientMongoOperator;
+         TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+             ExternalStorageDto tapdataOrDefaultExternalStorage = ExternalStorageUtil.getTapdataOrDefaultExternalStorage();
+         });
+         assertEquals(ExternalStorageExCode_26.CANNOT_FOUND_EXTERNAL_STORAGE_CONFIG,tapCodeException.getCode());
+     }
 
 }
