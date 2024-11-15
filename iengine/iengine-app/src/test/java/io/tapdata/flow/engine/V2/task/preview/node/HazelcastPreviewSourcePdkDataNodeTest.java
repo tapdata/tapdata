@@ -105,12 +105,15 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 		@DisplayName("test main process")
 		void test1() {
 			doAnswer(invocationOnMock -> null).when(hazelcastPreviewSourcePdkDataNode).createPdkConnectorNode(dataProcessorContext, hazelcastInstance);
-			doAnswer(invocationOnMock -> null).when(hazelcastPreviewSourcePdkDataNode).connectorNodeInit(dataProcessorContext);
+			TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
+			taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
+			TaskPreviewInstance taskPreviewInstance = new TaskPreviewInstance();
+			taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
+			ReflectionTestUtils.setField(hazelcastPreviewSourcePdkDataNode, "taskPreviewInstance", taskPreviewInstance);
 			hazelcastPreviewSourcePdkDataNode.doInit(context);
 
 			verify(hazelcastPreviewSourcePdkDataNode).initTapLogger();
 			verify(hazelcastPreviewSourcePdkDataNode).createPdkConnectorNode(dataProcessorContext, hazelcastInstance);
-			verify(hazelcastPreviewSourcePdkDataNode).connectorNodeInit(dataProcessorContext);
 			verify(hazelcastPreviewSourcePdkDataNode).initTapCodecsFilterManager();
 		}
 	}
@@ -312,7 +315,6 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			}).when(queryByAdvanceFilterFunction).query(any(), eq(tapAdvanceFilter), eq(tapTable), any()));
 			TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
 			taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
-			taskPreviewResultVO.getStats().setReadStats(new ArrayList<>());
 			TaskPreviewInstance taskPreviewInstance = new TaskPreviewInstance();
 			taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 			ReflectionTestUtils.setField(hazelcastPreviewSourcePdkDataNode, "taskPreviewInstance", taskPreviewInstance);
@@ -321,9 +323,9 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			assertNotNull(read);
 			assertEquals(1, read.size());
 			assertEquals(data, read.get(0).getAfter());
-			List<TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
+			Map<String, TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
 			assertEquals(1, read.size());
-			TaskPreviewReadStatsVO readStatsVO = readStats.get(0);
+			TaskPreviewReadStatsVO readStatsVO = readStats.get(tableNode.getId());
 			assertEquals(PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER.name(), readStatsVO.getMethod());
 			assertEquals(((TableNode) tableNode).getTableName(), readStatsVO.getTableName());
 			assertEquals(tapAdvanceFilter.getLimit(), readStatsVO.getLimit());
@@ -374,7 +376,6 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			}).when(batchReadFunction).batchRead(any(), eq(tapTable), any(), anyInt(), any()));
 			TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
 			taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
-			taskPreviewResultVO.getStats().setReadStats(new ArrayList<>());
 			TaskPreviewInstance taskPreviewInstance = new TaskPreviewInstance();
 			taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 			ReflectionTestUtils.setField(hazelcastPreviewSourcePdkDataNode, "taskPreviewInstance", taskPreviewInstance);
@@ -383,9 +384,9 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			assertNotNull(read);
 			assertEquals(1, read.size());
 			assertEquals(data1, read.get(0).getAfter());
-			List<TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
+			Map<String, TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
 			assertEquals(1, read.size());
-			TaskPreviewReadStatsVO readStatsVO = readStats.get(0);
+			TaskPreviewReadStatsVO readStatsVO = readStats.get(tableNode.getId());
 			assertEquals(PDKMethod.SOURCE_BATCH_READ.name(), readStatsVO.getMethod());
 			assertEquals(((TableNode) tableNode).getTableName(), readStatsVO.getTableName());
 			assertEquals(tapAdvanceFilter.getLimit(), readStatsVO.getLimit());
@@ -438,7 +439,6 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
 			TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
 			taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
-			taskPreviewResultVO.getStats().setReadStats(new ArrayList<>());
 			TaskPreviewInstance taskPreviewInstance = new TaskPreviewInstance();
 			taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 			ReflectionTestUtils.setField(hazelcastPreviewSourcePdkDataNode, "taskPreviewInstance", taskPreviewInstance);
@@ -448,9 +448,9 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			assertInstanceOf(TapInsertRecordEvent.class, handleResult.get(0));
 			assertEquals(4, ((TapInsertRecordEvent) handleResult.get(0)).getAfter().size());
 			assertEquals(1, ((TapInsertRecordEvent) handleResult.get(0)).getAfter().get("id"));
-			List<TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
+			Map<String, TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
 			assertEquals(1, handleResult.size());
-			TaskPreviewReadStatsVO readStatsVO = readStats.get(0);
+			TaskPreviewReadStatsVO readStatsVO = readStats.get(tableNode.getId());
 			assertEquals(HazelcastPreviewSourcePdkDataNode.MOCK_METHOD, readStatsVO.getMethod());
 			assertEquals(((TableNode) tableNode).getTableName(), readStatsVO.getTableName());
 			assertEquals(tapAdvanceFilter.getLimit(), readStatsVO.getLimit());
@@ -475,7 +475,6 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
 			TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
 			taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
-			taskPreviewResultVO.getStats().setReadStats(new ArrayList<>());
 			TaskPreviewInstance taskPreviewInstance = new TaskPreviewInstance();
 			taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 			ReflectionTestUtils.setField(hazelcastPreviewSourcePdkDataNode, "taskPreviewInstance", taskPreviewInstance);
@@ -485,9 +484,9 @@ class HazelcastPreviewSourcePdkDataNodeTest {
 			assertInstanceOf(TapInsertRecordEvent.class, handleResult.get(0));
 			assertEquals(4, ((TapInsertRecordEvent) handleResult.get(0)).getAfter().size());
 			assertEquals(1, ((TapInsertRecordEvent) handleResult.get(0)).getAfter().get("id"));
-			List<TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
+			Map<String, TaskPreviewReadStatsVO> readStats = taskPreviewResultVO.getStats().getReadStats();
 			assertEquals(1, handleResult.size());
-			TaskPreviewReadStatsVO readStatsVO = readStats.get(0);
+			TaskPreviewReadStatsVO readStatsVO = readStats.get(tableNode.getId());
 			assertEquals(HazelcastPreviewSourcePdkDataNode.MOCK_METHOD, readStatsVO.getMethod());
 			assertEquals(((TableNode) tableNode).getTableName(), readStatsVO.getTableName());
 			assertEquals(tapAdvanceFilter.getLimit(), readStatsVO.getLimit());

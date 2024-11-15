@@ -6,6 +6,7 @@ import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.PreviewTargetNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -13,14 +14,20 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.utils.StopWatch;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
+import io.tapdata.flow.engine.V2.task.preview.entity.PreviewConnectionInfo;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewMergeReadTasklet;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewNormalReadTasklet;
 import io.tapdata.flow.engine.V2.task.preview.tasklet.PreviewReadTasklet;
+import io.tapdata.log.EmptyLog;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -66,6 +73,13 @@ public class TaskPreviewService {
 		String taskPreviewInstanceId = taskPreviewInstanceId(taskDto);
 		taskPreviewInstanceMap.put(taskPreviewInstanceId, taskPreviewInstance);
 		initGlobalVariable(taskDto);
+		try {
+			initNodeConnectionInfoMap(taskDto);
+		} catch (Exception e) {
+			logger.error("Init connector node failed, task: {}({})", taskDto.getName(), taskDto.getId().toString(), e);
+			taskPreviewInstance.getTaskPreviewResultVO().failed(e);
+			return taskPreviewInstance.getTaskPreviewResultVO();
+		}
 		stopWatch.stop();
 		previewPrivate(taskDto, stopWatch);
 		stopWatch.start("after");
@@ -114,7 +128,6 @@ public class TaskPreviewService {
 		taskPreviewInstance.setTaskDto(taskDto);
 		TaskPreviewResultVO taskPreviewResultVO = new TaskPreviewResultVO(taskDto);
 		taskPreviewResultVO.setStats(new TaskPReviewStatsVO());
-		taskPreviewResultVO.getStats().setReadStats(new ArrayList<>());
 		taskPreviewInstance.setTaskPreviewResultVO(taskPreviewResultVO);
 		PreviewReadOperationQueue previewReadOperationQueue = new PreviewReadOperationQueue(taskDto.getPreviewRows());
 		taskPreviewInstance.setPreviewReadOperationQueue(previewReadOperationQueue);
@@ -160,17 +173,13 @@ public class TaskPreviewService {
 				taskDtoTaskClient.join();
 				stopWatch.start("stopTask");
 				while (!taskDtoTaskClient.stop()) {
-					try {
-						TimeUnit.MILLISECONDS.sleep(1L);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-						break;
-					}
+					TimeUnit.MILLISECONDS.sleep(1L);
 				}
 			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 		} catch (Exception e) {
 			taskPreviewResultVO.failed(e);
-			Thread.currentThread().interrupt();
 		} finally {
 			Optional.ofNullable(previewReadTaskletExecutor).ifPresent(ExecutorService::shutdownNow);
 		}
@@ -291,5 +300,66 @@ public class TaskPreviewService {
 
 	public static TaskPreviewInstance taskPreviewInstance(TaskDto taskDto) {
 		return taskPreviewInstanceMap.get(taskPreviewInstanceId(taskDto));
+	}
+
+	protected Map<String, TapTableMap<String, TapTable>> transformSchemaWhenPreview(TaskDto taskDto) {
+		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
+		tapTableMapHashMap = new HashMap<>();
+		boolean needTransformSchema = false;
+		List<Node> sourceNodes = taskDto.getDag().getSourceNodes();
+		for (Node sourceNode : sourceNodes) {
+			if (sourceNode instanceof TableNode) {
+				TableNode tableNode = (TableNode) sourceNode;
+				String previewQualifiedName = tableNode.getPreviewQualifiedName();
+				TapTable previewTapTable = tableNode.getPreviewTapTable();
+				if (StringUtils.isBlank(previewQualifiedName) || null == previewTapTable) {
+					needTransformSchema = true;
+					break;
+				}
+				TapTableMap<String, TapTable> tapTableMap = TapTableMap.create(tableNode.getId());
+				tapTableMap.putNew(tableNode.getTableName(), previewTapTable, previewQualifiedName);
+				tapTableMapHashMap.put(tableNode.getId(), tapTableMap);
+			} else {
+				needTransformSchema = true;
+				break;
+			}
+		}
+		if (needTransformSchema) {
+			return new HashMap<>();
+		}
+		return tapTableMapHashMap;
+	}
+
+	protected void initNodeConnectionInfoMap(TaskDto taskDto) {
+		if (null == taskDto) {
+			return;
+		}
+		DAG dag = taskDto.getDag();
+		List<Node> sourceNodes = dag.getSourceNodes();
+		TaskPreviewInstance taskPreviewInstance = taskPreviewInstanceMap.get(taskPreviewInstanceId(taskDto));
+		Map<String, PreviewConnectionInfo> nodeConnectionInfoMap = taskPreviewInstance.getNodeConnectionInfoMap();
+		for (Node sourceNode : sourceNodes) {
+			if (!(sourceNode instanceof DataParentNode)) {
+				continue;
+			}
+			taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().put(sourceNode.getId(), new TaskPreviewReadStatsVO());
+			String connectionId = ((DataParentNode<?>) sourceNode).getConnectionId();
+			if (nodeConnectionInfoMap.containsKey(connectionId)) {
+				continue;
+			}
+			PreviewConnectionInfo previewConnectionInfo = new PreviewConnectionInfo();
+			Map<String, TapTableMap<String, TapTable>> tableMapMap = transformSchemaWhenPreview(taskDto);
+			taskPreviewInstance.setTapTableMapHashMap(tableMapMap);
+
+			ConnectorNodeService.getInstance().globalConnectorNode(connectionId, tableMapMap.get(sourceNode.getId()), new EmptyLog(), (result, err) -> {
+				if (null != err) {
+					throw err;
+				}
+				previewConnectionInfo.setConnections(result.getConnections());
+				previewConnectionInfo.setAssociateId(result.getAssociateId());
+				taskPreviewInstance.getTaskPreviewResultVO().getStats().getReadStats().get(sourceNode.getId()).setInitTaken(result.getConnectorNodeInitTaken());
+			});
+			nodeConnectionInfoMap.put(connectionId, previewConnectionInfo);
+		}
 	}
 }

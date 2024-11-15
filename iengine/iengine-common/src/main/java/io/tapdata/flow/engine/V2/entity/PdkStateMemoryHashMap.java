@@ -1,6 +1,4 @@
-package io.tapdata.flow.engine.V2.task.preview;
-
-import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+package io.tapdata.flow.engine.V2.entity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,10 +8,10 @@ import java.util.Map;
  * @Description
  * @create 2024-09-30 18:55
  **/
-public class PreviewPdkStateMap extends PdkStateMap {
+public class PdkStateMemoryHashMap extends PdkStateMap {
 	private Map<String, Object> map = new HashMap<>();
 
-	public PreviewPdkStateMap() {
+	public PdkStateMemoryHashMap() {
 	}
 
 	@Override

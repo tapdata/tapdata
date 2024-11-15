@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.task.impl;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.jet.Jet;
 import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.Job;
 import com.hazelcast.jet.config.JobConfig;
@@ -39,6 +38,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
+import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
+import io.tapdata.flow.engine.V2.task.preview.TaskPreviewService;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
@@ -1080,17 +1081,19 @@ public class HazelcastTaskServiceTest {
             TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
             taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
             Node node = taskDto.getDag().getNodes().get(0);
-            TableNode tableNode = assertInstanceOf(TableNode.class, node);
-            TapTable tapTable = new TapTable("POLICY");
-            tapTable.add(new TapField("POLICY_ID", "varchar(50)").tapType(new TapString()))
-                    .add(new TapField("QUOTE_DAY", "datetime").tapType(new TapDateTime()));
-            tableNode.setPreviewTapTable(tapTable);
-            tableNode.setPreviewQualifiedName("1");
-            Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = hazelcastTaskService.transformSchemaWhenPreview(taskDto);
-            assertNotNull(nodeTapTableMap);
-            TapTableMap<String, TapTable> tapTableMap = nodeTapTableMap.get(tableNode.getId());
-            assertSame(tapTable, tapTableMap.get("POLICY"));
-            verify(hazelcastTaskService, never()).engineTransformSchema(any(TaskDto.class));
+            TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+            Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = new HashMap<>();
+            nodeTapTableMap.put(node.getId(), tapTableMap);
+            try (
+                    MockedStatic<TaskPreviewService> taskPreviewServiceMockedStatic = mockStatic(TaskPreviewService.class)
+            ) {
+                TaskPreviewInstance taskPreviewInstance = mock(TaskPreviewInstance.class);
+                when(taskPreviewInstance.getTapTableMapHashMap()).thenReturn(nodeTapTableMap);
+                taskPreviewServiceMockedStatic.when(() -> TaskPreviewService.taskPreviewInstance(taskDto)).thenReturn(taskPreviewInstance);
+                Map<String, TapTableMap<String, TapTable>> result = hazelcastTaskService.transformSchemaWhenPreview(taskDto);
+                assertSame(result, nodeTapTableMap);
+                verify(hazelcastTaskService, never()).engineTransformSchema(any(TaskDto.class));
+            }
         }
 
         @Test
