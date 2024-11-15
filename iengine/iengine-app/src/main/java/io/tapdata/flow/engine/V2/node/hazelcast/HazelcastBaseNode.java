@@ -29,6 +29,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.DataNodeCloseAspect;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -889,9 +890,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 						event.getPartitionMasterTableId() : event.getTable().getPartitionMasterTableId();
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), partitionMasterTableId);
 				metadata.setPartitionInfo(event.getTable().getPartitionInfo());
-				metadata.setName(tableName);
+				/*metadata.setName(tableName);
 				metadata.setOriginalName(tableName);
-				metadata.setAncestorsName(event.getTable().getId());
+				metadata.setAncestorsName(event.getTable().getId());*/
 			} else {
 				metadata = dagDataService.getSchemaByNodeAndTableName(getNode().getId(), tableName);
 			}
@@ -906,12 +907,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				}
 				TapTable tapTable = dagDataService.getTapTable(qualifiedName);
 				if (tapTableMap.containsKey(tableName)) {
+					tapTable.setPartitionInfo(metadata.getPartitionInfo());
 					tapTableMap.put(tableName, tapTable);
 				} else {
-					tapTableMap.putNew(tableName, tapTable, qualifiedName);
+					// convert sub partition tap table using master table metadata
+					TapTable subPartitionTapTable = PdkSchemaConvert.toPdk(metadata);
+					subPartitionTapTable.setName(tableName);
+					subPartitionTapTable.setId(tableName);
+					subPartitionTapTable.setAncestorsName(event.getTable().getId());
+					subPartitionTapTable.setPartitionInfo(metadata.getPartitionInfo());
+					tapTableMap.putNew(tableName, subPartitionTapTable, qualifiedName);
 				}
-				tapTable.setPartitionInfo(metadata.getPartitionInfo());
-				tapTable.setAncestorsName(event.getTable().getId());
 			} else {
 				throw new TapCodeException(TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED, String.format("Node: %s(%s), table name: %s", getNode().getName(), getNode().getId(), tableName));
 			}
