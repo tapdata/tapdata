@@ -1193,7 +1193,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			tapdataEvents.add(tapdataEvent);
 		}
-		tapdataEvents.add(new TapdataSourceBatchSplitEvent());
+//		tapdataEvents.add(new TapdataSourceBatchSplitEvent());
 		return tapdataEvents;
 	}
 
