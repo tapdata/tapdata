@@ -143,7 +143,7 @@ public class PdkUtil {
 	}
 
 	public static Object decodeOffset(String offset, ConnectorNode connectorNode) {
-		if (StringUtils.isNotBlank(offset)) {
+		if (StringUtils.isNotBlank(offset) && null != connectorNode) {
 			byte[] bytes = Base64.decodeBase64(offset);
 			return InstanceFactory.instance(ObjectSerializable.class)
 					.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(connectorNode.getConnectorClassLoader()));

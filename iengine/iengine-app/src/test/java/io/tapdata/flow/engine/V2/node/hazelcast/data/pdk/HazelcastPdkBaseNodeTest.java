@@ -686,5 +686,12 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
             hazelcastPdkBaseNode.readBatchOffset(syncProgress);
             assertEquals(1, ((Map)syncProgress.getBatchOffsetObj()).size());
         }
-    }
+
+		@Test
+		@DisplayName("test when tap table map is null")
+		void test1() {
+			SyncProgress syncProgress = new SyncProgress();
+			assertDoesNotThrow(() -> hazelcastPdkBaseNode.cleanTableBatchOffsetIfNeed(syncProgress));
+		}
+	}
 }

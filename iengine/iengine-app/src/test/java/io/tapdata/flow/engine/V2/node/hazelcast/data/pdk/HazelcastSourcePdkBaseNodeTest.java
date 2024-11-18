@@ -835,6 +835,18 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
 			assertTrue(((Map) syncProgress.getBatchOffsetObj()).isEmpty());
 		}
+
+		@Test
+		@DisplayName("test when connector node is null")
+		void test1() {
+			doReturn(null).when(instance).getConnectorNode();
+			Map<String, Object> fakeBatchOffset = new HashMap<>();
+			fakeBatchOffset.put("test", 1);
+			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
+			instance.readBatchOffset(syncProgress);
+			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
+			assertTrue(((Map<?, ?>) syncProgress.getBatchOffsetObj()).isEmpty());
+		}
 	}
 
 	@Nested
