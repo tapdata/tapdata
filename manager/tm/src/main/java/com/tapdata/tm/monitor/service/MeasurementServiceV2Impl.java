@@ -79,6 +79,11 @@ import java.util.stream.Collectors;
 public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
     public static final String REPLICATE_LAG = "replicateLag";
     public static final String TASK_ID = "taskId";
+    public static final String TAGS_TASK_ID = "tags.taskId";
+    public static final String TAGS_TASK_RECORD_ID = "tags.taskRecordId";
+    public static final String TAGS_TYPE = "tags.type";
+    public static final String TABLE = "table";
+    public static final String TAGS_TABLE = "tags.table";
     private final MongoTemplate mongoOperations;
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
@@ -113,7 +118,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             }
 
             Date theDate = TimeUtil.cleanTimeAfterMinute(date);
-            if (!"table".equals(tags.get("type"))) {
+            if (!TABLE.equals(tags.get("type"))) {
                 criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
             }
 
@@ -136,7 +141,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             Update update = new Update()
                     .min(MeasurementEntity.FIELD_FIRST, requestSample.get().getDate())
                     .max(MeasurementEntity.FIELD_LAST, requestSample.get().getDate());
-            if ("table".equals(tags.get("type"))) {
+            if (TABLE.equals(tags.get("type"))) {
                 update.set(MeasurementEntity.FIELD_SAMPLES, Collections.singletonList(sampleMap));
                 update.set(MeasurementEntity.FIELD_DATE, theDate);
             } else {
@@ -308,7 +313,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             String format = String.format(TAG_FORMAT, entry.getKey());
             String value = entry.getValue();
             criteria.and(format).is(value);
-            if (format.equals("tags.type")) {
+            if (format.equals(TAGS_TYPE)) {
                 if ("task".equals(value)) {
                     typeIsTask = true;
                 } else if ("engine".equals(value)) {
@@ -317,10 +322,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                     typeIsNode = true;
                 }
             }
-            if (format.equals("tags.taskId")) {
+            if (format.equals(TAGS_TASK_ID)) {
                 taskId = value;
             }
-            if (format.equals("tags.taskRecordId")) {
+            if (format.equals(TAGS_TASK_RECORD_ID)) {
                 taskRecordId = value;
             }
         }
@@ -871,7 +876,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        Query query = Query.query(Criteria.where("tags.taskId").is(taskId));
+        Query query = Query.query(Criteria.where(TAGS_TASK_ID).is(taskId));
         DeleteResult result = mongoOperations.remove(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
         log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
@@ -879,9 +884,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     @Override
     public Long[] countEventByTaskRecord(String taskId, String taskRecordId) {
-        Query query = new Query(Criteria.where("tags.taskId").is(taskId)
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("task")
+        Query query = new Query(Criteria.where(TAGS_TASK_ID).is(taskId)
+                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
+                .and(TAGS_TYPE).is("task")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
                 .and(MeasurementEntity.FIELD_DATE).lte(new Date()));
         query.with(Sort.by(MeasurementEntity.FIELD_DATE).descending());
@@ -927,19 +932,19 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             return runTables;
         }
 
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("table")
+        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
+                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
+                .and(TAGS_TYPE).is(TABLE)
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
         Query query = new Query(criteria);
-        query.fields().include("tags.table");
+        query.fields().include(TAGS_TABLE);
         List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         if (CollectionUtils.isNotEmpty(measurementEntities)) {
             for (MeasurementEntity measurementEntity : measurementEntities) {
                 Map<String, String> tags = measurementEntity.getTags();
-                if (tags != null && tags.get("table") != null) {
-                    runTables.add(tags.get("table"));
+                if (tags != null && tags.get(TABLE) != null) {
+                    runTables.add(tags.get(TABLE));
                 }
             }
         }
@@ -962,9 +967,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
             hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
         }
 
-        Criteria criteria = Criteria.where("tags.taskId").is(taskDto.getId().toHexString())
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("table")
+        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskDto.getId().toHexString())
+                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
+                .and(TAGS_TYPE).is(TABLE)
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
         querySyncByTableName(dto,criteria);
@@ -1018,7 +1023,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
         List<TableSyncStaticVo> result = new ArrayList<>();
         for (MeasurementEntity measurementEntity : measurementEntities) {
-            String originTable = measurementEntity.getTags().get("table");
+            String originTable = measurementEntity.getTags().get(TABLE);
             AtomicReference<String> originTableName = new AtomicReference<>();
             boolean finalHasTableRenameNode = hasTableRenameNode;
             List<TableNode> finalCollect = collect;
@@ -1099,16 +1104,16 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     public void querySyncByTableName(TableSyncStaticDto dto, Criteria criteria){
         if(StringUtils.isNotBlank(dto.getTableName())){
-            criteria.and("tags.table").regex(dto.getTableName());
+            criteria.and(TAGS_TABLE).regex(dto.getTableName());
         }
     }
 
 	@Override
     public List<SyncStatusStatisticsVo> queryTableSyncStatusStatistics(SyncStatusStatisticsParam param) {
 		AggregationResults<SyncStatusStatisticsVo> aggregationResults = mongoOperations.aggregate(Aggregation.newAggregation(
-			Aggregation.match(Criteria.where("tags.taskId").is(param.getTaskId())
-				.and("tags.taskRecordId").is(param.getTaskRecordId())
-				.and("tags.type").is("table")
+			Aggregation.match(Criteria.where(TAGS_TASK_ID).is(param.getTaskId())
+				.and(TAGS_TASK_RECORD_ID).is(param.getTaskRecordId())
+				.and(TAGS_TYPE).is(TABLE)
 				.and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)),
 			Aggregation.unwind("$ss"),
 			Aggregation.project(Fields.from(
@@ -1131,9 +1136,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
      */
     @Override
     public MeasurementEntity findLastMinuteByTaskId(String taskId) {
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
                 .and("grnty").is("minute")
-                .and("tags.type").is("task");
+                .and(TAGS_TYPE).is("task");
 
         Query query = new Query(criteria);
         query.fields().include("ss", "tags");
@@ -1144,9 +1149,9 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     @Override
     public void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto) {
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
                 .and("grnty").is("minute")
-                .and("tags.type").is("task");
+                .and(TAGS_TYPE).is("task");
         Query query = new Query(criteria);
         query.fields().include("ss", "tags");
         query.with(Sort.by("last").descending());
@@ -1176,10 +1181,10 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
 
     @Override
     public void cleanRemovedTableMeasurement(String taskId, String taskRecordId, String tableName) {
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
-                .and("tags.taskRecordId").is(taskRecordId)
-                .and("tags.type").is("table")
-                .and("tags.table").is(tableName)
+        Criteria criteria = Criteria.where(TAGS_TASK_ID).is(taskId)
+                .and(TAGS_TASK_RECORD_ID).is(taskRecordId)
+                .and(TAGS_TYPE).is(TABLE)
+                .and(TAGS_TABLE).is(tableName)
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
         Query query = new Query(criteria);
