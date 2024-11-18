@@ -792,4 +792,19 @@ class MeasurementServiceV2ImplTest {
         }
     }
 
+    @Nested
+    class cleanRemovedTableMeasurementTest{
+        @Test
+        void testCleanRemovedTableMeasurementNormal() {
+            String taskId = "111";
+            String taskRecordId = "222";
+            String tableName = "table1";
+            MongoTemplate mongoOperations;
+            mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            doCallRealMethod().when(measurementServiceV2).cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
+            measurementServiceV2.cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
+            verify(mongoOperations, new Times(1)).remove(any(Query.class), any(Class.class), anyString());
+        }
+    }
 }

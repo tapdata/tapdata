@@ -1173,4 +1173,16 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         }
 
     }
+
+    @Override
+    public void cleanRemovedTableMeasurement(String taskId, String taskRecordId, String tableName) {
+        Criteria criteria = Criteria.where("tags.taskId").is(taskId)
+                .and("tags.taskRecordId").is(taskRecordId)
+                .and("tags.type").is("table")
+                .and("tags.table").is(tableName)
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+
+        Query query = new Query(criteria);
+        mongoOperations.remove(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+    }
 }
