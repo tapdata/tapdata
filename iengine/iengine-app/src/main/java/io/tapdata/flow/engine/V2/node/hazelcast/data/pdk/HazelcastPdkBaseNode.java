@@ -472,14 +472,18 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		String batchOffset = syncProgress.getBatchOffset();
 		if (StringUtils.isNotBlank(batchOffset)) {
 			syncProgress.setBatchOffsetObj(PdkUtil.decodeOffset(batchOffset, getConnectorNode()));
-		} else {
+		}
+		if (null == syncProgress.getBatchOffsetObj()) {
 			syncProgress.setBatchOffsetObj(new HashMap<>());
 		}
 		cleanTableBatchOffsetIfNeed(syncProgress);
 	}
 
-	private void cleanTableBatchOffsetIfNeed(SyncProgress syncProgress) {
+	protected void cleanTableBatchOffsetIfNeed(SyncProgress syncProgress) {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (null == tapTableMap) {
+			return;
+		}
 		Object batchOffsetObj = syncProgress.getBatchOffsetObj();
 		if (batchOffsetObj instanceof Map) {
 			Set<String> tableIds = tapTableMap.keySet();
