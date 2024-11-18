@@ -19,6 +19,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
@@ -792,4 +793,54 @@ class MeasurementServiceV2ImplTest {
         }
     }
 
+    @Nested
+    class cleanRemovedTableMeasurementTest {
+        @Test
+        void testCleanRemovedTableMeasurementNormal() {
+            String taskId = "111";
+            String taskRecordId = "222";
+            String tableName = "table1";
+            MongoTemplate mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            doCallRealMethod().when(measurementServiceV2).cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
+            measurementServiceV2.cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
+            verify(mongoOperations, new Times(1)).remove(any(Query.class), any(Class.class), anyString());
+        }
+    }
+
+    @Nested
+    class findRunTableTest {
+        @Test
+        void testFindRunTableNormal() {
+            String taskId = "111";
+            String taskRecordId = "222";
+            MongoTemplate mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            List<MeasurementEntity> measurementEntities = new ArrayList<>();
+            MeasurementEntity measurementEntity = mock(MeasurementEntity.class);
+            measurementEntities.add(measurementEntity);
+            Map<String, String> tags = new HashMap<>();
+            tags.put("table", "test");
+            when(measurementEntity.getTags()).thenReturn(tags);
+            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(measurementEntities);
+            doCallRealMethod().when(measurementServiceV2).findRunTable(taskId, taskRecordId);
+            List<String> actual = measurementServiceV2.findRunTable(taskId, taskRecordId);
+            verify(mongoOperations, new Times(1)).find(any(Query.class), any(Class.class), anyString());
+            assertEquals("test", actual.get(0));
+        }
+    }
+
+    @Nested
+    class queryTableSyncStatusStatisticsTest{
+        @Test
+        void testQueryTableSyncStatusStatisticsNormal(){
+            MongoTemplate mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            when(mongoOperations.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(mock(AggregationResults.class));
+            SyncStatusStatisticsParam param = mock(SyncStatusStatisticsParam.class);
+            doCallRealMethod().when(measurementServiceV2).queryTableSyncStatusStatistics(param);
+            measurementServiceV2.queryTableSyncStatusStatistics(param);
+            verify(mongoOperations, new Times(1)).aggregate(any(Aggregation.class), anyString(), any(Class.class));
+        }
+    }
 }

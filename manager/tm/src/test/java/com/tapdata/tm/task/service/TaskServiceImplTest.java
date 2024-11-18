@@ -5323,4 +5323,44 @@ class TaskServiceImplTest {
 
         }
     }
+
+    @Nested
+    class cleanRemovedTableMeasurementIfNeedTest {
+        private TaskDto taskDto;
+        private MeasurementServiceV2 measurementServiceV2;
+        private String taskId;
+        private String taskRecordId;
+
+        @BeforeEach
+        void beforeEach() {
+            taskDto = mock(TaskDto.class);
+            taskId = "6739ff5046a4de5089e231de";
+            when(taskDto.getId()).thenReturn(new ObjectId(taskId));
+            taskRecordId = "673a010846a4de5089e278d9";
+            when(taskDto.getTaskRecordId()).thenReturn(taskRecordId);
+            measurementServiceV2 = mock(MeasurementServiceV2.class);
+            ReflectionTestUtils.setField(taskService, "measurementServiceV2", measurementServiceV2);
+        }
+
+        @Test
+        @DisplayName("test cleanRemovedTableMeasurementIfNeed normal")
+        void test1() {
+            DAG dag = mock(DAG.class);
+            when(taskDto.getDag()).thenReturn(dag);
+            LinkedList<DatabaseNode> sourceNode = new LinkedList<>();
+            DatabaseNode node = mock(DatabaseNode.class);
+            sourceNode.add(node);
+            when(dag.getSourceNode()).thenReturn(sourceNode);
+            List<String> tables = new ArrayList<>();
+            tables.add("table1");
+            when(node.getTableNames()).thenReturn(tables);
+            List<String> runTables = new ArrayList<>();
+            runTables.add("table1");
+            runTables.add("table2");
+            when(measurementServiceV2.findRunTable(anyString(), anyString())).thenReturn(runTables);
+            doCallRealMethod().when(taskService).cleanRemovedTableMeasurementIfNeed(taskDto);
+            taskService.cleanRemovedTableMeasurementIfNeed(taskDto);
+            verify(measurementServiceV2, new Times(1)).cleanRemovedTableMeasurement(taskId, taskRecordId, "table2");
+        }
+    }
 }
