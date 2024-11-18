@@ -479,7 +479,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		cleanTableBatchOffsetIfNeed(syncProgress);
 	}
 
-	private void cleanTableBatchOffsetIfNeed(SyncProgress syncProgress) {
+	protected void cleanTableBatchOffsetIfNeed(SyncProgress syncProgress) {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		if (null == tapTableMap) {
 			return;
