@@ -20,7 +20,11 @@ public abstract class ObsLogger implements Serializable, TapLogger {
 
 	private static final long serialVersionUID = -2297877575311105139L;
 
+	public static final String LOG_TAG_SOURCE_FOR_USER_SCRIPT = "src=user_script";
+
 	public abstract MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilder();
+
+	public abstract void trace(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
 
 	public abstract void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
 
@@ -43,6 +47,10 @@ public abstract class ObsLogger implements Serializable, TapLogger {
 	public abstract boolean isFatalEnabled();
 
 	// debug level public logger api
+
+	public void trace(String message, Object... params) {
+		trace(this::logBaseBuilder, message, params);
+	}
 
 	public void debug(String message, Object... params) {
 		debug(this::logBaseBuilder, message, params);

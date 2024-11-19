@@ -16,6 +16,11 @@ public class BlankObsLogger extends ObsLogger {
 	}
 
 	@Override
+	public void trace(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
+
+	}
+
+	@Override
 	public void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
 
 	}
