@@ -875,7 +875,10 @@ public class UserServiceImpl extends UserService{
             String[] searchBase = searchBases.split(";");
             for (String base : searchBase) {
                 boolean isExist = searchWithFilter(ctx, base, sAMAccountNameFilter, searchControls) || searchWithFilter(ctx, base, userPrincipalNameFilter, searchControls);
-                if (isExist) return true;
+                if (isExist) {
+                    ldapLoginDto.setBaseDN(base);
+                    return true;
+                }
             }
             return false;
         } catch (NamingException e) {
@@ -902,6 +905,7 @@ public class UserServiceImpl extends UserService{
     protected DirContext buildDirContext(LdapLoginDto ldapLoginDto) throws NamingException {
         String ldapUrl = ldapLoginDto.getLdapUrl();
         String bindDn = ldapLoginDto.getBindDN();
+        String baseDN = ldapLoginDto.getBaseDN();
         String password = ldapLoginDto.getPassword();
         Boolean ssl = ldapLoginDto.isSslEnable();
         String certFile = ldapLoginDto.getCert();
@@ -909,6 +913,10 @@ public class UserServiceImpl extends UserService{
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put(Context.PROVIDER_URL, ldapUrl);
         env.put(Context.SECURITY_AUTHENTICATION, "simple");
+        if (!bindDn.contains("@") && StringUtils.isNotBlank(baseDN)) {
+            String domain = convertBaseDnToDomain(baseDN);
+            bindDn = bindDn + "@" + domain;
+        }
         env.put(Context.SECURITY_PRINCIPAL, bindDn);
         env.put(Context.SECURITY_CREDENTIALS, password);
         if (ssl) {
@@ -923,6 +931,22 @@ public class UserServiceImpl extends UserService{
         DirContext ctx = new InitialDirContext(env);
         return ctx;
     }
+
+    protected String convertBaseDnToDomain(String baseDn) {
+        String[] parts = baseDn.split(",");
+        StringBuilder domain = new StringBuilder();
+        for (String part : parts) {
+            part = part.trim();
+            if (part.startsWith("DC=") || part.startsWith("dc=")) {
+                if (domain.length() > 0) {
+                    domain.append(".");
+                }
+                domain.append(part.substring(3));
+            }
+        }
+        return domain.length() > 0 ? domain.toString() : null;
+    }
+
     protected SSLContext createSSLContext(InputStream certFile) throws Exception {
         // load custom cert
         CertificateFactory cf = CertificateFactory.getInstance("X.509");

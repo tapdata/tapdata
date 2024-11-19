@@ -487,6 +487,25 @@ public class UserServiceImplTest {
             when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
             assertThrows(NamingException.class, () -> userService.buildDirContext(adLoginDto));
         }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_BindDn_Contains() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenReturn(sslContext);
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            assertThrows(NamingException.class, () -> userService.buildDirContext(adLoginDto));
+        }
     }
 
     @Nested
