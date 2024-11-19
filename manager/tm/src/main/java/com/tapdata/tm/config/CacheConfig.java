@@ -1,7 +1,7 @@
 package com.tapdata.tm.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
-import org.springframework.cache.Cache;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -24,15 +24,21 @@ public class CacheConfig {
     public CacheManager memoryCacheManager() {
         return new ConcurrentMapCacheManager();
     }
+    @Value("${cache.expire:10}")
+    private Integer expire;
+    @Value("${cache.initialCapacity:100}")
+    private Integer initialCapacity;
+    @Value("${cache.maximumSize:500}")
+    private Integer maximumSize;
 
     @Bean("caffeineCache")
     @Primary
     public CaffeineCacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager();
         cacheManager.setCaffeine(Caffeine.newBuilder()
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .initialCapacity(100)
-                .maximumSize(500)
+                .expireAfterWrite(expire, TimeUnit.MINUTES)
+                .initialCapacity(initialCapacity)
+                .maximumSize(maximumSize)
         );
         return cacheManager;
     }

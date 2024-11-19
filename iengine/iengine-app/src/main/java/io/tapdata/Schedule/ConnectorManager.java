@@ -619,7 +619,7 @@ public class ConnectorManager {
 		return SchemaProxy.SchemaProxyInstance.INSTANCE.getInstance(clientMongoOperator);
 	}
 
-	@Scheduled(fixedDelay = 2000L)
+	@Scheduled(fixedDelay = 1000L * 60 * 60)
 	public void refreshToken() throws InterruptedException {
 		Thread.currentThread().setName(String.format(ConnectorConstant.REFREASH_TOKEN_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		User user = (User) configCenter.getConfig(ConfigurationCenter.USER_INFO);
