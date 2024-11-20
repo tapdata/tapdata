@@ -17,6 +17,12 @@ public class CommonUtilTest {
             boolean result = CommonUtil.compareBoolean(true, null);
             assertEquals(false,result);
         }
+        @DisplayName("test one value is boolean")
+        @Test
+        void test5(){
+            boolean result = CommonUtil.compareBoolean(null, true);
+            assertEquals(false,result);
+        }
         @DisplayName("test two value is null")
         @Test
         void test2(){
@@ -148,6 +154,16 @@ public class CommonUtilTest {
             val2[0] = true;
             int result = CommonUtil.compareObjects(val1, val2);
             assertEquals(-1, result);
+        }
+        @DisplayName("test val2 is boolean and val1 can not cast to boolean")
+        @Test
+        void test4(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = "1";
+            val2[0] = true;
+            int result = CommonUtil.compareObjects(val1, val2);
+            assertEquals(0, result);
         }
     }
 }
