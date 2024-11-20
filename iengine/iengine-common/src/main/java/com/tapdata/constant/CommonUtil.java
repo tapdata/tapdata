@@ -103,7 +103,7 @@ public class CommonUtil {
 		if (null == val1 && null == val2){
 			return true;
 		}
-		if (val2 == null) {
+		if (null == val1 || null == val2) {
 			return false;
 		}
 		if (val2 instanceof Boolean) {
