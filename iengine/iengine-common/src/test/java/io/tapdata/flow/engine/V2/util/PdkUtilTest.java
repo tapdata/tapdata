@@ -3,14 +3,14 @@ package io.tapdata.flow.engine.V2.util;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
 import com.tapdata.tm.utils.PdkSourceUtils;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.io.FileUtils;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
@@ -20,6 +20,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -129,6 +130,43 @@ public class PdkUtilTest {
                     }
                 }
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("Method decodeOffset test")
+    class decodeOffsetTest{
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            String offset = "offset";
+            ConnectorNode connectorNode = mock(ConnectorNode.class);
+            ObjectSerializable objectSerializable = mock(ObjectSerializable.class);
+            Object mockDecodeResult = new Object();
+            when(objectSerializable.toObject(any(), any())).thenReturn(mockDecodeResult);
+            try (
+                    MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)
+            ) {
+                instanceFactoryMockedStatic.when(() -> InstanceFactory.instance(ObjectSerializable.class)).thenReturn(objectSerializable);
+
+                Object result = assertDoesNotThrow(() -> PdkUtil.decodeOffset(offset, connectorNode));
+                assertSame(mockDecodeResult, result);
+            }
+        }
+
+        @Test
+        @DisplayName("test offset is blank or null")
+        void test2() {
+            ConnectorNode connectorNode = mock(ConnectorNode.class);
+            assertNull(assertDoesNotThrow(()->PdkUtil.decodeOffset("", connectorNode)));
+            assertNull(assertDoesNotThrow(() -> PdkUtil.decodeOffset(null, connectorNode)));
+        }
+
+        @Test
+        @DisplayName("test connector node is null")
+        void test3() {
+            String offset = "offset";
+            assertNull(assertDoesNotThrow(() -> PdkUtil.decodeOffset(offset, null)));
         }
     }
 }
