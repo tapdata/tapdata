@@ -161,6 +161,10 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         }
         criteria.and("level").in(levels);
 
+        if (CollectionUtils.isNotEmpty(param.getLogTags())) {
+            criteria.and("logTags").in(param.getLogTags());
+        }
+
         // sort and _id filter, avoid duplicate data
         Sort sort = Sort.by("date");
         switch (param.getOrder()) {
