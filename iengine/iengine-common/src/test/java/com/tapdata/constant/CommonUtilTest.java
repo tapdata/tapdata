@@ -110,5 +110,44 @@ public class CommonUtilTest {
             Boolean aBoolean = CommonUtil.toBoolean("1");
             assertEquals(true,aBoolean);
         }
+        @DisplayName("test string not 0,false,1,true")
+        @Test
+        void test14(){
+            Boolean aBoolean = CommonUtil.toBoolean("2");
+            assertEquals(null,aBoolean);
+        }
+    }
+    @Nested
+    class compareObjectsTest{
+        @DisplayName("test val1 is boolean and val2 can cast to boolean")
+        @Test
+        void test1() {
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = true;
+            val2[0] = "1";
+            int result = CommonUtil.compareObjects(val1, val2);
+            assertEquals(0, result);
+        }
+        @DisplayName("test val1 is boolean and val2 can not cast to boolean")
+        @Test
+        void test2(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = true;
+            val2[0] = "2";
+            int result = CommonUtil.compareObjects(val1, val2);
+            assertEquals(1, result);
+        }
+        @DisplayName("test val2 is boolean and val1 can not cast to boolean")
+        @Test
+        void test3(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = 2;
+            val2[0] = true;
+            int result = CommonUtil.compareObjects(val1, val2);
+            assertEquals(-1, result);
+        }
     }
 }
