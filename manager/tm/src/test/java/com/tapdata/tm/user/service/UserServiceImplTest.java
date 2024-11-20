@@ -1,5 +1,7 @@
 package com.tapdata.tm.user.service;
 
+import com.tapdata.tm.Permission.dto.PermissionDto;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingUtil;
@@ -8,11 +10,15 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.role.dto.RoleDto;
+import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.user.dto.LdapLoginDto;
 import com.tapdata.tm.user.dto.TestLdapDto;
+import com.tapdata.tm.user.dto.UserDto;
 import lombok.SneakyThrows;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -30,6 +36,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,14 +46,20 @@ public class UserServiceImplTest {
     private UserServiceImpl userService;
     private RoleMappingService roleMappingService;
     private SettingsService settingsService;
+    private RoleService roleService;
+    private PermissionService permissionService;
 
     @BeforeEach
     void beforeEach(){
         userService = mock(UserServiceImpl.class);
         roleMappingService = mock(RoleMappingService.class);
         settingsService = mock(SettingsService.class);
+        roleService = mock(RoleService.class);
+        permissionService = mock(PermissionService.class);
         ReflectionTestUtils.setField(userService, "settingsService", settingsService);
         ReflectionTestUtils.setField(userService, "roleMappingService", roleMappingService);
+        ReflectionTestUtils.setField(userService, "roleService", roleService);
+        ReflectionTestUtils.setField(userService, "permissionService", permissionService);
     }
 
     @Nested
@@ -560,4 +573,74 @@ public class UserServiceImplTest {
             "hinNPHvFAMDUY7HfrdDfCoEIZSK4u/xFQscsNsE3hywVYYN7uz8wy502fEHzwIgp\n" +
             "/3vC2igEWcqhxJn9iiIHAzA0mZoS1DOKhgFG\n" +
             "-----END CERTIFICATE-----";
+
+
+    @Nested
+    class GetUserDetailTest{
+
+        @Test
+        void test_main(){
+            doCallRealMethod().when(userService).getUserDetail(anyString());
+            UserDto userDto = new UserDto();
+            userDto.setCreateAt(new Date());
+            when(userService.findById(any())).thenReturn(userDto);
+            List<RoleMappingDto> roleMappingDtoList =  new ArrayList<>();
+            RoleMappingDto roleMappingDto = new RoleMappingDto();
+            ObjectId id = new ObjectId();
+            roleMappingDto.setRoleId(id);
+            roleMappingDtoList.add(roleMappingDto);
+            List<RoleDto> roleDtos = new ArrayList<>();
+            RoleDto roleDto = new RoleDto();
+            roleDto.setId(id);
+            roleDtos.add(roleDto);
+            when(roleService.findAll(any(Query.class))).thenReturn(roleDtos);
+            when(roleMappingService.getUser(any(),any())).thenReturn(roleMappingDtoList);
+            List<PermissionDto> permissionDtos = new ArrayList<>();
+            PermissionDto permissionDto = new PermissionDto();
+            permissionDto.setId("test");
+            permissionDtos.add(permissionDto);
+            when(permissionService.getCurrentPermission(anyString())).thenReturn(permissionDtos);
+            UserDto result = userService.getUserDetail("test");
+            Assertions.assertEquals(1,result.getPermissions().size());
+            Assertions.assertEquals(1,result.getRoleMappings().size());
+        }
+
+        @Test
+        void test_roleDtosIsNull(){
+            doCallRealMethod().when(userService).getUserDetail(anyString());
+            UserDto userDto = new UserDto();
+            userDto.setCreateAt(new Date());
+            when(userService.findById(any())).thenReturn(userDto);
+            List<RoleMappingDto> roleMappingDtoList =  new ArrayList<>();
+            RoleMappingDto roleMappingDto = new RoleMappingDto();
+            ObjectId id = new ObjectId();
+            roleMappingDto.setRoleId(id);
+            roleMappingDtoList.add(roleMappingDto);
+            when(roleService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            when(roleMappingService.getUser(any(),any())).thenReturn(roleMappingDtoList);
+            List<PermissionDto> permissionDtos = new ArrayList<>();
+            PermissionDto permissionDto = new PermissionDto();
+            permissionDto.setId("test");
+            permissionDtos.add(permissionDto);
+            when(permissionService.getCurrentPermission(anyString())).thenReturn(permissionDtos);
+            UserDto result = userService.getUserDetail("test");
+            Assertions.assertEquals(1,result.getPermissions().size());
+            Assertions.assertEquals(1,result.getRoleMappings().size());
+        }
+
+        @Test
+        void test_roleMappingAndPermissionIsEmpty(){
+            doCallRealMethod().when(userService).getUserDetail(anyString());
+            UserDto userDto = new UserDto();
+            userDto.setCreateAt(new Date());
+            when(userService.findById(any())).thenReturn(userDto);
+            when(roleMappingService.getUser(any(),any())).thenReturn(new ArrayList<>());
+            when(permissionService.getCurrentPermission(anyString())).thenReturn(new ArrayList<>());
+            UserDto result = userService.getUserDetail("test");
+            Assertions.assertNull(result.getRoleMappings());
+        }
+
+
+    }
 }
+
