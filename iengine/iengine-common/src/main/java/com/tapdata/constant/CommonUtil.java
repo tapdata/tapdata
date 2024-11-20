@@ -54,7 +54,12 @@ public class CommonUtil {
 		for (int i = 0; i < len1; i++) {
 			Object obj1 = val1[i];
 			Object obj2 = val2[i];
-
+			if (obj1 instanceof Boolean && !(obj2 instanceof Boolean)) {
+				obj2 = toBoolean(obj2);
+			}
+			if (obj2 instanceof Boolean && !(obj1 instanceof Boolean)) {
+				obj1 = toBoolean(obj1);
+			}
 			if (obj1 == null && obj2 == null) {
 				continue; // Both are null, compare the next element
 			} else if (obj1 == null) {
@@ -87,5 +92,59 @@ public class CommonUtil {
 		}
 
 		return 0; // Both arrays are equal
+	}
+
+	/**
+	 * @param val1
+	 * @param val2
+	 * @return 相等返回true，不相等返回false
+	 */
+	public static boolean compareBoolean(Boolean val1, Object val2) {
+		if (null == val1 && null == val2){
+			return true;
+		}
+		if (val2 == null) {
+			return false;
+		}
+		if (val2 instanceof Boolean) {
+			return val1.equals(val2);
+		}
+		Boolean val2Boolean =CommonUtil.toBoolean(val2);
+		return val1.equals(val2Boolean);
+	}
+
+
+	public static Boolean toBoolean(Object val) {
+		if (val instanceof Number) {
+			long intValue = ((Number) val).longValue();
+			if (intValue == 0) {
+				return false;
+			} else if (intValue == 1) {
+				return true;
+			} else {
+				return null;
+			}
+		}
+		if (val instanceof BigDecimal) {
+			BigDecimal bigDecimalValue = (BigDecimal) val;
+			if (bigDecimalValue.compareTo(BigDecimal.ZERO) == 0) {
+				return false;
+			} else if (bigDecimalValue.compareTo(BigDecimal.ONE) == 0) {
+				return true;
+			} else {
+				return null;
+			}
+		}
+		if (val instanceof String) {
+			String str = val.toString().toLowerCase().trim();
+			if ("0".equals(str) || "false".equals(str)) {
+				return false;
+			} else if ("1".equals(str) || "true".equals(str)) {
+				return true;
+			} else {
+				return null;
+			}
+		}
+		return null;
 	}
 }
