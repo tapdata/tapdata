@@ -31,7 +31,8 @@ public class MonitoringLogQueryParam {
     private String taskRecordId;
     private String search;
     private List<String> levels;
-    private List<String> logTags;
+    private List<String> includeLogTags;
+    private List<String> excludeLogTags;
 
     private String type = "monitor";
 
