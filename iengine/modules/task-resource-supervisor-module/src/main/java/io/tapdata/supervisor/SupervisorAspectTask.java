@@ -19,7 +19,7 @@ import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false, order = 1)
+@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_LOG_COLLECTOR}, ignoreErrors = false, order = 1)
 public class SupervisorAspectTask extends AbstractAspectTask {
     private static final String TAG = SupervisorAspectTask.class.getSimpleName();
     @Bean
