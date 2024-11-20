@@ -16,6 +16,7 @@ import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.exception.TapCodeException;
@@ -1394,6 +1395,14 @@ class MilestoneAspectTaskTest {
 		aspect.error(new TapCodeException("test1"));
 		milestoneAspectTask.setError(aspect, entity);
 		Assertions.assertEquals("test", entity.getErrorCode());
+
+		entity = new MilestoneEntity();
+		aspect = new WriteErrorAspect();
+		CoreException coreError = new CoreException("test");
+		coreError.setCode(1);
+		aspect.error(coreError);
+		milestoneAspectTask.setError(aspect, entity);
+		Assertions.assertEquals("1", entity.getErrorCode());
 	}
 
 	@Test
@@ -1411,9 +1420,22 @@ class MilestoneAspectTaskTest {
 		Assertions.assertEquals("test", entity.getErrorCode());
 
 		aspect = new EngineDeductionAspect();
-		aspect.error(new TapCodeException("test1"));
+		TapCodeException error = new TapCodeException("test1");
+		error.dynamicDescriptionParameters("test1", "test2");
+		aspect.error(error);
 		milestoneAspectTask.setError(aspect, entity);
 		Assertions.assertEquals("test", entity.getErrorCode());
+		Assertions.assertNotNull(entity.getDynamicDescriptionParameters());
+		Assertions.assertEquals(2, entity.getDynamicDescriptionParameters().length);
+
+		entity = new MilestoneEntity();
+		aspect = new EngineDeductionAspect();
+		CoreException coreError = new CoreException("test1");
+		coreError.setCode(1);
+		aspect.error(coreError);
+		milestoneAspectTask.setError(aspect, entity);
+		Assertions.assertEquals("1", entity.getErrorCode());
+		Assertions.assertNull(entity.getDynamicDescriptionParameters());
 	}
 
 }
