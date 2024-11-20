@@ -17,7 +17,7 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Failed to look up data from the cache based on the federated key when looking up the data in the subtable",
 			describeCN = "反查子表数据时，根据联合键从缓存中查找数据失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"Main table node name :{}, reverse lookup sub-table node name :{}, union key value :{}, encoded union key value :{}, configured external storage database type :{}, external storage name :{}, storage structure table name :{}",
+					"Main table node name :{}, reverse lookup sub-table node name :{}, union key value :{}, encoded union key value :{}, configured external storage database type :{}, external storage name :{}, storage structure table name :{} ",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
 					"主表节点名称:{}，反查子表的节点名称:{}，联合键值:{}，编码后的联合键值:{}，配置的外存数据库类型为:{}，外存名称为:{}，存储结构表名：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
@@ -55,7 +55,10 @@ public interface TaskMergeProcessorExCode_16 {
 			solution = "1. Add a primary key or unique index to the table in the database of the source table, based on the table name suggested\n" +
 					"2. Add the enhanced JS node after the node name indicating the missing primary key. In the enhanced JS basic Settings, click Use Model Declaration and add the TapModelDeclare.setPk(tapTable, 'fieldName') script to the script to set the logical primary key for the source table. Restart tasks",
 			solutionCN = "1. 根据提示的表名，在源表的数据库中为表添加主键或唯一索引\n" +
-					"2. 根据提示缺少主键的的节点名，在对应的节点后面添加增强JS节点。在增强JS的基础设置中点击使用模型声明，并在脚本中添加TapModelDeclare.setPk(tapTable, 'fieldName')脚本，为源表设置逻辑主键后。重新启动任务"
+					"2. 根据提示缺少主键的的节点名，在对应的节点后面添加增强JS节点。在增强JS的基础设置中点击使用模型声明，并在脚本中添加\n" +
+					"<pre><code>TapModelDeclare.setPk(tapTable, 'fieldName')" +
+					"</code></pre>\n" +
+					"为源表设置逻辑主键后。重新启动任务"
 	)
 	String TAP_MERGE_TABLE_NO_PRIMARY_KEY = "16006";
 
@@ -75,7 +78,7 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Updating or writing to the cache, finding data from the cache based on the federated key failed",
 			describeCN = "更新或写入缓存时，根据联合键从缓存中查找原有数据失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"Table name: {}, node name: {}, association key: {}, encoded association key: {}, primary key or unique index key: {}, encoded primary key or unique index key: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
+					"node name: {}, Table name: {},  association key: {}, encoded association key: {}, primary key or unique index key: {}, encoded primary key or unique index key: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
 					"节点名称：{}，表名：{}，关联键值：{}，编码后的关联键值：{}，主键或唯一键值：{}，编码后的主键或唯一键值：{}，更新或写入的数据：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
@@ -88,7 +91,7 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Update or write cache failed",
 			describeCN = "更新或写入缓存失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"The external storage database type configured is :{}, the external storage name is :{}",
+					"Node name: {}, table name: {}, association key: {}, encoded association key: {}, primary or unique key: {}, encoded primary or unique key: {}, updated or written data: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
 					"节点名称：{}，表名：{}，关联键值：{}，编码后的关联键值：{}，主键或唯一键值：{}，编码后的主键或唯一键值：{}，更新或写入的数据：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
@@ -101,9 +104,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Deleting cache, finding data from the cache based on the federated key failed",
 			describeCN = "删除缓存时，根据联合键从缓存中查找数据失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"The external storage database type configured is :{}, the external storage name is :{}",
+					"Node name: {}, table name: {}, association key value: {}, encoded association key value: {}, primary or unique key value: {}, encoded primary or unique key value: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
-					"节点名称：{}，表名：{}，关联键值：{}，编码后的关联键值：{}，主键或唯一键值：{}，编码后的主键或唯一键值：{}，更新或写入的数据：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
+					"节点名称：{}，表名：{}，关联键值：{}，编码后的关联键值：{}，主键或唯一键值：{}，编码后的主键或唯一键值：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
 			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
@@ -161,45 +164,46 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "In the master-slave merge configuration, the source join key configuration is missing",
 			describeCN = "主从合并节点的配置中，缺少源端关联条件配置",
 			dynamicDescription = "Node name: {} The subsequent master-slave merge node is missing the associated key configuration",
-			dynamicDescriptionCN = "节点名：{}后继的主从合并节点缺少关联键配置：{}",
-			solution = "1. Please find the master-slave merge node according to the node name prompted, and find the corresponding table configuration association condition according to the node name in the master-slave merge node configuration",
-			solutionCN = "1.请根据提示的节点名称找到主从合并节点，并在主从合并节点配置中根据节点名称找到对应的表配置关联条件"
+			dynamicDescriptionCN = "Node name: {} The subsequent master-slave merge node is missing the associated key configuration. mergeProperty: {}",
+			solution = "Please find the master-slave merge node according to the node name prompted, and configure the association condition in the corresponding table and fill in the association condition",
+			solutionCN = "请根据提示的节点名称找到主从合并节点，并在找到对应的表配置关联条件并填写关联条件"
 
 	)
 	String MISSING_SOURCE_JOIN_KEY_CONFIG = "16018";
 
 	@TapExCode(
 			describe = "When the data passes through the master-slave merge node, the value of the associated condition field set in the master-slave merge node is missing in the data",
-			describeCN = "数据经过主从合并节点时，数据中缺少主从合并节点中设置的关联条件字段的值，可能的原因\n" +
-					"1. 在主从合并节点前、源节点后，存在处理节点，如标准JS节点/增强JS节点。处理节点将数据中的关联字段值移除，导致错误。\n" +
+			describeCN = "数据经过主从合并节点时，数据中缺少主从合并节点中设置的关联条件字段的值，可能的原因是\n" +
+					"1. 在主从合并节点前、源节点后，存在处理节点，如JS节点。处理节点将数据中的关联字段值移除，导致错误。\n" +
 					"2. 主从合并节点的源节点的数据库为非结构化数据库，源节点某条数据中缺少关联字段的值，导致错误。",
-			dynamicDescription = "The associated key is missing from the data flowing from the node named \"{}\". Associated key: {}, data content: {}",
-			dynamicDescriptionCN = "从节点名为“{}”的节点流出的数据中缺少关联键。关联键：{}，数据内容：{}",
-			solution = "1. If the database of the source node of the master-slave merge node is an unstructured database, such as MongoDB. The value of the associated field is missing from the data. Other processing nodes such as standard JS/ enhanced JS nodes can be added after the source node and before the master-slave merge node, and the script code that filters the whole data if the data is missing the associated key can be added to the script, and the task will not be transmitted to the master-slave merge node to ensure the normal operation of the task\n" +
-					"2. If there are other processing nodes such as standard JS/ enhanced JS nodes before the master-slave merge node, check the script for code to remove the associated key in the data or remove the processing node after the source node",
-			solutionCN = "1. 如果主从合并节点的源节点的数据库为非结构化数据库，如MongoDB。数据中缺少关联字段的值。可以在源节点的后面、主从合并节点前加入其他处理节点如标准JS/增强JS节点，并在脚本中加入如果数据缺少关联键，就将整条数据过滤的脚本代码，不往主从合并节点传输，保证任务正常运行\n" +
-					"2. 如果主从合并节点前存在其他处理节点如标准JS/增强JS节点，请检查脚本中是否存在将数据中的关联键移除的代码或将源节点后继的处理节点删除"
+			dynamicDescription = "The data flowing through a node named \"{}\" is missing an associated key. Associated key: {}, data content: {}",
+			dynamicDescriptionCN = "经过节点名为“{}”的节点流出的数据中缺少关联键。关联键：{}，数据内容：{}",
+			solution = "1. If the source database of the master-slave merge node is an unstructured database such as MongoDB. The value of the associated field is missing from the data. You can add other processing nodes such as JS nodes after the source node and before the master-slave merging node, and add the script code to filter the missing associated key data, so as not to transmit to the master-slave merging node to ensure the normal operation of the task. \n"+
+					"2. If there are other processing nodes such as JS nodes before the master-slave merge node, check if there is code in the script to remove the associated key in the data or remove the processing node after the source node",
+			solutionCN = "1. 如果主从合并节点的源节点的数据库为非结构化数据库，如MongoDB。数据中缺少关联字段的值。可以在源节点的后面、主从合并节点前加入其他处理节点如JS节点，并在脚本中加入将缺少关联键数据过滤的脚本代码，不往主从合并节点传输，保证任务正常运行\n" +
+					"2. 如果主从合并节点前存在其他处理节点如JS节点，请检查脚本中是否存在将数据中的关联键移除的代码或将源节点后继的处理节点删除"
 	)
 	String JOIN_KEY_VALUE_NOT_EXISTS = "16019";
 
 	@TapExCode(
 			describe = "In the master-slave merge configuration, the target join key configuration is missing",
 			describeCN = "主从合并配置中，缺少目标关联条件配置",
-			dynamicDescription = "Node name: {} The subsequent master-slave merge node is missing the associated key configuration",
-			dynamicDescriptionCN = "节点名：{}后继的主从合并节点缺少关联键配置{}",
-			solution = "1. Please find the master-slave merge node according to the node name prompted, and find the corresponding table configuration association condition according to the node name in the master-slave merge node configuration",
-			solutionCN = "1.请根据提示的节点名称找到主从合并节点，并在主从合并节点配置中根据节点名称找到对应的表配置关联条件"
+			dynamicDescription = "Node name: {} The subsequent master-slave merge node is missing the associated key configuration. mergeProperty: {}",
+			dynamicDescriptionCN = "节点名：{}后继的主从合并节点缺少关联键配置。合并属性：{}",
+			solution = "Please find the master-slave merge node according to the node name prompted, and find the corresponding table configuration association condition according to the node name in the master-slave merge node configuration",
+			solutionCN = "请根据提示的节点名称找到主从合并节点，并在主从合并节点配置中根据节点名称找到对应的表配置关联条件"
 	)
 	String MISSING_TARGET_JOIN_KEY_CONFIG = "16020";
 
 	@TapExCode(
-			describe = "Possible reasons for the absence of a primary key or unique index value in the data when it passes through a master-slave merge node",
+			describe = "Possible reasons for the absence of a primary key or unique index value in the data when it passes through a master-slave merge node\n" +
+					"Before the master-slave merge node and after the source node, there are processing nodes, such as JS nodes. The processing node removed the value of the primary key field or unique key from the data, resulting in an error.",
 			describeCN = "数据经过主从合并节点时，数据中不存在主键或唯一索引的值，可能的原因\n" +
-					"1. 在主从合并节点前、源节点后，存在处理节点，如标准JS节点/增强JS节点。处理节点将数据中的主键字段或唯一键的值移除，导致错误。\n",
+					"在主从合并节点前、源节点后，存在处理节点，如JS节点。处理节点将数据中的主键字段或唯一键的值移除，导致错误。",
 			dynamicDescription = "Data content: {}, primary or unique key Field: {}",
 			dynamicDescriptionCN = "数据内容：{}，主键或唯一键字段：{}",
-			solution = "1. If there are other processing nodes such as standard JS/ enhanced JS nodes before the master-slave merge node, check the script for code to remove the associated key in the data or remove the processing node after the source node.",
-			solutionCN = "1. 如果主从合并节点前存在其他处理节点如标准JS/增强JS节点，请检查脚本中是否存在将数据中的关联键移除的代码或将源节点后继的处理节点删除"
+			solution = "If there are other processing nodes such as JS nodes before the master-slave merge node, check the script for code to remove the associated key from the data or remove the processing node after the source node",
+			solutionCN = "如果主从合并节点前存在其他处理节点如JS节点，请检查脚本中是否存在将数据中的关联键移除的代码或将源节点后继的处理节点删除"
 	)
 	String PK_OR_UNIQUE_VALUE_NOT_EXISTS = "16021";
 
@@ -231,7 +235,7 @@ public interface TaskMergeProcessorExCode_16 {
 	String TAP_MERGE_TABLE_NODE_NOT_FOUND = "16025";
 
 	@TapExCode(
-			describe = "Updating or writing to the cache, finding data from the cache based on the federated key failed",
+			describe = "Batch update or write to the cache, lookup data from the cache based on the union key failed",
 			describeCN = "批量更新或写入缓存，根据联合键从缓存中查找数据失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
 					"The external storage database type configured is :{}, the external storage name is :{}",
@@ -246,9 +250,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Update or write cache failed",
 			describeCN = "批量更新或写入缓存失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"The external storage database type configured is :{}, the external storage name is :{}",
+					"Node name: {}, table name: {}, encoded association key value: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
-					"节点名称：{}，表名：{}，关联键值：{}，编码后的关联键值：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
+					"节点名称：{}，表名：{}，编码后的关联键值：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
 			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
@@ -295,9 +299,9 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Failed to establish a write signature that checks whether the associated key value changes the cache",
 			describeCN = "建立检测关联键值变更缓存时，写入签名失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"The external storage database type configured is :{}, the external storage name is :{}",
+					"Cache name: {}, signature content: {}, external storage database type configured: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
-					"外存名称为：{}，存储结构名称：{}",
+					"缓存名称：{}，签名内容：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
 			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
@@ -334,7 +338,7 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Failed to get and update the join key cache, failed to find by PK",
 			describeCN = "根据主键或唯一键查找关联键缓存失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"Table name: {}, node name: {}, association key: {}, encoded association key: {}, primary key or unique index key: {}, encoded primary key or unique index key: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
+					"Node name: {}, primary key or unique key value: {}, external storage database type configured: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
 					"节点名称：{}，主键或唯一键值：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
@@ -345,7 +349,7 @@ public interface TaskMergeProcessorExCode_16 {
 			describe = "Failed to get and update the join key cache, upsert failed",
 			describeCN = "更新关联键缓存中数据失败",
 			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
-					"Table name: {}, node name: {}, association key: {}, encoded association key: {}, primary key or unique index key: {}, encoded primary key or unique index key: {}, configured external storage database type: {}, external storage name: {}, storage structure name: {}",
+					"Node name: {}, primary key or unique key value: {}, after content: {}, external storage database type configured: {}, external storage name: {}, storage structure name: {}",
 			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
 					"节点名称：{}，主键或唯一键值：{}，after的内容：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
 			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
