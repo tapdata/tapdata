@@ -84,7 +84,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
-				throw new TapCodeException(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED, "Init script engine failed", e);
+				throw new TapCodeException(ScriptProcessorExCode_30.CUSTOM_PROCESSOR_GET_SCRIPT_ENGINE_FAILED, "Init script engine failed", e)
+						.dynamicDescriptionParameters(e.getMessage());
 			}
 		}
 	}

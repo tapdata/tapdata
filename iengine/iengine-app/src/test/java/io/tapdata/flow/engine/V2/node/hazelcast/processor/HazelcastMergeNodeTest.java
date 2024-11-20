@@ -11,6 +11,7 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Edge;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.utils.AppType;
@@ -64,6 +65,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -170,6 +172,30 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				assertNull(actualObj);
 			}
 		}
+
+		@Test
+		void testInitMergeTableProperties() {
+			when(dataProcessorContext.getNode()).thenReturn((Node) tableNode);
+			try {
+				hazelcastMergeNode.initMergeTableProperties();
+			} catch (TapCodeException e) {
+				assertEquals(TaskMergeProcessorExCode_16.WRONG_NODE_TYPE,e.getCode());
+			}
+		}
+
+	}
+
+	@Test
+	void testGetSourceTableNode() {
+		MergeTableNode mergeTableNode1 = mock(MergeTableNode.class);
+		when(dataProcessorContext.getNode()).thenReturn((Node)mergeTableNode1);
+		Graph graph = mock(Graph.class);
+		when(mergeTableNode1.getGraph()).thenReturn(graph);
+		try {
+			hazelcastMergeNode.getSourceTableNode("sourceId");
+		} catch (TapCodeException e) {
+			assertEquals(TaskMergeProcessorExCode_16.CANNOT_FOUND_PRE_NODE,e.getCode());
+		}
 	}
 
 	@Nested
@@ -187,10 +213,28 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			hazelcastMergeNode = spy(hazelcastMergeNode);
 			tapdataEvent = mock(TapdataEvent.class);
 			tapInsertRecordEvent = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent.getTableId()).thenReturn("tableName");
+			List<String> nodeIds = new ArrayList<>();
+			nodeIds.add("sourceId");
+			when(tapdataEvent.getNodeIds()).thenReturn(nodeIds);
 			when(tapdataEvent.getTapEvent()).thenReturn(tapInsertRecordEvent);
 			constructIMap = mock(ConstructIMap.class);
 			mergeTableProperties = mock(MergeTableProperties.class);
 			sourcePkOrUniqueFieldMap = new HashMap<>();
+			TableNode tableNode = mock(TableNode.class);
+			when(tableNode.getTableName()).thenReturn("tableName");
+			when(tableNode.getName()).thenReturn("NodeName");
+			when(tableNode.getId()).thenReturn("sourceId");
+
+			List<Node> nodes=new ArrayList<>();
+			nodes.add(tableNode);
+
+			when(dataProcessorContext.getNodes()).thenReturn(nodes);
+			when(hazelcastMergeNode.getPreNode("sourceId")).thenReturn(nodes.get(0));
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("MongoEx");
+			ReflectionTestUtils.setField(hazelcastMergeNode,"externalStorageDto",externalStorageDto);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "sourcePkOrUniqueFieldMap", sourcePkOrUniqueFieldMap);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "mapIterator", new AllLayerMapIterator());
 		}
@@ -218,6 +262,58 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			when(constructIMap.upsert(anyString(), any(Document.class))).thenAnswer(invocationOnMock -> null);
 			hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
 			verify(hazelcastMergeNode, new Times(1)).transformDateTime(any(Map.class));
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert one event into cache must call transformDateTime method")
+		void testUpsertOneEventCacheThrowFindException() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.find(anyString())).thenThrow(new RuntimeException("connect Exception"));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEY_FAILED,tapCodeException.getCode());
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert one event into cache must call transformDateTime method")
+		void testUpsertOneEventThrowUpsertException() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", "");
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.find(anyString())).thenReturn(null);
+			when(constructIMap.upsert(anyString(), any(Document.class))).thenThrow(new RuntimeException("throw Upsert Exception"));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHE_FAILED,tapCodeException.getCode());
+
 		}
 
 		@Test
@@ -253,6 +349,42 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				add(tapdataEvent1);
 			}}, mergeTableProperties, constructIMap);
 			verify(hazelcastMergeNode, new Times(2)).transformDateTime(any(Map.class));
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert many events into cache must call transformDateTime method")
+		void testUpsertManyEventWriteFailed() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapInsertRecordEvent tapInsertRecordEvent1 = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent1.getAfter()).thenReturn(new HashMap<String, Object>() {{
+				put("id", 2);
+				put("create_time", new DateTime(Instant.now()));
+			}});
+			TapdataEvent tapdataEvent1 = mock(TapdataEvent.class);
+			when(tapdataEvent1.getTapEvent()).thenReturn(tapInsertRecordEvent1);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.findAll(any(Set.class))).thenReturn(new HashMap<>());
+			when(constructIMap.insertMany(anyMap())).thenThrow(new RuntimeException("writeFailed"));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.upsertCache(new ArrayList<TapdataEvent>() {{
+					add(tapdataEvent);
+					add(tapdataEvent1);
+				}}, mergeTableProperties, constructIMap);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED,tapCodeException.getCode());
 		}
 
 		@Test
@@ -2129,6 +2261,14 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			completableFuture.join();
 			verify(nodeLogger, timeout(1)).debug(anyString(), any(Object[].class));
 		}
+		@Test
+		void testLoopUpThrowException(){
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.lookup(tapdataEvent);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.LOOK_UP_MISSING_FROM_NODE_ID,tapCodeException.getCode());
+		}
 
 		@AfterEach
 		void tearDown() {
@@ -2218,6 +2358,46 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			List<MergeLookupResult> mergeLookupResults = hazelcastMergeNode.recursiveLookup(mergeTableProperties1, data, true);
 
 			verify(nodeLogger, times(0)).warn(eq("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}"), any(Object[].class));
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("test update write lookup and return only one row")
+		void testUpdateWriteLookupOnlyOneRowThrowError() {
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			MergeTableProperties mergeTableProperties1 = new MergeTableProperties();
+			List<MergeTableProperties> mergeTablePropertiesList = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			mergeTableProperties1.setChildren(mergeTablePropertiesList);
+			mergeTableProperties1.setId("2");
+			mergeTableProperties.setId("1");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setTargetPath("test");
+			Map<String, String> joinKeyMap = new HashMap<>();
+			joinKeyMap.put("source", "id");
+			joinKeyMap.put("target", "id");
+			List<Map<String, String>> joinKeys = new ArrayList<>();
+			joinKeys.add(joinKeyMap);
+			mergeTableProperties.setJoinKeys(joinKeys);
+			Map<String, Object> data = new HashMap<>();
+			data.put("id", 1);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("test");
+			when(constructIMap.find(anyString())).thenThrow(new RuntimeException("connect failed"));
+			Node preNode = mock(TableNode.class);
+			when(((TableNode) preNode).getTableName()).thenReturn("test");
+			Node fatherPreNode = mock(TableNode.class);
+			when(((TableNode) preNode).getTableName()).thenReturn("fathertest");
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("externalName");
+			ReflectionTestUtils.setField(hazelcastMergeNode,"externalStorageDto",externalStorageDto);
+			doReturn(preNode).when(hazelcastMergeNode).getPreNode("1");
+			doReturn(fatherPreNode).when(hazelcastMergeNode).getPreNode("2");
+			doReturn(constructIMap).when(hazelcastMergeNode).getHazelcastConstruct(anyString());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.recursiveLookup(mergeTableProperties1, data, true);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED,tapCodeException.getCode());
 		}
 
 		@Test
@@ -2327,6 +2507,61 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			when(tapTable.primaryKeys(true)).thenReturn(Arrays.asList("id"));
 			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
 			Assertions.assertEquals(1,sourcePkOrUniqueFieldMap.size());
+		}
+		@Test
+		void testNoPrimaryKeyThrowException(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setTableName("test");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContextTest.getTapTableMap()).thenReturn(tapTableMap);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTableMap.get(any())).thenReturn(tapTable);
+			when(tapTable.primaryKeys(true)).thenReturn(null);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY,tapCodeException.getCode());
+		}
+
+		@Test
+		void test1(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateIntoArray);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setTableName("test");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContextTest.getTapTableMap()).thenReturn(tapTableMap);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTableMap.get(any())).thenReturn(tapTable);
+			when(tapTable.primaryKeys(true)).thenReturn(Arrays.asList("id"));
+			try{
+				hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			}catch (TapCodeException e){
+				assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY,e.getCode());
+			}
+
 		}
 
 	}
@@ -2468,5 +2703,38 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				HazelcastMergeNode.clearCache(mergeTableNode,nodes,edges);
 			}
 		}
+	}
+	@DisplayName("测试错误码，表名不能为空")
+	@Test
+	void test2(){
+		try{
+			TableNode tableNode=new TableNode();
+			hazelcastMergeNode.getTableName(tableNode);
+		}catch (TapCodeException e){
+			assertEquals(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK,e.getCode());
+		}
+	}
+	@DisplayName("测试错误码，连接ID不能为空")
+	@Test
+	void test3(){
+		try{
+			TableNode tableNode=new TableNode();
+			hazelcastMergeNode.getConnectionId(tableNode);
+		}catch (TapCodeException e){
+			assertEquals(TaskMergeProcessorExCode_16.CONNECTION_ID_CANNOT_BE_BLANK,e.getCode());
+		}
+	}
+	@Test
+	void test4(){
+		MergeTableProperties mergeTableProperties=new MergeTableProperties();
+		mergeTableProperties.setId("sourceTableId");
+		List<MergeTableProperties> mergeTablePropertiesList =new ArrayList<>();
+		mergeTablePropertiesList.add(mergeTableProperties);
+		try{
+			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+		}catch (TapCodeException e){
+			assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NODE_NOT_FOUND,e.getCode());
+		}
+
 	}
 }

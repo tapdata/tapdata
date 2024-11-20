@@ -1,5 +1,6 @@
 package com.tapdata.processor;
 
+import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.cache.ICacheGetter;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.Job;
@@ -8,14 +9,21 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.script.ScriptFactory;
+import io.tapdata.entity.script.ScriptOptions;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.core.Logger;
+import org.graalvm.polyglot.proxy.ProxyObject;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.mockito.internal.verification.Times;
 
 import javax.script.Invocable;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -73,7 +81,7 @@ public class ScriptUtilTest {
     @Nested
     public class InvokeScriptWithTagTest{
         private Map<String,Object> input;
-        private Invocable engine;
+        private Invocable engine = mock(Invocable.class);
         private MessageEntity message;
         @BeforeEach
         @SneakyThrows
@@ -127,6 +135,84 @@ public class ScriptUtilTest {
             verify(message,new Times(2)).getBefore();
             verify(message,new Times(1)).getAfter();
         }
+        @SneakyThrows
+        @Test
+        public void testInvokeScriptWithoutEngine(){
+            TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+                ScriptUtil.invokeScript(null, "process", message
+                        , mock(Connections.class), mock(Connections.class), mock(Job.class), input, mock(Logger.class), null);
+            });
+            assertEquals(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED_ENGINE_NULL,tapCodeException.getCode());
+        }
+        @SneakyThrows
+        @DisplayName("test Invoke Script function appear INVOKE_SCRIPT_FAILED")
+        @Test
+        public void test1(){
+            when(message.getAfter()).thenReturn(mock(HashMap.class));
+            Invocable engine= mock(GraalJSScriptEngine.class);
+            when(engine.invokeFunction(anyString(),any())).thenThrow(new ScriptException("script failed"));
+            TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+                ScriptUtil.invokeScript(engine, "process", message
+                        , mock(Connections.class), mock(Connections.class), mock(Job.class), input, mock(Logger.class), null);
+            });
+            assertEquals(ScriptProcessorExCode_30.INVOKE_SCRIPT_FAILED,tapCodeException.getCode());
 
+        }
+        @Nested
+        public class GetPyEngineTest{
+
+            @SneakyThrows
+            @Test
+            @DisplayName("test get python script with GET_PYTHON_ENGINE_FAILED exception")
+            void test1() {
+                String initPythonBuildInMethod = ScriptUtil.initPythonBuildInMethod(null, null, ScriptUtilTest.class.getClassLoader(), (classLoader) -> {
+                });
+                try (MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)) {
+                    ScriptFactory scriptFactory = mock(ScriptFactory.class);
+                    ScriptEngine scriptEngine = mock(ScriptEngine.class);
+                    when(scriptEngine.eval(initPythonBuildInMethod)).thenThrow(new ScriptException("eval error"));
+                    when(scriptFactory.create(anyString(),any(ScriptOptions.class))).thenReturn(scriptEngine);
+                    instanceFactoryMockedStatic.when(()->{InstanceFactory.instance(any(Class.class),anyString());}).thenReturn(scriptFactory);
+                    TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+                        Invocable pyEngine = ScriptUtil.getPyEngine(
+                                ScriptFactory.TYPE_PYTHON,
+                                null,
+                                null, //javaScriptFunctions,
+                                null,
+                                null,
+                                null,
+                                null,
+                                mock(Log.class),
+                                ScriptUtilTest.class.getClassLoader());
+                    });
+                    assertEquals(ScriptProcessorExCode_30.GET_PYTHON_ENGINE_FAILED,tapCodeException.getCode());
+                }
+            }
+            @SneakyThrows
+            @Test
+            void test2(){
+                try (MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)) {
+                    ScriptFactory scriptFactory = mock(ScriptFactory.class);
+                    ScriptEngine scriptEngine = mock(ScriptEngine.class);
+                    String scripts = "" + System.lineSeparator() + ScriptUtil.handlePyScript(ScriptUtil.DEFAULT_PY_SCRIPT);
+                    when(scriptEngine.eval(scripts)).thenThrow(new ScriptException("eval error"));
+                    when(scriptFactory.create(anyString(),any(ScriptOptions.class))).thenReturn(scriptEngine);
+                    instanceFactoryMockedStatic.when(()->{InstanceFactory.instance(any(Class.class),anyString());}).thenReturn(scriptFactory);
+                    TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+                        Invocable pyEngine = ScriptUtil.getPyEngine(
+                                ScriptFactory.TYPE_PYTHON,
+                                null,
+                                null, //javaScriptFunctions,
+                                null,
+                                null,
+                                null,
+                                null,
+                                mock(Log.class),
+                                ScriptUtilTest.class.getClassLoader());
+                    });
+                    assertEquals(ScriptProcessorExCode_30.GET_PYTHON_ENGINE_FAILED,tapCodeException.getCode());
+                }
+            }
+        }
     }
 }
