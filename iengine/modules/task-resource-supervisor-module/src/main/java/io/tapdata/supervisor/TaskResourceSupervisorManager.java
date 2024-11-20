@@ -35,7 +35,7 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
 
     public String CLEAN_LEAKED_THREAD_GROUP_MINUTES = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_MINUTES", "30");
 
-    public String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "1000");
+    public String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "500");
 
 
     public void cleanThreadGroup() {
