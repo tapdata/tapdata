@@ -517,6 +517,10 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (aspect.getError() != null && m.getStackMessage() == null) {
             m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
         }
+
+        if (aspect.getError() instanceof TapCodeException) {
+            m.setDynamicDescriptionParameters(((TapCodeException)aspect.getError()).getDynamicDescriptionParameters());
+        }
     }
 
     protected Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {
