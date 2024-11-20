@@ -28,14 +28,14 @@ public class TaskResourceSupervisorManager implements MemoryFetcher {
     private String userId;
     private String processId;
     private Long lastCleanThreadGroupTime = null;
-    public final Long CHECK_THREAD_GROUP_POOL_PERIOD = 10 * 60L;
+    public static final Long CHECK_THREAD_GROUP_POOL_PERIOD = 10 * 60L;
 
-    public final Long CHECK_THREAD_GROUP_POOL_INITIAL_DELAY = 30L;
+    public static final Long CHECK_THREAD_GROUP_POOL_INITIAL_DELAY = 30L;
 
 
-    public String CLEAN_LEAKED_THREAD_GROUP_MINUTES = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_MINUTES", "30");
+    public static final String CLEAN_LEAKED_THREAD_GROUP_MINUTES = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_MINUTES", "30");
 
-    public String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "500");
+    public static final String CLEAN_LEAKED_THREAD_GROUP_THRESHOLD = System.getenv().getOrDefault("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD", "500");
 
 
     public void cleanThreadGroup() {
