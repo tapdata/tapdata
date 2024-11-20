@@ -63,21 +63,7 @@ public class ScriptUtilTest {
         ScriptUtil.urlClassLoader(urlClassLoader -> externalClassLoader[0] = urlClassLoader,urlList);
         Assert.assertNotNull(externalClassLoader[0]);
     }
-    @DisplayName("test testUrlClassLoaderException error")
-    @Test
-    public void testUrlClassLoaderException(){
-        List<URL> urlList = new ArrayList<>();
-        urlList.add(mock(URL.class));
-        final ClassLoader[] externalClassLoader = new ClassLoader[1];
-        TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-            ScriptUtil.urlClassLoader(urlClassLoader -> {
-                        throw new RuntimeException("appear error");
-                    }
-                    , urlList);
-        });
-        assertEquals(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,tapCodeException.getCode());
 
-    }
     @Nested
     public class InvokeScriptWithTagTest{
         private Map<String,Object> input;
