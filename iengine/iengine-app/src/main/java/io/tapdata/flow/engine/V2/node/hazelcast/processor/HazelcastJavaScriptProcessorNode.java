@@ -160,7 +160,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 						new ObsScriptLogger(getScriptObsLogger(), logger),
 						this.standard);
 			} catch (ScriptException e) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e);
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESSOR_GET_SCRIPT_FAILED, e)
+						.dynamicDescriptionParameters(e.getMessage());
 			}
 			if (!this.standard) {
 				this.scriptExecutorsManager = new ScriptExecutorsManager(new ObsScriptLogger(getScriptObsLogger()), clientMongoOperator, jetContext.hazelcastInstance(),
@@ -276,7 +277,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get().getMessage());
 			}
 
 		} else {

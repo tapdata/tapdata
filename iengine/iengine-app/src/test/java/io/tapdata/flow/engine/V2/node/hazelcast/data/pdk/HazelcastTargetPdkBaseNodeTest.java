@@ -74,6 +74,7 @@ import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;

@@ -541,7 +541,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private void putInCheckJoinKeyUpdateCacheMapAndWriteSign(String id, String cacheName) {
+	protected void putInCheckJoinKeyUpdateCacheMapAndWriteSign(String id, String cacheName) {
 		List<String> joinKeyIncludePK = checkJoinKeyIncludePK(id);
 		if (CollectionUtils.isNotEmpty(joinKeyIncludePK) && !isSourceHaveBefore(id)) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, String.format("Join key include pk, id: %s, both join key and pk: %s", id, joinKeyIncludePK));
@@ -779,7 +779,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try{
 			constructIMapV2 = buildConstructIMap(hazelcastInstance, referenceId, String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 		}catch (Exception e) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.INIT_CACHE_FAILED, String.format("Cache name: %s", cacheName), e);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.INIT_CACHE_FAILED, String.format("Cache name: %s", cacheName), e)
+					.dynamicDescriptionParameters(externalStorageDtoCopy.getType(),externalStorageDtoCopy.getName());
 		}
 		if(constructIMapV2.isEmpty()){
 			ConstructIMap<Document> constructIMapV1;
@@ -915,13 +916,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					case updateOrInsert:
 					case updateWrite:
 						if (CollectionUtils.isEmpty(primaryKeys)) {
-							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType));
+							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType))
+									.dynamicDescriptionParameters(tableName,nodeName,mergeType);
 						}
 						fieldNames = new ArrayList<>(primaryKeys);
 						break;
 					case updateIntoArray:
 						if (CollectionUtils.isEmpty(arrayKeys)) {
-							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName));
+							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName))
+									.dynamicDescriptionParameters(tableName,nodeName);
 						}
 						fieldNames = arrayKeys;
 						break;
@@ -1222,8 +1225,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			groupByJoinKeyValues = hazelcastConstruct.find(encodeJoinValueKey);
 		} catch (Exception e) {
+			Node preNode = getPreNode(mergeTableProperty.getId());
 			throw new TapEventException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEY_FAILED, String.format("- Construct name: %s\n- Join value key: %s, encode: %s",
-					hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e).addEvent(tapdataEvent.getTapEvent());
+					hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e).addEvent(tapdataEvent.getTapEvent())
+					.dynamicDescriptionParameters(preNode.getName(), getTableName(tapdataEvent), joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey,
+							encodePkOrUniqueValueKey, tapdataEvent.getTapEvent(), externalStorageDto.getType(), externalStorageDto.getName(), hazelcastConstruct.getName());
 		}
 		if (null == groupByJoinKeyValues) {
 			groupByJoinKeyValues = new Document();
@@ -1233,8 +1239,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			hazelcastConstruct.upsert(encodeJoinValueKey, groupByJoinKeyValues);
 		} catch (Exception e) {
+			String preTableName = getPreTableName(tapdataEvent);
+			Node preNode = getPreNode(mergeTableProperty.getId());
 			throw new TapEventException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FAILED, String.format("- Construct name: %s\n- Join value key: %s, encode: %s\n- Pk or unique values: %s, encode: %s\n- Find by join value key result: %s",
-					hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey, encodePkOrUniqueValueKey, groupByJoinKeyValues.toJson()), e).addEvent(tapdataEvent.getTapEvent());
+					hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey, encodePkOrUniqueValueKey, groupByJoinKeyValues.toJson()), e).addEvent(tapdataEvent.getTapEvent())
+					.dynamicDescriptionParameters(preNode.getName(), preTableName, joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey, encodePkOrUniqueValueKey,
+							groupByJoinKeyValues.toJson(), externalStorageDto.getType(), externalStorageDto.getName(), hazelcastConstruct.getName());
 		}
 	}
 
@@ -1255,7 +1265,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				Thread.currentThread().interrupt();
 				return;
 			}
-			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED, "Find by keys: " + joinValueKeyTapdataEventMap.keySet() + ", first event: " + tapdataEvents.get(0).getTapEvent(), e);
+			Node preNode = getPreNode(mergeTableProperties.getId());
+			String tableName = getTableName(preNode);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEYS_FAILED, "Find by keys: " + joinValueKeyTapdataEventMap.keySet() + ", first event: " + tapdataEvents.get(0).getTapEvent(), e)
+					.dynamicDescriptionParameters(preNode.getName(), tableName,joinValueKeyTapdataEventMap.keySet(), joinValueKeyTapdataEventMap, externalStorageDto.getType(), externalStorageDto.getName(), hazelcastConstruct.getName());
 		}
 		Map<String, Document> insertMap = new HashMap<>();
 		for (String joinValueKey : joinValueKeyTapdataEventMap.keySet()) {
@@ -1280,7 +1293,10 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (Exception e) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED, e);
+			Node preNode = getPreNode(mergeTableProperties.getId());
+			String tableName = getTableName(preNode);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED, e)
+					.dynamicDescriptionParameters(preNode.getName(), tableName, groupByJoinKeyValues.keySet(), externalStorageDto.getType(), externalStorageDto.getName(), hazelcastConstruct.getName());
 		}
 	}
 
@@ -1293,7 +1309,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		});
 	}
 
-	private void deleteCache(TapdataEvent tapdataEvent, MergeTableProperties mergeTableProperty, ConstructIMap<Document> hazelcastConstruct) throws Exception {
+	protected void deleteCache(TapdataEvent tapdataEvent, MergeTableProperties mergeTableProperty, ConstructIMap<Document> hazelcastConstruct) throws Exception {
 		Map<String, Object> before = getBefore(tapdataEvent);
 		String joinValueKey = getJoinValueKeyBySource(before, mergeTableProperty, hazelcastConstruct);
 		String encodeJoinValueKey = encode(joinValueKey);
@@ -1303,8 +1319,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			groupByJoinKeyValues = hazelcastConstruct.find(encodeJoinValueKey);
 		} catch (Exception e) {
+			Node preNode = getPreNode(mergeTableProperty.getId());
+			String tableName = getTableName(preNode);
 			throw new TapEventException(TaskMergeProcessorExCode_16.DELETE_CACHE_FIND_BY_JOIN_KEY_FAILED, String.format("- Construct name: %s\n- Join value key: %s, encode: %s",
-					hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e).addEvent(tapdataEvent.getTapEvent());
+					hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e).addEvent(tapdataEvent.getTapEvent())
+					.dynamicDescriptionParameters(preNode.getName(),tableName,joinValueKey,encodeJoinValueKey,pkOrUniqueValueKey,
+							encodePkOrUniqueValueKey,externalStorageDto.getType(),externalStorageDto.getName(),hazelcastConstruct.getName());
 		}
 		if (null == groupByJoinKeyValues) {
 			return;
@@ -1314,8 +1334,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			try {
 				hazelcastConstruct.delete(encodeJoinValueKey);
 			} catch (Exception e) {
+				Node preNode = getPreNode(mergeTableProperty.getId());
+				String tableName = getTableName(preNode);
 				throw new TapEventException(TaskMergeProcessorExCode_16.DELETE_CACHE_FAILED, String.format("- Construct name: %s\n- Join value key: %s, encode: %s\n- Pk or unique value key: %s, encode: %s\n- Find by join value key result: %s",
-						hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey, encodePkOrUniqueValueKey, groupByJoinKeyValues.toJson()), e).addEvent(tapdataEvent.getTapEvent());
+						hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey, pkOrUniqueValueKey, encodePkOrUniqueValueKey, groupByJoinKeyValues.toJson()), e).addEvent(tapdataEvent.getTapEvent())
+						.dynamicDescriptionParameters(preNode.getName(),tableName,joinValueKey,encodeJoinValueKey,pkOrUniqueValueKey,
+								encodePkOrUniqueValueKey,externalStorageDto.getType(),externalStorageDto.getName(),hazelcastConstruct.getName());
 			}
 		} else {
 			hazelcastConstruct.upsert(encodeJoinValueKey, groupByJoinKeyValues);
@@ -1332,7 +1356,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return after;
 	}
 
-	private Map<String, Object> getBefore(TapdataEvent tapdataEvent) {
+	protected Map<String, Object> getBefore(TapdataEvent tapdataEvent) {
 		Map<String, Object> before = null;
 		if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
 			before = TapEventUtil.getBefore(tapdataEvent.getTapEvent());
@@ -1342,11 +1366,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return before;
 	}
 
-	private String getJoinValueKeyBySource(Map<String, Object> data, MergeTableProperties mergeProperty, ConstructIMap<Document> hazelcastConstruct) {
+	protected String getJoinValueKeyBySource(Map<String, Object> data, MergeTableProperties mergeProperty, ConstructIMap<Document> hazelcastConstruct) {
 		List<Map<String, String>> joinKeys = mergeProperty.getJoinKeys();
 		List<String> joinKeyList = getJoinKeys(joinKeys, JoinConditionType.SOURCE);
 		if (CollectionUtils.isEmpty(joinKeyList)) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct.getName(), mergeProperty));
+			throw new TapCodeException(TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG, String.format("Map name: %s, Merge property: %s", hazelcastConstruct.getName(), mergeProperty))
+					.dynamicDescriptionParameters(getPreNode(mergeProperty.getId()).getName(),mergeProperty);
 		}
 		if (MapUtils.isEmpty(data)) {
 			return "";
@@ -1355,7 +1380,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		for (String joinKey : joinKeyList) {
 			Object value = MapUtilV2.getValueByKey(data, joinKey);
 			if (value instanceof NotExistsNode) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS, String.format("- Map name: %s\n- Join key: %s\n- Data: %s", hazelcastConstruct.getName(), joinKey, data));
+				Node preNode = getPreNode(mergeProperty.getId());
+				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS, String.format("- Map name: %s\n- Join key: %s\n- Data: %s", hazelcastConstruct.getName(), joinKey, data))
+						.dynamicDescriptionParameters(preNode.getName(),joinKey,data);
 			}
 			try {
 				values.add(convertJoinKeyValue2String(value));
@@ -1367,7 +1394,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return String.join("_", values);
 	}
 
-	private String getJoinValueKeyByTarget(Map<String, Object> data, MergeTableProperties mergeProperty, MergeTableProperties lastMergeProperty, ConstructIMap<Document> hazelcastConstruct) {
+	protected String getJoinValueKeyByTarget(Map<String, Object> data, MergeTableProperties mergeProperty, MergeTableProperties lastMergeProperty, ConstructIMap<Document> hazelcastConstruct) {
 		List<Map<String, String>> joinKeys = mergeProperty.getJoinKeys();
 		List<String> joinKeyList = getJoinKeys(joinKeys, JoinConditionType.TARGET);
 		if (CollectionUtils.isEmpty(joinKeyList)) {
@@ -1419,11 +1446,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 	}
 
-	private String encode(String str) {
+	protected String encode(String str) {
 		return Base64.getEncoder().encodeToString(str.getBytes(StandardCharsets.UTF_8));
 	}
 
-	private List<String> getJoinKeys(List<Map<String, String>> joinKeys, JoinConditionType joinConditionType) {
+	protected List<String> getJoinKeys(List<Map<String, String>> joinKeys, JoinConditionType joinConditionType) {
 		if (null == joinKeys) {
 			return Collections.emptyList();
 		}
@@ -1444,7 +1471,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		for (String pkOrUniqueField : pkOrUniqueFields) {
 			Object value = MapUtilV2.getValueByKey(data, pkOrUniqueField);
 			if (value instanceof NotExistsNode) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.PK_OR_UNIQUE_VALUE_NOT_EXISTS, String.format("- Map name: %s\n- Pk or unique field: %s\n- Data: %s", hazelcastConstruct.getName(), pkOrUniqueFields, data));
+				throw new TapCodeException(TaskMergeProcessorExCode_16.PK_OR_UNIQUE_VALUE_NOT_EXISTS, String.format("- Map name: %s\n- Pk or unique field: %s\n- Data: %s", hazelcastConstruct.getName(), pkOrUniqueFields, data))
+						.dynamicDescriptionParameters(pkOrUniqueFields,data);
 			}
 			if (value instanceof Number) {
 				values.add(new BigDecimal(String.valueOf(value)).stripTrailingZeros().toPlainString());
@@ -1457,7 +1485,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return String.join("_", values);
 	}
 
-	private Node<?> getSourceTableNode(String sourceId) {
+	protected Node<?> getSourceTableNode(String sourceId) {
 		Node<?> node = this.processorBaseContext.getNode();
 		List<? extends Node<?>> predecessors = node.predecessors();
 		predecessors = predecessors.stream().filter(n -> n.getId().equals(sourceId)).collect(Collectors.toList());
@@ -1468,12 +1496,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return predecessors.get(0);
 	}
 
-	private String getConnectionId(Node<?> preTableNode) {
+	protected String getConnectionId(Node<?> preTableNode) {
 		String connectionId;
 		if (preTableNode instanceof TableNode) {
 			connectionId = ((TableNode) preTableNode).getConnectionId();
 			if (StringUtils.isBlank(connectionId)) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.CONNECTION_ID_CANNOT_BE_BLANK, String.format("Table node: %s", preTableNode));
+				throw new TapCodeException(TaskMergeProcessorExCode_16.CONNECTION_ID_CANNOT_BE_BLANK, String.format("Table node: %s", preTableNode))
+						.dynamicDescriptionParameters();
 			}
 		} else {
 			throw new RuntimeException(preTableNode.getName() + "(" + preTableNode.getId() + ", " + preTableNode.getClass().getSimpleName() + ") cannot linked to a merge table node");
@@ -1540,7 +1569,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 						nodeLogger.debug("Lookup find data filter: {}({}), result: {}", joinValueKey, encodeJoinValueKey, findData);
 					}
 				} catch (Exception e) {
-					throw new TapCodeException(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED, String.format("- Find construct name: %s%n- Join key: %s%n- Encoded join key: %s", hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e);
+					throw new TapCodeException(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED, String.format("- Find construct name: %s%n- Join key: %s%n- Encoded join key: %s", hazelcastConstruct.getName(), joinValueKey, encodeJoinValueKey), e)
+							.dynamicDescriptionParameters(getPreNode(mergeTableProperties.getId()).getName(),getPreNode(childMergeProperty.getId()).getName(), joinValueKey, encodeJoinValueKey, externalStorageDto.getType(), externalStorageDto.getName(), hazelcastConstruct.getName());
 				}
 			}
 			io.tapdata.pdk.apis.entity.merge.MergeTableProperties copyMergeTableProperty = copyMergeTableProperty(childMergeProperty);
@@ -2076,7 +2106,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		ConstructIMap<Document> constructIMap = this.checkJoinKeyUpdateCacheMap.get(preNodeId);
 		if (null == constructIMap) {
 			Node<?> preNode = getPreNode(preNodeId);
-			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP, "Node name: " + preNode.getName() + ", id: " + preNodeId);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP, "Node name: " + preNode.getName() + ", id: " + preNodeId)
+					.dynamicDescriptionParameters(preNode.getName(),preNode.getId());
 		}
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
@@ -2089,7 +2120,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			beforeDoc = constructIMap.find(pkOrUniqueValueKey);
 		} catch (Exception e) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_FIND_BY_PK_FAILED, "Construct name: " + constructIMap.getName() + ", pk or unique value key: " + pkOrUniqueValueKey, e);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_FIND_BY_PK_FAILED, "Construct name: " + constructIMap.getName() + ", pk or unique value key: " + pkOrUniqueValueKey, e)
+					.dynamicDescriptionParameters(getPreNode(preNodeId).getName(),pkOrUniqueValueKey,  externalStorageDto.getType(), externalStorageDto.getName(),constructIMap.getName());
 		}
 		if (null == beforeDoc) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_FIND_BEFORE, String.format("Construct name: %s, after: %s, filter value: %s", constructIMap.getName(), after, pkOrUniqueValueKey));
@@ -2099,7 +2131,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		try {
 			constructIMap.upsert(pkOrUniqueValueKey, afterDoc);
 		} catch (Exception e) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED, "Construct name: " + constructIMap.getName() + ", pk or unique value key: " + pkOrUniqueValueKey + ", after: " + afterDoc.toJson(), e);
+			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED, "Construct name: " + constructIMap.getName() + ", pk or unique value key: " + pkOrUniqueValueKey + ", after: " + afterDoc.toJson(), e)
+					.dynamicDescriptionParameters(pkOrUniqueValueKey, getPreNode(preNodeId).getName(), afterDoc.toJson(), externalStorageDto.getType(), externalStorageDto.getName(), constructIMap.getName());
 		}
 		return before;
 	}
