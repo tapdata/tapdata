@@ -20,6 +20,7 @@ public class MilestoneEntity implements Serializable {
     private String errorCode;
     private String errorMessage;
     private String stackMessage;
+    private String[] dynamicDescriptionParameters;
     private Long begin;
     private Long end;
     private Long progress;

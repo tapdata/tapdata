@@ -1,7 +1,6 @@
 package io.tapdata.observable.logging;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.CollectionUtils;

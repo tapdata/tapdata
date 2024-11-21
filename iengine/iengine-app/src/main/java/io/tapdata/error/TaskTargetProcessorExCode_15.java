@@ -19,7 +19,7 @@ public interface TaskTargetProcessorExCode_15 {
 			dynamicDescription = "Failed to get table model with table name {}",
 			dynamicDescriptionCN = "获取表名为 {} 的表模型失败",
 			solution = "On the management side, reset the task and run the task again to see if the task can be started normally. If it cannot be started normally, you need to raise a work order to troubleshose the problem",
-			solutionCN = "1、在管理端重置任务并重新运行任务，看任务能否正常启动，如不能正常启动则需要提工单排查问题"
+			solutionCN = "在管理端重置任务并重新运行任务，看任务能否正常启动，如不能正常启动则需要提工单排查问题"
 	)
 	String INIT_TARGET_TABLE_TAP_TABLE_NULL = "15002";
 
@@ -55,8 +55,8 @@ public interface TaskTargetProcessorExCode_15 {
 					"删除表失败，表名为：{}",
 			solution = "1. the target node connection to use user delete table permissions\n"+
 						"2. Remove the foreign key constraint from the associated table and restart the task",
-			solutionCN = "1、授予目标节点连接使用用户删除表权限\n"+
-					"2、先删除关联表的外键约束后重新启动任务"
+			solutionCN = "1. 授予目标节点连接使用用户删除表权限\n"+
+					"2. 先删除关联表的外键约束后重新启动任务"
 	)
 	String DROP_TABLE_FAILED = "15004";
 
@@ -146,9 +146,7 @@ public interface TaskTargetProcessorExCode_15 {
 	)
 	String ALTER_FIELD_ATTR_CANNOT_GET_TAP_TABLE = "15013";
 	@TapExCode(
-			describe = "The target node fails to modify the field attribute, and the reason is analyzed: \n"+
-					"1. the event of modifying the field attribute is repeatedly executed by the target node. If the target has executed the field attribute modification operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the field attribute modification event, the target node executes the field repeatedly and an error is reported"+
-					"2. The account used by the target node to connect does not have the corresponding Alter permission, resulting in the failure to modify the field name",
+			describe = "The target node failed to perform the operation to modify the field attribute",
 			describeCN = "目标节点执行修改字段属性操作时失败",
 			dynamicDescription = "1. The change field property event is repeatedly executed by the destination node. If the target has executed the field attribute modification operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the field attribute modification event, the target node executes the field repeatedly and an error is reported\n" +
 					"2. The account that the destination node uses to connect does not have the corresponding permission, resulting in the failure to modify the field attribute\n" +
@@ -164,16 +162,16 @@ public interface TaskTargetProcessorExCode_15 {
 	String ALTER_FIELD_ATTR_EXECUTE_FAILED = "15014";
 	@TapExCode(
 			describe = "The target node fails to delete the field operation",
-			describeCN = "The target node failed to perform the delete field operation",
-			dynamicDescription = "1. The deletion event is repeatedly executed by the destination node. If the target has executed the field attribute modification operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the field attribute modification event, the target node executes the field repeatedly and an error is reported\n" +
-					"2. The account used by the target node to connect does not have the corresponding permission, resulting in the failure to delete the field\n" +
+			describeCN = "目标节点执行删除字段操作时失败",
+			dynamicDescription = "1. The deletion event is repeatedly executed by the destination node. If the target has executed the deletion operation, the task is started in the \"incremental\" synchronous way after stopping the task and the incremental acquisition starts before the deletion field attribute event, the target node will repeatedly execute the deletion field operation and an error will be reported\n" +
+					"2. The account that the destination node uses to connect does not have the corresponding permission, resulting in the failure to delete the field\n" +
 					"Table name for deletion event :{}, field name for deletion field :{}",
-			dynamicDescriptionCN = "1. 删除事件被目标节点重复执行。如果目标已经执行了修改字段属性操作后，停止任务后以“增量”的同步方式启动任务并且增量采集开始时刻在修改字段属性事件之前，导致目标节点重复执行字段而发生报错\n" +
+			dynamicDescriptionCN = "1. 删除事件被目标节点重复执行。如果目标已经执行了删除性操作后，停止任务后以“增量”的同步方式启动任务并且增量采集开始时刻在删除字段属性事件之前，导致目标节点重复执行删除字段操作而发生报错\n" +
 					"2. 目标节点使用连接的账号没有相应的权限，导致删除字段失败\n" +
 					"删除事件的表名:{}，删除字段的字段名:{}",
 			solution = "1. When the task is started in the \"incremental\" synchronous way, the specified time point of deleting the field event needs to be repaired at the beginning of the specified incremental collection time, so as to avoid the error caused by the target node repeatedly executing deleting the field operation\n" +
 					"2. Grant the destination node the appropriate permissions to use the connected account",
-			solutionCN = "1. 以“增量”的同步方式启动任务时，指定的增量采集开始时刻需要再修删除字段事件的时间点后，避免目标节点重复执行删除字段操作发生报错\n"+
+			solutionCN = "1. 以“增量”的同步方式启动任务时，指定的增量采集开始时刻需要在删除字段事件的时间点后，避免目标节点重复执行删除字段操作发生报错\n"+
 					"2. 授予目标节点使用连接的账号相应的权限"
 	)
 	String DROP_FIELD_EXECUTE_FAILED = "15015";

@@ -25,15 +25,11 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
-import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
@@ -3973,6 +3969,7 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        cleanRemovedTableMeasurementIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
@@ -4068,6 +4065,23 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException("Task.StartCheckModelFailed");
         } else {
             run(taskDto, user);
+        }
+    }
+
+    protected void cleanRemovedTableMeasurementIfNeed(TaskDto taskDto) {
+        DAG dag = taskDto.getDag();
+        if (null == dag || CollectionUtils.isEmpty(dag.getSourceNode()) || StringUtils.isBlank(taskDto.getTaskRecordId())) {
+            return;
+        }
+        DatabaseNode newFirst = dag.getSourceNode().getFirst();
+        if (newFirst.getTableNames() != null) {
+            List<String> runTables = measurementServiceV2.findRunTable(taskDto.getId().toHexString(), taskDto.getTaskRecordId());
+            List<String> tables = new ArrayList<>(newFirst.getTableNames());
+            runTables.forEach(tableName -> {
+                if (!tables.contains(tableName)) {
+                    measurementServiceV2.cleanRemovedTableMeasurement(taskDto.getId().toHexString(), taskDto.getTaskRecordId(), tableName);
+                }
+            });
         }
     }
 

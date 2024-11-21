@@ -1,8 +1,13 @@
 package io.tapdata.supervisor;
 
 import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.entity.script.ScriptFactory;
+import lombok.SneakyThrows;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -16,8 +21,10 @@ public class TaskResourceSupervisorManagerTest {
     @Nested
     class CleanThreadGroupTest{
 
+        private TaskResourceSupervisorManager taskResourceSupervisorManager;
         @DisplayName("test cleanThreadGroup when destroy success ")
         @Test
+        @SneakyThrows
         void test1(){
             ThreadGroup threadGroup=new ThreadGroup("testThreadGroup");
             SupervisorAspectTask supervisorAspectTask=new SupervisorAspectTask();
@@ -30,15 +37,15 @@ public class TaskResourceSupervisorManagerTest {
             ReflectionTestUtils.setField(supervisorAspectTask,"threadGroupMap",threadGroupMap);
             taskNodeInfo.setSupervisorAspectTask(supervisorAspectTask);
 
-            TaskResourceSupervisorManager taskResourceSupervisorManager = new TaskResourceSupervisorManager();
-
-            ReflectionTestUtils.setField(taskResourceSupervisorManager,"CLEAN_LEAKED_THREAD_GROUP_THRESHOLD","0");
+            taskResourceSupervisorManager = new TaskResourceSupervisorManager();
+            reflectField("0");
             taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
             taskResourceSupervisorManager.cleanThreadGroup();
             assertEquals(Boolean.FALSE,taskNodeInfo.isHasLaked());
         }
         @DisplayName("test cleanThreadGroup when destroy failed ")
         @Test
+        @SneakyThrows
         void test2(){
             ThreadGroup spyThreadGroup = new ThreadGroup("123");
             Thread[] threads = new Thread[1];
@@ -54,12 +61,20 @@ public class TaskResourceSupervisorManagerTest {
             taskNodeInfo.setHasLeaked(true);
             taskNodeInfo.setNodeThreadGroup(spyThreadGroup);
 
-            TaskResourceSupervisorManager taskResourceSupervisorManager = new TaskResourceSupervisorManager();
-            ReflectionTestUtils.setField(taskResourceSupervisorManager,"CLEAN_LEAKED_THREAD_GROUP_THRESHOLD","0");
+            taskResourceSupervisorManager = new TaskResourceSupervisorManager();
+            reflectField("0");
             taskResourceSupervisorManager.addTaskSubscribeInfo(taskNodeInfo);
             taskResourceSupervisorManager.cleanThreadGroup();
             atomicBoolean.set(true);
             assertEquals(Boolean.TRUE,taskNodeInfo.isHasLaked());
+        }
+        private void reflectField(String threshold) throws NoSuchFieldException, IllegalAccessException {
+            Field scriptFactory = TaskResourceSupervisorManager.class.getDeclaredField("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD");
+            scriptFactory.setAccessible(true);
+            Field modifiers = Field.class.getDeclaredField("modifiers");
+            modifiers.setAccessible(true);
+            modifiers.setInt(scriptFactory, scriptFactory.getModifiers() & ~Modifier.FINAL);
+            scriptFactory.set(taskResourceSupervisorManager, "0");
         }
     }
     @Nested
