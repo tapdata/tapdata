@@ -1,5 +1,6 @@
 package com.tapdata.constant;
 
+import com.tapdata.entity.values.BooleanNotExist;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -47,80 +48,80 @@ public class CommonUtilTest {
         @DisplayName("test Number not 1 or 0")
         @Test
         void test1(){
-            Boolean aBoolean = CommonUtil.toBoolean(2);
-            assertEquals(null,aBoolean);
+            Object aBoolean = CommonUtil.toBoolean(2);
+            assertEquals(true, aBoolean instanceof BooleanNotExist);
         }
         @DisplayName("test Number 1")
         @Test
         void test2(){
-            Boolean aBoolean = CommonUtil.toBoolean(1);
+            Object aBoolean = CommonUtil.toBoolean(1);
             assertEquals(true,aBoolean);
         }
         @DisplayName("test Number 0")
         @Test
         void test3(){
-            Boolean aBoolean = CommonUtil.toBoolean(0);
+            Object aBoolean = CommonUtil.toBoolean(0);
             assertEquals(false,aBoolean);
         }
         @DisplayName("test Number 0.0")
         @Test
         void test4(){
-            Boolean aBoolean = CommonUtil.toBoolean(0.0);
+            Object aBoolean = CommonUtil.toBoolean(0.0);
             assertEquals(false,aBoolean);
         }
         @DisplayName("test BigDecimal 1")
         @Test
         void test5(){
-            Boolean aBoolean = CommonUtil.toBoolean(new BigDecimal("1"));
+            Object aBoolean = CommonUtil.toBoolean(new BigDecimal("1"));
             assertEquals(true,aBoolean);
         }
         @DisplayName("test BigDecimal 0")
         @Test
         void test6(){
-            Boolean aBoolean = CommonUtil.toBoolean(new BigDecimal("0"));
+            Object aBoolean = CommonUtil.toBoolean(new BigDecimal("0"));
             assertEquals(false,aBoolean);
         }
         @DisplayName("test BigDecimal not 0 or 1")
         @Test
         void test7(){
-            Boolean aBoolean = CommonUtil.toBoolean(new BigDecimal("2"));
-            assertEquals(null,aBoolean);
+            Object aBoolean = CommonUtil.toBoolean(new BigDecimal("2"));
+            assertEquals(true,aBoolean instanceof BooleanNotExist);
         }
         @DisplayName("test string true")
         @Test
         void test9(){
-            Boolean aBoolean = CommonUtil.toBoolean("true");
+            Object aBoolean = CommonUtil.toBoolean("true");
             assertEquals(true,aBoolean);
         }
         @DisplayName("test string True")
         @Test
         void test10(){
-            Boolean aBoolean = CommonUtil.toBoolean("True");
+            Object aBoolean = CommonUtil.toBoolean("True");
             assertEquals(true,aBoolean);
         }
         @DisplayName("test string False")
         @Test
         void test11(){
-            Boolean aBoolean = CommonUtil.toBoolean("False");
+            Object aBoolean = CommonUtil.toBoolean("False");
             assertEquals(false,aBoolean);
         }
         @DisplayName("test string 0")
         @Test
         void test12(){
-            Boolean aBoolean = CommonUtil.toBoolean("0");
+            Object aBoolean = CommonUtil.toBoolean("0");
             assertEquals(false,aBoolean);
         }
         @DisplayName("test string 0")
         @Test
         void test13(){
-            Boolean aBoolean = CommonUtil.toBoolean("1");
+            Object aBoolean = CommonUtil.toBoolean("1");
             assertEquals(true,aBoolean);
         }
         @DisplayName("test string not 0,false,1,true")
         @Test
         void test14(){
-            Boolean aBoolean = CommonUtil.toBoolean("2");
-            assertEquals(null,aBoolean);
+            Object aBoolean = CommonUtil.toBoolean("2");
+            assertEquals(true,aBoolean instanceof BooleanNotExist);
         }
     }
     @Nested
