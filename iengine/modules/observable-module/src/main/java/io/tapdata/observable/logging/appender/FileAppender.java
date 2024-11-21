@@ -2,9 +2,11 @@ package io.tapdata.observable.logging.appender;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.log.CustomPatternLayout;
+import io.tapdata.observable.logging.LogLevel;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.util.LogUtil;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -22,7 +24,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 
 import java.io.File;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author jackin
@@ -36,6 +38,7 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	private final Logger logger;
 	private final String workDir;
 	private String logsPath;
+	private Set<String> includeLogLevel;
 
 	public RollingFileAppender getRollingFileAppender() {
 		return rollingFileAppender;
@@ -47,7 +50,7 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		super(taskId);
 		this.workDir = workDir;
 		this.logger = LogManager.getLogger(LOGGER_NAME_PREFIX + taskId);
-		Configurator.setLevel(LOGGER_NAME_PREFIX, Level.DEBUG);
+		Configurator.setLevel(LOGGER_NAME_PREFIX + taskId, Level.TRACE);
 	}
 
 	public String getLogsPath() {
@@ -60,6 +63,8 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	@Override
 	public void append(MonitoringLogsDto log) {
 		final String level = log.getLevel();
+		if (CollectionUtils.isNotEmpty(includeLogLevel) && !includeLogLevel.contains(level))
+			return;
 		switch (level) {
 			case "DEBUG":
 				logger.debug(log.formatMonitoringLogMessage());
@@ -75,6 +80,9 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 				break;
 			case "FATAL":
 				logger.fatal(log.formatMonitoringLogMessage());
+				break;
+			case "TRACE":
+				logger.trace(log.formatMonitoringLogMessage());
 				break;
 		}
 	}
@@ -134,5 +142,16 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		if (null != logger) {
 			removeAppenders((org.apache.logging.log4j.core.Logger) logger);
 		}
+	}
+
+	public FileAppender include(LogLevel... level) {
+		if (level.length == 0) {
+			return this;
+		}
+		if (includeLogLevel == null) {
+			includeLogLevel = new HashSet<>();
+		}
+		Arrays.stream(level).map(LogLevel::getLevel).forEach(includeLogLevel::add);
+		return this;
 	}
 }
