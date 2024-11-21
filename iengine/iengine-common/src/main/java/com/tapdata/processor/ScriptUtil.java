@@ -419,7 +419,7 @@ public class ScriptUtil {
 			if (consumer != null) {
 				consumer.accept(urlClassLoader);
 			}
-		}catch (IOException e){
+		}catch (Exception e){
 			throw new TapCodeException(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,String.format("Failed to get script engine: %s", e.getMessage()),e);
 		}
 	}

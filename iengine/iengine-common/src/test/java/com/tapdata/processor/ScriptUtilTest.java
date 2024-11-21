@@ -15,7 +15,6 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.core.Logger;
-import org.graalvm.polyglot.proxy.ProxyObject;
 import org.junit.Assert;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
@@ -24,14 +23,11 @@ import org.mockito.internal.verification.Times;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.io.IOException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -62,6 +58,21 @@ public class ScriptUtilTest {
         final ClassLoader[] externalClassLoader = new ClassLoader[1];
         ScriptUtil.urlClassLoader(urlClassLoader -> externalClassLoader[0] = urlClassLoader,urlList);
         Assert.assertNotNull(externalClassLoader[0]);
+    }
+    @DisplayName("test testUrlClassLoaderException error")
+    @Test
+    public void testUrlClassLoaderException(){
+        List<URL> urlList = new ArrayList<>();
+        urlList.add(mock(URL.class));
+        final ClassLoader[] externalClassLoader = new ClassLoader[1];
+        TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+            ScriptUtil.urlClassLoader(urlClassLoader -> {
+                        throw new RuntimeException("appear error");
+                    }
+                    , urlList);
+        });
+        assertEquals(ScriptProcessorExCode_30.GET_SCRIPT_ENGINE_ERROR,tapCodeException.getCode());
+
     }
 
     @Nested
