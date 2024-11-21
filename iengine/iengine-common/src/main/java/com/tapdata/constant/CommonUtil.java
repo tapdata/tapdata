@@ -1,5 +1,7 @@
 package com.tapdata.constant;
 
+import com.tapdata.entity.values.BooleanNotExist;
+
 import java.math.BigDecimal;
 
 public class CommonUtil {
@@ -56,9 +58,15 @@ public class CommonUtil {
 			Object obj2 = val2[i];
 			if (obj1 instanceof Boolean && !(obj2 instanceof Boolean)) {
 				obj2 = toBoolean(obj2);
+				if(obj2 instanceof BooleanNotExist){
+					obj2 = null;
+				}
 			}
 			if (obj2 instanceof Boolean && !(obj1 instanceof Boolean)) {
 				obj1 = toBoolean(obj1);
+				if(obj1 instanceof BooleanNotExist){
+					obj1 = null;
+				}
 			}
 			if (obj1 == null && obj2 == null) {
 				continue; // Both are null, compare the next element
@@ -109,12 +117,15 @@ public class CommonUtil {
 		if (val2 instanceof Boolean) {
 			return val1.equals(val2);
 		}
-		Boolean val2Boolean =CommonUtil.toBoolean(val2);
+		Object val2Boolean = CommonUtil.toBoolean(val2);
+		if (val2Boolean instanceof BooleanNotExist) {
+			return false;
+		}
 		return val1.equals(val2Boolean);
 	}
 
 
-	public static Boolean toBoolean(Object val) {
+	public static Object toBoolean(Object val) {
 		if (val instanceof Number) {
 			long intValue = ((Number) val).longValue();
 			if (intValue == 0) {
@@ -122,7 +133,7 @@ public class CommonUtil {
 			} else if (intValue == 1) {
 				return true;
 			} else {
-				return null;
+				return new BooleanNotExist();
 			}
 		}
 		if (val instanceof BigDecimal) {
@@ -132,7 +143,7 @@ public class CommonUtil {
 			} else if (bigDecimalValue.compareTo(BigDecimal.ONE) == 0) {
 				return true;
 			} else {
-				return null;
+				return new BooleanNotExist();
 			}
 		}
 		if (val instanceof String) {
@@ -142,9 +153,9 @@ public class CommonUtil {
 			} else if ("1".equals(str) || "true".equals(str)) {
 				return true;
 			} else {
-				return null;
+				return new BooleanNotExist();
 			}
 		}
-		return null;
+		return new BooleanNotExist();
 	}
 }
