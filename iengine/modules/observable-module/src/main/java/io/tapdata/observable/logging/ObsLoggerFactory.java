@@ -9,6 +9,9 @@ import io.tapdata.common.SettingService;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TmUnavailableException;
+import io.tapdata.observable.logging.appender.FileAppender;
+import io.tapdata.observable.logging.debug.DataCache;
+import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.LogManager;
@@ -53,7 +56,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		this.settingService = Optional.ofNullable(BeanUtil.getBean(SettingService.class)).orElse((SettingService) getBeanAsync(SettingService.class));
 		this.clientMongoOperator = Optional.ofNullable(BeanUtil.getBean(ClientMongoOperator.class)).orElse((ClientMongoOperator) getBeanAsync(ClientMongoOperator.class));
 		this.scheduleExecutorService = new ScheduledThreadPoolExecutor(1);
-		scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
+		//scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
 		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, PERIOD_SECOND, PERIOD_SECOND, TimeUnit.SECONDS);
 	}
 
@@ -86,6 +89,11 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	public Map<String, TaskLogger> getTaskLoggersMap() {
 		return taskLoggersMap;
 	}
+
+	/**
+	 * log.debug used to catch data and catch data switch use @io.tapdata.services.CatchDataService to control
+	 */
+	@Deprecated
 	private void renewTaskLogSetting() {
 		Thread.currentThread().setName("Renew-Task-Logger-Setting-Scheduler");
 		for (String taskId : taskLoggersMap.keySet()) {
@@ -283,5 +291,43 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
 		return null;
+	}
+
+	public boolean openCatchData(String taskId, Long recordCeiling, Long intervalCeiling) {
+		AtomicBoolean result = new AtomicBoolean(false);
+		taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
+			taskLogger.withTaskLogSetting(LogLevel.DEBUG.getLevel(), recordCeiling, intervalCeiling);
+			result.set(true);
+			return taskLogger;
+		});
+		return result.get();
+	}
+
+	public boolean closeCatchData(String taskId) {
+		AtomicBoolean result = new AtomicBoolean(false);
+		taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
+			taskLogger.withTaskLogSetting(LogLevel.INFO.getLevel(), null, null);
+			result.set(true);
+			return taskLogger;
+		});
+		return result.get();
+	}
+
+	public Map<String, Object> getCatchDataStatus(String taskId) {
+		Map<String, Object> status = new HashMap<>();
+		status.put("taskId", taskId);
+
+		TaskLogger taskLogger = taskLoggersMap.get(taskId);
+		if (taskLogger == null) {
+			status.put("taskLogger", "Not exists.");
+		} else {
+			status.put("taskLogger", taskLogger.toString());
+			status.put("taskLogger.enableDebugLogger", taskLogger.isEnableDebugLogger());
+			status.put("taskLogger.recordCeiling", taskLogger.getRecordCeiling());
+			status.put("taskLogger.intervalCeiling", taskLogger.getIntervalCeiling());
+			status.put("currentTimeMillis", System.currentTimeMillis());
+			status.put("dataCacheStatus", DataCacheFactory.getInstance().getDataCache(taskId).getStatus());
+		}
+		return status;
 	}
 }

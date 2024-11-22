@@ -25,13 +25,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * @author Dexter
@@ -49,8 +48,11 @@ public class TaskLogger extends ObsLogger {
 	private String taskRecordId;
 	@Getter
 	private String taskName;
+	@Getter
 	private boolean enableDebugLogger;
+	@Getter
 	private Long recordCeiling;
+	@Getter
 	private Long intervalCeiling;
 	private boolean testTask;
 	public boolean isTestTask() {
@@ -95,11 +97,15 @@ public class TaskLogger extends ObsLogger {
 		};
 	}
 
+	private String getDebugFileAppenderName(String taskId) {
+		return taskId + "_debug";
+	}
+
 	private WithAppender<MonitoringLogsDto> debugFileAppender(String taskId){
 		return () -> {
 			// add file appender
 			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
-			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, taskId + "_debug")
+			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, getDebugFileAppenderName(taskId))
 					.include(LogLevel.DEBUG);
 		};
 	}
@@ -141,7 +147,14 @@ public class TaskLogger extends ObsLogger {
 			this.intervalCeiling = intervalCeiling == null ?
 					System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000 :
 					System.currentTimeMillis() + intervalCeiling * 1000;
+			openCatchData();
 			return this;
+		}
+		if (!logLevel.isDebug()) {
+			enableDebugLogger = false;
+			this.recordCeiling = null;
+			this.intervalCeiling = null;
+			closeCatchData();
 		}
 		return this;
 	}
@@ -177,6 +190,7 @@ public class TaskLogger extends ObsLogger {
 			if (null != closeDebugConsumer) {
 				closeDebugConsumer.accept(taskId, LogLevel.INFO);
 			}
+			closeCatchData();
 		}
 
 		return noNeedLog;
@@ -367,5 +381,25 @@ public class TaskLogger extends ObsLogger {
 				manager.setTriggeringPolicy(compositeTriggeringPolicy);
 			}
 		}
+	}
+
+	private boolean openCatchData() {
+		AtomicBoolean result = new AtomicBoolean(false);
+		filterDebugFileAppender(t -> result.set(((FileAppender)t).openCatchData()));
+		return result.get();
+	}
+
+	private boolean closeCatchData() {
+		AtomicBoolean result = new AtomicBoolean(false);
+		filterDebugFileAppender(t -> result.set(((FileAppender)t).closeCatchData()));
+		return result.get();
+	}
+
+	public void filterDebugFileAppender(Consumer<? super Appender<?>> fun) {
+		String debugFileAppenderName = getDebugFileAppenderName(getTaskId());
+		this.tapObsAppenders.stream()
+				.filter(t -> t instanceof FileAppender)
+				.filter(t -> debugFileAppenderName.equals( ((FileAppender) t).getTaskId() ))
+				.findFirst().ifPresent(fun);
 	}
 }

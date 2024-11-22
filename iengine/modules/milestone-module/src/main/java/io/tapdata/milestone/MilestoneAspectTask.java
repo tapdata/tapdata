@@ -15,6 +15,7 @@ import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.milestone.constants.MilestoneStatus;
@@ -498,13 +499,16 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
         if (aspect.getError() != null && m.getErrorCode() == null) {
-            m.setErrorCode(CommonUtils.describeErrorCode(aspect.getError()));
+            m.setErrorCode(
+                    Optional.ofNullable(CommonUtils.describeErrorCode(aspect.getError()))
+                            .orElse(TaskProcessorExCode_11.UNKNOWN_ERROR));
         }
         if (aspect.getError() != null && m.getStackMessage() == null) {
             m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
         }
-        if (aspect.getError() instanceof TapCodeException) {
-            m.setDynamicDescriptionParameters(((TapCodeException)aspect.getError()).getDynamicDescriptionParameters());
+        Throwable tapCodeError = CommonUtils.matchThrowable(aspect.getError(), TapCodeException.class);
+        if (tapCodeError != null) {
+            m.setDynamicDescriptionParameters(((TapCodeException)tapCodeError).getDynamicDescriptionParameters());
         }
     }
     protected <T extends EngineDeductionAspect> void setError(T aspect, MilestoneEntity m) {
@@ -512,14 +516,17 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
         if (aspect.getError() != null && m.getErrorCode() == null) {
-            m.setErrorCode(CommonUtils.describeErrorCode(aspect.getError()));
+            m.setErrorCode(
+                    Optional.ofNullable(CommonUtils.describeErrorCode(aspect.getError()))
+                            .orElse(TaskProcessorExCode_11.UNKNOWN_ERROR));
         }
         if (aspect.getError() != null && m.getStackMessage() == null) {
             m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
         }
 
-        if (aspect.getError() instanceof TapCodeException) {
-            m.setDynamicDescriptionParameters(((TapCodeException)aspect.getError()).getDynamicDescriptionParameters());
+        Throwable tapCodeError = CommonUtils.matchThrowable(aspect.getError(), TapCodeException.class);
+        if (tapCodeError != null) {
+            m.setDynamicDescriptionParameters(((TapCodeException) tapCodeError).getDynamicDescriptionParameters());
         }
     }
 
