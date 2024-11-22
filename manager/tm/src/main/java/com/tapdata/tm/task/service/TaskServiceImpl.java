@@ -690,7 +690,7 @@ public class TaskServiceImpl extends TaskService{
 
 
         //更新任务
-        log.info("update task name {},update task, task dto = {} and update taskType", taskDto.getName(), taskDto, taskDto.getType());
+        log.info("update task name {},update task, task dto = {} and update taskType：{}", taskDto.getName(), taskDto, taskDto.getType());
         //推演的时候改的，这里必须清空掉。清空只是不会被修改。
         taskDto.setTransformed(null);
         taskDto.setTransformUuid(null);
