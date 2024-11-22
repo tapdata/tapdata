@@ -22,14 +22,13 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.HazelcastTaskNodeOffer;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.DataNodeCloseAspect;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -147,6 +146,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String lastTableName;
 	protected ExternalStorageDto externalStorageDto;
 	protected TaskPreviewInstance taskPreviewInstance;
+	protected HazelcastTaskNodeOffer hazelcastTaskNodeOffer;
 
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
@@ -234,6 +234,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (null != processorBaseContext && processorBaseContext.getTaskDto().isPreviewTask()) {
 				this.taskPreviewInstance = TaskPreviewService.taskPreviewInstance(processorBaseContext.getTaskDto());
 			}
+			this.hazelcastTaskNodeOffer = this::offer;
 			if (!getNode().disabledNode() || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),TaskDto.SYNC_TYPE_TEST_RUN,TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 				doInit(context);
 			} else {
@@ -1036,5 +1037,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			throw err;
 		};
+	}
+
+	public void setHazelcastTaskNodeOffer(HazelcastTaskNodeOffer hazelcastTaskNodeOffer) {
+		this.hazelcastTaskNodeOffer = hazelcastTaskNodeOffer;
 	}
 }

@@ -135,9 +135,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -344,7 +342,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	private void doSnapshotWithControl(List<String> tableList) throws Throwable {
+	protected void doSnapshotWithControl(List<String> tableList) throws Throwable {
+		Node<?> node = getNode();
+		if (node instanceof TableNode && ((TableNode) node).isSourceAndTarget()) {
+			doSnapshot(tableList);
+			return;
+		}
 		SnapshotOrderController controller = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
 		if (null != controller) {
 			CommonUtils.AnyError runner = () -> doSnapshot(tableList);

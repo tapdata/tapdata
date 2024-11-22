@@ -191,6 +191,8 @@ public class TableNode extends DataNode {
     private String previewQualifiedName;
     private TapTable previewTapTable;
 
+    private boolean sourceAndTarget;
+
     public TableNode() {
         super("table");
     }

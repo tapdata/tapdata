@@ -1229,6 +1229,7 @@ public class DAG implements Serializable, Cloneable {
         if (null == nodes || nodes.size() != 2) {
             return false;
         }
+
         Node node1 = nodes.get(0);
         if (!(node1 instanceof DataParentNode)) return false;
         Node node2 = nodes.get(1);
@@ -1264,11 +1265,26 @@ public class DAG implements Serializable, Cloneable {
             edge.setTarget(newNode.getId());
             graph.setEdge(edge.getSource(), newNode.getId(), edge);
         });
+        newNode.setGraph(graph);
+        newNode.setDag(this);
     }
 
     public void addTargetNode(Node sourceNode, Node targetNode) {
         graph.setNode(targetNode.getId(), targetNode);
+        LinkedList<Edge> edges = getEdges();
+        if (null != edges) {
+            List<Edge> edgesAsSource = edges.stream().filter(edge -> edge.getSource().equals(sourceNode.getId())).collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(edgesAsSource)) {
+                for (Edge edge : edgesAsSource) {
+                    graph.removeEdge(edge.getSource(), edge.getTarget());
+                    Edge newEdge = new Edge(targetNode.getId(), edge.getTarget());
+                    graph.setEdge(newEdge.getSource(), newEdge.getTarget(), newEdge);
+                }
+            }
+        }
         Edge edge = new Edge(sourceNode.getId(), targetNode.getId());
         graph.setEdge(sourceNode.getId(), targetNode.getId(), edge);
+        targetNode.setGraph(graph);
+        targetNode.setDag(this);
     }
 }

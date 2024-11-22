@@ -8,10 +8,7 @@ import com.tapdata.tm.commons.dag.process.UnionProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -79,7 +76,13 @@ public class GraphUtil {
 	}
 
 	public static List<Node> findMergeNode(TaskDto taskDto) {
+		if (null == taskDto || null == taskDto.getDag()) {
+			return Collections.emptyList();
+		}
 		List<Node> nodes = taskDto.getDag().getNodes();
+		if (CollectionUtils.isEmpty(nodes)) {
+			return Collections.emptyList();
+		}
 		return nodes.stream().filter(n -> n instanceof MergeTableNode
 				|| n instanceof JoinProcessorNode
 				|| n instanceof UnionProcessorNode).collect(Collectors.toList());

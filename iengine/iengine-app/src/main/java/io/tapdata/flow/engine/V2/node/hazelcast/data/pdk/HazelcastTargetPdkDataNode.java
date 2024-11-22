@@ -32,6 +32,7 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
@@ -165,7 +166,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Node<?> node = dataProcessorContext.getNode();
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
 			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
-			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress);
+			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress, SyncProgressNodeType.TARGET);
 			if (null == syncProgress) {
 				for (String tableId : tableIds) {
 					if (!isRunning()) {

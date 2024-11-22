@@ -93,6 +93,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
@@ -259,6 +260,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	@SneakyThrows
 	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce) {
+		handleDagWhenProcessAfterMerge(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
 		if (deduce) {
 			if (taskDto.isPreviewTask()) {
@@ -302,10 +304,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 		final ConfigurationCenter config = (ConfigurationCenter) configurationCenter.clone();
 		if (CollectionUtils.isNotEmpty(nodes)) {
-
-			// Get merge table map
-			Map<String, MergeTableNode> mergeTableMap = MergeTableUtil.getMergeTableMap(nodes, edges);
-
 			// Generate AutoInspectNode
 			try {
 				AutoInspectNode inspectNode = AutoInspectNodeUtil.firstAutoInspectNode(taskDtoAtomicReference.get());
@@ -389,7 +387,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								config,
 								finalConnection,
 								finalDatabaseType,
-								mergeTableMap,
+								null,
 								finalTapTableMap,
 								taskConfig
 						);
@@ -409,6 +407,22 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	protected void handleDagWhenProcessAfterMerge(TaskDto taskDto) {
+		List<TableNode> addedNodes = ProcessAfterMergeUtil.handleDagWhenProcessAfterMerge(taskDto);
+		if (CollectionUtils.isEmpty(addedNodes)) {
+			return;
+		}
+		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+		obsLogger.info("It is detected that there is a processing node after the master-slave merge node, pre-process the dag, and add some virtual node(s)");
+		for (TableNode addedNode : addedNodes) {
+			String message = String.format(
+					"Added virtual source and target node, type: %s, id: %s, table name: %s, connection id: %s",
+					addedNode.getType(), addedNode.getId(), addedNode.getTableName(), addedNode.getConnectionId()
+			);
+			obsLogger.info(message);
+		}
 	}
 
 	protected Map<String, TapTableMap<String, TapTable>> transformSchemaWhenPreview(TaskDto taskDto) {
@@ -516,6 +530,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
 										.withTaskConfig(taskConfig)
+										.withSourceConn(connection)
+										.withTargetConn(connection)
 										.build()
 						);
 					} else {
@@ -984,11 +1000,32 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	protected void initSourceInitialCounter(TaskDto taskDto) {
 		String type = taskDto.getType();
+		if (!TaskDto.TYPE_INITIAL_SYNC.equals(type) && CollectionUtils.isEmpty(GraphUtil.findMergeNode(taskDto))) {
+			return;
+		}
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
-		List<Node> sourceNodes = dag.getSourceNodes();
+		List<Node> nodes = dag.getNodes();
+		List<Node> allSourceDataNodes = nodes.stream().filter(n -> {
+			if (!(n instanceof TableNode) && !(n instanceof DatabaseNode)) {
+				return false;
+			}
+			if (CollectionUtils.isEmpty(n.successors())) {
+				return false;
+			}
+			return true;
+		}).collect(Collectors.toList());
 		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
-		if (TaskDto.TYPE_INITIAL_SYNC.equals(type) || CollectionUtils.isNotEmpty(GraphUtil.findMergeNode(taskDto))) {
-			taskGlobalVariable.put(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, new AtomicInteger(sourceNodes.size()));
+		for (Node sourceDataNode : allSourceDataNodes) {
+			List<Node<?>> targetDataNodes = GraphUtil.successors(sourceDataNode, n -> n instanceof TableNode || n instanceof DatabaseNode);
+			if (CollectionUtils.isEmpty(targetDataNodes)) {
+				continue;
+			}
+			for (Node<?> targetDataNode : targetDataNodes) {
+				String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, targetDataNode.getId());
+				Object value = taskGlobalVariable.getOrDefault(key, new AtomicInteger(0));
+				((AtomicInteger)value).incrementAndGet();
+				taskGlobalVariable.put(key, value);
+			}
 		}
 	}
 
@@ -1028,5 +1065,4 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		mergeNodeCleaner.cleanTaskNode(taskDto.getId().toHexString(), nodeId);
 		logger.info("Clear {} master-slave merge cache", nodeId);
 	}
-
 }

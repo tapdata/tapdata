@@ -277,7 +277,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				thread.interrupt();
 			}
 			if (errorAtomicRef.get() != null) {
-				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get().getMessage());
+				throw new TapCodeException(ScriptProcessorExCode_30.JAVA_SCRIPT_PROCESS_FAILED, errorAtomicRef.get());
 			}
 
 		} else {

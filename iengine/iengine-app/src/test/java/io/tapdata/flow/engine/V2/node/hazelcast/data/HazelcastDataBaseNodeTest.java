@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -167,7 +168,7 @@ public class HazelcastDataBaseNodeTest {
             SyncProgress syncProgress = new SyncProgress();
             syncProgress.setEventSerialNo(null);
             syncProgressMap.put("source1,targetNode", syncProgress);
-            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap);
+            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap, SyncProgressNodeType.SOURCE);
             assertEquals(syncProgressResult, syncProgress);
         }
 
@@ -180,7 +181,7 @@ public class HazelcastDataBaseNodeTest {
             SyncProgress source2Progress = new SyncProgress();
             syncProgressMap.put("source2,targetNode", source2Progress);
             source2Progress.setEventSerialNo(1L);
-            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap);
+            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap, SyncProgressNodeType.SOURCE);
             assertEquals(syncProgressResult.getEventSerialNo(), 1L);
         }
     }
