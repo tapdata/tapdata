@@ -310,7 +310,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 //                aspect.getSuccess());
         // 1. get running milestone
         MilestoneEntity runningMilestone = milestones.values().stream().filter(m -> m.getStatus() == MilestoneStatus.RUNNING).findFirst().orElse(null);
-        // 2. update retry status to milestone
+        // 2. get cdc milestone when all finish
+        if (runningMilestone == null) {
+            runningMilestone = milestones.values().stream().filter(m -> KPI_CDC.equals(m.getCode())).findFirst().orElse(null);
+        }
+        // 3. update retry status to milestone
         Optional.ofNullable(runningMilestone).ifPresent(milestoneEntity -> {
             milestoneEntity.setRetrying(aspect.isRetrying());
             milestoneEntity.setRetryTimes(aspect.getRetryTimes());
