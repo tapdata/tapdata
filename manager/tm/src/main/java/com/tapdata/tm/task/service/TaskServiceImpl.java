@@ -633,7 +633,7 @@ public class TaskServiceImpl extends TaskService{
                         }
                     }
                 }
-                log.debug("old task = {}", oldTaskDto);
+                log.info("old task = {}", oldTaskDto);
             }
         }
 
@@ -690,7 +690,7 @@ public class TaskServiceImpl extends TaskService{
 
 
         //更新任务
-        log.debug("update task, task dto = {}", taskDto);
+        log.info("update task, task dto = {}", taskDto);
         //推演的时候改的，这里必须清空掉。清空只是不会被修改。
         taskDto.setTransformed(null);
         taskDto.setTransformUuid(null);
