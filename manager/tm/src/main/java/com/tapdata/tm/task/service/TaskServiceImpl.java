@@ -712,6 +712,7 @@ public class TaskServiceImpl extends TaskService{
 
     public TaskDto updateAfter(TaskDto taskDto, UserDetail user) {
         taskSaveService.syncTaskSetting(taskDto, user);
+        log.info("update After taskId:{}，taskName:{},taskType:{},taskEditVersion:{}",taskDto.getId(),taskDto.getName(),taskDto.getType(),taskDto.getEditVersion());
         return save(taskDto, user);
     }
 
