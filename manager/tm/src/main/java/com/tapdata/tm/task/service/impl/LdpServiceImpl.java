@@ -128,6 +128,8 @@ public class LdpServiceImpl implements LdpService {
 	private static final String TASK_ID = "taskId";
 	private static final String SOURCE_TYPE = "sourceType";
 
+	public static final String SYNC_TYPE = "syncType";
+
     @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
 	public TaskDto createFdmTask(TaskDto task, boolean start, UserDetail user) {
@@ -531,7 +533,7 @@ public class LdpServiceImpl implements LdpService {
 	public void afterLdpTask(String taskId, UserDetail user) {
 		com.tapdata.tm.base.dto.Field queryField = new com.tapdata.tm.base.dto.Field();
 		queryField.put("dag", 1);
-		queryField.put("syncType", 1);
+		queryField.put(SYNC_TYPE, 1);
 		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), queryField);
         taskService.updateAfter(taskDto, user);
 		LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
@@ -1446,7 +1448,7 @@ public class LdpServiceImpl implements LdpService {
 		}
 		//查询所有的fdm中间库为目标节点的复制任务。
 		Criteria criteriaTask = Criteria.where("ldpType").exists(false)
-				.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
+				.and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_MIGRATE)
 				.and("is_deleted").ne(true)
 				.and("dag.nodes.connectionId").is(fdmStorageConnectionId);
 		Query queryTask = new Query(criteriaTask);
@@ -1480,7 +1482,7 @@ public class LdpServiceImpl implements LdpService {
 		}
 		//查询所有的fdm中间库为目标节点的复制任务。
 		Criteria criteriaTask = Criteria.where("ldpType").exists(false)
-				.and("syncType").is(TaskDto.SYNC_TYPE_SYNC)
+				.and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_SYNC)
 				.and("is_deleted").ne(true)
 				.and("dag.nodes.connectionId").is(mdmStorageConnectionId);
 		Query queryTask = new Query(criteriaTask);
