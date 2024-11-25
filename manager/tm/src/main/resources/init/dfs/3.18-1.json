@@ -1,0 +1,21 @@
+[
+  {
+    "update": "JavascriptFunctions",
+    "updates": [
+      {
+        "q": {
+          "className": "MapUtil",
+          "desc": "字典工具类"
+        },
+        "u": {
+          "$set": {
+            "className": "MapUtils",
+            "example": "//从给定的map中获取指定层级的值\nvar a = MapUtils.getValueByKey(map, 'a.b.c');"
+          }
+        },
+        "upsert": false,
+        "multi": true
+      }
+    ]
+  }
+]
