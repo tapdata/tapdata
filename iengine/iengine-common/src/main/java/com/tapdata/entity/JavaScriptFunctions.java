@@ -34,7 +34,14 @@ public class JavaScriptFunctions {
 	public String getJSFunction() {
 		if (isJar()) {
 			if (StringUtils.isNotBlank(function_name) && StringUtils.isNotBlank(className)) {
-				return String.format(JAVA_TYPE_TEMPLATE, function_name, className);
+				String name;
+				if (StringUtils.isNotBlank(className)) {
+					int index = className.split("\\.").length - 1;
+					name = className.split("\\.")[index];
+				}else{
+					name = function_name;
+				}
+				return String.format(JAVA_TYPE_TEMPLATE, name, className);
 			}
 		} else {
 			if (StringUtils.isNotBlank(function_name) && StringUtils.isNotBlank(function_body)) {
