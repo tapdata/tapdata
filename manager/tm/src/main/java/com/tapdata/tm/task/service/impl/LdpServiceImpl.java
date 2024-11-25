@@ -129,6 +129,7 @@ public class LdpServiceImpl implements LdpService {
 	private static final String SOURCE_TYPE = "sourceType";
 
 	public static final String SYNC_TYPE = "syncType";
+	public static final String TASK_TYPE = "type";
 	public static final String DAG = "dag";
 
     @Override
@@ -532,10 +533,9 @@ public class LdpServiceImpl implements LdpService {
 
 	@Override
 	public void afterLdpTask(String taskId, UserDetail user) {
-		com.tapdata.tm.base.dto.Field queryField = new com.tapdata.tm.base.dto.Field();
-		queryField.put(DAG, 1);
-		queryField.put(SYNC_TYPE, 1);
-		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), queryField);
+		com.tapdata.tm.base.dto.Field exclusionQueryField = new com.tapdata.tm.base.dto.Field();
+		exclusionQueryField.put(TASK_TYPE, 0);
+		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), exclusionQueryField);
         taskService.updateAfter(taskDto, user);
 		LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
         if (platformDto == null) {
