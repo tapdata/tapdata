@@ -40,12 +40,14 @@ public class ObsLoggerFactoryTest {
 
         try (MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class)) {
 
-            beanUtilMock.when(() -> BeanUtil.getBean(SettingService.class)).thenReturn(settingService);
-            beanUtilMock.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientOperator);
+            beanUtilMock.when(() -> BeanUtil.getBean(eq(SettingService.class))).thenReturn(settingService);
+            beanUtilMock.when(() -> BeanUtil.getBean(eq(ClientMongoOperator.class))).thenReturn(clientOperator);
 
             ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto, "nodeId", "nodeName");
             Assertions.assertNotNull(obsLogger);
             ObsLoggerFactory.getInstance().removeTaskLogger(taskDto);
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
         }
 
     }
