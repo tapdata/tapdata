@@ -73,6 +73,7 @@ import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.TaskLogger;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -86,6 +87,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode.INSERT_METADATA_INFO_KEY;
@@ -2173,5 +2175,36 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			});
 			assertEquals(tapCodeException.getCode(),TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED);
 		}
+	}
+
+	@Test
+	void testCatchData() {
+		processorBaseContext = mock(ProcessorBaseContext.class);
+		HazelcastBaseNode node = new HazelcastBaseNode(processorBaseContext) {
+
+		};
+
+		TaskLogger obsLogger = mock(TaskLogger.class);
+		ReflectionTestUtils.setField(node, "obsLogger", obsLogger);
+
+		TapdataEvent event = new TapdataEvent();
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+		verify(obsLogger, times(0)).debug(any(Callable.class), anyString());
+
+		event.setTapEvent(new TapCreateTableEvent());
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+		verify(obsLogger, times(0)).debug(any(Callable.class), anyString());
+
+		event.setTapEvent(TapInsertRecordEvent.create().after(new HashMap<>()));
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+
+		event.setTapEvent(TapUpdateRecordEvent.create().before(new HashMap<>()).after(new HashMap<>()));
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+
+		event.setTapEvent(TapDeleteRecordEvent.create().before(new HashMap<>()));
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+
+		verify(obsLogger, times(3)).debug(any(Callable.class), anyString());
+
 	}
 }

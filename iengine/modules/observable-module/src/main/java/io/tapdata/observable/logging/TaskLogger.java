@@ -97,7 +97,7 @@ public class TaskLogger extends ObsLogger {
 		};
 	}
 
-	private String getDebugFileAppenderName(String taskId) {
+	public String getDebugFileAppenderName(String taskId) {
 		return taskId + "_debug";
 	}
 
