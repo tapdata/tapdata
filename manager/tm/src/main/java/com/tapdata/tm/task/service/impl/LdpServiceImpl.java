@@ -529,8 +529,11 @@ public class LdpServiceImpl implements LdpService {
 
 	@Override
 	public void afterLdpTask(String taskId, UserDetail user) {
-		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-		taskService.updateAfter(taskDto, user);
+		com.tapdata.tm.base.dto.Field queryField = new com.tapdata.tm.base.dto.Field();
+		queryField.put("dag", 1);
+		queryField.put("syncType", 1);
+		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), queryField);
+        taskService.updateAfter(taskDto, user);
 		LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
         if (platformDto == null) {
             return;

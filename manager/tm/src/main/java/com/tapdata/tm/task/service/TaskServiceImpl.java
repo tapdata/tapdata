@@ -633,7 +633,7 @@ public class TaskServiceImpl extends TaskService{
                         }
                     }
                 }
-                log.info("old task name ={} ,old task = {} and task type is {}", oldTaskDto.getName(), oldTaskDto, oldTaskDto.getType());
+                log.debug("old task = {}", oldTaskDto);
             }
         }
 
@@ -690,7 +690,7 @@ public class TaskServiceImpl extends TaskService{
 
 
         //更新任务
-        log.info("update task name {},update task, task dto = {} and update taskType：{}", taskDto.getName(), taskDto, taskDto.getType());
+        log.debug("update task, task dto = {}", taskDto);
         //推演的时候改的，这里必须清空掉。清空只是不会被修改。
         taskDto.setTransformed(null);
         taskDto.setTransformUuid(null);
@@ -712,7 +712,6 @@ public class TaskServiceImpl extends TaskService{
 
     public TaskDto updateAfter(TaskDto taskDto, UserDetail user) {
         taskSaveService.syncTaskSetting(taskDto, user);
-        log.info("update After taskId:{}，taskName:{},taskType:{},taskEditVersion:{}",taskDto.getId(),taskDto.getName(),taskDto.getType(),taskDto.getEditVersion());
         return save(taskDto, user);
     }
 
