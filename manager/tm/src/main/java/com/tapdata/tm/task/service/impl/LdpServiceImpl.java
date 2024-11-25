@@ -129,6 +129,7 @@ public class LdpServiceImpl implements LdpService {
 	private static final String SOURCE_TYPE = "sourceType";
 
 	public static final String SYNC_TYPE = "syncType";
+	public static final String DAG = "dag";
 
     @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -532,7 +533,7 @@ public class LdpServiceImpl implements LdpService {
 	@Override
 	public void afterLdpTask(String taskId, UserDetail user) {
 		com.tapdata.tm.base.dto.Field queryField = new com.tapdata.tm.base.dto.Field();
-		queryField.put("dag", 1);
+		queryField.put(DAG, 1);
 		queryField.put(SYNC_TYPE, 1);
 		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), queryField);
         taskService.updateAfter(taskDto, user);
