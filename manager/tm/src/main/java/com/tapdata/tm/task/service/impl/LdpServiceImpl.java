@@ -128,9 +128,7 @@ public class LdpServiceImpl implements LdpService {
 	private static final String TASK_ID = "taskId";
 	private static final String SOURCE_TYPE = "sourceType";
 
-	public static final String SYNC_TYPE = "syncType";
 	public static final String TASK_TYPE = "type";
-	public static final String DAG = "dag";
 
     @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
@@ -1449,7 +1447,7 @@ public class LdpServiceImpl implements LdpService {
 		}
 		//查询所有的fdm中间库为目标节点的复制任务。
 		Criteria criteriaTask = Criteria.where("ldpType").exists(false)
-				.and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_MIGRATE)
+				.and("syncType").is(TaskDto.SYNC_TYPE_MIGRATE)
 				.and("is_deleted").ne(true)
 				.and("dag.nodes.connectionId").is(fdmStorageConnectionId);
 		Query queryTask = new Query(criteriaTask);
@@ -1483,7 +1481,7 @@ public class LdpServiceImpl implements LdpService {
 		}
 		//查询所有的fdm中间库为目标节点的复制任务。
 		Criteria criteriaTask = Criteria.where("ldpType").exists(false)
-				.and(SYNC_TYPE).is(TaskDto.SYNC_TYPE_SYNC)
+				.and("syncType").is(TaskDto.SYNC_TYPE_SYNC)
 				.and("is_deleted").ne(true)
 				.and("dag.nodes.connectionId").is(mdmStorageConnectionId);
 		Query queryTask = new Query(criteriaTask);
