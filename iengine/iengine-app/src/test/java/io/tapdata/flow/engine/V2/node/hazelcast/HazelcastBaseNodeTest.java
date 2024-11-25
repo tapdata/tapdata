@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
@@ -2179,12 +2180,25 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Test
 	void testCatchData() {
-		processorBaseContext = mock(ProcessorBaseContext.class);
+		ProcessorBaseContext processorBaseContext = mock(ProcessorBaseContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setName("taskName");
+		when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+		Node databaseNode = new DatabaseNode();
+		databaseNode.setId("node_id");
+		databaseNode.setName("node_name");
+		when(processorBaseContext.getNode()).thenReturn(databaseNode);
 		HazelcastBaseNode node = new HazelcastBaseNode(processorBaseContext) {
 
 		};
 
 		TaskLogger obsLogger = mock(TaskLogger.class);
+		doAnswer(answer -> {
+			Callable<MonitoringLogsDto> callable = answer.getArgument(0);
+			Assertions.assertNotNull(callable.call());
+			return null;
+		}).when(obsLogger).debug(any(Callable.class), anyString());
 		ReflectionTestUtils.setField(node, "obsLogger", obsLogger);
 
 		TapdataEvent event = new TapdataEvent();

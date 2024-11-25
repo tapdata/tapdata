@@ -14,6 +14,7 @@ import org.mockito.MockedStatic;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -79,6 +80,13 @@ public class CatchDataServiceTest {
             data = catchDataService.getCatchData("taskId");
             Assertions.assertNotNull(data);
             Assertions.assertFalse(data.isEmpty());
+
+            when(obsLoggerFactory.closeCatchData(eq("testId"))).thenReturn(true);
+            result = catchDataService.closeCatchData("testId");
+            Assertions.assertTrue(result);
+
+            Map<String, Object> status = catchDataService.getCatchDataStatus("testId");
+            Assertions.assertNotNull(status);
         }
     }
 }
