@@ -499,36 +499,23 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected <T extends AbsDataNodeErrorAspect<T>> void setError(T aspect, MilestoneEntity m) {
-        m.setEnd(System.currentTimeMillis());
-        m.setStatus(MilestoneStatus.ERROR);
-        m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
-        if (aspect.getError() != null && m.getErrorCode() == null) {
-            m.setErrorCode(
-                    Optional.ofNullable(CommonUtils.describeErrorCode(aspect.getError()))
-                            .orElse(TaskProcessorExCode_11.UNKNOWN_ERROR));
-        }
-        if (aspect.getError() != null && m.getStackMessage() == null) {
-            m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
-        }
-        Throwable tapCodeError = CommonUtils.matchThrowable(aspect.getError(), TapCodeException.class);
-        if (tapCodeError != null) {
-            m.setDynamicDescriptionParameters(((TapCodeException)tapCodeError).getDynamicDescriptionParameters());
-        }
+        setError(aspect.getError(), m);
     }
     protected <T extends EngineDeductionAspect> void setError(T aspect, MilestoneEntity m) {
+        setError(aspect.getError(), m);
+    }
+
+    protected void setError(Throwable error, MilestoneEntity m) {
         m.setEnd(System.currentTimeMillis());
         m.setStatus(MilestoneStatus.ERROR);
-        m.setErrorMessage(Optional.ofNullable(aspect.getError()).map(Throwable::getMessage).orElse(null));
-        if (aspect.getError() != null && m.getErrorCode() == null) {
-            m.setErrorCode(
-                    Optional.ofNullable(CommonUtils.describeErrorCode(aspect.getError()))
-                            .orElse(TaskProcessorExCode_11.UNKNOWN_ERROR));
+        m.setErrorMessage(Optional.ofNullable(error).map(Throwable::getMessage).orElse(null));
+        if (error != null && m.getErrorCode() == null) {
+            m.setErrorCode(Optional.ofNullable(CommonUtils.describeErrorCode(error)).orElse(TaskProcessorExCode_11.UNKNOWN_ERROR));
         }
-        if (aspect.getError() != null && m.getStackMessage() == null) {
-            m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
+        if (error != null && m.getStackMessage() == null) {
+            m.setStackMessage(ExceptionUtils.getStackTrace(error));
         }
-
-        Throwable tapCodeError = CommonUtils.matchThrowable(aspect.getError(), TapCodeException.class);
+        Throwable tapCodeError = CommonUtils.matchThrowable(error, TapCodeException.class);
         if (tapCodeError != null) {
             m.setDynamicDescriptionParameters(((TapCodeException) tapCodeError).getDynamicDescriptionParameters());
         }
