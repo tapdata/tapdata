@@ -13,12 +13,12 @@ import io.tapdata.exception.TapExType;
 public interface TapDynamicTableNameExCode_35 {
     @TapExCode
     String UNKNOWN_ERROR = "35001";
-
+    //TODO
     @TapExCode(
-            describe = "This error occurs when a dynamic date suffix cannot be created to generate a dynamic table name object when the target table of the development task is enabled",
-            describeCN = "当开发任务的目标节点开启动态日期后缀时，当无法创建动态生成表名规则对象时，会出现此错误",
+            describe = "When the dynamic date suffix is enabled on the target node of the development task, the dynamic generation table name rule object cannot be created",
+            describeCN = "当开发任务的目标节点开启动态日期后缀时，无法创建动态生成表名规则对象",
             dynamicDescription = "Failed to generate an object for a dynamic table name whose creation rule is {}",
-            dynamicDescriptionCN = "创建规则为{} 的动态表名生成对象时失败",
+            dynamicDescriptionCN = "生成动态表名规则失败，规则：{}",
             type = TapExType.PARAMETER_INVALID,
             level = TapExLevel.NORMAL
     )
@@ -26,7 +26,7 @@ public interface TapDynamicTableNameExCode_35 {
 
     @TapExCode(
             describe = "Fail to get invocation for dynamic table name",
-            describeCN = "当开发任务的目标节点开启动态日期后缀时，当创建动态生成表名规则对象时发生报错，则会抛出此错误",
+            describeCN = "当开发任务的目标节点开启动态日期后缀时，创建动态生成表名规则对象时发生报错",
             type = TapExType.PARAMETER_INVALID,
             level = TapExLevel.NORMAL
     )
@@ -34,7 +34,7 @@ public interface TapDynamicTableNameExCode_35 {
 
     @TapExCode(
             describe = "Dynamic method not find of Dynamic table name generation rule",
-            describeCN = "当开发任务目标节点开启动态日期后缀时，找不到动态表名生成规则的生成方法时，则会报此错误",
+            describeCN = "当开发任务目标节点开启动态日期后缀时，找不到动态表名生成规则的生成方法",
             type = TapExType.PARAMETER_INVALID,
             level = TapExLevel.NORMAL
     )
@@ -42,7 +42,7 @@ public interface TapDynamicTableNameExCode_35 {
 
     @TapExCode(
             describe = "Can not access dynamic table name generation method",
-            describeCN = "当开发任务目标节点开启动态日期后缀时，无法调用动态表名生成规则的生成方法时，则会报此错误",
+            describeCN = "当开发任务目标节点开启动态日期后缀时，无法调用动态表名生成规则的生成方法时",
             solution = "Please select a supported dynamic table name generation rule",
             solutionCN = "请选择一个已支持的动态表名生成规则",
             type = TapExType.PARAMETER_INVALID,

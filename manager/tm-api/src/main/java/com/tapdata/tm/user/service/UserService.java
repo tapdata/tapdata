@@ -68,5 +68,7 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract TestResponseDto testLoginByLdap(TestLdapDto testAdDto);
 
     public abstract boolean loginByLdap(String username, String password);
+
+    public abstract UserDto getUserDetail(String userId);
 }
 

@@ -15,6 +15,7 @@ import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.aspect.taskmilestones.*;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
@@ -309,7 +310,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 //                aspect.getSuccess());
         // 1. get running milestone
         MilestoneEntity runningMilestone = milestones.values().stream().filter(m -> m.getStatus() == MilestoneStatus.RUNNING).findFirst().orElse(null);
-        // 2. update retry status to milestone
+        // 2. get cdc milestone when all finish
+        if (runningMilestone == null) {
+            runningMilestone = milestones.values().stream().filter(m -> KPI_CDC.equals(m.getCode())).findFirst().orElse(null);
+        }
+        // 3. update retry status to milestone
         Optional.ofNullable(runningMilestone).ifPresent(milestoneEntity -> {
             milestoneEntity.setRetrying(aspect.isRetrying());
             milestoneEntity.setRetryTimes(aspect.getRetryTimes());
@@ -502,6 +507,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (aspect.getError() != null && m.getStackMessage() == null) {
             m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
         }
+        if (aspect.getError() instanceof TapCodeException) {
+            m.setDynamicDescriptionParameters(((TapCodeException)aspect.getError()).getDynamicDescriptionParameters());
+        }
     }
     protected <T extends EngineDeductionAspect> void setError(T aspect, MilestoneEntity m) {
         m.setEnd(System.currentTimeMillis());
@@ -512,6 +520,10 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
         if (aspect.getError() != null && m.getStackMessage() == null) {
             m.setStackMessage(ExceptionUtils.getStackTrace(aspect.getError()));
+        }
+
+        if (aspect.getError() instanceof TapCodeException) {
+            m.setDynamicDescriptionParameters(((TapCodeException)aspect.getError()).getDynamicDescriptionParameters());
         }
     }
 

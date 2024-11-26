@@ -4,7 +4,6 @@ import com.google.common.collect.Queues;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.exception.CloneException;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
@@ -42,6 +41,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static io.tapdata.observable.logging.ObsLogger.LOG_TAG_SOURCE_FOR_USER_SCRIPT;
 
 /**
  * @author samuel
@@ -591,7 +592,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	public ObsLogger getScriptObsLogger() {
 		if (this.scriptObsLogger == null) {
 			Set<String> tags = new HashSet<>();
-			tags.add("src=user_script");
+			tags.add(LOG_TAG_SOURCE_FOR_USER_SCRIPT);
 			List<String> otherTags = getLogTags();
 			if (CollectionUtils.isNotEmpty(otherTags)) {
 				tags.addAll(otherTags);

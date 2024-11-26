@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
@@ -344,7 +345,7 @@ class LdpServiceImplTest {
         void testAfterLdpTaskSimple() {
             user = mock(UserDetail.class);
             String taskId = "6720c4a18c6b586b9e1b493b";
-            when(taskService.findById(any(ObjectId.class))).thenReturn(mock(TaskDto.class));
+            when(taskService.findByTaskId(any(),any())).thenReturn(mock(TaskDto.class));
             doCallRealMethod().when(ldpService).afterLdpTask(taskId, user);
             ldpService.afterLdpTask(taskId, user);
         }

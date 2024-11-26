@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.cache.Cache;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -29,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,6 +49,8 @@ public class SettingsServiceTest {
     private AlarmMailService alarmMailService;
 
     private SettingsRepository mockSettingsRepository;
+
+    private CaffeineCacheManager caffeineCacheManager;
     @Nested
     class getMailAccountTest{
         @BeforeEach
@@ -55,8 +60,10 @@ public class SettingsServiceTest {
             mockSettingsRepository = mock(SettingsRepository.class);
             userService = mock(UserService.class);
             alarmMailService = mock(AlarmMailService.class);
+            caffeineCacheManager = mock(CaffeineCacheManager.class);
             settingsService.setMongoTemplate(mongoTemplate);
             settingsService.setSettingsRepository(mockSettingsRepository);
+            ReflectionTestUtils.setField(settingsService,"caffeineCacheManager",caffeineCacheManager);
             ReflectionTestUtils.setField(settingsService,"alarmMailService",alarmMailService);
             userDetail = new UserDetail("123", "customerId", "username", "password", "customerType",
                     "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
@@ -164,8 +171,26 @@ public class SettingsServiceTest {
             settings.setValue("CLOUD");
             List<Settings> list = new ArrayList<>();
             list.add(settings);
+            when(caffeineCacheManager.getCache("cloudSettings")).thenReturn(null);
             when(mongoTemplate.find(any(Query.class), eq(Settings.class))).thenReturn(list);
             final List<SettingsDto> result = settingsService.findALl("decode", filter);
+            assertThat(result.get(0).getValue()).isEqualTo(settings.getValue());
+        }
+
+        @Test
+        void testFindALl_isDFS_CACHE() {
+            final Filter filter = new Filter();
+            final Settings settings = new Settings();
+            settings.setKey("buildProfile");
+            settings.setValue("CLOUD");
+            List<Settings> list = new ArrayList<>();
+            list.add(settings);
+            Cache cache = mock(Cache.class);
+            when(cache.get(any(), any(Callable.class))).thenReturn(list);
+            when(caffeineCacheManager.getCache("cloudSettings")).thenReturn(cache);
+            when(mongoTemplate.find(any(Query.class), eq(Settings.class))).thenReturn(list);
+            final List<SettingsDto> result = settingsService.findALl("decode", filter);
+            verify(cache,times(1)).get(any(), any(Callable.class));
             assertThat(result.get(0).getValue()).isEqualTo(settings.getValue());
         }
 

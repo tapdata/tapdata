@@ -35,8 +35,8 @@ public interface TaskProcessorExCode_11 {
 	String PYTHON_PROCESS_FAILED = "11005";
 
 	@TapExCode(
-			describe = "When the task starts, the engine will initialize the custom node according to the created custom node template, when the initialization does not get the defined template information",
-			describeCN = "任务启动时，引擎会根据创建的自定义节点模版初始化自定义节点，当初始化时获取不到定义的模版信息时",
+			describe = "When the task starts, the engine initializes the custom node based on the custom node template created. Failed to get custom template information when initializing a custom node",
+			describeCN = "任务启动时，引擎会根据创建的自定义节点模版初始化自定义节点。当初始化时自定义节点时获取自定义的模版信息失败",
 			dynamicDescription = "The template for the custom node is removed before the task is started",
 			dynamicDescriptionCN = "自定义节点的模版在任务启动前被删除",
 			solution = "Click the Custom node of the Advanced functions sub-menu on the left side of the system to view the currently created custom template. If the custom template is deleted, you'll need to recreate the custom template and reconfigure the task",
@@ -57,7 +57,7 @@ public interface TaskProcessorExCode_11 {
 
 	@TapExCode(
 			describe = "Cannot get metadata cause qualified name is empty",
-			describeCN = "目标节点或处理节点识别到有DDL事件时，会根据DDL事件更新内存中维护的表模型。当根据DDL事件中的表名获取不到模型的唯一编码时，则会报此错误",
+			describeCN = "目标节点或处理节点识别到有DDL事件时，会根据DDL事件更新内存中维护的表模型。根据DDL事件中的表名获取不到模型的唯一编码",
 			dynamicDescription = "When getting a unique model code for the table name {}, the model code is empty",
 			dynamicDescriptionCN = "获取表名为 {} 的唯一模型编码时，模型编码为空"
 	)
@@ -120,8 +120,8 @@ public interface TaskProcessorExCode_11 {
 	@TapExCode(
 			describe = "When a DDL event is encountered, the task stops with an error",
 			describeCN = "遇到DDL事件时，任务停止报错",
-			dynamicDescription = "Since the DDL synchronization in the advanced configuration of the source node of the task is configured to \"task stops with error when encountering DDL\", this error is reported when a DDL event is identified",
-			dynamicDescriptionCN = "由于任务的源节点的高级配置中的DDL同步配置为 “遇到DDL时任务报错停止” ，所以在识别到DDL事件时，会报此错误",
+			dynamicDescription = "Since the DDL synchronization in the advanced configuration of the source node of the task is configured as \"Stop Task Upon Encountering DDL\", the source node will report error to stop the task when it recognizes the DDL event",
+			dynamicDescriptionCN = "由于任务的源节点的高级配置中的DDL同步配置为 “遇到DDL时任务报错停止” ，所以源节点在识别到DDL事件时，任务会报错停止",
 			solution = "This error can be avoided by setting other DDL synchronization configurations, such as automatically ignoring all DDL events or synchronizing DDL events",
 			solutionCN = "可以通过设置其他DDL同步配置来避免此报错，如自动忽略所有DDL事件或同步DDL事件"
 	)
