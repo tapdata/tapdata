@@ -22,6 +22,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -85,7 +86,12 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 			while (!previewReadOperations.isEmpty()) {
 				Iterator<PreviewMergeReadOperation> iterator = previewReadOperations.iterator();
 				while (iterator.hasNext()) {
-					PreviewMergeReadOperation previewReadOperation = iterator.next();
+                    try {
+						TimeUnit.MILLISECONDS.sleep(0);
+                    } catch (InterruptedException e) {
+						return;
+                    }
+                    PreviewMergeReadOperation previewReadOperation = iterator.next();
 					MergeTableLoopProperty mergeTableLoopProperty = previewReadOperation.getMergeTableLoopProperty();
 					MergeTableProperties mergeTableProperties = mergeTableLoopProperty.getMergeTableProperties();
 					MergeReadData mergeReadData = previewReadOperation.replyData();
