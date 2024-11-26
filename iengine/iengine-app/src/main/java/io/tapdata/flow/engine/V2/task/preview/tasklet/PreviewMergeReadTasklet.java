@@ -87,8 +87,9 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 				Iterator<PreviewMergeReadOperation> iterator = previewReadOperations.iterator();
 				while (iterator.hasNext()) {
                     try {
-						TimeUnit.MILLISECONDS.sleep(0);
+						sleep();
                     } catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
 						return;
                     }
                     PreviewMergeReadOperation previewReadOperation = iterator.next();
@@ -135,6 +136,10 @@ public class PreviewMergeReadTasklet implements PreviewReadTasklet {
 			boolean isLast = i == sourceNodes.size() - 1;
 			previewReadOperationQueue.addOperation(node.getId(), PreviewFinishReadOperation.create().last(isLast));
 		}
+	}
+
+	protected void sleep() throws InterruptedException {
+		TimeUnit.MILLISECONDS.sleep(0);
 	}
 
 	private boolean buildTapAdvanceFilter(MergeTableLoopProperty mergeTableLoopProperty,
