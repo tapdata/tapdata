@@ -19,7 +19,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 /**
@@ -111,6 +110,7 @@ class PreviewMergeReadTaskletTest {
 			String nodeId1 = "e3a5ef29-90d2-459e-90c5-d27e813e8d0c";
 			previewMergeReadTasklet = spy(previewMergeReadTasklet);
 			doThrow(new InterruptedException()).when(previewMergeReadTasklet).sleep();
+			CompletableFuture.runAsync(() -> assertDoesNotThrow(() -> previewMergeReadTasklet.execute(taskDto, previewReadOperationQueue)));
 			PreviewOperation previewOperation1 = assertDoesNotThrow(() -> previewReadOperationQueue.poll(nodeId1, 10L, TimeUnit.SECONDS));
 			assertNotNull(previewOperation1);
 			assertInstanceOf(PreviewMergeReadOperation.class, previewOperation1);
