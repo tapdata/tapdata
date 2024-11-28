@@ -35,6 +35,7 @@ import org.bson.types.ObjectId;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -179,6 +180,7 @@ public class TaskPreviewService {
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
 		} catch (Exception e) {
+			logger.error("Execute preview task failed", e);
 			taskPreviewResultVO.failed(e);
 		} finally {
 			Optional.ofNullable(previewReadTaskletExecutor).ifPresent(ExecutorService::shutdownNow);
@@ -274,7 +276,13 @@ public class TaskPreviewService {
 		for (Node node : nodes) {
 			if (includeNodeIds.contains(node.getId())) {
 				includeNodes.add(node);
-				edges.stream().filter(edge -> edge.getSource().equals(node.getId()) || edge.getTarget().equals(node.getId())).forEach(includeEdges::add);
+				edges.stream().filter(edge -> edge.getSource().equals(node.getId()) || edge.getTarget().equals(node.getId())).forEach(edge->{
+					if (includeEdges.stream().noneMatch(e -> e.getSource().equals(edge.getSource()) && e.getTarget().equals(edge.getTarget()))
+							&& includeNodeIds.contains(edge.getSource())
+							&& includeNodeIds.contains(edge.getTarget())) {
+						includeEdges.add(edge);
+					}
+				});
 			}
 		}
 		return new Dag(includeEdges, includeNodes);
