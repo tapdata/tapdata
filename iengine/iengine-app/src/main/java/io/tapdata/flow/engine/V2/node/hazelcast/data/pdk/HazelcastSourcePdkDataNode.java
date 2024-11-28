@@ -154,6 +154,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
+	public static final int DEFAULT_POLLING_CDC_HEART_BEAT_TIME = 2;
 	//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	private final Logger logger = LogManager.getRootLogger();
 	private static final int CDC_POLLING_MIN_INTERVAL_MS = 500;
@@ -1119,6 +1120,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		long logLoopTime = logInterval / cdcPollingInterval;
 		long heartbeatInterval = TimeUnit.MINUTES.toMillis(1);
 		long heartbeatTime = heartbeatInterval / cdcPollingInterval;
+		heartbeatTime = Math.max(heartbeatTime, DEFAULT_POLLING_CDC_HEART_BEAT_TIME);
 		int cdcPollingBatchSize = ((TableNode) node).getCdcPollingBatchSize();
 		cdcPollingBatchSize = Math.max(cdcPollingBatchSize, CDC_POLLING_MIN_BATCH_SIZE);
 
