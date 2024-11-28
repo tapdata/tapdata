@@ -107,7 +107,8 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 				.computeIfAbsent(tableId, key -> {
 			TapTable tapTable = processorBaseContext.getTapTableMap().get(key);
 			if (tapTable == null) {
-				throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId());
+				throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId())
+						.dynamicDescriptionParameters(tableName, getNode().getId());
 			}
 			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 			List<String> result = new ArrayList<>();
@@ -168,7 +169,7 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 			dateTime = (DateTime) v;
 		} else {
 			throw new TapCodeException(TaskDateProcessorExCode_17.SELECTED_TYPE_IS_NON_TIME, "table: " + tableName
-					+ ", key: " + k + ", type: " + v.getClass().getName() + ", value: " + v);
+					+ ", key: " + k + ", type: " + v.getClass().getName() + ", value: " + v).dynamicDescriptionParameters(tableName, k, v.getClass().getName(), v);
 		}
 		if (add) {
 			dateTime.plus(hours, ChronoUnit.HOURS);

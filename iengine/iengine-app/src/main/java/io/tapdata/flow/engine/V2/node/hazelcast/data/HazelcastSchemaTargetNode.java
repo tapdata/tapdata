@@ -210,7 +210,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 								}
 							} catch (Exception e) {
 								String msg = String.format(" tableName: %s, %s", tapTable.getId(), e.getMessage());
-								throw new TapCodeException(VirtualTargetExCode_14.DECLARE_ERROR, msg, e);
+								TapCodeException exception = new TapCodeException(VirtualTargetExCode_14.DECLARE_ERROR, msg, e);
+								if (null != getNode()) {
+									exception.dynamicDescriptionParameters(getNode().getName(), getNode().getId(), tapTable.getId());
+								}
+								throw exception;
 							}
 						}
 

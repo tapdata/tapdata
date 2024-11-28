@@ -16,6 +16,10 @@ public interface PdkStateMapExCode_28 {
 			describe = "Write Tap Info into PDK State Map failed"
 	)
 	String INSERT_TAPDATA_INFO_FAILED = "28002";
-	@TapExCode(describe = "Init PDK state map failed")
+	@TapExCode(
+			describe = "Init PDK state map failed",
+			describeCN = "初始化PDK状态映射失败",
+			dynamicDescription = "PDK state mapping name for initialization failure: {}",
+			dynamicDescriptionCN = "初始化失败的PDK状态映射名称：{}")
 	String INIT_PDK_STATE_MAP_FAILED = "28003";
 }

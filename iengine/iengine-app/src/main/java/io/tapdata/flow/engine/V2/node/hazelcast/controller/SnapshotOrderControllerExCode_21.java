@@ -20,7 +20,12 @@ public interface SnapshotOrderControllerExCode_21 {
 	)
 	String RUNNER_ERROR = "21002";
 
-	@TapExCode
+	@TapExCode(
+			describe = "Detected illegal full state",
+			describeCN = "识别到非法的全量状态",
+			dynamicDescription = "Unable to perform full reading, status is: {}",
+			dynamicDescriptionCN = "无法进行全量读取，状态为：{}"
+	)
 	String NONSUPPORT_STATUS = "21003";
 
 	@TapExCode
@@ -42,13 +47,21 @@ public interface SnapshotOrderControllerExCode_21 {
 	String FAILED_TO_CREATE_CONTROLLER_TASK_NULL = "21007";
 
 	@TapExCode(
-					describe = "The format of the initialization sequence controller was incorrect. Procedure",
-					describeCN = "初始化顺序控制器格式错误"
+			describe = "The format of the initialization sequence controller was incorrect. Procedure",
+			describeCN = "初始化顺序控制器格式错误",
+			dynamicDescription = "The incorrect sequence controller format is：{}\n" +
+					"Sequence controller content：{}",
+			dynamicDescriptionCN = "错误的顺序控制器格式为：{}\n" +
+					"顺序控制器内容：{}"
 	)
 	String SNAPSHOT_ORDER_LIST_FORMAT_ERROR = "21008";
 	@TapExCode(
-			describe = "After modifying the merge mode, you need to reset the task before run",
-			describeCN = "修改主从合并模式后，需要重置任务再运行"
+			describe = "The master-slave merging mode has changed",
+			describeCN = "主从合并模式发生变更",
+			dynamicDescription = "Last merge mode: {}, current merge mode: {}",
+			dynamicDescriptionCN = "上次合并模式：{}，当前合并模式：{}",
+			solution = "After modifying the master-slave merge mode, reset the task and run it again",
+			solutionCN = "修改主从合并模式后，重置任务再次运行"
 	)
 	String CANNOT_CHANGE_MERGE_MODE_WITH_OUT_RESET = "21009";
 }
