@@ -290,39 +290,19 @@ jobs:
         run: |
           echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
           echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
-      - name: Fetch Code - Main Repo
-        run: |
-          rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
-          cd tapdata && git fetch --tags
-      - name: Compile - IEngine And Management
-        run: |
-          #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
-          echo "OK"
-      - name: Run - Local Service - Not Schedule
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
-      - name: Run - Local Service - Schedule
-        if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
-        run: |
-          cd tapdata
-          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
-      - name: Print Test Result
-        if: ${{ always() }}
-        run: |
-          cd tapdata
-          run_id=`cat ./run_id`
-          test_plan_id=`cat ./test_plan_id`
-          echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
-          echo "https://app.testsigma.com/ui/td/results/$test_plan_id/runs/$run_id" >> $GITHUB_STEP_SUMMARY
-      - name: Test - Register Test Connector
-        run: |
-          echo "OK"
-      - name: Test - E2E Qucik Test
-        run: |
-          echo "OK"
+      - name: Run Test
+        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        with:
+          owner: tapdata
+          repo: tapce
+          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          workflow_file_name: run_tapce.yaml
+          ref: main
+          wait_interval: 10
+          client_payload: '{"PROPERTIES_FILE_NAME": "default", "OPTIONS": "-Denv.host=${{ env.IP }} -Denv.web.port=${{ env.PORT }} -Denv.api.port=${{ env.PORT }}"}'
+          propagate_failure: true
+          trigger_workflow: true
+          wait_workflow: true
 
   CLOSE_ENV:
     if: ${{ !failure() }}
