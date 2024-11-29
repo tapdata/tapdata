@@ -98,10 +98,21 @@ public class DataCache {
 
         List<CacheItem> dataList = new ArrayList<>();
         Iterator<Cache.Entry<String, CacheItem>> iterator = cache.iterator();
+        boolean hasQuery = StringUtils.isNotBlank(query);
+        boolean getData;
         while (count-- > 0 && iterator.hasNext()) {
             Cache.Entry<String, CacheItem> entry = iterator.next();
-            dataList.add(entry.getValue());
-            iterator.remove();
+
+            if (hasQuery) {
+                Optional<Map<String, Object>> optional = entry.getValue().getData().values().stream().flatMap(m -> m.getData().stream())
+                        .filter(d -> match(d, query)).findFirst();
+                getData = optional.isPresent();
+            } else
+                getData = true;
+            if (getData) {
+                dataList.add(entry.getValue());
+                iterator.remove();
+            }
         }
 
         if (dataList.isEmpty()) return emptyResult;
