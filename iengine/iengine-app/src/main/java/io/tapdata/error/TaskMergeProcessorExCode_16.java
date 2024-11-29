@@ -361,7 +361,11 @@ public interface TaskMergeProcessorExCode_16 {
 	String INIT_MERGE_PROPERTY_RREFERENCE_FAILED_MERGE_PROPERTIES_MAP_IS_NULL = "16044";
 	@TapExCode(
 			describe = "Failed to analyze the reference relationship, and the merged configuration could not be obtained based on the ID",
-			describeCN = "分析引用关系失败，无法根据id获取到合并配置"
+			describeCN = "分析引用关系失败，无法根据id获取到合并配置",
+			dynamicDescription = "Current ID: {}, the IDs included in the reference relationship are: {}",
+			dynamicDescriptionCN = "当前ID：{}，引用关系中包含的ID有：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String ANALYZE_CHILD_REFERENCE_FAILED_CANT_GET_MERGE_TABLE_PROPERTIES_BY_ID = "16045";
 	@TapExCode(
@@ -371,79 +375,137 @@ public interface TaskMergeProcessorExCode_16 {
 	String ANALYZE_CHILD_REFERENCE_FAILED_TABLE_MERGE_MAP_EMPTY = "16046";
 	@TapExCode(
 			describe = "Failed to get the pre node, unable to get the pre node by id",
-			describeCN = "获取上个节点失败，无法根据id获取上个节点"
+			describeCN = "获取上个节点失败，无法根据id获取上个节点",
+			dynamicDescription = "Node ID: {}",
+			dynamicDescriptionCN = "节点ID：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String CANNOT_GET_PRENODE_BY_ID = "16047";
 	@TapExCode(
 			describe = "Building and updating the join key cache failed because there is a field that is both an join key and a primary key",
-			describeCN = "构建更新关联键缓存失败，因为有字段同时是关联键和主键，无法构建缓存名称"
+			describeCN = "构建更新关联键缓存失败，因为有字段同时是关联键和主键，无法构建缓存名称",
+			dynamicDescription = "Join key include pk, id: {}, both join key and pk: {}",
+			dynamicDescriptionCN = "关联键包含主键，id：{}，同时是关联键和主键：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK = "16048";
 	@TapExCode(
 			describe = "Failed to get and update the join key cache, the source must have before data",
 			describeCN = "获取并更新关联键缓存失败，源端必须有before数据",
+			dynamicDescription = "Node Name: {}, Node id: {}, TapEvent: {}",
+			dynamicDescriptionCN = "节点名称：{}，节点id：{}，TapEvent：{}",
 			solution = "1. If MongoDB is the source and the version is 6.0 or above, you need to turn on the 'Document Preimages' function",
 			solutionCN = "1. 如果是MongoDB作为源头，并且版本是6.0及以上，则需要打开'文档原像'功能"
 	)
 	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE = "16049";
 	@TapExCode(
 			describe = "Failed to get and update the join key cache, unable to find before data",
-			describeCN = "获取并更新关联键缓存失败，无法找到before数据"
+			describeCN = "获取并更新关联键缓存失败，无法找到before数据",
+			dynamicDescription = "The configured external cache database is unable to provide normal service\n" +
+					"Node name: {}, primary key or unique key value: {}, external storage database type configured: {}, external storage name: {}, storage structure name: {}",
+			dynamicDescriptionCN = "配置的外存缓存数据库无法正常提供服务\n" +
+					"节点名称：{}，主键或唯一键值：{}，配置的外存数据库类型为：{}，外存名称为：{}，存储结构名称：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_FIND_BEFORE = "16050";
 	@TapExCode(
 			describe = "Failed to insert the join key cache, unable to get IMAP",
-			describeCN = "插入关联键缓存失败，无法获取IMAP"
+			describeCN = "插入关联键缓存失败，无法获取IMAP",
+			dynamicDescription = "Node Name: {}, Node id: {}, TapdataEvent: {}",
+			dynamicDescriptionCN = "节点名称：{}，节点id：{}，TapdataEvent：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String INSERT_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16051";
 	@TapExCode(
 			describe = "Failed to insert the join key cache, insert failed",
-			describeCN = "插入关联键缓存失败，写入失败"
+			describeCN = "插入关联键缓存失败，写入失败",
+			dynamicDescription = "Construct name: {}, pk or unique value key: {}, after data: {}",
+			dynamicDescriptionCN = "Construct名称：{}，主键或唯一键：{}，after数据：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String INSERT_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16052";
 	@TapExCode(
 			describe = "Failed to delete the join key cache, unable to get IMAP",
-			describeCN = "删除关联键缓存失败，无法获取IMAP"
+			describeCN = "删除关联键缓存失败，无法获取IMAP",
+			dynamicDescription = "Node name: {}, Node id: {}, TapdataEvent: {}",
+			dynamicDescriptionCN = "节点名称：{}，节点id：{}，TapdataEvent：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String DELETE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP = "16053";
 	@TapExCode(
 			describe = "Failed to delete the join key cache, delete failed",
-			describeCN = "删除关联键缓存失败，删除失败"
+			describeCN = "删除关联键缓存失败，删除失败",
+			dynamicDescription = "Construct name: {}, pk or unique value key: {}",
+			dynamicDescriptionCN = "Construct名称：{}，主键或唯一键：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String DELETE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED = "16054";
 	@TapExCode(
 			describe = "Delete merge cache failed, lookup cache failed",
-			describeCN = "删除合并缓存失败，查找缓存失败"
+			describeCN = "删除合并缓存失败，查找缓存失败",
+			dynamicDescription = "Construct name: {}, join value key: {}",
+			dynamicDescriptionCN = "Construct名称：{}，关联键：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_FIND_CACHE_ERROR = "16055";
 	@TapExCode(
 			describe = "Delete merge cache failed, delete cache failed",
-			describeCN = "删除合并缓存失败，删除缓存失败"
+			describeCN = "删除合并缓存失败，删除缓存失败",
+			dynamicDescription = "Construct name: {}, join value key: {}",
+			dynamicDescriptionCN = "Construct名称：{}，关联键：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_DELETE_CACHE_ERROR = "16056";
 	@TapExCode(
 			describe = "Delete merge cache failed, update cache failed",
-			describeCN = "删除合并缓存失败，更新缓存失败"
+			describeCN = "删除合并缓存失败，更新缓存失败",
+			dynamicDescription = "Construct name: {}, join value key: {}",
+			dynamicDescriptionCN = "Construct名称：{}，关联键：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_UPDATE_CACHE_ERROR = "16057";
 	@TapExCode(
 			describe = "Clear and destroy cache failed",
-			describeCN = "清理并销毁缓存失败"
+			describeCN = "清理并销毁缓存失败",
+			dynamicDescription = "Cache name: {}, cache type: {}",
+			dynamicDescriptionCN = "缓存名称：{}，缓存类型：{}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String CLEAR_AND_DESTROY_CACHE_FAILED = "16058";
 	@TapExCode(
 			describe = "Join key value convert number failed",
-			describeCN = "关联键值转换为数字失败"
+			describeCN = "关联键值转换为数字失败",
+			dynamicDescription = "Merge table:{}, Map name: {}, Join key: {}, Data: {}({})",
+			dynamicDescriptionCN = "合并表名：{}，映射名称：{}，关联键：{}，数据：{}({})",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED = "16059";
 	@TapExCode(
 			describe = "Look up cache data, unknown error occurred",
-			describeCN = "反查缓存数据，发生未知错误"
+			describeCN = "反查缓存数据，发生未知错误",
+			dynamicDescription = "TapEvent: {}",
+			dynamicDescriptionCN = "TapEvent: {}",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String LOOK_UP_UNKNOWN_ERROR = "16060";
 	@TapExCode(
 			describe = "Lookup CompletableFuture list cannot be null",
-			describeCN = "反查数据的CompletableFuture列表不能为空"
+			describeCN = "反查数据的CompletableFuture列表不能为空",
+			solution = "To check whether the external storage cache database is normal, you can click the sub-menu \"external storage Management\" in the parent menu \"System Management\" in the left menu bar of the system to enter the external storage management interface. Find the external storage configuration configured by the master-slave merge node, and conduct a connection test to see if it is available. If not, you need to troubleshose according to the test failure information. Restart the task after the connection test passes",
+			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String LOOKUP_COMPLETABLE_FUTURE_LIST_IS_NULL = "16061";
 

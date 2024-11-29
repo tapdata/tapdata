@@ -90,7 +90,7 @@ public class PdkStateMap extends CleanRuleKVMap {
 				logger.debug("Init document imap v2 completed, map name: {}, external storage: {}", mapName, tapdataOrDefaultExternalStorage);
 			}
 		} catch (Exception e) {
-			throw new TapCodeException(PdkStateMapExCode_28.INIT_PDK_STATE_MAP_FAILED, String.format("Map name: %s", mapName), e).dynamicDescriptionParameters(mapName);
+			throw new TapCodeException(PdkStateMapExCode_28.INIT_PDK_STATE_MAP_FAILED, String.format("Map name: %s", mapName), e).dynamicDescriptionParameters(mapName, tapdataOrDefaultExternalStorage.getName());
 		}
 		if (documentIMapV2.isEmpty()) {
 			DocumentIMap<Document> documentIMapV1;

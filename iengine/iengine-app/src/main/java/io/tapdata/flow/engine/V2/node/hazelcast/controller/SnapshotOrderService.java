@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.utils.ErrorCodeUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -42,7 +43,7 @@ public class SnapshotOrderService {
 				bytes = Base64.getDecoder().decode((String) o);
 			} else {
 				throw new TapCodeException(SnapshotOrderControllerExCode_21.SNAPSHOT_ORDER_LIST_FORMAT_ERROR, o.getClass().toString())
-						.dynamicDescriptionParameters(o.getClass().toString(), o); // Todo 数据截断
+						.dynamicDescriptionParameters(o.getClass().toString(), ErrorCodeUtils.truncateData(o));
 			}
 			Object object = InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
 			if (object instanceof List) {
