@@ -40,21 +40,21 @@ public class CatchDataServiceTest {
             mockDataCacheFactory.when(DataCacheFactory::getInstance).thenReturn(dataCacheFactory);
 
             when(obsLoggerFactory.openCatchData(eq("testId"), eq(1L), eq(1L))).thenReturn(true);
-            boolean result = catchDataService.openCatchData("testId", 1L, 1L);
+            boolean result = catchDataService.openCatchData("testId", 1L, 1L, null);
             Assertions.assertTrue(result);
 
-            result = catchDataService.openCatchData("taskId", 1L, 1L);
+            result = catchDataService.openCatchData("taskId", 1L, 1L, null);
             Assertions.assertFalse(result);
 
-            List<MonitoringLogsDto> data = catchDataService.getCatchData("testId");
+            Map<String, Object> data = catchDataService.getCatchData("testId", null, null);
             Assertions.assertNotNull(data);
             Assertions.assertTrue(data.isEmpty());
 
-            Cache<String, MonitoringLogsDto> cache = mock(Cache.class);
+            Cache<String, DataCache.CacheItem> cache = mock(Cache.class);
             when(dataCacheFactory.getDataCache(eq("taskId"))).thenReturn(
-                    new DataCache("taskId", 1, cache));
+                    new DataCache("taskId", 1L, cache));
 
-            when(cache.iterator()).thenReturn(new Iterator<Cache.Entry<String, MonitoringLogsDto>>() {
+            when(cache.iterator()).thenReturn(new Iterator<Cache.Entry<String, DataCache.CacheItem>>() {
                 private int counter = 0;
                 @Override
                 public boolean hasNext() {
@@ -62,22 +62,22 @@ public class CatchDataServiceTest {
                 }
 
                 @Override
-                public Cache.Entry<String, MonitoringLogsDto> next() {
-                    return new Cache.Entry<String, MonitoringLogsDto>() {
+                public Cache.Entry<String, DataCache.CacheItem> next() {
+                    return new Cache.Entry<String, DataCache.CacheItem>() {
                         @Override
                         public String getKey() {
                             return "counter" + counter;
                         }
 
                         @Override
-                        public MonitoringLogsDto getValue() {
-                            return MonitoringLogsDto.builder().build();
+                        public DataCache.CacheItem getValue() {
+                            return DataCache.CacheItem.builder().build();
                         }
                     };
                 }
             });
 
-            data = catchDataService.getCatchData("taskId");
+            data = catchDataService.getCatchData("taskId", null, null);
             Assertions.assertNotNull(data);
             Assertions.assertFalse(data.isEmpty());
 

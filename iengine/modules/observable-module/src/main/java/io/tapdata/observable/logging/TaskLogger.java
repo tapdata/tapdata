@@ -174,10 +174,10 @@ public class TaskLogger extends ObsLogger {
 			return true;
 
 		boolean noNeedLog = false;
-		if (null != recordCeiling) {
+		/*if (null != recordCeiling) {
 			recordCeiling--;
 			noNeedLog = recordCeiling < 0;
-		}
+		}*/
 
 		if (!noNeedLog && null != intervalCeiling) {
 			noNeedLog = intervalCeiling < System.currentTimeMillis();
@@ -187,9 +187,7 @@ public class TaskLogger extends ObsLogger {
 			this.enableDebugLogger = false;
 			this.recordCeiling = null;
 			this.intervalCeiling = null;
-			if (null != closeDebugConsumer) {
-				closeDebugConsumer.accept(taskId, LogLevel.INFO);
-			}
+
 			closeCatchData();
 		}
 
@@ -392,6 +390,9 @@ public class TaskLogger extends ObsLogger {
 	private boolean closeCatchData() {
 		AtomicBoolean result = new AtomicBoolean(false);
 		filterDebugFileAppender(t -> result.set(((FileAppender)t).closeCatchData()));
+		if (null != closeDebugConsumer) {
+			closeDebugConsumer.accept(taskId, LogLevel.INFO);
+		}
 		return result.get();
 	}
 

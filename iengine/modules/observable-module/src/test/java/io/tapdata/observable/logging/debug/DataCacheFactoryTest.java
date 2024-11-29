@@ -34,19 +34,19 @@ public class DataCacheFactoryTest {
 
             DataCacheFactory dataCacheFactory = DataCacheFactory.getInstance();
             String dir = dataCacheFactory.getDataCacheDirectory();
-            Assertions.assertEquals("./debug_data", dir);
+            Assertions.assertEquals("./cache_data", dir);
 
             mockBeanUtil.when(() -> BeanUtil.getBean(eq(ConfigurationCenter.class))).thenReturn(configurationCenter);
             dir = dataCacheFactory.getDataCacheDirectory();
-            Assertions.assertEquals("./debug_data", dir);
+            Assertions.assertEquals("./cache_data", dir);
 
             setEnv("TAPDATA_WORK_DIR", "/test_1");
             dir = dataCacheFactory.getDataCacheDirectory();
-            Assertions.assertEquals("/test_1/debug_data", dir);
+            Assertions.assertEquals("/test_1/cache_data", dir);
 
             configurationCenter.putConfig(ConfigurationCenter.WORK_DIR, "/test");
             dir = dataCacheFactory.getDataCacheDirectory();
-            Assertions.assertEquals("/test/debug_data", dir);
+            Assertions.assertEquals("/test/cache_data", dir);
         }
     }
 
@@ -72,15 +72,15 @@ public class DataCacheFactoryTest {
 
     @Test
     void testDataCachePut() {
-        Cache<String, MonitoringLogsDto> cache = mock(Cache.class);
-        DataCache dataCache = new DataCache("taskId", 10, cache);
+        Cache<String, DataCache.CacheItem> cache = mock(Cache.class);
+        DataCache dataCache = new DataCache("taskId", 10L, cache);
 
         Assertions.assertEquals("taskId", dataCache.getTaskId());
         Assertions.assertEquals(10, dataCache.getMaxTotalEntries());
         dataCache.setTaskId("taskId1");
-        dataCache.setMaxTotalEntries(20);
+        dataCache.setMaxTotalEntries(20L);
         Assertions.assertEquals(20, dataCache.getMaxTotalEntries());
-        dataCache.setMaxTotalEntries(10);
+        dataCache.setMaxTotalEntries(10L);
 
         Map<String, Object> status = dataCache.getStatus();
         Assertions.assertNotNull(status);
@@ -94,7 +94,7 @@ public class DataCacheFactoryTest {
         Assertions.assertNotNull(status);
         Assertions.assertEquals(20, status.get("counter"));
 
-        when(cache.iterator()).thenReturn(new Iterator<Cache.Entry<String, MonitoringLogsDto>>() {
+        when(cache.iterator()).thenReturn(new Iterator<Cache.Entry<String, DataCache.CacheItem>>() {
             int count = 5;
             @Override
             public boolean hasNext() {
@@ -102,23 +102,20 @@ public class DataCacheFactoryTest {
             }
 
             @Override
-            public Cache.Entry<String, MonitoringLogsDto> next() {
-                return new Cache.Entry<String, MonitoringLogsDto>() {
+            public Cache.Entry<String, DataCache.CacheItem> next() {
+                return new Cache.Entry<String, DataCache.CacheItem>() {
                     @Override
                     public String getKey() {
                         return "t";
                     }
 
                     @Override
-                    public MonitoringLogsDto getValue() {
+                    public DataCache.CacheItem getValue() {
                         return null;
                     }
                 };
             }
         });
-        List<MonitoringLogsDto> result = dataCache.getAndRemoveAll();
-        Assertions.assertNotNull(result);
-        Assertions.assertEquals(5, result.size());
 
         status = dataCache.getStatus();
         Assertions.assertNotNull(status);

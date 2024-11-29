@@ -1,15 +1,11 @@
 package io.tapdata.services;
 
-import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.debug.DataCache;
 import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -18,13 +14,13 @@ import java.util.Optional;
 @RemoteService
 public class CatchDataService {
 
-    public boolean openCatchData(String taskId, Long recordCeiling, Long intervalCeiling) {
+    public boolean openCatchData(String taskId, Long recordCeiling, Long intervalCeiling, String query) {
         return ObsLoggerFactory.getInstance().openCatchData(taskId, recordCeiling, intervalCeiling);
     }
 
-    public List<MonitoringLogsDto> getCatchData(String taskId) {
+    public Map<String, Object> getCatchData(String taskId, Integer count, String query) {
         return Optional.ofNullable(DataCacheFactory.getInstance().getDataCache(taskId))
-                .map(DataCache::getAndRemoveAll).orElse(Collections.emptyList());
+                .map(dataCache -> dataCache.searchAndRemove(count, query)).orElse(DataCache.emptyResult);
     }
 
     public boolean closeCatchData(String taskId) {

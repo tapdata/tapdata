@@ -122,7 +122,7 @@ public class FileAppenderTest {
 
             DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
             Cache cache = mock(Cache.class);
-            DataCache dataCache = new DataCache("taskId", 100, cache);
+            DataCache dataCache = new DataCache("taskId", 100L, cache);
             when(dataCacheFactory.getDataCache(eq("taskId"))).thenReturn(dataCache);
 
             try (MockedStatic<DataCacheFactory> mockDataCacheFactory = mockStatic(DataCacheFactory.class)) {
