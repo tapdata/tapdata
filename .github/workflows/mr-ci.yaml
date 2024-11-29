@@ -277,7 +277,7 @@ jobs:
       
 
   MRCI:
-    runs-on: office-scan
+    runs-on: ubuntu-latest
     if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
     concurrency:
       group: staging_environment
