@@ -521,8 +521,8 @@ public interface TaskMergeProcessorExCode_16 {
 	@TapExCode(
 			describe = "When the update association condition is enabled, the incremental event of the source node needs to support get before data, which is not supported by the current node",
 			describeCN = "当开启更新关联条件时，源节点增量事件需要支持获取before数据，当前节点不支持该能力",
-			dynamicDescription = "Node ID: {}",
-			dynamicDescriptionCN = "节点id：{}",
+			dynamicDescription = "Node ID: {}, connection name: {}, connection type: {}",
+			dynamicDescriptionCN = "节点id：{}，连接名：{}，连接类型：{}",
 			solution = "Restart the task after disabling the association condition change function",
 			solutionCN = "关闭关联条件变更功能后重新启动任务"
 	)

@@ -1016,7 +1016,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		} catch (Exception e) {
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));
 			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE, "reason:" + e.getMessage(), e)
-					.dynamicDescriptionParameters(ErrorCodeUtils.truncateData(taskDto));
+					.dynamicDescriptionParameters(taskDto.getName(), taskDto.getId(), taskDto.getSyncType());
 		}
 		return tapTableMapHashMap;
 	}

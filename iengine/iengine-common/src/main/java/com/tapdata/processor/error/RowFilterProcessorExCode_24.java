@@ -13,13 +13,11 @@ public interface RowFilterProcessorExCode_24 {
 	@TapExCode
 	String UNKNOWN_ERROR = "24001";
 	@TapExCode(
-			describe = "JavaScript code execution failed.\n" +
-					"Reason\n1. Syntax error in filter code",
-			solution = "1. Check the filter code and fix",
+			describe = "Row Filter node failed to execute JavaScript code",
+			solution = "Check if there are any syntax errors in the filtering code according to the error prompt. If there are, please fix them and restart the task",
 			dynamicDescription = "Data: {}",
-			describeCN = "JavaScript代码执行失败\n" +
-					"原因\n1. 过滤代码存在语法错误",
-			solutionCN = "1. 检查过滤代码",
+			describeCN = "Row Filter节点执行JavaScript代码失败",
+			solutionCN = "根据报错提示检查过滤代码是否存在语法错误，若存在请修复后重新启动任务",
 			dynamicDescriptionCN = "数据：{}"
 	)
 	String JAVA_SCRIPT_ERROR = "24002";

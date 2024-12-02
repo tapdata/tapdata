@@ -108,7 +108,7 @@ public class HazelcastDateProcessorNode extends HazelcastProcessorBaseNode {
 			TapTable tapTable = processorBaseContext.getTapTableMap().get(key);
 			if (tapTable == null) {
 				throw new TapCodeException(TaskDateProcessorExCode_17.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableName + "node id: " + getNode().getId())
-						.dynamicDescriptionParameters(tableName, getNode().getId());
+						.dynamicDescriptionParameters(key, tableName, node.getName(), node.getId());
 			}
 			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 			List<String> result = new ArrayList<>();

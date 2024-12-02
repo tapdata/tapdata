@@ -550,8 +550,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					.dynamicDescriptionParameters(id, joinKeyIncludePK);
 		}
 		if (!isSourceHaveBefore(id)) {
+			Connections connections = this.sourceConnectionMap.get(id);
 			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY, String.format("current node not support get before data, id: %s", id))
-					.dynamicDescriptionParameters(id);
+					.dynamicDescriptionParameters(id, connections.getName(), connections.getDatabase_type());
 		}
 		int inMemSize = CommonUtils.getPropertyInt(UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE);
 		ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(inMemSize);

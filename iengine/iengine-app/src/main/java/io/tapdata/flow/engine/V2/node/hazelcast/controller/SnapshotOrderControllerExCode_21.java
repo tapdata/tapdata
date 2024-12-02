@@ -21,10 +21,10 @@ public interface SnapshotOrderControllerExCode_21 {
 	String RUNNER_ERROR = "21002";
 
 	@TapExCode(
-			describe = "Detected illegal full state",
-			describeCN = "识别到非法的全量状态",
-			dynamicDescription = "Unable to perform full reading, status is: {}",
-			dynamicDescriptionCN = "无法进行全量读取，状态为：{}"
+			describe = "Detected illegal node controller status",
+			describeCN = "识别到非法的节点控制器状态",
+			dynamicDescription = "Unable to execute subsequent state flow, status is: {}",
+			dynamicDescriptionCN = "无法执行后续状态流转，状态为：{}"
 	)
 	String NONSUPPORT_STATUS = "21003";
 
