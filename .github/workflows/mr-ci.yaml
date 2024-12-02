@@ -233,7 +233,8 @@ jobs:
       - name: Get IP and Port
         id: get_ip_port
         run: |
-#          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
+          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
+          bash pwd
           IP=58.251.34.123
           PORT=30011
           echo "::set-output name=IP::$IP"
