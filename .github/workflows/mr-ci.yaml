@@ -292,7 +292,7 @@ jobs:
           echo "IP=58.251.34.123" >> $GITHUB_ENV
           echo "PORT=30011" >> $GITHUB_ENV
       - name: Run Test
-        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
           owner: tapdata
           repo: tapce
