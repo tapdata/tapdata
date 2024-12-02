@@ -16,9 +16,11 @@ public interface RowFilterProcessorExCode_24 {
 			describe = "JavaScript code execution failed.\n" +
 					"Reason\n1. Syntax error in filter code",
 			solution = "1. Check the filter code and fix",
+			dynamicDescription = "Data: {}",
 			describeCN = "JavaScript代码执行失败\n" +
 					"原因\n1. 过滤代码存在语法错误",
-			solutionCN = "1. 检查过滤代码"
+			solutionCN = "1. 检查过滤代码",
+			dynamicDescriptionCN = "数据：{}"
 	)
 	String JAVA_SCRIPT_ERROR = "24002";
 

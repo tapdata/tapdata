@@ -545,9 +545,13 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	protected void putInCheckJoinKeyUpdateCacheMapAndWriteSign(String id, String cacheName) {
 		List<String> joinKeyIncludePK = checkJoinKeyIncludePK(id);
-		if (CollectionUtils.isNotEmpty(joinKeyIncludePK) && !isSourceHaveBefore(id)) {
+		if (CollectionUtils.isNotEmpty(joinKeyIncludePK)) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, String.format("Join key include pk, id: %s, both join key and pk: %s", id, joinKeyIncludePK))
 					.dynamicDescriptionParameters(id, joinKeyIncludePK);
+		}
+		if (!isSourceHaveBefore(id)) {
+			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY, String.format("current node not support get before data, id: %s", id))
+					.dynamicDescriptionParameters(id);
 		}
 		int inMemSize = CommonUtils.getPropertyInt(UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE);
 		ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(inMemSize);
@@ -628,7 +632,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	 * @param id The ID of the table that currently needs to be analyzed
 	 * @return Analyze result list of {@link JoinKeyReference}
 	 */
-	private List<JoinKeyReference> analyzeChildrenReference(String id) {
+	protected List<JoinKeyReference> analyzeChildrenReference(String id) {
 		List<JoinKeyReference> joinKeyReferences = new ArrayList<>();
 		MergeTableProperties mergeTableProperties = mergeTablePropertiesMap.get(id);
 		if (null == mergeTableProperties) {
@@ -2002,20 +2006,20 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		deleteOrUpdateMergeCache(beforeDoc, lookupCache, encodeJoinKey, beforeJoinValueKeyBySource);
 	}
 
-	private static void deleteOrUpdateMergeCache(Document beforeDoc, ConstructIMap<Document> lookupCache, String encodeJoinKey, String beforeJoinValueKeyBySource) {
+	protected static void deleteOrUpdateMergeCache(Document beforeDoc, ConstructIMap<Document> lookupCache, String encodeJoinKey, String beforeJoinValueKeyBySource) {
 		if (MapUtils.isEmpty(beforeDoc) || (beforeDoc.size() == 1 && beforeDoc.containsKey("_ts"))) {
 			try {
 				lookupCache.delete(encodeJoinKey);
 			} catch (Exception e) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_DELETE_CACHE_ERROR, "Construct name: " + lookupCache.getName() + ", join value key: " + beforeJoinValueKeyBySource, e)
-						.dynamicDescriptionParameters(lookupCache.getName(), beforeJoinValueKeyBySource);
+						.dynamicDescriptionParameters(lookupCache.getName(), beforeJoinValueKeyBySource, beforeDoc);
 			}
 		} else {
 			try {
 				lookupCache.upsert(encodeJoinKey, beforeDoc);
 			} catch (Exception e) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_UPDATE_CACHE_ERROR, "Construct name: " + lookupCache.getName() + ", join value key: " + beforeJoinValueKeyBySource, e)
-						.dynamicDescriptionParameters(lookupCache.getName(), beforeJoinValueKeyBySource);
+						.dynamicDescriptionParameters(lookupCache.getName(), beforeJoinValueKeyBySource, beforeDoc);
 			}
 		}
 	}
@@ -2158,7 +2162,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (null == constructIMap) {
 			Node<?> preNode = getPreNode(preNodeId);
 			throw new TapCodeException(TaskMergeProcessorExCode_16.INSERT_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP, "Node name: " + preNode.getName() + ", id: " + preNodeId)
-					.dynamicDescriptionParameters(preNode.getName(), preNodeId, ErrorCodeUtils.truncateData(tapdataEvent));
+					.dynamicDescriptionParameters(preNode.getName(), preNodeId);
 		}
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);

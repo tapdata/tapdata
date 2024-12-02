@@ -11,6 +11,7 @@ import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.error.RowFilterProcessorExCode_24;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.utils.ErrorCodeUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -132,7 +133,8 @@ public class RowFilterProcessor implements DataFlowProcessor {
 					}
 				}
 			} catch (Exception e) {
-				TapCodeException tapCodeException = new TapCodeException(RowFilterProcessorExCode_24.JAVA_SCRIPT_ERROR, e);
+				TapCodeException tapCodeException = new TapCodeException(RowFilterProcessorExCode_24.JAVA_SCRIPT_ERROR, e)
+						.dynamicDescriptionParameters(ErrorCodeUtils.truncateData(record));
 				context.getJob().jobError(tapCodeException, false, OffsetUtil.getSyncStage(message.getOffset()), logger, ConnectorConstant.WORKER_TYPE_CONNECTOR,
 						TapLog.PROCESSOR_ERROR_0005.getMsg(), null, record, e.getMessage());
 			}

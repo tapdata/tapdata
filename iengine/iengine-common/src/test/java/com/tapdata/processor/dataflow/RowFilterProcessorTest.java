@@ -1,5 +1,6 @@
 package com.tapdata.processor.dataflow;
 
+import com.tapdata.entity.Job;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
@@ -17,8 +18,7 @@ import javax.script.Invocable;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class RowFilterProcessorTest {
@@ -198,6 +198,23 @@ public class RowFilterProcessorTest {
                 MessageEntity actual = rowFilterProcessor.process(message);
                 assertEquals("d", actual.getOp());
                 assertNull(actual.getAfter());
+            }
+        }
+        @Test
+        void test_JAVA_SCRIPT_ERROR() {
+            ReflectionTestUtils.setField(rowFilterProcessor, "action", RowFilterProcessor.FilterAction.DISCARD);
+            try (MockedStatic<ScriptUtil> mb = Mockito
+                    .mockStatic(ScriptUtil.class)) {
+                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
+                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenThrow(Exception.class);
+                message.setOp("u");
+                message.setBefore(null);
+                message.setAfter(after);
+                ProcessorContext context = mock(ProcessorContext.class);
+                ReflectionTestUtils.setField(rowFilterProcessor, "context", context);
+                when(context.getJob()).thenReturn(mock(Job.class));
+                doCallRealMethod().when(rowFilterProcessor).process(message);
+                rowFilterProcessor.process(message);
             }
         }
     }
