@@ -486,6 +486,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!dataEvent.isCatchMe())
 			return;
 		List<Map<String, Object>> data = new ArrayList<>(2);
+		TapRecordEvent tapRecordEvent = (TapRecordEvent) dataEvent.getTapEvent();
 		if (dataEvent.getTapEvent() instanceof TapInsertRecordEvent) {
 			data.add(((TapInsertRecordEvent)dataEvent.getTapEvent()).getAfter());
 		} else if (dataEvent.getTapEvent() instanceof TapUpdateRecordEvent) {
@@ -494,11 +495,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else if (dataEvent.getTapEvent() instanceof TapDeleteRecordEvent) {
 			data.add(((TapDeleteRecordEvent)dataEvent.getTapEvent()).getBefore());
 		} else return;
+		List<String> tags = Arrays.asList(
+				"catchData", "eid=" + dataEvent.getEventId(),
+				"type=" + dataEvent.getTapEvent().getType(), "ts=" + dataEvent.getTapEvent().getTime(),
+				"tableId=" + tapRecordEvent.getTableId());
+		if (StringUtils.isNotBlank(tapRecordEvent.getPartitionMasterTableId()))
+			tags.add("partitionTableId=" + tapRecordEvent.getPartitionMasterTableId());
 		obsLogger.debug(() -> MonitoringLogsDto.builder()
 				.level(LogLevel.DEBUG.name())
-				.logTags(Arrays.asList(
-						"catchData", "eid=" + dataEvent.getEventId(),
-						"type=" + dataEvent.getTapEvent().getType(), "ts=" + dataEvent.getTapEvent().getTime()))
+				.logTags(tags)
 				.date(new Date())
 				.data(data)
 				.taskId(processorBaseContext.getTaskDto().getId().toHexString())
