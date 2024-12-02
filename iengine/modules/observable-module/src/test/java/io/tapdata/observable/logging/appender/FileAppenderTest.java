@@ -83,9 +83,15 @@ public class FileAppenderTest {
             Assertions.assertNotNull(includeLevel);
             Assertions.assertEquals(1, ((Set)includeLevel).size());
 
+            fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
+            fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
+
+            fileAppender.openCatchData();
+
+            fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
             fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.INFO.getLevel()).build());
-            fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
-            fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
+            fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").level(LogLevel.DEBUG.getLevel()).build());
+            fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").level(LogLevel.DEBUG.getLevel()).build());
             fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.TRACE.getLevel()).build());
 
             verify(logger, times(2)).debug(anyString());
@@ -103,9 +109,9 @@ public class FileAppenderTest {
 
         @org.junit.jupiter.api.Test
         void testTrace() {
-
+            fileAppender.openCatchData();
             fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.TRACE.getLevel()).build());
-            fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
+            fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").level(LogLevel.DEBUG.getLevel()).build());
             fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.INFO.getLevel()).build());
             fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.WARN.getLevel()).build());
             fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.ERROR.getLevel()).build());
@@ -123,7 +129,7 @@ public class FileAppenderTest {
             DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
             Cache cache = mock(Cache.class);
             DataCache dataCache = new DataCache("taskId", 100L, cache);
-            when(dataCacheFactory.getDataCache(eq("taskId"))).thenReturn(dataCache);
+            when(dataCacheFactory.getDataCache("taskId")).thenReturn(dataCache);
 
             try (MockedStatic<DataCacheFactory> mockDataCacheFactory = mockStatic(DataCacheFactory.class)) {
 
@@ -134,9 +140,9 @@ public class FileAppenderTest {
 
                 fileAppender.append(MonitoringLogsDto.builder().level(LogLevel.DEBUG.getLevel()).build());
                 fileAppender.taskId = "taskId_debug";
-                fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").level(LogLevel.DEBUG.getLevel()).build());
+                fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e1").level(LogLevel.DEBUG.getLevel()).build());
                 fileAppender.taskId = "taskId";
-                fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").level(LogLevel.DEBUG.getLevel()).build());
+                fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e2").level(LogLevel.DEBUG.getLevel()).build());
                 verify(cache, times(2)).put(any(), any());
 
                 result = fileAppender.closeCatchData();

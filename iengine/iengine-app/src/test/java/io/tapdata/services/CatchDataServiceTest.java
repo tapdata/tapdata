@@ -48,7 +48,9 @@ public class CatchDataServiceTest {
 
             Map<String, Object> data = catchDataService.getCatchData("testId", null, null);
             Assertions.assertNotNull(data);
-            Assertions.assertTrue(data.isEmpty());
+            Assertions.assertNotNull(data.get("data"));
+            Assertions.assertInstanceOf(List.class, data.get("data"));
+            Assertions.assertTrue(((List)data.get("data")).isEmpty());
 
             Cache<String, DataCache.CacheItem> cache = mock(Cache.class);
             when(dataCacheFactory.getDataCache(eq("taskId"))).thenReturn(
@@ -74,6 +76,11 @@ public class CatchDataServiceTest {
                             return DataCache.CacheItem.builder().build();
                         }
                     };
+                }
+
+                @Override
+                public void remove() {
+
                 }
             });
 

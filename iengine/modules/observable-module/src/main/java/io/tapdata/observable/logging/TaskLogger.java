@@ -174,10 +174,10 @@ public class TaskLogger extends ObsLogger {
 			return true;
 
 		boolean noNeedLog = false;
-		/*if (null != recordCeiling) {
+		if (null != recordCeiling) {
 			recordCeiling--;
 			noNeedLog = recordCeiling < 0;
-		}*/
+		}
 
 		if (!noNeedLog && null != intervalCeiling) {
 			noNeedLog = intervalCeiling < System.currentTimeMillis();

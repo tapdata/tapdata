@@ -459,7 +459,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected boolean offer(TapdataEvent dataEvent) {
 		if (dataEvent != null) {
-			if (obsLogger.isDebugEnabled() && dataEvent.isDML())
+			if (obsLogger != null && obsLogger.isDebugEnabled() && dataEvent.isDML())
 				catchData(dataEvent);
 			if (processorBaseContext.getNode() != null) {
 				dataEvent.addNodeId(processorBaseContext.getNode().getId());

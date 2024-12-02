@@ -94,12 +94,14 @@ public class DataCache {
         return logTags.stream().filter(s -> s.startsWith("type=")).findFirst().orElse(null);
     }
 
-    public Map<String, Object> searchAndRemove(int count, String query) {
+    public Map<String, Object> searchAndRemove(Integer count, String query) {
 
         List<CacheItem> dataList = new ArrayList<>();
         Iterator<Cache.Entry<String, CacheItem>> iterator = cache.iterator();
         boolean hasQuery = StringUtils.isNotBlank(query);
         boolean getData;
+        if (count == null)
+            count = 10;
         while (count-- > 0 && iterator.hasNext()) {
             Cache.Entry<String, CacheItem> entry = iterator.next();
 

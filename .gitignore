@@ -127,6 +127,7 @@ fileObserveLogAppenderV2/
 
 iengine/test
 iengine/**/debug_data
+iengine/**/cache
 
 
 **/.jython_cache/
