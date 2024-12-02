@@ -73,6 +73,7 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.LogLevel;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.debug.DataCache;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -458,7 +459,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected boolean offer(TapdataEvent dataEvent) {
 		if (dataEvent != null) {
-			catchData(dataEvent);
+			if (obsLogger != null && obsLogger.isDebugEnabled() && dataEvent.isDML())
+				catchData(dataEvent);
 			if (processorBaseContext.getNode() != null) {
 				dataEvent.addNodeId(processorBaseContext.getNode().getId());
 			}
@@ -472,7 +474,16 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	private void catchData(TapdataEvent dataEvent) {
-		if (!dataEvent.isDML())
+		if (CollectionUtils.isEmpty(dataEvent.getNodeIds())) {
+			DataCache.markCatchEventWhenMatched(dataEvent,
+					processorBaseContext.getTaskDto().getId().toHexString(),
+					Optional.ofNullable(processorBaseContext.getTaskDto().getLogSetting())
+							.map(m -> m.get("query"))
+							.filter(Objects::nonNull)
+							.map(Object::toString).orElse(null));
+		}
+
+		if (!dataEvent.isCatchMe())
 			return;
 		List<Map<String, Object>> data = new ArrayList<>(2);
 		if (dataEvent.getTapEvent() instanceof TapInsertRecordEvent) {
@@ -485,7 +496,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else return;
 		obsLogger.debug(() -> MonitoringLogsDto.builder()
 				.level(LogLevel.DEBUG.name())
-				.logTag("catchData")
+				.logTags(Arrays.asList(
+						"catchData", "eid=" + dataEvent.getEventId(),
+						"type=" + dataEvent.getTapEvent().getType(), "ts=" + dataEvent.getTapEvent().getTime()))
 				.date(new Date())
 				.data(data)
 				.taskId(processorBaseContext.getTaskDto().getId().toHexString())
@@ -493,7 +506,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				.nodeId(getNode().getId())
 				.timestamp(System.currentTimeMillis())
 				.nodeName(getNode().getName()),
-				"Catch data");
+				String.join(",", dataEvent.getNodeIds()));
 	}
 
 	protected void reportToPreviewIfNeed(TapdataEvent dataEvent) {

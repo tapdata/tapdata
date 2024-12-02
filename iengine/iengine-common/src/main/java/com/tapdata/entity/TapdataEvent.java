@@ -6,6 +6,9 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import lombok.Getter;
+import lombok.Setter;
+import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -22,6 +25,12 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private static final long serialVersionUID = 2586329076282260051L;
 	public final static String CONNECTION_ID_INFO_KEY = "connectionId";
 	public final static String TABLE_NAMES_INFO_KEY = "tableNames";
+	@Getter
+	@Setter
+	private String eventId;
+	@Getter
+	@Setter
+	private boolean catchMe = false;
 	protected SyncStage syncStage;
 
 	private TapEvent tapEvent;
@@ -43,6 +52,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
 		this.type = SyncProgress.Type.NORMAL;
+		this.eventId = new ObjectId().toHexString();
 	}
 
 	@Deprecated
@@ -162,6 +172,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	}
 
 	protected void clone(TapdataEvent tapdataEvent) {
+		tapdataEvent.setEventId(this.getEventId());
 		tapdataEvent.setSourceTime(this.getSourceTime());
 		tapdataEvent.setSourceTime(sourceTime);
 		tapdataEvent.setSourceSerialNo(sourceSerialNo);
@@ -284,7 +295,8 @@ public class TapdataEvent implements Serializable, Cloneable {
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder("TapdataEvent{");
-		sb.append("syncStage=").append(syncStage);
+		sb.append("eventId=").append(eventId);
+		sb.append(", syncStage=").append(syncStage);
 		sb.append(", tapEvent=").append(tapEvent);
 		sb.append(", nodeIds=").append(nodeIds);
 		sb.append(", sourceTime=").append(sourceTime);

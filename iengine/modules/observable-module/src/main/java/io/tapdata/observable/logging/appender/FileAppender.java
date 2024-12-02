@@ -67,10 +67,10 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 			return;
 		switch (level) {
 			case "DEBUG":
-				logger.debug(log.formatMonitoringLogMessage());
 				if (catchData.get()) {
 					if (CollectionUtils.isEmpty(log.getLogTags()) || !log.getLogTags().contains("catchData"))
 						return;
+					logger.debug(log.formatMonitoringLogMessage());
 					String taskId = getTaskId();
 					if (taskId != null) taskId = taskId.replace("_debug", "");
 					DataCacheFactory.getInstance().getDataCache(taskId).put(log);
@@ -164,6 +164,7 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 	}
 
 	public boolean openCatchData() {
+		DataCacheFactory.getInstance().removeDataCache(getTaskId());
 		catchData.set(true);
 		return true;
 	}

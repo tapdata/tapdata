@@ -126,7 +126,8 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 			return BLANK_LOGGER;
 		}
 		String taskId = task.getId().toHexString();
-		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
+		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId())
+					.withTaskLogSetting(getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task)));
 		taskLoggersMap.computeIfAbsent(taskId, k -> {
 			loggerToBeRemoved.remove(taskId);
 			TaskLogger taskLogger = TaskLogger.create(task, this::closeDebugForTask)

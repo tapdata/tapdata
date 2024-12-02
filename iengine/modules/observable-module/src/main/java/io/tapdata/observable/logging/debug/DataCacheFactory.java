@@ -26,6 +26,7 @@ import java.io.File;
 import java.time.Duration;
 import java.time.temporal.TemporalUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,9 +42,8 @@ public final class DataCacheFactory {
     private EhcacheManager cacheManager;
 
     private Integer maxHeapEntries = 10;
-    private Integer maxDiskEntries = 100;
     private Integer maxOffHeapSize = 10; // Mb
-    private Integer maxDiskSize = 50;    // Mb
+    private Integer maxDiskSize = 100;    // Mb
     private Logger logger = LogManager.getLogger(DataCacheFactory.class);
 
     private DataCacheFactory() {
@@ -54,7 +54,7 @@ public final class DataCacheFactory {
     private void initCacheManager() {
         File file = new File(getDataCacheDirectory());
         if (!file.exists()) {
-            CommonUtils.ignoreAnyError(() -> file.mkdirs(), "debug data");
+            CommonUtils.ignoreAnyError(() -> file.mkdirs(), "cache data");
         }
         cacheManager = (EhcacheManager) CacheManagerBuilder.newCacheManagerBuilder()
                 .with(CacheManagerBuilder.persistence(file))
@@ -74,7 +74,7 @@ public final class DataCacheFactory {
         if (StringUtils.isBlank(workerDir)) {
             workerDir = ".";
         }
-        workerDir = workerDir + File.separator + "debug_data";
+        workerDir = workerDir + File.separator + "cache";
         return workerDir;
     }
 
@@ -110,11 +110,11 @@ public final class DataCacheFactory {
                 .offheap(maxOffHeapSize, MemoryUnit.MB)
                 .disk(maxDiskSize, MemoryUnit.MB, true);
 
-        Cache<String, MonitoringLogsDto> cache = cacheManager.createCache(taskId, CacheConfigurationBuilder
-                .newCacheConfigurationBuilder(String.class, MonitoringLogsDto.class, builder)
+        Cache<String, DataCache.CacheItem> cache = cacheManager.createCache(taskId, CacheConfigurationBuilder
+                .newCacheConfigurationBuilder(String.class, DataCache.CacheItem.class, builder)
                 .withExpiry(ExpiryPolicyBuilder.timeToLiveExpiration(Duration.ofMinutes(2)))
         );
 
-        return new DataCache(taskId, maxHeapEntries + maxDiskEntries, cache);
+        return new DataCache(taskId, null, cache);
     }
 }
