@@ -102,17 +102,19 @@ public class DataCache {
         boolean getData;
         if (count == null)
             count = 10;
-        while (count-- > 0 && iterator.hasNext()) {
+        while (count > 0 && iterator.hasNext()) {
             Cache.Entry<String, CacheItem> entry = iterator.next();
+            CacheItem cacheItem = entry.getValue();
 
             if (hasQuery) {
-                Optional<Map<String, Object>> optional = entry.getValue().getData().values().stream().flatMap(m -> m.getData().stream())
+                Optional<Map<String, Object>> optional = cacheItem.getData().values().stream().flatMap(m -> m.getData().stream())
                         .filter(d -> match(d, query)).findFirst();
                 getData = optional.isPresent();
             } else
                 getData = true;
             if (getData) {
-                dataList.add(entry.getValue());
+                count--;
+                dataList.add(cacheItem);
                 iterator.remove();
             }
         }
@@ -166,8 +168,7 @@ public class DataCache {
         } else if (e instanceof TapDeleteRecordEvent) {
             match = dataCache.match(((TapDeleteRecordEvent)e).getBefore(), query);
         }
-        if (match)
-            event.setCatchMe(true);
+        event.setCatchMe(match);
     }
 
     private boolean match(Map<String, Object> data, String query) {
