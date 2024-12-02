@@ -297,7 +297,7 @@ jobs:
           owner: tapdata
           repo: tapce
           github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          workflow_file_name: run_tapce.yaml
+          workflow_file_name: .github/workflows/run_tapce.yaml
           ref: main
           wait_interval: 10
           client_payload: '{"PROPERTIES_FILE_NAME": "default", "OPTIONS": "-Denv.host=${{ env.IP }} -Denv.web.port=${{ env.PORT }} -Denv.api.port=${{ env.PORT }}"}'
