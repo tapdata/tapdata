@@ -24,105 +24,121 @@ on:
 #        default: 'develop'
 
 jobs:
-#
-#  Get-Stable-Branch:
-#    runs-on: ubuntu-latest
-#    outputs:
-#      TAPDATA_BRANCH: ${{ steps.set-output.outputs.TAPDATA_BRANCH }}
-#      ENTERPRISE_BRANCH: ${{ steps.set-output.outputs.ENTERPRISE_BRANCH }}
-#      FRONTEND_BRANCH: ${{ steps.set-output.outputs.FRONTEND_BRANCH }}
-#      TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
-#    steps:
-#      - name: Checkout Tapdata Opensource
-#        uses: actions/checkout@v3
-#        with:
-#          repository: 'tapdata/tapdata'
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata
-#          fetch-depth: 0
-#      - name: Set Tag
-#        run: |
-#          cd tapdata
-#          main_tag=$(git describe --tags | cut -d '-' -f 1)
-#          current_timestamp=$(date +%s)
-#          hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
-#          tag_name="$main_tag-$hex_timestamp"
-#          echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
-#      - name: Checkout Tapdata Enterprise Web
-#        uses: actions/checkout@v2
-#        with:
-#          repository: 'tapdata/tapdata-enterprise-web'
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata-enterprise-web
-#          depth: 0
-#      - name: Checkout Tapdata Enterpris
-#        uses: actions/checkout@v2
-#        with:
-#          repository: 'tapdata/tapdata-enterprise'
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata-enterprise
-#          depth: 0
-#      - name: Checkout Tapdata Application
-#        uses: actions/checkout@v2
-#        with:
-#          repository: 'tapdata/tapdata-application'
-#          ref: "main"
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata-application
-#      - name: Get Tapdata Branch Name -- Common
-#        run: |
-#          echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
-#      - name: Get Tapdata Branch Name -- Pr
-#        if: github.event_name == 'pull_request'
-#        run: |
-#          echo "TAPDATA_BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
-#      - name: Get Tapdata Branch Name -- Workflow Dispatch
-#        if: github.event_name == 'workflow_dispatch'
-#        run: |
-#          echo "TAPDATA_BRANCH=${{ github.event.inputs.tapdata_branch }}" >> $GITHUB_ENV
-#      - name: Get Tapdata Branch Name -- Schedule
-#        if: github.event_name == 'schedule'
-#        run: |
-#          echo "TAPDATA_BRANCH=develop" >> $GITHUB_ENV
-#      - name: Get last stable branch
-#        id: set-output
-#        run: |
-#          cd tapdata-application
-#          TAPDATA_BRANCH=${{ env.TAPDATA_BRANCH }}
-#          ENTERPRISE_BRANCH="develop"
-#          FRONTEND_BRANCH="develop"
-#          echo "::set-output name=TAPDATA_BRANCH::${TAPDATA_BRANCH}"
-#          echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
-#          echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
-#          echo "::set-output name=TAG_NAME::${TAG_NAME}"
-#
-#  Push-Code-To-GOGS:
-#    runs-on: ubuntu-latest
-#    needs: Get-Stable-Branch
-#    steps:
-#      - name: Checkout Tapdata Code
-#        uses: actions/checkout@v3
-#        with:
-#          repository: 'tapdata/tapdata'
-#          ref: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata
-#          fetch-depth: 0
-#      - name: Checkout Tapdata Application
-#        uses: actions/checkout@v2
-#        with:
-#          repository: 'tapdata/tapdata-application'
-#          ref: 'main'
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata-application
-#          fetch-depth: 0
-#      - name: Push Tapdata to Gogs
-#        uses: nick-fields/retry@v2
-#        with:
-#          timeout_minutes: 10
-#          max_attempts: 3
-#          command: |
-#            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
+
+  Get-Stable-Branch:
+    runs-on: ubuntu-latest
+    outputs:
+      TAPDATA_BRANCH: ${{ steps.set-output.outputs.TAPDATA_BRANCH }}
+      ENTERPRISE_BRANCH: ${{ steps.set-output.outputs.ENTERPRISE_BRANCH }}
+      FRONTEND_BRANCH: ${{ steps.set-output.outputs.FRONTEND_BRANCH }}
+      TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
+    steps:
+      - name: Checkout Tapdata Opensource
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Set Tag
+        run: |
+          cd tapdata
+          main_tag=$(git describe --tags | cut -d '-' -f 1)
+          current_timestamp=$(date +%s)
+          hex_timestamp=$(printf "%X" "$current_timestamp" | tr 'A-F' 'a-f')
+          tag_name="$main_tag-$hex_timestamp"
+          echo "TAG_NAME=$tag_name" >> $GITHUB_ENV
+      - name: Checkout Tapdata Enterprise Web
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-enterprise-web'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise-web
+          depth: 0
+      - name: Checkout Tapdata Enterpris
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-enterprise'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-enterprise
+          depth: 0
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+      - name: Checkout Tapce
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapce'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapce
+      - name: Get Tapdata Branch Name -- Common
+        run: |
+          echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Get Tapdata Branch Name -- Pr
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "TAPDATA_BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+      - name: Get Tapdata Branch Name -- Workflow Dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "TAPDATA_BRANCH=${{ github.event.inputs.tapdata_branch }}" >> $GITHUB_ENV
+      - name: Get Tapdata Branch Name -- Schedule
+        if: github.event_name == 'schedule'
+        run: |
+          echo "TAPDATA_BRANCH=develop" >> $GITHUB_ENV
+      - name: Get last stable branch
+        id: set-output
+        run: |
+          cd tapdata-application
+          TAPDATA_BRANCH=${{ env.TAPDATA_BRANCH }}
+          ENTERPRISE_BRANCH="develop"
+          FRONTEND_BRANCH="develop"
+          TAPCE_BRANCH="master"
+          echo "::set-output name=TAPDATA_BRANCH::${TAPDATA_BRANCH}"
+          echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
+          echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
+          echo "::set-output name=TAG_NAME::${TAG_NAME}"
+          echo "::set-output name=TAPCE_BRANCH::${TAPCE_BRANCH}"
+
+  Push-Code-To-GOGS:
+    runs-on: ubuntu-latest
+    needs: Get-Stable-Branch
+    steps:
+      - name: Checkout Tapdata Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapdata'
+          ref: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata
+          fetch-depth: 0
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: 'main'
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+          fetch-depth: 0
+      - name: Push Tapdata to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
+      - name: Push Tapce to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapce --gogs-project-name=tapce
 #
 #  Scan-Tapdata:
 #    runs-on: office-scan
@@ -283,8 +299,8 @@ jobs:
     concurrency:
       group: staging_environment
     timeout-minutes: 120
-#    needs:
-#      - Get-Stable-Branch
+    needs:
+      - Get-Stable-Branch
 #      - Build-And-Deploy
     steps:
       - name: Set Env
