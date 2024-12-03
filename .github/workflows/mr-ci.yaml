@@ -12,8 +12,8 @@ on:
     - cron: "0 21 * * *"
   workflow_dispatch:
     inputs:
-      testsigma_run:
-        description: 'Testsigma run or not'
+      tapce_run:
+        description: 'Tapce run or not'
         required: true
         type: boolean
         default: false
@@ -205,7 +205,7 @@ jobs:
 
   Build-And-Deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
+    if: ${{ github.event_name == 'schedule' || inputs.tapce_run }}
     needs:
       - Get-Stable-Branch
     outputs:
@@ -302,7 +302,7 @@ jobs:
 
   MRCI:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
+    if: ${{ github.event_name == 'schedule' || inputs.tapce_run }}
     concurrency:
       group: staging_environment
     timeout-minutes: 120
