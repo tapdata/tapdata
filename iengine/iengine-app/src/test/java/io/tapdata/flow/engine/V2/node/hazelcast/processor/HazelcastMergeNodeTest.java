@@ -2286,6 +2286,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		HazelcastMergeNode mockHazelcastMergeNode;
 		Map<String,ConstructIMap<Document>> iMapMap;
 		String id="sourceId";
+		Map<String, Connections> sourceConnectionMap;
 		@BeforeEach
 		void init() {
 			mockHazelcastMergeNode=mock(HazelcastMergeNode.class);
@@ -2295,10 +2296,13 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			ObsLogger obsLogger = mock(ObsLogger.class);
 			Processor.Context context = mock(Processor.Context.class);
 			iMapMap=new HashMap<>();
+			sourceConnectionMap = new HashMap<>();
+			sourceConnectionMap.put(id,new Connections());
 			ReflectionTestUtils.setField(mockHazelcastMergeNode,"jetContext",context);
 			ReflectionTestUtils.setField(mockHazelcastMergeNode,"obsLogger",obsLogger);
 			ReflectionTestUtils.setField(mockHazelcastMergeNode,"externalStorageDto",externalStorageDto);
 			ReflectionTestUtils.setField(mockHazelcastMergeNode,"checkJoinKeyUpdateCacheMap",iMapMap);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"sourceConnectionMap",sourceConnectionMap);
 			Node tableNode=mock(TableNode.class);
 			when(mockHazelcastMergeNode.getPreNode(id)).thenReturn(tableNode);
 			doCallRealMethod().when(mockHazelcastMergeNode).putInCheckJoinKeyUpdateCacheMapAndWriteSign(anyString(),anyString());
