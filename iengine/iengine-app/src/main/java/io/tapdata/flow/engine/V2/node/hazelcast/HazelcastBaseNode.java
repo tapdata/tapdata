@@ -486,7 +486,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!dataEvent.isCatchMe())
 			return;
 		List<Map<String, Object>> data = new ArrayList<>(2);
-		TapRecordEvent tapRecordEvent = (TapRecordEvent) dataEvent.getTapEvent();
 		if (dataEvent.getTapEvent() instanceof TapInsertRecordEvent) {
 			data.add(((TapInsertRecordEvent)dataEvent.getTapEvent()).getAfter());
 		} else if (dataEvent.getTapEvent() instanceof TapUpdateRecordEvent) {
@@ -495,6 +494,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else if (dataEvent.getTapEvent() instanceof TapDeleteRecordEvent) {
 			data.add(((TapDeleteRecordEvent)dataEvent.getTapEvent()).getBefore());
 		} else return;
+		TapRecordEvent tapRecordEvent = (TapRecordEvent) dataEvent.getTapEvent();
 		List<String> tags = Arrays.asList(
 				"catchData", "eid=" + dataEvent.getEventId(),
 				"type=" + dataEvent.getTapEvent().getType(), "ts=" + dataEvent.getTapEvent().getTime(),
