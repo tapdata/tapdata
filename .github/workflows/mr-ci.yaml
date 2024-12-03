@@ -17,11 +17,11 @@ on:
         required: true
         type: boolean
         default: false
-#      tapdata_branch:
-#        description: 'tapdata branch'
-#        required: true
-#        type: string
-#        default: 'develop'
+      tapdata_branch:
+        description: 'tapdata branch'
+        required: true
+        type: string
+        default: 'develop'
 
 jobs:
 
@@ -203,66 +203,65 @@ jobs:
 #            --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
 #            --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
-#  Build-And-Deploy:
-#    runs-on: ubuntu-latest
-#    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
-#    needs:
-#      - Get-Stable-Branch
-#    outputs:
-#      IP: ${{ steps.get_ip_port.outputs.IP }}
-#      PORT: ${{ steps.get_ip_port.outputs.PORT }}
-#    steps:
-#      - name: Trigger - Build
-#        uses: convictional/trigger-workflow-and-wait@v1.6.1
-#        with:
-#          owner: tapdata
-#          repo: tapdata-application
-#          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          workflow_file_name: build-tapdata-op.yaml
-#          ref: main
-#          wait_interval: 10
-#          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main", "CONNECTORS-OPTIONS": "nightly-build", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
-#          propagate_failure: true
-#          trigger_workflow: true
-#          wait_workflow: true
-#      - name: Trigger - Deploy
-#        uses: convictional/trigger-workflow-and-wait@v1.6.1
-#        with:
-#          owner: tapdata
-#          repo: tapdata-application
-#          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          workflow_file_name: deploy-tapdata-op.yaml
-#          ref: main
-#          wait_interval: 10
-#          client_payload: '{"TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}", "AUTO_TEST": true}'
-#          propagate_failure: true
-#          trigger_workflow: true
-#          wait_workflow: true
-#      - id: 'auth'
-#        uses: 'google-github-actions/auth@v1'
-#        with:
-#          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
-#      - id: 'get-credentials'
-#        uses: 'google-github-actions/get-gke-credentials@v1'
-#        with:
-#          cluster_name: 'tapdata-cloud-cluster'
-#          location: 'asia-east2'
-#      - name: Checkout Tapdata Application
-#        uses: actions/checkout@v2
-#        with:
-#          repository: 'tapdata/tapdata-application'
-#          ref: "main"
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata-application
-#      - name: Get IP and Port
-#        id: get_ip_port
-#        run: |
-#          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
-#          bash pwd
-#          IP=58.251.34.123
-#          PORT=30011
-#          echo "::set-output name=IP::$IP"
-#          echo "::set-output name=PORT::$PORT"
+  Build-And-Deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
+    needs:
+      - Get-Stable-Branch
+    outputs:
+      IP: ${{ steps.get_ip_port.outputs.IP }}
+      PORT: ${{ steps.get_ip_port.outputs.PORT }}
+    steps:
+      - name: Trigger - Build
+        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        with:
+          owner: tapdata
+          repo: tapdata-application
+          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          workflow_file_name: build-tapdata-op.yaml
+          ref: main
+          wait_interval: 10
+          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main", "CONNECTORS-OPTIONS": "nightly-build", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+          propagate_failure: true
+          trigger_workflow: true
+          wait_workflow: true
+      - name: Trigger - Deploy
+        uses: convictional/trigger-workflow-and-wait@v1.6.1
+        with:
+          owner: tapdata
+          repo: tapdata-application
+          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          workflow_file_name: deploy-tapdata-op.yaml
+          ref: main
+          wait_interval: 10
+          client_payload: '{"TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}", "AUTO_TEST": true}'
+          propagate_failure: true
+          trigger_workflow: true
+          wait_workflow: true
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v1'
+        with:
+          cluster_name: 'tapdata-cloud-cluster'
+          location: 'asia-east2'
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+      - name: Get IP and Port
+        id: get_ip_port
+        run: |
+          bash tapdata-application/build/upgrade.sh --get-ip-port=true --version=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --deploy-way=docker-compose
+          IP=$(cat .service_ip_port | awk -F':' '{print $1}')
+          PORT=$(cat .service_ip_port | awk -F':' '{print $2}')
+          echo "::set-output name=IP::$IP"
+          echo "::set-output name=PORT::$PORT"
 
 #  Functional-Test:
 #    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
@@ -309,12 +308,12 @@ jobs:
     timeout-minutes: 120
     needs:
       - Get-Stable-Branch
-#      - Build-And-Deploy
+      - Build-And-Deploy
     steps:
       - name: Set Env
         run: |
-          echo "IP=58.251.34.123" >> $GITHUB_ENV
-          echo "PORT=30011" >> $GITHUB_ENV
+          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
+          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
       - name: Run Test
         uses: convictional/trigger-workflow-and-wait@v1.6.5
         with:
@@ -328,31 +327,31 @@ jobs:
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
-#
-#  CLOSE_ENV:
-#    if: ${{ !failure() }}
-#    runs-on: ubuntu-latest
-#    needs:
-#      - MRCI
-#      - Get-Stable-Branch
-#    steps:
-#      - id: 'auth'
-#        uses: 'google-github-actions/auth@v1'
-#        with:
-#          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
-#      - id: 'get-credentials'
-#        uses: 'google-github-actions/get-gke-credentials@v1'
-#        with:
-#          cluster_name: 'tapdata-cloud-cluster'
-#          location: 'asia-east2'
-#      - name: Checkout Tapdata Application
-#        uses: actions/checkout@v2
-#        with:
-#          repository: 'tapdata/tapdata-application'
-#          ref: "main"
-#          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-#          path: tapdata-application
-#      - name: Close Test Env
-#        id: get_ip_port
-#        run: |
-#          bash tapdata-application/build/upgrade.sh --delete-env=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --delete-env-tag=true
+
+  CLOSE_ENV:
+    if: ${{ !failure() }}
+    runs-on: ubuntu-latest
+    needs:
+      - MRCI
+      - Get-Stable-Branch
+    steps:
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+      - id: 'get-credentials'
+        uses: 'google-github-actions/get-gke-credentials@v1'
+        with:
+          cluster_name: 'tapdata-cloud-cluster'
+          location: 'asia-east2'
+      - name: Checkout Tapdata Application
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapdata-application'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapdata-application
+      - name: Close Test Env
+        id: get_ip_port
+        run: |
+          bash tapdata-application/build/upgrade.sh --delete-env=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --delete-env-tag=true
