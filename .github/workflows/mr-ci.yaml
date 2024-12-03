@@ -125,6 +125,14 @@ jobs:
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
           fetch-depth: 0
+      - name: Checkout Tapce Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapce'
+          ref: ${{ needs.Get-Stable-Branch.outputs.TAPCE_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapce
+          fetch-depth: 0
       - name: Push Tapdata to Gogs
         uses: nick-fields/retry@v2
         with:
