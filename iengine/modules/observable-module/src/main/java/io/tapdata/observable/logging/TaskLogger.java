@@ -143,7 +143,7 @@ public class TaskLogger extends ObsLogger {
 		if (logLevel.isDebug() && !enableDebugLogger) {
 			enableDebugLogger = true;
 
-			this.recordCeiling = recordCeiling == null ? RECORD_CEILING_DEFAULT : recordCeiling;
+			this.recordCeiling = recordCeiling;
 			this.intervalCeiling = intervalCeiling == null ?
 					System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000 :
 					System.currentTimeMillis() + intervalCeiling * 1000;
