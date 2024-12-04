@@ -47,7 +47,8 @@
             iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/StopTaskOnErrorLog.java,
             iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/script/TapScriptLogger.java,
             iengine/api/src/main/java/io/tapdata/aspect/TaskBatchSplitAspect.java,
-            manager/tm/src/main/java/com/tapdata/tm/config/*
+            manager/tm/src/main/java/com/tapdata/tm/config/*,
+            manager/tm-api/src/main/java/com/tapdata/tm/inspect/bean/*
         </sonar.coverage.exclusions>
         <sonar.exclusions>
             manager/**/dto/*,
@@ -77,7 +78,8 @@
             iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/node/hazelcast/data/pdk/StopTaskOnErrorLog.java,
             iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/script/TapScriptLogger.java,
             iengine/api/src/main/java/io/tapdata/aspect/TaskBatchSplitAspect.java,
-            manager/tm/src/main/java/com/tapdata/tm/config/*
+            manager/tm/src/main/java/com/tapdata/tm/config/*,
+            manager/tm-api/src/main/java/com/tapdata/tm/inspect/bean/*
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
