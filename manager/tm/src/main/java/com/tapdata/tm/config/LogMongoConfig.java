@@ -47,14 +47,14 @@ public class LogMongoConfig {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 String uri = productList.contains("dfs") ? logUri : defaultUri;
-                MongoTemplate mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(logUri));
+                MongoTemplate mongoTemplate = null;
                 if (ssl) {
-                    String database = new ConnectionString(uri).getDatabase();
-                    MongoClientSettings settings = SSLUtil.mongoClientSettings(ssl, keyPath, caPath, uri);
+                    String database = new ConnectionString(logUri).getDatabase();
+                    MongoClientSettings settings = SSLUtil.mongoClientSettings(ssl, keyPath, caPath, logUri);
                     MongoClient mongoClient = MongoClients.create(settings, SpringDataMongoDB.driverInformation());
                     mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(mongoClient, database));
                 } else {
-                    mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(uri));
+                    mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(logUri));
                 }
 
                 // check monitoringLogs index

@@ -138,3 +138,9 @@ report:
     clientId: '796104786.1713955139'
   data:
     oss: ${REPORT_DATA_OSS:false}
+
+cache:
+  expire: 10 #缓存过期时间，单位分钟
+  initialCapacity: 100 #初始化缓存容量
+  maximumSize: 500 #最大缓存数
+
