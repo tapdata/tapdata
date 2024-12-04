@@ -122,6 +122,9 @@ public class TMApplication {
 		if(tapdata_proxy_mongodb_uri == null)
 			CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
 		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_ssl", userService.isSsl());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_caPath", userService.getCaPath());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_keyPath", userService.getKeyPath());
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
 
