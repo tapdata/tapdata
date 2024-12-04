@@ -142,12 +142,14 @@ public class DataCache {
         if (!eventId.startsWith("eid=")) {
             eventId = "eid=" + eventId;
         }
-        if (cache.containsKey(eventId)) {
-            CacheItem item = cache.get(eventId);
-            if (item != null)
-                item.setProcessCompleted(true);
-            cache.replace(eventId, item);
-        }
+        try {
+            if (cache.containsKey(eventId)) {
+                CacheItem item = cache.get(eventId);
+                if (item != null)
+                    item.setProcessCompleted(true);
+                cache.replace(eventId, item);
+            }
+        } catch (Exception e){}
     }
 
     public void destroy() {
