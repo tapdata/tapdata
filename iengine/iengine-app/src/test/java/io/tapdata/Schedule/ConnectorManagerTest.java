@@ -16,6 +16,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
+import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -137,6 +138,30 @@ class ConnectorManagerTest extends BaseTest {
 					}
 
         }
+		@Test
+		void testLogin() throws Exception {
+			connectorManager = spy(connectorManager);
+			User user = mock(User.class);
+			List<User> users = new ArrayList<>();
+			users.add(user);
+			Map<String, Object> params = new HashMap<>();
+			params.put("accesscode", "123");
+			when(mongoTemplate.find(new Query(where("role").is(1)), User.class, "User")).thenReturn(users);
+			LoginResp resp = new LoginResp();
+			ReflectionTestUtils.setField(resp,"created", "2024-02-12 20:55:09");
+			ReflectionTestUtils.setField(resp,"ttl", 1111111L);
+			when(restTemplateOperator.postOne(params, "users/generatetoken", LoginResp.class)).thenReturn(resp);
+			SettingService settingService = mock(SettingService.class);
+			ReflectionTestUtils.setField(connectorManager,"settingService",settingService);
+			doReturn("123").when(connectorManager).buildAccesscode();
+			try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)){
+				singletonLock.when(()->WorkerSingletonLock.check(any(),any())).thenAnswer(answer ->{
+					return null;
+				});
+				when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
+				connectorManager.init();
+			}
+		}
         @Test
         void testInitForCheckLicenseEngineLimitWithEx() throws Exception {
             User user = mock(User.class);
@@ -534,6 +559,16 @@ class ConnectorManagerTest extends BaseTest {
 			Map<String, Object> value = new HashMap<>();
 			spyConnectorManager.setPlatformInfo(value);
 			assertTrue(value.containsKey("platformInfo"));
+		}
+	}
+	@Test
+	@SneakyThrows
+	void testLogin() {
+		connectorManager = spy(connectorManager);
+		try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
+			appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DAAS);
+			doReturn("123").when(connectorManager).buildAccesscode();
+			connectorManager.login();
 		}
 	}
 }

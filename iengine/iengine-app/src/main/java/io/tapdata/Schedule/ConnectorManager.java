@@ -440,15 +440,15 @@ public class ConnectorManager {
 		clientMongoOperator.insertList(supporteds, ConnectorConstant.LIB_SUPPORTEDS_COLLECTION);
 	}
 
-	private void login() throws InterruptedException {
+	protected void login() throws InterruptedException {
 		int waitSeconds = 60;
 		LoginResp loginResp = null;
 		while (loginResp == null) {
 			try {
 
 				if (!AppType.currentType().isCloud()) {
-					this.accessCode = System.getProperty("cloud_accessCode");
-					if (null == accessCode){
+					this.accessCode = buildAccesscode();
+					if (StringUtils.isBlank(accessCode)){
 						MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 						List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
 						if (CollectionUtils.isNotEmpty(users)) {
@@ -505,6 +505,10 @@ public class ConnectorManager {
 			}
 		}
 
+	}
+
+	protected String buildAccesscode() {
+		return System.getProperty("cloud_accessCode");
 	}
 
 	@Bean("restTemplateOperator")
