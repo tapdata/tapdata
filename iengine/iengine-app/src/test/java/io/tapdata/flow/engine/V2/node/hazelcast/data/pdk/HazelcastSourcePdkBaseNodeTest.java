@@ -77,6 +77,7 @@ import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.common.vo.TapPartitionResult;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -85,6 +86,7 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import lombok.SneakyThrows;
@@ -933,6 +935,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			instance = spy(instance);
 			doAnswer(invocationOnMock -> null).when(instance).initStreamOffsetFromTime(null);
 			doAnswer(invocationOnMock -> null).when(instance).initStreamOffsetFromTime(anyLong());
+			doAnswer(invocationOnMock -> null).when(instance).initStreamOffsetFromString(anyString());
 		}
 
 		@Test
@@ -1032,6 +1035,53 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> instance.initStreamOffsetCDC(dataProcessorContext.getTaskDto(), null));
 			assertEquals(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, tapCodeException.getCode());
 		}
+		@Test
+		@DisplayName("test SyncPoint is String Offset")
+		void testStringOffset(){
+			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
+			syncPoint.setNodeId(instance.getNode().getId());
+			syncPoint.setIsStreamOffset(true);
+			syncPoint.setStreamOffsetString("{\"fno\":0,\"timestamp\":1733241600094}");
+			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
+			syncPoints.add(syncPoint);
+			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);
+			Long actualReturn = instance.initStreamOffsetCDC(dataProcessorContext.getTaskDto(), null);
+            assertNull(actualReturn);
+		}
+	}
+	@Nested
+	@DisplayName("Method initStreamOffsetFromStringTest test")
+	class initStreamOffsetFromStringTest{
+		SyncProgress syncProgress;
+		@BeforeEach
+		void setUp() {
+			instance = spy(instance);
+			syncProgress = new SyncProgress();
+			ReflectionTestUtils.setField(instance, "syncProgress", syncProgress);
+
+		}
+		@Test
+		void test_main(){
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			Object streamOffset = new Object();
+			doReturn(connectorNode).when(instance).getConnectorNode();
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			GetStreamOffsetFunction getStreamOffsetFunction = mock(GetStreamOffsetFunction.class);
+			when(connectorFunctions.getGetStreamOffsetFunction()).thenReturn(getStreamOffsetFunction);
+			when(getStreamOffsetFunction.getStreamOffset(any(), anyString())).thenReturn(streamOffset);
+			try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMock = Mockito.mockStatic(PDKInvocationMonitor.class)){
+				pdkInvocationMonitorMock.when(() -> PDKInvocationMonitor.invoke(any(io.tapdata.pdk.core.api.Node.class), any(PDKMethod.class), any(CommonUtils.AnyError.class), anyString())).thenAnswer(invocationOnMock -> {
+					CommonUtils.AnyError argument1 = invocationOnMock.getArgument(2);
+					argument1.run();
+					return null;
+				});
+				instance.initStreamOffsetFromString("{\"fno\":0,\"timestamp\":1733241600094}");
+				assertEquals(streamOffset, syncProgress.getStreamOffsetObj());
+			}
+
+		}
+
 	}
 
 	@Nested
