@@ -11,6 +11,7 @@ import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.observable.logging.with.WithAppender;
 import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -53,6 +54,7 @@ public class TaskLogger extends ObsLogger {
 	@Getter
 	private Long recordCeiling;
 	@Getter
+	@Setter
 	private Long intervalCeiling;
 	private boolean testTask;
 	public boolean isTestTask() {

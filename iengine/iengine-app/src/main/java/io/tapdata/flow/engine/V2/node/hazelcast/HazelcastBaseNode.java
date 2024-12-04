@@ -74,6 +74,7 @@ import io.tapdata.observable.logging.LogLevel;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.debug.DataCache;
+import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -510,7 +511,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				.taskName(processorBaseContext.getTaskDto().getName())
 				.nodeId(getNode().getId())
 				.timestamp(System.currentTimeMillis())
-				.nodeName(getNode().getName()),
+				.nodeName(getNode().getName())
+				.serializeConfig(DataCacheFactory.dataSerializeConfig),
 				String.join(",", dataEvent.getNodeIds()));
 	}
 
