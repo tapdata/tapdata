@@ -581,7 +581,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		if (node instanceof TableNode) {
 			tableName = ((TableNode) node).getTableName();
 			if (StringUtils.isBlank(tableName)) {
-				throw new TapCodeException(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK, String.format("Table node: %s", node));
+				throw new TapCodeException(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK, String.format("Table node: %s", node))
+						.dynamicDescriptionParameters(node.getId(),node.getName());
 			}
 		} else {
 			tableName = node.getId();

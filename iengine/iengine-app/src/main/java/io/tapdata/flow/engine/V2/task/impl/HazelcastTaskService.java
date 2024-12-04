@@ -87,6 +87,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.services.CatchDataService;
+import io.tapdata.utils.ErrorCodeUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -1015,7 +1016,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			AspectUtils.executeAspect(new EngineDeductionAspect().end());
 		} catch (Exception e) {
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));
-			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE, "reason:" + e.getMessage(), e);
+			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE, "reason:" + e.getMessage(), e)
+					.dynamicDescriptionParameters(taskDto.getName(), taskDto.getId(), taskDto.getSyncType());
 		}
 		return tapTableMapHashMap;
 	}
