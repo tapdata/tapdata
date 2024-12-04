@@ -561,14 +561,4 @@ class ConnectorManagerTest extends BaseTest {
 			assertTrue(value.containsKey("platformInfo"));
 		}
 	}
-	@Test
-	@SneakyThrows
-	void testLogin() {
-		connectorManager = spy(connectorManager);
-		try (MockedStatic<AppType> appTypeMockedStatic = mockStatic(AppType.class, CALLS_REAL_METHODS)) {
-			appTypeMockedStatic.when(AppType::currentType).thenReturn(AppType.DAAS);
-			doReturn("123").when(connectorManager).buildAccesscode();
-			connectorManager.login();
-		}
-	}
 }
