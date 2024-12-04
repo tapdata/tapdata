@@ -185,13 +185,13 @@ public class ConnectorManager {
 	@Autowired
 	private SchemaProxy schemaProxy;
 
-	private final Supplier<Long> getRetryTimeoutSupplier = () -> {
-		// change 60s to 300s, because DFS fault usually lasts longer than 1 minute
-		long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 60000L);
-		long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
-		long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
-		return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
-	};
+    private final Supplier<Long> getRetryTimeoutSupplier = () -> {
+        // change 60s to 300s, because DFS fault usually lasts longer than 1 minute
+        long defRestApiTimeout = CommonUtils.getPropertyLong("DEFAULT_REST_API_TIMEOUT", AppType.currentType().isCloud() ? 300000L : 60000L);
+        long minRestApiTimeout = CommonUtils.getPropertyLong("MINIMUM_REST_API_TIMEOUT", 30000L);
+        long jobHeartTimeout = settingService.getLong("jobHeartTimeout", defRestApiTimeout);
+        return Math.max((long) (jobHeartTimeout * 0.8), minRestApiTimeout);
+    };
 
 	@PostConstruct
 	public void init() throws Exception {
@@ -1240,7 +1240,7 @@ public class ConnectorManager {
 		switch (AppType.currentType()){
 			case DFS:
 				if (worker.isDeleted() || worker.isStopping()) {
-					exitInfo = "Flow engine will stop, cause: ";
+						exitInfo = "Flow engine will stop, cause: ";
 					if (worker.isDeleted()) {
 						exitInfo += "is deleted";
 					} else if (worker.isStopping()) {
