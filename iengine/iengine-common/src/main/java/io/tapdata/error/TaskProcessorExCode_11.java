@@ -184,6 +184,8 @@ public interface TaskProcessorExCode_11 {
 	@TapExCode(
 			describe = "When starting an incremental task, parsing the incremental Offset format failed",
 			describeCN = "启动增量任务时，解析增量Offset格式失败",
+			dynamicDescription = "Offset format error:{}",
+			dynamicDescriptionCN = "Offset格式错误:{}",
 			solution = "Please refer to the corresponding data source document and correctly fill in the data source Offset format.",
 			solutionCN = "请您参考对应数据源文档，正确填写数据源Offset格式"
 	)

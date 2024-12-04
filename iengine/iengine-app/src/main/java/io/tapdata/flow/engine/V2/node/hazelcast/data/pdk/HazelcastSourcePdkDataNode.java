@@ -182,6 +182,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			super.doInit(context);
 			checkPollingCDCIfNeed();
 		} catch (Throwable e) {
+			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
+			if (null != matched) {
+				throw (TapCodeException) matched;
+			}
 			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}
 	}

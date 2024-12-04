@@ -784,10 +784,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				try {
 					tapStreamOffset.set(getStreamOffsetFunction.getStreamOffset(getConnectorNode().getConnectorContext(), streamOffset));
 				}catch (Throwable e) {
-					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: "  + e.getMessage());
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: "  + e.getMessage())
+							.dynamicDescriptionParameters(streamOffset);
 				}
 				if(null == tapStreamOffset.get()){
-					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: " + streamOffset);
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: " + streamOffset)
+							.dynamicDescriptionParameters(streamOffset);
 				}
 				syncProgress.setStreamOffsetObj(tapStreamOffset.get());
 			}, TAG);
