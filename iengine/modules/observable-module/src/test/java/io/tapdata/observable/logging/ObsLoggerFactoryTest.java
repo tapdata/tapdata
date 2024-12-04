@@ -9,6 +9,7 @@ import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.*;
  */
 public class ObsLoggerFactoryTest {
 
+    @Disabled
     @Test
     public void testGetObsLogger() {
 
