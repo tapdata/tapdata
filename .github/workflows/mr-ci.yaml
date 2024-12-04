@@ -149,7 +149,7 @@ jobs:
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapce --gogs-project-name=tapce
   
   Scan-Tapdata:
-    runs-on: ubuntu-latest
+    runs-on: office-scan
     if: ${{ !startsWith(github.base_ref, 'release-v') }}
     needs:
       - Get-Stable-Branch
