@@ -32,5 +32,7 @@ public class Source {
     List<QueryOperator> conditions;
     private boolean enableCustomCommand;
     private Map<String, Object> customCommand;
+    private boolean enableCustomCollate;
+    private Map<String, String> collate;
 
 }
