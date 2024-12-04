@@ -300,6 +300,12 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         @EqField
         private Long dateTime;
 
+        @EqField
+        private Boolean isStreamOffset;
+
+        @EqField
+        private String streamOffsetString;
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
