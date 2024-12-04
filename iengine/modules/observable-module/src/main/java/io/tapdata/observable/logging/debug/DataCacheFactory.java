@@ -1,8 +1,17 @@
 package io.tapdata.observable.logging.debug;
 
+import cn.hutool.core.lang.ClassScanner;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.JSONSerializer;
+import com.alibaba.fastjson.serializer.SerializeConfig;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.cache.ObjectSerializer;
 import lombok.Getter;
@@ -21,10 +30,17 @@ import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.config.units.EntryUnit;
 import org.ehcache.config.units.MemoryUnit;
 import org.ehcache.core.EhcacheManager;
+import org.ehcache.spi.serialization.SerializerException;
+import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
 
 import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.temporal.TemporalUnit;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +53,34 @@ public final class DataCacheFactory {
 
     @Getter
     private static final DataCacheFactory instance = new DataCacheFactory();
+
+    public static SerializeConfig dataSerializeConfig = new SerializeConfig();
+    static {
+        dataSerializeConfig.put(DateTime.class, (serializer, object, fieldName, fieldType, features) -> {
+            if (object != null) {
+                serializer.write(((DateTime)object).toDate());
+                return;
+            }
+            serializer.write(object);
+        });
+        dataSerializeConfig.put(Timestamp.class, (serializer, object, fieldName, fieldType, features) -> {
+            if (object != null) {
+                serializer.write(new Date(((Timestamp)object).getTime()));
+                return;
+            }
+            serializer.write(object);
+        });
+        com.alibaba.fastjson.serializer.ObjectSerializer objectSerializer = (serializer, object, fieldName, fieldType, features) -> {
+            if (object != null) {
+                serializer.write(((TapValue)object).getOriginValue());
+                return;
+            }
+            serializer.write(object);
+        };
+        ClassScanner.scanPackageBySuper("io.tapdata.entity.schema.value", TapValue.class).forEach(clazz -> {
+            dataSerializeConfig.put(clazz, objectSerializer);
+        });
+    }
 
     private Map<String, DataCache> taskDataCache;
     private EhcacheManager cacheManager;
@@ -112,7 +156,7 @@ public final class DataCacheFactory {
 
         Cache<String, DataCache.CacheItem> cache = cacheManager.createCache(taskId, CacheConfigurationBuilder
                 .newCacheConfigurationBuilder(String.class, DataCache.CacheItem.class, builder)
-                .withExpiry(ExpiryPolicyBuilder.timeToLiveExpiration(Duration.ofMinutes(2)))
+                .withExpiry(ExpiryPolicyBuilder.timeToLiveExpiration(Duration.ofMinutes(10)))
         );
 
         return new DataCache(taskId, null, cache);

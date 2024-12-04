@@ -1,21 +1,19 @@
 package io.tapdata.observable.logging.debug;
 
-import com.hazelcast.persistence.CommonUtils;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import lombok.*;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.ehcache.Cache;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -29,6 +27,7 @@ import static java.util.Collections.emptyList;
 public class DataCache {
 
     public static Map<String, Object> emptyResult = new HashMap<>();
+    public static int processTimeout = 120000;  // 2 minutes
     static {
         emptyResult.put("hasMore", false);
         emptyResult.put("data", emptyList());
@@ -70,6 +69,7 @@ public class DataCache {
                         cacheItem = CacheItem.builder()
                                 .id(eid)
                                 .ts(monitoringLogsDto.getTimestamp())
+                                .expireAt(System.currentTimeMillis() + processTimeout)
                                 .type(getEventType(monitoringLogsDto.getLogTags()))
                                 .build();
                         cacheItem.put(monitoringLogsDto.getNodeId(), monitoringLogsDto);
@@ -102,9 +102,15 @@ public class DataCache {
         boolean getData;
         if (count == null)
             count = 10;
+        int skipUncompleted = 0;
         while (count > 0 && iterator.hasNext()) {
             Cache.Entry<String, CacheItem> entry = iterator.next();
             CacheItem cacheItem = entry.getValue();
+
+            if (!cacheItem.processCompleted && !cacheItem.isExpired()) {
+                skipUncompleted++;
+                continue;
+            }
 
             if (hasQuery) {
                 Optional<Map<String, Object>> optional = cacheItem.getData().values().stream().flatMap(m -> m.getData().stream())
@@ -121,10 +127,27 @@ public class DataCache {
 
         if (dataList.isEmpty()) return emptyResult;
         Map<String, Object> result = new HashMap<>();
+        result.put("skipUncompleted", skipUncompleted);
         result.put("data", dataList);
         result.put("hasMore", iterator.hasNext());
 
+        ObsLoggerFactory.getInstance().onFetchCacheData(taskId);
+
         return result;
+    }
+
+    public void processCompleted(String eventId) {
+        if (StringUtils.isBlank(eventId))
+            return;
+        if (!eventId.startsWith("eid=")) {
+            eventId = "eid=" + eventId;
+        }
+        if (cache.containsKey(eventId)) {
+            CacheItem item = cache.get(eventId);
+            if (item != null)
+                item.setProcessCompleted(true);
+            cache.replace(eventId, item);
+        }
     }
 
     public void destroy() {
@@ -172,7 +195,9 @@ public class DataCache {
     }
 
     private boolean match(Map<String, Object> data, String query) {
-        return Optional.ofNullable(JsonUtil.toJsonUseJackson(data)).map(s -> s.contains(query)).orElse(false);
+        return Optional.ofNullable(JSON.toJSON(data, DataCacheFactory.dataSerializeConfig))
+                .map(Object::toString)
+                .map(s -> s.contains(query)).orElse(false);
     }
 
     @Data
@@ -184,6 +209,13 @@ public class DataCache {
         private String type;
         private Long ts;
         private Map<String, MonitoringLogsDto> data;
+        private boolean processCompleted = false;
+
+        private long expireAt;
+
+        public boolean isExpired() {
+            return System.currentTimeMillis() > expireAt;
+        }
 
         public void put(String key, MonitoringLogsDto v) {
             if (StringUtils.isBlank(key))

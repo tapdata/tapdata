@@ -331,4 +331,11 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		}
 		return status;
 	}
+
+	public void onFetchCacheData(String taskId) {
+		TaskLogger taskLogger = taskLoggersMap.get(taskId);
+		if (taskLogger != null) {
+			taskLogger.setIntervalCeiling(System.currentTimeMillis() + 120000);
+		}
+	}
 }

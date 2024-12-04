@@ -1,10 +1,12 @@
 package io.tapdata.observable.logging.appender;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializeConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -191,7 +193,8 @@ public class AppenderFactory implements Serializable {
 				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
 				valueOut.writeString(logTagsJoinStr);
 					if (null != logsDto.getData()) {
-					valueOut.writeString(JSON.toJSON(logsDto.getData()).toString());
+						SerializeConfig config = logsDto.getSerializeConfig() != null ? logsDto.getSerializeConfig() : SerializeConfig.getGlobalInstance();
+					valueOut.writeString(JSON.toJSON(logsDto.getData(), config).toString());
 				}
 			});
 		} catch (InterruptedRuntimeException ignored) {
