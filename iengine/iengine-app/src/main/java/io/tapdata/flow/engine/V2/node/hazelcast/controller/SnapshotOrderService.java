@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.utils.ErrorCodeUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -41,7 +42,8 @@ public class SnapshotOrderService {
 			} else if (o instanceof String) {
 				bytes = Base64.getDecoder().decode((String) o);
 			} else {
-				throw new TapCodeException(SnapshotOrderControllerExCode_21.SNAPSHOT_ORDER_LIST_FORMAT_ERROR, o.getClass().toString());
+				throw new TapCodeException(SnapshotOrderControllerExCode_21.SNAPSHOT_ORDER_LIST_FORMAT_ERROR, o.getClass().toString())
+						.dynamicDescriptionParameters(o.getClass().toString(), ErrorCodeUtils.truncateData(o));
 			}
 			Object object = InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
 			if (object instanceof List) {
@@ -68,13 +70,14 @@ public class SnapshotOrderService {
 		return snapshotOrderController;
 	}
 
-	private static void handleSnapshotOrderMode(TaskDto taskDto, String oldMergeMode, List<NodeControlLayer> snapshotOrderList) {
+	protected static void handleSnapshotOrderMode(TaskDto taskDto, String oldMergeMode, List<NodeControlLayer> snapshotOrderList) {
 		List<Node> nodes = taskDto.getDag().getNodes();
 		Node<?> foundNode = nodes.stream().filter(node -> node instanceof MergeTableNode).findFirst().orElse(null);
 		if (foundNode instanceof MergeTableNode) {
 			MergeTableNode mergeTableNode = (MergeTableNode) foundNode;
 			if (null != oldMergeMode && !mergeTableNode.getMergeMode().equals(oldMergeMode)) {
-				throw new TapCodeException(SnapshotOrderControllerExCode_21.CANNOT_CHANGE_MERGE_MODE_WITH_OUT_RESET, String.format("Last merge mode: %s, current merge mode: %s", oldMergeMode, mergeTableNode.getMergeMode()));
+				throw new TapCodeException(SnapshotOrderControllerExCode_21.CANNOT_CHANGE_MERGE_MODE_WITH_OUT_RESET, String.format("Last merge mode: %s, current merge mode: %s", oldMergeMode, mergeTableNode.getMergeMode()))
+						.dynamicDescriptionParameters(oldMergeMode, mergeTableNode.getMergeMode());
 			}
 			String mergeMode = mergeTableNode.getMergeMode();
 			if (StringUtils.isBlank(mergeMode) || !StringUtils.equalsAny(mergeMode, MergeTableNode.MAIN_TABLE_FIRST_MERGE_MODE, MergeTableNode.SUB_TABLE_FIRST_MERGE_MODE)) {
