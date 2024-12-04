@@ -91,6 +91,25 @@ public class UserServiceImpl extends UserService{
     private String mongodbUri;
     @Value("${server.port}")
     private String serverPort;
+    @Value("${spring.data.mongodb.ssl}")
+    private String ssl;
+
+    public String isSsl() {
+        return ssl;
+    }
+
+    public String getCaPath() {
+        return caPath;
+    }
+
+    public String getKeyPath() {
+        return keyPath;
+    }
+
+    @Value("${spring.data.mongodb.caPath}")
+    private String caPath;
+    @Value("${spring.data.mongodb.keyPath}")
+    private String keyPath;
     @Autowired
     TcmService tcmService;
 

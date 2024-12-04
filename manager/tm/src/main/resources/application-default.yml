@@ -16,10 +16,10 @@ spring:
     mongodb:
       cursorBatchSize: 1000
       default:
-        uri: ${mongodb_uri:mongodb://127.0.0.1:27017/tapdata}
-      ssl: ${mongodb_ssl:true}
-      caPath: ${mongodb_caPath:''}
-      keyPath: ${mongodb_keyPath:''}
+        uri: ${TAPDATA_MONGO_URI:'mongodb://127.0.0.1:27017/tapdata'}
+      ssl: ${ssl:false}
+      caPath: ${sslCA:''}
+      keyPath: ${sslCertKey:''}
 
   messages:
     encoding: UTF-8

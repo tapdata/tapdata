@@ -6,7 +6,7 @@ import com.tapdata.tm.dag.convert.DagDeserializeConvert;
 import com.tapdata.tm.dag.convert.DagSerializeConvert;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
-import com.tapdata.tm.utils.SSLUtil;
+import io.tapdata.modules.api.utils.SSLUtil;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
