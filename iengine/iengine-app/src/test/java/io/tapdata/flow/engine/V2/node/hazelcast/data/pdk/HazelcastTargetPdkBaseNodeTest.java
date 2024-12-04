@@ -714,56 +714,64 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			}
 		}
 		@Nested
-		class handleTapTablePrimaryKeysTest{
+		class handleTapTablePrimaryKeysTest {
 			private TapTable tapTable;
 			private ConcurrentHashMap<String, Boolean> everHandleTapTablePrimaryKeysMap;
 			private String writeStrategy = "updateOrInsert";
 			protected Map<String, List<String>> updateConditionFieldsMap;
 			private List<String> updateConditionFields;
+
 			@BeforeEach
-			void beforeEach(){
+			void beforeEach() {
 				everHandleTapTablePrimaryKeysMap = new ConcurrentHashMap<>();
-				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"everHandleTapTablePrimaryKeysMap",everHandleTapTablePrimaryKeysMap);
-				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"writeStrategy",writeStrategy);
+				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "everHandleTapTablePrimaryKeysMap", everHandleTapTablePrimaryKeysMap);
+				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "writeStrategy", writeStrategy);
 				updateConditionFieldsMap = new HashMap<>();
 				tapTable = new TapTable();
 				tapTable.setId("test");
 				LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
 				TapField primary = new TapField();
+				primary.setPrimaryKeyPos(1);
 				primary.setPrimaryKey(true);
-				nameFieldMap.put("primary",primary);
+				nameFieldMap.put("primary", primary);
 				tapTable.setNameFieldMap(nameFieldMap);
 				updateConditionFields = new ArrayList<>();
 				updateConditionFields.add("field");
-				updateConditionFieldsMap.put("test",updateConditionFields);
-				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"updateConditionFieldsMap",updateConditionFieldsMap);
+				updateConditionFieldsMap.put("test", updateConditionFields);
+				ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "updateConditionFieldsMap", updateConditionFieldsMap);
 
 			}
+
 			@Test
 			@DisplayName("test handleTapTablePrimaryKeys method when everHandleTapTablePrimaryKeysMap not contains tapTable")
-			void test1(){
+			void test1() {
 				try (MockedStatic<HazelcastTargetPdkBaseNode> mb = Mockito
 						.mockStatic(HazelcastTargetPdkBaseNode.class)) {
-					mb.when(()->HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields)).thenAnswer(invocationOnMock -> {return null;});
+					mb.when(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable, updateConditionFields)).thenAnswer(invocationOnMock -> {
+						return null;
+					});
 					doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapTablePrimaryKeys(tapTable);
 					hazelcastTargetPdkBaseNode.handleTapTablePrimaryKeys(tapTable);
 					assertTrue(everHandleTapTablePrimaryKeysMap.containsKey("test"));
 					assertTrue(everHandleTapTablePrimaryKeysMap.get("test"));
-					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields),new Times(1));
+					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable, updateConditionFields), new Times(1));
 				}
 			}
+
 			@Test
 			@DisplayName("test handleTapTablePrimaryKeys method when everHandleTapTablePrimaryKeysMap contains tapTable")
-			void test2(){
+			void test2() {
 				try (MockedStatic<HazelcastTargetPdkBaseNode> mb = Mockito
 						.mockStatic(HazelcastTargetPdkBaseNode.class)) {
-					mb.when(()->HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields)).thenAnswer(invocationOnMock -> {return null;});
-					everHandleTapTablePrimaryKeysMap.put("test",true);
+					mb.when(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable, updateConditionFields)).thenAnswer(invocationOnMock -> {
+						return null;
+					});
+					everHandleTapTablePrimaryKeysMap.put("test", true);
 					doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapTablePrimaryKeys(tapTable);
 					hazelcastTargetPdkBaseNode.handleTapTablePrimaryKeys(tapTable);
 					assertTrue(everHandleTapTablePrimaryKeysMap.containsKey("test"));
 					assertTrue(everHandleTapTablePrimaryKeysMap.get("test"));
-					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable,updateConditionFields),new Times(0));
+					mb.verify(() -> HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable, updateConditionFields), new Times(0));
 				}
 			}
 		}
