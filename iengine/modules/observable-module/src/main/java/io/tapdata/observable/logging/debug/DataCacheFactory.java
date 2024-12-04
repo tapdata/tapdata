@@ -18,6 +18,7 @@ import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.ehcache.Cache;
 import org.ehcache.CacheManager;
 import org.ehcache.CachePersistenceException;
@@ -59,6 +60,13 @@ public final class DataCacheFactory {
         dataSerializeConfig.put(DateTime.class, (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
                 serializer.write(((DateTime)object).toDate());
+                return;
+            }
+            serializer.write(object);
+        });
+        dataSerializeConfig.put(ObjectId.class, (serializer, object, fieldName, fieldType, features) -> {
+            if (object != null) {
+                serializer.write(((ObjectId)object).toHexString());
                 return;
             }
             serializer.write(object);
