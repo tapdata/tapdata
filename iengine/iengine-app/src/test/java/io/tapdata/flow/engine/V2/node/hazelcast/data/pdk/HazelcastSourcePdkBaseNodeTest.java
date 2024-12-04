@@ -946,6 +946,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("current");
+			syncPoint.setIsStreamOffset(false);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);
@@ -961,6 +962,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("localTZ");
+			syncPoint.setIsStreamOffset(false);
 			long syncDateTime = System.currentTimeMillis();
 			syncPoint.setDateTime(syncDateTime);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
@@ -977,6 +979,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("connTZ");
+			syncPoint.setIsStreamOffset(false);
 			long syncDateTime = System.currentTimeMillis();
 			syncPoint.setDateTime(syncDateTime);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
@@ -1006,6 +1009,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType(null);
+			syncPoint.setIsStreamOffset(false);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);
@@ -1030,6 +1034,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TaskDto.SyncPoint syncPoint = new TaskDto.SyncPoint();
 			syncPoint.setNodeId(instance.getNode().getId());
 			syncPoint.setPointType("xxx");
+			syncPoint.setIsStreamOffset(false);
 			List<TaskDto.SyncPoint> syncPoints = new ArrayList<>();
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);
