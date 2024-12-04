@@ -37,12 +37,12 @@ public class ObsLoggerFactoryTest {
         ConfigurationCenter configurationCenter = new ConfigurationCenter();
         configurationCenter.putConfig("workDir", "/tmp");
         GlobalConstant.getInstance().configurationCenter(configurationCenter);
-
-        try (MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class)) {
+        try (MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class);
+             MockedStatic<ObsLoggerFactory> obsLoggerFactoryMockedStatic = mockStatic(ObsLoggerFactory.class);) {
 
             beanUtilMock.when(() -> BeanUtil.getBean(SettingService.class)).thenReturn(settingService);
             beanUtilMock.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientOperator);
-
+            obsLoggerFactoryMockedStatic.when(()->{ObsLoggerFactory.getInstance();}).thenCallRealMethod();
             ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto, "nodeId", "nodeName");
             Assertions.assertNotNull(obsLogger);
             ObsLoggerFactory.getInstance().removeTaskLogger(taskDto);
