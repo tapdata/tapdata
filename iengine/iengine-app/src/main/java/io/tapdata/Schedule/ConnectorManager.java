@@ -508,7 +508,7 @@ public class ConnectorManager {
 	}
 
 	protected String buildAccesscode() {
-		return System.getProperty("cloud_accessCode");
+		return System.getenv("cloud_accessCode");
 	}
 
 	@Bean("restTemplateOperator")
