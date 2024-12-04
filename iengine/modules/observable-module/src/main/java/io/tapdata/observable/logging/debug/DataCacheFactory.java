@@ -59,26 +59,17 @@ public final class DataCacheFactory {
     private static Map<String, com.alibaba.fastjson.serializer.ObjectSerializer> dataSerializeConfigMap = new HashMap<>();
     static {
         dataSerializeConfigMap.put(DateTime.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
-            if (object != null) {
-                serializer.write(((DateTime)object).toDate());
-                return;
-            }
-            serializer.write(object);
+            serializer.write(((DateTime)object).toDate());
         });
         dataSerializeConfigMap.put(ObjectId.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
-            if (object != null) {
-                serializer.write(((ObjectId)object).toHexString());
-                return;
-            }
-            serializer.write(object);
+            serializer.write(((ObjectId)object).toHexString());
         });
         dataSerializeConfigMap.put(Timestamp.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
-            if (object != null) {
-                serializer.write(new Date(((Timestamp)object).getTime()));
-                return;
-            }
-            serializer.write(object);
+            serializer.write(new Date(((Timestamp)object).getTime()));
         });
+        dataSerializeConfig.put(DateTime.class, dataSerializeConfigMap.get(DateTime.class.getName()));
+        dataSerializeConfig.put(ObjectId.class, dataSerializeConfigMap.get(ObjectId.class.getName()));
+        dataSerializeConfig.put(Timestamp.class, dataSerializeConfigMap.get(Timestamp.class.getName()));
         com.alibaba.fastjson.serializer.ObjectSerializer objectSerializer = (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
                 TapValue<?, ?> tapValue = ((TapValue<?, ?>) object);
@@ -93,6 +84,10 @@ public final class DataCacheFactory {
                 com.alibaba.fastjson.serializer.ObjectSerializer writer = null;
                 if (originVal != null) {
                     writer = dataSerializeConfigMap.get(originVal.getClass().getName());
+                }
+                if (originVal == null) {
+                    serializer.writeNull();
+                    return;
                 }
                 if (writer == null)
                     writer = dataSerializeConfig.getObjectWriter(originVal.getClass());
