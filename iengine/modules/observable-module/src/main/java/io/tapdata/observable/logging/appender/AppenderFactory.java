@@ -192,9 +192,14 @@ public class AppenderFactory implements Serializable {
 				}
 				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
 				valueOut.writeString(logTagsJoinStr);
-					if (null != logsDto.getData()) {
-						SerializeConfig config = logsDto.getSerializeConfig() != null ? logsDto.getSerializeConfig() : SerializeConfig.getGlobalInstance();
-					valueOut.writeString(JSON.toJSON(logsDto.getData(), config).toString());
+				if (null != logsDto.getData()) {
+					SerializeConfig config = logsDto.getSerializeConfig() != null ? logsDto.getSerializeConfig() : SerializeConfig.getGlobalInstance();
+					try {
+						valueOut.writeString(JSON.toJSON(logsDto.getData(), config).toString());
+					} catch (Exception e) {
+						logger.error("Convert data to json failed {}", e.getMessage(), e);
+						valueOut.writeString("[]");
+					}
 				}
 			});
 		} catch (InterruptedRuntimeException ignored) {

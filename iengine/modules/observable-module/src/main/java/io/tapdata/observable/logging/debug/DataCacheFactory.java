@@ -56,22 +56,23 @@ public final class DataCacheFactory {
     private static final DataCacheFactory instance = new DataCacheFactory();
 
     public static SerializeConfig dataSerializeConfig = new SerializeConfig();
+    private static Map<String, com.alibaba.fastjson.serializer.ObjectSerializer> dataSerializeConfigMap = new HashMap<>();
     static {
-        dataSerializeConfig.put(DateTime.class, (serializer, object, fieldName, fieldType, features) -> {
+        dataSerializeConfigMap.put(DateTime.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
                 serializer.write(((DateTime)object).toDate());
                 return;
             }
             serializer.write(object);
         });
-        dataSerializeConfig.put(ObjectId.class, (serializer, object, fieldName, fieldType, features) -> {
+        dataSerializeConfigMap.put(ObjectId.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
                 serializer.write(((ObjectId)object).toHexString());
                 return;
             }
             serializer.write(object);
         });
-        dataSerializeConfig.put(Timestamp.class, (serializer, object, fieldName, fieldType, features) -> {
+        dataSerializeConfigMap.put(Timestamp.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
                 serializer.write(new Date(((Timestamp)object).getTime()));
                 return;
@@ -80,7 +81,25 @@ public final class DataCacheFactory {
         });
         com.alibaba.fastjson.serializer.ObjectSerializer objectSerializer = (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
-                serializer.write(((TapValue)object).getOriginValue());
+                TapValue<?, ?> tapValue = ((TapValue<?, ?>) object);
+                if (tapValue.getValue() instanceof String) {
+                    serializer.write(tapValue.getValue());
+                    return;
+                }
+                Object originVal = tapValue.getOriginValue();
+                if (originVal == null) {
+                    originVal = ((TapValue<?, ?>) object).getValue();
+                }
+                com.alibaba.fastjson.serializer.ObjectSerializer writer = null;
+                if (originVal != null) {
+                    writer = dataSerializeConfigMap.get(originVal.getClass().getName());
+                }
+                if (writer == null)
+                    writer = dataSerializeConfig.getObjectWriter(originVal.getClass());
+                if (writer != null)
+                    writer.write(serializer, originVal, fieldName, fieldType, features);
+                else
+                    serializer.write(originVal);
                 return;
             }
             serializer.write(object);
