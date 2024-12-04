@@ -1,9 +1,11 @@
 package com.tapdata.processor.dataflow;
 
+import com.tapdata.entity.Connections;
 import com.tapdata.entity.Job;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
+import io.tapdata.exception.TapCodeException;
 import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeEach;
@@ -205,8 +207,8 @@ public class RowFilterProcessorTest {
             ReflectionTestUtils.setField(rowFilterProcessor, "action", RowFilterProcessor.FilterAction.DISCARD);
             try (MockedStatic<ScriptUtil> mb = Mockito
                     .mockStatic(ScriptUtil.class)) {
-                mb.when(()->ScriptUtil.invokeScript(engine, "filter", message, context.getSourceConn(),
-                        context.getTargetConn(), context.getJob(), processContext, logger, "before")).thenThrow(Exception.class);
+                mb.when(()->ScriptUtil.invokeScript(any(Invocable.class),anyString(),any(MessageEntity.class),eq(null),
+                        eq(null),any(Job.class),anyMap(),any(Logger.class),anyString())).thenThrow(Exception.class);
                 message.setOp("u");
                 message.setBefore(null);
                 message.setAfter(after);

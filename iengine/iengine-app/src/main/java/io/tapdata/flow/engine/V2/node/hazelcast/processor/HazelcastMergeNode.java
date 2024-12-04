@@ -1399,8 +1399,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				values.add(convertJoinKeyValue2String(value));
 			} catch (JoinKeyValueConvertNumberException e) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
-						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()))
-						.dynamicDescriptionParameters(mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName());
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, value.getClass().getName()))
+						.dynamicDescriptionParameters(mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, value.getClass().getName());
 			}
 		}
 		return String.join("_", values);
@@ -1428,8 +1428,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				values.add(convertJoinKeyValue2String(value));
 			} catch (JoinKeyValueConvertNumberException e) {
 				throw new TapCodeException(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_CONVERT_NUMBER_FAILED, String.format("- Merge table: %s%n- Map name: %s%n- Join key: %s%n- Data: %s(%s)",
-						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName()), e)
-						.dynamicDescriptionParameters(mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, null == value ? "null" : value.getClass().getName());
+						mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, value.getClass().getName()), e)
+						.dynamicDescriptionParameters(mergeProperty.getTableName(), hazelcastConstruct.getName(), joinKey, value, value.getClass().getName());
 			}
 		}
 		return String.join("_", values);

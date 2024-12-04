@@ -70,7 +70,7 @@ public class SnapshotOrderService {
 		return snapshotOrderController;
 	}
 
-	private static void handleSnapshotOrderMode(TaskDto taskDto, String oldMergeMode, List<NodeControlLayer> snapshotOrderList) {
+	protected static void handleSnapshotOrderMode(TaskDto taskDto, String oldMergeMode, List<NodeControlLayer> snapshotOrderList) {
 		List<Node> nodes = taskDto.getDag().getNodes();
 		Node<?> foundNode = nodes.stream().filter(node -> node instanceof MergeTableNode).findFirst().orElse(null);
 		if (foundNode instanceof MergeTableNode) {

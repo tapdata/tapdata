@@ -233,6 +233,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	}
 
 	@Override
+	protected boolean isRunning() {
+		return super.isRunning();
+	}
+
+	@Override
 	protected void doClose() throws TapCodeException {
 		super.doClose();
 		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.oldTapTableMap).ifPresent(TapTableMap::reset), HazelcastSchemaTargetNode.class.getSimpleName());
