@@ -138,30 +138,6 @@ class ConnectorManagerTest extends BaseTest {
 					}
 
         }
-		@Test
-		void testLogin() throws Exception {
-			connectorManager = spy(connectorManager);
-			User user = mock(User.class);
-			List<User> users = new ArrayList<>();
-			users.add(user);
-			Map<String, Object> params = new HashMap<>();
-			params.put("accesscode", "123");
-			when(mongoTemplate.find(new Query(where("role").is(1)), User.class, "User")).thenReturn(users);
-			LoginResp resp = new LoginResp();
-			ReflectionTestUtils.setField(resp,"created", "2024-02-12 20:55:09");
-			ReflectionTestUtils.setField(resp,"ttl", 1111111L);
-			when(restTemplateOperator.postOne(params, "users/generatetoken", LoginResp.class)).thenReturn(resp);
-			SettingService settingService = mock(SettingService.class);
-			ReflectionTestUtils.setField(connectorManager,"settingService",settingService);
-			doReturn("123").when(connectorManager).buildAccesscode();
-			try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)){
-				singletonLock.when(()->WorkerSingletonLock.check(any(),any())).thenAnswer(answer ->{
-					return null;
-				});
-				when(settingService.getSetting("buildProfile")).thenReturn(mock(Setting.class));
-				connectorManager.init();
-			}
-		}
         @Test
         void testInitForCheckLicenseEngineLimitWithEx() throws Exception {
             User user = mock(User.class);

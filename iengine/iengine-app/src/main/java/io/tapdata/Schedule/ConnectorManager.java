@@ -447,8 +447,7 @@ public class ConnectorManager {
 			try {
 
 				if (!AppType.currentType().isCloud()) {
-					this.accessCode = buildAccesscode();
-					if (StringUtils.isBlank(accessCode)){
+					if (StringUtils.isBlank(accessCode)) {
 						MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 						List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
 						if (CollectionUtils.isNotEmpty(users)) {
@@ -505,10 +504,6 @@ public class ConnectorManager {
 			}
 		}
 
-	}
-
-	protected String buildAccesscode() {
-		return System.getenv("cloud_accessCode");
 	}
 
 	@Bean("restTemplateOperator")
