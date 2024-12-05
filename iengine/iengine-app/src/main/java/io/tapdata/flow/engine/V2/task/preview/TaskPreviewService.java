@@ -59,6 +59,10 @@ public class TaskPreviewService {
 			logger.error("Parse task json failed: {}", taskJson, e);
 			return TaskPreviewResultVO.parseFailed(e);
 		}
+		return previewTask(taskDto, includeNodeIds, previewRows, stopWatch);
+	}
+
+	protected TaskPreviewResultVO previewTask(TaskDto taskDto, List<String> includeNodeIds, Integer previewRows, StopWatch stopWatch) {
 		stopWatch.start("before");
 		try {
 			validateTask(taskDto);
@@ -81,7 +85,6 @@ public class TaskPreviewService {
 			taskPreviewInstance.getTaskPreviewResultVO().failed(e);
 			return taskPreviewInstance.getTaskPreviewResultVO();
 		}
-		stopWatch.stop();
 		previewPrivate(taskDto, stopWatch);
 		stopWatch.start("after");
 		TaskPreviewResultVO taskPreviewResultVO = taskPreviewInstanceMap.remove(taskPreviewInstanceId).getTaskPreviewResultVO();
