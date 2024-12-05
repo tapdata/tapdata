@@ -86,6 +86,7 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import io.tapdata.services.CatchDataService;
 import io.tapdata.utils.ErrorCodeUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
