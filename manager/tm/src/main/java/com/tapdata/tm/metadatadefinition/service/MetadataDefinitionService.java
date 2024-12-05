@@ -169,10 +169,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
         MetadataDefinitionDto exsitedOne = null;
         if (metadataDefinitionDto.getId() != null) {
-            if (userDetail.isRoot()) {
-                exsitedOne = findById(metadataDefinitionDto.getId());
-            } else {
-                exsitedOne = findById(metadataDefinitionDto.getId(), userDetail);
+            exsitedOne = findById(metadataDefinitionDto.getId(), userDetail);
+            if (null == exsitedOne) {
+                throw new BizException("tag.operate.not.allowed");
             }
         }
         List<String> itemType=metadataDefinitionDto.getItemType();
@@ -189,10 +188,15 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                     }
                 }
             }
-        } else {
-            throw new BizException("tag.operate.not.allowed");
         }
 
+        if (StringUtils.isNotBlank(metadataDefinitionDto.getParent_id())) {
+            ObjectId parentId = new ObjectId(metadataDefinitionDto.getParent_id());
+            MetadataDefinitionDto parent = findById(parentId, userDetail);
+            if (null == parent) {
+                throw new BizException("tag.operate.not.allowed");
+            }
+        }
         MetadataDefinitionDto saveValue = super.save(metadataDefinitionDto, userDetail);
 
         if (exsitedOne != null) {

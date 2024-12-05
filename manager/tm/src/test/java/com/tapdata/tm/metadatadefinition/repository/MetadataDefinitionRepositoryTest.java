@@ -27,7 +27,14 @@ public class MetadataDefinitionRepositoryTest {
             doCallRealMethod().when(repository).applyUserDetail(query, userDetail);
         }
         @Test
-        void test() {
+        void testForRoot() {
+            when(userDetail.isRoot()).thenReturn(true);
+            Query actual = repository.applyUserDetail(query, userDetail);
+            Document document = new Document();
+            assertEquals(document, actual.getQueryObject());
+        }
+        @Test
+        void testForUser() {
             when(userDetail.isRoot()).thenReturn(false);
             Query actual = repository.applyUserDetail(query, userDetail);
             Document document = new Document();
