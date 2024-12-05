@@ -147,61 +147,61 @@ jobs:
           max_attempts: 3
           command: |
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapce --gogs-project-name=tapce
-  #
-  #  Scan-Tapdata:
-  #    runs-on: office-scan
-  #    if: ${{ !startsWith(github.base_ref, 'release-v') }}
-  #    needs:
-  #      - Get-Stable-Branch
-  #      - Push-Code-To-GOGS
-  #    timeout-minutes: 60
-  #    steps:
-  #      - name: Clean Directory
-  #        run: |
-  #          rm -rf ./*
-  #      - name: Checkout Tapdata Code
-  #        run: |
-  #          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-  #          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
-  #          cd tapdata && git fetch --tags
-  #      - name: Patch Maven Dependens
-  #        run: |
-  #          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
-  #          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@192.168.1.184:873/data/enterprise-temp/tapdata/ /root/.m2/
-  #      - name: Build Tapdata - And Analyze
-  #        env:
-  #          GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-  #          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #        run: |
-  #          update-alternatives --set java /usr/java/jdk-11.0.23/bin/java
-  #          export JAVA_HOME=/usr/java/jdk-11.0.23
-  #          cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
-  #            -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
-  #            -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
-  #            -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
-  #          update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
-  #          export JAVA_HOME=/usr/java/jdk1.8.0_361
-  #      - name: Prevent Skip Unittest
-  #        run: |
-  #          cd tapdata
-  #          find ./ -name jacoco | grep iengine
-  #          find ./ -name jacoco | grep manager
-  #      - name: Install Dependens
-  #        run: |
-  #          apt install -y jq
-  #      - name: SonarQube Quality Gate check
-  #        id: sonar
-  #        uses: sonarsource/sonarqube-quality-gate-action@master
-  #        env:
-  #          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #        with:
-  #          scanMetadataReportFile: tapdata/target/sonar/report-task.txt
-  #      - name: Send SonarQube Quality Gate to Pr Comment
-  #        if: ${{ always() && steps.sonar.outcome == 'failure' }}
-  #        run: |
-  #          cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} \
-  #            --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
-  #            --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
+  
+  Scan-Tapdata:
+    runs-on: office-scan
+    if: ${{ !startsWith(github.base_ref, 'release-v') }}
+    needs:
+      - Get-Stable-Branch
+      - Push-Code-To-GOGS
+    timeout-minutes: 60
+    steps:
+      - name: Clean Directory
+        run: |
+          rm -rf ./*
+      - name: Checkout Tapdata Code
+        run: |
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          cd tapdata && git fetch --tags
+      - name: Patch Maven Dependens
+        run: |
+          echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
+          rsync --delete --password-file=/tmp/rsync.passwd -avz rsync://root@192.168.1.184:873/data/enterprise-temp/tapdata/ /root/.m2/
+      - name: Build Tapdata - And Analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          update-alternatives --set java /usr/java/jdk-11.0.23/bin/java
+          export JAVA_HOME=/usr/java/jdk-11.0.23
+          cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
+            -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
+             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
+             -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+          update-alternatives --set java /usr/java/jdk-11.0.23/bin/java
+          export JAVA_HOME=/usr/java/jdk-11.0.23
+      - name: Prevent Skip Unittest
+        run: |
+          cd tapdata
+          find ./ -name jacoco | grep iengine
+          find ./ -name jacoco | grep manager
+      - name: Install Dependens
+        run: |
+          apt install -y jq
+      - name: SonarQube Quality Gate check
+        id: sonar
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        env:
+           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          scanMetadataReportFile: tapdata/target/sonar/report-task.txt
+      - name: Send SonarQube Quality Gate to Pr Comment
+        if: ${{ always() && steps.sonar.outcome == 'failure' }}
+        run: |
+          cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} \
+             --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
+             --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
   Build-And-Deploy:
     runs-on: ubuntu-latest
