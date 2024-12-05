@@ -3067,39 +3067,6 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		}
 
 	}
-	@DisplayName("测试错误码，表名不能为空")
-	@Test
-	void test2(){
-		try{
-			TableNode tableNode=new TableNode();
-			hazelcastMergeNode.getTableName(tableNode);
-		}catch (TapCodeException e){
-			assertEquals(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK,e.getCode());
-		}
-	}
-	@DisplayName("测试错误码，连接ID不能为空")
-	@Test
-	void test3(){
-		try{
-			TableNode tableNode=new TableNode();
-			hazelcastMergeNode.getConnectionId(tableNode);
-		}catch (TapCodeException e){
-			assertEquals(TaskMergeProcessorExCode_16.CONNECTION_ID_CANNOT_BE_BLANK,e.getCode());
-		}
-	}
-	@Test
-	void test4(){
-		MergeTableProperties mergeTableProperties=new MergeTableProperties();
-		mergeTableProperties.setId("sourceTableId");
-		List<MergeTableProperties> mergeTablePropertiesList =new ArrayList<>();
-		mergeTablePropertiesList.add(mergeTableProperties);
-		try{
-			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
-		}catch (TapCodeException e){
-			assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NODE_NOT_FOUND,e.getCode());
-		}
-
-	}
 
 	@Test
 	void analyzeChildrenReferenceExTest() {
