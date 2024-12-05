@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.mockito.internal.verification.Times;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
@@ -162,6 +163,34 @@ class ConnectorManagerTest extends BaseTest {
                 assertThrows(CoreException.class,()->connectorManager.init());
             }
         }
+
+		@Test
+		void testInitWithAccessCode() throws Exception {
+			String accessCode = "123";
+			ReflectionTestUtils.setField(connectorManager, "accessCode", accessCode);
+			User user = mock(User.class);
+			List<User> users = new ArrayList<>();
+			users.add(user);
+			Map<String, Object> params = new HashMap<>();
+			params.put("accesscode", "123");
+			when(mongoTemplate.find(new Query(where("role").is(1)), User.class, "User")).thenReturn(users);
+			LoginResp resp = new LoginResp();
+			ReflectionTestUtils.setField(resp,"created", "2024-02-12 20:55:09");
+			ReflectionTestUtils.setField(resp,"ttl", 1111111L);
+			when(restTemplateOperator.postOne(params, "users/generatetoken", LoginResp.class)).thenReturn(resp);
+			SettingService settingService = mock(SettingService.class);
+			ReflectionTestUtils.setField(connectorManager,"settingService",settingService);
+			try (MockedStatic<WorkerSingletonLock> singletonLock = mockStatic(WorkerSingletonLock.class)){
+				singletonLock.when(()->WorkerSingletonLock.check(any(),any())).thenAnswer(answer ->{
+					return null;
+				});
+				CheckEngineValidResultDto resultDto = mock(CheckEngineValidResultDto.class);
+				resultDto.setResult(false);
+				when(connectorManager.checkLicenseEngineLimit()).thenReturn(resultDto);
+				assertThrows(CoreException.class,()->connectorManager.init());
+				verify(mongoTemplate, new Times(0)).find(any(Query.class), any(Class.class), anyString());
+			}
+		}
     }
     @Nested
     class TestCheckLicenseEngineLimit{

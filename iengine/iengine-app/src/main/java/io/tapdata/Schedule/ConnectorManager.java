@@ -446,19 +446,17 @@ public class ConnectorManager {
 		while (loginResp == null) {
 			try {
 
-				if (!AppType.currentType().isCloud()) {
-					if (StringUtils.isBlank(accessCode)) {
-						MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
-						List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
-						if (CollectionUtils.isNotEmpty(users)) {
-							User user = users.get(0);
-							String accesscode = user.getAccesscode();
-							if (StringUtils.isNotBlank(accesscode)) {
-								this.accessCode = accesscode;
-							}
-						} else {
-							logger.warn("Cannot find admin user from mongodb {}.", mongoURI);
+				if (!AppType.currentType().isCloud() && StringUtils.isBlank(accessCode)) {
+					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
+					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
+					if (CollectionUtils.isNotEmpty(users)) {
+						User user = users.get(0);
+						String accesscode = user.getAccesscode();
+						if (StringUtils.isNotBlank(accesscode)) {
+							this.accessCode = accesscode;
 						}
+					} else {
+						logger.warn("Cannot find admin user from mongodb {}.", mongoURI);
 					}
 				}
 
