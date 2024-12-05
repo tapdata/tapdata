@@ -169,7 +169,11 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
         MetadataDefinitionDto exsitedOne = null;
         if (metadataDefinitionDto.getId() != null) {
-            exsitedOne = findById(metadataDefinitionDto.getId());
+            if (userDetail.isRoot()) {
+                exsitedOne = findById(metadataDefinitionDto.getId());
+            } else {
+                exsitedOne = findById(metadataDefinitionDto.getId(), userDetail);
+            }
         }
         List<String> itemType=metadataDefinitionDto.getItemType();
         if (null!=exsitedOne){
@@ -185,6 +189,8 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                     }
                 }
             }
+        } else {
+            throw new BizException("tag.operate.not.allowed");
         }
 
         MetadataDefinitionDto saveValue = super.save(metadataDefinitionDto, userDetail);
@@ -422,9 +428,14 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Override
     public boolean deleteById(ObjectId id, UserDetail user) {
-        MetadataDefinitionDto metadataDefinitionDto = findById(id, user);
+        MetadataDefinitionDto metadataDefinitionDto = null;
+        if (user.isRoot()) {
+            metadataDefinitionDto = findById(id);
+        } else {
+            metadataDefinitionDto = findById(id, user);
+        }
         if (metadataDefinitionDto == null) {
-            throw new BizException("tag.delete.not.allowed");
+            throw new BizException("tag.operate.not.allowed");
         }
 
         if (CollectionUtils.isNotEmpty(metadataDefinitionDto.getItemType()) && metadataDefinitionDto.getItemType().contains(LdpDirEnum.LDP_DIR_MDM.getItemType())) {
