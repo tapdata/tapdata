@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import cn.hutool.core.date.StopWatch;
+import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
@@ -691,11 +692,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 		com.hazelcast.jet.Job hazelcastJob = null;
 		for (int i = 5; i > 0; i--) {
-			if (null != jetContext) {
-				hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
-			} else {
+			if (null == jetContext) {
 				break;
 			}
+			JetService jet = jetContext.hazelcastInstance().getJet();
+			hazelcastJob = jet.getJob(jetContext.jobId());
 
 			if (null != hazelcastJob) break;
 			try {

@@ -298,7 +298,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
 		Map<String, Vertex> vertexMap = new HashMap<>();
 		Map<String, AbstractProcessor> hazelcastBaseNodeMap = new HashMap<>();
-		Map<String, AbstractProcessor> typeConvertMap = new HashMap<>();
 		Map<String, Node<?>> nodeMap = nodes.stream().collect(Collectors.toMap(Element::getId, n -> n));
 
 		final ConfigurationCenter config = (ConfigurationCenter) configurationCenter.clone();
@@ -373,11 +372,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				DatabaseTypeEnum.DatabaseType finalDatabaseType = databaseType;
 				TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
+					HazelcastBaseNode hazelcastBaseNode;
 					try {
-						TaskDto dto = taskDtoAtomicReference.get();
-						dto.setNeedFilterEventData(needFilterEvent.get());
-						HazelcastBaseNode hazelcastBaseNode = createNode(
-								dto,
+						hazelcastBaseNode = createNode(
+								taskDto,
 								nodes,
 								edges,
 								node,
@@ -390,14 +388,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalTapTableMap,
 								taskConfig
 						);
-						return hazelcastBaseNode;
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
 								String.format("Failed to create processor based on node information, node: %s[%s], error msg: %s", node.getName(), node.getId(), e.getMessage()), e);
 					}
+					return hazelcastBaseNode;
 				});
 				vertexMap.put(node.getId(), vertex);
-
 				vertex.localParallelism(1);
 				dag.vertex(vertex);
 				this.singleTaskFilterEventDataIfNeed(connection, needFilterEvent, tableNode);
@@ -405,7 +402,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			handleEdge(dag, edges, nodeMap, vertexMap);
 		}
 
-		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+		return new JetDag(dag, hazelcastBaseNodeMap);
 	}
 
 	protected void handleDagWhenProcessAfterMerge(TaskDto taskDto) {
