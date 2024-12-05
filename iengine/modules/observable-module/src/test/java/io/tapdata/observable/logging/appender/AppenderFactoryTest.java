@@ -11,18 +11,24 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.wire.ValueIn;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.io.File;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.tapdata.observable.logging.appender.AppenderFactoryTest.AppendersAppendLogTest.FILE_APPENDER_TAILER_ID;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.*;
 
 public class AppenderFactoryTest {
@@ -422,6 +428,7 @@ public class AppenderFactoryTest {
         @DisplayName("test main process")
         void test1() {
             Map<String, Object> data = new HashMap<>();
+            data.put("id", "test serialize data");
             MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
                     .date(new Date())
                     .level("INFO")
@@ -459,6 +466,55 @@ public class AppenderFactoryTest {
             assertEquals(monitoringLogsDto.getErrorCode(), result.getErrorCode());
             assertEquals(monitoringLogsDto.getFullErrorCode(), result.getFullErrorCode());
             assertArrayEquals(monitoringLogsDto.getDynamicDescriptionParameters(), result.getDynamicDescriptionParameters());
+            assertNotNull(result.getData());
+            assertNotNull(result.getData().get(0));
+            assertEquals(monitoringLogsDto.getData().get(0).get("id"), result.getData().get(0).get("id"));
         }
+    }
+
+    @Test
+    void testAppendLog() throws NoSuchMethodException, InvocationTargetException, InstantiationException, IllegalAccessException, InterruptedException {
+        Constructor<AppenderFactory> constructor = AppenderFactory.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        AppenderFactory appenderFactory = constructor.newInstance();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", "test serialize data");
+        MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
+                .date(new Date())
+                .level("INFO")
+                .errorStack("error stack")
+                .message("message")
+                .taskId("task id")
+                .taskRecordId("task record id")
+                .timestamp(System.currentTimeMillis())
+                .taskName("task name")
+                .nodeId("node id")
+                .nodeName("node name")
+                .errorCode("11001")
+                .fullErrorCode("TAP11001")
+                .dynamicDescriptionParameters(new String[]{"test", Instant.now().toString()})
+                .data(Arrays.asList(data))
+                .build();
+
+        MonitoringLogsDto spyDto = spy(monitoringLogsDto);
+        AtomicInteger counter = new AtomicInteger(0);
+        when(spyDto.getData()).thenAnswer(answer -> {
+            counter.incrementAndGet();
+            if (counter.get() > 1)
+                throw new RuntimeException("mock exception");
+            return Arrays.asList(data);
+        });
+
+        appenderFactory.appendLog(spyDto);
+
+        SingleChronicleQueue cacheLogsQueue = (SingleChronicleQueue) ReflectionTestUtils.getField(appenderFactory, "cacheLogsQueue");
+        MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
+        ExcerptTailer tailer = cacheLogsQueue.createTailer(FILE_APPENDER_TAILER_ID);
+        tailer.readDocument(r -> appenderFactory.decodeFromWireIn(r.getValueIn(), builder));
+        MonitoringLogsDto resultDto = builder.build();
+        Assertions.assertNotNull(resultDto);
+        Assertions.assertNotNull(resultDto.getData());
+        Assertions.assertEquals(0, resultDto.getData().size());
     }
 }
