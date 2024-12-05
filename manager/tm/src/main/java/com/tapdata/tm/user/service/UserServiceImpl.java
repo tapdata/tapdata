@@ -91,6 +91,12 @@ public class UserServiceImpl extends UserService{
     private String mongodbUri;
     @Value("${server.port}")
     private String serverPort;
+    @Value("${spring.data.mongodb.ssl}")
+    private String ssl;
+    @Value("${spring.data.mongodb.caPath}")
+    private String caPath;
+    @Value("${spring.data.mongodb.keyPath}")
+    private String keyPath;
     @Autowired
     TcmService tcmService;
 
@@ -559,6 +565,17 @@ public class UserServiceImpl extends UserService{
         return serverPort;
     }
 
+    public String isSsl() {
+        return ssl;
+    }
+
+    public String getCaPath() {
+        return caPath;
+    }
+
+    public String getKeyPath() {
+        return keyPath;
+    }
 	public void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail) {
 		BiConsumer<List<RoleMappingDto>, Bi3Consumer<List<PermissionEntity>, List<RoleMappingDto>, ObjectId>> biConsumer = (roleMappingDtos, consumer) -> {
 			if (CollectionUtils.isNotEmpty(roleMappingDtos)) {

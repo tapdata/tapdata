@@ -17,6 +17,7 @@ import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.user.dto.LdapLoginDto;
 import com.tapdata.tm.user.dto.TestLdapDto;
 import com.tapdata.tm.user.dto.UserDto;
+import com.tapdata.tm.user.repository.UserRepository;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -641,6 +642,31 @@ public class UserServiceImplTest {
         }
 
 
+    }
+
+    @Nested
+    class getterTest {
+        @BeforeEach
+        void beforeEach() {
+            userService = new UserServiceImpl(mock(UserRepository.class));
+        }
+
+        @Test
+        void isSslTest() {
+            assertFalse(Boolean.getBoolean(userService.isSsl()));
+        }
+
+        @Test
+        void getCaPathTest() {
+            String caPath = userService.getCaPath();
+            assertNull(caPath);
+        }
+
+        @Test
+        void getKeyPathTest() {
+            String keyPath = userService.getKeyPath();
+            assertNull(keyPath);
+        }
     }
 }
 

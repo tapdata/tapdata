@@ -1,13 +1,17 @@
 package io.tapdata.observable.logging;
 
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.observable.logging.appender.Appender;
 import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
+import io.tapdata.observable.logging.with.WithAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
@@ -21,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -195,5 +200,45 @@ public class TaskLoggerTest {
             obsLogger.trace("test {}", 2);
             Assertions.assertEquals(2, counter.get());
         }
+    }
+
+    @Test
+    void testFilterDebugFileAppender() {
+        TaskDto taskDto = new TaskDto();
+        taskDto.setId(new ObjectId());
+        taskDto.setName("taskName");
+        TaskLogger taskLogger = mock(TaskLogger.class);
+        ReflectionTestUtils.setField(taskLogger, "taskId", taskDto.getId().toHexString());
+
+        try (MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class)) {
+
+            beanUtilMock.when(() -> BeanUtil.getBean(any())).thenAnswer(answer -> {
+                Class<?> cls = answer.getArgument(0);
+                return mock(cls);
+            });
+
+            doCallRealMethod().when(taskLogger).filterDebugFileAppender(any());
+            doCallRealMethod().when(taskLogger).getDebugFileAppenderName(any());
+            doCallRealMethod().when(taskLogger).getTaskId();
+            when(taskLogger.getRecordCeiling()).thenCallRealMethod();
+            when(taskLogger.getIntervalCeiling()).thenCallRealMethod();
+            when(taskLogger.isEnableDebugLogger()).thenCallRealMethod();
+
+            List<Appender<?>> tapObsAppenders = new ArrayList<>();
+            tapObsAppenders.add(FileAppender.create("test", taskLogger.getDebugFileAppenderName(taskDto.getId().toHexString())));
+            ReflectionTestUtils.setField(taskLogger, "tapObsAppenders", tapObsAppenders);
+
+            AtomicReference<Appender<?>> appender = new AtomicReference<>();
+            taskLogger.filterDebugFileAppender(appender::set);
+
+            Assertions.assertNotNull(appender.get());
+            Assertions.assertNull(taskLogger.getRecordCeiling());
+            Assertions.assertNull(taskLogger.getIntervalCeiling());
+            Assertions.assertFalse(taskLogger.isEnableDebugLogger());
+
+        } catch (Exception e) {
+            e.printStackTrace(System.err);
+        }
+
     }
 }

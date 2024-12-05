@@ -1,7 +1,9 @@
 package com.tapdata.mongo;
 
 import com.google.common.collect.ImmutableList;
+import com.tapdata.entity.ResponseBody;
 import io.tapdata.exception.ManagementException;
+import io.tapdata.exception.RestDoNotRetryException;
 import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;
 import org.apache.commons.io.input.NullInputStream;
@@ -12,6 +14,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.mockito.Mock;
 import org.mockito.internal.verification.Times;
 import org.springframework.http.HttpMethod;
@@ -399,5 +402,15 @@ public class RestTemplateOperatorTest {
 		Predicate<?> stop = mock(Predicate.class);
 		doThrow(new NoHttpResponseException("test msg")).when(func).tryFunc(any());
 		restTemplateOperatorUnderTest.retryWrap(func,stop);
+	}
+
+	@Test
+	public void testHandleRequestFailed() {
+		ResponseBody responseBody = new ResponseBody();
+		responseBody.setCode("Task.NotFound");
+
+		Assertions.assertThrows(RestDoNotRetryException.class, () -> {
+			ReflectionTestUtils.invokeMethod(restTemplateOperatorUnderTest, "handleRequestFailed", "http://localhost:3000/api/", "post", null, responseBody);
+		});
 	}
 }

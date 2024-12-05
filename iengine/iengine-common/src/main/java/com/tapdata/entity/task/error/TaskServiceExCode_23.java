@@ -21,7 +21,9 @@ public interface TaskServiceExCode_23 {
 
 	@TapExCode(
 			describeCN = "引擎推演模型失败",
-			describe = "Engine deduction model failed"
+			describe = "Engine deduction model failed",
+			dynamicDescription = "Task name: {}, task ID: {}, task type: {}",
+			dynamicDescriptionCN = "任务名：{}，任务ID：{}，任务类型：{}"
 	)
 	String TASK_FAILED_TO_LOAD_TABLE_STRUCTURE = "23004";
 }

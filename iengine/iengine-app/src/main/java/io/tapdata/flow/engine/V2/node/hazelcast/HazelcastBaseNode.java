@@ -25,6 +25,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -45,10 +46,7 @@ import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -72,8 +70,11 @@ import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapCodecUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
+import io.tapdata.observable.logging.LogLevel;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.debug.DataCache;
+import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -90,11 +91,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -465,6 +462,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected boolean offer(TapdataEvent dataEvent) {
 		if (dataEvent != null) {
+			if (obsLogger != null && obsLogger.isDebugEnabled() && dataEvent.isDML())
+				catchData(dataEvent);
 			if (processorBaseContext.getNode() != null) {
 				dataEvent.addNodeId(processorBaseContext.getNode().getId());
 			}
@@ -475,6 +474,53 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		bucketIndex = 0; // reset to 0 of return true
 		reportToPreviewIfNeed(dataEvent);
 		return true;
+	}
+
+	private void catchData(TapdataEvent dataEvent) {
+		if (CollectionUtils.isEmpty(dataEvent.getNodeIds())) {
+			DataCache.markCatchEventWhenMatched(dataEvent,
+					processorBaseContext.getTaskDto().getId().toHexString(),
+					Optional.ofNullable(processorBaseContext.getTaskDto().getLogSetting())
+							.map(m -> m.get("query"))
+							.filter(Objects::nonNull)
+							.map(Object::toString).orElse(null));
+		}
+
+		if (!dataEvent.isCatchMe())
+			return;
+		Map<String, Object> before = TapEventUtil.getBefore(dataEvent.getTapEvent());
+		Map<String, Object> after = TapEventUtil.getAfter(dataEvent.getTapEvent());
+		if (before == null && after == null) {
+			return;
+		}
+		List<Map<String, Object>> data = new ArrayList<>(2);
+		if (before != null) {
+			data.add(before);
+		}
+		if (after != null) {
+			data.add(after);
+		}
+		String tableId = TapEventUtil.getTableId(dataEvent.getTapEvent());
+		String partitionMasterTableId = TapEventUtil.getPartitionMasterTableId(dataEvent.getTapEvent());
+		TapRecordEvent tapRecordEvent = (TapRecordEvent) dataEvent.getTapEvent();
+		List<String> tags = Arrays.asList(
+				"catchData", "eid=" + dataEvent.getEventId(),
+				"type=" + dataEvent.getTapEvent().getType(), "ts=" + dataEvent.getTapEvent().getTime(),
+				"tableId=" + tableId);
+		if (StringUtils.isNotBlank(partitionMasterTableId))
+			tags.add("partitionTableId=" + tapRecordEvent.getPartitionMasterTableId());
+		obsLogger.debug(() -> MonitoringLogsDto.builder()
+				.level(LogLevel.DEBUG.name())
+				.logTags(tags)
+				.date(new Date())
+				.data(data)
+				.taskId(processorBaseContext.getTaskDto().getId().toHexString())
+				.taskName(processorBaseContext.getTaskDto().getName())
+				.nodeId(getNode().getId())
+				.timestamp(System.currentTimeMillis())
+				.nodeName(getNode().getName())
+				.serializeConfig(DataCacheFactory.dataSerializeConfig),
+				String.join(",", dataEvent.getNodeIds()));
 	}
 
 	protected void reportToPreviewIfNeed(TapdataEvent dataEvent) {

@@ -74,6 +74,7 @@ import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -605,6 +606,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                                 continue;
                             }
                         }
+                        if (obsLogger != null && obsLogger.isDebugEnabled())
+                            DataCacheFactory.getInstance().getDataCache(getNode().getTaskId()).processCompleted(tapdataEvent.getEventId());
                         enqueue(this.tapEventQueue, tapdataEvent);
                         if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
                             if (((TapdataAdjustMemoryEvent) tapdataEvent).needAdjust()) {

@@ -350,4 +350,14 @@ class TapEventUtilTest {
 			assertDoesNotThrow(() -> TapEventUtil.setRemoveFields(null, removeFields));
 		}
 	}
+
+	@Test
+	void testGetPartitionTableId() {
+		TapInsertRecordEvent event = new TapInsertRecordEvent();
+		String id = TapEventUtil.getPartitionMasterTableId(event);
+		Assertions.assertNull(id);
+		event.setPartitionMasterTableId("test");
+		id = TapEventUtil.getPartitionMasterTableId(event);
+		Assertions.assertEquals("test", id);
+	}
 }
