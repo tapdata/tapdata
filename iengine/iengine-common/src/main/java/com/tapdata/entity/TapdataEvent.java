@@ -40,6 +40,8 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private TapInsertRecordEvent exactlyOnceWriteCache;
 	private TransformToTapValueResult transformToTapValueResult;
 
+	private Boolean exactlyOnceWriteFilter = false;
+
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
 		this.type = SyncProgress.Type.NORMAL;
@@ -279,6 +281,14 @@ public class TapdataEvent implements Serializable, Cloneable {
 
 	public void setTransformToTapValueResult(TransformToTapValueResult transformToTapValueResult) {
 		this.transformToTapValueResult = transformToTapValueResult;
+	}
+
+	public Boolean getExactlyOnceWriteFilter() {
+		return exactlyOnceWriteFilter;
+	}
+
+	public void setExactlyOnceWriteFilter(Boolean exactlyOnceWriteFilter) {
+		this.exactlyOnceWriteFilter = exactlyOnceWriteFilter;
 	}
 
 	@Override

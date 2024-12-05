@@ -99,6 +99,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private boolean enableConcurrentRead;
     private int concurrentReadThreadNumber;
 
+    private Boolean incrementExactlyOnceEnable;
+    private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
+
     public static final String SELF_TYPE = "database";
 
     public DatabaseNode() {

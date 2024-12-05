@@ -113,7 +113,7 @@ public class ExactlyOnceWriteCleaner {
 
 							TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
 									//							.op(QueryOperator.lt(ExactlyOnceUtil.TIMESTAMP_COL_NAME, System.currentTimeMillis() - TimeUnit.DAYS.toMillis(cleanerEntity.getTimeWindowDay())))
-									.op(QueryOperator.lt(ExactlyOnceUtil.TIMESTAMP_COL_NAME, 1684407986084L))
+									.op(QueryOperator.lt(ExactlyOnceUtil.TIMESTAMP_COL_NAME, System.currentTimeMillis() - TimeUnit.DAYS.toMillis(cleanerEntity.getTimeWindowDay())))
 									.batchSize(BATCH_SIZE);
 							PDKInvocationMonitor.invoke(
 									connectorNode,

@@ -1029,7 +1029,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
 		WriteRecordFunction writeRecordFunction = connectorFunctions.getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().map(TapdataEvent::getExactlyOnceWriteCache)
+		List<TapRecordEvent> tapRecordEvents = tapdataEvents.parallelStream().filter(tapdataEvent -> !tapdataEvent.getExactlyOnceWriteFilter())
+				.map(TapdataEvent::getExactlyOnceWriteCache)
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,

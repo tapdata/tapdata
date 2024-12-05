@@ -280,6 +280,18 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
             obsLogger.info("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
         } else if (node instanceof DatabaseNode) {
+            DatabaseNode databaseNode = (DatabaseNode) node;
+            List<String> tableNames = getExactlyOnceWriteTables();
+            exactlyOnceWriteTables.addAll(tableNames);
+            ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
+                    databaseNode.getId(),
+                    tableNames.toString(),
+                    databaseNode.getIncrementExactlyOnceEnableTimeWindowDay(),
+                    databaseNode.getConnectionId()
+            );
+            ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
+            exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
+            obsLogger.info("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
             // Nonsupport
         }
         obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
@@ -956,10 +968,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (obsLogger.isDebugEnabled()) {
                 obsLogger.debug("Event check exactly once write exists, will ignore it: {}" + JSONUtil.obj2Json(tapRecordEvent));
             }
+            tapdataEvent.setExactlyOnceWriteFilter(true);
             return;
         } else {
             if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
-                obsLogger.info("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+                obsLogger.info("Target table {} stop look up exactly once cache :{}", tgtTableNameFromTapEvent,JSONUtil.obj2Json(tapRecordEvent));
                 lookupTables.remove(tgtTableNameFromTapEvent);
             }
         }
@@ -1636,6 +1649,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null == tableNode.getIncrementExactlyOnceEnable() || !tableNode.getIncrementExactlyOnceEnable()) {
                 return CheckExactlyOnceWriteEnableResult.createDisable("");
             }
+        } else if(node instanceof DatabaseNode){
+            DatabaseNode databaseNode = (DatabaseNode) node;
+            if (null == databaseNode.getIncrementExactlyOnceEnable() || !databaseNode.getIncrementExactlyOnceEnable()) {
+                return CheckExactlyOnceWriteEnableResult.createDisable("");
+            }
         } else {
             // Other data node type nonsupport exactly once write
             return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s nonsupport exactly once write", node.getClass().getSimpleName()));
@@ -1663,8 +1681,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
         if (CollectionUtils.isNotEmpty(predecessors)) {
             Node<?> sourceNode = predecessors.get(0);
+            String connectionId = null;
             if (sourceNode instanceof TableNode) {
-                String connectionId = ((TableNode) sourceNode).getConnectionId();
+                connectionId = ((TableNode) sourceNode).getConnectionId();
+            } else if (sourceNode instanceof DatabaseNode) {
+                connectionId = ((DatabaseNode) sourceNode).getConnectionId();
+            }else{
+                return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a table node", sourceNode.getName()));
+            }
+            if(StringUtils.isNotBlank(connectionId)){
                 Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
                 DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
                 List<Capability> capabilities = databaseType.getCapabilities();
@@ -1672,8 +1697,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         || null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {
                     return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
                 }
-            } else if (sourceNode instanceof DatabaseNode) {
-                return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a table node", sourceNode.getName()));
             }
         }
         return CheckExactlyOnceWriteEnableResult.createEnable();
@@ -1695,10 +1718,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 }
                 return tables;
             } else if (node instanceof DatabaseNode) {
-                // Nonsupport
+                List<String> tables = new ArrayList<>();
+                getExactlyOnceWriteTables().forEach(tableName -> {
+                    if (exactlyOnceWriteTables.contains(tableName)) {
+                        tables.add(tableName);
+                    }
+                });
+                return tables;
             }
             return null;
         });
+    }
+
+    protected List<String> getExactlyOnceWriteTables(){
+        return dataProcessorContext.getTapTableMap().keySet().stream().filter(tableName  -> !tableName.equals(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)).collect(Collectors.toList());
     }
 
     abstract void processEvents(List<TapEvent> tapEvents);
