@@ -1,23 +1,30 @@
 package io.tapdata.observable.logging.debug;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.entity.TapdataEvent;
-import com.tapdata.manager.common.utils.ReflectionUtils;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.observable.logging.ObsLoggerFactory;
+import org.bson.types.ObjectId;
 import org.ehcache.Cache;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -208,38 +215,41 @@ public class DataCacheFactoryTest {
             Assertions.assertNull(result);
         });
 
-        Map<String, Object> result = dataCache.searchAndRemove(null, null);
-        Assertions.assertNotNull(result);
+        try (MockedStatic<ObsLoggerFactory> mockObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+            mockObsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+            Map<String, Object> result = dataCache.searchAndRemove(null, null);
+            Assertions.assertNotNull(result);
 
-        counter.set(25);
-        for (int i = 0; i < 3; i++) {
-            result = dataCache.searchAndRemove(null, null);
+            counter.set(25);
+            for (int i = 0; i < 3; i++) {
+                result = dataCache.searchAndRemove(null, null);
+                Assertions.assertNotNull(result);
+                Assertions.assertNotNull(result.get("data"));
+                Assertions.assertInstanceOf(List.class, result.get("data"));
+
+                if (i < 2) {
+                    Assertions.assertEquals(10, ((List)result.get("data")).size());
+                    Assertions.assertTrue((Boolean) result.get("hasMore"));
+                } else {
+                    Assertions.assertEquals(5, ((List)result.get("data")).size());
+                    Assertions.assertFalse((Boolean) result.get("hasMore"));
+                }
+            }
+
+            counter.set(20);
+            result = dataCache.searchAndRemove(10, "test");
             Assertions.assertNotNull(result);
             Assertions.assertNotNull(result.get("data"));
             Assertions.assertInstanceOf(List.class, result.get("data"));
+            Assertions.assertEquals(10, ((List)result.get("data")).size());
+            Assertions.assertTrue((Boolean) result.get("hasMore"));
 
-            if (i < 2) {
-                Assertions.assertEquals(10, ((List)result.get("data")).size());
-                Assertions.assertTrue((Boolean) result.get("hasMore"));
-            } else {
-                Assertions.assertEquals(5, ((List)result.get("data")).size());
-                Assertions.assertFalse((Boolean) result.get("hasMore"));
-            }
+            dataCache.destroy();
+            Assertions.assertEquals(0L, dataCache.getCacheSize());
+            Map<String, Object> status = dataCache.getStatus();
+            Assertions.assertNotNull(status);
+            Assertions.assertEquals("Cache is null", status.get("cache"));
         }
-
-        counter.set(20);
-        result = dataCache.searchAndRemove(10, "test");
-        Assertions.assertNotNull(result);
-        Assertions.assertNotNull(result.get("data"));
-        Assertions.assertInstanceOf(List.class, result.get("data"));
-        Assertions.assertEquals(10, ((List)result.get("data")).size());
-        Assertions.assertTrue((Boolean) result.get("hasMore"));
-
-        dataCache.destroy();
-        Assertions.assertEquals(0L, dataCache.getCacheSize());
-        Map<String, Object> status = dataCache.getStatus();
-        Assertions.assertNotNull(status);
-        Assertions.assertEquals("Cache is null", status.get("cache"));
     }
 
     @Test
@@ -291,6 +301,130 @@ public class DataCacheFactoryTest {
             DataCache.markCatchEventWhenMatched(event, "taskId", "test");
             Assertions.assertTrue(event.isCatchMe());
 
+        }
+    }
+
+    @Test
+    void testDataSerialize() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("_id", new ObjectId("674fcd885093c75db7cfc11f"));
+        data.put("created", new Timestamp(1733303759151L));
+        data.put("lastModify", new DateTime(new Date(1733303826479L)));
+        Map<String, Object> subDoc = new HashMap<>();
+        subDoc.put("_id", new ObjectId("674fcd885093c75db7cfc11d"));
+        subDoc.put("created", new Timestamp(1733303759152L));
+        subDoc.put("lastModify", new DateTime(new Date(1733303826480L)));
+        data.put("user", new TapMapValue(subDoc));
+        TapValue tapValue = new TapStringValue();
+        tapValue.setOriginValue(new ObjectId());
+        data.put("id", tapValue);
+
+        tapValue = new TapStringValue();
+        tapValue.setOriginValue(new ObjectId());
+        tapValue.setValue("test");
+        data.put("id1", tapValue);
+        data.put("nullable", null);
+
+        tapValue = new TapStringValue();
+        data.put("tapValue", tapValue);
+
+        String string = JSON.toJSON(data, DataCacheFactory.dataSerializeConfig).toString();
+        System.out.println(string);
+        Assertions.assertTrue(string.contains("674fcd885093c75db7cfc11f"));
+        Assertions.assertTrue(string.contains("674fcd885093c75db7cfc11d"));
+        Assertions.assertTrue(string.contains("1733303826479"));
+        Assertions.assertTrue(string.contains("1733303826480"));
+        Assertions.assertTrue(!string.contains("nullable"));
+
+    }
+
+    @Test
+    void testDataCacheGet() {
+        try (MockedStatic<ObsLoggerFactory> mockObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
+            mockObsLoggerFactory.when(ObsLoggerFactory::getInstance).thenReturn(mock(ObsLoggerFactory.class));
+            Cache<String, DataCache.CacheItem> cache = mock(Cache.class);
+            Map<String, DataCache.CacheItem> cacheData = new LinkedHashMap<>();
+            doAnswer(answer -> {
+                DataCache.CacheItem item = answer.getArgument(1);
+                cacheData.put(answer.getArgument(0), item);
+                return null;
+            }).when(cache).put(anyString(), any());
+            doAnswer(answer -> {
+                String k = answer.getArgument(0);
+                return cacheData.containsKey(k);
+            }).when(cache).containsKey(anyString());
+            doAnswer(answer -> {
+                String k = answer.getArgument(0);
+                return cacheData.get(k);
+            }).when(cache).get(anyString());
+            doAnswer(answer -> {
+                Consumer consumer = answer.getArgument(0);
+                cacheData.forEach((k,v) -> {
+                    consumer.accept(new Cache.Entry<String, DataCache.CacheItem>(){
+
+                        @Override
+                        public String getKey() {
+                            return k;
+                        }
+
+                        @Override
+                        public DataCache.CacheItem getValue() {
+                            return v;
+                        }
+                    });
+                });
+                return null;
+            }).when(cache).forEach(any());
+            AtomicReference<Iterator<Map.Entry<String, DataCache.CacheItem>>> iterator = new AtomicReference<>();
+            when(cache.iterator()).thenReturn(new Iterator<Cache.Entry<String, DataCache.CacheItem>>() {
+                @Override
+                public boolean hasNext() {
+                    if (iterator.get() == null) {
+                        iterator.set( cacheData.entrySet().iterator());
+                    }
+                    return iterator.get().hasNext();
+                }
+
+                @Override
+                public Cache.Entry<String, DataCache.CacheItem> next() {
+                    Map.Entry<String, DataCache.CacheItem> item = iterator.get().next();
+                    return new Cache.Entry<String, DataCache.CacheItem>() {
+                        @Override
+                        public String getKey() {
+                            return item.getKey();
+                        }
+
+                        @Override
+                        public DataCache.CacheItem getValue() {
+                            return item.getValue();
+                        }
+                    };
+                }
+
+                @Override
+                public void remove() {
+                    iterator.get().remove();
+                }
+            });
+            DataCache dataCache = new DataCache("taskId", null, cache);
+            dataCache.put(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e0").nodeId("node-1").build());
+            dataCache.put(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e0").nodeId("node-2").build());
+            dataCache.put(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e0").nodeId("node-3").build());
+            dataCache.put(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e1").nodeId("node-1").build());
+            dataCache.put(MonitoringLogsDto.builder().logTag("catchData").logTag("eid=e1").nodeId("node-2").build());
+
+            Map<String, Object> result = dataCache.searchAndRemove(10, null);
+
+            Assertions.assertNotNull(result);
+            Assertions.assertNotNull(result.get("data"));
+            Assertions.assertTrue(((List)result.get("data")).isEmpty());
+
+            dataCache.processCompleted("eid=e0");
+            iterator.set(null);
+            result = dataCache.searchAndRemove(10, null);
+            Assertions.assertNotNull(result);
+            Assertions.assertNotNull(result.get("data"));
+            Assertions.assertEquals(1, ((List)result.get("data")).size());
         }
     }
 

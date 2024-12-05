@@ -4681,6 +4681,7 @@ public class TaskServiceImpl extends TaskService{
         if (level.equalsIgnoreCase("DEBUG")) {
             logSetting.put("recordCeiling", logSettingParam.getRecordCeiling());
             logSetting.put("intervalCeiling", logSettingParam.getIntervalCeiling());
+            logSetting.put("query", logSettingParam.getQuery());
         }
 
         Update update = new Update();

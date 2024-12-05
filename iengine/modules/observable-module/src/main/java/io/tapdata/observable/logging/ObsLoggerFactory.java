@@ -56,7 +56,6 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 		this.settingService = Optional.ofNullable(BeanUtil.getBean(SettingService.class)).orElse((SettingService) getBeanAsync(SettingService.class));
 		this.clientMongoOperator = Optional.ofNullable(BeanUtil.getBean(ClientMongoOperator.class)).orElse((ClientMongoOperator) getBeanAsync(ClientMongoOperator.class));
 		this.scheduleExecutorService = new ScheduledThreadPoolExecutor(1);
-		//scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
 		scheduleExecutorService.scheduleWithFixedDelay(this::removeTaskLogger, PERIOD_SECOND, PERIOD_SECOND, TimeUnit.SECONDS);
 	}
 
@@ -88,37 +87,6 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	private final ScheduledExecutorService scheduleExecutorService;
 	public Map<String, TaskLogger> getTaskLoggersMap() {
 		return taskLoggersMap;
-	}
-
-	/**
-	 * log.debug used to catch data and catch data switch use @io.tapdata.services.CatchDataService to control
-	 */
-	@Deprecated
-	private void renewTaskLogSetting() {
-		Thread.currentThread().setName("Renew-Task-Logger-Setting-Scheduler");
-		for (String taskId : taskLoggersMap.keySet()) {
-			TaskLogger logger = taskLoggersMap.get(taskId);
-			if (null == logger || logger.isTestTask()) continue;
-			try {
-				TaskDto task = clientMongoOperator.findOne(
-						new Query(Criteria.where("_id").is(new ObjectId(taskId))), ConnectorConstant.TASK_COLLECTION, TaskDto.class
-				);
-				if (Objects.isNull(task)) continue;
-
-				taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
-					taskLogger.withTaskLogSetting(getLogSettingLogLevel(task),
-							getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
-
-					return taskLogger;
-				});
-			} catch (Throwable throwable) {
-				if (TmUnavailableException.isInstance(throwable)) {
-					this.logger.warn("Failed to renew task logger setting for task {}: TM unavailable: {}", taskId, throwable.getMessage());
-				} else {
-					this.logger.warn("Failed to renew task logger setting for task {}: {}", taskId, throwable.getMessage(), throwable);
-				}
-			}
-		}
 	}
 
 	public ObsLogger getObsLogger(TaskDto task) {

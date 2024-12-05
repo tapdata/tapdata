@@ -18,6 +18,7 @@ import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.ehcache.Cache;
 import org.ehcache.CacheManager;
 import org.ehcache.CachePersistenceException;
@@ -55,24 +56,45 @@ public final class DataCacheFactory {
     private static final DataCacheFactory instance = new DataCacheFactory();
 
     public static SerializeConfig dataSerializeConfig = new SerializeConfig();
+    private static Map<String, com.alibaba.fastjson.serializer.ObjectSerializer> dataSerializeConfigMap = new HashMap<>();
     static {
-        dataSerializeConfig.put(DateTime.class, (serializer, object, fieldName, fieldType, features) -> {
-            if (object != null) {
-                serializer.write(((DateTime)object).toDate());
-                return;
-            }
-            serializer.write(object);
+        dataSerializeConfigMap.put(DateTime.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
+            serializer.write(((DateTime)object).toDate());
         });
-        dataSerializeConfig.put(Timestamp.class, (serializer, object, fieldName, fieldType, features) -> {
-            if (object != null) {
-                serializer.write(new Date(((Timestamp)object).getTime()));
-                return;
-            }
-            serializer.write(object);
+        dataSerializeConfigMap.put(ObjectId.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
+            serializer.write(((ObjectId)object).toHexString());
         });
+        dataSerializeConfigMap.put(Timestamp.class.getName(), (serializer, object, fieldName, fieldType, features) -> {
+            serializer.write(new Date(((Timestamp)object).getTime()));
+        });
+        dataSerializeConfig.put(DateTime.class, dataSerializeConfigMap.get(DateTime.class.getName()));
+        dataSerializeConfig.put(ObjectId.class, dataSerializeConfigMap.get(ObjectId.class.getName()));
+        dataSerializeConfig.put(Timestamp.class, dataSerializeConfigMap.get(Timestamp.class.getName()));
         com.alibaba.fastjson.serializer.ObjectSerializer objectSerializer = (serializer, object, fieldName, fieldType, features) -> {
             if (object != null) {
-                serializer.write(((TapValue)object).getOriginValue());
+                TapValue<?, ?> tapValue = ((TapValue<?, ?>) object);
+                if (tapValue.getValue() instanceof String) {
+                    serializer.write(tapValue.getValue());
+                    return;
+                }
+                Object originVal = tapValue.getOriginValue();
+                if (originVal == null) {
+                    originVal = ((TapValue<?, ?>) object).getValue();
+                }
+                com.alibaba.fastjson.serializer.ObjectSerializer writer = null;
+                if (originVal != null) {
+                    writer = dataSerializeConfigMap.get(originVal.getClass().getName());
+                }
+                if (originVal == null) {
+                    serializer.writeNull();
+                    return;
+                }
+                if (writer == null)
+                    writer = dataSerializeConfig.getObjectWriter(originVal.getClass());
+                if (writer != null)
+                    writer.write(serializer, originVal, fieldName, fieldType, features);
+                else
+                    serializer.write(originVal);
                 return;
             }
             serializer.write(object);

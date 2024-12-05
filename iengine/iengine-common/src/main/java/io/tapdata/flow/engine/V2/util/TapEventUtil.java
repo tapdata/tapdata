@@ -90,6 +90,12 @@ public class TapEventUtil {
 		}
 		return "";
 	}
+	public static String getPartitionMasterTableId(TapEvent tapEvent) {
+		if (tapEvent instanceof TapBaseEvent) {
+			return ((TapBaseEvent) tapEvent).getPartitionMasterTableId();
+		}
+		return "";
+	}
 
 	public static Long getTimestamp(TapEvent tapEvent) {
 		Long timestamp = null;

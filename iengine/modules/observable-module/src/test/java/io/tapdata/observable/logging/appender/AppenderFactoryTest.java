@@ -17,10 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -424,6 +421,7 @@ public class AppenderFactoryTest {
         @Test
         @DisplayName("test main process")
         void test1() {
+            Map<String, Object> data = new HashMap<>();
             MonitoringLogsDto monitoringLogsDto = MonitoringLogsDto.builder()
                     .date(new Date())
                     .level("INFO")
@@ -438,6 +436,7 @@ public class AppenderFactoryTest {
                     .errorCode("11001")
                     .fullErrorCode("TAP11001")
                     .dynamicDescriptionParameters(new String[]{"test", Instant.now().toString()})
+                    .data(Arrays.asList(data))
                     .build();
             ExcerptTailer tailer = chronicleQueue.createTailer();
             appenderFactory.appendLog(monitoringLogsDto);
