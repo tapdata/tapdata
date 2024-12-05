@@ -174,15 +174,4 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		DataCacheFactory.getInstance().removeDataCache(getTaskId());
 		return true;
 	}
-
-	public FileAppender include(LogLevel... level) {
-		if (level.length == 0) {
-			return this;
-		}
-		if (includeLogLevel == null) {
-			includeLogLevel = new HashSet<>();
-		}
-		Arrays.stream(level).map(LogLevel::getLevel).forEach(includeLogLevel::add);
-		return this;
-	}
 }
