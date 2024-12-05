@@ -60,6 +60,9 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract String getMongodbUri();
 
     public abstract String getServerPort();
+    public abstract String isSsl();
+    public abstract String getCaPath();
+    public abstract String getKeyPath();
 
     public abstract void updatePermissionRoleMapping(UpdatePermissionRoleMappingDto dto, UserDetail userDetail);
 

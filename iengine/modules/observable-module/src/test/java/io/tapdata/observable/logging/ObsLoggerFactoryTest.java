@@ -7,14 +7,18 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 /**
@@ -43,6 +47,39 @@ public class ObsLoggerFactoryTest {
         ConfigurationCenter configurationCenter = new ConfigurationCenter();
         configurationCenter.putConfig("workDir", "/tmp");
         GlobalConstant.getInstance().configurationCenter(configurationCenter);
+    }
+
+    @DisplayName("test Get Task Log Configuration ")
+    @Test
+    void test1(){
+        ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+        SettingService settingService = mock(SettingService.class);
+        ReflectionTestUtils.setField(obsLoggerFactory,"settingService",settingService);
+        String prefix="task";
+        when(settingService.getInt(prefix+"_log_file_save_time", 180)).thenReturn(180);
+        when(settingService.getInt(prefix+"_log_file_save_size",1024)).thenReturn(1024);
+        when(settingService.getInt(prefix + "_log_file_save_count", 100)).thenReturn(100);
+        doCallRealMethod().when(obsLoggerFactory).getLogConfiguration(prefix);
+        LogConfiguration logConfiguration = obsLoggerFactory.getLogConfiguration(prefix);
+        assertEquals(180,logConfiguration.getLogSaveTime());
+        assertEquals(1024,logConfiguration.getLogSaveSize());
+        assertEquals(100,logConfiguration.getLogSaveCount());
+    }
+    @DisplayName("test Get null Log Configuration")
+    @Test
+    void test2(){
+        ObsLoggerFactory obsLoggerFactory = mock(ObsLoggerFactory.class);
+        SettingService settingService = mock(SettingService.class);
+        ReflectionTestUtils.setField(obsLoggerFactory, "settingService", settingService);
+        String prefix = null;
+        when(settingService.getInt(prefix + "_log_file_save_time", 180)).thenReturn(180);
+        when(settingService.getInt(prefix + "_log_file_save_size", 1024)).thenReturn(1024);
+        when(settingService.getInt(prefix + "_log_file_save_count", 100)).thenReturn(100);
+        doCallRealMethod().when(obsLoggerFactory).getLogConfiguration(prefix);
+        LogConfiguration logConfiguration = obsLoggerFactory.getLogConfiguration(prefix);
+        assertEquals(180, logConfiguration.getLogSaveTime());
+        assertEquals(1024, logConfiguration.getLogSaveSize());
+        assertEquals(100, logConfiguration.getLogSaveCount());
     }
 
     @Test
@@ -123,4 +160,24 @@ public class ObsLoggerFactoryTest {
         }
     }
 
+    @Test
+    void setOnFetchCacheData() {
+        try (MockedStatic<BeanUtil> beanUtilMock = mockStatic(BeanUtil.class)) {
+
+            beanUtilMock.when(() -> BeanUtil.getBean(eq(SettingService.class))).thenReturn(settingService);
+            beanUtilMock.when(() -> BeanUtil.getBean(eq(ClientMongoOperator.class))).thenReturn(clientOperator);
+
+            Assertions.assertDoesNotThrow(() -> {
+                ObsLoggerFactory.getInstance().onFetchCacheData("test");
+            });
+            Map<String, TaskLogger> taskLoggersMap = (Map<String, TaskLogger>)
+                    ReflectionTestUtils.getField(ObsLoggerFactory.getInstance(), "taskLoggersMap");
+
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            taskLoggersMap.put("taskId", taskLogger);
+
+            ObsLoggerFactory.getInstance().onFetchCacheData("taskId");
+            verify(taskLogger, times(1)).setIntervalCeiling(any());
+        }
+    }
 }

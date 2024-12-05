@@ -118,10 +118,7 @@ public class TMApplication {
 
 		TapLogger.debug(TAG, "TapRuntime will start");
 
-		String tapdata_proxy_mongodb_uri = CommonUtils.getProperty("tapdata_proxy_mongodb_uri");
-		if(tapdata_proxy_mongodb_uri == null)
-			CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
-		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
+		buildProperty(userService);
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
 
@@ -133,5 +130,15 @@ public class TMApplication {
 
 		}).start();
 
+	}
+
+	protected static void buildProperty(UserService userService) {
+		String tapdata_proxy_mongodb_uri = CommonUtils.getProperty("tapdata_proxy_mongodb_uri");
+		if(tapdata_proxy_mongodb_uri == null)
+			CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
+		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_ssl", userService.isSsl());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_caPath", userService.getCaPath());
+		CommonUtils.setProperty("tapdata_proxy_mongodb_keyPath", userService.getKeyPath());
 	}
 }

@@ -5,6 +5,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
+import com.hazelcast.jet.core.Inbox;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.JSONUtil;
@@ -52,9 +53,12 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionCon
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.metric.collector.SyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.debug.DataCache;
+import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -73,6 +77,8 @@ import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -2186,6 +2192,46 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertNotNull(lastEvent.get());
 
 		}
+	}
+
+	@Test
+	void testProcess() {
+
+		doCallRealMethod().when(hazelcastTargetPdkBaseNode).process(anyInt(), any());
+		DatabaseNode node = new DatabaseNode();
+		node.setDisabled(false);
+		when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)node);
+
+		ObsLogger obsLogger = mock(ObsLogger.class);
+		when(obsLogger.isDebugEnabled()).thenReturn(true);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+
+		TargetTapEventFilter targetTapEventFilter = mock(TargetTapEventFilter.class);
+		ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "targetTapEventFilter", targetTapEventFilter);
+
+		Inbox inbox = mock(Inbox.class);
+		when(inbox.isEmpty()).thenReturn(false);
+		doAnswer(answer -> {
+			Collection collection = answer.getArgument(0);
+
+			TapdataEvent event = new TapdataEvent();
+			event.setTapEvent(new TapInsertRecordEvent());
+			collection.add(event);
+
+			return collection.size();
+		}).when(inbox).drainTo(anyCollection(), anyInt());
+
+		DataCacheFactory dataCacheFactory = mock(DataCacheFactory.class);
+		when(dataCacheFactory.getDataCache(any())).thenReturn(mock(DataCache.class));
+
+		try (MockedStatic<DataCacheFactory> mockDataCacheFactory = mockStatic(DataCacheFactory.class);) {
+			mockDataCacheFactory.when(() -> DataCacheFactory.getInstance()).thenReturn(dataCacheFactory);
+
+			hazelcastTargetPdkBaseNode.process(1, inbox);
+
+			verify(dataCacheFactory, times(1)).getDataCache(any());
+		}
+
 	}
 
 }
