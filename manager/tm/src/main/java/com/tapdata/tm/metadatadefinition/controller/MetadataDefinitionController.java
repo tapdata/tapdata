@@ -136,7 +136,8 @@ public class MetadataDefinitionController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<MetadataDefinitionDto> updateById(@PathVariable("id") String id, @RequestBody MetadataDefinitionDto metadataDefinition) {
         metadataDefinition.setId(MongoUtils.toObjectId(id));
-        return success(metadataDefinitionService.save(metadataDefinition, getLoginUser()));
+        metadataDefinitionService.save(metadataDefinition, getLoginUser());
+        return success();
     }
 
 

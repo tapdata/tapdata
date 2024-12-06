@@ -45,8 +45,10 @@ public class MetadataDefinitionRepository extends BaseRepository<MetadataDefinit
 //        criteria.orOperator(Criteria.where("customId").is(userDetail.getCustomerId()), Criteria.where("customId").exists(true));
 //        Criteria criteria1 = new Criteria();
 //        criteria1.orOperator(Criteria.where("user_id").is(userDetail.getUserId()), Criteria.where("user_id").exists(true));
-        query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
-        query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+        if (!userDetail.isRoot()) {
+            query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
+            query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+        }
         return query;
     }
 
