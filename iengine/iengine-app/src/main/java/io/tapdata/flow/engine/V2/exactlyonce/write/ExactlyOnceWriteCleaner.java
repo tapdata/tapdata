@@ -112,8 +112,7 @@ public class ExactlyOnceWriteCleaner {
 							tapTableMap.put(tapTable.getId(), tapTable);
 
 							TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create()
-									//							.op(QueryOperator.lt(ExactlyOnceUtil.TIMESTAMP_COL_NAME, System.currentTimeMillis() - TimeUnit.DAYS.toMillis(cleanerEntity.getTimeWindowDay())))
-									.op(QueryOperator.lt(ExactlyOnceUtil.TIMESTAMP_COL_NAME, System.currentTimeMillis() - TimeUnit.DAYS.toMillis(cleanerEntity.getTimeWindowDay())))
+									.op(QueryOperator.lt(ExactlyOnceUtil.TIMESTAMP_COL_NAME, System.currentTimeMillis() - TimeUnit.HOURS.toMillis(cleanerEntity.getTimeWindowDay())))
 									.batchSize(BATCH_SIZE);
 							PDKInvocationMonitor.invoke(
 									connectorNode,
@@ -144,7 +143,7 @@ public class ExactlyOnceWriteCleaner {
 			} catch (Exception e) {
 				logger.error("Clean exactly once cache error: ", e);
 			}
-		}, TimeUnit.HOURS.toMillis(1L), TimeUnit.DAYS.toMillis(1L), TimeUnit.MILLISECONDS);
+		}, TimeUnit.MINUTES.toMillis(10L), TimeUnit.MINUTES.toMillis(30L), TimeUnit.MILLISECONDS);
 	}
 
 	public void registerCleaner(ExactlyOnceWriteCleanerEntity cleanerEntity) {

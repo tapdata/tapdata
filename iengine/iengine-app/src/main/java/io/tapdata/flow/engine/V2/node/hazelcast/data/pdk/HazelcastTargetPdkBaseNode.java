@@ -912,10 +912,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
             try {
-                transactionBegin();
-                processEvents(tapEvents);
-                processExactlyOnceWriteCache(tapdataEvents);
-                transactionCommit();
+                if(Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getTransaction())){
+                    transactionBegin();
+                    processEvents(tapEvents);
+                    processExactlyOnceWriteCache(tapdataEvents);
+                    transactionCommit();
+                }else{
+                    processEvents(tapEvents);
+                    processExactlyOnceWriteCache(tapdataEvents);
+                }
             } catch (Exception e) {
                 transactionRollback();
                 throw e;
@@ -1659,19 +1664,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s nonsupport exactly once write", node.getClass().getSimpleName()));
         }
 
-        // Check whether the connector supports exactly once write functions
-        ConnectorNode connectorNode = getConnectorNode();
-        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-        TransactionBeginFunction transactionBeginFunction = connectorFunctions.getTransactionBeginFunction();
-        TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
-        TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
-        QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
-        if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("The connector nonsupport exactly once write transaction functions: begin, commit, rollback");
-        }
-        if (null == queryByAdvanceFilterFunction) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter");
-        }
+
 
         // Check only have one source node
         List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
@@ -1698,6 +1691,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
                 }
             }
+        }
+
+        // Check whether the connector supports exactly once write functions
+        ConnectorNode connectorNode = getConnectorNode();
+        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+        TransactionBeginFunction transactionBeginFunction = connectorFunctions.getTransactionBeginFunction();
+        TransactionCommitFunction transactionCommitFunction = connectorFunctions.getTransactionCommitFunction();
+        TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
+        QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
+        if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
+            obsLogger.warn("The current data source does not currently support transaction operations.");
+            return CheckExactlyOnceWriteEnableResult.disTransaction();
+        }
+        if (null == queryByAdvanceFilterFunction) {
+            return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter");
         }
         return CheckExactlyOnceWriteEnableResult.createEnable();
     }
