@@ -71,7 +71,7 @@ public class MeasureAOP {
         Map<String, List<AlarmSettingDto>> alarmSettingMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name",CURRENT_EVENT_TIMESTAMP,"alarmSettings");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId));
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
