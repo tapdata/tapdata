@@ -911,20 +911,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
-            try {
-                if(Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getTransaction())){
+            if(Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getTransaction())){
+                try {
                     transactionBegin();
                     processEvents(tapEvents);
                     processExactlyOnceWriteCache(tapdataEvents);
                     transactionCommit();
-                }else{
-                    processEvents(tapEvents);
-                    processExactlyOnceWriteCache(tapdataEvents);
+                } catch (Exception e) {
+                    transactionRollback();
+                    throw e;
                 }
-            } catch (Exception e) {
-                transactionRollback();
-                throw e;
+            }else{
+                processEvents(tapEvents);
+                processExactlyOnceWriteCache(tapdataEvents);
             }
+
         } else {
             processEvents(tapEvents);
         }

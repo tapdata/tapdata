@@ -980,7 +980,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
 			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
-					() -> pdkMethodInvoker.runnable(() -> transactionBeginFunction.begin(connectorNode.getConnectorContext())), TAG);
+					() -> transactionBeginFunction.begin(connectorNode.getConnectorContext()), TAG);
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);
 		}
@@ -997,7 +997,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
 			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
-					() -> pdkMethodInvoker.runnable(() -> transactionCommitFunction.commit(connectorNode.getConnectorContext())), TAG);
+					() -> transactionCommitFunction.commit(connectorNode.getConnectorContext()), TAG);
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);
 		}
@@ -1014,7 +1014,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		try {
 			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TRANSACTION_BEGIN,
-					() -> pdkMethodInvoker.runnable(() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext())), TAG);
+					() -> transactionRollbackFunction.rollback(connectorNode.getConnectorContext()), TAG);
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);
 		}
