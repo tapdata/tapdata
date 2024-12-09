@@ -549,6 +549,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 cdcConcurrent = false;
             }
         }
+        Node<?> node = getNode();
+        if (node instanceof DatabaseNode) {
+            DatabaseNode databaseNode = (DatabaseNode) node;
+            if(null != databaseNode.getIncrementExactlyOnceEnable() && databaseNode.getIncrementExactlyOnceEnable()){
+                obsLogger.info("CDC concurrent write is disabled because the target node has exactly-once write enabled.");
+                cdcConcurrent = false;
+            }
+
+        }else if(node instanceof TableNode){
+            TableNode tableNode = (TableNode) node;
+            if(null != tableNode.getIncrementExactlyOnceEnable() && tableNode.getIncrementExactlyOnceEnable()){
+                obsLogger.info("CDC concurrent write is disabled because the target node has exactly-once write enabled.");
+                cdcConcurrent = false;
+            }
+        }
         return cdcConcurrent;
     }
 
