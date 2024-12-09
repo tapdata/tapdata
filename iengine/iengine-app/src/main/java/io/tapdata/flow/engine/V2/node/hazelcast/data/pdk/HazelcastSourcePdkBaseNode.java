@@ -278,19 +278,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTableMonitor();
 			initDynamicAdjustMemory();
 			initSourceRunnerOnce();
-			syncBatchAndStreamOffset();
 			initAndStartSourceRunner();
 			initTapCodecsFilterManager();
 			initToTapValueConcurrent();
 		});
-	}
-
-	protected void syncBatchAndStreamOffset() {
-		TapdataHeartbeatEvent e = new TapdataHeartbeatEvent();
-		e.setSyncStage(SyncStage.INITIAL_SYNC);
-		e.setBatchOffset(syncProgress.getBatchOffsetObj());
-		e.setStreamOffset(syncProgress.getStreamOffsetObj());
-		enqueue(e);
 	}
 
 	/**
