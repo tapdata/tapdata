@@ -73,13 +73,7 @@ public class BatchOffsetUtil {
         if (batchOffsetObj instanceof Map) {
             Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
             Object batchOffsetObject = batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<>());
-            if (batchOffsetObject instanceof Map
-                    && ((Map<?, ?>)batchOffsetObject).containsKey(BATCH_READ_CONNECTOR_STATUS)) {
-                updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
-            } else {
-                /** update history offset of table which id is ${tableId} **/
-                batchOffsetObjTemp.put(tableId, updateBatchOffset(new HashMap<>(), offset, isOverTag));
-            }
+            updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
         }
     }
 

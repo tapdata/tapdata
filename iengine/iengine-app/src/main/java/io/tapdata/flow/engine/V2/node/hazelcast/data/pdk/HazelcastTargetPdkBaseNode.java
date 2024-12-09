@@ -1411,7 +1411,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX + compress);
                     }
                 }
-                //System.out.println(JSONUtil.obj2JsonPretty(syncProgress.getBatchOffsetObj()));
 				try {
 					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
 				} catch (JsonProcessingException e) {
@@ -1428,13 +1427,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			if (uploadDagService.get()) {
 				synchronized (this.saveSnapshotLock) {
-					// Upload DAG
-//					TaskDto updateTaskDto = new TaskDto();
-//					updateTaskDto.setId(taskDto.getId());
-//					updateTaskDto.setDag(taskDto.getDag());
-//
-//
-//					clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
                     if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
                         // Upload Metadata
                         TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
