@@ -151,6 +151,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
                 return Objects.nonNull(tapTable) && !tapTable.checkIsSubPartitionTable();
             }).collect(Collectors.toSet());
         }
+		if(checkExactlyOnceWriteEnableResult.getEnable()){
+			return tapTableMap.keySet().stream().filter(tableName  -> !tableName.equals(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)).collect(Collectors.toSet());
+		}
         return tapTableMap.keySet();
     }
 
