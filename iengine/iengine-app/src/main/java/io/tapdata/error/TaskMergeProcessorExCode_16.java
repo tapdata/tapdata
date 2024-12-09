@@ -81,6 +81,7 @@ public interface TaskMergeProcessorExCode_16 {
 			solutionCN = "检查外存缓存数据库是否正常，可以点击系统左侧菜单栏中的父菜单“系统管理”中的子菜单“外存管理”进入外存管理界面。找到主从合并节点配置的外存配置，进行连接测试看是否可用，如不可用则需要根据测试失败信息进行排查。待连接测试通过后重新启动任务"
 	)
 	String UPSERT_CACHE_FIND_BY_JOIN_KEY_FAILED = "16008";
+	//表名、节点、字段名原值、拼起来后的joinkey,外存类型，外存的表名
 
 	@TapExCode(
 			describe = "Update or write cache failed",

@@ -1,17 +1,13 @@
 package io.tapdata.observable.logging;
 
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.common.SettingService;
-import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.observable.logging.appender.Appender;
 import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.ObsHttpTMAppender;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
-import io.tapdata.observable.logging.with.WithAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.CompositeTriggeringPolicy;
 import org.apache.logging.log4j.core.appender.rolling.TimeBasedTriggeringPolicy;
