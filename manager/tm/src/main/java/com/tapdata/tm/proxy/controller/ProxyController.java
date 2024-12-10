@@ -885,7 +885,7 @@ public class ProxyController extends BaseController {
 		ServiceCaller serviceCaller = new ServiceCaller();
 		serviceCaller.setClassName("LogFileService");
 		serviceCaller.setMethod("downloadFile");
-		serviceCaller.setArgs(new Object[]{filename});
+		serviceCaller.setArgs(new Object[]{WebUtils.urlDecode(filename)});
 		serviceCaller.setSubscribeIds(Collections.singleton(agentId));
 		call(serviceCaller, request, response);
 	}

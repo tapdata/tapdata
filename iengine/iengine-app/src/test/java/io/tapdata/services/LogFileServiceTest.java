@@ -1,13 +1,22 @@
 package io.tapdata.services;
 
+import io.tapdata.modules.api.net.data.FileMeta;
 import io.tapdata.observable.logging.appender.FileAppender;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -24,12 +33,24 @@ import static org.mockito.Mockito.mockConstruction;
  */
 public class LogFileServiceTest {
 
+    LogFileService logFileService;
+
+    @BeforeEach
+    void setup() {
+        logFileService = new LogFileService();
+    }
+
     @Test
     void testDescribeLogFiles() {
 
-        LogFileService logFileService = new LogFileService();
+        try (MockedStatic<FileUtils> fileUtils = mockStatic(FileUtils.class);
+             MockedStatic<Files> mockFiles = mockStatic(Files.class);) {
 
-        try (MockedStatic<FileUtils> fileUtils = mockStatic(FileUtils.class);) {
+            BasicFileAttributes attributes = mock(BasicFileAttributes.class);
+            mockFiles.when(() -> Files.readAttributes(any(), eq(BasicFileAttributes.class)))
+                    .thenReturn(attributes);
+            when(attributes.creationTime()).thenReturn(FileTime.fromMillis(System.currentTimeMillis()));
+            when(attributes.lastAccessTime()).thenReturn(FileTime.fromMillis(System.currentTimeMillis()));
 
             Collection<File> files = new ArrayList<>();
             files.add(new File("test.log"));
@@ -49,12 +70,12 @@ public class LogFileServiceTest {
             result = logFileService.describeLogFiles("taskId");
             Assertions.assertNotNull(result);
             Assertions.assertEquals(2, result.size());
+            Assertions.assertEquals(5, result.get(0).size());
         }
     }
 
     @Test
     void testDeleteFile() {
-        LogFileService logFileService = new LogFileService();
 
         String result = logFileService.deleteLogFile("../test.log");
         Assertions.assertNotNull(result);
@@ -93,6 +114,52 @@ public class LogFileServiceTest {
             result = logFileService.deleteLogFile("taskId.log");
             Assertions.assertNotNull(result);
             Assertions.assertEquals("failed", result);
+        }
+    }
+
+    @Nested
+    class testDownloadFile {
+        @Test
+        void testFileNotExists() {
+            FileMeta fileMeta = logFileService.downloadFile("a.log");
+            Assertions.assertNotNull(fileMeta);
+            Assertions.assertEquals("FileNotFound", fileMeta.getCode());
+        }
+
+        @Test
+        void testUnCompressionFile() throws IOException {
+            File file = new File(FileAppender.LOG_PATH, "test.log");
+            final Path dir = Files.createDirectories(file.getParentFile().toPath());
+            final Path filePath = Files.createFile(file.toPath());
+
+            FileMeta fileMeta = logFileService.downloadFile(file.getName());
+
+            Assertions.assertNotNull(fileMeta);
+            Assertions.assertEquals("ok", fileMeta.getCode());
+            Assertions.assertEquals("test.log.zip", fileMeta.getFilename());
+            Assertions.assertNotNull(fileMeta.getFileInputStream());
+
+            Files.delete(filePath);
+            Files.delete(new File(FileAppender.LOG_PATH, fileMeta.getFilename()).toPath());
+            Files.deleteIfExists(dir);
+        }
+
+        @Test
+        void testCompressionFile() throws IOException {
+            File file = new File(FileAppender.LOG_PATH, "test.log.zip");
+            final Path dir = Files.createDirectories(file.getParentFile().toPath());
+            final Path filePath = Files.createFile(file.toPath());
+
+            FileMeta fileMeta = logFileService.downloadFile(file.getName());
+
+            Assertions.assertNotNull(fileMeta);
+            Assertions.assertEquals("ok", fileMeta.getCode());
+            Assertions.assertEquals("test.log.zip", fileMeta.getFilename());
+            Assertions.assertNotNull(fileMeta.getFileInputStream());
+            Assertions.assertEquals(0, fileMeta.getFileSize());
+
+            Files.delete(filePath);
+            Files.deleteIfExists(dir);
         }
     }
 

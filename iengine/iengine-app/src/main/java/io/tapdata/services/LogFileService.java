@@ -79,18 +79,22 @@ public class LogFileService {
 
         if (file.exists()) {
             try {
-                File zipFile = new File(file.getParentFile(), file.getName() + ".zip");
-                Files.deleteIfExists(zipFile.toPath());
-                OutputStream output = Files.newOutputStream(zipFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                ZipUtils.zip(file, output);
-                IOUtils.closeQuietly(output);
+                if (filename.endsWith(".log")) {
+                    File zipFile = new File(file.getParentFile(), file.getName() + ".zip");
+                    Files.deleteIfExists(zipFile.toPath());
+                    OutputStream output = Files.newOutputStream(zipFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    ZipUtils.zip(file, output);
+                    IOUtils.closeQuietly(output);
 
-                if (zipFile.exists())
-                    return FileMeta.builder().filename(zipFile.getName()).fileSize(zipFile.length()).code("ok")
-                        .fileInputStream(Files.newInputStream(zipFile.toPath(), StandardOpenOption.READ))
+                    file = zipFile;
+                }
+
+                if (file.exists())
+                    return FileMeta.builder().filename(file.getName()).fileSize(file.length()).code("ok")
+                        .fileInputStream(Files.newInputStream(file.toPath(), StandardOpenOption.READ))
                         .transferFile(true).build();
                 else
-                    return FileMeta.builder().filename(zipFile.getName()).code("Compress file not exists.")
+                    return FileMeta.builder().filename(file.getName()).code("File not exists.")
                             .transferFile(false).build();
             } catch (Exception e) {
                 log.error("Read file failed", e);
