@@ -14,7 +14,8 @@ public enum KeyEnum {
     SUPPORT_CDC_CONNECTION("supportCdcConnection"),
     SHARE_AGENT_EXPRIRE_DAYS("shareAgentExprireDays"),
     LDAP_LOGIN_ENABLE("ldap.login.enable"),
-    LDAP_SSL_ENABLE("ldap.ssl.enable")
+    LDAP_SSL_ENABLE("ldap.ssl.enable"),
+    LOGIN_SINGLE_SESSION("login.single.session")
     ;
 
     private String value;

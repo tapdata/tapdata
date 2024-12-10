@@ -801,6 +801,15 @@ public class UserServiceImpl extends UserService{
     }
 
     @Override
+    public boolean checkLoginSingleSessionEnable() {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_SINGLE_SESSION);
+        if (settings != null) {
+            return settings.getOpen();
+        }
+        return false;
+    }
+
+    @Override
     public TestResponseDto testLoginByLdap(TestLdapDto testldapDto) {
         String ldapUrl = testldapDto.getLdap_Server_Host() + ":" + testldapDto.getLdap_Server_Port();
         String bindDN = testldapDto.getLdap_Bind_DN();
