@@ -24,6 +24,7 @@ import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.FileMeta;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.entity.SubscribeToken;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -45,22 +46,21 @@ import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.apache.http.entity.ContentType;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -445,6 +445,12 @@ public class ProxyController extends BaseController {
 
 			asyncContextManager.registerAsyncJob(nodeMessage.getId(), request, (result, error) -> {
 				if (error == null) {
+
+					if (result instanceof FileMeta && ((FileMeta) result).isTransferFile()) {
+						responseForFileMeta((FileMeta) result, response);
+						return;
+					}
+
 					try (OutputStream os = response.getOutputStream()) {
 						NodeMessage responseMessage = new NodeMessage();
 						responseMessage.id(nodeMessage.getId())
@@ -624,7 +630,8 @@ public class ProxyController extends BaseController {
 
 	private void executeServiceCaller(HttpServletRequest request, HttpServletResponse response, ServiceCaller serviceCaller, UserDetail userDetail) {
 		serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
-		serviceCaller.setReturnClass(Object.class.getName());
+		if (StringUtils.isBlank(serviceCaller.getReturnClass()))
+			serviceCaller.setReturnClass(Object.class.getName());
 		Object[] args = serviceCaller.getArgs();
 		DataMap context = null;
 		if (userDetail != null)
@@ -817,12 +824,35 @@ public class ProxyController extends BaseController {
 			}
 
 			try {
-				response.setContentType("application/json; charset=utf-8");
-				response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
+				if (result instanceof FileMeta && ((FileMeta) result).isTransferFile()) {
+					responseForFileMeta(((FileMeta) result), response);
+				} else {
+					response.setContentType("application/json; charset=utf-8");
+					response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
+				}
+
 			} catch (IOException e) {
 				response.sendError(500, e.getMessage());
 			}
 		});
+	}
+
+	private void responseForFileMeta(FileMeta fileMeta, HttpServletResponse response) throws IOException {
+		response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
+		response.setHeader(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=%s", fileMeta.getFilename()));
+		response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileMeta.getFileSize()));
+		response.setHeader("X-FileMeta-Code", fileMeta.getCode());
+		try (InputStream inputStream = fileMeta.getFileInputStream();
+			 OutputStream outputStream = response.getOutputStream()) {
+			long count = 0;
+			int n;
+			byte[] buffer = new byte[8192];
+			while (-1 != (n = inputStream.read(buffer))) {
+				outputStream.write(buffer, 0, n);
+				count += n;
+			}
+			log.debug("Write file length {}", count);
+		}
 	}
 
 	@NotNull
@@ -842,5 +872,21 @@ public class ProxyController extends BaseController {
 		Object[] args = {connectionId, table, readType};
 		serviceCaller.setArgs(args);
 		executeServiceCaller(request, response, serviceCaller, getLoginUser());
+	}
+
+	@GetMapping("/download")
+	public void downloadFile(@RequestParam String filename, @RequestParam String agentId,
+							 HttpServletRequest request, HttpServletResponse response) {
+
+		if (!agentId.startsWith("processId_")) {
+			agentId = "processId_" + agentId;
+		}
+
+		ServiceCaller serviceCaller = new ServiceCaller();
+		serviceCaller.setClassName("LogFileService");
+		serviceCaller.setMethod("downloadFile");
+		serviceCaller.setArgs(new Object[]{WebUtils.urlDecode(filename)});
+		serviceCaller.setSubscribeIds(Collections.singleton(agentId));
+		call(serviceCaller, request, response);
 	}
 }
