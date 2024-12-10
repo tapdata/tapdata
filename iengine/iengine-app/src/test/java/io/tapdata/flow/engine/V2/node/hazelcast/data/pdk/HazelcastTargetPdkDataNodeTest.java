@@ -29,6 +29,7 @@ import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
+import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.metric.collector.ISyncMetricCollector;
@@ -1190,6 +1191,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 
 			HazelcastTargetPdkDataNode targetPdkDataNode = new HazelcastTargetPdkDataNode(context);
 			targetPdkDataNode.syncTargetPartitionTableEnable = Boolean.TRUE;
+			targetPdkDataNode.checkExactlyOnceWriteEnableResult = CheckExactlyOnceWriteEnableResult.createEnable();
 
 			Set<String> result = targetPdkDataNode.filterSubPartitionTableTableMap();
 
