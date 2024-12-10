@@ -212,7 +212,7 @@ public class MeasureAOPTest {
         @Test
         void test1(){
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -252,7 +252,7 @@ public class MeasureAOPTest {
             when(dag.getNode("test")).thenReturn((Node)node);
             taskDto.setDag(dag);
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -293,7 +293,7 @@ public class MeasureAOPTest {
             when(dag.getNode("test")).thenReturn((Node)node);
             taskDto.setDag(dag);
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
@@ -331,7 +331,7 @@ public class MeasureAOPTest {
             when(dag.getNode("test")).thenReturn((Node)node);
             taskDto.setDag(dag);
             when(alarmService.checkOpen(any(),any(),any(),any(),anyList())).thenReturn(true);
-            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings")).thenReturn(taskDto);
+            when(taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name","currentEventTimestamp","alarmSettings","alarmRules","snapshotDoneAt","status")).thenReturn(taskDto);
             List<SampleRequest> list = new ArrayList<>();
             SampleRequest sampleRequest=new SampleRequest();
 
