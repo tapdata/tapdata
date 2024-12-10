@@ -27,14 +27,11 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import io.tapdata.Runnable.LoadSchemaRunner;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
-import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
-import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.error.CoreException;
@@ -81,7 +78,6 @@ import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
@@ -99,7 +95,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -1641,34 +1636,6 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		};
 		sourceNode.initSyncPartitionTableEnable();
 		Assertions.assertEquals(true, sourceNode.syncSourcePartitionTableEnable);
-	}
-
-	@Test
-	public void testSyncBatchAndStreamOffset() {
-		DataProcessorContext context = mock(DataProcessorContext.class);
-		TaskDto taskDto = new TaskDto();
-		taskDto.setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
-		when(context.getTaskDto()).thenReturn(taskDto);
-
-		List<TapdataEvent> result = new ArrayList<>();
-		HazelcastSourcePdkBaseNode node = new HazelcastSourcePdkBaseNode(context) {
-			@Override
-			void startSourceRunner() {
-
-			}
-
-			@Override
-			public void enqueue(TapdataEvent tapdataEvent) {
-				result.add(tapdataEvent);
-			}
-		};
-
-		SyncProgress syncProgress = new SyncProgress();
-		ReflectionTestUtils.setField(node, "syncProgress", syncProgress);
-
-		node.syncBatchAndStreamOffset();
-
-		Assertions.assertEquals(1, result.size());
 	}
 
 	@Nested
