@@ -1,6 +1,7 @@
 package com.tapdata.tm.base.aop;
 
 import com.google.common.collect.Maps;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
@@ -27,6 +28,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
@@ -368,5 +371,35 @@ public class MeasureAOPTest {
         alarmRuleDto.setEqualsFlag(1);
         alarmRuleDto.setMs(40000);
         return alarmRuleDto;
+    }
+    @Nested
+    class SetTaskSnapshotDateTest{
+        AlarmService alarmService;
+        MeasureAOP measureAOP;
+        TaskService taskService;
+        @BeforeEach
+        void setUp(){
+            alarmService = mock(AlarmService.class);
+            taskService = mock(TaskService.class);
+            measureAOP = new MeasureAOP(taskService,alarmService,null,null);
+        }
+
+        @Test
+        void test_main(){
+            Map<String, Number> vs = new HashMap<>();
+            vs.put("snapshotStartAt", 123456789);
+            vs.put("snapshotDoneAt", 123456789);
+            vs.put("currentEventTimestamp", 123456789);
+            when(alarmService.checkOpen(any(TaskDto.class),any(),any(),any(),any(UserDetail.class))).thenReturn(false);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setSnapshotDoneAt(123456789L);
+            taskDto.setCurrentEventTimestamp(123456789L);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(taskService.update(any(),any(Update.class))).thenReturn(updateResult);
+            measureAOP.setTaskSnapshotDate(vs,"test",taskDto,mock(UserDetail.class));
+            verify(taskService,times(1)).update(any(Query.class),any(Update.class));
+
+        }
+
     }
 }
