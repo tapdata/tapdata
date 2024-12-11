@@ -1,0 +1,32 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "Login",
+        "category_sort": "92",
+        "default_value": " ",
+        "documentation": "Login_Single_Session_doc",
+        "hot_reloading": true,
+        "key": "login.single.session",
+        "key_label": "Login Single Session",
+        "last_update": 0,
+        "last_update_by": "",
+        "scope": "global",
+        "sort": "0",
+        "user_visible": true,
+        "open": false,
+        "value": ""
+      }
+    ]
+  },
+  {
+    "delete": "AccessToken",
+    "deletes": [
+      {
+        "q": {},
+        "limit": 0
+      }
+    ]
+  }
+]

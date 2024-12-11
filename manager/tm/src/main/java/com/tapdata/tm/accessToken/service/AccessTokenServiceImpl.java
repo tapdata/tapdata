@@ -120,7 +120,7 @@ public class AccessTokenServiceImpl implements AccessTokenService {
         if (user != null) {
             String id = UUIDUtil.get64UUID();
             Date now = new Date();
-            AccessTokenEntity accessTokenEntity = new AccessTokenEntity(id, accessTokenTtl, now, user.getId(), now, AuthType.ACCESS_CODE.getValue());
+            AccessTokenEntity accessTokenEntity = new AccessTokenEntity(id, accessTokenTtl, now, user.getId(), now, AuthType.USERNAME_LOGIN.getValue());
             accessTokenDto = new AccessTokenDto();
             BeanUtil.copyProperties(accessTokenEntity, accessTokenDto);
 
@@ -141,6 +141,22 @@ public class AccessTokenServiceImpl implements AccessTokenService {
         if (result.getDeletedCount() > 0) {
             //增加操作日志
             try {
+                userLogService.addUserLog(Modular.SYSTEM, Operation.LOGOUT, userDetail, "");
+            } catch (Exception e) {
+                log.error("推出登录添加操作日志异常", e);
+            }
+        }
+
+        return result.getDeletedCount();
+    }
+
+    public long removeAccessTokenByAuthType(ObjectId userId, String authType) {
+        DeleteResult result = accessTokenRepository.getMongoOperations().remove(Query.query(Criteria.where("authType").is(authType)
+                .and("userId").is(userId)), AccessTokenEntity.class);
+        if (result.getDeletedCount() > 0) {
+            //增加操作日志
+            try {
+                UserDetail userDetail = userService.loadUserById(userId);
                 userLogService.addUserLog(Modular.SYSTEM, Operation.LOGOUT, userDetail, "");
             } catch (Exception e) {
                 log.error("推出登录添加操作日志异常", e);

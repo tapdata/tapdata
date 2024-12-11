@@ -7,7 +7,8 @@ public enum CategoryEnum {
     FRONTEND("Frontend"),
     JOB("Job"),
     WORKER("Worker"),
-    LDAP("LDAP")
+    LDAP("LDAP"),
+    LOGIN("Login")
     ;
 
     private String value;
