@@ -894,6 +894,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
         } catch (Throwable throwable) {
+			Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+			if (null != matchThrowable) {
+				throw (TapCodeException) matchThrowable;
+			}
             throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
         }
     }
