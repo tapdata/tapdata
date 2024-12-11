@@ -2691,4 +2691,42 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(obsLogger, never()).warn(anyString());
 		}
 	}
+
+    @Nested
+    class completeTest {
+
+        TaskDto taskDto;
+        Node node = mock(Node.class);
+
+        @BeforeEach
+        void setUp() {
+            taskDto = mock(TaskDto.class);
+            when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+            node = mock(Node.class);
+            when(mockInstance.getNode()).thenReturn(node);
+        }
+
+        @Test
+        void testRunningFalse() {
+            when(mockInstance.isRunning()).thenReturn(false);
+            doCallRealMethod().when(mockInstance).complete();
+            assertTrue(mockInstance.complete());
+        }
+
+        @Test
+        void testDisabledNodeTrue() {
+            when(node.disabledNode()).thenReturn(true);
+            when(mockInstance.isRunning()).thenReturn(true);
+            doCallRealMethod().when(mockInstance).complete();
+            assertTrue(mockInstance.complete());
+        }
+
+        @Test
+        void testDisabledNodeFalse() {
+            when(node.disabledNode()).thenReturn(false);
+            when(mockInstance.isRunning()).thenReturn(true);
+            doCallRealMethod().when(mockInstance).complete();
+            assertFalse(mockInstance.complete());
+        }
+    }
 }
