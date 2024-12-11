@@ -88,7 +88,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             long startTs = System.currentTimeMillis();
             taskClient = execTask(taskDto);
 
-            obsLogger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+            obsLogger.trace("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
             //成功
             TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
             if (obsLogger.isDebugEnabled()) {
@@ -113,7 +113,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
             taskClient = execTask(taskDto);
 
-            obsLogger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+            obsLogger.trace("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
             //成功
             List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
             if (obsLogger.isDebugEnabled()) {

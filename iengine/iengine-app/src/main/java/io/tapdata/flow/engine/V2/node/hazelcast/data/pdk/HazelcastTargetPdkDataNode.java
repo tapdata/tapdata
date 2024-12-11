@@ -155,6 +155,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
     }
 
 	protected void initTargetDB() {
+		obsLogger.info("Apply table structure to target database");
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		Set<String> tableIds = filterSubPartitionTableTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
@@ -286,7 +287,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, tapIndices);
 				if(CollectionUtils.isNotEmpty(existsIndexes)){
 					existsIndexes.forEach(i -> {
-						obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i);
+						obsLogger.trace("Table: {} already exists Index: {} and will no longer create index", tableId, i);
 					});
 					return;
 				}
@@ -366,18 +367,18 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, indexList);
 			if (CollectionUtils.isNotEmpty(existsIndexes)) {
 				existsIndexes.forEach(i -> {
-					obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i.getName());
+					obsLogger.trace("Table: {} already exists Index: {} and will no longer create index", tableId, i.getName());
 					indexList.remove(i);
 				});
 			}
 			if (CollectionUtils.isEmpty(indexList)) {
-				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
+				obsLogger.trace("Table: {} already exists Index list: {}", tableId, indices);
 				return;
 			}
 			indexList.forEach(index->{
 				long currentIndexStart = System.currentTimeMillis();
 				indexEvent.set(createIndexEvent(tableId, Collections.singletonList(index)));
-				obsLogger.info("Table: {} will create Index: {}", indexEvent.get().getTableId(), index);
+				obsLogger.trace("Table: {} will create Index: {}", indexEvent.get().getTableId(), index);
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -387,7 +388,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						PDKMethod.TARGET_CREATE_INDEX,
 						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG, buildErrorConsumer(tableId)));
 				long currentIndexEnd = System.currentTimeMillis();
-				obsLogger.info("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd - currentIndexStart);
+				obsLogger.trace("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd - currentIndexStart);
 			});
 		} catch (Throwable throwable) {
 			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
@@ -396,7 +397,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			throwTapCodeException(throwable,tapEventException);
 		}
 		long end = System.currentTimeMillis();
-		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end - start);
+		obsLogger.trace("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end - start);
 	}
 
 	protected List<TapIndex> queryExistsIndexes(TapTable tapTable, List<TapIndex> indexList) throws Throwable {

@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -20,6 +21,7 @@ import io.tapdata.aspect.PDKNodeInitAspect;
 import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.common.utils.DateUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
@@ -59,6 +61,7 @@ import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.DateFormatUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -122,7 +125,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 			@Override
 			public void info(String log) {
-				obsLogger.info(log);
+				obsLogger.trace(log);
 			}
 
 			@Override
@@ -376,14 +379,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				if (null != pdkStateMap) {
 					pdkStateMap.reset();
 				}
-				obsLogger.info("PDK connector node stopped: " + associateId);
+				obsLogger.trace("PDK connector node stopped: " + associateId);
 			}, err -> {
 				obsLogger.warn(String.format("Stop PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
 			CommonUtils.handleAnyError(() -> {
 				Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 				ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-				obsLogger.info("PDK connector node released: " + associateId);
+				obsLogger.trace("PDK connector node released: " + associateId);
 			}, err -> {
 				obsLogger.warn(String.format("Release PDK connector node failed: %s | Associate id: %s", err.getMessage(), associateId));
 			});
@@ -535,6 +538,18 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				Long totalRetries = this.totalRetries.get();
 				String retryOp = this.retryOp;
 				Boolean success = this.success;
+
+				if (retrying) {
+					obsLogger.info("Retry operation {}, retry times {}, first retry time {}{}", retryOp,
+							totalRetries != null ? String.format("%s/%s", retryTimes, totalRetries) : retryTimes,
+							DateFormatUtils.format(startRetryTs, "yyyy-MM-dd HH:mm:ss"),
+							nextRetryTs != null ? String.format(", next retry time %s", DateFormatUtils.format(nextRetryTs, "yyyy-MM-dd HH:mm:ss")) : "");
+				} else {
+					long endAt = endRetryTs != null ? endRetryTs : System.currentTimeMillis();
+					obsLogger.info("Retry operation {} {}, total cost {}", retryOp,
+							Boolean.TRUE.equals(success) ? "success" : "failed",
+							DateUtil.microseondsToStringTime((endAt - startRetryTs) * 1000));
+				}
 
 				AspectUtils.executeDataFuncAspect(RetryLifeCycleAspect.class, () -> {
 					RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();

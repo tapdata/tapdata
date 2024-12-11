@@ -46,10 +46,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -198,6 +195,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					TaskDto taskDto = startTaskOperation.getTaskDto();
 					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
+						ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
+						ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
 					}
 				} else if (taskOperation instanceof StopTaskOperation) {
 					StopTaskOperation stopTaskOperation = (StopTaskOperation) taskOperation;
@@ -205,6 +204,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					taskId = stopTaskOperation.getTaskId();
 					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Stop task {} failed because of task lock, will retry later", taskId);
+						Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
+								.ifPresent(log -> log.warn("Start task failed because of task lock, will ignored"));
 					}
 				}
 				logger.info("Handled task operation: {}", taskOperation);
@@ -319,6 +320,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			if (taskClientMap.containsKey(taskId)) {
 				String status = taskClient.getStatus();
 				logger.info("The [task {}, id {}, status {}] is being executed, ignore the scheduling", taskDto.getName(), taskId, status);
+				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
+						.ifPresent(log -> log.info("This task is already running"));
 				try {
 					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 				} catch (Exception e) {
@@ -348,6 +351,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
 				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
 			}
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
+			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -511,7 +516,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					if (null != obsLogger) {
 						TaskClient<TaskDto> taskDtoTaskClient = taskClientMap.get(taskId);
 						if (null != taskDtoTaskClient) {
-							obsLogger.info(String.format("Reset task [%s] retry time", taskDtoTaskClient.getTask().getName()));
+							obsLogger.trace(String.format("Reset task [%s] retry time", taskDtoTaskClient.getTask().getName()));
 						}
 					}
 					iterator.remove();
@@ -582,6 +587,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			final TaskDto task = taskClient.getTask();
 			final String taskName = task.getName();
 			final String taskId = task.getId().toHexString();
+
+			Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId)).ifPresent(log -> log.info("Task stopped."));
+
 			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
 			try {
 				logger.info("Call {} api to modify task [{}] status", resource, taskName);
@@ -612,7 +620,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask());
 		try {
 			removeTask(taskId);
-			obsLogger.info(String.format("Remove memory task client succeed, task: %s[%s]",
+			obsLogger.trace(String.format("Remove memory task client succeed, task: %s[%s]",
 					taskClient.getTask().getName(), taskClient.getTask().getId()));
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Remove memory task client failed, task: %s[%s]",
@@ -620,7 +628,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 		try {
 			destroyCache(taskClient);
-			obsLogger.info(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()));
+			obsLogger.trace(String.format("Destroy memory task client cache succeed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()));
 		} catch (Exception e) {
 			throw new RuntimeException(String.format("Destroy memory task client cache failed, task: %s[%s]", taskClient.getTask().getName(), taskClient.getTask().getId()), e);
 		}
@@ -639,6 +647,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		if (null == taskDtoTaskClient) {
 			try {
 				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId)).ifPresent(log -> log.info("This task already stopped."));
 			} catch (Exception e) {
 				logger.warn(e.getMessage(), e);
 			}
