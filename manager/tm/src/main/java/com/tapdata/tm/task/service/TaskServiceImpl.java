@@ -629,30 +629,8 @@ public class TaskServiceImpl extends TaskService{
 
                             }
                         } else {
-                            if (null != taskDto.getAttrs() && null != taskDto.getAttrs().get("syncProgress")) {
-                                LinkedHashMap<String, String> syncProgress = (LinkedHashMap) taskDto.getAttrs().get("syncProgress");
-                                syncProgress.forEach((k,v) -> {
-                                    ObjectMapper objectMapper = new ObjectMapper();
-                                    Map<String, Object> resultMap = null;
-                                    try {
-                                        resultMap = objectMapper.readValue(v.toString(), new TypeReference<Map<String, Object>>() {});
-                                    } catch (JsonProcessingException e) {
-                                        throw new BizException("Task.nodeRefresh");
-                                    }
-                                    String batchOffset = (String) resultMap.get("batchOffset");
-                                    byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset);
-                                    Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
-                                    Set<String> tables = tablesMap.keySet();
-                                    LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
-                                    if (CollectionUtils.isNotEmpty(newSourceNode)) {
-                                        DatabaseNode newFirst = newSourceNode.getFirst();
-                                        if (newFirst.getTableNames() != null) {
-                                            List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
-                                            newTableNames.removeAll(tables);
-                                            taskDto.setLdpNewTables(newTableNames);
-                                        }
-                                    }
-                                });
+                            if (null != taskDto.getAttrs() && taskDto.getAttrs().get("syncProgress") instanceof Map) {
+                                buildLdpNewTablesFromBatchOffset(taskDto, newDag);
                             } else {
                                 List<String> ldpNewTables = taskDto.getLdpNewTables();
                                 if (CollectionUtils.isNotEmpty(ldpNewTables)) {
@@ -737,6 +715,32 @@ public class TaskServiceImpl extends TaskService{
 
         return save(taskDto, user);
 
+    }
+
+    protected void buildLdpNewTablesFromBatchOffset(TaskDto taskDto, DAG newDag) {
+        LinkedHashMap<String, String> syncProgress = (LinkedHashMap) taskDto.getAttrs().get("syncProgress");
+        syncProgress.forEach((k,v) -> {
+            ObjectMapper objectMapper = new ObjectMapper();
+            Map<String, Object> resultMap = null;
+            try {
+                resultMap = objectMapper.readValue(v.toString(), new TypeReference<Map<String, Object>>() {});
+            } catch (Exception e) {
+                throw new BizException("Task.nodeRefresh", e);
+            }
+            String batchOffset = (String) resultMap.get("batchOffset");
+            byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset);
+            Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
+            Set<String> tables = tablesMap.keySet();
+            LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
+            if (CollectionUtils.isNotEmpty(newSourceNode)) {
+                DatabaseNode newFirst = newSourceNode.getFirst();
+                if (newFirst.getTableNames() != null) {
+                    List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                    newTableNames.removeAll(tables);
+                    taskDto.setLdpNewTables(newTableNames);
+                }
+            }
+        });
     }
 
     public TaskDto updateAfter(TaskDto taskDto, UserDetail user) {
