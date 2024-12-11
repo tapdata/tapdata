@@ -955,8 +955,6 @@ public class UserServiceImpl extends UserService{
                 try (InputStream certificates = new ByteArrayInputStream(certFile.getBytes())) {
                     SSLContext sslContext = createSSLContext(certificates);
                     HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
-                } catch (Exception e) {
-                    throw new BizException("AD.Login.Fail");
                 }
             }
             DirContext ctx = new InitialDirContext(env);

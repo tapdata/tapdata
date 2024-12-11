@@ -520,6 +520,78 @@ public class UserServiceImplTest {
             when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
             assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
         }
+
+        @Test
+        public void testBuildDirContext_NPE() {
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .bindDN("cn=admin,dc=example,dc=com")
+                    .password(null)
+                    .sslEnable(false)
+                    .build();
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("please check ldap configuration, such as bind dn or password", exception.getMessage());
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_WrongPassword() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenThrow(new NamingException("Error code 49"));
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            BizException exception = assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("AD.Login.WrongPassword", exception.getErrorCode());
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_InvalidCert() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenThrow(new NamingException("TLS handshake"));
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            BizException exception = assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("AD.Login.InvalidCert", exception.getErrorCode());
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_Retryable() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenThrow(new NamingException("No subject alternative dns"));
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            BizException exception = assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("AD.Login.Retryable", exception.getErrorCode());
+        }
     }
 
     @Nested
