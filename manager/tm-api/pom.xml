@@ -24,6 +24,12 @@
             <groupId>com.tapdata</groupId>
             <artifactId>tm-common</artifactId>
             <version>0.0.3-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>tapdata-api</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -92,6 +98,10 @@
             <artifactId>commons-net</artifactId>
             <version>3.8.0</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>

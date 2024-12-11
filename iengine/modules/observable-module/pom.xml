@@ -89,7 +89,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-api</artifactId>
-            <version>1.4.1-SNAPSHOT</version>
         </dependency>
         <!-- Test Dependencies -->
     </dependencies>

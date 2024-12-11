@@ -5,7 +5,9 @@ import com.tapdata.manager.common.utils.StringUtils;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -150,6 +152,10 @@ public final class WebUtils {
 	}
 
 	public static String urlDecode(String str) {
-		return str;
+        try {
+            return URLDecoder.decode(str, StandardCharsets.UTF_8.name());
+        } catch (UnsupportedEncodingException e) {
+            return str;
+        }
 	}
 }
