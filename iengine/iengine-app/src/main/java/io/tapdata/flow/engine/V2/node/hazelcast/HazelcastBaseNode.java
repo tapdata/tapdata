@@ -22,19 +22,13 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
-import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.ProcessorNodeCloseAspect;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -90,11 +84,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -828,6 +818,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
+		Collection<String> logicPrimaryKeys = tapTableMap.get(tableName).getLogicPrimaries();
 		if (tapEvent instanceof TapCreateTableEvent) {
 			updateTapTableWhenCreateTableEvent(tableName, tapEvent, (DAGDataServiceImpl) dagDataService, tapTableMap);
 		} else if (tapEvent instanceof TapDropTableEvent) {
@@ -835,6 +826,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else {
 			updateTapTableWhenDDLEvent(tableName, qualifiedName, (DAGDataServiceImpl) dagDataService, tapTableMap, tapEvent);
 		}
+		tapTableMap.get(tableName).setLogicPrimaries(logicPrimaryKeys);
 	}
 
 	protected static void updateTapTableWhenDDLEvent(String tableName, String qualifiedName, DAGDataServiceImpl dagDataService, TapTableMap<String, TapTable> tapTableMap, TapEvent tapEvent) {
