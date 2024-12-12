@@ -258,19 +258,29 @@ public class NoPrimaryKeyVirtualField {
             keys.removeIf(key -> key.equalsIgnoreCase(FIELD_NAME));
             insertRecordEventPredicate = event -> {
                 Optional.ofNullable(event.getAfter())
-                    .ifPresent(data -> data.putIfAbsent(FIELD_NAME, toHash(keys, data, false)));
+                    .ifPresent(data -> {
+                        if (!data.containsKey(FIELD_NAME)) {
+                            data.put(FIELD_NAME, toHash(keys, data, false));
+                        }
+                    });
                 return true;
             };
             updateRecordEventPredicate = event -> {
                 Map<String, Object> data = event.getBefore();
-                data.putIfAbsent(FIELD_NAME, toHash(keys, data, true));
+                if (!data.containsKey(FIELD_NAME)) {
+                    data.put(FIELD_NAME, toHash(keys, data, true));
+                }
                 data = event.getAfter();
-                data.putIfAbsent(FIELD_NAME, toHash(keys, data, true));
+                if (!data.containsKey(FIELD_NAME)) {
+                    data.put(FIELD_NAME, toHash(keys, data, true));
+                }
                 return true;
             };
             deleteRecordEventPredicate = event -> {
                 Map<String, Object> data = event.getBefore();
-                data.putIfAbsent(FIELD_NAME, toHash(keys, data, true));
+                if (!data.containsKey(FIELD_NAME)) {
+                    data.put(FIELD_NAME, toHash(keys, data, true));
+                }
                 return true;
             };
         }
