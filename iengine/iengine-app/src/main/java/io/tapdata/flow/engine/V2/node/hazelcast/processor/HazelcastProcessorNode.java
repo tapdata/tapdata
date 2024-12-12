@@ -17,11 +17,18 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
@@ -119,6 +126,39 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		if (null != fieldRenameProcessorNode && null != capitalized) {
+			if (tapEvent instanceof TapAlterFieldAttributesEvent) {
+				TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapEvent;
+				String key = tapAlterFieldAttributesEvent.getFieldName();
+				String newKey = fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(key, k -> Capitalized.convert(k, capitalized));
+				tapAlterFieldAttributesEvent.setFieldName(newKey);
+			} else if (tapEvent instanceof TapNewFieldEvent) {
+				TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapEvent;
+				List<TapField> newFields = tapNewFieldEvent.getNewFields();
+				for (TapField field : newFields) {
+					String newKey = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(field.getName(), k -> Capitalized.convert(k, capitalized));
+					field.name(newKey);
+				}
+			} else if (tapEvent instanceof TapAlterFieldNameEvent) {
+				TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapEvent;
+				ValueChange<String> nameChange = tapAlterFieldNameEvent.getNameChange();
+				nameChange.setBefore(fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(nameChange.getBefore(), k -> Capitalized.convert(k, capitalized)));
+				nameChange.setAfter(fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(nameChange.getAfter(), k -> Capitalized.convert(k, capitalized)));
+			} else if (tapEvent instanceof TapDropFieldEvent) {
+				TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapEvent;
+				tapDropFieldEvent.setFieldName(fieldsNameTransformMap
+						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+						.computeIfAbsent(tapDropFieldEvent.getFieldName(), k -> Capitalized.convert(k, capitalized)));
+			}
+		}
 		if (!(tapEvent instanceof TapRecordEvent)) {
 			consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
 			return;
