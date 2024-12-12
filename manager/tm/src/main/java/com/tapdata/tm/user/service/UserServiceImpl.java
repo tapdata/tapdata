@@ -820,18 +820,10 @@ public class UserServiceImpl extends UserService{
             } else {
                 return new TestResponseDto(false, "connect to active directory server failed");
             }
-        } catch (NullPointerException e) {
-            return new TestResponseDto(false, "please check ldap configuration, such as bind dn or password");
-        } catch (NamingException e) {
+        } catch (Exception e) {
             return new TestResponseDto(false, TapSimplify.getStackTrace(e));
         } finally {
-            if (null != dirContext) {
-                try {
-                    dirContext.close();
-                } catch (NamingException e) {
-                    // do nothing
-                }
-            }
+            close(dirContext);
         }
     }
 
@@ -865,18 +857,20 @@ public class UserServiceImpl extends UserService{
             if (null != dirContext) {
                 return true;
             }
-        } catch (NamingException e) {
-            throw new BizException("AD.Login.Fail", e);
         } finally {
-            if (null != dirContext) {
-                try {
-                    dirContext.close();
-                } catch (NamingException e) {
-                    // do nothing
-                }
-            }
+            close(dirContext);
         }
         return false;
+    }
+
+    private void close(DirContext dirContext) {
+        if (null != dirContext) {
+            try {
+                dirContext.close();
+            } catch (NamingException e) {
+                // do nothing
+            }
+        }
     }
 
     @Override
@@ -898,7 +892,7 @@ public class UserServiceImpl extends UserService{
         return userDto;
     }
 
-    protected boolean searchUser(LdapLoginDto ldapLoginDto, String username) throws NamingException {
+    protected boolean searchUser(LdapLoginDto ldapLoginDto, String username) {
         String sAMAccountNameFilter = String.format("(sAMAccountName=%s)", username);
         String userPrincipalNameFilter = String.format("(userPrincipalName=%s)", username);
         DirContext ctx = buildDirContext(ldapLoginDto);
@@ -920,7 +914,7 @@ public class UserServiceImpl extends UserService{
         } catch (NamingException e) {
             throw new BizException("AD.Search.Fail", e);
         } finally {
-            ctx.close();
+            close(ctx);
         }
     }
 
@@ -938,34 +932,48 @@ public class UserServiceImpl extends UserService{
         return StringUtils.isNotBlank(userPrincipalName) || StringUtils.isNotBlank(displayName);
     }
 
-    protected DirContext buildDirContext(LdapLoginDto ldapLoginDto) throws NamingException {
-        String ldapUrl = ldapLoginDto.getLdapUrl();
-        String bindDn = ldapLoginDto.getBindDN();
-        String baseDN = ldapLoginDto.getBaseDN();
-        String password = ldapLoginDto.getPassword();
-        Boolean ssl = ldapLoginDto.isSslEnable();
-        String certFile = ldapLoginDto.getCert();
-        Hashtable<String, String> env = new Hashtable<>();
-        env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
-        env.put(Context.PROVIDER_URL, ldapUrl);
-        env.put(Context.SECURITY_AUTHENTICATION, "simple");
-        if (!bindDn.contains("@") && StringUtils.isNotBlank(baseDN)) {
-            String domain = convertBaseDnToDomain(baseDN);
-            bindDn = bindDn + "@" + domain;
-        }
-        env.put(Context.SECURITY_PRINCIPAL, bindDn);
-        env.put(Context.SECURITY_CREDENTIALS, password);
-        if (ssl) {
-            if (null == certFile) throw new BizException("AD.Login.Fail");
-            try (InputStream certificates = new ByteArrayInputStream(certFile.getBytes())) {
-                SSLContext sslContext = createSSLContext(certificates);
-                HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
-            } catch (Exception e) {
-                throw new BizException(e);
+    protected DirContext buildDirContext(LdapLoginDto ldapLoginDto) {
+        try {
+            String ldapUrl = ldapLoginDto.getLdapUrl();
+            String bindDn = ldapLoginDto.getBindDN();
+            String baseDN = ldapLoginDto.getBaseDN();
+            String password = ldapLoginDto.getPassword();
+            Boolean ssl = ldapLoginDto.isSslEnable();
+            String certFile = ldapLoginDto.getCert();
+            Hashtable<String, String> env = new Hashtable<>();
+            env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+            env.put(Context.PROVIDER_URL, ldapUrl);
+            env.put(Context.SECURITY_AUTHENTICATION, "simple");
+            if (!bindDn.contains("@") && StringUtils.isNotBlank(baseDN)) {
+                String domain = convertBaseDnToDomain(baseDN);
+                bindDn = bindDn + "@" + domain;
             }
+            env.put(Context.SECURITY_PRINCIPAL, bindDn);
+            env.put(Context.SECURITY_CREDENTIALS, password);
+            if (ssl) {
+                if (null == certFile) throw new BizException("AD.Login.Fail");
+                try (InputStream certificates = new ByteArrayInputStream(certFile.getBytes())) {
+                    SSLContext sslContext = createSSLContext(certificates);
+                    HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.getSocketFactory());
+                }
+            }
+            DirContext ctx = new InitialDirContext(env);
+            return ctx;
+        } catch (NamingException e) {
+            if (e.getMessage().toLowerCase().contains("error code 49")) {
+                throw new BizException("AD.Login.WrongPassword", e);
+            } else if (e.getMessage().toLowerCase().contains("tls handshake")) {
+                throw new BizException("AD.Login.InvalidCert", e);
+            } else if (e.getMessage().toLowerCase().contains("no subject alternative dns")) {
+                throw new BizException("AD.Login.Retryable", e);
+            } else {
+                throw new BizException("AD.Login.Fail", e);
+            }
+        } catch (NullPointerException e) {
+            throw new RuntimeException("please check ldap configuration, such as bind dn or password");
+        } catch (Exception e) {
+            throw new BizException("AD.Login.Fail", e);
         }
-        DirContext ctx = new InitialDirContext(env);
-        return ctx;
     }
 
     protected String convertBaseDnToDomain(String baseDn) {
