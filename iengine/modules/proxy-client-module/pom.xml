@@ -14,8 +14,32 @@
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
+            <artifactId>modules-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
             <artifactId>websocket-client-module</artifactId>
-            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>4.11.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-inline</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
