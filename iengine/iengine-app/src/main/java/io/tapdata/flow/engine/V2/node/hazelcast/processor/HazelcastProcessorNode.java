@@ -459,20 +459,28 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			return;
 		}
 		if (null != fieldRenameProcessorNode && null != capitalized) {
-			Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
-				String newField = fieldsNameTransformMap
-						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
-						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
-				ttf.remove(field);
-				ttf.add(newField);
-			}));
-			Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
-				String newField = fieldsNameTransformMap
-						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
-						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
-				ttf.remove(field);
-				ttf.add(newField);
-			}));
+			Set<String> beforeTransformedToTapValueFieldNames = transformToTapValueResult.getBeforeTransformedToTapValueFieldNames();
+			Set<String> newBeforeTransformedToTapValueFieldNames = new HashSet<>();
+			if (CollectionUtils.isNotEmpty(beforeTransformedToTapValueFieldNames)) {
+				beforeTransformedToTapValueFieldNames.forEach(field->{
+					String newField = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+					newBeforeTransformedToTapValueFieldNames.add(newField);
+				});
+				transformToTapValueResult.beforeTransformedToTapValueFieldNames(newBeforeTransformedToTapValueFieldNames);
+			}
+			Set<String> afterTransformedToTapValueFieldNames = transformToTapValueResult.getAfterTransformedToTapValueFieldNames();
+			Set<String> newAfterTransformedToTapValueFieldNames = new HashSet<>();
+			if (CollectionUtils.isNotEmpty(afterTransformedToTapValueFieldNames)) {
+				afterTransformedToTapValueFieldNames.forEach(field->{
+					String newField = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+					newAfterTransformedToTapValueFieldNames.add(newField);
+				});
+				transformToTapValueResult.afterTransformedToTapValueFieldNames(newAfterTransformedToTapValueFieldNames);
+			}
 		}
 		Node<?> node = getNode();
 		if (node instanceof FieldProcessorNode) {

@@ -280,7 +280,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTableMonitor();
 			initDynamicAdjustMemory();
 			initSourceRunnerOnce();
-			syncBatchAndStreamOffset();
 			initTargetDataNodes();
 			initAndStartSourceRunner();
 			initTapCodecsFilterManager();
@@ -291,14 +290,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void initTargetDataNodes() {
 		Node<?> node = getNode();
 		targetDataNodes = GraphUtil.successors(node, n -> n instanceof TableNode || n instanceof DatabaseNode);
-	}
-
-	protected void syncBatchAndStreamOffset() {
-		TapdataHeartbeatEvent e = new TapdataHeartbeatEvent();
-		e.setSyncStage(SyncStage.INITIAL_SYNC);
-		e.setBatchOffset(syncProgress.getBatchOffsetObj());
-		e.setStreamOffset(syncProgress.getStreamOffsetObj());
-		enqueue(e);
 	}
 
 	/**
@@ -789,7 +780,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				return true;
 			}
 			if (getNode().disabledNode()) {
-				return false;
+				return true;
 			}
 			if (null != pendingEvents) {
 				tapdataEvents = pendingEvents;
