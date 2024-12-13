@@ -389,7 +389,7 @@ public class TaskLogger extends ObsLogger {
 		return result.get();
 	}
 
-	private boolean closeCatchData() {
+	protected boolean closeCatchData() {
 		AtomicBoolean result = new AtomicBoolean(false);
 		filterDebugFileAppender(t -> result.set(((FileAppender)t).closeCatchData()));
 		if (null != closeDebugConsumer) {

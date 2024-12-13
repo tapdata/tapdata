@@ -196,6 +196,19 @@ public class TaskLoggerTest {
             obsLogger.trace("test {}", 2);
             Assertions.assertEquals(2, counter.get());
         }
+
+        @Test
+        void testWithTaskLogSetting() {
+            TaskLogger taskLogger = mock(TaskLogger.class);
+            doCallRealMethod().when(taskLogger).withTaskLogSetting(anyString(), anyLong(), anyLong());
+            doCallRealMethod().when(taskLogger).isDebugEnabled();
+            doCallRealMethod().when(taskLogger).noNeedLog(any());
+            ReflectionTestUtils.setField(taskLogger, "enableDebugLogger",true);
+            taskLogger.withTaskLogSetting("INFO", 1L, 1L);
+            verify(taskLogger, times(1)).closeCatchData();
+            Assertions.assertFalse((Boolean) ReflectionTestUtils.getField(taskLogger, "enableDebugLogger"));
+
+        }
     }
 
     @Test
