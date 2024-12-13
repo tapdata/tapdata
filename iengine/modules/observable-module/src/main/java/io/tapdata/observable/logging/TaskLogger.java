@@ -152,7 +152,7 @@ public class TaskLogger extends ObsLogger {
 			openCatchData();
 			return this;
 		}
-		if (!logLevel.isDebug()) {
+		if (!logLevel.isDebug() && enableDebugLogger) {
 			enableDebugLogger = false;
 			this.recordCeiling = null;
 			this.intervalCeiling = null;
