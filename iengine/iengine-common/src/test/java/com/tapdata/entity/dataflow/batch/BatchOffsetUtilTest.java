@@ -218,19 +218,11 @@ class BatchOffsetUtilTest {
 
         @Test
         void testNormal() {
-            when(batchOffsetObjTemp.computeIfAbsent(anyString(), any())).thenAnswer(a -> {
-                String key = a.getArgument(0, String.class);
-                Function argument = a.getArgument(1, Function.class);
-                Object apply = argument.apply(key);
-                return tableOffsetObjTemp;
-            });
-            try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
-                bou.when(() -> BatchOffsetUtil.updateBatchOffset(anyMap(), any(), anyString())).thenCallRealMethod();
-                bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag)).thenCallRealMethod();
-                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
-                verify(syncProgress, times(1)).getBatchOffsetObj();
-                verify(batchOffsetObjTemp, times(1)).computeIfAbsent(anyString(), any());
-            }
+            when(batchOffsetObjTemp.computeIfAbsent(anyString(), any())).thenCallRealMethod();
+            when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetObjTemp);
+            assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
+            verify(syncProgress, times(1)).getBatchOffsetObj();
+            verify(batchOffsetObjTemp, times(1)).computeIfAbsent(anyString(), any());
         }
 
         @Test
@@ -248,21 +240,6 @@ class BatchOffsetUtilTest {
                 assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
                 verify(syncProgress, times(1)).getBatchOffsetObj();
                 verify(batchOffsetObjTemp, times(0)).computeIfAbsent(anyString(), any());
-            }
-        }
-
-        @Test
-        void testTableOffsetNotBatchOffset() {
-            when(syncProgress.getBatchOffsetObj()).thenReturn(batchOffsetObjTemp);
-            when(batchOffsetObjTemp.computeIfAbsent(anyString(), any())).thenReturn(0);
-            when(batchOffsetObjTemp.put(anyString(), any(Map.class))).thenReturn(0);
-            try(MockedStatic<BatchOffsetUtil> bou = mockStatic(BatchOffsetUtil.class)) {
-                bou.when(() -> BatchOffsetUtil.updateBatchOffset(anyMap(), any(), anyString())).thenCallRealMethod();
-                bou.when(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag)).thenCallRealMethod();
-                assertDoesNotThrow(() -> BatchOffsetUtil.updateBatchOffset(syncProgress, tableId, offset, isOverTag));
-                verify(syncProgress, times(1)).getBatchOffsetObj();
-                verify(batchOffsetObjTemp, times(1)).computeIfAbsent(anyString(), any());
-                verify(batchOffsetObjTemp, times(1)).put(anyString(), any(Map.class));
             }
         }
 

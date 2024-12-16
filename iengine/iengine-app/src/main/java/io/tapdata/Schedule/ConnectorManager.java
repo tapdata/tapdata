@@ -440,14 +440,13 @@ public class ConnectorManager {
 		clientMongoOperator.insertList(supporteds, ConnectorConstant.LIB_SUPPORTEDS_COLLECTION);
 	}
 
-	private void login() throws InterruptedException {
+	protected void login() throws InterruptedException {
 		int waitSeconds = 60;
 		LoginResp loginResp = null;
 		while (loginResp == null) {
 			try {
 
-				if (!AppType.currentType().isCloud()) {
-
+				if (!AppType.currentType().isCloud() && StringUtils.isBlank(accessCode)) {
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
 					if (CollectionUtils.isNotEmpty(users)) {

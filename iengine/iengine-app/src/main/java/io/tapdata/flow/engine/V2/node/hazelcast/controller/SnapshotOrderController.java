@@ -139,7 +139,8 @@ public class SnapshotOrderController implements Serializable {
 					needRun = false;
 					break;
 				default:
-					throw new TapCodeException(SnapshotOrderControllerExCode_21.NONSUPPORT_STATUS, "Invalid snapshot status: " + nodeController.getStatus().get());
+					throw new TapCodeException(SnapshotOrderControllerExCode_21.NONSUPPORT_STATUS, "Invalid snapshot status: " + nodeController.getStatus().get())
+							.dynamicDescriptionParameters(nodeController.getStatus().get());
 			}
 		}
 

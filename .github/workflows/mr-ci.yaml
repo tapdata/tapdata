@@ -12,8 +12,8 @@ on:
     - cron: "0 21 * * *"
   workflow_dispatch:
     inputs:
-      testsigma_run:
-        description: 'Testsigma run or not'
+      tapce_run:
+        description: 'Tapce run or not'
         required: true
         type: boolean
         default: false
@@ -69,6 +69,13 @@ jobs:
           ref: "main"
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
+      - name: Checkout Tapce
+        uses: actions/checkout@v2
+        with:
+          repository: 'tapdata/tapce'
+          ref: "main"
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapce
       - name: Get Tapdata Branch Name -- Common
         run: |
           echo "TAPDATA_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
@@ -91,10 +98,12 @@ jobs:
           TAPDATA_BRANCH=${{ env.TAPDATA_BRANCH }}
           ENTERPRISE_BRANCH="develop"
           FRONTEND_BRANCH="develop"
+          TAPCE_BRANCH="master"
           echo "::set-output name=TAPDATA_BRANCH::${TAPDATA_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
+          echo "::set-output name=TAPCE_BRANCH::${TAPCE_BRANCH}"
 
   Push-Code-To-GOGS:
     runs-on: ubuntu-latest
@@ -116,6 +125,14 @@ jobs:
           token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           path: tapdata-application
           fetch-depth: 0
+      - name: Checkout Tapce Code
+        uses: actions/checkout@v3
+        with:
+          repository: 'tapdata/tapce'
+          ref: ${{ needs.Get-Stable-Branch.outputs.TAPCE_BRANCH }}
+          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          path: tapce
+          fetch-depth: 0
       - name: Push Tapdata to Gogs
         uses: nick-fields/retry@v2
         with:
@@ -123,7 +140,14 @@ jobs:
           max_attempts: 3
           command: |
             bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
-
+      - name: Push Tapce to Gogs
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapce --gogs-project-name=tapce
+  
   Scan-Tapdata:
     runs-on: office-scan
     if: ${{ !startsWith(github.base_ref, 'release-v') }}
@@ -153,10 +177,10 @@ jobs:
           export JAVA_HOME=/usr/java/jdk-11.0.23
           cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
-            -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
-            -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
-          update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
-          export JAVA_HOME=/usr/java/jdk1.8.0_361
+             -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
+             -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+          update-alternatives --set java /usr/java/jdk-11.0.23/bin/java
+          export JAVA_HOME=/usr/java/jdk-11.0.23
       - name: Prevent Skip Unittest
         run: |
           cd tapdata
@@ -169,19 +193,19 @@ jobs:
         id: sonar
         uses: sonarsource/sonarqube-quality-gate-action@master
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           scanMetadataReportFile: tapdata/target/sonar/report-task.txt
       - name: Send SonarQube Quality Gate to Pr Comment
         if: ${{ always() && steps.sonar.outcome == 'failure' }}
         run: |
           cd tapdata/build/ && bash check_sonarqube.sh --project-key=tapdata --branch=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} \
-            --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
-            --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
+             --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
+             --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
   Build-And-Deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
+    if: ${{ github.event_name == 'schedule' || inputs.tapce_run }}
     needs:
       - Get-Stable-Branch
     outputs:
@@ -239,46 +263,46 @@ jobs:
           echo "::set-output name=IP::$IP"
           echo "::set-output name=PORT::$PORT"
 
-#  Functional-Test:
-#    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
-#    runs-on: office-scan
-#    needs:
-#      - Build-And-Deploy
-#      - Get-Stable-Branch
-#    steps:
-#      - name: Set Env
-#        run: |
-#          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
-#          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
-#          echo "t-layer3-test-branch=master" >> $GITHUB_ENV
-#          echo "send-message-to-feishu=n" >> $GITHUB_ENV
-#          echo "test-case=1" >> $GITHUB_ENV
-#          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16,3,5,9,11,81,83,85" >> $GITHUB_ENV
-#      - name: Fetch Code -- t-layer3-test repo
-#        run: |
-#          rm -rf ./t-layer3-test
-#          export GIT_LFS_SKIP_SMUDGE=1
-#          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-#          git clone -b ${{ env.t-layer3-test-branch }} --single-branch ssh://git@113.98.206.141:10022/tapdata/t-layer3-test.git
-#          cd t-layer3-test && git fetch --tags
-#      - name: Run Functional Test
-#        run: |
-#          apt install unixodbc -y
-#          apt-get install python3.11-dev -y
-#          cd t-layer3-test
-#          virtualenv venv && source venv/bin/activate
-#          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
-#          ./taptest install --test
-#          if [[ "${{ env.send-message-to-feishu }}" == "y" ]]; then
-#            ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -z f
-#          else
-#            yes n | ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -d -z f
-#          fi
-      
+      #  Functional-Test:
+      #    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
+      #    runs-on: office-scan
+      #    needs:
+      #      - Build-And-Deploy
+      #      - Get-Stable-Branch
+      #    steps:
+      #      - name: Set Env
+      #        run: |
+      #          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
+      #          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
+      #          echo "t-layer3-test-branch=master" >> $GITHUB_ENV
+      #          echo "send-message-to-feishu=n" >> $GITHUB_ENV
+      #          echo "test-case=1" >> $GITHUB_ENV
+      #          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16,3,5,9,11,81,83,85" >> $GITHUB_ENV
+      #      - name: Fetch Code -- t-layer3-test repo
+      #        run: |
+      #          rm -rf ./t-layer3-test
+      #          export GIT_LFS_SKIP_SMUDGE=1
+      #          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+      #          git clone -b ${{ env.t-layer3-test-branch }} --single-branch ssh://git@113.98.206.141:10022/tapdata/t-layer3-test.git
+      #          cd t-layer3-test && git fetch --tags
+      #      - name: Run Functional Test
+      #        run: |
+      #          apt install unixodbc -y
+      #          apt-get install python3.11-dev -y
+      #          cd t-layer3-test
+      #          virtualenv venv && source venv/bin/activate
+      #          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+      #          ./taptest install --test
+      #          if [[ "${{ env.send-message-to-feishu }}" == "y" ]]; then
+      #            ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -z f
+      #          else
+      #            yes n | ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -d -z f
+      #          fi
+
 
   MRCI:
-    runs-on: office-scan
-    if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || inputs.tapce_run }}
     concurrency:
       group: staging_environment
     timeout-minutes: 120
@@ -290,39 +314,19 @@ jobs:
         run: |
           echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
           echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
-      - name: Fetch Code - Main Repo
-        run: |
-          rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
-          cd tapdata && git fetch --tags
-      - name: Compile - IEngine And Management
-        run: |
-          #mvn clean install -DskipTests -P idaas -P not_encrypt -U -T1C
-          echo "OK"
-      - name: Run - Local Service - Not Schedule
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}"
-      - name: Run - Local Service - Schedule
-        if: ${{ github.event_name == 'schedule' || inputs.testsigma_run }}
-        run: |
-          cd tapdata
-          bash build/run_smoke_tests.sh --runtimedata="url=http://${{ env.IP }}:${{ env.PORT }}" --maxtimeinmins=120 --testplanid=724 --pollcount=12
-      - name: Print Test Result
-        if: ${{ always() }}
-        run: |
-          cd tapdata
-          run_id=`cat ./run_id`
-          test_plan_id=`cat ./test_plan_id`
-          echo "**TestSigma Test Result Link:**" >> $GITHUB_STEP_SUMMARY
-          echo "https://app.testsigma.com/ui/td/results/$test_plan_id/runs/$run_id" >> $GITHUB_STEP_SUMMARY
-      - name: Test - Register Test Connector
-        run: |
-          echo "OK"
-      - name: Test - E2E Qucik Test
-        run: |
-          echo "OK"
+      - name: Run Test
+        uses: convictional/trigger-workflow-and-wait@v1.6.5
+        with:
+          owner: tapdata
+          repo: tapce
+          github_token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+          workflow_file_name: run_tapce.yaml
+          ref: master
+          wait_interval: 10
+          client_payload: '{"PROPERTIES_FILE_NAME": "default", "OPTIONS": "-Denv.host=${{ env.IP }} -Denv.web.port=${{ env.PORT }} -Denv.api.port=${{ env.PORT }}"}'
+          propagate_failure: true
+          trigger_workflow: true
+          wait_workflow: true
 
   CLOSE_ENV:
     if: ${{ !failure() }}

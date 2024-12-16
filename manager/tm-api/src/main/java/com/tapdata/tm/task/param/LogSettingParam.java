@@ -11,6 +11,7 @@ public class LogSettingParam {
     private String level;
     private Long recordCeiling;
     private Long intervalCeiling;
+    private String query;
 
     public String getLevel() {
         if (StringUtils.equalsAnyIgnoreCase(level, "DEBUG", "INFO", "WARN", "ERROR")) {

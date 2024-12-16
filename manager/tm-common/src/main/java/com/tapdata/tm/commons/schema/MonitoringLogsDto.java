@@ -1,6 +1,9 @@
 package com.tapdata.tm.commons.schema;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.annotation.JSONField;
+import com.alibaba.fastjson.serializer.SerializeConfig;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
@@ -39,6 +42,8 @@ public class MonitoringLogsDto extends BaseDto {
     private String errorCode;
     private String fullErrorCode;
     private String[] dynamicDescriptionParameters;
+    @JsonIgnore
+    private SerializeConfig serializeConfig;
 
     public String formatMonitoringLog() {
         return "[" + level + "] " + date + " " + formatMonitoringLogMessage();
