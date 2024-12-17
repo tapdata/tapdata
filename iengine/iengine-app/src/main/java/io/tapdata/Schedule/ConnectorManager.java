@@ -440,14 +440,13 @@ public class ConnectorManager {
 		clientMongoOperator.insertList(supporteds, ConnectorConstant.LIB_SUPPORTEDS_COLLECTION);
 	}
 
-	private void login() throws InterruptedException {
+	protected void login() throws InterruptedException {
 		int waitSeconds = 60;
 		LoginResp loginResp = null;
 		while (loginResp == null) {
 			try {
 
-				if (!AppType.currentType().isCloud()) {
-
+				if (!AppType.currentType().isCloud() && StringUtils.isBlank(accessCode)) {
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
 					if (CollectionUtils.isNotEmpty(users)) {
@@ -619,7 +618,7 @@ public class ConnectorManager {
 		return SchemaProxy.SchemaProxyInstance.INSTANCE.getInstance(clientMongoOperator);
 	}
 
-	@Scheduled(fixedDelay = 2000L)
+	@Scheduled(fixedDelay = 1000L * 60 * 60)
 	public void refreshToken() throws InterruptedException {
 		Thread.currentThread().setName(String.format(ConnectorConstant.REFREASH_TOKEN_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		User user = (User) configCenter.getConfig(ConfigurationCenter.USER_INFO);

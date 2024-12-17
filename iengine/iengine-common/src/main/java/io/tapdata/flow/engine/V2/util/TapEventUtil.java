@@ -8,6 +8,7 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -89,6 +90,12 @@ public class TapEventUtil {
 		}
 		return "";
 	}
+	public static String getPartitionMasterTableId(TapEvent tapEvent) {
+		if (tapEvent instanceof TapBaseEvent) {
+			return ((TapBaseEvent) tapEvent).getPartitionMasterTableId();
+		}
+		return "";
+	}
 
 	public static Long getTimestamp(TapEvent tapEvent) {
 		Long timestamp = null;
@@ -166,5 +173,17 @@ public class TapEventUtil {
 			}
 			((TapUpdateRecordEvent) tapEvent).getAfterIllegalDateFieldName().add(fieldName);
 		}
+	}
+
+	public static void swapTableIdAndMasterTableId(TapEvent tapEvent) {
+		if (!(tapEvent instanceof TapBaseEvent)) {
+			return;
+		}
+		TapBaseEvent baseEvent = (TapBaseEvent) tapEvent;
+		String tableId = baseEvent.getTableId();
+		if(StringUtils.isNotBlank(baseEvent.getPartitionMasterTableId())){
+			baseEvent.setTableId(baseEvent.getPartitionMasterTableId());
+		}
+		baseEvent.setPartitionMasterTableId(tableId);
 	}
 }

@@ -8,7 +8,9 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.schema.FindMetadataDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.TapTableDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
@@ -526,7 +528,28 @@ public class MetadataInstancesController extends BaseController {
                 regex = null;
             }
         }
-        return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit));
+        return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit, null));
+    }
+
+    @GetMapping("partition/page-tables")
+    public ResponseMessage<Page<Map<String, Object>>> pageTablesOfPartition(
+            @RequestParam(value = "connectionId") String connectionId // 连接编号
+            , @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType // 源类型
+            , @RequestParam(value = "keyword", required = false) String keyword // 过滤关键字
+            , @RequestParam(value = "regex", required = false) String regex // 过滤表达式
+            , @RequestParam(value = "skip", required = false, defaultValue = "0") Integer skip // 偏移量，默认：0
+            , @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit // 页大小，默认：20（小于1为不分页）
+            , @RequestParam(value = "syncPartitionTableEnable", required = false, defaultValue = "true") Boolean syncPartitionTableEnable
+    ) {
+        // keyword 和 regex 只能有一个生效或都不生效
+        if (null == regex || regex.isEmpty()) {
+            if (null != keyword && !keyword.isEmpty()) {
+                regex = MongoUtils.replaceLike(keyword);
+            } else {
+                regex = null;
+            }
+        }
+        return success(metadataInstancesService.pageTables(connectionId, sourceType, regex, skip, limit, syncPartitionTableEnable));
     }
 
     @DeleteMapping("logic/schema/{taskId}")
@@ -570,6 +593,10 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesService.getMetadataV2(connectionId, metaType, tableName, getLoginUser()));
     }
 
+    @PostMapping("metadata/v3")
+    public ResponseMessage<Map<String, List<TapTableDto>>> getMetadatav3(@RequestBody Map<String, FindMetadataDto> params) {
+        return success(metadataInstancesService.getMetadataV3(params, getLoginUser()));
+    }
 
     @GetMapping("tapTables")
     public ResponseMessage<Page<TapTable>> getTapTable(@RequestParam(value = "filter", required = false) String filterJson) {

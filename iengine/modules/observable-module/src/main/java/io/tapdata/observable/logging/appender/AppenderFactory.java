@@ -1,10 +1,12 @@
 package io.tapdata.observable.logging.appender;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.serializer.SerializeConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import com.tapdata.tm.commons.util.JsonUtil;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -23,15 +25,10 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * @author jackin
@@ -39,6 +36,7 @@ import java.util.function.Supplier;
  **/
 public class AppenderFactory implements Serializable {
 	public static final String FILE_APPENDER_TAILER_ID = "FILE_APPENDER_TAILER";
+	public static final String DEBUG_FILE_APPENDER_TAILER_ID = "DEBUG_FILE_APPENDER_TAILER";
 	public static final String TM_APPENDER_TAILER_ID= "TM_APPENDER_TAILER";
 	private volatile static AppenderFactory INSTANCE;
 
@@ -110,7 +108,12 @@ public class AppenderFactory implements Serializable {
 	protected void appenderAppendLog(MonitoringLogsDto.MonitoringLogsDtoBuilder builder, String tailerType) {
 		MonitoringLogsDto monitoringLogsDto = builder.build();
 		String taskId = monitoringLogsDto.getTaskId();
-		List<Appender<MonitoringLogsDto>> appenders = appenderMap.get(taskId);
+		List<Appender<MonitoringLogsDto>> appenders = appenderMap.keySet()
+				.stream().filter(k -> k.startsWith(taskId))
+				.map(appenderMap::get)
+				.filter(Objects::nonNull)
+				.flatMap(Collection::stream)
+				.collect(Collectors.toList());
 		if (CollectionUtils.isNotEmpty(appenders)) {
 			appenders.stream().filter(appender -> null != appender).filter((appender -> {
 				if (FILE_APPENDER_TAILER_ID.equals(tailerType)) {
@@ -189,8 +192,14 @@ public class AppenderFactory implements Serializable {
 				}
 				final String logTagsJoinStr = String.join(",", CollectionUtils.isNotEmpty(logsDto.getLogTags()) ? logsDto.getLogTags() : new ArrayList<>(0));
 				valueOut.writeString(logTagsJoinStr);
-					if (null != logsDto.getData()) {
-					valueOut.writeString(JSON.toJSON(logsDto.getData()).toString());
+				if (null != logsDto.getData()) {
+					SerializeConfig config = logsDto.getSerializeConfig() != null ? logsDto.getSerializeConfig() : SerializeConfig.getGlobalInstance();
+					try {
+						valueOut.writeString(JSON.toJSON(logsDto.getData(), config).toString());
+					} catch (Exception e) {
+						logger.error("Convert data to json failed {}", e.getMessage(), e);
+						valueOut.writeString("[]");
+					}
 				}
 			});
 		} catch (InterruptedRuntimeException ignored) {

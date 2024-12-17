@@ -44,4 +44,5 @@ public interface MeasurementServiceV2 {
 
     void queryTableMeasurement(String taskId, TableStatusInfoDto tableStatusInfoDto);
 
+    void cleanRemovedTableMeasurement(String taskId, String taskRecordId, String tableName);
 }

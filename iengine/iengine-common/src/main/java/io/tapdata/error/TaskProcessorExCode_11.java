@@ -22,66 +22,69 @@ public interface TaskProcessorExCode_11 {
 			solutionCN = "1. 在挖掘任务监控界面，找到外部缓存的配置。检查该配置的数据库是否正常"
 	)
 	String WRITE_ONE_SHARE_LOG_FAILED = "11002";
-
-	@TapExCode
+	@TapExCode(
+			describe = "In the task startup phase, it fails to create the corresponding node object based on the node configuration information of the task. This error will occur",
+			describeCN = "任务启动阶段，基于任务的节点配置信息创建对应的节点对象时失败。则会出现此错误"
+	)
 	String CREATE_PROCESSOR_FAILED = "11003";
 
-	@TapExCode(
-			describe = "JavaScript node processing error.\n" +
-					"Reason\n1. The JavaScript code has an error",
-			solution = "1. Review the code and fix errors",
-			describeCN = "JavaScript节点处理出错。\n" +
-					"原因\n1. JavaScript代码存在错误",
-			solutionCN = "1. 检查代码并修正错误"
-	)
+
 	String JAVA_SCRIPT_PROCESS_FAILED = "11004";
 
-	@TapExCode(
-			describe = "Python node processing error.\n" +
-					"Reason\n1. The Python code has an error",
-			solution = "1. Review the code and fix errors",
-			describeCN = "Python节点处理出错。\n" +
-					"原因\n1. Python代码存在错误",
-			solutionCN = "1. 检查代码并修正错误"
-	)
+
 	String PYTHON_PROCESS_FAILED = "11005";
 
-	@TapExCode
+	@TapExCode(
+			describe = "When the task starts, the engine initializes the custom node based on the custom node template created. Failed to get custom template information when initializing a custom node",
+			describeCN = "任务启动时，引擎会根据创建的自定义节点模版初始化自定义节点。当初始化时自定义节点时获取自定义的模版信息失败",
+			dynamicDescription = "The template for the custom node is removed before the task is started",
+			dynamicDescriptionCN = "自定义节点的模版在任务启动前被删除",
+			solution = "Click the Custom node of the Advanced functions sub-menu on the left side of the system to view the currently created custom template. If the custom template is deleted, you'll need to recreate the custom template and reconfigure the task",
+			solutionCN = "点击系统左侧菜单高级功能的子菜单自定义节点查看当前创建的自定义模版。若自定义模版被删除，则需要重新创建自定义模版并重新配置任务"
+	)
 	String CUSTOM_NODE_NOT_FOUND = "11006";
 
 	@TapExCode
 	String SCRIPT_INIT_FAILED = "11007";
 
-	@TapExCode
+	@TapExCode(
+			describe = "Failed to initialize a processing node according to its configuration information",
+			describeCN = "根据处理节点的配置信息初始化处理节点失败",
+			dynamicDescription = "The name of the failed node is {} and the node type is {}.",
+			dynamicDescriptionCN = "初始化失败的节点名称为{}，节点类型为{}"
+	)
 	String INIT_DATA_FLOW_PROCESSOR_FAILED = "11008";
 
 	@TapExCode(
 			describe = "Cannot get metadata cause qualified name is empty",
-			describeCN = "模型的唯一编码为空，无法获取模型"
+			describeCN = "目标节点或处理节点识别到有DDL事件时，会根据DDL事件更新内存中维护的表模型。根据DDL事件中的表名获取不到模型的唯一编码",
+			dynamicDescription = "When getting a unique model code for the table name {}, the model code is empty",
+			dynamicDescriptionCN = "获取表名为 {} 的唯一模型编码时，模型编码为空"
 	)
 	String UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY = "11009";
 	@TapExCode(
-			describe = "Offer data to next node failed cause outbox is null"
+			describe = "When transmitting data to the next node, the Outbox is detected to be empty, so the data cannot be transmitted to the next node",
+			describeCN = "往一下个节点传输数据时，检测出Outbox为空，导致数据无法往下一节点传输"
 	)
 	String OUTBOX_IS_NULL_WHEN_OFFER = "11010";
 	@TapExCode(
 			describe = "Cannot get node's metadata by node id and table name",
-			describeCN = "无法根据节点id和表名获取对应节点的模型"
+			describeCN = "当更新节点模型时，无法根据节点id和表名获取对应节点的模型"
 	)
 	String GET_NODE_METADATA_BY_TABLE_NAME_FAILED = "11011";
 	@TapExCode(
-			describe = "Update memory dag failed",
-			describeCN = "更新内存DAG失败"
+			describe = "Updating the memory DAG in the node fails when the processing node or the target node recognizes that there is a DDL event",
+			describeCN = "当处理节点或目标节点识别到有DDL事件时，更新节点中的内存DAG失败"
 	)
 	String UPDATE_MEMORY_DAG_FAILED = "11012";
 	@TapExCode(
-			describe = "Update memory node config failed",
-			describeCN = "更新内存节点配置失败"
+			describe = "Updating the memory node configuration fails when a DDL event is recognized by the processing node or the destination node",
+			describeCN = "当处理节点或目标节点识别到有DDL事件时，更新内存节点配置失败"
 	)
 	String UPDATE_MEMORY_NODE_CONFIG_FAILED = "11013";
 	@TapExCode(
-			describe = "Update memory schema failed",
-			describeCN = "更新内存模型失败"
+			describe = "Updating the memory model fails when a DDL event is recognized by the processing node or the target node",
+			describeCN = "当处理节点或目标节点识别到有DDL事件时，更新内存模型失败"
 	)
 	String UPDATE_MEMORY_TAP_TABLE_FAILED = "11014";
 	@TapExCode(
@@ -90,38 +93,47 @@ public interface TaskProcessorExCode_11 {
 	)
 	String TRANSFORM_METADATA_ID_NULL = "11015";
 
-	@TapExCode
+	@TapExCode(
+			describe = "Failed to enable JET mission status monitor",
+			describeCN = "开启JET任务状态监视器失败"
+	)
 	String START_JET_JOB_STATUS_MONITOR_FAILED = "11016";
 	@TapExCode(
 			describe = "Init base node failed, configuration center is null"
 	)
 	String INIT_CONFIGURATION_CENTER_CANNOT_BE_NULL = "11017";
 	@TapExCode(
-			describe = "Init setting service failed, because client mongo operator is null"
+			describe = "Init setting service failed, because client mongo operator is null",
+			describeCN = "由于ClientMongoOperator为空，导致初始化SettingService 失败"
 	)
 	String INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL = "11018";
 	@TapExCode
 	String INIT_SCRIPT_ENGINE_FAILED = "11019";
-	@TapExCode
+	@TapExCode(
+			describe = "The task cannot be stopped in an error state because it failed to handle an exception",
+			describeCN = "处理异常时失败，导致任务不能以错误状态停止",
+			dynamicDescription = "Failed while handling the {} exception",
+			dynamicDescriptionCN = "处理{}异常时出现失败"
+	)
 	String ERROR_HANDLE_FAILED = "11020";
 
 	@TapExCode(
-			describe = "Unable to handle DDL events.\n" +
-					"Reason\n1. DDL synchronization on the source node is configured so that the task will report an error and stop when encountering a DDL event.",
-			solution = "1. Optional other synchronization configurations, such as ignoring all DDL events or synchronizing DDL events.",
-			describeCN = "无法处理DDL事件\n" +
-					"原因\n1. 在源节点的DDL同步配置为遇到DDL事件任务将报错停止",
-			solutionCN = "1. 可选其他同步配置，如忽略所有DDL事件或者同步DDL事件"
+			describe = "When a DDL event is encountered, the task stops with an error",
+			describeCN = "遇到DDL事件时，任务停止报错",
+			dynamicDescription = "Since the DDL synchronization in the advanced configuration of the source node of the task is configured as \"Stop Task Upon Encountering DDL\", the source node will report error to stop the task when it recognizes the DDL event",
+			dynamicDescriptionCN = "由于任务的源节点的高级配置中的DDL同步配置为 “遇到DDL时任务报错停止” ，所以源节点在识别到DDL事件时，任务会报错停止",
+			solution = "This error can be avoided by setting other DDL synchronization configurations, such as automatically ignoring all DDL events or synchronizing DDL events",
+			solutionCN = "可以通过设置其他DDL同步配置来避免此报错，如自动忽略所有DDL事件或同步DDL事件"
 	)
 	String ENCOUNTERED_DDL_EVENT_REPORT_ERROR = "11021";
 
 	@TapExCode(
-			describe = "This DDL event is not recognized.\n" +
-					"Reason\n1. Tapdata does not currently support this type of DDL event",
-			solution = "1. You can choose to ignore all DDL events in the source node DDL synchronization configuration to prevent the task from reporting an error and stopping.",
-			describeCN = "无法识别此DDL事件\n" +
-					"原因\n1. Tapdata 暂不支持此类型的DDL事件",
-			solutionCN = "1. 可在源节点DDL同步配置选择忽略所有DDL事件，防止任务报错停止"
+			describe = "This exception occurs when a task encounters an unrecognized DDL event",
+			describeCN = "任务遇到无法识别的DDL事件时，会出现此异常",
+			dynamicDescription = "This error occurs when the source database uses DDL statements to do DDL operations on the database that the system has not yet recognized",
+			dynamicDescriptionCN = "当源端数据库使用了系统还未能识别的DDL语句在数据库做DDL操作时，则会出现此报错",
+			solution = "The \"Ignore all DDL\" option can be selected in the source node DDL synchronization configuration, and the task needs to be restarted after manually performing the same DDL operation on the target database to ensure the source and target models",
+			solutionCN = "可在源节点DDL同步配置选择“忽略所有DDL”选项，并且需要在目标数据库手动执行相同的DDL操作以保证源端与目标端模型后重新启动任务"
 	)
 	String UNABLE_TO_SYNCHRONIZE_DDL_EVENT = "11022";
 
@@ -140,11 +152,20 @@ public interface TaskProcessorExCode_11 {
 			describeCN = "无法初始化增量断点信息，因为起始时间为空值"
 	)
 	String INIT_STREAM_OFFSET_EMPTY_START_TIME = "11025";
-	@TapExCode
+	@TapExCode(
+			describe = "Tasks cannot be started properly when switching from shared mining mode to normal mode",
+			describeCN = "任务由使用共享挖掘模式切换为普通模式时无法正常启动",
+			dynamicDescription = "When the task switches from shared mining mode to normal task mode, the task can not be started normally due to the loss of task breakpoint information",
+			dynamicDescriptionCN = "任务由共享挖掘模式切换为普通任务模式时，由于任务断点信息丢失，导致任务无法正常启动",
+			solution = "Reset this task and run it",
+			solutionCN = "将此任务重置后重新启动"
+	)
 	String SHARE_CDC_SWITCH_TO_NORMAL_TASK_FAILED = "11026";
 	@TapExCode(
-			describe = "Run cdc task failed, sync point type cannot be empty",
-			describeCN = "运行cdc任务失败，同步起始点类型不能为空"
+			describe = "When the incremental task is started, since the start time of the incremental acquisition is empty. The task could not be started",
+			describeCN = "启动增量任务时，由于增量采集开始时刻为空。导致任务无法启动",
+			solution = "Restart the task after setting the \"incremental acquisition start time\" as \"at this moment\" or \"user-specified time\" in the task",
+			solutionCN = "在任务中设置“增量采集开始时刻”为“此刻”或“用户指定时间”后重新启动任务"
 	)
 	String INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY = "11027";
 

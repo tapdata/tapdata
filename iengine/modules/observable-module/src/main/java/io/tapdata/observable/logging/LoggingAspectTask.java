@@ -501,7 +501,9 @@ public class LoggingAspectTask extends AspectTask {
 						aspect.getCreateTableEvent());
 				break;
 			case CreateTableFuncAspect.STATE_END:
-				if (null != aspect.getCreateTableOptions() && aspect.getCreateTableOptions().getTableExists()) {
+				if (null != aspect.getCreateTableOptions() &&
+						aspect.getCreateTableOptions().getTableExists() != null &&
+						aspect.getCreateTableOptions().getTableExists()) {
 					getObsLogger(node).info("The table {} has already exist.", aspect.getCreateTableEvent().getTable().getName());
 				}
 				break;

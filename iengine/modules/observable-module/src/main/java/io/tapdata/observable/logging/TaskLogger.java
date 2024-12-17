@@ -11,6 +11,7 @@ import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.util.LogUtil;
 import io.tapdata.observable.logging.with.WithAppender;
 import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -25,13 +26,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * @author Dexter
@@ -49,16 +49,19 @@ public class TaskLogger extends ObsLogger {
 	private String taskRecordId;
 	@Getter
 	private String taskName;
-	private LogLevel level;
-	private LogLevel formerLevel;
+	@Getter
+	private boolean enableDebugLogger;
+	@Getter
 	private Long recordCeiling;
+	@Getter
+	@Setter
 	private Long intervalCeiling;
 	private boolean testTask;
 	public boolean isTestTask() {
 		return testTask;
 	}
 
-	private TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
+	protected TaskLogger(TaskDto taskDto, BiConsumer<String, LogLevel> consumer) {
 		String taskId = taskDto.getId().toHexString();
 		this.taskId = taskId;
 		this.taskName = taskDto.getName();
@@ -76,9 +79,12 @@ public class TaskLogger extends ObsLogger {
 				)
 			);
 
+		} else if (taskDto.isPreviewTask()) {
+			// when preview task, no need to add any appender
 		} else {
 			this.witAppender(this.fileAppender(taskId))
-							.witAppender(this.obsHttpTMAppender(taskId));
+					.witAppender(this.obsHttpTMAppender(taskId))
+					.witAppender(this.debugFileAppender(taskId));
 		}
 
 		// add close debug consumer
@@ -90,6 +96,19 @@ public class TaskLogger extends ObsLogger {
 			// add file appender
 			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
 			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, taskId);
+		};
+	}
+
+	public String getDebugFileAppenderName(String taskId) {
+		return taskId + "_debug";
+	}
+
+	private WithAppender<MonitoringLogsDto> debugFileAppender(String taskId){
+		return () -> {
+			// add file appender
+			String workDir = GlobalConstant.getInstance().getConfigurationCenter().getConfig(ConfigurationCenter.WORK_DIR).toString();
+			return (BaseTaskAppender<MonitoringLogsDto>) FileAppender.create(workDir, getDebugFileAppenderName(taskId))
+					.include(LogLevel.DEBUG);
 		};
 	}
 
@@ -122,27 +141,23 @@ public class TaskLogger extends ObsLogger {
 
 	TaskLogger withTaskLogSetting(String level, Long recordCeiling, Long intervalCeiling) {
 		LogLevel logLevel = LogLevel.getLogLevel(level);
-		if (this.level == logLevel) {
-			return this;
-		}
-		this.formerLevel = this.level;
-		this.level = logLevel;
-		if (this.level.isDebug()) {
-			if (null == recordCeiling && null == intervalCeiling) {
-				this.recordCeiling = RECORD_CEILING_DEFAULT;
-				this.intervalCeiling = System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000;
-				return this;
-			}
+
+		if (logLevel.isDebug() && !enableDebugLogger) {
+			enableDebugLogger = true;
 
 			this.recordCeiling = recordCeiling;
-			if (intervalCeiling != null) {
-				this.intervalCeiling = System.currentTimeMillis() + intervalCeiling * 1000;
-			}
+			this.intervalCeiling = intervalCeiling == null ?
+					System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000 :
+					System.currentTimeMillis() + intervalCeiling * 1000;
+			openCatchData();
 			return this;
 		}
-
-		this.recordCeiling = null;
-		this.intervalCeiling = null;
+		if (!logLevel.isDebug() && enableDebugLogger) {
+			enableDebugLogger = false;
+			this.recordCeiling = null;
+			this.intervalCeiling = null;
+			closeCatchData();
+		}
 		return this;
 	}
 
@@ -151,31 +166,31 @@ public class TaskLogger extends ObsLogger {
 	}
 
 	public boolean noNeedLog(String level) {
-		if (!this.level.isDebug()) {
-			return !this.level.shouldLog(level);
+		LogLevel logLevel = Optional.ofNullable(LogLevel.getLogLevel(level)).orElse(LogLevel.TRACE);
+
+		if (!logLevel.isDebug()) {
+			return false;
 		}
+
+		if (!enableDebugLogger)
+			return true;
 
 		boolean noNeedLog = false;
 		if (null != recordCeiling) {
 			recordCeiling--;
-			noNeedLog = recordCeiling <= 0;
+			noNeedLog = recordCeiling < 0;
 		}
 
 		if (!noNeedLog && null != intervalCeiling) {
 			noNeedLog = intervalCeiling < System.currentTimeMillis();
 		}
 
-		if (noNeedLog && this.level.isDebug()) {
-			// fix NPE when task start as DEBUG level
-			if (null == formerLevel) {
-				formerLevel = LogLevel.INFO;
-			}
-			this.level = formerLevel;
+		if (noNeedLog) {
+			this.enableDebugLogger = false;
 			this.recordCeiling = null;
 			this.intervalCeiling = null;
-			if (null != closeDebugConsumer) {
-				closeDebugConsumer.accept(taskId, formerLevel);
-			}
+
+			closeCatchData();
 		}
 
 		return noNeedLog;
@@ -187,6 +202,18 @@ public class TaskLogger extends ObsLogger {
 		} catch (Throwable throwable) {
 			throw new RuntimeException(throwable);
 		}
+	}
+
+	public void trace(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
+		if (noNeedLog(LogLevel.TRACE.getLevel())) {
+			return;
+		}
+
+		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
+		builder.level(Level.TRACE.toString());
+		builder.message(formatMessage(message, params));
+
+		logAppendFactory.appendLog(builder.build());
 	}
 
 	public void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
@@ -354,5 +381,28 @@ public class TaskLogger extends ObsLogger {
 				manager.setTriggeringPolicy(compositeTriggeringPolicy);
 			}
 		}
+	}
+
+	private boolean openCatchData() {
+		AtomicBoolean result = new AtomicBoolean(false);
+		filterDebugFileAppender(t -> result.set(((FileAppender)t).openCatchData()));
+		return result.get();
+	}
+
+	protected boolean closeCatchData() {
+		AtomicBoolean result = new AtomicBoolean(false);
+		filterDebugFileAppender(t -> result.set(((FileAppender)t).closeCatchData()));
+		if (null != closeDebugConsumer) {
+			closeDebugConsumer.accept(taskId, LogLevel.INFO);
+		}
+		return result.get();
+	}
+
+	public void filterDebugFileAppender(Consumer<? super Appender<?>> fun) {
+		String debugFileAppenderName = getDebugFileAppenderName(getTaskId());
+		this.tapObsAppenders.stream()
+				.filter(t -> t instanceof FileAppender)
+				.filter(t -> debugFileAppenderName.equals( ((FileAppender) t).getTaskId() ))
+				.findFirst().ifPresent(fun);
 	}
 }

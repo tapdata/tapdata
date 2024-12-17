@@ -14,9 +14,15 @@ public class TableInitFuncAspect extends DataFunctionAspect<TableInitFuncAspect>
     public static final int STATE_PROCESS = 10;
 
     private TapTableMap<String, TapTable> tapTableMap;
+    private int totals;
 
     public TableInitFuncAspect tapTableMap(TapTableMap<String, TapTable> tapTableMap) {
         this.tapTableMap = tapTableMap;
+        return this;
+    }
+
+    public TableInitFuncAspect totals(int totals) {
+        this.totals = totals;
         return this;
     }
 
@@ -36,7 +42,7 @@ public class TableInitFuncAspect extends DataFunctionAspect<TableInitFuncAspect>
     }
 
     public long getTotals() {
-        return null == tapTableMap ? 0 : tapTableMap.size();
+        return totals;
     }
 
     public long getCompletedCounts() {

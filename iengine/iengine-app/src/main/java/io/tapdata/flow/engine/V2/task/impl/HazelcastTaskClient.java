@@ -74,16 +74,16 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		this.clientMongoOperator = clientMongoOperator;
 		this.configurationCenter = configurationCenter;
 		this.hazelcastInstance = hazelcastInstance;
-		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+		if (!taskDto.isTestTask() && !taskDto.isPreviewTask()) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop),new ConsumerImpl<>(this::terminalMode));
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop), new ConsumerImpl<>(this::terminalMode));
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			}
 			this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
-		}else{
+		} else {
 			this.autoRecovery = null;
 		}
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();

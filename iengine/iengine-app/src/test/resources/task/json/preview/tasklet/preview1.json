@@ -1,0 +1,880 @@
+{
+  "id": "670517854f5ffb6f3e5444da",
+  "lastUpdBy": "62bc5008d4958d013d97c7a6",
+  "createUser": "admin@admin.com",
+  "permissionActions": [
+    "View",
+    "Edit",
+    "Delete",
+    "Reset",
+    "Start",
+    "Stop"
+  ],
+  "crontabExpressionFlag": false,
+  "deduplicWriteMode": "intelligent",
+  "desc": "",
+  "increHysteresis": false,
+  "increOperationMode": false,
+  "increSyncConcurrency": false,
+  "processorThreadNum": 1,
+  "increaseReadSize": 1,
+  "readBatchSize": 500,
+  "writeBatchSize": 0,
+  "writeBatchWaitMs": 0,
+  "isAutoCreateIndex": true,
+  "isFilter": false,
+  "isOpenAutoDDL": false,
+  "isSchedule": false,
+  "isStopOnError": true,
+  "name": "preview merge 2",
+  "shareCdcEnable": false,
+  "statuses": [],
+  "status": "wait_start",
+  "type": "initial_sync+cdc",
+  "writeThreadSize": 8,
+  "editVersion": "1730363110543",
+  "syncPoints": [
+    {
+      "nodeId": "e3a5ef29-90d2-459e-90c5-d27e813e8d0c",
+      "nodeName": "CUSTOMER",
+      "connectionId": "6641e5fcdea40f2b5753b2e2",
+      "connectionName": "mysql local INSURANCE",
+      "pointType": "current",
+      "timeZone": "+8"
+    },
+    {
+      "nodeId": "7c2e681f-a875-4bb2-b0b7-5ae5a9ac19d3",
+      "nodeName": "POLICY",
+      "connectionId": "6641e5fcdea40f2b5753b2e2",
+      "connectionName": "mysql local INSURANCE",
+      "pointType": "current",
+      "timeZone": "+8"
+    }
+  ],
+  "syncType": "sync",
+  "transformProcess": 0,
+  "listtags": [
+    {
+      "id": "66ed36f0ef65292a71d427dd",
+      "value": "preview"
+    }
+  ],
+  "planStartDateFlag": false,
+  "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
+  "accessNodeProcessIdList": [],
+  "accessNodeProcessId": "",
+  "transformUuid": "1730363110562",
+  "transformed": true,
+  "transformDagHash": 0,
+  "enforceShareCdc": true,
+  "pageVersion": "1730360968425",
+  "dag": {
+    "edges": [
+      {
+        "disabled": false,
+        "source": "e3a5ef29-90d2-459e-90c5-d27e813e8d0c",
+        "target": "f1e15d37-ec6f-4d69-b6b1-8b81bcc39fa6"
+      },
+      {
+        "disabled": false,
+        "source": "f1e15d37-ec6f-4d69-b6b1-8b81bcc39fa6",
+        "target": "f9236443-4dbf-42d7-a6e8-42d1acf6f76e"
+      },
+      {
+        "disabled": false,
+        "source": "7c2e681f-a875-4bb2-b0b7-5ae5a9ac19d3",
+        "target": "f1e15d37-ec6f-4d69-b6b1-8b81bcc39fa6"
+      }
+    ],
+    "nodes": [
+      {
+        "tableName": "CUSTOMER",
+        "isFilter": false,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {
+          "hashSplit": false,
+          "maxSplit": 20,
+          "batchReadThreadSize": 4,
+          "maximumQueueSize": 800
+        },
+        "cdcMode": "logCdc",
+        "cdcPollingFields": [
+          {
+            "field": "",
+            "defaultValue": ""
+          }
+        ],
+        "cdcPollingInterval": 500,
+        "cdcPollingBatchSize": 1000,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "6641e5fcdea40f2b5753b2e2",
+        "databaseType": "Mysql",
+        "ddlConfiguration": "FILTER",
+        "readBatchSize": 100,
+        "increaseReadSize": 1,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "e3a5ef29-90d2-459e-90c5-d27e813e8d0c",
+        "name": "CUSTOMER",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            50,
+            50
+          ],
+          "connectionName": "mysql local INSURANCE",
+          "connectionType": "source_and_target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "run_raw_command_function"
+            },
+            {
+              "type": 11,
+              "id": "execute_command_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "create_table_v2_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "create_index_function"
+            },
+            {
+              "type": 11,
+              "id": "query_indexes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "count_by_partition_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "transaction_begin_function"
+            },
+            {
+              "type": 11,
+              "id": "transaction_commit_function"
+            },
+            {
+              "type": 11,
+              "id": "transaction_rollback_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_info_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "dml_insert_policy",
+              "alternatives": [
+                "update_on_exists",
+                "ignore_on_exists",
+                "just_insert"
+              ]
+            },
+            {
+              "type": 20,
+              "id": "dml_update_policy",
+              "alternatives": [
+                "ignore_on_nonexists",
+                "insert_on_nonexists"
+              ]
+            },
+            {
+              "type": 20,
+              "id": "api_server_supported"
+            },
+            {
+              "type": 20,
+              "id": "source_incremental_update_event_have_before"
+            },
+            {
+              "type": 20,
+              "id": "illegal_date_acceptable"
+            },
+            {
+              "type": 20,
+              "id": "batch_read_hash_split"
+            },
+            {
+              "type": 10,
+              "id": "new_field_event"
+            },
+            {
+              "type": 10,
+              "id": "alter_field_name_event"
+            },
+            {
+              "type": 10,
+              "id": "alter_field_attributes_event"
+            },
+            {
+              "type": 10,
+              "id": "drop_field_event"
+            },
+            {
+              "type": 11,
+              "id": "query_hash_by_advance_filter_function"
+            }
+          ],
+          "hasCreated": false,
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      },
+      {
+        "mergeProperties": [
+          {
+            "mergeType": "updateOrInsert",
+            "tableName": "CUSTOMER",
+            "id": "e3a5ef29-90d2-459e-90c5-d27e813e8d0c",
+            "children": [
+              {
+                "mergeType": "updateIntoArray",
+                "joinKeys": [
+                  {
+                    "source": "CUSTOMER_ID",
+                    "target": "CUSTOMER_ID"
+                  }
+                ],
+                "arrayKeys": [
+                  "POLICY_ID"
+                ],
+                "tableName": "POLICY",
+                "targetPath": "POLICY",
+                "id": "7c2e681f-a875-4bb2-b0b7-5ae5a9ac19d3",
+                "children": [],
+                "isArray": false,
+                "enableUpdateJoinKeyValue": false
+              }
+            ],
+            "isArray": false,
+            "enableUpdateJoinKeyValue": false
+          }
+        ],
+        "mergeMode": "main_table_first",
+        "concurrentNum": 2,
+        "type": "merge_table_processor",
+        "catalog": "processor",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "PROCESSNODE",
+            "open": true,
+            "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 1,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+            "point": 60,
+            "equalsFlag": 1,
+            "ms": 30000
+          }
+        ],
+        "externalStorageId": "662383ddd73b211d2753257a",
+        "id": "f1e15d37-ec6f-4d69-b6b1-8b81bcc39fa6",
+        "name": "主从合并",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            610,
+            95
+          ],
+          "capabilities": []
+        },
+        "disabled": false
+      },
+      {
+        "tableName": "CUSTOMER",
+        "isFilter": false,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "updateConditionFields": [
+          "CUSTOMER_ID"
+        ],
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {
+          "syncIndex": false,
+          "enableSaveDeleteData": false,
+          "writeConcern": "w1",
+          "shardCollection": false,
+          "timeSeriesCollection": false
+        },
+        "cdcPollingInterval": 0,
+        "cdcPollingBatchSize": 0,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "664c54f0601f4619dacca07b",
+        "databaseType": "MongoDB",
+        "dmlPolicy": {
+          "insertPolicy": "update_on_exists",
+          "updatePolicy": "ignore_on_nonexists"
+        },
+        "concurrentWritePartitionMap": {},
+        "readBatchSize": 500,
+        "increaseReadSize": 1,
+        "writeBatchSize": 100,
+        "writeBatchWaitMs": 500,
+        "writeStrategy": "updateOrInsert",
+        "uniqueIndexEnable": true,
+        "noPkSyncMode": "ALL_COLUMNS",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "f9236443-4dbf-42d7-a6e8-42d1acf6f76e",
+        "name": "CUSTOMER",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            890,
+            95
+          ],
+          "connectionName": "mongo local target",
+          "connectionType": "source_and_target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "4335aaa005ec1a74a4e2166bded2962e939ad50239f48b023b884f35b54129a5",
+          "capabilities": [
+            {
+              "type": 20,
+              "id": "source_incremental_update_event_have_before"
+            },
+            {
+              "type": 11,
+              "id": "execute_command_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "create_table_v2_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "create_index_function"
+            },
+            {
+              "type": 11,
+              "id": "query_indexes_function"
+            },
+            {
+              "type": 11,
+              "id": "count_by_partition_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "get_read_partitions_function"
+            },
+            {
+              "type": 11,
+              "id": "query_field_min_max_value_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_info_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "master_slave_merge"
+            },
+            {
+              "type": 20,
+              "id": "dynamic_schema"
+            },
+            {
+              "type": 20,
+              "id": "dml_insert_policy",
+              "alternatives": [
+                "update_on_exists",
+                "ignore_on_exists"
+              ]
+            },
+            {
+              "type": 20,
+              "id": "dml_update_policy",
+              "alternatives": [
+                "ignore_on_nonexists",
+                "insert_on_nonexists",
+                "log_on_nonexists"
+              ]
+            },
+            {
+              "type": 20,
+              "id": "api_server_supported"
+            }
+          ],
+          "db_version": "7.0.5",
+          "hasCreated": true,
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      },
+      {
+        "tableName": "POLICY",
+        "isFilter": false,
+        "maxTransactionDuration": 12,
+        "existDataProcessMode": "keepData",
+        "xmlIncludeFile": false,
+        "esFragmentNum": 3,
+        "nodeConfig": {
+          "hashSplit": false,
+          "maxSplit": 20,
+          "batchReadThreadSize": 4
+        },
+        "cdcMode": "logCdc",
+        "cdcPollingFields": [
+          {
+            "field": "",
+            "defaultValue": ""
+          }
+        ],
+        "cdcPollingInterval": 500,
+        "cdcPollingBatchSize": 1000,
+        "enableCustomCommand": false,
+        "incrementExactlyOnceEnableTimeWindowDay": 3,
+        "connectionId": "6641e5fcdea40f2b5753b2e2",
+        "databaseType": "Mysql",
+        "ddlConfiguration": "FILTER",
+        "readBatchSize": 100,
+        "increaseReadSize": 1,
+        "writeStrategy": "updateOrInsert",
+        "type": "table",
+        "catalog": "data",
+        "isTransformed": false,
+        "alarmSettings": [
+          {
+            "type": "DATANODE",
+            "open": true,
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "sort": 4,
+            "notify": [
+              "SYSTEM",
+              "EMAIL"
+            ],
+            "interval": 300,
+            "unit": "SECOND"
+          }
+        ],
+        "alarmRules": [
+          {
+            "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+            "point": 12,
+            "equalsFlag": 1,
+            "ms": 5000
+          }
+        ],
+        "id": "7c2e681f-a875-4bb2-b0b7-5ae5a9ac19d3",
+        "name": "POLICY",
+        "elementType": "Node",
+        "attrs": {
+          "position": [
+            50,
+            140
+          ],
+          "connectionName": "mysql local INSURANCE",
+          "connectionType": "source_and_target",
+          "accessNodeProcessId": "",
+          "pdkType": "pdk",
+          "pdkHash": "a5af410b12afca476edf4a650c133ddf135bf76542a67787ed6f7f7d53ba712",
+          "capabilities": [
+            {
+              "type": 11,
+              "id": "run_raw_command_function"
+            },
+            {
+              "type": 11,
+              "id": "execute_command_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_read_function"
+            },
+            {
+              "type": 11,
+              "id": "stream_read_function"
+            },
+            {
+              "type": 11,
+              "id": "batch_count_function"
+            },
+            {
+              "type": 11,
+              "id": "timestamp_to_stream_offset_function"
+            },
+            {
+              "type": 11,
+              "id": "write_record_function"
+            },
+            {
+              "type": 11,
+              "id": "query_by_advance_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "create_table_v2_function"
+            },
+            {
+              "type": 11,
+              "id": "clear_table_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_table_function"
+            },
+            {
+              "type": 11,
+              "id": "create_index_function"
+            },
+            {
+              "type": 11,
+              "id": "query_indexes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_attributes_function"
+            },
+            {
+              "type": 11,
+              "id": "alter_field_name_function"
+            },
+            {
+              "type": 11,
+              "id": "drop_field_function"
+            },
+            {
+              "type": 11,
+              "id": "new_field_function"
+            },
+            {
+              "type": 11,
+              "id": "count_by_partition_filter_function"
+            },
+            {
+              "type": 11,
+              "id": "transaction_begin_function"
+            },
+            {
+              "type": 11,
+              "id": "transaction_commit_function"
+            },
+            {
+              "type": 11,
+              "id": "transaction_rollback_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_info_function"
+            },
+            {
+              "type": 11,
+              "id": "get_table_names_function"
+            },
+            {
+              "type": 11,
+              "id": "error_handle_function"
+            },
+            {
+              "type": 20,
+              "id": "dml_insert_policy",
+              "alternatives": [
+                "update_on_exists",
+                "ignore_on_exists",
+                "just_insert"
+              ]
+            },
+            {
+              "type": 20,
+              "id": "dml_update_policy",
+              "alternatives": [
+                "ignore_on_nonexists",
+                "insert_on_nonexists"
+              ]
+            },
+            {
+              "type": 20,
+              "id": "api_server_supported"
+            },
+            {
+              "type": 20,
+              "id": "source_incremental_update_event_have_before"
+            },
+            {
+              "type": 20,
+              "id": "illegal_date_acceptable"
+            },
+            {
+              "type": 20,
+              "id": "batch_read_hash_split"
+            },
+            {
+              "type": 10,
+              "id": "new_field_event"
+            },
+            {
+              "type": 10,
+              "id": "alter_field_name_event"
+            },
+            {
+              "type": 10,
+              "id": "alter_field_attributes_event"
+            },
+            {
+              "type": 10,
+              "id": "drop_field_event"
+            }
+          ],
+          "hasCreated": false,
+          "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
+        },
+        "disabled": false
+      }
+    ]
+  },
+  "shareCache": false,
+  "canOpenInspect": false,
+  "isAutoInspect": false,
+  "skipErrorEvent": {
+    "errorMode": "Disable",
+    "limitMode": "SkipByLimit",
+    "errorModeEnum": "Disable",
+    "limitModeEnum": "SkipByLimit"
+  },
+  "creator": "admin@admin.com",
+  "showInspectTips": false,
+  "alarmSettings": [
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_STATUS_ERROR",
+      "sort": 1,
+      "notify": [
+        "SYSTEM",
+        "EMAIL"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_FULL_COMPLETE",
+      "sort": 3,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_INCREMENT_START",
+      "sort": 4,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    },
+    {
+      "type": "TASK",
+      "open": true,
+      "key": "TASK_INCREMENT_DELAY",
+      "sort": 6,
+      "notify": [
+        "SYSTEM"
+      ],
+      "interval": 300,
+      "unit": "SECOND"
+    }
+  ],
+  "alarmRules": [
+    {
+      "key": "TASK_INCREMENT_DELAY",
+      "point": 60,
+      "equalsFlag": 1,
+      "ms": 60000
+    }
+  ],
+  "testTaskId": "670517854f5ffb6f3e5444d8",
+  "transformTaskId": "670517854f5ffb6f3e5444d9",
+  "stopRetryTimes": 0,
+  "delayTime": 0,
+  "dynamicAdjustMemoryUsage": false,
+  "doubleActive": false,
+  "errorEvents": [
+    {
+      "id": "6723376b99691d740a2d8a03",
+      "message": "java.lang.NullPointerExceptionio.tapdata.entity.event.dml.TapInsertRecordEvent@42106a10: {\"after\":{\"ZIP\":\"6996\",\"NATIONALITY\":\"Switzerland\",\"NUMBER_CHILDREN\":3,\"MARITAL_STATUS\":\"MARRIED\",\"PHONE\":\"+41 43 069 39 39\",\"CUSTOMER_ID\":\"C000009229\",\"STREET\":\"NeumÂ\\u009DÂ\\u009Dnsterstrasse 215\",\"LAST_NAME\":\"Zaugg\",\"EMAIL\":\"tridiapason1921@yahoo.com\",\"FIRST_NAME\":\"Bethli\",\"LAST_CHANGE\":\"2019-07-04T17:13:55.907\",\"CITY\":\"Yverdon-les-Bains\",\"JOB\":\"Anwalt / AnwÂ\\u009DÂ\\u009Dltin\",\"DATE_OF_BIRTH\":\"1928-11-18T00:00:00\",\"COUNTRY_CODE\":\"CH\"},\"containsIllegalDate\":false,\"tableId\":\"CUSTOMER\",\"time\":1730361195416,\"type\":300}\n",
+      "code": "11001",
+      "skip": false
+    }
+  ],
+  "oldVersionTimezone": false,
+  "timeDifference": 0,
+  "snapShotInterrupt": false,
+  "previewTask": false,
+  "deduceSchemaTask": false,
+  "normalTask": true,
+  "autoInspect": false,
+  "testTask": false,
+  "cdctask": false,
+  "_deleted": false,
+  "createTime": "2024-10-08T11:29:09.590+00:00",
+  "last_updated": "2024-10-31T08:25:10.847+00:00",
+  "user_id": "62bc5008d4958d013d97c7a6"
+}

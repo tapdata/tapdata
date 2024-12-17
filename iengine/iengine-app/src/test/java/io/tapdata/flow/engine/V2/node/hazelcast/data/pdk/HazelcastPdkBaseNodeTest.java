@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import cn.hutool.core.collection.ConcurrentHashSet;
+import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -13,6 +14,9 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.PDKExCode_10;
+import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
@@ -21,26 +25,33 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.error.TaskProcessorExCode_11;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RetryLifeCycle;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
@@ -547,6 +558,45 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 	@Nested
+	class throwTapCodeExceptionTest{
+		@DisplayName("test throwTapCodeException when tapException")
+		@Test
+		void test(){
+			hazelcastPdkBaseNode=mock(HazelcastPdkBaseNode.class);
+			TapCodeException engineTapCodeException = new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED);
+			doCallRealMethod().when(hazelcastPdkBaseNode).throwTapCodeException(any(),any());
+			TapCodeException tapCodeException = new TapCodeException(PDKExCode_10.OFFSET_OUT_OF_LOG);
+			TapCodeException returnTapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastPdkBaseNode.throwTapCodeException(tapCodeException, engineTapCodeException);
+			});
+			assertEquals(returnTapCodeException.getCode(),PDKExCode_10.OFFSET_OUT_OF_LOG);
+		}
+		@DisplayName("test throwTapCodeException when TapPdkRunnerUnknownException ")
+		@Test
+		void test2(){
+			hazelcastPdkBaseNode=mock(HazelcastPdkBaseNode.class);
+			TapCodeException engineTapCodeException = new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED);
+			doCallRealMethod().when(hazelcastPdkBaseNode).throwTapCodeException(any(),any());
+			TapPdkRunnerUnknownException tapCodeException=new TapPdkRunnerUnknownException(new RuntimeException("writeFaild"));
+			TapCodeException returnTapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastPdkBaseNode.throwTapCodeException(tapCodeException, engineTapCodeException);
+			});
+			assertEquals(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,returnTapCodeException.getCode());
+		}
+		@DisplayName("test throwTapCodeException when RuntimeException")
+		@Test
+		void test3(){
+			hazelcastPdkBaseNode=mock(HazelcastPdkBaseNode.class);
+			TapCodeException engineTapCodeException = new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED);
+			doCallRealMethod().when(hazelcastPdkBaseNode).throwTapCodeException(any(),any());
+			RuntimeException runtimeException=new RuntimeException("run failed");
+			TapCodeException returnTapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastPdkBaseNode.throwTapCodeException(runtimeException, engineTapCodeException);
+			});
+			assertEquals(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,returnTapCodeException.getCode());
+		}
+	}
+	@Nested
 	class testGetLeakedOrThreadGroupClass{
 		@DisplayName("test ")
 		@Test
@@ -581,6 +631,67 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			when(node.getId()).thenReturn(nodeName);
 			when(hazelcastPdkBaseNode.getNode()).thenReturn(node);
 			hazelcastPdkBaseNode.getReuseOrNewThreadGroup(taskNodeInfos);
+		}
+	}
+
+	@Test
+	void testCreateRetryLifeCycle() {
+		HazelcastPdkBaseNode baseNode = new HazelcastSourcePdkDataNode(dataProcessorContext);
+		Assertions.assertNotNull(baseNode.createRetryLifeCycle());
+
+		try (MockedStatic<AspectUtils> mockAspect = mockStatic(AspectUtils.class)) {
+
+			AtomicReference<RetryLifeCycleAspect> aspect = new AtomicReference<>();
+			mockAspect.when(() -> AspectUtils.executeDataFuncAspect(eq(RetryLifeCycleAspect.class), any(Callable.class), any(CommonUtils.AnyErrorConsumer.class)))
+					.then(answer -> {
+
+						Callable arg1 = answer.getArgument(1);
+						CommonUtils.AnyErrorConsumer arg2 = answer.getArgument(2);
+
+						Object result = arg1.call();
+						Assertions.assertNotNull(result);
+
+						arg2.accept(result);
+
+						aspect.set((RetryLifeCycleAspect) result);
+
+						return null;
+					});
+
+			RetryLifeCycle retryLifeCycle = baseNode.createRetryLifeCycle();
+
+			retryLifeCycle.startRetry(15, false, 10, TimeUnit.SECONDS, "WRITE");
+
+			Assertions.assertNotNull(aspect.get().isRetrying());
+			Assertions.assertEquals(true, aspect.get().isRetrying());
+		}
+	}
+
+    @Nested
+    class cleanTableBatchOffsetIfNeedTest {
+        @Test
+        void testCleanTableBatchOffsetIfNeed() {
+            hazelcastPdkBaseNode = spy(hazelcastPdkBaseNode);
+            when(hazelcastPdkBaseNode.getConnectorNode()).thenReturn(mock(ConnectorNode.class));
+            SyncProgress syncProgress = new SyncProgress();
+            syncProgress.setBatchOffset("gAFkABFqYXZhLnV0aWwuSGFzaE1hcAEUAAp0YWJsZV8xTV80AWQAEWphdmEudXRpbC5IYXNoTWFw\n" +
+                    "ARQAG2JhdGNoX3JlYWRfY29ubmVjdG9yX3N0YXR1cwEUAARPVkVSqAEUAAt0YWJsZV8yMEtfNwFk\n" +
+                    "ABFqYXZhLnV0aWwuSGFzaE1hcAEUABtiYXRjaF9yZWFkX2Nvbm5lY3Rvcl9zdGF0dXMBFAAET1ZF\n" +
+                    "Uqio");
+            TapTableMap tapTableMap = mock(TapTableMap.class);
+            Set<String> tableIds = new HashSet<>();
+            tableIds.add("table_1M_4");
+            when(tapTableMap.keySet()).thenReturn(tableIds);
+            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+            hazelcastPdkBaseNode.readBatchOffset(syncProgress);
+            assertEquals(1, ((Map)syncProgress.getBatchOffsetObj()).size());
+        }
+
+		@Test
+		@DisplayName("test when tap table map is null")
+		void test1() {
+			SyncProgress syncProgress = new SyncProgress();
+			assertDoesNotThrow(() -> hazelcastPdkBaseNode.cleanTableBatchOffsetIfNeed(syncProgress));
 		}
 	}
 }

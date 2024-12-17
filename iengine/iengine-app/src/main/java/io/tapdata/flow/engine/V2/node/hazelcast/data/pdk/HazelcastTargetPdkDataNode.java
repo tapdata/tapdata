@@ -48,6 +48,7 @@ import io.tapdata.pdk.apis.functions.connection.TableInfo;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
@@ -55,12 +56,15 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.utils.CloneUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.springframework.beans.BeanUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -80,6 +84,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
 	private WritePolicyService writePolicyService;
+	private Map<String, TapTable> partitionTapTables;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -87,6 +92,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
+		this.partitionTapTables = new ConcurrentHashMap<>();
 		try {
 			super.doInit(context);
 			if (getNode() instanceof TableNode) {
@@ -136,10 +142,24 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		});
 	}
 
+    protected Set<String> filterSubPartitionTableTableMap() {
+        TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+        if (syncTargetPartitionTableEnable) {
+            //开启分区表时建表需要过滤掉子表
+            return tapTableMap.keySet().stream().filter(name -> {
+                TapTable tapTable = tapTableMap.get(name);
+                return Objects.nonNull(tapTable) && !tapTable.checkIsSubPartitionTable();
+            }).collect(Collectors.toSet());
+        }
+        return tapTableMap.keySet();
+    }
+
 	protected void initTargetDB() {
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		Set<String> tableIds = filterSubPartitionTableTableMap();
 		executeDataFuncAspect(TableInitFuncAspect.class, () -> new TableInitFuncAspect()
 				.tapTableMap(tapTableMap)
+				.totals(tableIds.size())
 				.dataProcessorContext(dataProcessorContext)
 				.start(), (funcAspect -> {
 			Node<?> node = dataProcessorContext.getNode();
@@ -147,7 +167,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
 			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress);
 			if (null == syncProgress) {
-				for (String tableId : tapTableMap.keySet()) {
+				for (String tableId : tableIds) {
 					if (!isRunning()) {
 						return;
 					}
@@ -194,14 +214,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = tapTableMap.get(tableId);
 		List<String> updateConditionFields = getUpdateConditionFields(node, tapTable);
 		if (null == tapTable) {
-			TapCodeException e = new TapCodeException(TaskTargetProcessorExCode_15.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableId);
+			TapCodeException e = new TapCodeException(TaskTargetProcessorExCode_15.INIT_TARGET_TABLE_TAP_TABLE_NULL, "Table name: " + tableId).dynamicDescriptionParameters(tableId);
 			if (null != funcAspect) funcAspect.setThrowable(e);
 			throw e;
 		}
 		if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
 			return;
 		}
-		dropTable(existsDataProcessEnum, tableId, init);
+		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
@@ -280,13 +300,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG, buildErrorConsumer(tableId)));
 			}
 		} catch (Throwable throwable) {
-			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
-						.addEvent(indexEvent.get());
-			}
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(indexEvent.get())
+					.dynamicDescriptionParameters(tableId, indexEvent.get().getIndexList());
+			throwTapCodeException(throwable,tapEventException);
 		}
 	}
 	protected boolean checkCreateUniqueIndexOpen(){
@@ -297,11 +314,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		return true;
 	}
-	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable){
+
+	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable) throws TapEventException {
 		long start = System.currentTimeMillis();
 		if (!checkSyncIndexOpen()) return;
 		if (!autoCreateTable) {
-			obsLogger.warn("Table: {} already exists and will no longer synchronize indexes",tableId);
+			obsLogger.warn("Table: {} already exists and will no longer synchronize indexes", tableId);
 			return;
 		}
 		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
@@ -310,12 +328,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return;
 		}
 		GetTableInfoFunction getTableInfoFunction = getConnectorNode().getConnectorFunctions().getGetTableInfoFunction();
-		if (null == getTableInfoFunction){
+		if (null == getTableInfoFunction) {
 			obsLogger.warn("Target connector does not support get table information and will no longer synchronize indexes");
 			return;
 		}
 		QueryIndexesFunction queryIndexesFunction = getConnectorNode().getConnectorFunctions().getQueryIndexesFunction();
-		if (null == queryIndexesFunction){
+		if (null == queryIndexesFunction) {
 			obsLogger.warn("Target connector does not support query index and will no longer synchronize indexes");
 			return;
 		}
@@ -324,16 +342,16 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			//query table info
 			TableInfo tableInfo = getTableInfoFunction.getTableInfo(getConnectorNode().getConnectorContext(), tableId);
 			if (null != tableInfo) {
-				if (null == tableInfo.getNumOfRows()){
-					obsLogger.warn("Table: {} records amount is unknown and will no longer synchronize indexes",tableId);
+				if (null == tableInfo.getNumOfRows()) {
+					obsLogger.warn("Table: {} records amount is unknown and will no longer synchronize indexes", tableId);
 					return;
 				}
-				if (tableInfo.getNumOfRows() > CREATE_INDEX_THRESHOLD){
-					obsLogger.warn("Table: {} records amount exceeds the threshold: {} for creating indexes and will no longer synchronize indexes",tableId,CREATE_INDEX_THRESHOLD);
+				if (tableInfo.getNumOfRows() > CREATE_INDEX_THRESHOLD) {
+					obsLogger.warn("Table: {} records amount exceeds the threshold: {} for creating indexes and will no longer synchronize indexes", tableId, CREATE_INDEX_THRESHOLD);
 					return;
 				}
-			}else {
-				obsLogger.warn("Table: {} gets table information failed and will no longer synchronize indexes",tableId);
+			} else {
+				obsLogger.warn("Table: {} gets table information failed and will no longer synchronize indexes", tableId);
 				return;
 			}
 			List<TapIndex> indexList = new ArrayList<>();
@@ -346,7 +364,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				indexList.add(tapIndex);
 			});
 			List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, indexList);
-			if(CollectionUtils.isNotEmpty(existsIndexes)){
+			if (CollectionUtils.isNotEmpty(existsIndexes)) {
 				existsIndexes.forEach(i -> {
 					obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i.getName());
 					indexList.remove(i);
@@ -369,19 +387,16 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						PDKMethod.TARGET_CREATE_INDEX,
 						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG, buildErrorConsumer(tableId)));
 				long currentIndexEnd = System.currentTimeMillis();
-				obsLogger.info("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd-currentIndexStart);
+				obsLogger.info("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd - currentIndexStart);
 			});
-		}catch (Throwable throwable){
-			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
-						.addEvent(indexEvent.get());
-			}
+		} catch (Throwable throwable) {
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(indexEvent.get())
+					.dynamicDescriptionParameters(tableId, indexEvent.get().getIndexList());
+			throwTapCodeException(throwable,tapEventException);
 		}
 		long end = System.currentTimeMillis();
-		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end-start);
+		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end - start);
 	}
 
 	protected List<TapIndex> queryExistsIndexes(TapTable tapTable, List<TapIndex> indexList) throws Throwable {
@@ -401,10 +416,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
 						boolean same = true;
 						for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
-							if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
-									|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
-								same = false;
-								break;
+							if (null != tapIndex.getIndexFields().get(i).getName() && null != existsIndex.getIndexFields().get(i).getName()) {
+								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
+										|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
+									same = false;
+									break;
+								}
 							}
 						}
 						if (same) {
@@ -444,24 +461,41 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent.get()), TAG, buildErrorConsumer(tapClearTableEvent.get().getTableId())));
 			});
 		} catch (Throwable throwable) {
-			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED, "Table name: " + tableId, throwable)
-						.addEvent(tapClearTableEvent.get());
-			}
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(tapClearTableEvent.get())
+					.dynamicDescriptionParameters(tableId);
+			throwTapCodeException(throwable,tapEventException);
 		}
 	}
 
-	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId, boolean init) {
+	protected void dropTable(ExistsDataProcessEnum existsDataProcessEnum, TapTable table, boolean init) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.DROP_TABLE) return;
 
 		AtomicReference<TapDropTableEvent> tapDropTableEvent = new AtomicReference<>();
+		final String tableId = table.getId();
 		try {
 			DropTableFunction dropTableFunction = getConnectorNode().getConnectorFunctions().getDropTableFunction();
-			if (dropTableFunction != null) {
-				tapDropTableEvent.set(dropTableEvent(tableId));
+			DropPartitionTableFunction dropPartitionTableFunction = getConnectorNode().getConnectorFunctions().getDropPartitionTableFunction();
+			final boolean needDropPartitionTable = syncTargetPartitionTableEnable
+					&& Objects.nonNull(table.getPartitionInfo())
+					&& Objects.nonNull(dropPartitionTableFunction);
+			tapDropTableEvent.set(dropTableEvent(tableId));
+			masterTableId(tapDropTableEvent.get(), table);
+			if (needDropPartitionTable) {
+				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
+						.setInit(init)
+						.dropTableEvent(tapDropTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(), (dropTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.DROP_PARTITION_TABLE_FUNCTION, () ->
+									dropPartitionTableFunction.dropTable(
+										getConnectorNode().getConnectorContext(),
+										tapDropTableEvent.get()),
+										TAG,
+										buildErrorConsumer(tapDropTableEvent.get().getTableId())))
+				);
+			} else if (dropTableFunction != null) {
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
 						.setInit(init)
 						.dropTableEvent(tapDropTableEvent.get())
@@ -478,13 +512,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
 		} catch (Throwable throwable) {
-			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.DROP_TABLE_FAILED, "Table name: " + tableId, throwable)
-						.addEvent(tapDropTableEvent.get());
-			}
+			TapCodeException tapCodeException = new TapEventException(TaskTargetProcessorExCode_15.DROP_TABLE_FAILED, "Table name: " + tableId, throwable)
+					.addEvent(tapDropTableEvent.get())
+					.dynamicDescriptionParameters(tableId);
+			throwTapCodeException(throwable,tapCodeException);
 		}
 	}
 
@@ -538,9 +569,15 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void writeDDL(List<TapEvent> events) {
+	protected void writeDDL(List<TapEvent> events) {
 		List<TapDDLEvent> tapDDLEvents = new ArrayList<>();
 		events.forEach(event -> {
+			if (event instanceof TapCreateTableEvent) {
+				TapCreateTableEvent createTableEvent = (TapCreateTableEvent) event;
+				// 当前节点未启用分区表，忽略创建分区子表事件
+				if (!syncTargetPartitionTableEnable
+						&& createTableEvent.getTable().checkIsSubPartitionTable()) return;
+			}
 			TapDDLEvent tapDDLEvent = (TapDDLEvent) event;
 			tapDDLEvent.setTableId(getTgtTableNameFromTapEvent(tapDDLEvent));
 			tapDDLEvents.add(tapDDLEvent);
@@ -558,7 +595,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tapNewFieldEvent.getTableId());
 		if (null == tapTable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.ADD_NEW_FIELD_GET_TAP_TABLE_FAILED, "Table id: " + tapNewFieldEvent.getTableId())
-					.addEvent(tapNewFieldEvent);
+					.addEvent(tapNewFieldEvent)
+					.dynamicDescriptionParameters(tapNewFieldEvent.getTableId());
 		}
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
@@ -568,7 +606,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				TapField tapField = tapTable.getNameFieldMap().get(fieldName);
 				if (null == tapField) {
 					throw new TapEventException(TaskTargetProcessorExCode_15.ADD_NEW_FIELD_IS_NULL, "Table id: " + tapNewFieldEvent.getTableId() + ", field name: " + fieldName)
-							.addEvent(tapNewFieldEvent);
+							.addEvent(tapNewFieldEvent)
+							.dynamicDescriptionParameters(tapNewFieldEvent.getTableId(),fieldName);
 				}
 				newField.setDataType(tapTable.getNameFieldMap().get(fieldName).getDataType());
 			}
@@ -594,13 +633,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					PDKInvocationMonitor.invoke(connectorNode, pdkMethod,
 							() -> function.newField(connectorNode.getConnectorContext(), tapNewFieldEvent), TAG, buildErrorConsumer(tapTable.getId()))));
 		} catch (Exception e) {
-			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.ADD_NEW_FIELD_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
-						.addEvent(tapNewFieldEvent);
-			}
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.ADD_NEW_FIELD_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
+					.addEvent(tapNewFieldEvent);
+			throwTapCodeException(e,tapEventException);
 		}
 		return true;
 	}
@@ -649,13 +684,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							() -> function.alterFieldName(connectorNode.getConnectorContext(), tapAlterFieldNameEvent),
 							TAG, buildErrorConsumer(tapAlterFieldNameEvent.getTableId())));
 		} catch (Exception e) {
-			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.ALTER_FIELD_NAME_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
-						.addEvent(tapAlterFieldNameEvent);
-			}
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.ALTER_FIELD_NAME_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
+					.addEvent(tapAlterFieldNameEvent)
+					.dynamicDescriptionParameters(tapAlterFieldNameEvent.getNameChange());
+			throwTapCodeException(e,tapEventException);
 		}
 		return true;
 	}
@@ -664,7 +696,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tapAlterFieldAttributesEvent.getTableId());
 		if (null == tapTable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.ALTER_FIELD_ATTR_CANNOT_GET_TAP_TABLE, String.format("Table id: %s", tapAlterFieldAttributesEvent.getTableId()))
-					.addEvent(tapAlterFieldAttributesEvent);
+					.addEvent(tapAlterFieldAttributesEvent)
+					.dynamicDescriptionParameters(tapAlterFieldAttributesEvent.getTableId());
 		}
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
@@ -696,13 +729,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							() -> function.alterFieldAttributes(connectorNode.getConnectorContext(), tapAlterFieldAttributesEvent),
 							TAG, buildErrorConsumer(tapTable.getId()))));
 		} catch (Exception e) {
-			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.ALTER_FIELD_ATTR_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
-						.addEvent(tapAlterFieldAttributesEvent);
-			}
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.ALTER_FIELD_ATTR_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
+					.addEvent(tapAlterFieldAttributesEvent)
+					.dynamicDescriptionParameters(tapAlterFieldAttributesEvent.getTableId(),tapAlterFieldAttributesEvent.getFieldName());
+			throwTapCodeException(e,tapEventException);
 		}
 		return true;
 	}
@@ -730,13 +760,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							() -> function.dropField(connectorNode.getConnectorContext(), tapDropFieldEvent),
 							TAG, buildErrorConsumer(tapDropFieldEvent.getTableId()))));
 		} catch (Exception e) {
-			Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.DROP_FIELD_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
-						.addEvent(tapDropFieldEvent);
-			}
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.DROP_FIELD_EXECUTE_FAILED, String.format("Execute PDK method: %s", pdkMethod), e)
+					.addEvent(tapDropFieldEvent)
+					.dynamicDescriptionParameters(tapDropFieldEvent.getTableId(),tapDropFieldEvent.getFieldName());
+			throwTapCodeException(e,tapEventException);
 		}
 		return true;
 	}
@@ -756,7 +783,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		TapTable tapTable = tapTableMap.get(tableId);
 		if (null == tapTable) {
 			throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_TABLE_NOT_FOUND, String.format("Table id: %s", tableId))
-					.addEvent(tapCreateIndexEvent);
+					.addEvent(tapCreateIndexEvent)
+					.dynamicDescriptionParameters(tableId);
 		}
 		CreateIndexFunction createIndexFunction = getConnectorNode().getConnectorFunctions().getCreateIndexFunction();
 		if (null == createIndexFunction) {
@@ -787,8 +815,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != matched) {
 				throw (TapCodeException) matched;
 			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_EXECUTE_FAILED, String.format("Execute PDK method: %s", PDKMethod.TARGET_CREATE_INDEX), e)
-						.addEvent(tapCreateIndexEvent);
+				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, String.format("Execute PDK method: %s", PDKMethod.TARGET_CREATE_INDEX), e)
+						.addEvent(tapCreateIndexEvent)
+						.dynamicDescriptionParameters(tableId,tapCreateIndexEvent.getIndexList());
 			}
 		}
 		return true;
@@ -801,23 +830,45 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		String tableId = firstEvent.getTableId();
 		String tgtTableName = getTgtTableNameFromTapEvent(firstEvent);
 		if (StringUtils.isBlank(tgtTableName)) {
-			throw new TapEventException(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED, String.format("Source table id: %s", tableId)).addEvent(firstEvent);
+			throw new TapEventException(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED, String.format("Source table id: %s", tableId)).addEvent(firstEvent).dynamicDescriptionParameters(tableId);
 		}
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
 		events.forEach(this::addPropertyForMergeEvent);
-		tapRecordEvents.forEach(t -> removeNotSupportFields(t, tapTable.getId()));
+
+		tapRecordEvents.forEach(t -> {
+			removeNotSupportFields(t, tapTable.getId());
+		});
 		WriteRecordFunction writeRecordFunction = getConnectorNode().getConnectorFunctions().getWriteRecordFunction();
 		PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
 		if (writeRecordFunction != null) {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 			try {
-				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
-						.recordEvents(tapRecordEvents)
-						.table(tapTable)
-						.connectorContext(getConnectorNode().getConnectorContext())
-						.dataProcessorContext(dataProcessorContext)
-						.start(), (writeRecordFuncAspect ->
+				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> {
+
+					TapTable tapTableForObs = tapTable;
+					if (firstEvent.getPartitionMasterTableId() != null) {
+						tapTableForObs = partitionTapTables.computeIfAbsent(firstEvent.getPartitionMasterTableId(), key -> {
+							TapTable cloneObj = new TapTable();
+							BeanUtils.copyProperties(tapTable, cloneObj);
+							cloneObj.setId(key);
+							TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+							String ancestorsName = tapTableMap.containsKey(firstEvent.getPartitionMasterTableId()) ?
+									tapTableMap.get(firstEvent.getPartitionMasterTableId()).getAncestorsName() : null;
+							if (ancestorsName == null)
+								ancestorsName = tapTable.getAncestorsName() != null ? tapTable.getAncestorsName() : key;
+							cloneObj.setName(ancestorsName);
+							return cloneObj;
+						});
+					}
+
+					return new WriteRecordFuncAspect()
+							.recordEvents(tapRecordEvents)
+							.table(tapTableForObs)
+							.connectorContext(getConnectorNode().getConnectorContext())
+							.dataProcessorContext(dataProcessorContext)
+							.start();
+				}, (writeRecordFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 								pdkMethodInvoker.runnable(
 										() -> {
@@ -982,23 +1033,29 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.TARGET_WRITE_RECORD,
-				pdkMethodInvoker.runnable(() -> writeRecordFunction.writeRecord(
-						connectorNode.getConnectorContext(),
-						tapRecordEvents,
-						dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
-						result -> {
-							Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
-							if (MapUtils.isNotEmpty(errorMap)) {
-								Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
-								Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
-								throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
+				pdkMethodInvoker.runnable(() -> {
+							try {
+								writeRecordFunction.writeRecord(
+										connectorNode.getConnectorContext(),
+										tapRecordEvents,
+										dataProcessorContext.getTapTableMap().get(ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME),
+										result -> {
+											Map<TapRecordEvent, Throwable> errorMap = result.getErrorMap();
+											if (MapUtils.isNotEmpty(errorMap)) {
+												Iterator<Map.Entry<TapRecordEvent, Throwable>> iterator = errorMap.entrySet().iterator();
+												Map.Entry<TapRecordEvent, Throwable> next = iterator.next();
+												throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED, "First error cache record: " + next.getKey(), next.getValue());
+											}
+										});
+							} catch (Exception e) {
+								throwTapCodeException(e,new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED));
 							}
-						})
+						}
 				));
 	}
 
 	@Override
-	boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
+	protected boolean eventExactlyOnceWriteCheckExists(TapdataEvent tapdataEvent) {
 		if (null == tapdataEvent) return false;
 		if (null == tapdataEvent.getExactlyOnceWriteCache()) return false;
 		ConnectorNode connectorNode = getConnectorNode();
@@ -1017,12 +1074,18 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		try {
 			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
 					pdkMethodInvoker.runnable(
-							() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
-								if (null != rs.getError()) {
-									throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
+							() -> {
+								try {
+									queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, rs -> {
+										if (null != rs.getError()) {
+											throw new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED, "Check cache failed by filter: " + tapAdvanceFilter, rs.getError());
+										}
+										result.set(CollectionUtils.isNotEmpty(rs.getResults()));
+									});
+								} catch (Exception e) {
+									throwTapCodeException(e, new TapCodeException(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED).dynamicDescriptionParameters(tapAdvanceFilter,ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME));
 								}
-								result.set(CollectionUtils.isNotEmpty(rs.getResults()));
-							})
+							}
 					));
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);

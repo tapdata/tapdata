@@ -3,20 +3,36 @@ package com.tapdata.tm.monitor.service;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
 import com.tapdata.tm.task.service.TaskService;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
+import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -26,7 +42,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -416,6 +437,161 @@ class MeasurementServiceV2ImplTest {
     }
 
     @Nested
+    class TestQuerySyncStatic {
+
+        private MetadataInstancesService metadataInstancesService;
+        private TaskService taskService;
+        private MongoTemplate mongoTemplate;
+        private MeasurementServiceV2Impl measurementService;
+
+        @BeforeEach
+        public void beforeEach() throws ExecutionException, InterruptedException {
+            this.metadataInstancesService = mock(MetadataInstancesService.class);
+            taskService = mock(TaskService.class);
+            mongoTemplate = mock(MongoTemplate.class);
+            CompletableFuture<MongoTemplate> future = new CompletableFuture<>();
+            future.complete(mongoTemplate);
+            measurementService = new MeasurementServiceV2Impl(future, metadataInstancesService, taskService);
+        }
+
+        @Test
+        public void testNonData() {
+
+            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test");
+            UserDetail userDetail = mock(UserDetail.class);
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
+
+            Page<TableSyncStaticVo> result = measurementService.querySyncStatic(dto, userDetail);
+
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.getTotal());
+        }
+
+        private TaskDto makeTaskDto() {
+            TaskDto taskDto = new TaskDto();
+            Graph<Node, Edge> graph = new Graph<>();
+
+            graph.setNode("1", new DatabaseNode(){{
+                setId("1");
+            }});
+            graph.setNode("2", new TableRenameProcessNode(){{
+                setId("2");
+            }});
+            graph.setNode("3", new DatabaseNode(){{
+                setId("3");
+            }});
+            graph.setEdge(new io.github.openlg.graphlib.Edge("1", "2"));
+            graph.setEdge(new io.github.openlg.graphlib.Edge("2", "3"));
+
+            DAG dag = new DAG(graph);
+            taskDto.setDag(dag);
+            taskDto.setId(new ObjectId());
+            return taskDto;
+        }
+
+        @Test
+        public void testNoDataInDB() {
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(makeTaskDto());
+
+            when(mongoTemplate.count(any(Query.class), anyString())).then(new Answer<Long>() {
+                @Override
+                public Long answer(InvocationOnMock invocation) throws Throwable {
+                    Assertions.assertTrue(invocation.getArgument(0) instanceof Query);
+                    Assertions.assertEquals(MeasurementEntity.COLLECTION_NAME, invocation.getArgument(1));
+                    Query query = invocation.getArgument(0);
+                    Assertions.assertTrue(query.getQueryObject().containsKey("tags.taskRecordId"));
+                    Assertions.assertEquals("taskRecordId", query.getQueryObject().get("tags.taskRecordId"));
+                    return 0L;
+                }
+            });
+
+            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test");
+            UserDetail userDetail = mock(UserDetail.class);
+
+            Page<TableSyncStaticVo> result = measurementService.querySyncStatic(dto, userDetail);
+
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.getTotal());
+        }
+
+        @Test
+        public void testNormalData() {
+            TaskDto taskDto = makeTaskDto();
+            taskDto.setSyncType("mi");
+            taskDto.getDag().getTargetNode().getLast().setConnectionId("connectionId");
+
+            AtomicInteger counter = new AtomicInteger();
+            List<MetadataInstancesDto> metas = Stream.generate(() -> {
+                int count = counter.incrementAndGet();
+                MetadataInstancesDto metadata = new MetadataInstancesDto();
+                if (count == 1) {
+                    metadata.setName("test_target");
+                    metadata.setAncestorsName("test");
+                    metadata.setNodeId("3");
+                } else {
+                    metadata.setName(String.format("test_%d_target", count));
+                    metadata.setAncestorsName(String.format("test_%d", count));
+                    metadata.setNodeId("3");
+                }
+                return metadata;
+            }).limit(5).collect(Collectors.toList());
+
+            counter.set(0);
+            List<TapSubPartitionTableInfo> subPartitionTableInfo = Stream.generate(() -> {
+                TapSubPartitionTableInfo info = new TapSubPartitionTableInfo();
+                info.setTableName(String.format("test_%d", counter.incrementAndGet()));
+                return info;
+            }).limit(4).collect(Collectors.toList());
+
+            metas.get(0).setPartitionMasterTableId("test_1");
+            metas.get(0).setPartitionInfo(new TapPartition());
+            metas.get(0).getPartitionInfo().setSubPartitionTableInfo(subPartitionTableInfo);
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+            when(mongoTemplate.count(any(Query.class), anyString())).thenReturn(10L);
+            when(metadataInstancesService.findBySourceIdAndTableNameList(
+                    eq("connectionId"), eq(null), any(UserDetail.class), eq(taskDto.getId().toHexString())))
+                    .thenReturn(metas);
+
+            List<MeasurementEntity> measurementEntities = new ArrayList<>();
+            MeasurementEntity measure = new MeasurementEntity();
+            measure.setGranularity("minute");
+            measure.setTags(new HashMap<>());
+            measure.getTags().put("table", "test_1");
+            measure.getTags().put("taskId", taskDto.getId().toHexString());
+            measure.getTags().put("taskRecordId", "657bb5dab37b9461bfc53eb2");
+            measure.getTags().put("type", "table");
+            measure.setDate(new Date());
+            measure.setFirst(new Date(System.currentTimeMillis() - 1000 * 60));
+            measure.setLast(new Date());
+            measure.setSamples(Stream.generate(() -> {
+                Sample sample = new Sample();
+                sample.setDate(new Date());
+                sample.setVs(new HashMap<>());
+                sample.getVs().put("snapshotSyncRate", 1);
+                sample.getVs().put("snapshotInsertRowTotal", 10);
+                sample.getVs().put("snapshotRowTotal", 10);
+                return sample;
+            }).limit(2).collect(Collectors.toList()));
+
+            measurementEntities.add(measure);
+
+            when(mongoTemplate.find(any(Query.class), eq(MeasurementEntity.class), eq(MeasurementEntity.COLLECTION_NAME)))
+                    .thenReturn(measurementEntities);
+
+            TableSyncStaticDto dto = new TableSyncStaticDto("taskRecordId", 1, 10, "test");
+            UserDetail userDetail = mock(UserDetail.class);
+
+            Page<TableSyncStaticVo> result = measurementService.querySyncStatic(dto, userDetail);
+
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(10, result.getTotal());
+        }
+    }
+
+    @Nested
     class QuerySyncStatic{
         MeasurementServiceV2Impl measurementServiceV2 = mock(MeasurementServiceV2Impl.class);
         MongoTemplate mongoTemplate;
@@ -617,4 +793,54 @@ class MeasurementServiceV2ImplTest {
         }
     }
 
+    @Nested
+    class cleanRemovedTableMeasurementTest {
+        @Test
+        void testCleanRemovedTableMeasurementNormal() {
+            String taskId = "111";
+            String taskRecordId = "222";
+            String tableName = "table1";
+            MongoTemplate mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            doCallRealMethod().when(measurementServiceV2).cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
+            measurementServiceV2.cleanRemovedTableMeasurement(taskId, taskRecordId, tableName);
+            verify(mongoOperations, new Times(1)).remove(any(Query.class), any(Class.class), anyString());
+        }
+    }
+
+    @Nested
+    class findRunTableTest {
+        @Test
+        void testFindRunTableNormal() {
+            String taskId = "111";
+            String taskRecordId = "222";
+            MongoTemplate mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            List<MeasurementEntity> measurementEntities = new ArrayList<>();
+            MeasurementEntity measurementEntity = mock(MeasurementEntity.class);
+            measurementEntities.add(measurementEntity);
+            Map<String, String> tags = new HashMap<>();
+            tags.put("table", "test");
+            when(measurementEntity.getTags()).thenReturn(tags);
+            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(measurementEntities);
+            doCallRealMethod().when(measurementServiceV2).findRunTable(taskId, taskRecordId);
+            List<String> actual = measurementServiceV2.findRunTable(taskId, taskRecordId);
+            verify(mongoOperations, new Times(1)).find(any(Query.class), any(Class.class), anyString());
+            assertEquals("test", actual.get(0));
+        }
+    }
+
+    @Nested
+    class queryTableSyncStatusStatisticsTest{
+        @Test
+        void testQueryTableSyncStatusStatisticsNormal(){
+            MongoTemplate mongoOperations = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
+            when(mongoOperations.aggregate(any(Aggregation.class), anyString(), any(Class.class))).thenReturn(mock(AggregationResults.class));
+            SyncStatusStatisticsParam param = mock(SyncStatusStatisticsParam.class);
+            doCallRealMethod().when(measurementServiceV2).queryTableSyncStatusStatistics(param);
+            measurementServiceV2.queryTableSyncStatusStatistics(param);
+            verify(mongoOperations, new Times(1)).aggregate(any(Aggregation.class), anyString(), any(Class.class));
+        }
+    }
 }

@@ -11,8 +11,10 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.TapdataHeartbeatEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Edge;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.flow.engine.V2.task.preview.node.HazelcastPreviewMergeNode;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.SyncStage;
@@ -60,10 +62,12 @@ import org.mockito.stubbing.Answer;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -170,6 +174,30 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				assertNull(actualObj);
 			}
 		}
+
+		@Test
+		void testInitMergeTableProperties() {
+			when(dataProcessorContext.getNode()).thenReturn((Node) tableNode);
+			try {
+				hazelcastMergeNode.initMergeTableProperties();
+			} catch (TapCodeException e) {
+				assertEquals(TaskMergeProcessorExCode_16.WRONG_NODE_TYPE,e.getCode());
+			}
+		}
+
+	}
+
+	@Test
+	void testGetSourceTableNode() {
+		MergeTableNode mergeTableNode1 = mock(MergeTableNode.class);
+		when(dataProcessorContext.getNode()).thenReturn((Node)mergeTableNode1);
+		Graph graph = mock(Graph.class);
+		when(mergeTableNode1.getGraph()).thenReturn(graph);
+		try {
+			hazelcastMergeNode.getSourceTableNode("sourceId");
+		} catch (TapCodeException e) {
+			assertEquals(TaskMergeProcessorExCode_16.CANNOT_FOUND_PRE_NODE,e.getCode());
+		}
 	}
 
 	@Nested
@@ -187,10 +215,28 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			hazelcastMergeNode = spy(hazelcastMergeNode);
 			tapdataEvent = mock(TapdataEvent.class);
 			tapInsertRecordEvent = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent.getTableId()).thenReturn("tableName");
+			List<String> nodeIds = new ArrayList<>();
+			nodeIds.add("sourceId");
+			when(tapdataEvent.getNodeIds()).thenReturn(nodeIds);
 			when(tapdataEvent.getTapEvent()).thenReturn(tapInsertRecordEvent);
 			constructIMap = mock(ConstructIMap.class);
 			mergeTableProperties = mock(MergeTableProperties.class);
 			sourcePkOrUniqueFieldMap = new HashMap<>();
+			TableNode tableNode = mock(TableNode.class);
+			when(tableNode.getTableName()).thenReturn("tableName");
+			when(tableNode.getName()).thenReturn("NodeName");
+			when(tableNode.getId()).thenReturn("sourceId");
+
+			List<Node> nodes=new ArrayList<>();
+			nodes.add(tableNode);
+
+			when(dataProcessorContext.getNodes()).thenReturn(nodes);
+			when(hazelcastMergeNode.getPreNode("sourceId")).thenReturn(nodes.get(0));
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("MongoEx");
+			ReflectionTestUtils.setField(hazelcastMergeNode,"externalStorageDto",externalStorageDto);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "sourcePkOrUniqueFieldMap", sourcePkOrUniqueFieldMap);
 			ReflectionTestUtils.setField(hazelcastMergeNode, "mapIterator", new AllLayerMapIterator());
 		}
@@ -218,6 +264,58 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			when(constructIMap.upsert(anyString(), any(Document.class))).thenAnswer(invocationOnMock -> null);
 			hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
 			verify(hazelcastMergeNode, new Times(1)).transformDateTime(any(Map.class));
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert one event into cache must call transformDateTime method")
+		void testUpsertOneEventCacheThrowFindException() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.find(anyString())).thenThrow(new RuntimeException("connect Exception"));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHE_FIND_BY_JOIN_KEY_FAILED,tapCodeException.getCode());
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert one event into cache must call transformDateTime method")
+		void testUpsertOneEventThrowUpsertException() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", "");
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.find(anyString())).thenReturn(null);
+			when(constructIMap.upsert(anyString(), any(Document.class))).thenThrow(new RuntimeException("throw Upsert Exception"));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.upsertCache(tapdataEvent, mergeTableProperties, constructIMap);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHE_FAILED,tapCodeException.getCode());
+
 		}
 
 		@Test
@@ -253,6 +351,42 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				add(tapdataEvent1);
 			}}, mergeTableProperties, constructIMap);
 			verify(hazelcastMergeNode, new Times(2)).transformDateTime(any(Map.class));
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("Upsert many events into cache must call transformDateTime method")
+		void testUpsertManyEventWriteFailed() {
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			after.put("create_time", new DateTime(Instant.now()));
+			when(tapInsertRecordEvent.getAfter()).thenReturn(after);
+			TapInsertRecordEvent tapInsertRecordEvent1 = mock(TapInsertRecordEvent.class);
+			when(tapInsertRecordEvent1.getAfter()).thenReturn(new HashMap<String, Object>() {{
+				put("id", 2);
+				put("create_time", new DateTime(Instant.now()));
+			}});
+			TapdataEvent tapdataEvent1 = mock(TapdataEvent.class);
+			when(tapdataEvent1.getTapEvent()).thenReturn(tapInsertRecordEvent1);
+			List<Map<String, String>> joinKeys = new ArrayList<Map<String, String>>() {{
+				add(new HashMap<String, String>() {{
+					put("source", "id");
+					put("target", "id");
+				}});
+			}};
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mergeTableProperties.getId()).thenReturn("sourceId");
+			sourcePkOrUniqueFieldMap.put("sourceId", new ArrayList<String>() {{
+				add("id");
+			}});
+			when(constructIMap.findAll(any(Set.class))).thenReturn(new HashMap<>());
+			when(constructIMap.insertMany(anyMap())).thenThrow(new RuntimeException("writeFailed"));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.upsertCache(new ArrayList<TapdataEvent>() {{
+					add(tapdataEvent);
+					add(tapdataEvent1);
+				}}, mergeTableProperties, constructIMap);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.UPSERT_CACHES_FAILED,tapCodeException.getCode());
 		}
 
 		@Test
@@ -728,15 +862,19 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			try(MockedStatic<HazelcastMergeNode> hazelcastMergeNodeMockedStatic = mockStatic(HazelcastMergeNode.class)){
 				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.buildConstructIMap(any(), anyString(),anyString(),any())).thenReturn(constructIMap);
 				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.getCheckUpdateJoinKeyValueCacheName(any())).thenReturn("Merge_Test");
+				Map<String, Connections> connectionsMap = (Map<String, Connections>) ReflectionTestUtils.getField(mockHazelcastMergeNode, "sourceConnectionMap");
+				Capability capability = new Capability(ConnectionOptions.CAPABILITY_SOURCE_INCREMENTAL_UPDATE_EVENT_HAVE_BEFORE);
+				List<Capability> capabilities = new ArrayList<>();
+				capabilities.add(capability);
+				Connections bConn = new Connections();
+				bConn.setCapabilities(capabilities);
+				connectionsMap.put("2", bConn);
 				mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap();
 				Object checkJoinKeyUpdateCacheMapObj = ReflectionTestUtils.getField(mockHazelcastMergeNode, "checkJoinKeyUpdateCacheMap");
 				assertInstanceOf(HashMap.class, checkJoinKeyUpdateCacheMapObj);
 				HashMap checkJoinKeyUpdateCacheMap = (HashMap) checkJoinKeyUpdateCacheMapObj;
-				assertEquals(1, checkJoinKeyUpdateCacheMap.size());
-				assertTrue(checkJoinKeyUpdateCacheMap.containsKey("2"));
-				Object constructIMapObj = checkJoinKeyUpdateCacheMap.get("2");
-				assertInstanceOf(ConstructIMap.class, constructIMapObj);
-				assertEquals(constructIMap, constructIMapObj);
+				assertEquals(0, checkJoinKeyUpdateCacheMap.size());
+				assertFalse(checkJoinKeyUpdateCacheMap.containsKey("2"));
 			}
 		}
 
@@ -1817,6 +1955,18 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			boolean mapIsNull = cacheMap != null;
 			assertEquals(true, mapIsNull);
 		}
+		@Test
+		void test_INIT_MERGE_CACHE_GET_CACHE_NAME_FAILED() {
+			Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
+			List<MergeTableProperties> mergeTableProperties = new ArrayList<>();
+			mergeTableProperties.add(mock(MergeTableProperties.class));
+			lookupMap.put("test", mergeTableProperties);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode, "lookupMap", lookupMap);
+			processorBaseContext.getTaskDto().setType(SyncTypeEnum.INITIAL_SYNC.getSyncType());
+			when(mockHazelcastMergeNode.isSubTableFirstMode()).thenReturn(true);
+			TapCodeException exception = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.initMergeCache());
+			assertEquals(TaskMergeProcessorExCode_16.INIT_MERGE_CACHE_GET_CACHE_NAME_FAILED, exception.getCode());
+		}
 	}
 
 	@Nested
@@ -2129,10 +2279,82 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			completableFuture.join();
 			verify(nodeLogger, timeout(1)).debug(anyString(), any(Object[].class));
 		}
+		@Test
+		void testLoopUpThrowException(){
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.lookup(tapdataEvent);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.LOOK_UP_MISSING_FROM_NODE_ID,tapCodeException.getCode());
+		}
 
 		@AfterEach
 		void tearDown() {
 			lookupThreadPool.shutdownNow();
+		}
+	}
+	@Nested
+	class PutInCheckJoinKeyUpdateCacheMapAndWriteSignTest{
+		HazelcastMergeNode mockHazelcastMergeNode;
+		Map<String,ConstructIMap<Document>> iMapMap;
+		String id="sourceId";
+		Map<String, Connections> sourceConnectionMap;
+		@BeforeEach
+		void init() {
+			mockHazelcastMergeNode=mock(HazelcastMergeNode.class);
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("Mongo External");
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			Processor.Context context = mock(Processor.Context.class);
+			iMapMap=new HashMap<>();
+			sourceConnectionMap = new HashMap<>();
+			sourceConnectionMap.put(id,new Connections());
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"jetContext",context);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"obsLogger",obsLogger);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"externalStorageDto",externalStorageDto);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"checkJoinKeyUpdateCacheMap",iMapMap);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"sourceConnectionMap",sourceConnectionMap);
+			Node tableNode=mock(TableNode.class);
+			when(mockHazelcastMergeNode.getPreNode(id)).thenReturn(tableNode);
+			doCallRealMethod().when(mockHazelcastMergeNode).putInCheckJoinKeyUpdateCacheMapAndWriteSign(anyString(),anyString());
+			when(mockHazelcastMergeNode.copyExternalStorage(anyInt())).thenReturn(externalStorageDto);
+		}
+		@DisplayName("test putInCheckJoinKeyUpdateCacheMapAndWriteSign throw exception INIT_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_WRITE_SIGN_FAILED")
+		@SneakyThrows
+		@Test
+		void test1(){
+			ConstructIMap constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.isEmpty()).thenReturn(true);
+			when(constructIMap.getName()).thenReturn("cacheName");
+			when(constructIMap.insert(anyString(),any())).thenThrow(new RuntimeException("insert Failed"));
+			try(MockedStatic<HazelcastMergeNode> hazelcastMergeNodeMockedStatic = mockStatic(HazelcastMergeNode.class);){
+				hazelcastMergeNodeMockedStatic.when(()->{HazelcastMergeNode.buildConstructIMap(any(),any(),any(),any());}).thenReturn(constructIMap);
+				when(mockHazelcastMergeNode.checkJoinKeyIncludePK(anyString())).thenReturn(null);
+				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+					mockHazelcastMergeNode.putInCheckJoinKeyUpdateCacheMapAndWriteSign(id, "cacheName");
+				});
+				assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY);
+
+			}
+
+		}
+		@SneakyThrows
+		@Test
+		void test_INIT_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_WRITE_SIGN_FAILED(){
+			ConstructIMap constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.isEmpty()).thenReturn(true);
+			when(constructIMap.getName()).thenReturn("cacheName");
+			when(constructIMap.insert(anyString(),any())).thenThrow(new RuntimeException("insert Failed"));
+			try(MockedStatic<HazelcastMergeNode> hazelcastMergeNodeMockedStatic = mockStatic(HazelcastMergeNode.class);){
+				hazelcastMergeNodeMockedStatic.when(()->{HazelcastMergeNode.buildConstructIMap(any(),any(),any(),any());}).thenReturn(constructIMap);
+				when(mockHazelcastMergeNode.isSourceHaveBefore(id)).thenReturn(true);
+				when(mockHazelcastMergeNode.checkJoinKeyIncludePK(anyString())).thenReturn(null);
+				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+					mockHazelcastMergeNode.putInCheckJoinKeyUpdateCacheMapAndWriteSign(id, "cacheName");
+				});
+				assertEquals(TaskMergeProcessorExCode_16.INIT_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_WRITE_SIGN_FAILED, tapCodeException.getCode());
+			}
 		}
 	}
 
@@ -2166,6 +2388,254 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			hazelcastMergeNode.doBatchCache(batchEventWrappers);
 
 			verify(hazelcastMergeNode, times(1)).cache(any(List.class));
+		}
+	}
+	@Nested
+	class TestDeleteCache{
+		HazelcastMergeNode mockHazelcastMergeNode;
+		ConstructIMap<Document> constructIMap;
+		MergeTableProperties mergeTableProperties;
+		@BeforeEach
+		void init(){
+			mockHazelcastMergeNode=mock(HazelcastMergeNode.class);
+			constructIMap=mock(ConstructIMap.class);
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("Mongo ExteralStorageDto");
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"externalStorageDto",externalStorageDto);
+			mergeTableProperties = mock(MergeTableProperties.class);
+			when(mergeTableProperties.getId()).thenReturn("nodeId");
+			Node tableNode=mock(TableNode.class);
+			when(tableNode.getName()).thenReturn("nodeName");
+			when(mockHazelcastMergeNode.getPreNode(anyString())).thenReturn(tableNode);
+		}
+		@DisplayName("test delete cache find error")
+		@Test
+		void test1() throws Exception {
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			Map<String,Object> before=new HashMap<>();
+			before.put("id",1);
+			before.put("joinKey",1);
+			TapDeleteRecordEvent deleteRecordEvent =TapDeleteRecordEvent.create();
+			deleteRecordEvent.setBefore(before);
+			tapdataEvent.setTapEvent(deleteRecordEvent);
+
+			String joinValue="1";
+			when(mockHazelcastMergeNode.getJoinValueKeyBySource(any(),any(),any())).thenReturn(joinValue);
+			String pkValue="1";
+			when(mockHazelcastMergeNode.getPkOrUniqueValueKey(anyMap(),any(MergeTableProperties.class),any())).thenReturn(pkValue);
+			when(constructIMap.find(anyString())).thenThrow(new RuntimeException("find Failed"));
+			doCallRealMethod().when(mockHazelcastMergeNode).encode(anyString());
+			doCallRealMethod().when(mockHazelcastMergeNode).getBefore(any());
+			doCallRealMethod().when(mockHazelcastMergeNode).deleteCache(any(),any(),any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.deleteCache(tapdataEvent, mergeTableProperties, constructIMap);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.DELETE_CACHE_FIND_BY_JOIN_KEY_FAILED);
+		}
+		@DisplayName("test delete cache delete failed")
+		@Test
+		void test2() throws Exception {
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			Map<String,Object> before=new HashMap<>();
+			before.put("id",1);
+			before.put("joinKey",1);
+			TapDeleteRecordEvent deleteRecordEvent =TapDeleteRecordEvent.create();
+			deleteRecordEvent.setBefore(before);
+			tapdataEvent.setTapEvent(deleteRecordEvent);
+
+			String joinValue="1";
+			when(mockHazelcastMergeNode.getJoinValueKeyBySource(any(),any(),any())).thenReturn(joinValue);
+			String pkValue="1";
+			when(mockHazelcastMergeNode.getPkOrUniqueValueKey(anyMap(),any(MergeTableProperties.class),any())).thenReturn(pkValue);
+			Document document=new Document();
+			when(constructIMap.find(anyString())).thenReturn(document);
+			when(constructIMap.delete(anyString())).thenThrow(new RuntimeException("delete failed"));
+			doCallRealMethod().when(mockHazelcastMergeNode).encode(anyString());
+			doCallRealMethod().when(mockHazelcastMergeNode).getBefore(any());
+			doCallRealMethod().when(mockHazelcastMergeNode).deleteCache(any(),any(),any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.deleteCache(tapdataEvent, mergeTableProperties, constructIMap);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.DELETE_CACHE_FAILED);
+		}
+	}
+	@Nested
+	class TestGetJoinValueKeyBySource{
+		HazelcastMergeNode mockHazelcastMergeNode;
+		ConstructIMap<Document> constructIMap;
+		MergeTableProperties mergeTableProperties;
+		@BeforeEach
+		void beforeInit(){
+			constructIMap=mock(ConstructIMap.class);
+			mockHazelcastMergeNode=mock(HazelcastMergeNode.class);
+			mergeTableProperties = mock(MergeTableProperties.class);
+			when(mergeTableProperties.getId()).thenReturn("nodeId");
+			Node tableNode=mock(TableNode.class);
+			when(tableNode.getName()).thenReturn("nodeName");
+			when(mockHazelcastMergeNode.getPreNode(anyString())).thenReturn(tableNode);
+		}
+		@DisplayName("test getJoinValueKeyBySource missing join key")
+		@Test
+		void test1(){
+			Map<String,Object> after=new HashMap<>();
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("Mongo ExteralStorageDto");
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"externalStorageDto",externalStorageDto);
+			List<Map<String, String>> joinKeys =new ArrayList<>();
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			when(mockHazelcastMergeNode.getNode()).thenReturn(mock(Node.class));
+			doCallRealMethod().when(mockHazelcastMergeNode).getJoinValueKeyBySource(after,mergeTableProperties,constructIMap);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getJoinValueKeyBySource(after, mergeTableProperties, constructIMap);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.MISSING_SOURCE_JOIN_KEY_CONFIG);
+		}
+		@DisplayName("test getJoinValueKeyBySource after not have join key")
+		@Test
+		void test2(){
+			Map<String,Object> after=new HashMap<>();
+			after.put("id",1);
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("Mongo ExteralStorageDto");
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"externalStorageDto",externalStorageDto);
+			List<Map<String, String>> joinKeys =new ArrayList<>();
+			Map<String,String> sourceJoinKey=new HashMap<>();
+			sourceJoinKey.put(HazelcastPreviewMergeNode.JoinKeyEnum.SOURCE.getKey(), "joinKey");
+			joinKeys.add(sourceJoinKey);
+			when(mergeTableProperties.getJoinKeys()).thenReturn(joinKeys);
+			doCallRealMethod().when(mockHazelcastMergeNode).getJoinKeys(any(),any());
+			doCallRealMethod().when(mockHazelcastMergeNode).getJoinValueKeyBySource(after,mergeTableProperties,constructIMap);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getJoinValueKeyBySource(after, mergeTableProperties, constructIMap);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS);
+		}
+	}
+	@Nested
+	class TestGetPkOrUniqueValueKey{
+		HazelcastMergeNode mockHazelcastMergeNode;
+		ConstructIMap<Document> constructIMap;
+		MergeTableProperties mergeTableProperties;
+		Map<String, List<String>> sourcePkOrUniqueFieldMap;
+		@BeforeEach
+		void init(){
+			constructIMap=mock(ConstructIMap.class);
+			mockHazelcastMergeNode=mock(HazelcastMergeNode.class);
+			mergeTableProperties = mock(MergeTableProperties.class);
+			sourcePkOrUniqueFieldMap=new HashMap<>();
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"sourcePkOrUniqueFieldMap",sourcePkOrUniqueFieldMap);
+		}
+		@DisplayName("test getPkOrUniqueValueKey value not exist")
+		@Test
+		void test1(){
+			List<String> pkList=new ArrayList<>();
+			pkList.add("id");
+			sourcePkOrUniqueFieldMap.put("sourceId",pkList);
+			doCallRealMethod().when(mockHazelcastMergeNode).getPkOrUniqueValueKey(anyMap(),anyString(),any(ConstructIMap.class));
+			Map<String,Object> after=new HashMap<>();
+			after.put("cid",1);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getPkOrUniqueValueKey(after, "sourceId", constructIMap);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.PK_OR_UNIQUE_VALUE_NOT_EXISTS);
+		}
+	}
+	@Nested
+	class getAndUpdateJoinKeyCacheClass{
+		HazelcastMergeNode mockHazelcastMergeNode;
+		ConstructIMap<Document> constructIMap;
+		Map<String, ConstructIMap<Document>> checkJoinKeyUpdateCacheMap;
+		@BeforeEach
+		void init(){
+			checkJoinKeyUpdateCacheMap=new HashMap<>();
+			mockHazelcastMergeNode=mock(HazelcastMergeNode.class);
+			constructIMap=mock(ConstructIMap.class);
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"checkJoinKeyUpdateCacheMap",checkJoinKeyUpdateCacheMap);
+			Node tableNode=mock(TableNode.class);
+			when(tableNode.getName()).thenReturn("nodeName");
+			when(mockHazelcastMergeNode.getPreNode(anyString())).thenReturn(tableNode);
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("Mongo ExteralStorageDto");
+			ReflectionTestUtils.setField(mockHazelcastMergeNode,"externalStorageDto",externalStorageDto);
+		}
+		@DisplayName("test throw GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP ")
+		@Test
+		void test1(){
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			tapdataEvent.addNodeId("nodeId");
+			doCallRealMethod().when(mockHazelcastMergeNode).getPreNodeId(any());
+			doCallRealMethod().when(mockHazelcastMergeNode).getAndUpdateJoinKeyCache(any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getAndUpdateJoinKeyCache(tapdataEvent);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_GET_IMAP);
+		}
+		@DisplayName("test throw GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_FIND_BY_PK_FAILED exception")
+		@Test
+		void test2() throws Exception {
+			checkJoinKeyUpdateCacheMap.put("nodeId", constructIMap);
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			tapdataEvent.addNodeId("nodeId");
+			Map<String,Object> after=new HashMap<>();
+			after.put("id",1);
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create();
+			tapInsertRecordEvent.setAfter(after);
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			when(mockHazelcastMergeNode.getPkOrUniqueValueKey(anyMap(),anyString(),any(ConstructIMap.class))).thenReturn("1");
+			when(constructIMap.find(anyString())).thenThrow(new RuntimeException("throw failed"));
+			doCallRealMethod().when(mockHazelcastMergeNode).getPreNodeId(any());
+			doCallRealMethod().when(mockHazelcastMergeNode).getAndUpdateJoinKeyCache(any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getAndUpdateJoinKeyCache(tapdataEvent);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_FIND_BY_PK_FAILED);
+		}
+		@DisplayName("test getAndUpdateJoinKeyCache throw GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED")
+		@Test
+		void test3() throws Exception {
+			checkJoinKeyUpdateCacheMap.put("nodeId", constructIMap);
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			tapdataEvent.addNodeId("nodeId");
+			Map<String,Object> after=new HashMap<>();
+			after.put("id",1);
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create();
+			tapInsertRecordEvent.setAfter(after);
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			when(mockHazelcastMergeNode.getPkOrUniqueValueKey(anyMap(),anyString(),any(ConstructIMap.class))).thenReturn("1");
+			Document document = new Document();
+			when(constructIMap.find(anyString())).thenReturn(document);
+			when(constructIMap.upsert(any(),any())).thenThrow(new RuntimeException("upsertFailed"));
+			doCallRealMethod().when(mockHazelcastMergeNode).getPreNodeId(any());
+			doCallRealMethod().when(mockHazelcastMergeNode).getAndUpdateJoinKeyCache(any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getAndUpdateJoinKeyCache(tapdataEvent);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_UPSERT_FAILED);
+		}
+
+		@DisplayName("test throw GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_FIND_BEFORE exception")
+		@Test
+		void test4() throws Exception {
+			checkJoinKeyUpdateCacheMap.put("nodeId", constructIMap);
+			TapdataEvent tapdataEvent=new TapdataEvent();
+			tapdataEvent.addNodeId("nodeId");
+			Map<String,Object> after=new HashMap<>();
+			after.put("id",1);
+			TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create();
+			tapInsertRecordEvent.setAfter(after);
+			tapdataEvent.setTapEvent(tapInsertRecordEvent);
+			when(mockHazelcastMergeNode.getPkOrUniqueValueKey(anyMap(),anyString(),any(ConstructIMap.class))).thenReturn("1");
+			when(constructIMap.find(anyString())).thenReturn(null);
+			doCallRealMethod().when(mockHazelcastMergeNode).getPreNodeId(any());
+			doCallRealMethod().when(mockHazelcastMergeNode).getAndUpdateJoinKeyCache(any());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastMergeNode.getAndUpdateJoinKeyCache(tapdataEvent);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_CANNOT_FIND_BEFORE);
 		}
 	}
 
@@ -2218,6 +2688,46 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			List<MergeLookupResult> mergeLookupResults = hazelcastMergeNode.recursiveLookup(mergeTableProperties1, data, true);
 
 			verify(nodeLogger, times(0)).warn(eq("Update write merge lookup, find more than one row, lookup table: {}, join key value: {}, will use first row: {}"), any(Object[].class));
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("test update write lookup and return only one row")
+		void testUpdateWriteLookupOnlyOneRowThrowError() {
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			MergeTableProperties mergeTableProperties1 = new MergeTableProperties();
+			List<MergeTableProperties> mergeTablePropertiesList = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			mergeTableProperties1.setChildren(mergeTablePropertiesList);
+			mergeTableProperties1.setId("2");
+			mergeTableProperties.setId("1");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setTargetPath("test");
+			Map<String, String> joinKeyMap = new HashMap<>();
+			joinKeyMap.put("source", "id");
+			joinKeyMap.put("target", "id");
+			List<Map<String, String>> joinKeys = new ArrayList<>();
+			joinKeys.add(joinKeyMap);
+			mergeTableProperties.setJoinKeys(joinKeys);
+			Map<String, Object> data = new HashMap<>();
+			data.put("id", 1);
+			ConstructIMap<Document> constructIMap = mock(ConstructIMap.class);
+			when(constructIMap.getName()).thenReturn("test");
+			when(constructIMap.find(anyString())).thenThrow(new RuntimeException("connect failed"));
+			Node preNode = mock(TableNode.class);
+			when(((TableNode) preNode).getTableName()).thenReturn("test");
+			Node fatherPreNode = mock(TableNode.class);
+			when(((TableNode) preNode).getTableName()).thenReturn("fathertest");
+			ExternalStorageDto externalStorageDto=new ExternalStorageDto();
+			externalStorageDto.setType("Mongo");
+			externalStorageDto.setName("externalName");
+			ReflectionTestUtils.setField(hazelcastMergeNode,"externalStorageDto",externalStorageDto);
+			doReturn(preNode).when(hazelcastMergeNode).getPreNode("1");
+			doReturn(fatherPreNode).when(hazelcastMergeNode).getPreNode("2");
+			doReturn(constructIMap).when(hazelcastMergeNode).getHazelcastConstruct(anyString());
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.recursiveLookup(mergeTableProperties1, data, true);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.LOOK_UP_FIND_BY_JOIN_KEY_FAILED,tapCodeException.getCode());
 		}
 
 		@Test
@@ -2327,6 +2837,61 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			when(tapTable.primaryKeys(true)).thenReturn(Arrays.asList("id"));
 			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
 			Assertions.assertEquals(1,sourcePkOrUniqueFieldMap.size());
+		}
+		@Test
+		void testNoPrimaryKeyThrowException(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setTableName("test");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContextTest.getTapTableMap()).thenReturn(tapTableMap);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTableMap.get(any())).thenReturn(tapTable);
+			when(tapTable.primaryKeys(true)).thenReturn(null);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			});
+			assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY,tapCodeException.getCode());
+		}
+
+		@Test
+		void test1(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateIntoArray);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setTableName("test");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContextTest.getTapTableMap()).thenReturn(tapTableMap);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTableMap.get(any())).thenReturn(tapTable);
+			when(tapTable.primaryKeys(true)).thenReturn(Arrays.asList("id"));
+			try{
+				hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			}catch (TapCodeException e){
+				assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY,e.getCode());
+			}
+
 		}
 
 	}
@@ -2467,6 +3032,135 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				hazelcastUtil.when(()->HazelcastUtil.getInstance()).thenReturn(mock(HazelcastInstance.class));
 				HazelcastMergeNode.clearCache(mergeTableNode,nodes,edges);
 			}
+		}
+	}
+	@DisplayName("测试错误码，表名不能为空")
+	@Test
+	void test2(){
+		try{
+			TableNode tableNode=new TableNode();
+			hazelcastMergeNode.getTableName(tableNode);
+		}catch (TapCodeException e){
+			assertEquals(TaskMergeProcessorExCode_16.TABLE_NAME_CANNOT_BE_BLANK,e.getCode());
+		}
+	}
+	@DisplayName("测试错误码，连接ID不能为空")
+	@Test
+	void test3(){
+		try{
+			TableNode tableNode=new TableNode();
+			hazelcastMergeNode.getConnectionId(tableNode);
+		}catch (TapCodeException e){
+			assertEquals(TaskMergeProcessorExCode_16.CONNECTION_ID_CANNOT_BE_BLANK,e.getCode());
+		}
+	}
+	@Test
+	void test4(){
+		MergeTableProperties mergeTableProperties=new MergeTableProperties();
+		mergeTableProperties.setId("sourceTableId");
+		List<MergeTableProperties> mergeTablePropertiesList =new ArrayList<>();
+		mergeTablePropertiesList.add(mergeTableProperties);
+		try{
+			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+		}catch (TapCodeException e){
+			assertEquals(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NODE_NOT_FOUND,e.getCode());
+		}
+
+	}
+
+	@Test
+	void analyzeChildrenReferenceExTest() {
+		Map<String, MergeTableProperties> mergeTablePropertiesMap = new HashMap<>();
+		ReflectionTestUtils.setField(hazelcastMergeNode, "mergeTablePropertiesMap", mergeTablePropertiesMap);
+		try {
+			hazelcastMergeNode.analyzeChildrenReference("123");
+		} catch (TapCodeException e) {
+			assert e.getCode() == TaskMergeProcessorExCode_16.ANALYZE_CHILD_REFERENCE_FAILED_CANT_GET_MERGE_TABLE_PROPERTIES_BY_ID;
+		}
+	}
+
+	@Test
+	void getPreNodeExTest() {
+		Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
+		ProcessorBaseContext processorBaseContext = mock(ProcessorBaseContext.class);
+		ReflectionTestUtils.setField(hazelcastMergeNode, "preNodeMap", preNodeMap);
+		ReflectionTestUtils.setField(hazelcastMergeNode, "processorBaseContext", processorBaseContext);
+		when(processorBaseContext.getNodes()).thenReturn(new ArrayList<>());
+		try {
+			hazelcastMergeNode.getPreNode("123");
+		} catch (TapCodeException e) {
+			assert e.getCode() == TaskMergeProcessorExCode_16.CANNOT_GET_PRENODE_BY_ID;
+		}
+	}
+
+	@Nested
+	class deleteOrUpdateMergeCacheTest {
+		Document beforeDoc;
+		ConstructIMap<Document> lookupCache;
+		String encodeJoinKey;
+		String beforeJoinValueKeyBySource;
+		@BeforeEach
+		void beforeEach() {
+			lookupCache = mock(ConstructIMap.class);
+			encodeJoinKey = "123";
+			beforeJoinValueKeyBySource = "123";
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("test for REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_DELETE_CACHE_ERROR")
+		void test1() {
+			beforeDoc = new Document("_ts", 123456789L);
+			when(lookupCache.delete(encodeJoinKey)).thenThrow(Exception.class);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.deleteOrUpdateMergeCache(beforeDoc, lookupCache, encodeJoinKey, beforeJoinValueKeyBySource);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_DELETE_CACHE_ERROR);
+		}
+		@Test
+		@SneakyThrows
+		@DisplayName("test for REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_UPDATE_CACHE_ERROR")
+		void test2() {
+			beforeDoc = new Document("test", 1);
+			when(lookupCache.upsert(encodeJoinKey, beforeDoc)).thenThrow(Exception.class);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				hazelcastMergeNode.deleteOrUpdateMergeCache(beforeDoc, lookupCache, encodeJoinKey, beforeJoinValueKeyBySource);
+			});
+			assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_UPDATE_CACHE_ERROR);
+		}
+	}
+	@Nested
+	class removeMergeCacheIfUpdateJoinKeyTest {
+		TapdataEvent tapdataEvent;
+		Map<String, Object> before;
+		Map<String, MergeTableProperties> mergeTablePropertiesMap;
+		MergeTableProperties mergeTableProperties;
+		Map<String, List<String>> sourcePkOrUniqueFieldMap;
+		@BeforeEach
+		void beforeEach() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			tapdataEvent = mock(TapdataEvent.class);
+			before = new HashMap<>();
+			mergeTablePropertiesMap = new HashMap<>();
+			mergeTableProperties = mock(MergeTableProperties.class);
+			mergeTablePropertiesMap.put("123", mergeTableProperties);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "mergeTablePropertiesMap", mergeTablePropertiesMap);
+			sourcePkOrUniqueFieldMap = new HashMap<>();
+			ReflectionTestUtils.setField(hazelcastMergeNode, "sourcePkOrUniqueFieldMap", sourcePkOrUniqueFieldMap);
+
+		}
+		@Test
+		@SneakyThrows
+		void test_REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_FIND_CACHE_ERROR() {
+			List<String> nodeIds = new ArrayList<>();
+			nodeIds.add("123");
+			ConstructIMap<Document> lookupCache = mock(ConstructIMap.class);
+			doReturn(lookupCache).when(hazelcastMergeNode).getHazelcastConstruct(anyString());
+			when(tapdataEvent.getNodeIds()).thenReturn(nodeIds);
+			doReturn("1234").when(hazelcastMergeNode).getJoinValueKeyBySource(before, mergeTableProperties, lookupCache);
+			doReturn("5678").when(hazelcastMergeNode).getJoinValueKeyBySource(null, mergeTableProperties, lookupCache);
+			when(lookupCache.find(anyString())).thenThrow(RuntimeException.class);
+			TapCodeException exception = assertThrows(TapCodeException.class, () -> hazelcastMergeNode.removeMergeCacheIfUpdateJoinKey(tapdataEvent, before));
+			assertEquals(TaskMergeProcessorExCode_16.REMOVE_MERGE_CACHE_IF_UPDATE_JOIN_KEY_FAILED_FIND_CACHE_ERROR, exception.getCode());
 		}
 	}
 }

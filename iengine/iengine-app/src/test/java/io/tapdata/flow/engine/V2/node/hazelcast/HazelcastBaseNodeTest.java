@@ -19,7 +19,14 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -31,6 +38,7 @@ import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -40,14 +48,21 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.value.*;
+import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapNumberValue;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
-import io.tapdata.exception.*;
+import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.TapPdkBaseException;
+import io.tapdata.exception.TapPdkWriteMissingPrivilegesEx;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -59,6 +74,7 @@ import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.observable.logging.TaskLogger;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -72,8 +88,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode.INSERT_METADATA_INFO_KEY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -290,6 +308,14 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			doThrow(new RuntimeException()).when(tapTableMap).preLoadSchema();
 			doCallRealMethod().when(mockHazelcastBaseNode).init(jetContext);
 			assertThrows(RuntimeException.class, () -> mockHazelcastBaseNode.init(jetContext));
+		}
+		@Test
+		void testInitSettingService(){
+			try{
+				hazelcastBaseNode.initSettingService();
+			}catch (TapCodeException e){
+				assertEquals(TaskProcessorExCode_11.INIT_SETTING_SERVICE_FAILED_CLIENT_MONGO_OPERATOR_IS_NULL,e.getCode());
+			}
 		}
 	}
 
@@ -2009,5 +2035,190 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		void test3(){
 			assertThrows(RuntimeException.class,()->hazelcastBaseNode.buildErrorConsumer(tableName).accept(mock(RuntimeException.class)));
 		}
+	}
+
+	@Nested
+	class MasterTableIdTest {
+		TapEvent event;
+		TapTable table;
+		@BeforeEach
+		void init() {
+			event = mock(TapEvent.class);
+			table = mock(TapTable.class);
+
+			doNothing().when(table).setPartitionMasterTableId(anyString());
+			when(mockHazelcastBaseNode.getTgtTableNameFromTapEvent(event, "master")).thenReturn("id");
+			doCallRealMethod().when(mockHazelcastBaseNode).masterTableId(event, table);
+		}
+
+		@Test
+		void testNormal() {
+			when(table.getPartitionMasterTableId()).thenReturn("master");
+			Assertions.assertDoesNotThrow(() -> mockHazelcastBaseNode.masterTableId(event, table));
+			verify(mockHazelcastBaseNode).getTgtTableNameFromTapEvent(event, "master");
+			verify(table).getPartitionMasterTableId();
+		}
+		@Test
+		void testNullPartitionMasterTableId() {
+			when(table.getPartitionMasterTableId()).thenReturn(null);
+			Assertions.assertDoesNotThrow(() -> mockHazelcastBaseNode.masterTableId(event, table));
+			verify(mockHazelcastBaseNode, times(0)).getTgtTableNameFromTapEvent(event, "master");
+			verify(table, times(1)).getPartitionMasterTableId();
+		}
+	}
+
+	@Nested
+	class testUpdateTableWhenCreateTable{
+		private ProcessorBaseContext context;
+		private HazelcastBaseNode baseNode;
+
+		@BeforeEach
+		void before() {
+			context = ProcessorBaseContext.newBuilder().build();
+			baseNode = new HazelcastBaseNode(context) {};
+			ReflectionTestUtils.setField(baseNode, "obsLogger", mock(ObsLogger.class));
+		}
+		@Test
+		void testUpdateTapTableWhenCreateTableEvent() {
+
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+			TapCreateTableEvent tapEvent = new TapCreateTableEvent();
+			Map<String, Object> info = new HashMap<>();
+			List<MetadataInstancesDto> metadata = new ArrayList<>();
+			info.put("INSERT_METADATA", metadata);
+			tapEvent.setInfo(info);
+			tapEvent.setTableId("test_1");
+			tapEvent.setPartitionMasterTableId("test");
+			tapEvent.setTable(new TapTable());
+			tapEvent.getTable().setId("test_1");
+			tapEvent.getTable().setPartitionMasterTableId("test");
+			tapEvent.getTable().setPartitionInfo(new TapPartition());
+
+			HazelcastBaseNode spyBaseNode = spy(baseNode);
+			DatabaseNode node = new DatabaseNode();
+			node.setSyncTargetPartitionTableEnable(false);
+
+			when(spyBaseNode.getNode()).thenReturn((Node) node);
+
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setQualifiedName("test_node_id");
+			when(dagDataService.getSchemaByNodeAndTableName(any(), any())).thenReturn(meta);
+			when(dagDataService.getTaskById(anyString())).thenReturn(taskDto);
+			when(dagDataService.getTapTable(any())).thenReturn(new TapTable());
+
+			Assertions.assertDoesNotThrow(() -> {
+				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+			});
+
+			node.setSyncTargetPartitionTableEnable(true);
+			Assertions.assertDoesNotThrow(() -> {
+				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+			});
+
+		}
+
+		@Test
+		void testMigrateProcessorNode() {
+			TapTableMap<String, TapTable> tableMap = TapTableMap.create("nodeId");
+			TapCreateTableEvent tapEvent = new TapCreateTableEvent();
+			Map<String, Object> info = new HashMap<>();
+			List<MetadataInstancesDto> metadata = new ArrayList<>();
+			info.put("INSERT_METADATA", metadata);
+			tapEvent.setInfo(info);
+			tapEvent.setTableId("test_1");
+			tapEvent.setPartitionMasterTableId("test");
+			tapEvent.setTable(new TapTable());
+			tapEvent.getTable().setId("test_1");
+			tapEvent.getTable().setPartitionMasterTableId("test");
+			tapEvent.getTable().setPartitionInfo(new TapPartition());
+
+			HazelcastBaseNode spyBaseNode = spy(baseNode);
+			MigrateProcessorNode node = new MigrateJsProcessorNode();
+
+			when(spyBaseNode.getNode()).thenReturn((Node) node);
+
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			when(dagDataService.getSchemaByNodeAndTableName(anyString(), anyString())).thenReturn(meta);
+			when(dagDataService.getTaskById(anyString())).thenReturn(taskDto);
+
+			Assertions.assertDoesNotThrow(() -> {
+				ReflectionTestUtils.invokeMethod(spyBaseNode, "updateTapTableWhenCreateTableEvent", "test", tapEvent, dagDataService, tableMap);
+			});
+		}
+	}
+	@Nested
+	class UpdateTapTableWhenDDLEventTest{
+		@DisplayName("test updateTapTableWhenDDLEvent for exception UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY")
+		@Test
+		void test1(){
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				HazelcastBaseNode.updateTapTableWhenDDLEvent("TestTableName", null, null, null, null);
+			});
+			assertEquals(TaskProcessorExCode_11.UPDATE_TAP_TABLE_QUALIFIED_NAME_EMPTY,tapCodeException.getCode());
+		}
+		@DisplayName("test updateTapTableWhenCreateTableEvent for exception GET_NODE_METADATA_BY_TABLE_NAME_FAILED")
+		@Test
+		void test2(){
+			TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+			List<MetadataInstancesDto> metadataInstancesDtos=new ArrayList<>();
+			tapCreateTableEvent.addInfo(INSERT_METADATA_INFO_KEY,metadataInstancesDtos);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTable.checkIsSubPartitionTable()).thenReturn(false);
+			tapCreateTableEvent.setTable(tapTable);
+			DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+			doCallRealMethod().when(mockHazelcastBaseNode).updateTapTableWhenCreateTableEvent(anyString(),any(),any(),any());
+			Node mockNode = mock(Node.class);
+			when(mockHazelcastBaseNode.getNode()).thenReturn(mockNode);
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+				mockHazelcastBaseNode.updateTapTableWhenCreateTableEvent("testTableName", tapCreateTableEvent, dagDataService, null);
+			});
+			assertEquals(tapCodeException.getCode(),TaskProcessorExCode_11.GET_NODE_METADATA_BY_TABLE_NAME_FAILED);
+		}
+	}
+
+	@Test
+	void testCatchData() {
+		ProcessorBaseContext processorBaseContext = mock(ProcessorBaseContext.class);
+		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
+		taskDto.setName("taskName");
+		when(processorBaseContext.getTaskDto()).thenReturn(taskDto);
+		Node databaseNode = new DatabaseNode();
+		databaseNode.setId("node_id");
+		databaseNode.setName("node_name");
+		when(processorBaseContext.getNode()).thenReturn(databaseNode);
+		HazelcastBaseNode node = new HazelcastBaseNode(processorBaseContext) {
+
+		};
+
+		TaskLogger obsLogger = mock(TaskLogger.class);
+		doAnswer(answer -> {
+			Callable<MonitoringLogsDto> callable = answer.getArgument(0);
+			Assertions.assertNotNull(callable.call());
+			return null;
+		}).when(obsLogger).debug(any(Callable.class), anyString());
+		ReflectionTestUtils.setField(node, "obsLogger", obsLogger);
+
+		TapdataEvent event = new TapdataEvent();
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+		verify(obsLogger, times(0)).debug(any(Callable.class), anyString());
+
+		event.setTapEvent(new TapCreateTableEvent());
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+		verify(obsLogger, times(0)).debug(any(Callable.class), anyString());
+
+		event.setTapEvent(TapInsertRecordEvent.create().after(new HashMap<>()));
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+
+		event.setTapEvent(TapUpdateRecordEvent.create().before(new HashMap<>()).after(new HashMap<>()));
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+
+		event.setTapEvent(TapDeleteRecordEvent.create().before(new HashMap<>()));
+		ReflectionTestUtils.invokeMethod(node, "catchData", event);
+
+		verify(obsLogger, times(3)).debug(any(Callable.class), anyString());
+
 	}
 }

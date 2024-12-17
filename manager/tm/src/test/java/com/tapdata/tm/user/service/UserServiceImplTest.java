@@ -1,5 +1,7 @@
 package com.tapdata.tm.user.service;
 
+import com.tapdata.tm.Permission.dto.PermissionDto;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.constant.SettingUtil;
@@ -8,16 +10,20 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.role.dto.RoleDto;
+import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.user.dto.LdapLoginDto;
 import com.tapdata.tm.user.dto.TestLdapDto;
+import com.tapdata.tm.user.dto.UserDto;
+import com.tapdata.tm.user.repository.UserRepository;
 import lombok.SneakyThrows;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -30,6 +36,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,14 +46,20 @@ public class UserServiceImplTest {
     private UserServiceImpl userService;
     private RoleMappingService roleMappingService;
     private SettingsService settingsService;
+    private RoleService roleService;
+    private PermissionService permissionService;
 
     @BeforeEach
     void beforeEach(){
         userService = mock(UserServiceImpl.class);
         roleMappingService = mock(RoleMappingService.class);
         settingsService = mock(SettingsService.class);
+        roleService = mock(RoleService.class);
+        permissionService = mock(PermissionService.class);
         ReflectionTestUtils.setField(userService, "settingsService", settingsService);
         ReflectionTestUtils.setField(userService, "roleMappingService", roleMappingService);
+        ReflectionTestUtils.setField(userService, "roleService", roleService);
+        ReflectionTestUtils.setField(userService, "permissionService", permissionService);
     }
 
     @Nested
@@ -161,12 +174,27 @@ public class UserServiceImplTest {
         void testLoginByAD_EncryptedPassword() {
             try (MockedStatic<SettingUtil> mb = Mockito
                     .mockStatic(SettingUtil.class)) {
-                mb.when(() -> SettingUtil.getValue("Active_Directory", "ad.bind.password")).thenReturn("123456");
+                mb.when(() -> SettingUtil.getValue("LDAP", "ldap.bind.password")).thenReturn("123456");
                 testAdDto.setLdap_Bind_Password("*****");
                 when(userService.buildDirContext(any(LdapLoginDto.class))).thenReturn(dirContext);
                 TestResponseDto response = userService.testLoginByLdap(testAdDto);
                 assertTrue(response.isResult());
                 assertNull(response.getStack());
+            }
+        }
+
+        @Test
+        @Disabled
+        @SneakyThrows
+        void testLoginByAD_NPE() {
+            try (MockedStatic<SettingUtil> mb = Mockito
+                    .mockStatic(SettingUtil.class)) {
+                mb.when(() -> SettingUtil.getValue("LDAP", "ldap.bind.password")).thenReturn("123456");
+                testAdDto.setLdap_Bind_Password("*****");
+                when(userService.buildDirContext(any(LdapLoginDto.class))).thenThrow(new RuntimeException("please check ldap configuration, such as bind dn or password"));
+                TestResponseDto response = userService.testLoginByLdap(testAdDto);
+                assertFalse(response.isResult());
+                assertTrue(response.getStack().contains("please check ldap configuration, such as bind dn or password"));
             }
         }
     }
@@ -226,10 +254,10 @@ public class UserServiceImplTest {
         }
 
         @Test
-        void testLoginByAD_NamingException() throws NamingException {
+        void testLoginByAD_NamingException() {
             when(settingsService.findAll()).thenReturn(settingsList);
             when(userService.searchUser(any(LdapLoginDto.class), eq(username))).thenReturn(true);
-            when(userService.buildDirContext(any(LdapLoginDto.class))).thenThrow(new NamingException("LDAP connection failed"));
+            when(userService.buildDirContext(any(LdapLoginDto.class))).thenThrow(new BizException("AD.Login.Fail"));
             BizException thrown = assertThrows(BizException.class, () -> userService.loginByLdap(username, password));
             assertTrue(thrown.getErrorCode().contains("AD.Login.Fail"));
         }
@@ -437,14 +465,14 @@ public class UserServiceImplTest {
         }
 
         @Test
-        public void testBuildDirContext_NoSSL() throws NamingException {
+        public void testBuildDirContext_NoSSL() {
             LdapLoginDto adLoginDto = LdapLoginDto.builder()
                     .ldapUrl("ldap://example.com:389")
                     .bindDN("cn=admin,dc=example,dc=com")
                     .password("password")
                     .sslEnable(false)
                     .build();
-            assertThrows(NamingException.class, () -> userService.buildDirContext(adLoginDto));
+            assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
         }
 
         @Test
@@ -471,7 +499,98 @@ public class UserServiceImplTest {
             SSLContext sslContext = mock(SSLContext.class);
             when(userService.createSSLContext(any(InputStream.class))).thenReturn(sslContext);
             when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
-            assertThrows(NamingException.class, () -> userService.buildDirContext(adLoginDto));
+            assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_BindDn_Contains() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenReturn(sslContext);
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+        }
+
+        @Test
+        public void testBuildDirContext_NPE() {
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .bindDN("cn=admin,dc=example,dc=com")
+                    .password(null)
+                    .sslEnable(false)
+                    .build();
+            RuntimeException exception = assertThrows(RuntimeException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("please check ldap configuration, such as bind dn or password", exception.getMessage());
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_WrongPassword() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenThrow(new NamingException("Error code 49"));
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            BizException exception = assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("AD.Login.WrongPassword", exception.getErrorCode());
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_InvalidCert() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenThrow(new NamingException("TLS handshake"));
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            BizException exception = assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("AD.Login.InvalidCert", exception.getErrorCode());
+        }
+
+        @Test
+        @SneakyThrows
+        public void testBuildDirContext_Retryable() {
+            String baseDN = "dc=example,dc=com";
+            LdapLoginDto adLoginDto = LdapLoginDto.builder()
+                    .ldapUrl("ldap://example.com:389")
+                    .baseDN(baseDN)
+                    .bindDN("admin")
+                    .password("password")
+                    .sslEnable(true)
+                    .cert(certString)
+                    .build();
+            SSLContext sslContext = mock(SSLContext.class);
+            doCallRealMethod().when(userService).convertBaseDnToDomain(baseDN);
+            when(userService.createSSLContext(any(InputStream.class))).thenThrow(new NamingException("No subject alternative dns"));
+            when(sslContext.getSocketFactory()).thenReturn(mock(SSLSocketFactory.class));
+            BizException exception = assertThrows(BizException.class, () -> userService.buildDirContext(adLoginDto));
+            assertEquals("AD.Login.Retryable", exception.getErrorCode());
         }
     }
 
@@ -527,4 +646,99 @@ public class UserServiceImplTest {
             "hinNPHvFAMDUY7HfrdDfCoEIZSK4u/xFQscsNsE3hywVYYN7uz8wy502fEHzwIgp\n" +
             "/3vC2igEWcqhxJn9iiIHAzA0mZoS1DOKhgFG\n" +
             "-----END CERTIFICATE-----";
+
+
+    @Nested
+    class GetUserDetailTest{
+
+        @Test
+        void test_main(){
+            doCallRealMethod().when(userService).getUserDetail(anyString());
+            UserDto userDto = new UserDto();
+            userDto.setCreateAt(new Date());
+            when(userService.findById(any())).thenReturn(userDto);
+            List<RoleMappingDto> roleMappingDtoList =  new ArrayList<>();
+            RoleMappingDto roleMappingDto = new RoleMappingDto();
+            ObjectId id = new ObjectId();
+            roleMappingDto.setRoleId(id);
+            roleMappingDtoList.add(roleMappingDto);
+            List<RoleDto> roleDtos = new ArrayList<>();
+            RoleDto roleDto = new RoleDto();
+            roleDto.setId(id);
+            roleDtos.add(roleDto);
+            when(roleService.findAll(any(Query.class))).thenReturn(roleDtos);
+            when(roleMappingService.getUser(any(),any())).thenReturn(roleMappingDtoList);
+            List<PermissionDto> permissionDtos = new ArrayList<>();
+            PermissionDto permissionDto = new PermissionDto();
+            permissionDto.setId("test");
+            permissionDtos.add(permissionDto);
+            when(permissionService.getCurrentPermission(anyString())).thenReturn(permissionDtos);
+            UserDto result = userService.getUserDetail("test");
+            Assertions.assertEquals(1,result.getPermissions().size());
+            Assertions.assertEquals(1,result.getRoleMappings().size());
+        }
+
+        @Test
+        void test_roleDtosIsNull(){
+            doCallRealMethod().when(userService).getUserDetail(anyString());
+            UserDto userDto = new UserDto();
+            userDto.setCreateAt(new Date());
+            when(userService.findById(any())).thenReturn(userDto);
+            List<RoleMappingDto> roleMappingDtoList =  new ArrayList<>();
+            RoleMappingDto roleMappingDto = new RoleMappingDto();
+            ObjectId id = new ObjectId();
+            roleMappingDto.setRoleId(id);
+            roleMappingDtoList.add(roleMappingDto);
+            when(roleService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            when(roleMappingService.getUser(any(),any())).thenReturn(roleMappingDtoList);
+            List<PermissionDto> permissionDtos = new ArrayList<>();
+            PermissionDto permissionDto = new PermissionDto();
+            permissionDto.setId("test");
+            permissionDtos.add(permissionDto);
+            when(permissionService.getCurrentPermission(anyString())).thenReturn(permissionDtos);
+            UserDto result = userService.getUserDetail("test");
+            Assertions.assertEquals(1,result.getPermissions().size());
+            Assertions.assertEquals(1,result.getRoleMappings().size());
+        }
+
+        @Test
+        void test_roleMappingAndPermissionIsEmpty(){
+            doCallRealMethod().when(userService).getUserDetail(anyString());
+            UserDto userDto = new UserDto();
+            userDto.setCreateAt(new Date());
+            when(userService.findById(any())).thenReturn(userDto);
+            when(roleMappingService.getUser(any(),any())).thenReturn(new ArrayList<>());
+            when(permissionService.getCurrentPermission(anyString())).thenReturn(new ArrayList<>());
+            UserDto result = userService.getUserDetail("test");
+            Assertions.assertNull(result.getRoleMappings());
+        }
+
+
+    }
+
+    @Nested
+    class getterTest {
+        @BeforeEach
+        void beforeEach() {
+            userService = new UserServiceImpl(mock(UserRepository.class));
+        }
+
+        @Test
+        void isSslTest() {
+            assertFalse(Boolean.getBoolean(userService.isSsl()));
+        }
+
+        @Test
+        void getCaPathTest() {
+            String caPath = userService.getCaPath();
+            assertNull(caPath);
+        }
+
+        @Test
+        void getKeyPathTest() {
+            String keyPath = userService.getKeyPath();
+            assertNull(keyPath);
+        }
+    }
 }
+

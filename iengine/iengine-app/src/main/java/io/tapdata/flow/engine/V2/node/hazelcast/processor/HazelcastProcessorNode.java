@@ -111,7 +111,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			dataFlowProcessor.initialize(processorContext, stage);
 			dataFlowProcessor.logListener(logListener());
 		} catch (Exception e) {
-			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e);
+			throw new TapCodeException(TaskProcessorExCode_11.INIT_DATA_FLOW_PROCESSOR_FAILED, "Init data flow processor failed", e)
+					.dynamicDescriptionParameters(processorBaseContext.getNode().getName(),processorBaseContext.getNode().getType());
 		}
 	}
 
@@ -119,6 +120,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		if (!(tapEvent instanceof TapRecordEvent)) {
+			consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
 			return;
 		}
 		if (null != fieldRenameProcessorNode && null != capitalized) {
@@ -350,6 +352,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	@Override
 	public boolean needTransformValue() {
+		if (null != getNode() && NodeTypeEnum.FIELD_MOD_TYPE_PROCESSOR.type.equals(getNode().getType())){
+			return true;
+		}
 		return false;
 	}
 
@@ -454,20 +459,28 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			return;
 		}
 		if (null != fieldRenameProcessorNode && null != capitalized) {
-			Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
-				String newField = fieldsNameTransformMap
-						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
-						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
-				ttf.remove(field);
-				ttf.add(newField);
-			}));
-			Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(ttf -> ttf.forEach(field -> {
-				String newField = fieldsNameTransformMap
-						.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
-						.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
-				ttf.remove(field);
-				ttf.add(newField);
-			}));
+			Set<String> beforeTransformedToTapValueFieldNames = transformToTapValueResult.getBeforeTransformedToTapValueFieldNames();
+			Set<String> newBeforeTransformedToTapValueFieldNames = new HashSet<>();
+			if (CollectionUtils.isNotEmpty(beforeTransformedToTapValueFieldNames)) {
+				beforeTransformedToTapValueFieldNames.forEach(field->{
+					String newField = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+					newBeforeTransformedToTapValueFieldNames.add(newField);
+				});
+				transformToTapValueResult.beforeTransformedToTapValueFieldNames(newBeforeTransformedToTapValueFieldNames);
+			}
+			Set<String> afterTransformedToTapValueFieldNames = transformToTapValueResult.getAfterTransformedToTapValueFieldNames();
+			Set<String> newAfterTransformedToTapValueFieldNames = new HashSet<>();
+			if (CollectionUtils.isNotEmpty(afterTransformedToTapValueFieldNames)) {
+				afterTransformedToTapValueFieldNames.forEach(field->{
+					String newField = fieldsNameTransformMap
+							.computeIfAbsent(Thread.currentThread().getName(), k -> new HashMap<>())
+							.computeIfAbsent(field, k -> Capitalized.convert(field, capitalized));
+					newAfterTransformedToTapValueFieldNames.add(newField);
+				});
+				transformToTapValueResult.afterTransformedToTapValueFieldNames(newAfterTransformedToTapValueFieldNames);
+			}
 		}
 		Node<?> node = getNode();
 		if (node instanceof FieldProcessorNode) {

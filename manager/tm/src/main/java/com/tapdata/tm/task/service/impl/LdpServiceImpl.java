@@ -128,6 +128,8 @@ public class LdpServiceImpl implements LdpService {
 	private static final String TASK_ID = "taskId";
 	private static final String SOURCE_TYPE = "sourceType";
 
+	public static final String TASK_TYPE = "type";
+
     @Override
 	@Lock(value = "user.userId", type = LockType.START_LDP_FDM, expireSeconds = 15)
 	public TaskDto createFdmTask(TaskDto task, boolean start, UserDetail user) {
@@ -529,8 +531,10 @@ public class LdpServiceImpl implements LdpService {
 
 	@Override
 	public void afterLdpTask(String taskId, UserDetail user) {
-		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), user);
-		taskService.updateAfter(taskDto, user);
+		com.tapdata.tm.base.dto.Field exclusionQueryField = new com.tapdata.tm.base.dto.Field();
+		exclusionQueryField.put(TASK_TYPE, 0);
+		TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId), exclusionQueryField);
+        taskService.updateAfter(taskDto, user);
 		LiveDataPlatformDto platformDto = liveDataPlatformService.findOne(new Query(), user);
         if (platformDto == null) {
             return;

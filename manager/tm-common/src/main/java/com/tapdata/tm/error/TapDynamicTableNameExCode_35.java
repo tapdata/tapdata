@@ -13,12 +13,12 @@ import io.tapdata.exception.TapExType;
 public interface TapDynamicTableNameExCode_35 {
     @TapExCode
     String UNKNOWN_ERROR = "35001";
-
+    //TODO
     @TapExCode(
-            describe = "Fail to get instantiation for dynamic table name",
-            describeCN = "无法获取动态表名的实例化对象",
-            solution = "Please select a supported dynamic table name generation rule",
-            solutionCN = "请选择一个已支持的动态表名生成规则",
+            describe = "When the dynamic date suffix is enabled on the target node of the development task, the dynamic generation table name rule object cannot be created",
+            describeCN = "当开发任务的目标节点开启动态日期后缀时，无法创建动态生成表名规则对象",
+            dynamicDescription = "Failed to generate an object for a dynamic table name whose creation rule is {}",
+            dynamicDescriptionCN = "生成动态表名规则失败，规则：{}",
             type = TapExType.PARAMETER_INVALID,
             level = TapExLevel.NORMAL
     )
@@ -26,9 +26,7 @@ public interface TapDynamicTableNameExCode_35 {
 
     @TapExCode(
             describe = "Fail to get invocation for dynamic table name",
-            describeCN = "无法获取对动态表名称的调用方法",
-            solution = "Please select a supported dynamic table name generation rule",
-            solutionCN = "请选择一个已支持的动态表名生成规则",
+            describeCN = "当开发任务的目标节点开启动态日期后缀时，创建动态生成表名规则对象时发生报错",
             type = TapExType.PARAMETER_INVALID,
             level = TapExLevel.NORMAL
     )
@@ -36,9 +34,7 @@ public interface TapDynamicTableNameExCode_35 {
 
     @TapExCode(
             describe = "Dynamic method not find of Dynamic table name generation rule",
-            describeCN = "找不到动态表名生成规则的动态方法",
-            solution = "Please select a supported dynamic table name generation rule",
-            solutionCN = "请选择一个已支持的动态表名生成规则",
+            describeCN = "当开发任务目标节点开启动态日期后缀时，找不到动态表名生成规则的生成方法",
             type = TapExType.PARAMETER_INVALID,
             level = TapExLevel.NORMAL
     )
@@ -46,7 +42,7 @@ public interface TapDynamicTableNameExCode_35 {
 
     @TapExCode(
             describe = "Can not access dynamic table name generation method",
-            describeCN = "无法访问动态表名生成方法",
+            describeCN = "当开发任务目标节点开启动态日期后缀时，无法调用动态表名生成规则的生成方法时",
             solution = "Please select a supported dynamic table name generation rule",
             solutionCN = "请选择一个已支持的动态表名生成规则",
             type = TapExType.PARAMETER_INVALID,
@@ -55,12 +51,14 @@ public interface TapDynamicTableNameExCode_35 {
     String DYNAMIC_METHOD_ACCESS_FAILED = "35005";
 
     @TapExCode(
-        describe = "Table renamed DDL conflicts with the custom table name.\n" +
-            "Reason:\n1. The task assigns a new table name to the table, which cannot be automatically processed when the table is renamed DDL.",
-        solution = "1. The task configuration needs to be analyzed and resolved.",
-        describeCN = "表改名DDL与自定义表名冲突\n" +
-            "原因\n1. 任务为表指定新表名，这个表发生改名DDL时无法自动处理",
-        solutionCN = "1. 需要分析任务配置，并进行解决"
+            describe = "The conflict between the table renaming DDL event and the table renaming node in the task is identified in the source node",
+            describeCN = "源节点中识别出表改名DDL事件与任务中的表编辑节点产生冲突",
+            solution = "1. Modify the task configuration to remove the table editor node\n+" +
+                    "2. Change the -Advanced Settings -DDL synchronization configuration in the node configuration of the source node to automatically ignore all DDLS, so that the source node will ignore DDL events and will not conflict with the table editor node",
+            solutionCN = "1. 修改任务配置，删除表编辑节点" +
+                    "2. 将源节点的节点配置中-高级设置-DDL同步配置修改为自动忽略所有DDL，这样源节点将忽略DDL事件，不会与表编辑节点产生冲突",
+            dynamicDescription = "Cannot apply the table renaming DDL because it conflicts with the custom table name in the table editor node, from {} to {}",
+            dynamicDescriptionCN = "不能应用表重命名DDL，因为它与表编辑节点中的自定义表名冲突，从 {} 到 {}"
     )
     String RENAME_DDL_CONFLICTS_WITH_CUSTOM_TABLE_NAME = "35006";
 }

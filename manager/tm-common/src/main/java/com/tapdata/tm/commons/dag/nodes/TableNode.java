@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import lombok.Data;
 import lombok.Getter;
@@ -187,6 +188,8 @@ public class TableNode extends DataNode {
     private Boolean incrementExactlyOnceEnable;
     private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
 
+    private String previewQualifiedName;
+    private TapTable previewTapTable;
 
     public TableNode() {
         super("table");

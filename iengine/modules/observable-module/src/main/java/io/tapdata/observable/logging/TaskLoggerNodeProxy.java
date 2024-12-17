@@ -33,6 +33,10 @@ class TaskLoggerNodeProxy extends ObsLogger {
 		return this;
 	}
 
+	public void trace(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
+		taskLogger.trace(callable, message, params);
+	}
+
 	public void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params) {
 		taskLogger.debug(callable, message, params);
 	}

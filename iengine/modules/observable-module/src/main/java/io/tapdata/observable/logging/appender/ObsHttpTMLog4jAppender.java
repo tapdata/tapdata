@@ -22,6 +22,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static io.tapdata.observable.logging.ObsLogger.LOG_TAG_SOURCE_FOR_USER_SCRIPT;
+
 /**
  * @author samuel
  * @Description
@@ -85,7 +87,7 @@ public class ObsHttpTMLog4jAppender extends AbstractAppender {
 
 	protected void callTmApiInsertLogs(List<String> bufferList) {
 		List<String> tmp = bufferList.stream()
-				.filter(r -> !r.contains("src=user_script") || TokenBucketRateLimiter.get().tryAcquire(taskId))
+				.filter(r -> !r.contains(LOG_TAG_SOURCE_FOR_USER_SCRIPT) || TokenBucketRateLimiter.get().tryAcquire(taskId))
 				.collect(Collectors.toList());
 
         if (CollectionUtils.isNotEmpty(tmp)) {

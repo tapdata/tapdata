@@ -9,6 +9,7 @@ import io.tapdata.entity.event.ddl.table.TapRenameTableEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BatchOffsetUtil {
     @Deprecated
@@ -57,18 +58,22 @@ public class BatchOffsetUtil {
         return batchOffsetObj;
     }
 
+    public static Map<String, Boolean> getAllTableBatchOffsetInfo(SyncProgress syncProgress) {
+        Object batchOffsetObj = syncProgress.getBatchOffsetObj();
+        Map<String, Boolean> tableOffset = new HashMap<>();
+        if (batchOffsetObj instanceof Map) {
+            Set<String> tables = ((Map<String, ?>) batchOffsetObj).keySet();
+            tables.forEach(key -> tableOffset.put(key, batchIsOverOfTable(syncProgress, key)));
+        }
+        return tableOffset;
+    }
+
     public static void updateBatchOffset(SyncProgress syncProgress, String tableId, Object offset, String isOverTag) {
         Object batchOffsetObj = syncProgress.getBatchOffsetObj();
         if (batchOffsetObj instanceof Map) {
             Map<String, Object> batchOffsetObjTemp = (Map<String, Object>) batchOffsetObj;
             Object batchOffsetObject = batchOffsetObjTemp.computeIfAbsent(tableId, k -> new HashMap<>());
-            if (batchOffsetObject instanceof Map
-                    && ((Map<?, ?>)batchOffsetObject).containsKey(BATCH_READ_CONNECTOR_STATUS)) {
-                updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
-            } else {
-                /** update history offset of table which id is ${tableId} **/
-                batchOffsetObjTemp.put(tableId, updateBatchOffset(new HashMap<>(), offset, isOverTag));
-            }
+            updateBatchOffset((Map<String, Object>)batchOffsetObject, offset, isOverTag);
         }
     }
 

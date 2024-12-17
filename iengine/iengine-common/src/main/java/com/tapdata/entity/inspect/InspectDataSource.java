@@ -44,4 +44,6 @@ public class InspectDataSource implements Serializable {
 
 	private boolean enableCustomCommand;
 	private Map<String, Object> customCommand;
+	private Map<String, String> collate;
+	private boolean enableCustomCollate;
 }

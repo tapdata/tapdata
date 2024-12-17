@@ -8,7 +8,9 @@ import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
@@ -25,15 +27,12 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
-import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
-import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
@@ -630,9 +629,13 @@ public class TaskServiceImpl extends TaskService{
 
                             }
                         } else {
-                            List<String> ldpNewTables = taskDto.getLdpNewTables();
-                            if (CollectionUtils.isNotEmpty(ldpNewTables)) {
-                                taskDto.setLdpNewTables(null);
+                            if (null != taskDto.getAttrs() && taskDto.getAttrs().get("syncProgress") instanceof Map) {
+                                buildLdpNewTablesFromBatchOffset(taskDto, newDag);
+                            } else {
+                                List<String> ldpNewTables = taskDto.getLdpNewTables();
+                                if (CollectionUtils.isNotEmpty(ldpNewTables)) {
+                                    taskDto.setLdpNewTables(null);
+                                }
                             }
                         }
                     }
@@ -712,6 +715,32 @@ public class TaskServiceImpl extends TaskService{
 
         return save(taskDto, user);
 
+    }
+
+    protected void buildLdpNewTablesFromBatchOffset(TaskDto taskDto, DAG newDag) {
+        LinkedHashMap<String, String> syncProgress = (LinkedHashMap) taskDto.getAttrs().get("syncProgress");
+        syncProgress.forEach((k,v) -> {
+            ObjectMapper objectMapper = new ObjectMapper();
+            Map<String, Object> resultMap = null;
+            try {
+                resultMap = objectMapper.readValue(v.toString(), new TypeReference<Map<String, Object>>() {});
+            } catch (Exception e) {
+                throw new BizException("Task.nodeRefresh", e);
+            }
+            String batchOffset = (String) resultMap.get("batchOffset");
+            byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset);
+            Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
+            Set<String> tables = tablesMap.keySet();
+            LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
+            if (CollectionUtils.isNotEmpty(newSourceNode)) {
+                DatabaseNode newFirst = newSourceNode.getFirst();
+                if (newFirst.getTableNames() != null) {
+                    List<String> newTableNames = new ArrayList<>(newFirst.getTableNames());
+                    newTableNames.removeAll(tables);
+                    taskDto.setLdpNewTables(newTableNames);
+                }
+            }
+        });
     }
 
     public TaskDto updateAfter(TaskDto taskDto, UserDetail user) {
@@ -3973,6 +4002,7 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
+        cleanRemovedTableMeasurementIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
@@ -4068,6 +4098,23 @@ public class TaskServiceImpl extends TaskService{
             throw new BizException("Task.StartCheckModelFailed");
         } else {
             run(taskDto, user);
+        }
+    }
+
+    protected void cleanRemovedTableMeasurementIfNeed(TaskDto taskDto) {
+        DAG dag = taskDto.getDag();
+        if (null == dag || CollectionUtils.isEmpty(dag.getSourceNode()) || StringUtils.isBlank(taskDto.getTaskRecordId())) {
+            return;
+        }
+        DatabaseNode newFirst = dag.getSourceNode().getFirst();
+        if (newFirst.getTableNames() != null) {
+            List<String> runTables = measurementServiceV2.findRunTable(taskDto.getId().toHexString(), taskDto.getTaskRecordId());
+            List<String> tables = new ArrayList<>(newFirst.getTableNames());
+            runTables.forEach(tableName -> {
+                if (!tables.contains(tableName)) {
+                    measurementServiceV2.cleanRemovedTableMeasurement(taskDto.getId().toHexString(), taskDto.getTaskRecordId(), tableName);
+                }
+            });
         }
     }
 
@@ -4667,6 +4714,7 @@ public class TaskServiceImpl extends TaskService{
         if (level.equalsIgnoreCase("DEBUG")) {
             logSetting.put("recordCeiling", logSettingParam.getRecordCeiling());
             logSetting.put("intervalCeiling", logSettingParam.getIntervalCeiling());
+            logSetting.put("query", logSettingParam.getQuery());
         }
 
         Update update = new Update();
@@ -5057,7 +5105,11 @@ public class TaskServiceImpl extends TaskService{
         fields.put(DataSourceConnectionDto.FIELD_LAST_UPDATE, 1);
         DataSourceConnectionDto newConn;
         do {
-            newConn = dataSourceService.getById(connId, fields, null, userDetail);
+            newConn = dataSourceService.findById(connId, fields);
+            if (null == newConn) {
+                log.info("Task '{}' connection '{}' refresh failed, not found", taskId, connId);
+                return;
+            }
             if (null != newConn.getLastUpdate() && beginTime < newConn.getLastUpdate()) {
                 if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(newConn.getLoadFieldsStatus())) {
                     log.info("Task '{}' connection '{}' refresh failed, status={}", taskId, connId, newConn.getStatus());
