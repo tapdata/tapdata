@@ -234,6 +234,11 @@ class ClusterStateServiceTest {
             UserDetail user = mock(UserDetail.class);
             when(clusterStateService.deleteById(id)).thenReturn(true);
             doCallRealMethod().when(clusterStateService).deleteCluster(id, user);
+            ClusterStateDto clusterStateDto = new ClusterStateDto();
+            SystemInfo systemInfo = mock(SystemInfo.class);
+            clusterStateDto.setSystemInfo(systemInfo);
+            when(systemInfo.getProcess_id()).thenReturn("123");
+            when(clusterStateService.findById(id, field)).thenReturn(clusterStateDto);
             boolean result = clusterStateService.deleteCluster(id, user);
             assertTrue(result);
 
