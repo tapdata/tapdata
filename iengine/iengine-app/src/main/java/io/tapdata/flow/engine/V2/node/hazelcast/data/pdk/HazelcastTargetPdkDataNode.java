@@ -30,8 +30,7 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
-import io.tapdata.exception.NodeException;
-import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.*;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
@@ -868,7 +867,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							.connectorContext(getConnectorNode().getConnectorContext())
 							.dataProcessorContext(dataProcessorContext)
 							.start();
-				}, (writeRecordFuncAspect ->
+				}, writeRecordFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 								pdkMethodInvoker.runnable(
 										() -> {
@@ -925,6 +924,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 												} catch (Exception e) {
 													Throwable matched = CommonUtils.matchThrowable(e, TapCodeException.class);
 													if (null != matched) {
+														if (matched instanceof TapPdkBaseException) {
+															((TapPdkBaseException) matched).setTableName(tapTable.getId());
+														}else if(matched instanceof TapPdkRunnerUnknownException){
+															((TapPdkRunnerUnknownException) matched).setTableName(tapTable.getId());
+														}
 														throw matched;
 													}else {
 														throw new TapCodeException(TaskTargetProcessorExCode_15.WRITE_RECORD_COMMON_FAILED, String.format("Execute PDK method: %s, tableName: %s", PDKMethod.TARGET_WRITE_RECORD, tapTable.getId()), e);
@@ -933,7 +937,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 											}
 										}
 								)
-						)));
+						));
                 syncMetricCollector.log(tapRecordEvents);
 			} finally {
 				removePdkMethodInvoker(pdkMethodInvoker);
