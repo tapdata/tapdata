@@ -435,7 +435,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
                 unBind = false;
             }
             WorkerDto worker = workerService.findByProcessId(processId, user, "licenseBind");
-            if (null != worker && worker.getLicenseBind()) {
+            if (null != worker && null != worker.getLicenseBind() && worker.getLicenseBind()) {
                 unBind = workerService.unbindByProcessId(processId);
             }
         }

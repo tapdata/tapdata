@@ -223,5 +223,20 @@ class ClusterStateServiceTest {
             result = clusterStateService.deleteCluster(id, user);
             assertTrue(result);
         }
+
+        @Test
+        public void testDeleteClusterLicenseBindIsNull() {
+            Field field = new Field();
+            field.put("systemInfo", 1);
+            WorkerDto worker = new WorkerDto();
+            when(workerService.findByProcessId(anyString(), any(UserDetail.class), anyString())).thenReturn(worker);
+            ObjectId id = new ObjectId();
+            UserDetail user = mock(UserDetail.class);
+            when(clusterStateService.deleteById(id)).thenReturn(true);
+            doCallRealMethod().when(clusterStateService).deleteCluster(id, user);
+            boolean result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
+
+        }
     }
 }
