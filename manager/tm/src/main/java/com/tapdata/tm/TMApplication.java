@@ -59,7 +59,8 @@ public class TMApplication {
 		SpringContextHelper.applicationContext = applicationContext;
 		try {
 			Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
-			new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location=classpath:application-tcm.yml")
+			String path = System.getenv("TCM_CONF") != null ? System.getenv("TCM_CONF") : "classpath:application-tcm.yml";
+			new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
 					.build().run(args);
 		}catch (ClassNotFoundException e){
 			log.info("No need to start TCM");
