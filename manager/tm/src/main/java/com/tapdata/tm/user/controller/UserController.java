@@ -512,7 +512,7 @@ public class UserController extends BaseController {
     @Operation(summary = "企业版重置密码")
     @DeleteMapping("{id}")
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
-        userService.delete(id);
+        userService.delete(id, getLoginUser());
         return success();
     }
 
