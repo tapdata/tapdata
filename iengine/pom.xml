@@ -172,8 +172,8 @@
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
         <tapdata-api.version>1.4.2-SNAPSHOT</tapdata-api.version>
-        <modules-api.version>1.1-SNAPSHOT</modules-api.version>
-        <websocket-client-module.version>1.1-SNAPSHOT</websocket-client-module.version>
+        <modules-api.version>1.2-SNAPSHOT</modules-api.version>
+        <websocket-client-module.version>1.2-SNAPSHOT</websocket-client-module.version>
     </properties>
 
     <modules>

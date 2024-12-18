@@ -52,7 +52,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>websocket-client-module</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.2-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.tapdata</groupId>
@@ -63,7 +63,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>modules-api</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
