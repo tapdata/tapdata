@@ -57,6 +57,15 @@ public class TMApplication {
 				.listeners(new StartupListener())
 				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
+		try {
+			Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
+			String path = System.getenv("TCM_CONF") != null ? System.getenv("TCM_CONF") : "classpath:application-tcm.yml";
+			new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
+					.build().run(args);
+		}catch (ClassNotFoundException e){
+			log.info("No need to start TCM");
+		}
+
 
 		UserDataReportService userDataReportService = applicationContext.getBean(UserDataReportService.class);
 		long currentTimeMillis = System.currentTimeMillis();
