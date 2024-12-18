@@ -8,6 +8,7 @@ import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.role.dto.RoleDto;
@@ -738,6 +739,34 @@ public class UserServiceImplTest {
         void getKeyPathTest() {
             String keyPath = userService.getKeyPath();
             assertNull(keyPath);
+        }
+    }
+
+    @Nested
+    class refreshAccessCodeTest {
+        UserDetail userDetail;
+        @BeforeEach
+        void beforeEach() {
+            userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("62bc5008d4958d013d97c7a6");
+        }
+        @Test
+        void testWhenCodeIsEmpty() {
+            when(userService.randomHexString()).thenReturn("");
+            doCallRealMethod().when(userService).refreshAccessCode(userDetail);
+            BizException exception = assertThrows(BizException.class, () -> userService.refreshAccessCode(userDetail));
+            assertEquals("AccessCode.Is.Null", exception.getErrorCode());
+        }
+        @Test
+        void testRefreshAccessCodeNormal() {
+            doCallRealMethod().when(userService).randomHexString();
+            UserDto userDto = mock(UserDto.class);
+            String accessCode = "b4b7fe8a499f65786764fe3654b37c48";
+            when(userDto.getAccessCode()).thenReturn(accessCode);
+            when(userService.findById(any(ObjectId.class), any(Field.class))).thenReturn(userDto);
+            doCallRealMethod().when(userService).refreshAccessCode(userDetail);
+            String actual = userService.refreshAccessCode(userDetail);
+            assertEquals(accessCode, actual);
         }
     }
 }
