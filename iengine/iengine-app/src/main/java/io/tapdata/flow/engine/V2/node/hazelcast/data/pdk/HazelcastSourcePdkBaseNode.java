@@ -219,6 +219,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private int toTapValueBatchSize;
 	protected Boolean syncSourcePartitionTableEnable;
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
+	protected List<String> loggedTables = new ArrayList<>();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -933,7 +934,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (CollectionUtils.isNotEmpty(addList)) {
 			List<String> loadedTableNames;
 			final List<String> noPrimaryKeyTableNames = new ArrayList<>();
-			obsLogger.info("Found new table(s): " + addList);
+			boolean needLog = false;
+			if (!loggedTables.equals(addList)) {
+				obsLogger.info("Found new table(s): " + addList);
+				loggedTables.clear();
+				loggedTables.addAll(addList);
+				needLog = true;
+			}
 			List<TapTable> addTapTables = new ArrayList<>();
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			// Load new table schema
@@ -991,6 +998,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (filterTableByNoPrimaryKey.apply(tapTable)) {
 					logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
 					noPrimaryKeyTableNames.add(tapTable.getId());
+					return;
 				}
 				addTapTables.add(tapTable);
 			});
@@ -999,7 +1007,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					addTapTables.forEach(tapTable -> obsLogger.debug("Loaded new table schema: {}", tapTable));
 				}
 			}
-			obsLogger.info("Load new table(s) schema finished, loaded schema count: {}", addTapTables.size());
+			if (needLog) {
+				obsLogger.info("Load new table(s) schema finished, loaded schema count: {}", addTapTables.size());
+			}
 			loadedTableNames = addTapTables.stream().map(TapTable::getId).collect(Collectors.toList());
 			List<String> missingTableNames = new ArrayList<>();
 			addList.forEach(tableName -> {
