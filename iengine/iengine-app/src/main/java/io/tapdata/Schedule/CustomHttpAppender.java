@@ -147,7 +147,7 @@ public class CustomHttpAppender extends AbstractAppender {
 					}
 					switch (level.toUpperCase()) {
 						case "INFO":
-							obsLogger.info(message);
+							obsLogger.trace(message);
 							break;
 						case "WARN":
 							obsLogger.warn(message);

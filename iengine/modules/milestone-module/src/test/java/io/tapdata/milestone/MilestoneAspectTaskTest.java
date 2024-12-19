@@ -459,7 +459,7 @@ class MilestoneAspectTaskTest {
 				verify(task, times(1)).getId();
 				verify(id, times(1)).toHexString();
 				verify(task, times(1)).getName();
-				verify(log).info(anyString(), anyString(), anyString());
+				verify(log).trace(anyString(), anyString(), anyString());
 				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
 				verify(task).getSyncType();
 				verify(milestoneAspectTask, times(KPI_TABLE_INITTimes)).taskMilestone(MilestoneAspectTask.KPI_TABLE_INIT, null);
@@ -521,7 +521,7 @@ class MilestoneAspectTaskTest {
 				verify(task).getId();
 				verify(id).toHexString();
 				verify(task).getName();
-				verify(log).info(anyString(), anyString(), anyString());
+				verify(log).trace(anyString(), anyString(), anyString());
 				verify(executorService).shutdown();
 				verify(milestoneAspectTask).storeMilestone();
 			}

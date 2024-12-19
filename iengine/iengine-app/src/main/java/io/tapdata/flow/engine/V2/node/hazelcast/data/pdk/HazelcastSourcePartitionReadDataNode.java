@@ -157,7 +157,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 		PDKSourceContext pdkSourceContext = jobContext.getContext(PDKSourceContext.class);
 		List<String> pendingInitialSyncTables = pdkSourceContext.getPendingInitialSyncTables();
-		obsLogger.info("Start initial sync for tables {} with readPartitionOptions {}", pendingInitialSyncTables, readPartitionOptions);
+		obsLogger.trace("Start initial sync for tables {} with readPartitionOptions {}", pendingInitialSyncTables, readPartitionOptions);
 		executeAspect(new SnapshotReadBeginAspect().dataProcessorContext(dataProcessorContext).tables(pendingInitialSyncTables));
 
 		if (null == getConnectorNode()) {
@@ -189,17 +189,17 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 					});
 				}
 				if (this.removeTables != null && this.removeTables.contains(tableName)) {
-					obsLogger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
+					obsLogger.trace("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
 					this.removeTables.remove(tableName);
 					return null;
 				}
 				TapEventPartitionDispatcher eventPartitionDispatcher = tableEventPartitionDispatcher.get(tableName);
 				if (eventPartitionDispatcher != null && eventPartitionDispatcher.isReadPartitionFinished()) {
-					obsLogger.info("Table {} has read finished, no need batch read any more. ", tableName);
+					obsLogger.trace("Table {} has read finished, no need batch read any more. ", tableName);
 					return null;
 				}
 				Object tableOffset = ((Map<?, ?>) syncProgress.getBatchOffsetObj()).get(tableName);
-				obsLogger.info("Starting batch read, table name: " + tableName + ", offset: " + tableOffset);
+				obsLogger.trace("Starting batch read, table name: " + tableName + ", offset: " + tableOffset);
 				tableParallelWorker.job(
 						"table#" + tableName,
 						JobContext.create(null),
@@ -254,7 +254,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableId);
 		tablePartitionReaderMap.computeIfAbsent(tapTable.getId(), table -> asyncMaster.createAsyncParallelWorker("PartitionsReader_" + table, partitionReaderThreadCount));
 		ParallelWorker partitionsReader = tablePartitionReaderMap.get(tapTable.getId());//asyncMaster.createAsyncParallelWorker("PartitionsReader_" + tapTable.getId(), 8);
-		obsLogger.info("Stream read started already, now start read partitions for table {}", tapTable.getId());
+		obsLogger.trace("Stream read started already, now start read partitions for table {}", tapTable.getId());
 		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
 		tableEventPartitionDispatcher.putIfAbsent(tapTable.getId(), new TapEventPartitionDispatcher(tapTable, obsLogger));
 		//ConnectorNode node = getConnectorNode();
@@ -295,7 +295,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 									completedPartitionIds = partitionTableOffset.getCompletedPartitions();
 									tableCompleted = partitionTableOffset.getTableCompleted();
 								}
-								obsLogger.info("PartitionTableOffset recoveredPartitions {}, completedPartitions {}, tableCompleted {}", (recoveredPartitions != null ? recoveredPartitions.size() : 0), (completedPartitionIds != null ? completedPartitionIds.size() : 0), tableCompleted);
+								obsLogger.trace("PartitionTableOffset recoveredPartitions {}, completedPartitions {}, tableCompleted {}", (recoveredPartitions != null ? recoveredPartitions.size() : 0), (completedPartitionIds != null ? completedPartitionIds.size() : 0), tableCompleted);
 							}
 
 							if (tableCompleted != null && tableCompleted) {
@@ -304,7 +304,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 								//Read partition has been split, recover reading partitions.
 								for (ReadPartition readPartition : recoveredPartitions) {
 									if (completedPartitionIds != null && completedPartitionIds.containsKey(readPartition.getId())) {
-										obsLogger.info("Read partition {} has read completed, count {}", readPartition, completedPartitionIds.get(readPartition.getId()));
+										obsLogger.trace("Read partition {} has read completed, count {}", readPartition, completedPartitionIds.get(readPartition.getId()));
 										continue;
 									}
 									partitionConsumer.accept(readPartition);
@@ -331,7 +331,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 
 	public void handleEnterCDCStage(ParallelWorker partitionsReader, TapTable tapTable) {
 		final String tapTableId = tapTable.getId();
-		obsLogger.info("All partitions has been read for table {}, stream records can pass directly to next node, without through its partition.", tapTableId);
+		obsLogger.trace("All partitions has been read for table {}, stream records can pass directly to next node, without through its partition.", tapTableId);
 		partitionsReader.stop();
 		ParallelWorker parallelWorker = tablePartitionReaderMap.remove(tapTableId);
 		if (parallelWorker != null)
@@ -406,7 +406,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 										throw new CoreException(PartitionErrorCodes.TAP_TABLE_NOT_FOUND, "TapTable {} not found while recovering partitions", table);
 									TapEventPartitionDispatcher dispatcher = new TapEventPartitionDispatcher(tapTable, obsLogger);
 									dispatcher.readPartitionFinished();
-									obsLogger.info("Table {} read partition finished", table);
+									obsLogger.trace("Table {} read partition finished", table);
 									return dispatcher;
 								});
 							}
@@ -420,7 +420,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 									TapEventPartitionDispatcher dispatcher = new TapEventPartitionDispatcher(tapTable, obsLogger);
 //										ReadPartitionHandler readPartitionHandler = new ReadPartitionHandler(sourceContext, tapTable, readPartition, this);
 //										readPartitionHandler.finish();
-//										obsLogger.info("Table {} partition {} has finished", table, readPartition);
+//										obsLogger.trace("Table {} partition {} has finished", table, readPartition);
 //										dispatcher.register(readPartition, readPartitionHandler);
 									return dispatcher;
 								});
@@ -431,11 +431,11 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 								if (completedPartitionIds != null && completedPartitionIds.containsKey(readPartition.getId())) {
 									ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(sourceContext, tapTable, readPartition, this);
 									readPartitionHandler.finish();
-									obsLogger.info("Table {} partition {} has read finished by last time, count {}, will be skipped.", entryKey, readPartition, completedPartitionIds.get(readPartition.getId()));
+									obsLogger.trace("Table {} partition {} has read finished by last time, count {}, will be skipped.", entryKey, readPartition, completedPartitionIds.get(readPartition.getId()));
 									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
 								} else {
 									ReadPartitionHandler readPartitionHandler = ReadPartitionHandler.createReadPartitionHandler(sourceContext, tapTable, readPartition, this);
-									obsLogger.info("Table {} partition {} hasn't been read by last time, will continue read. ", entryKey, readPartition);
+									obsLogger.trace("Table {} partition {} hasn't been read by last time, will continue read. ", entryKey, readPartition);
 									eventPartitionDispatcher.register(readPartition, readPartitionHandler);
 								}
 							}
@@ -490,7 +490,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 //												MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
 				logger.info("Connector start stream read succeed: {}", connectorNode);
-				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
+				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 
 				//start pending partition reader workers as stream read is started.
 				streamReadStarted.compareAndSet(false, true);
@@ -683,7 +683,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 		try {
 			FileUtils.deleteQuietly(new File("./partition_storage/" + getNode().getId()));
 
-			obsLogger.info("task {} closed", dataProcessorContext.getTaskDto().getId().toHexString());
+			obsLogger.trace("task {} closed", dataProcessorContext.getTaskDto().getId().toHexString());
 			for (ParallelWorker tablePartitionReader : tablePartitionReaderMap.values()) {
 				try {
 					tablePartitionReader.stop();

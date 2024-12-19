@@ -64,7 +64,7 @@ public class LoggingAspectTaskTest {
             aspect.getCreateTableOptions().tableExists(false);
             spyAspectTask.handleCreateTableFuc(aspect);
 
-            verify(logger, times(1)).info(anyString(), any());
+            verify(logger, times(1)).trace(anyString(), any());
 
         }
 

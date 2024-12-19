@@ -58,7 +58,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			obsLogger.warn("Partition not found for key {}, insertRecord will be ignored {} readPartitionConsumerMap size {}", key, insertRecordEvent.getAfter(), readPartitionConsumerMap.size());
 			return null;
 		}
-		obsLogger.info("Table {} InsertRecord key {} assigned into partition {}", table, key, readPartition);
+		obsLogger.trace("Table {} InsertRecord key {} assigned into partition {}", table, key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if (readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while insert", readPartition, key);
@@ -78,14 +78,14 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			obsLogger.warn("Partition not found for value {}, updateRecord will be ignored before {} after {}, readPartitionConsumerMap size {}", key, updateRecordEvent.getBefore(), updateRecordEvent.getAfter(), readPartitionConsumerMap.size());
 			return null;
 		}
-		obsLogger.info("Table {} UpdateRecord key {} assigned into partition {}", table, key, readPartition);
+		obsLogger.trace("Table {} UpdateRecord key {} assigned into partition {}", table, key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if (readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while update", readPartition, key);
 		}
 
 		if (!checkKeyChanged(before, after)) {
-			obsLogger.info("Partition key has changed in UpdateRecordEvent {} for table {}, will remove the old key from partition. ", updateRecordEvent, table);
+			obsLogger.trace("Partition key has changed in UpdateRecordEvent {} for table {}, will remove the old key from partition. ", updateRecordEvent, table);
 			deleteFromPartition(deleteDMLEvent(before, table));
 			readPartitionHandler.handleInsertRecordEvent(insertRecordEvent(after, table), after, key);
 		} else {
@@ -103,7 +103,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			obsLogger.warn("Partition not found for value {}, deleteRecord will be ignored {}, readPartitionConsumerMap size {}", key, deleteRecordEvent.getBefore(), readPartitionConsumerMap.size());
 			return null;
 		}
-		obsLogger.info("Table {} DeleteRecord key {} assigned into partition {}", table, key, readPartition);
+		obsLogger.trace("Table {} DeleteRecord key {} assigned into partition {}", table, key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if (readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while delete", readPartition, key);
@@ -121,7 +121,7 @@ public class TapEventPartitionDispatcher extends PartitionFieldParentHandler {
 			obsLogger.warn("Partition not found for value {}, deleteFromPartition will be ignored {}, readPartitionConsumerMap size {}", key, before, readPartitionConsumerMap.size());
 			return;
 		}
-		obsLogger.info("Table {} deleteFromPartition key {} assigned into partition {}", table, key, readPartition);
+		obsLogger.trace("Table {} deleteFromPartition key {} assigned into partition {}", table, key, readPartition);
 		ReadPartitionHandler readPartitionHandler = readPartitionConsumerMap.get(readPartition);
 		if (readPartitionHandler == null) {
 			throw new CoreException(PartitionErrorCodes.PARTITION_NOT_FOUND_FOR_VALUE, "ReadPartition {} failed to find readPartitionHandler for key {} while delete", readPartition, key);

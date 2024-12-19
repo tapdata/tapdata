@@ -104,7 +104,7 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 						partitionCDCStorage.setClassLoader(sourcePdkDataNode.getConnectorNode().getConnectorClassLoader());
 						partitionCDCStorage.setPath(sourcePdkDataNode.getNode().getId());
 					});
-//					sourcePdkDataNode.getObsLogger().info("Prepared kv storage file {} for partition {}", kvStorageId, readPartition);
+//					sourcePdkDataNode.getObsLogger().trace("Prepared kv storage file {} for partition {}", kvStorageId, readPartition);
 				}
 			}
 		}
@@ -122,13 +122,13 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 						partitionSequenceStorage.setClassLoader(node.getConnectorClassLoader());
 						partitionSequenceStorage.setPath(sourcePdkDataNode.getNode().getId());
 					});
-//					sourcePdkDataNode.getObsLogger().info("Prepared sequence storage file {} for partition {}", sequenceStorageId, readPartition);
+//					sourcePdkDataNode.getObsLogger().trace("Prepared sequence storage file {} for partition {}", sequenceStorageId, readPartition);
 				}
 			}
 		}
 
 		ReadPartitionContext readPartitionContext = jobContext.getContext(ReadPartitionContext.class);
-		sourcePdkDataNode.getObsLogger().info("Start storing partition {} , batchSize {}, sequenceStorageId {}", readPartition, sourcePdkDataNode.batchSize, sequenceStorageId);
+		sourcePdkDataNode.getObsLogger().trace("Start storing partition {} , batchSize {}, sequenceStorageId {}", readPartition, sourcePdkDataNode.batchSize, sequenceStorageId);
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = sourcePdkDataNode.getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 		if (queryByAdvanceFilterFunction != null) {
 			long time = System.currentTimeMillis();
@@ -160,7 +160,7 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 						));
 			} finally {
 				sourcePdkDataNode.removePdkMethodInvoker(pdkMethodInvoker);
-				sourcePdkDataNode.getObsLogger().info("Stored the readPartition {} {}, takes {}, storage takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), storageTakes.longValue(), counter.longValue());
+				sourcePdkDataNode.getObsLogger().trace("Stored the readPartition {} {}, takes {}, storage takes {}, total {}", readPartition, sequenceStorageId, (System.currentTimeMillis() - time), storageTakes.longValue(), counter.longValue());
 			}
 
 		}
@@ -179,11 +179,11 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 						kvStorageDuringSending.setClassLoader(node.getConnectorClassLoader());
 						kvStorageDuringSending.setPath(sourcePdkDataNode.getNode().getId());
 					});
-//					sourcePdkDataNode.getObsLogger().info("Prepared kv storage during sending file {} for partition {}", kvStorageDuringSendingId, readPartition);
+//					sourcePdkDataNode.getObsLogger().trace("Prepared kv storage during sending file {} for partition {}", kvStorageDuringSendingId, readPartition);
 				}
 			}
 		}
-		sourcePdkDataNode.getObsLogger().info("Start sending data from partition {}, batchSize {}, sequenceStorageId {}", readPartition, sourcePdkDataNode.batchSize, sequenceStorageId);
+		sourcePdkDataNode.getObsLogger().trace("Start sending data from partition {}, batchSize {}, sequenceStorageId {}", readPartition, sourcePdkDataNode.batchSize, sequenceStorageId);
 		BatchReadFuncAspect batchReadFuncAspect = readPartitionContext.getBatchReadFuncAspect();
 		List<TapEvent> events = new ArrayList<>();
 		long time = System.currentTimeMillis();
@@ -206,7 +206,7 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 				if (reference.get().size() >= sourcePdkDataNode.batchSize) {
 //				long theTime = System.currentTimeMillis();
 					enqueueTapEvents(batchReadFuncAspect, reference.get(), sourcePdkDataNode);
-//				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+//				sourcePdkDataNode.getObsLogger().trace("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
 					reference.set(new ArrayList<>());
 				}
 				return null;
@@ -223,16 +223,16 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 //			if(reference.get().size() >= sourcePdkDataNode.batchSize) {
 ////				long theTime = System.currentTimeMillis();
 //				enqueueTapEvents(batchReadFuncAspect, reference.get());
-////				sourcePdkDataNode.getObsLogger().info("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+////				sourcePdkDataNode.getObsLogger().trace("enqueueTapEvents sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
 //				reference.set(new ArrayList<>());
 //			}
 //			return null;
 //		});
 			long theTime = System.currentTimeMillis();
 			enqueueTapEvents(batchReadFuncAspect, reference.get(), sourcePdkDataNode);
-			sourcePdkDataNode.getObsLogger().info("enqueueTapEvents last sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
+			sourcePdkDataNode.getObsLogger().trace("enqueueTapEvents last sequence events {} takes {}", reference.get().size(), (System.currentTimeMillis() - theTime));
 
-			sourcePdkDataNode.getObsLogger().info("Consumer sequence events {} takes {}", sentEventCount.longValue(), (System.currentTimeMillis() - time));
+			sourcePdkDataNode.getObsLogger().trace("Consumer sequence events {} takes {}", sentEventCount.longValue(), (System.currentTimeMillis() - time));
 
 			theTime = System.currentTimeMillis();
 			List<TapEvent> newInsertEvents = new ArrayList<>();
@@ -254,9 +254,9 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 				return null;
 			});
 			enqueueTapEvents(batchReadFuncAspect, newInsertReference.get(), sourcePdkDataNode);
-			sourcePdkDataNode.getObsLogger().info("Consumer rest cdc events {} takes {}", sentEventCount.longValue(), (System.currentTimeMillis() - theTime));
+			sourcePdkDataNode.getObsLogger().trace("Consumer rest cdc events {} takes {}", sentEventCount.longValue(), (System.currentTimeMillis() - theTime));
 
-			sourcePdkDataNode.getObsLogger().info("Send {} events to next node for read partition {} takes {}", sentEventCount.longValue(), readPartition, (System.currentTimeMillis() - time));
+			sourcePdkDataNode.getObsLogger().trace("Send {} events to next node for read partition {} takes {}", sentEventCount.longValue(), readPartition, (System.currentTimeMillis() - time));
 		}
 		return null;
 	}
@@ -282,7 +282,7 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 						return null;
 					});
 					sourcePdkDataNode.handleStreamEventsReceived(eventListReference.get(), null);
-					sourcePdkDataNode.getObsLogger().info("Read partition {} finished, takes {}, event(during sending) count {}", readPartition, (System.currentTimeMillis() - time), counter.longValue());
+					sourcePdkDataNode.getObsLogger().trace("Read partition {} finished, takes {}, event(during sending) count {}", readPartition, (System.currentTimeMillis() - time), counter.longValue());
 				}
 			}
 		}
@@ -300,7 +300,7 @@ public class ReadPartitionKVStorageHandler extends PartitionFieldParentHandler i
 			} else {
 				completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
 			}
-			sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
+			sourcePdkDataNode.getObsLogger().trace("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
 		}
 
 		storageFactory.deleteKVStorage(kvStorageDuringSendingId);

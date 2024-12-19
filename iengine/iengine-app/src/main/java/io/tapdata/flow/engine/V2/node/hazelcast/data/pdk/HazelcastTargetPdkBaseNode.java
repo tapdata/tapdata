@@ -206,6 +206,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void initSyncPartitionTableEnable() {
 		Node<?> node = getNode();
 		this.syncTargetPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncTargetPartitionTableEnable());
+        if (this.syncTargetPartitionTableEnable && obsLogger != null)
+            obsLogger.info("Enable partition table support for target database");
 	}
 
     protected void initSyncProgressMap() {
@@ -246,7 +248,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
         if (!checkExactlyOnceWriteEnableResult.getEnable()) {
             if (StringUtils.isNotBlank(checkExactlyOnceWriteEnableResult.getMessage())) {
-                obsLogger.info("Node({}) exactly once write is disabled, reason: {}", getNode().getName(), checkExactlyOnceWriteEnableResult.getMessage());
+                obsLogger.trace("Node({}) exactly once write is disabled, reason: {}", getNode().getName(), checkExactlyOnceWriteEnableResult.getMessage());
             }
             return;
         }
@@ -259,7 +261,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
         boolean create = createTable(exactlyOnceTable, new AtomicBoolean(), true);
         if (create) {
-            obsLogger.info("Create exactly once write cache table: {}", exactlyOnceTable);
+            obsLogger.trace("Create exactly once write cache table: {}", exactlyOnceTable);
             CreateIndexFunction createIndexFunction = connectorFunctions.getCreateIndexFunction();
             TapCreateIndexEvent indexEvent = createIndexEvent(exactlyOnceTable.getId(), exactlyOnceTable.getIndexList());
             PDKInvocationMonitor.invoke(
@@ -279,11 +281,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             );
             ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
             exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
-            obsLogger.info("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
+            obsLogger.trace("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
         } else if (node instanceof DatabaseNode) {
             // Nonsupport
         }
-        obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
+        obsLogger.trace("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
     }
 
     protected void checkUnwindConfiguration() {
@@ -378,11 +380,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected boolean createTable(TapTable tapTable, AtomicBoolean succeed,boolean init) {
 		if (getNode().disabledNode()) {
-			obsLogger.info("Target node has been disabled, task will skip: create table");
+			obsLogger.trace("Target node has been disabled, task will skip: create table");
 			return false;
 		}
 		if (!this.syncTargetPartitionTableEnable && tapTable.checkIsSubPartitionTable()) {
-			obsLogger.info("Target node not enable partition, task will skip: create subpartition table {}",
+			obsLogger.trace("Target node not enable partition, task will skip: create subpartition table {}",
 					tapTable.getId());
 			return false;
 		}
@@ -416,13 +418,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 
 			if (createPartitionTable) {
-				obsLogger.info("Will create master partition table [{}] to target, init sub partition list: {}",
+				obsLogger.trace("Will create master partition table [{}] to target, init sub partition list: {}",
 						tapTable.getId(),
 						Optional.ofNullable(tapTable.getPartitionInfo().getSubPartitionTableInfo()).orElse(new ArrayList<>())
 								.stream().map(TapSubPartitionTableInfo::getTableName).collect(Collectors.toList()));
 				return createPartitionTable(createPartitionTableFunction, succeed, tapTable, init, tapCreateTableEvent);
 			} else if (createSubPartitionTable) {
-				obsLogger.info("Will create sub partition table [{}] to target, master table is: {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
+				obsLogger.trace("Will create sub partition table [{}] to target, master table is: {}", tapTable.getId(), tapTable.getPartitionMasterTableId());
 				return createSubPartitionTable(createPartitionSubTableFunction, succeed, tapTable, init, tapCreateTableEvent);
 			} else if (createdTable) {
 				doCreateTable(tapTable, tapCreateTableEvent, () ->
@@ -534,7 +536,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<? extends Node<?>> predecessors = getNode().predecessors();
         for (Node<?> predecessor : predecessors) {
             if (predecessor instanceof MergeTableNode || predecessor instanceof UnwindProcessNode) {
-                obsLogger.info("CDC concurrent write is disabled because the node has a merge table node or unwind process node");
+                obsLogger.trace("CDC concurrent write is disabled because the node has a merge table node or unwind process node");
                 cdcConcurrent = false;
             }
         }
@@ -556,7 +558,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (getNode() instanceof DataParentNode) {
             this.targetBatchIntervalMs = Optional.ofNullable(((DataParentNode<?>) getNode()).getWriteBatchWaitMs()).orElse(DEFAULT_TARGET_BATCH_INTERVAL_MS);
         }
-        obsLogger.info("Write batch size: {}, max wait ms per batch: {}", targetBatch, targetBatchIntervalMs);
+        obsLogger.trace("Write batch size: {}, max wait ms per batch: {}", targetBatch, targetBatchIntervalMs);
         writeQueueCapacity = new BigDecimal(targetBatch).multiply(new BigDecimal(TARGET_QUEUE_FACTOR)).setScale(0, RoundingMode.HALF_UP).intValue();
         this.originalWriteQueueCapacity = writeQueueCapacity;
         this.tapEventQueue = new LinkedBlockingQueue<>(writeQueueCapacity);
@@ -569,7 +571,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             try {
                 createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
                 connectorNodeInit(dataProcessorContext);
+                obsLogger.info("Sink connector({}) initialization completed", getNode().getName());
             } catch (Throwable e) {
+                obsLogger.error("Sink connector(" + getNode().getName() + ") initialization error: " + e.getMessage(), e);
                 throw new NodeException(e).context(getProcessorBaseContext());
             }
         }
@@ -605,7 +609,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         if (tapdataEvent instanceof TapdataAdjustMemoryEvent) {
                             if (((TapdataAdjustMemoryEvent) tapdataEvent).needAdjust()) {
                                 synchronized (this.dynamicAdjustQueueLock) {
-                                    obsLogger.info("{}The target node enters the waiting phase until the queue adjustment is completed", DynamicAdjustMemoryConstant.LOG_PREFIX);
+                                    obsLogger.trace("{}The target node enters the waiting phase until the queue adjustment is completed", DynamicAdjustMemoryConstant.LOG_PREFIX);
                                     this.dynamicAdjustQueueLock.wait();
                                 }
                             }
@@ -660,7 +664,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 // send count down latch and await
                 TapdataCountDownLatchEvent tapdataCountDownLatchEvent = TapdataCountDownLatchEvent.create(1);
                 enqueue(this.tapEventProcessQueue, tapdataCountDownLatchEvent);
-                obsLogger.info("The target node received dll event({}). Wait for all previous events to be processed", consumeEvent.getTapEvent());
+                obsLogger.trace("The target node received dll event({}). Wait for all previous events to be processed", consumeEvent.getTapEvent());
                 while (isRunning()) {
                     try {
                         if (tapdataCountDownLatchEvent.getCountDownLatch().await(1L, TimeUnit.SECONDS)) {
@@ -672,7 +676,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     }
                 }
                 updateMemoryFromDDLInfoMap(consumeEvent);
-                obsLogger.info("The target node refreshes the memory model according to the ddl event({})", consumeEvent.getTapEvent());
+                obsLogger.trace("The target node refreshes the memory model according to the ddl event({})", consumeEvent.getTapEvent());
             }
             enqueue(this.tapEventProcessQueue, consumeEvent);
         }
@@ -966,7 +970,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             return;
         } else {
             if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
-                obsLogger.info("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
+                obsLogger.trace("Target table {} stop look up exactly once cache", tgtTableNameFromTapEvent);
                 lookupTables.remove(tgtTableNameFromTapEvent);
             }
         }
@@ -985,7 +989,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 case TapdataAdjustMemoryEvent.INCREASE:
                     if (initialConcurrent && (null == this.initialPartitionConcurrentProcessor || !initialPartitionConcurrentProcessor.isRunning())) {
                         initTargetConcurrentProcessorIfNeed();
-                        obsLogger.info("{}Target initial concurrent processor resumed", DynamicAdjustMemoryConstant.LOG_PREFIX);
+                        obsLogger.trace("{}Target initial concurrent processor resumed", DynamicAdjustMemoryConstant.LOG_PREFIX);
                     }
                     newQueueSize = this.originalWriteQueueCapacity;
                     break;
@@ -993,7 +997,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     if (initialConcurrent && null != initialPartitionConcurrentProcessor && initialPartitionConcurrentProcessor.isRunning()) {
                         initialPartitionConcurrentProcessor.stop();
                         initialPartitionConcurrentProcessor = null;
-                        obsLogger.info("{}Target initial concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
+                        obsLogger.trace("{}Target initial concurrent processor stopped", DynamicAdjustMemoryConstant.LOG_PREFIX);
                     }
                     newQueueSize = BigDecimal.valueOf(this.originalWriteQueueCapacity).divide(BigDecimal.valueOf(coefficient).multiply(BigDecimal.valueOf(TARGET_QUEUE_FACTOR)), 0, RoundingMode.HALF_UP).intValue();
                     newQueueSize = Math.max(newQueueSize, 10);
@@ -1013,7 +1017,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                             queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
                             initTargetQueueConsumer();
                         }
-                        obsLogger.info("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
+                        obsLogger.trace("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
                         this.writeQueueCapacity = newQueueSize;
                         break;
                     }
@@ -1027,7 +1031,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (tapdataEvent.needAdjust()) {
                 synchronized (this.dynamicAdjustQueueLock) {
                     this.dynamicAdjustQueueLock.notifyAll();
-                    obsLogger.info("{}Notify target node to process data", DynamicAdjustMemoryConstant.LOG_PREFIX);
+                    obsLogger.trace("{}Notify target node to process data", DynamicAdjustMemoryConstant.LOG_PREFIX);
                 }
             }
         } catch (Exception e) {

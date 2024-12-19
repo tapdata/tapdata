@@ -195,7 +195,7 @@ public class SyncMetricCollector implements ISyncMetricCollector {
     @Override
     public void close(ObsLogger obsLogger) {
         if (isClosed.compareAndSet(false, true)) {
-            obsLogger.info(toString());
+            obsLogger.trace(toString());
         }
     }
 

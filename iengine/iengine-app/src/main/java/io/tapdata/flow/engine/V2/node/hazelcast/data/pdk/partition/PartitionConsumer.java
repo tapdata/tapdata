@@ -41,7 +41,7 @@ public class PartitionConsumer implements Consumer<ReadPartition> {
 
 	@Override
 	public void accept(ReadPartition readPartition) {
-		sourcePdkDataNodeEx1.getObsLogger().info("Found partition {} to read", readPartition);
+		sourcePdkDataNodeEx1.getObsLogger().trace("Found partition {} to read", readPartition);
 		readPartitionList.add(readPartition);
 		if (getReadPartitionsFuncAspect != null)
 			AspectUtils.accept(getReadPartitionsFuncAspect.state(GetReadPartitionsFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), readPartition);

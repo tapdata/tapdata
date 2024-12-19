@@ -99,7 +99,7 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
         TapTable tapTable = tapTableMap.get(tableName);
         String tableId = tapTable.getId();
         if (BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)) {
-            obsLogger.info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
+            obsLogger.trace("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
                     tableId);
             return;
         }
@@ -107,11 +107,11 @@ public class HazelcastSourceConcurrentReadDataNode extends HazelcastSourcePdkDat
         try {
             executeAspect(new SnapshotReadTableBeginAspect().dataProcessorContext(dataProcessorContext).tableName(tableName));
             if (this.removeTables != null && this.removeTables.contains(tableName)) {
-                obsLogger.info("Table {} is detected that it has been removed, the snapshot read will be skipped", tableName);
+                obsLogger.trace("Table {} is detected that it has been removed, the snapshot read will be skipped", tableName);
                 this.removeTables.remove(tableName);
                 return;
             }
-            obsLogger.info("Starting batch read, table name: {}", tableId);
+            obsLogger.trace("Starting batch read, table name: {}", tableId);
             doSnapshotInvoke(tableName, functions, tapTable, firstBatch, tableId);
         } catch (Throwable throwable) {
             handleThrowable(tableName, throwable);

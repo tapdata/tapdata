@@ -33,7 +33,7 @@ public class DelayHandler {
             if (processResult) {
                 succeeded.incrementAndGet();
                 if(end.get()){
-                    obsLogger.info("[{}] Successor node processing speed recovery", TAG);
+                    obsLogger.trace("[{}] Successor node processing speed recovery", TAG);
                     end.set(false);
                 }
             } else {
@@ -54,7 +54,7 @@ public class DelayHandler {
                 obsLogger.debug("[{}} Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             }
             if (relay > WARN_DELAY && !end.get()) {
-                obsLogger.info("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
+                obsLogger.trace("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
                 end.set(true);
             }
             TimeUnit.MICROSECONDS.sleep(relay);

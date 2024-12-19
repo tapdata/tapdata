@@ -153,7 +153,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 
 					Thread.sleep(1000L);
 				}
-				obsLogger.info("Wait initial {}ms", System.currentTimeMillis() - beginTimes);
+				obsLogger.trace("Wait initial {}ms", System.currentTimeMillis() - beginTimes);
 
 				super.initialCompare(sourceConnector, targetConnector, autoCompare);
 			}

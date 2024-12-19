@@ -126,7 +126,7 @@ public class SnapshotOrderController implements Serializable {
 			switch (nodeController.getStatus().get()) {
 				case NodeController.WAIT_RUN:
 					try {
-						obsLogger.info("Node[{}] is waiting for running", node.getName());
+						obsLogger.trace("Node[{}] is waiting for running", node.getName());
 						nodeController.getStatus().wait();
 					} catch (InterruptedException ignored) {
 					}
@@ -181,9 +181,9 @@ public class SnapshotOrderController implements Serializable {
 			// Notify next layer to run
 			if (currentLayer.finish()) {
 				if (null != nextLayer && CollectionUtils.isNotEmpty(nextLayer.getNodeControllers())) {
-					obsLogger.info("Node[{}] finish, notify next layer to run", node.getName());
+					obsLogger.trace("Node[{}] finish, notify next layer to run", node.getName());
 					nextLayer.run();
-					obsLogger.info("Next layer have been notified: [{}]", nextLayer.getNodeControllers().stream().map(nc -> nc.getNode().getName()).collect(Collectors.joining(",")));
+					obsLogger.trace("Next layer have been notified: [{}]", nextLayer.getNodeControllers().stream().map(nc -> nc.getNode().getName()).collect(Collectors.joining(",")));
 				}
 			}
 		}

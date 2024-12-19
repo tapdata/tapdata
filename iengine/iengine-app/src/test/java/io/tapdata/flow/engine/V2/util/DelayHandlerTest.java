@@ -39,7 +39,7 @@ public class DelayHandlerTest {
             doCallRealMethod().when(delayHandler).sleep();
             delayHandler.sleep();
             verify(obsLogger, new Times(1)).debug("[{}} Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
-            verify(obsLogger, new Times(1)).info("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
+            verify(obsLogger, new Times(1)).trace("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
             assertEquals(true, end.get());
         }
         @Test
@@ -63,7 +63,7 @@ public class DelayHandlerTest {
             when(delayHandler.delay()).thenReturn(relay);
             doCallRealMethod().when(delayHandler).sleep();
             delayHandler.sleep();
-            verify(obsLogger, new Times(1)).info("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
+            verify(obsLogger, new Times(1)).trace("[{}] Successor node processing speed is limited, about to delay {} millisecond", TAG, TimeUnit.MICROSECONDS.toMillis(relay));
         }
     }
     @Nested

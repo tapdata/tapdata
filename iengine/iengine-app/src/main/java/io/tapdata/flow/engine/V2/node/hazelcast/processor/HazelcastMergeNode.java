@@ -189,7 +189,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	protected void initLookUpThreadPool() {
 		lookupThreadNum = CommonUtils.getPropertyInt(MERGE_LOOKUP_THREAD_NUM_PROP_KEY, DEFAULT_LOOKUP_THREAD_NUM);
-		obsLogger.info("Merge table processor lookup thread num: " + lookupThreadNum);
+		obsLogger.trace("Merge table processor lookup thread num: " + lookupThreadNum);
 		lookupQueue = new LinkedBlockingQueue<>();
 		lookupThreadPool = new ThreadPoolExecutor(lookupThreadNum, lookupThreadNum, 0L, TimeUnit.MILLISECONDS, lookupQueue,
 				r -> {
@@ -201,7 +201,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	protected void initHandleUpdateJoinKeyThreadPool() {
 		int handleUpdateJoinKeyThreadNum = CommonUtils.getPropertyInt(HANDLE_UPDATE_JOIN_KEY_THREAD_NUM_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_THREAD_NUM);
-		obsLogger.info("Merge table processor handle update join key thread num: " + handleUpdateJoinKeyThreadNum);
+		obsLogger.trace("Merge table processor handle update join key thread num: " + handleUpdateJoinKeyThreadNum);
 		LinkedBlockingQueue<Runnable> handleUpdateJoinKeyQueue = new LinkedBlockingQueue<>();
 		handleUpdateJoinKeyThreadPool = new ThreadPoolExecutor(handleUpdateJoinKeyThreadNum, handleUpdateJoinKeyThreadNum, 0L, TimeUnit.MILLISECONDS, handleUpdateJoinKeyQueue,
 				r -> {
@@ -498,7 +498,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(mergeCacheInMemSize);
 				ConstructIMap<Document> hazelcastConstruct = checkBuildConstructIMap(jetContext.hazelcastInstance(), TAG, cacheName, externalStorageDtoCopy);
 				this.mergeCacheMap.put(mergeProperty.getId(), hazelcastConstruct);
-				obsLogger.info("Create merge cache, node id: {}, imap name: {}, external storage: {}", mergeProperty.getId(), String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
+				obsLogger.trace("Create merge cache, node id: {}, imap name: {}, external storage: {}", mergeProperty.getId(), String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 			}
 		}
 	}
@@ -557,7 +557,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		int inMemSize = CommonUtils.getPropertyInt(UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE);
 		ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(inMemSize);
 		ConstructIMap<Document> constructIMap = buildConstructIMap(jetContext.hazelcastInstance(), String.join("_", TAG, UPDATE_JOIN_KEY_VALUE_CACHE_TABLE_SUFFIX), String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
-		obsLogger.info("Create check join key value modify cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
+		obsLogger.trace("Create check join key value modify cache imap name: {}, external storage: {}", String.valueOf(cacheName.hashCode()), externalStorageDtoCopy);
 		this.checkJoinKeyUpdateCacheMap.put(id, constructIMap);
 		if (constructIMap.isEmpty()) {
 			Document sign = new Document("original_name", cacheName);
@@ -861,7 +861,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		StringBuilder lookupLog = new StringBuilder("\nMerge lookup relation{\n  " + mergeTableProperties.getTableName() + "(" + mergeTableProperties.getId() + ")");
 		lookupList.forEach(l -> lookupLog.append("\n    ->").append(l.getTableName()).append("(").append(l.getId()).append(")"));
 		lookupLog.append("\n}");
-		obsLogger.info(lookupLog.toString());
+		obsLogger.trace(lookupLog.toString());
 	}
 
 	private void initSourceNodeMap(List<MergeTableProperties> mergeTableProperties) {
@@ -1803,7 +1803,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			if (MapUtils.isNotEmpty(mergeCacheMap)) {
 				for (ConstructIMap<Document> constructIMap : mergeCacheMap.values()) {
 					try {
-						obsLogger.info("Destroy merge cache resource: {}", constructIMap.getName());
+						obsLogger.trace("Destroy merge cache resource: {}", constructIMap.getName());
 						constructIMap.destroy();
 					} catch (Exception e) {
 						obsLogger.warn("Destroy merge cache failed, name: {}, error message: {}\nStack: {}", constructIMap.getName(), e.getMessage(), Log4jUtil.getStackString(e));

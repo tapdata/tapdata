@@ -102,14 +102,14 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 		}
 		if (Boolean.TRUE.equals(enableConcurrentProcess)) {
 			if (!supportConcurrentProcess()) {
-				obsLogger.info("Node {}({}: {}) enable concurrent process, but not support concurrent process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
+				obsLogger.trace("Node {}({}: {}) enable concurrent process, but not support concurrent process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
 				enableConcurrentProcess = false;
 			} else if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_DEDUCE_SCHEMA.equals(taskDto.getSyncType())) {
 				enableConcurrentProcess = false;
 			} else {
 				concurrentBatchSize = Math.max(1, DEFAULT_BATCH_SIZE / concurrentNum);
 				simpleConcurrentProcessor = TapExecutors.createSimple(concurrentNum, 5, TAG);
-				obsLogger.info("Node {}({}: {}) enable concurrent process, concurrent num: {}", getNode().getType(), getNode().getName(), getNode().getId(), concurrentNum);
+				obsLogger.trace("Node {}({}: {}) enable concurrent process, concurrent num: {}", getNode().getType(), getNode().getName(), getNode().getId(), concurrentNum);
 			}
 		}
 	}
@@ -117,7 +117,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected void initBatchProcessorIfNeed() {
 		if (!supportBatchProcess()) {
 			if (Boolean.TRUE.equals(enableConcurrentProcess)) {
-				obsLogger.info("Node {}({}: {}) enable concurrent process, but not support batch process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
+				obsLogger.trace("Node {}({}: {}) enable concurrent process, but not support batch process, disable concurrent process", getNode().getType(), getNode().getName(), getNode().getId());
 			}
 			return;
 		}
@@ -162,7 +162,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			});
 		}
 		this.batchProcessor.running();
-		Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Node {}({}: {}) enable batch process", getNode().getType(), getNode().getName(), getNode().getId()));
+		Optional.ofNullable(obsLogger).ifPresent(log -> log.trace("Node {}({}: {}) enable batch process", getNode().getType(), getNode().getName(), getNode().getId()));
 	}
 
 	protected void enqueue(List<TapdataEvent> tapdataEvents) {

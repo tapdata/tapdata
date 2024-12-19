@@ -666,7 +666,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
 			boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
 			Assertions.assertFalse(result);
-			verify(obsLogger, times(1)).info(any());
+			verify(obsLogger, times(1)).trace(any());
 		}
 
 		@Test
@@ -680,7 +680,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isCDCConcurrent(true);
 			boolean result = hazelcastTargetPdkBaseNode.isCDCConcurrent(true);
 			Assertions.assertFalse(result);
-			verify(obsLogger, times(1)).info(any());
+			verify(obsLogger, times(1)).trace(any());
 		}
 	}
 

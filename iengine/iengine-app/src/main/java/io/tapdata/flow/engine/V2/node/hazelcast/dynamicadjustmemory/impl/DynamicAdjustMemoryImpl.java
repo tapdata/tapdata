@@ -64,7 +64,7 @@ public class DynamicAdjustMemoryImpl extends DynamicAdjustMemoryBaseImpl {
 		long finalSizeOfSampleListByte = sizeOfSampleListByte;
 		int finalSampleCount = sampleCount;
 		long oneEventSizeByte = sizeOfSampleListByte / sampleCount;
-		Optional.ofNullable(obsLogger).ifPresent(log -> log.info("{}Sampling table {}'s data, all data size: {}KB, row count: {}, single row data size: {}KB",
+		Optional.ofNullable(obsLogger).ifPresent(log -> log.trace("{}Sampling table {}'s data, all data size: {}KB, row count: {}, single row data size: {}KB",
 				DynamicAdjustMemoryConstant.LOG_PREFIX, tableId.get(), BigDecimal.valueOf(finalSizeOfSampleListByte).divide(new BigDecimal(1024), 2, RoundingMode.HALF_UP), finalSampleCount,
 				new BigDecimal(oneEventSizeByte).divide(new BigDecimal(1024), 2, RoundingMode.HALF_UP)));
 		if (oneEventSizeByte > context.getRamThreshold()) {
