@@ -55,6 +55,8 @@ public class MigrateAddDateFieldProcessorNode extends MigrateProcessorNode{
                 fieldOperation.setTableName(schema.getName());
                 Field field = createField(this.getId(), schema.getOriginalName(), fieldOperation);
                 field.setSource("job_analyze");
+                field.setPrimaryKey(false);
+                field.setIsNullable(false);
                 field.setTapType(FieldModTypeProcessorNode.calTapType(field.getDataType()));
                 schema.getFields().add(field);
             }

@@ -29,6 +29,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.handler.DeduceSchemaHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.data.mongodb.core.query.Query;
@@ -225,7 +226,9 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
     protected TapTable convertTapTable(MetadataInstancesDto item){
         FilterMetadataInstanceUtil.filterMetadataInstancesFields(item);
-        return PdkSchemaConvert.toPdk(item);
+        TapTable tapTable = PdkSchemaConvert.toPdk(item);
+        TapTableUtil.sortFieldMap(tapTable);
+        return tapTable;
     }
 
     @Override

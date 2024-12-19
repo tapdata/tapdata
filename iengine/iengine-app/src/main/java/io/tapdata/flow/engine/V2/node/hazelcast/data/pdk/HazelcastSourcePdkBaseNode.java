@@ -778,7 +778,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				return true;
 			}
 			if (getNode().disabledNode()) {
-				return false;
+				return true;
 			}
 			if (null != pendingEvents) {
 				tapdataEvents = pendingEvents;

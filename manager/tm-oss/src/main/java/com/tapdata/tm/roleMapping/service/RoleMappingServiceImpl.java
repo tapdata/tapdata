@@ -62,4 +62,8 @@ public class RoleMappingServiceImpl extends RoleMappingService{
     public void removeRoleFromUser(String roleMappingId) {
         //do Nothing
     }
+
+    public void addUserLogIfNeed(List<RoleMappingDto> dtos, UserDetail userDetail) {
+        //do Notiong
+    }
 }

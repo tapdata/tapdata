@@ -5363,4 +5363,51 @@ class TaskServiceImplTest {
             verify(measurementServiceV2, new Times(1)).cleanRemovedTableMeasurement(taskId, taskRecordId, "table2");
         }
     }
+
+    @Nested
+    class buildLdpNewTablesFromBatchOffsetTest {
+        @Test
+        void testBuildLdpNewTablesFromBatchOffsetNormal() {
+            taskDto = spy(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList<>();
+            DatabaseNode node = mock(DatabaseNode.class);
+            ArrayList<String> tableNames = new ArrayList<>();
+            tableNames.add("table_20K_7");
+            tableNames.add("table_20K_8");
+            tableNames.add("table_20K_9");
+            tableNames.add("00_table2");
+            tableNames.add("table1");
+            when(node.getTableNames()).thenReturn(tableNames);
+            newSourceNode.add(node);
+            when(dag.getSourceNode()).thenReturn(newSourceNode);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, String> syncProgress = new LinkedHashMap<>();
+            String syncProgressKey = "[\"54ab607b-a7db-4364-91f3-ed63380a8b78\",\"c7f3cc78-df84-4e15-96c9-e76342e783ff\"]";
+            String syncProgressString = "{\"offset\":null,\"eventTime\":1733900522843,\"eventSerialNo\":768,\"sourceTime\":1733900522843,\"syncStage\":\"CDC\",\"batchOffset\":\"gAFkABFqYXZhLnV0aWwuSGFzaE1hcAEUAAt0YWJsZV8yMEtfOQFkABFqYXZhLnV0aWwuSGFzaE1h\\r\\ncAEUABtiYXRjaF9yZWFkX2Nvbm5lY3Rvcl9zdGF0dXMBFAAET1ZFUqgBFAALdGFibGVfMjBLXzgB\\r\\nZAARamF2YS51dGlsLkhhc2hNYXABFAAbYmF0Y2hfcmVhZF9jb25uZWN0b3Jfc3RhdHVzARQABE9W\\r\\nRVKoARQAC3RhYmxlXzIwS183AWQAEWphdmEudXRpbC5IYXNoTWFwARQAG2JhdGNoX3JlYWRfY29u\\r\\nbmVjdG9yX3N0YXR1cwEUAARPVkVSqAEUAAkwMF90YWJsZTIBZAARamF2YS51dGlsLkhhc2hNYXAB\\r\\nFAAbYmF0Y2hfcmVhZF9jb25uZWN0b3Jfc3RhdHVzARQABE9WRVKoqA==\\r\\n\",\"streamOffset\":\"_tap_zip_\\u001F\u008B\\b\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000-\u0090Ér£0\\u0010\u0086ïTñ.,fª|\u0098C³Ã acb$ÝXb³\\tg\\u0006l@O\\u001F%\u0093>tWýÕËÿõ\\u001D<û_ª\u0081Mð\\u000E.þ¨vK£Ä\\u001E(ÉÚ\u0084ãWÅ\u00AD\u0091\u009AÙ«î¬å\u009Dà\u00ADr¬±\u009A²\u008F&\\u001C\u009E9\\u0019E]ly\\u0013Æ#-ô\u0093ª0Î\\u0004#Y÷ØMR\\\"\\u0003·÷\\b`XÁ\\u000E¬¶*®òL\u008CJî\\u001Bôr\u009CiaM\u0089\u008Eµ\u009A\u008FO&\\u0016\\u0004À^?ó\\u001AÀ\\u0011©ÊO§Þ\\u0004ã\u009Chz[»Ë¡\\u000EÏ\\u0010»Ã\u008E\\\\$Ò|ì\u0093\\\"Ú°¨\\u0017ì\\u000E+¾è\\u001D\\u0015ô\u0090ämÇ\\\\6¦\\u0005ÕX\\u000F\\u001B\u0092lª\\u0002¶ÿ\u0097\\u0012Ö&ÓU+\u008Bõy\\t|Qzr+¼\u0085Æ\\u001Cº>w3XÁÉîð§\\n\u008E-óXûM>\\fà\u0090ìQó«(\u0083ãÌÂvU\u0095\u0093ôø?|Óù®ÑW²\\u001B\u0080í}\u008F%El0\\u0012ui\\u0017Y¨\\u0007\u0081Ä`Ñ]ïP^\u009BI~¶\u0090û¶P\u008E\u008CÔÑ\\u000EªBùÙ`ùÈq@W\u0094{Ý\u008D\u009Cá\\u0014Î]\\u0013â[m\\\\û¨\u007FHÊ/bXq\\u001Eí\u0089\\u0013ó²ØF©wTþOú\u009D\u0092\\u001EVäz\u0086ª`'\u009A£É~Õ{ôKN\u0098RÕ¥\\u0007óFî¿Uå\\u0013}\\u0000®¨ò\\u0001\\u0000\\u0000\",\"type\":\"NORMAL\"}";
+            syncProgress.put(syncProgressKey, syncProgressString);
+            attrs.put("syncProgress", syncProgress);
+            when(taskDto.getAttrs()).thenReturn(attrs);
+            doCallRealMethod().when(taskService).buildLdpNewTablesFromBatchOffset(taskDto, dag);
+            taskService.buildLdpNewTablesFromBatchOffset(taskDto, dag);
+            assertEquals(1, taskDto.getLdpNewTables().size());
+        }
+        @Test
+        void testBuildLdpNewTablesFromBatchOffsetWithEx() {
+            taskDto = spy(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList<>();
+            DatabaseNode node = mock(DatabaseNode.class);
+            newSourceNode.add(node);
+            when(dag.getSourceNode()).thenReturn(newSourceNode);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, String> syncProgress = new LinkedHashMap<>();
+            String syncProgressKey = "[\"54ab607b-a7db-4364-91f3-ed63380a8b78\",\"c7f3cc78-df84-4e15-96c9-e76342e783ff\"]";
+            syncProgress.put(syncProgressKey, null);
+            attrs.put("syncProgress", syncProgress);
+            when(taskDto.getAttrs()).thenReturn(attrs);
+            doCallRealMethod().when(taskService).buildLdpNewTablesFromBatchOffset(taskDto, dag);
+            assertThrows(BizException.class, ()->taskService.buildLdpNewTablesFromBatchOffset(taskDto, dag));
+        }
+    }
 }
