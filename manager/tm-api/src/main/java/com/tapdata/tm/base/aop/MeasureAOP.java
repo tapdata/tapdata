@@ -53,6 +53,7 @@ public class MeasureAOP {
     private final String TASK_ID = "taskId";
 
     private final String CURRENT_EVENT_TIMESTAMP = "currentEventTimestamp";
+    private static final String SNAPSHOT_DONE_AT = "snapshotDoneAt";
 
     public MeasureAOP(TaskService taskService, AlarmService alarmService, UserService userService,AlarmSettingService alarmSettingService) {
         this.taskService = taskService;
@@ -71,7 +72,7 @@ public class MeasureAOP {
         Map<String, List<AlarmSettingDto>> alarmSettingMap = new HashMap<>();
         if(CollectionUtils.isNotEmpty(taskIds)){
             taskIds.forEach(taskId -> {
-                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name",CURRENT_EVENT_TIMESTAMP,"alarmSettings");
+                TaskDto taskDto = taskService.findByTaskId(MongoUtils.toObjectId(taskId),"_id","dag","user_id","agentId","name",CURRENT_EVENT_TIMESTAMP,"alarmSettings","alarmRules",SNAPSHOT_DONE_AT,"status");
                 taskDtoMap.put(taskId, taskDto);
             });
             taskDtoMap.values().forEach(taskDto -> {
@@ -138,10 +139,10 @@ public class MeasureAOP {
         });
     }
 
-    private void setTaskSnapshotDate(Map<String, Number> vs, String taskId, TaskDto taskDto, UserDetail userDetail) {
+    protected void setTaskSnapshotDate(Map<String, Number> vs, String taskId, TaskDto taskDto, UserDetail userDetail) {
         String now = DateUtil.now();
         Number snapshotStartAt = vs.get("snapshotStartAt");
-        Number snapshotDoneAt = vs.get("snapshotDoneAt");
+        Number snapshotDoneAt = vs.get(SNAPSHOT_DONE_AT);
         String alarmDate = DateUtil.now();
         boolean checkFullOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_FULL_COMPLETE, null, userDetail);
         if (checkFullOpen && Objects.isNull(taskDto.getSnapshotDoneAt()) && Objects.nonNull(snapshotStartAt) && Objects.nonNull(snapshotDoneAt) && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
@@ -192,7 +193,7 @@ public class MeasureAOP {
         Update update = new Update();
 
         if (Objects.nonNull(snapshotDoneAt) && !snapshotDoneAt.equals(taskDto.getSnapshotDoneAt())) {
-            update.set("snapshotDoneAt", snapshotDoneAt);
+            update.set(SNAPSHOT_DONE_AT, snapshotDoneAt);
         }
         if (Objects.nonNull(currentEventTimestamp) && !currentEventTimestamp.equals(taskDto.getCurrentEventTimestamp())
                 && !currentEventTimestamp.equals(0)) {

@@ -49,8 +49,8 @@ public class LogMongoConfig {
                 String uri = productList.contains("dfs") ? logUri : defaultUri;
                 MongoTemplate mongoTemplate = null;
                 if (ssl) {
-                    String database = new ConnectionString(logUri).getDatabase();
-                    MongoClientSettings settings = SSLUtil.mongoClientSettings(ssl, keyPath, caPath, logUri);
+                    String database = new ConnectionString(uri).getDatabase();
+                    MongoClientSettings settings = SSLUtil.mongoClientSettings(ssl, keyPath, caPath, uri);
                     MongoClient mongoClient = MongoClients.create(settings, SpringDataMongoDB.driverInformation());
                     mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(mongoClient, database));
                 } else {

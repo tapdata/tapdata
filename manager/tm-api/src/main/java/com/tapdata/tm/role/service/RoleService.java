@@ -2,6 +2,7 @@ package com.tapdata.tm.role.service;
 
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -9,6 +10,7 @@ import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.role.repository.RoleRepository;
 import lombok.NonNull;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 
 public abstract class RoleService extends BaseService<RoleDto, RoleEntity, ObjectId, RoleRepository> {
@@ -21,6 +23,10 @@ public abstract class RoleService extends BaseService<RoleDto, RoleEntity, Objec
 
     public boolean deleteById(ObjectId objectId, UserDetail userDetail){
         return super.deleteById(objectId, userDetail);
+    }
+
+    public long updateByWhere(Where where, Document doc, UserDetail userDetail) {
+        return super.updateByWhere(where, doc, userDetail);
     }
 
     public <T extends BaseDto> RoleDto save(RoleDto dto, UserDetail userDetail){
