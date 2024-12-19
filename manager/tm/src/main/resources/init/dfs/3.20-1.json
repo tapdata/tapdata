@@ -4,7 +4,8 @@
     "deletes": [
       {
         "q": {
-          "className": "UUIDGenerator"
+          "className": "UUIDGenerator",
+          "methodName": "objectId"
         },
         "limit": 0
       }
