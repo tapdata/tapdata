@@ -926,5 +926,31 @@ public class UserServiceImplTest {
             assertEquals(accessCode, actual);
         }
     }
+
+    @Nested
+    class checkLoginSingleSessionEnable {
+        @BeforeEach
+        void beforeEach() {
+            doCallRealMethod().when(userService).checkLoginSingleSessionEnable();
+        }
+
+        @Test
+        @DisplayName("test checkLoginSingleSessionEnable method when open is true")
+        void test1() {
+            Settings settings = new Settings();
+            settings.setOpen(true);
+            when(settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_SINGLE_SESSION)).thenReturn(settings);
+            boolean result = userService.checkLoginSingleSessionEnable();
+            assertTrue(result);
+        }
+
+        @Test
+        @DisplayName("test checkLoginSingleSessionEnable method when settings is null")
+        void test2() {
+            when(settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_SINGLE_SESSION)).thenReturn(null);
+            boolean result = userService.checkLoginSingleSessionEnable();
+            assertFalse(result);
+        }
+    }
 }
 

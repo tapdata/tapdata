@@ -68,6 +68,8 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
 
     public abstract boolean checkLdapLoginEnable();
 
+    public abstract boolean checkLoginSingleSessionEnable();
+
     public abstract TestResponseDto testLoginByLdap(TestLdapDto testAdDto);
 
     public abstract boolean loginByLdap(String username, String password);

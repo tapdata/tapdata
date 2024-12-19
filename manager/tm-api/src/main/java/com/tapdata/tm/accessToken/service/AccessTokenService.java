@@ -19,4 +19,6 @@ public interface AccessTokenService {
     AccessTokenDto save(User user);
 
     long removeAccessToken(String accessToken, UserDetail userDetail);
+
+    long removeAccessTokenByAuthType(ObjectId userId, String authType);
 }
