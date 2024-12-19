@@ -3,12 +3,13 @@ package io.tapdata.services.errorcode;
 import io.tapdata.ErrorCodeConfig;
 import io.tapdata.ErrorCodeEntity;
 import io.tapdata.exception.TapExClass;
-import io.tapdata.exception.TapExCode;
+import io.tapdata.utils.AppType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 
@@ -172,5 +173,49 @@ class ErrorCodeServiceTest {
 	@TapExClass(code = 99999, module = "test", describe = "test", prefix = "test")
 	interface ErrorCodeTestClass {
 		String TEST_ERROR = "99999001";
+	}
+
+	@Nested
+	@DisplayName("Method defaultSolution test")
+	class defaultSolutionTest {
+		@BeforeEach
+		void setUp() {
+			when(errorCodeService.defaultSolution(any(), any())).thenCallRealMethod();
+		}
+
+		@Test
+		@DisplayName("test daas, cn")
+		void test1() {
+			String solution = errorCodeService.defaultSolution(AppType.DAAS, ErrorCodeService.Language.CN);
+			assertEquals(ReflectionTestUtils.getField(errorCodeService, "DEFAULT_SOLUTION_DAAS_CN"), solution);
+		}
+
+		@Test
+		@DisplayName("test daas, en")
+		void test2() {
+			String solution = errorCodeService.defaultSolution(AppType.DAAS, ErrorCodeService.Language.EN);
+			assertEquals(ReflectionTestUtils.getField(errorCodeService, "DEFAULT_SOLUTION_DAAS_EN"), solution);
+		}
+
+		@Test
+		@DisplayName("test dfs, cn")
+		void test3() {
+			String solution = errorCodeService.defaultSolution(AppType.DFS, ErrorCodeService.Language.CN);
+			assertEquals(ReflectionTestUtils.getField(errorCodeService, "DEFAULT_SOLUTION_DFS_CN"), solution);
+		}
+
+		@Test
+		@DisplayName("test dfs, en")
+		void test4() {
+			String solution = errorCodeService.defaultSolution(AppType.DFS, ErrorCodeService.Language.EN);
+			assertEquals(ReflectionTestUtils.getField(errorCodeService, "DEFAULT_SOLUTION_DFS_EN"), solution);
+		}
+
+		@Test
+		@DisplayName("test app type is null")
+		void test5() {
+			String solution = errorCodeService.defaultSolution(null, ErrorCodeService.Language.EN);
+			assertEquals(ReflectionTestUtils.getField(errorCodeService, "DEFAULT_SOLUTION_DAAS_EN"), solution);
+		}
 	}
 }
