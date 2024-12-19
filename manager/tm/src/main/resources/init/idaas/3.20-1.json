@@ -1,0 +1,14 @@
+[
+  {
+    "delete": "JavascriptFunctions",
+    "deletes": [
+      {
+        "q": {
+          "className": "UUIDGenerator",
+          "methodName": "objectId"
+        },
+        "limit": 0
+      }
+    ]
+  }
+]
