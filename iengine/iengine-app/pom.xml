@@ -42,6 +42,26 @@
             <groupId>com.tapdata</groupId>
             <artifactId>proxy-client-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>websocket-client-module</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>websocket-client-module</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.tapdata</groupId>
+                    <artifactId>modules-api</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>modules-api</artifactId>
         </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
