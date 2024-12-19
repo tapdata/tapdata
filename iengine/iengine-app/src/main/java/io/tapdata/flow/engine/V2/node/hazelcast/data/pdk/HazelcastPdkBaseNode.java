@@ -540,12 +540,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				Boolean success = this.success;
 
 				if (retrying) {
+					if (obsLogger != null)
 					obsLogger.info("Retry operation {}, retry times {}, first retry time {}{}", retryOp,
 							totalRetries != null ? String.format("%s/%s", retryTimes, totalRetries) : retryTimes,
 							DateFormatUtils.format(startRetryTs, "yyyy-MM-dd HH:mm:ss"),
 							nextRetryTs != null ? String.format(", next retry time %s", DateFormatUtils.format(nextRetryTs, "yyyy-MM-dd HH:mm:ss")) : "");
 				} else {
 					long endAt = endRetryTs != null ? endRetryTs : System.currentTimeMillis();
+					if (obsLogger != null)
 					obsLogger.info("Retry operation {} {}, total cost {}", retryOp,
 							Boolean.TRUE.equals(success) ? "success" : "failed",
 							DateUtil.microseondsToStringTime((endAt - startRetryTs) * 1000));

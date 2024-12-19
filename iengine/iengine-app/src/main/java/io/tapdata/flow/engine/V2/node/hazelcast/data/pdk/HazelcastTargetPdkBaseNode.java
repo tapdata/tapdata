@@ -206,7 +206,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void initSyncPartitionTableEnable() {
 		Node<?> node = getNode();
 		this.syncTargetPartitionTableEnable = node instanceof DataParentNode && Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncTargetPartitionTableEnable());
-        if (this.syncTargetPartitionTableEnable)
+        if (this.syncTargetPartitionTableEnable && obsLogger != null)
             obsLogger.info("Enable partition table support for target database");
 	}
 
