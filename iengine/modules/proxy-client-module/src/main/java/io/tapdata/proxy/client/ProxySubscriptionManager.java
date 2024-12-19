@@ -2,12 +2,10 @@ package io.tapdata.proxy.client;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.aspect.supervisor.AspectRunnableUtil;
 import io.tapdata.aspect.supervisor.DisposableThreadGroupAspect;
 import io.tapdata.aspect.supervisor.entity.CommandEntity;
-import io.tapdata.aspect.supervisor.entity.DiscoverSchemaEntity;
 import io.tapdata.aspect.supervisor.entity.DisposableThreadGroupBase;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
@@ -17,6 +15,7 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.FileMeta;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -163,6 +162,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 			skeletonService.call(serviceCaller.getClassName(), serviceCaller.getMethod(), serviceCaller.getArgs()).whenComplete((callResult, throwable) -> {
 				EngineMessageResultEntity engineMessageResultEntity;
+				FileMeta fileMeta = null;
 				if(throwable != null) {
 					engineMessageResultEntity = new EngineMessageResultEntity()
 							.contentClass(serviceCaller.getReturnClass())
@@ -175,8 +175,14 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 							.content(callResult)
 							.code(Data.CODE_SUCCESS)
 							.id(serviceCaller.getId());
+					if (callResult instanceof FileMeta) {
+						fileMeta = (FileMeta)callResult;
+					}
 				}
-				imClient.sendData(new IncomingData().message(engineMessageResultEntity)).exceptionally(throwable1 -> {
+				imClient.sendData(new IncomingData().id(serviceCaller.getId())
+						.message(engineMessageResultEntity)
+						.fileMeta(fileMeta))
+						.exceptionally(throwable1 -> {
 					TapLogger.error(TAG, "Send EngineMessageResultEntity failed, {} EngineMessageResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
 					return null;
 				});

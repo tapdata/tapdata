@@ -55,7 +55,7 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
 
     public abstract Long reset(ResetPasswordParam resetPasswordParam);
 
-    public abstract void delete(String id);
+    public abstract void delete(String id, UserDetail userDetail);
 
     public abstract String getMongodbUri();
 
@@ -75,5 +75,7 @@ public abstract class UserService extends BaseService<UserDto, User, ObjectId, U
     public abstract boolean loginByLdap(String username, String password);
 
     public abstract UserDto getUserDetail(String userId);
+
+    public abstract String refreshAccessCode(UserDetail userDetail);
 }
 
