@@ -143,7 +143,7 @@ public class AccessTokenServiceImpl implements AccessTokenService {
             try {
                 userLogService.addUserLog(Modular.SYSTEM, Operation.LOGOUT, userDetail, "");
             } catch (Exception e) {
-                log.error("推出登录添加操作日志异常", e);
+                log.error("Logout and add operation log exception", e);
             }
         }
 
@@ -159,7 +159,7 @@ public class AccessTokenServiceImpl implements AccessTokenService {
                 UserDetail userDetail = userService.loadUserById(userId);
                 userLogService.addUserLog(Modular.SYSTEM, Operation.LOGOUT, userDetail, "");
             } catch (Exception e) {
-                log.error("推出登录添加操作日志异常", e);
+                log.error("Logout and add operation log exception", e);
             }
         }
 
