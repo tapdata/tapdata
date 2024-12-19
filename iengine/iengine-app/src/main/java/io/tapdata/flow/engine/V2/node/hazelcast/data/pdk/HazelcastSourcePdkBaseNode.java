@@ -219,7 +219,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private int toTapValueBatchSize;
 	protected Boolean syncSourcePartitionTableEnable;
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
-	private List<String> loggedTables = new ArrayList<>();
+	protected List<String> loggedTables = new ArrayList<>();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
