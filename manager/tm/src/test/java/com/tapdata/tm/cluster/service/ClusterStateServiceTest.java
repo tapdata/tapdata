@@ -241,6 +241,12 @@ class ClusterStateServiceTest {
             when(clusterStateService.findById(id, field)).thenReturn(clusterStateDto);
             boolean result = clusterStateService.deleteCluster(id, user);
             assertTrue(result);
+            worker.setLicenseBind(true);
+            result = clusterStateService.deleteCluster(id, user);
+            assertFalse(result);
+            worker.setLicenseBind(false);
+            result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
 
         }
     }
