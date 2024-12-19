@@ -21,6 +21,7 @@ public enum Modular {
     WORKERS("Workers"),
     SYSTEM("system"),
     USER("user"),
+    ROLE("role"),
     CUSTOMER("customer");
 
     private final String value;

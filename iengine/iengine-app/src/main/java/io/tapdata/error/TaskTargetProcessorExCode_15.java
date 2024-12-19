@@ -208,4 +208,13 @@ public interface TaskTargetProcessorExCode_15 {
 			describeCN = "数据源处理失败"
 	)
 	String PROCESS_EVENTS_FAILED = "15022";
+	@TapExCode(
+			describe = "Failure to get bucketing keys based on events when incremental Multi thread write is enabled",
+			describeCN = "开启增量多线程写入时，根据事件获取分桶键值失败",
+			solution = "When multithreading is enabled, the engine will obtain the value of the update condition field set by the target in the event as the bucket key value. If the value of the update condition field does not exist in the event, it cannot be multithreaded. \n" +
+					"Check whether there is an intermediate node to delete the value of the update condition field in the event or change the data structure in the event such as :x field to xxx.x. If the above operation exists, you need to turn off multithreaded writing or remove the above operation. \n",
+			solutionCN = "开启多线程后，引擎会获取事件中目标设置的更新条件字段的值作为分桶键值，如果事件中不存在更新条件字段的值则无法进行多线程写入。\n" +
+					"检查是否存在中间节点将事件中更新条件字段的值删除或将事件中的数据结构改变如:x字段改为xxx.x。如果存在上述操作，则需要关闭多线程写入或将上述操作删除\n"
+	)
+	String CONCURRENT_PROCESSOR_PARTITION_VALUE_NULL = "15023";
 }

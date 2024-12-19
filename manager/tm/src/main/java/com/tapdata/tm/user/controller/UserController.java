@@ -8,10 +8,7 @@ import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.Filter;
-import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.role.dto.RoleDto;
@@ -515,7 +512,7 @@ public class UserController extends BaseController {
     @Operation(summary = "企业版重置密码")
     @DeleteMapping("{id}")
     public ResponseMessage<Long> delete(@PathVariable("id") String id) {
-        userService.delete(id);
+        userService.delete(id, getLoginUser());
         return success();
     }
 
@@ -531,5 +528,11 @@ public class UserController extends BaseController {
     public ResponseMessage<Boolean> checkADLoginEnable() {
         Boolean res = userService.checkLdapLoginEnable();
         return success(res);
+    }
+
+    @Operation(summary = "refresh access code")
+    @PostMapping("refreshAccessCode")
+    public ResponseMessage<String> refreshAccessCode() {
+        return success(userService.refreshAccessCode(getLoginUser()));
     }
 }

@@ -10,6 +10,8 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.error.TaskTargetProcessorExCode_15;
+import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
@@ -574,6 +576,16 @@ class PartitionConcurrentProcessorTest {
             assertFalse(processor.toSingleMode(tapEvent, Collections.emptyList(), singleMode));
             assertFalse(singleMode.get());
             verify(processor, new Times(0)).generateBarrierEvent();
+        }
+        @Test
+        void testNotSingleModeAndDeleteEventNoPartitionValue() {
+            AtomicBoolean singleMode = new AtomicBoolean(false);
+            TapDeleteRecordEvent tapEvent = new TapDeleteRecordEvent();
+            TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+                processor.toSingleMode(tapEvent, null, singleMode);
+            });
+            assertEquals(tapCodeException.getCode(), TaskTargetProcessorExCode_15.CONCURRENT_PROCESSOR_PARTITION_VALUE_NULL);
+
         }
     }
 

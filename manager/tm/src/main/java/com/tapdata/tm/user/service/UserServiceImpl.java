@@ -165,7 +165,7 @@ public class UserServiceImpl extends UserService{
      * @return
      */
     @NotNull
-    private UserDetail getUserDetail(User user) {
+    protected UserDetail getUserDetail(User user) {
         Set<SimpleGrantedAuthority> roleList = Sets.newHashSet();
         roleList.add(new SimpleGrantedAuthority("USERS"));
         if (!Objects.isNull(user.getRole()) && user.getRole() == 1) {
@@ -344,6 +344,7 @@ public class UserServiceImpl extends UserService{
         UserDto userDto = findById(toObjectId(id));
         List<RoleMappingDto> roleMappingDtos = updateRoleMapping(id, userDto.getRoleusers(), userDetail);
         userDto.setRoleMappings(roleMappingDtos);
+        userLogService.addUserLog(Modular.USER, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), StringUtils.isNotBlank(userDto.getLdapAccount()) ? userDto.getLdapAccount() : userDto.getEmail());
         return userDto;
     }
 
@@ -416,6 +417,7 @@ public class UserServiceImpl extends UserService{
 
         //添加ldp目录
         ldpService.addLdpDirectory(getUserDetail(user));
+        userLogService.addUserLog(Modular.USER, Operation.CREATE, userDetail, save.getUserId(), StringUtils.isNotBlank(save.getLdapAccount()) ? save.getLdapAccount() : save.getEmail(), "createLdap".equals(save.getSource()));
 
         return result;
     }
@@ -439,7 +441,7 @@ public class UserServiceImpl extends UserService{
         return null;
     }
 
-    private String randomHexString() {
+    protected String randomHexString() {
         return IntStream.range(0, 8).mapToObj(i -> Integer.toHexString(Double.valueOf((1 + Math.random()) * 0x10000).intValue()).substring(1)).collect(Collectors.joining());
     }
 
@@ -549,12 +551,19 @@ public class UserServiceImpl extends UserService{
      *
      * @param id
      */
-    public void delete(String id) {
+    public void delete(String id, UserDetail userDetail) {
         //delete role mapping
         roleMappingService.deleteAll(Query.query(Criteria.where("principalId").is(id).and("principalType").is("USER")));
         Update update = new Update().set("isDeleted", true);
         Query query = Query.query(Criteria.where("id").is(id));
         UpdateResult updateResult = repository.getMongoOperations().updateFirst(query, update, User.class);
+        Field field = new Field();
+        field.put("email", 1);
+        field.put("ldapAccount", 1);
+        UserDto user = findById(new ObjectId(id), field);
+        if (updateResult.getModifiedCount() > 0) {
+            userLogService.addUserLog(Modular.USER, Operation.DELETE, userDetail.getUserId(), id, StringUtils.isNotBlank(user.getLdapAccount()) ? user.getLdapAccount() : user.getEmail());
+        }
     }
 
     public String getMongodbUri() {
@@ -646,8 +655,12 @@ public class UserServiceImpl extends UserService{
 				}
 			}
 		});
-	}
-
+        if (dto.getAdds().size() > 0) {
+            roleMappingService.addUserLogIfNeed(dto.getAdds(), userDetail);
+        } else if (dto.getDeletes().size() > 0) {
+            roleMappingService.addUserLogIfNeed(dto.getDeletes(), userDetail);
+        }
+    }
     @NotNull
     private List<RoleMappingDto> getTodoParentRoleMappingDtos(ObjectId roleId, List<PermissionEntity> permissions) {
         List<RoleMappingDto> todoParentRoleMappingDtos = new ArrayList<>();
@@ -1012,5 +1025,18 @@ public class UserServiceImpl extends UserService{
         sslContext.init(null, trustManagers, null);
 
         return sslContext;
+    }
+
+    @Override
+    public String refreshAccessCode(UserDetail userDetail) {
+        String accessCode = randomHexString();
+        if (StringUtils.isBlank(accessCode)) {
+            throw new BizException("AccessCode.Is.Null");
+        }
+        updateById(userDetail.getUserId(), Update.update("accessCode", accessCode), userDetail);
+        Field field = new Field();
+        field.put("accesscode", 1);
+        UserDto userDto = findById(new ObjectId(userDetail.getUserId()), field);
+        return userDto.getAccessCode();
     }
 }

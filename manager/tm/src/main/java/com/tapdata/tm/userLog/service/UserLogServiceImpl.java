@@ -143,7 +143,7 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
         addUserLog(modular, operation, userDetail, sourceId, type, parameter1, parameter2, rename, false);
     }
 
-    private void addUserLog(Modular modular, Operation operation, UserDetail userDetail, ObjectId sourceId, UserLogType type, String parameter1, String parameter2, Boolean rename, boolean systemStart) {
+    protected void addUserLog(Modular modular, Operation operation, UserDetail userDetail, ObjectId sourceId, UserLogType type, String parameter1, String parameter2, Boolean rename, boolean systemStart) {
         try {
             UserLogs userLogs = new UserLogs();
             userLogs.setModular(modular.getValue());
@@ -185,7 +185,7 @@ public class UserLogServiceImpl extends BaseService implements UserLogService{
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail, String sourceId, String parameter1, Object systemStart) {
         ObjectId sourceObjectId = sourceId != null ? new ObjectId(sourceId) : null;
-        addUserLog(modular, OperationType, userDetail, sourceObjectId, UserLogType.USER_OPERATION, parameter1, null, false, systemStart != null);
+        addUserLog(modular, OperationType, userDetail, sourceObjectId, UserLogType.USER_OPERATION, parameter1, null, false, systemStart instanceof Boolean ? (boolean)systemStart : systemStart != null);
     }
 
     public void addUserLog(Modular modular, Operation OperationType, UserDetail userDetail , String parameter1) {
