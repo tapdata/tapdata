@@ -6,6 +6,7 @@ import com.tapdata.tm.Permission.dto.PermissionDto;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.accessToken.dto.AccessTokenDto;
+import com.tapdata.tm.accessToken.dto.AuthType;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
@@ -349,6 +350,10 @@ public class UserController extends BaseController {
         if (StringUtils.isNotBlank(password) && BCrypt.checkpw(password, user.getPassword())) {
             if (user.getLoginTimes() != null && user.getLoginTimes() > 0) {
                 userService.update(Query.query(Criteria.where("id").is(user.getId())), Update.update("loginTimes", 0));
+            }
+            boolean loginSingleSessionEnable = userService.checkLoginSingleSessionEnable();
+            if (loginSingleSessionEnable) {
+                accessTokenService.removeAccessTokenByAuthType(user.getId(), AuthType.USERNAME_LOGIN.getValue());
             }
             accessTokenDto = accessTokenService.save(user);
         } else {
