@@ -15,7 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.internal.verification.Times;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -47,18 +46,63 @@ public class AccessTokenServiceImplTest {
         AccessTokenDto actual = accessTokenServiceImpl.save(user);
         assertEquals(AuthType.USERNAME_LOGIN.getValue(), actual.getAuthType());
     }
+    @Nested
+    class removeAccessTokenTest {
+        @Test
+        void testRemoveAccessTokenNormal() {
+            String accessToken = "accessToken";
+            UserDetail userDetail = mock(UserDetail.class);
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(accessTokenRepository.getMongoOperations()).thenReturn(template);
+            DeleteResult result = mock(DeleteResult.class);
+            when(template.remove(any(Query.class), any(Class.class))).thenReturn(result);
+            when(result.getDeletedCount()).thenReturn(1L);
+            accessTokenServiceImpl.removeAccessToken(accessToken, userDetail);
+            verify(userLogService, new Times(1)).addUserLog(any(Modular.class), any(Operation.class), any(UserDetail.class), anyString());
+        }
+        @Test
+        void testRemoveAccessTokenWithEx() {
+            String accessToken = "accessToken";
+            UserDetail userDetail = mock(UserDetail.class);
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(accessTokenRepository.getMongoOperations()).thenReturn(template);
+            DeleteResult result = mock(DeleteResult.class);
+            when(template.remove(any(Query.class), any(Class.class))).thenReturn(result);
+            when(result.getDeletedCount()).thenReturn(1L);
+            doThrow(RuntimeException.class).when(userLogService).addUserLog(any(Modular.class), any(Operation.class), any(UserDetail.class), anyString());
+            accessTokenServiceImpl.removeAccessToken(accessToken, userDetail);
+            verify(userLogService, new Times(1)).addUserLog(any(Modular.class), any(Operation.class), any(UserDetail.class), anyString());
+        }
+    }
 
-    @Test
-    void removeAccessTokenByAuthTypeTest() {
-        ObjectId userId = mock(ObjectId.class);
-        String authType = AuthType.USERNAME_LOGIN.getValue();
-        MongoTemplate template = mock(MongoTemplate.class);
-        when(accessTokenRepository.getMongoOperations()).thenReturn(template);
-        DeleteResult result = mock(DeleteResult.class);
-        when(template.remove(any(Query.class), any(Class.class))).thenReturn(result);
-        when(result.getDeletedCount()).thenReturn(1L);
-        accessTokenServiceImpl.removeAccessTokenByAuthType(userId, authType);
-        verify(userService, new Times(1)).loadUserById(userId);
-        verify(userLogService, new Times(1)).addUserLog(any(Modular.class), any(Operation.class), eq(null), anyString());
+    @Nested
+    class removeAccessTokenByAuthTypeTest {
+        @Test
+        void testRemoveAccessTokenByAuthTypeNormal() {
+            ObjectId userId = mock(ObjectId.class);
+            String authType = AuthType.USERNAME_LOGIN.getValue();
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(accessTokenRepository.getMongoOperations()).thenReturn(template);
+            DeleteResult result = mock(DeleteResult.class);
+            when(template.remove(any(Query.class), any(Class.class))).thenReturn(result);
+            when(result.getDeletedCount()).thenReturn(1L);
+            accessTokenServiceImpl.removeAccessTokenByAuthType(userId, authType);
+            verify(userService, new Times(1)).loadUserById(userId);
+            verify(userLogService, new Times(1)).addUserLog(any(Modular.class), any(Operation.class), eq(null), anyString());
+        }
+        @Test
+        void testRemoveAccessTokenByAuthTypeWithEx() {
+            ObjectId userId = mock(ObjectId.class);
+            String authType = AuthType.USERNAME_LOGIN.getValue();
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(accessTokenRepository.getMongoOperations()).thenReturn(template);
+            DeleteResult result = mock(DeleteResult.class);
+            when(template.remove(any(Query.class), any(Class.class))).thenReturn(result);
+            when(result.getDeletedCount()).thenReturn(1L);
+            doThrow(RuntimeException.class).when(userLogService).addUserLog(any(Modular.class), any(Operation.class), eq(null), anyString());
+            accessTokenServiceImpl.removeAccessTokenByAuthType(userId, authType);
+            verify(userService, new Times(1)).loadUserById(userId);
+            verify(userLogService, new Times(1)).addUserLog(any(Modular.class), any(Operation.class), eq(null), anyString());
+        }
     }
 }
