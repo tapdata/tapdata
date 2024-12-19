@@ -219,7 +219,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private int toTapValueBatchSize;
 	protected Boolean syncSourcePartitionTableEnable;
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
-	private Map<List<String>, Integer> loggedTableMap = new ConcurrentHashMap<>();
+	private List<String> loggedTables = new ArrayList<>();
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -934,8 +934,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (CollectionUtils.isNotEmpty(addList)) {
 			List<String> loadedTableNames;
 			final List<String> noPrimaryKeyTableNames = new ArrayList<>();
-			if (!loggedTableMap.containsKey(addList)) {
+			boolean needLog = false;
+			if (!loggedTables.equals(addList)) {
 				obsLogger.info("Found new table(s): " + addList);
+				loggedTables.clear();
+				loggedTables.addAll(addList);
+				needLog = true;
 			}
 			List<TapTable> addTapTables = new ArrayList<>();
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -1003,9 +1007,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					addTapTables.forEach(tapTable -> obsLogger.debug("Loaded new table schema: {}", tapTable));
 				}
 			}
-			if (loggedTableMap.get(addList) == null || addTapTables.size() != loggedTableMap.get(addList)) {
+			if (needLog) {
 				obsLogger.info("Load new table(s) schema finished, loaded schema count: {}", addTapTables.size());
-				loggedTableMap.put(addList, addTapTables.size());
 			}
 			loadedTableNames = addTapTables.stream().map(TapTable::getId).collect(Collectors.toList());
 			List<String> missingTableNames = new ArrayList<>();
