@@ -61,7 +61,7 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 		if (writeRecordTableResult.getContinuousDuplicateKeyErrorOverLimit().get() ||
 				writeRecordTableResult.getDuplicateKeyErrorCounter() > writeDuplicateKeyErrorThreshold) {
 			if (writeRecordTableResult.getContinuousDuplicateKeyErrorOverLimit().compareAndSet(false, true)) {
-				Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has more than {} continuous duplicate key errors, all subsequent data insert policy are switched to {}",
+				Optional.ofNullable(obsLogger).ifPresent(log -> log.trace("Table '{}' has more than {} continuous duplicate key errors, all subsequent data insert policy are switched to {}",
 						tableId, writeDuplicateKeyErrorThreshold, settingInsertPolicy.name()));
 			}
 			currentInsertPolicy = settingInsertPolicy;
@@ -78,7 +78,7 @@ public class PDkNodeInsertRecordPolicyService extends NodeWritePolicyService {
 			if (null != matchThrowable) {
 				connectorNode.getConnectorContext().getConnectorCapabilities().alternative(ConnectionOptions.DML_INSERT_POLICY, settingInsertPolicy.name());
 				writePolicyRunner.apply(tapRecordEvents);
-				Optional.ofNullable(obsLogger).ifPresent(log -> log.info("Table '{}' has duplicate key error, switch the insert policy to {} and retry writing, continuous error time: {}",
+				Optional.ofNullable(obsLogger).ifPresent(log -> log.trace("Table '{}' has duplicate key error, switch the insert policy to {} and retry writing, continuous error time: {}",
 						tableId, settingInsertPolicy.name(), writeRecordTableResult.getDuplicateKeyErrorCounter()));
 				writeRecordTableResult.incrementDuplicateKeyErrorCounter();
 			} else {

@@ -253,7 +253,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			@Override
 			public void info(String log) {
-				obsLogger.info(log);
+				obsLogger.trace(log);
 			}
 			@Override
 			public void warn(String log) {
@@ -561,13 +561,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doClose() throws TapCodeException {
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
-			obsLogger.info(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
+			obsLogger.trace(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
 		}, err -> obsLogger.warn(String.format("Clean node %s[%s] schema data failed: %s", getNode().getName(), getNode().getId(), err.getMessage())));
 		CommonUtils.handleAnyError(() -> {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
 			}
-			obsLogger.info(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
+			obsLogger.trace(String.format("Node %s[%s] monitor closed", getNode().getName(), getNode().getId()));
 		}, err -> obsLogger.warn("Close monitor failed: " + err.getMessage()));
 	}
 
@@ -584,7 +584,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					processorBaseContext.getTaskDto().setSnapShotInterrupt(taskDto.isSnapShotInterrupt());
 				}
 			}, TAG);
-			obsLogger.info(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
+			obsLogger.trace(String.format("Node %s[%s] running status set to false", getNode().getName(), getNode().getId()));
 			CommonUtils.handleAnyError(this::doClose, err -> obsLogger.warn(String.format("Close node failed: %s | Node: %s[%s] | Type: %s", err.getMessage(), getNode().getName(), getNode().getId(), this.getClass().getName())));
 			CommonUtils.ignoreAnyError(() -> {
 				if (this instanceof HazelcastProcessorBaseNode) {
@@ -597,7 +597,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			ThreadContext.clearAll();
 			super.close();
 			sw.stop();
-			obsLogger.info(String.format("Node %s[%s] close complete, cost %d ms", getNode().getName(), getNode().getId(), sw.getTotalTimeMillis()));
+			obsLogger.trace(String.format("Node %s[%s] close complete, cost %d ms", getNode().getName(), getNode().getId(), sw.getTotalTimeMillis()));
 		}
 	}
 
@@ -678,10 +678,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			ErrorEvent event = new ErrorEvent(finalMessage, currentEx.getCode(), Log4jUtil.getStackString(currentEx));
 			errorEvent.set(event);
 			if(whetherToSkip(taskDto.getErrorEvents(), errorEvent.get(), skipError)){
-				obsLogger.info("Exception skipping - The current exception match the skip exception strategy, message: {}", finalMessage);
+				obsLogger.trace("Exception skipping - The current exception match the skip exception strategy, message: {}", finalMessage);
 				isSkip.set(true);
 			} else {
-				obsLogger.info("Exception skipping - The current exception does not match the skip exception strategy, message: {}", finalMessage);
+				obsLogger.trace("Exception skipping - The current exception does not match the skip exception strategy, message: {}", finalMessage);
 			}
 		},err->obsLogger.warn("Skip error failed:{}",err.getMessage()));
 		if (isSkip.get()) {
@@ -719,7 +719,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected void stopJetJobIfStatusIsRunning(JobStatus status, TaskDto taskDto, com.hazelcast.jet.Job hazelcastJob) {
 		if (JobStatus.RUNNING == status) {
-			obsLogger.info("Job suspend in error handle");
+			obsLogger.trace("Job suspend in error handle");
 			TaskClient<TaskDto> taskDtoTaskClient = BeanUtil.getBean(TapdataTaskScheduler.class).getTaskClientMap().get(taskDto.getId().toHexString());
 			if (null != taskDtoTaskClient) {
 				taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
@@ -923,12 +923,12 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (isSubPartitionTable) {
 				if (node instanceof DatabaseNode
 						&& !Boolean.TRUE.equals(((DatabaseNode)node).getSyncTargetPartitionTableEnable())) {
-					obsLogger.info("Target node not enable partition, task will skip: update metadata instances for subpartition table {}",
+					obsLogger.trace("Target node not enable partition, task will skip: update metadata instances for subpartition table {}",
 							event.getTable().getId());
 					return;
 				}
 				if (node instanceof MigrateProcessorNode) {
-					obsLogger.info("Processor node skip create partition table event.");
+					obsLogger.trace("Processor node skip create partition table event.");
 					return;
 				}
 

@@ -82,7 +82,7 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 						Pattern pattern = Pattern.compile(ignoreDDLRules);
 						Matcher matcher = pattern.matcher(sql);
 						if (matcher.find()) {
-							obsLogger.info("Regular matching successfully ignores DDL event:{}",sql);
+							obsLogger.trace("Regular matching successfully ignores DDL event:{}",sql);
 							return false;
 						}
 					}
