@@ -149,7 +149,6 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>service-skeleton-module</artifactId>
-			<version>${service-skeleton-module.version}</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>
