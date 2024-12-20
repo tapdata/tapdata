@@ -441,7 +441,7 @@ public class UserServiceImpl extends UserService{
         return null;
     }
 
-    private String randomHexString() {
+    protected String randomHexString() {
         return IntStream.range(0, 8).mapToObj(i -> Integer.toHexString(Double.valueOf((1 + Math.random()) * 0x10000).intValue()).substring(1)).collect(Collectors.joining());
     }
 
@@ -814,6 +814,15 @@ public class UserServiceImpl extends UserService{
     }
 
     @Override
+    public boolean checkLoginSingleSessionEnable() {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_SINGLE_SESSION);
+        if (settings != null) {
+            return settings.getOpen();
+        }
+        return false;
+    }
+
+    @Override
     public TestResponseDto testLoginByLdap(TestLdapDto testldapDto) {
         String ldapUrl = testldapDto.getLdap_Server_Host() + ":" + testldapDto.getLdap_Server_Port();
         String bindDN = testldapDto.getLdap_Bind_DN();
@@ -1025,5 +1034,18 @@ public class UserServiceImpl extends UserService{
         sslContext.init(null, trustManagers, null);
 
         return sslContext;
+    }
+
+    @Override
+    public String refreshAccessCode(UserDetail userDetail) {
+        String accessCode = randomHexString();
+        if (StringUtils.isBlank(accessCode)) {
+            throw new BizException("AccessCode.Is.Null");
+        }
+        updateById(userDetail.getUserId(), Update.update("accessCode", accessCode), userDetail);
+        Field field = new Field();
+        field.put("accesscode", 1);
+        UserDto userDto = findById(new ObjectId(userDetail.getUserId()), field);
+        return userDto.getAccessCode();
     }
 }

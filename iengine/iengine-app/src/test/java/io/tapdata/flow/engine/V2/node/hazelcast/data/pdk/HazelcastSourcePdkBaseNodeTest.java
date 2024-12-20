@@ -27,6 +27,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
@@ -292,7 +293,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				ReflectionTestUtils.setField(spyInstance,"dataProcessorContext",dataProcessorContext);
 				ReflectionTestUtils.setField(spyInstance,"obsLogger",obsLogger);
 				spyInstance.initSyncProgress();
-				verify(obsLogger,times(1)).info(anyString(),anyString());
+				verify(obsLogger,times(1)).trace(anyString(),anyString());
 			}
 		}
 
@@ -1579,6 +1580,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			}
 		};
+		ReflectionTestUtils.setField(sourceNode, "obsLogger", mock(ObsLogger.class));
 		sourceNode.initSyncPartitionTableEnable();
 		Assertions.assertEquals(true, sourceNode.syncSourcePartitionTableEnable);
 	}
@@ -2452,6 +2454,87 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
 
 		}
+		@Test
+		void testLoggedTables() throws Throwable {
+			List<TapTable> tapTables = new ArrayList<>();
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			TapNodeSpecification spec = new TapNodeSpecification();
+			spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
+			when(connectorContext.getSpecification()).thenReturn(spec);
+			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+				@Override
+				public TapTable get(String key) {
+					return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
+				}
+			};
+			when(connectorContext.getTableMap()).thenReturn(tableMap);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doAnswer(answer -> {
+				Runnable runnable = answer.getArgument(0);
+				runnable.run();
+				return null;
+			}).when(connectorNode).applyClassLoaderContext(any());
+			TapConnector connector = mock(TapConnector.class);
+			doAnswer(answer -> {
+				Consumer<List<TapTable>> consumer = answer.getArgument(3);
+
+				TapTable table = new TapTable();
+				table.setId("test");
+				table.setName("test");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				tapTables.add(table);
+				table = new TapTable();
+				table.setId("test_1");
+				table.setName("test_1");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				tapTables.add(table);
+				consumer.accept(tapTables);
+				return null;
+			}).
+					when(connector).discoverSchema(any(), anyList(), anyInt(), any());
+			when(connectorNode.getConnector()).thenReturn(connector);
+			when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
+
+			when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
+				TapEvent tapEvent = answer.getArgument(0);
+				TapdataEvent event = new TapdataEvent();
+				event.setTapEvent(tapEvent);
+				return event;
+			});
+			doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+
+			List<String> tables = new ArrayList<>();
+			tables.add("test");
+
+			spySourcePdkBaseNod.running.set(true);
+			spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
+			spySourcePdkBaseNod.syncProgress = new SyncProgress();
+			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
+			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
+			List<String> loggedTables = tables;
+			ReflectionTestUtils.setField(spySourcePdkBaseNod, "loggedTables", loggedTables);
+			spySourcePdkBaseNod.handleNewTables(tables);
+
+			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
+			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
+			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
+
+		}
 	}
 
 	@Nested
@@ -2638,7 +2721,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Thread.sleep(100); // Wait for async execution
 
 			verify(mockInstance).doCountSynchronously(batchCountFunction, tableList, false);
-			verify(obsLogger).info(contains("Query snapshot row size completed"));
+			verify(obsLogger).trace(contains("Query snapshot row size completed"));
 		}
 
 		@Test

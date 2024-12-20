@@ -175,7 +175,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		CommonUtils.handleAnyError(
 				() -> {
 					if (monitorManager != null) monitorManager.close();
-					obsLogger.info(String.format("Closed task monitor(s)\n%s", monitorManager));
+					obsLogger.trace(String.format("Closed task monitor(s)\n%s", monitorManager));
 				},
 				err -> {
 					obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
@@ -184,7 +184,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
             CommonUtils.handleAnyError(
                 () -> {
 					if(null != autoRecovery) autoRecovery.close();
-                    obsLogger.info(String.format("Closed task auto recovery instance\n  %s", autoRecovery));
+                    obsLogger.trace(String.format("Closed task auto recovery instance\n  %s", autoRecovery));
                 },
                 err -> {
                     obsLogger.warn(String.format("Closed task auto recovery instance failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
@@ -193,7 +193,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		CommonUtils.handleAnyError(
 				() -> {
 					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(error));
-					obsLogger.info("Stopped task aspect(s)");
+					obsLogger.trace("Stopped task aspect(s)");
 				},
 				err -> {
 					obsLogger.warn(String.format("Stop task aspect(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
@@ -202,7 +202,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		CommonUtils.handleAnyError(
 				() -> {
 					if (SnapshotOrderService.getInstance().removeController(taskDto.getId().toHexString())) {
-						obsLogger.info("Snapshot order controller have been removed");
+						obsLogger.trace("Snapshot order controller have been removed");
 					}
 				},
 				error -> obsLogger.warn("Remove snapshot order controller failed, error: %s\n %s", error.getMessage(), Log4jUtil.getStackString(error))

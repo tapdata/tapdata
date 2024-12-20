@@ -223,5 +223,31 @@ class ClusterStateServiceTest {
             result = clusterStateService.deleteCluster(id, user);
             assertTrue(result);
         }
+
+        @Test
+        public void testDeleteClusterLicenseBindIsNull() {
+            Field field = new Field();
+            field.put("systemInfo", 1);
+            WorkerDto worker = new WorkerDto();
+            when(workerService.findByProcessId(anyString(), any(UserDetail.class), anyString())).thenReturn(worker);
+            ObjectId id = new ObjectId();
+            UserDetail user = mock(UserDetail.class);
+            when(clusterStateService.deleteById(id)).thenReturn(true);
+            doCallRealMethod().when(clusterStateService).deleteCluster(id, user);
+            ClusterStateDto clusterStateDto = new ClusterStateDto();
+            SystemInfo systemInfo = mock(SystemInfo.class);
+            clusterStateDto.setSystemInfo(systemInfo);
+            when(systemInfo.getProcess_id()).thenReturn("123");
+            when(clusterStateService.findById(id, field)).thenReturn(clusterStateDto);
+            boolean result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
+            worker.setLicenseBind(true);
+            result = clusterStateService.deleteCluster(id, user);
+            assertFalse(result);
+            worker.setLicenseBind(false);
+            result = clusterStateService.deleteCluster(id, user);
+            assertTrue(result);
+
+        }
     }
 }

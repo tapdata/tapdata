@@ -38,12 +38,12 @@ public class ObsScriptLogger implements Log {
 
 	@Override
 	public void trace(CharSequence message) {
-		obsLogger.info(String.valueOf(message));
+		obsLogger.trace(String.valueOf(message));
 	}
 
 	@Override
 	public void trace(String message, Object... params) {
-		obsLogger.info(message, params);
+		obsLogger.trace(message, params);
 	}
 
 	@Override
