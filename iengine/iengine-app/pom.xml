@@ -31,7 +31,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-storage-module</artifactId>
-            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
@@ -97,7 +96,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>service-skeleton-module</artifactId>
-            <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>

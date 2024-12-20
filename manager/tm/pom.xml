@@ -149,7 +149,7 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>service-skeleton-module</artifactId>
-			<version>1.1-SNAPSHOT</version>
+			<version>${service-skeleton-module.version}</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>
@@ -168,7 +168,6 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>tapdata-proxy</artifactId>
-			<version>1.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>
@@ -183,7 +182,6 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>mongodb-storage-module</artifactId>
-			<version>1.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>

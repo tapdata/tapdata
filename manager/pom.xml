@@ -30,7 +30,10 @@
 		<mongo.version>4.7.0</mongo.version>
 		<tapdata-api.version>1.4.2-SNAPSHOT</tapdata-api.version>
 		<modules-api.version>1.2-SNAPSHOT</modules-api.version>
-		<websocket-server-module.version>1.1-SNAPSHOT</websocket-server-module.version>
+		<websocket-server-module.version>1.2-SNAPSHOT</websocket-server-module.version>
+		<service-skeleton-module.version>1.2-SNAPSHOT</service-skeleton-module.version>
+		<tapdata-proxy.version>1.2-SNAPSHOT</tapdata-proxy.version>
+		<mongodb-storage-module.version>1.2-SNAPSHOT</mongodb-storage-module.version>
 	</properties>
 
 	<modules>
@@ -100,6 +103,21 @@
 				<groupId>io.tapdata</groupId>
 				<artifactId>websocket-server-module</artifactId>
 				<version>${websocket-server-module.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>service-skeleton-module</artifactId>
+				<version>${service-skeleton-module.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-proxy</artifactId>
+				<version>${tapdata-proxy.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>mongodb-storage-module</artifactId>
+				<version>${mongodb-storage-module.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
