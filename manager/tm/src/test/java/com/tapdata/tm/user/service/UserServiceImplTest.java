@@ -921,10 +921,29 @@ public class UserServiceImplTest {
             UserDto userDto = mock(UserDto.class);
             String accessCode = "b4b7fe8a499f65786764fe3654b37c48";
             when(userDto.getAccessCode()).thenReturn(accessCode);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(userService.update(any(Query.class), any(Update.class))).thenReturn(updateResult);
+            when(updateResult.getModifiedCount()).thenReturn(1L);
             when(userService.findById(any(ObjectId.class), any(Field.class))).thenReturn(userDto);
             doCallRealMethod().when(userService).refreshAccessCode(userDetail);
             String actual = userService.refreshAccessCode(userDetail);
             assertEquals(accessCode, actual);
+            verify(userLogService, new Times(1)).addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), userDto.getAccessCode());
+        }
+        @Test
+        void testRefreshAccessCodeNoUpdate() {
+            doCallRealMethod().when(userService).randomHexString();
+            UserDto userDto = mock(UserDto.class);
+            String accessCode = "b4b7fe8a499f65786764fe3654b37c48";
+            when(userDto.getAccessCode()).thenReturn(accessCode);
+            UpdateResult updateResult = mock(UpdateResult.class);
+            when(userService.update(any(Query.class), any(Update.class))).thenReturn(updateResult);
+            when(updateResult.getModifiedCount()).thenReturn(0L);
+            when(userService.findById(any(ObjectId.class), any(Field.class))).thenReturn(userDto);
+            doCallRealMethod().when(userService).refreshAccessCode(userDetail);
+            String actual = userService.refreshAccessCode(userDetail);
+            assertEquals(accessCode, actual);
+            verify(userLogService, new Times(0)).addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), userDto.getAccessCode());
         }
     }
 
