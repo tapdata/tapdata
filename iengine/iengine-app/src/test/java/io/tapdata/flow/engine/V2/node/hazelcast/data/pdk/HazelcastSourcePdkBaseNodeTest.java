@@ -293,7 +293,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 				ReflectionTestUtils.setField(spyInstance,"dataProcessorContext",dataProcessorContext);
 				ReflectionTestUtils.setField(spyInstance,"obsLogger",obsLogger);
 				spyInstance.initSyncProgress();
-				verify(obsLogger,times(1)).info(anyString(),anyString());
+				verify(obsLogger,times(1)).trace(anyString(),anyString());
 			}
 		}
 
@@ -1580,6 +1580,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			}
 		};
+		ReflectionTestUtils.setField(sourceNode, "obsLogger", mock(ObsLogger.class));
 		sourceNode.initSyncPartitionTableEnable();
 		Assertions.assertEquals(true, sourceNode.syncSourcePartitionTableEnable);
 	}
@@ -2720,7 +2721,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Thread.sleep(100); // Wait for async execution
 
 			verify(mockInstance).doCountSynchronously(batchCountFunction, tableList, false);
-			verify(obsLogger).info(contains("Query snapshot row size completed"));
+			verify(obsLogger).trace(contains("Query snapshot row size completed"));
 		}
 
 		@Test

@@ -75,7 +75,7 @@ public class LoggingAspectTask extends AspectTask {
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
 		this.taskLogger = ObsLoggerFactory.getInstance().getObsLogger(task);
-		getObsLogger().info("Task initialization...");
+		getObsLogger().trace("Task initialization...");
 	}
 
 	/**
@@ -355,16 +355,16 @@ public class LoggingAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
-				getObsLogger(node).info("Initial sync started");
+				getObsLogger(node).trace("Initial sync started");
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
-				getObsLogger(node).info("Initial sync completed");
+				getObsLogger(node).trace("Initial sync completed");
 				break;
 			case SourceStateAspect.STATE_CDC_START:
-				getObsLogger(node).info("Incremental sync starting...");
+				getObsLogger(node).trace("Incremental sync starting...");
 				break;
 			case SourceStateAspect.STATE_CDC_COMPLETED:
-				getObsLogger(node).info("Incremental sync completed");
+				getObsLogger(node).trace("Incremental sync completed");
 				break;
 			default:
 				break;
@@ -400,7 +400,7 @@ public class LoggingAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				batchReadCompleteLastTs.put(nodeId, aspect.getTime());
-				getObsLogger(node).info("Table {} is going to be initial synced", aspect.getTable().getName());
+				getObsLogger(node).trace("Table {} is going to be initial synced", aspect.getTable().getName());
 				aspect.readCompleteConsumer(events -> {
 					long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - batchReadCompleteLastTs.get(nodeId),
@@ -504,7 +504,7 @@ public class LoggingAspectTask extends AspectTask {
 				if (null != aspect.getCreateTableOptions() &&
 						aspect.getCreateTableOptions().getTableExists() != null &&
 						aspect.getCreateTableOptions().getTableExists()) {
-					getObsLogger(node).info("The table {} has already exist.", aspect.getCreateTableEvent().getTable().getName());
+					getObsLogger(node).trace("The table {} has already exist.", aspect.getCreateTableEvent().getTable().getName());
 				}
 				break;
 		}

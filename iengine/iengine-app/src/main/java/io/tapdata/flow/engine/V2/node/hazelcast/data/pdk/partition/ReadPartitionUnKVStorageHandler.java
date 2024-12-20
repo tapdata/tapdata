@@ -51,7 +51,7 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
 	public JobContext handleReadPartition(JobContext jobContext) {
 		if (null == sourcePdkDataNode.getConnectorNode()) return null;
 		ReadPartitionContext readPartitionContext = jobContext.getContext(ReadPartitionContext.class);
-		sourcePdkDataNode.getObsLogger().info("Start storing partition {} into local, batchSize {} ", readPartition, sourcePdkDataNode.batchSize);
+		sourcePdkDataNode.getObsLogger().trace("Start storing partition {} into local, batchSize {} ", readPartition, sourcePdkDataNode.batchSize);
 		QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = sourcePdkDataNode.getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
 		if (queryByAdvanceFilterFunction != null) {
 			final List<TapEvent>[] reference = new List[]{new ArrayList<>()};
@@ -114,7 +114,7 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
 				}
 			} finally {
 				sourcePdkDataNode.removePdkMethodInvoker(pdkMethodInvoker);
-				sourcePdkDataNode.getObsLogger().info(
+				sourcePdkDataNode.getObsLogger().trace(
 						"Stored the readPartition {}, " +
 								"takes {}, " +
 								"storage takes {}, " +
@@ -194,7 +194,7 @@ public class ReadPartitionUnKVStorageHandler extends PartitionFieldParentHandler
 		} else {
 			completedPartitions.put(readPartition.getId(), sentEventCount.longValue());
 		}
-		sourcePdkDataNode.getObsLogger().info("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
+		sourcePdkDataNode.getObsLogger().trace("Finished partition {} completedPartitions {}", readPartition, completedPartitions.size());
 		return null;
 	}
 
