@@ -29,10 +29,6 @@ public class UUIDGenerator {
 		return uuid;
 	}
 
-	public static ObjectId objectId() {
-		return new ObjectId();
-	}
-
 	public static String objectIdStr() {
 		return new ObjectId().toHexString();
 	}
