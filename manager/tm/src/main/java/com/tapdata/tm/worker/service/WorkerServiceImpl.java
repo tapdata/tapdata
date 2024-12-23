@@ -80,7 +80,8 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class WorkerServiceImpl extends WorkerService{
-
+    @Autowired
+    private DataFlowService dataFlowService;
     @Autowired
     private ClusterStateService clusterStateService;
     @Autowired
@@ -209,7 +210,6 @@ public class WorkerServiceImpl extends WorkerService{
         });
         Query query = Query.query(Criteria.where("id").in(runningJobs));
         query.fields().include("id", "name");
-        DataFlowService dataFlowService = SpringContextHelper.getBean(DataFlowService.class);
         List<DataFlowDto> list = dataFlowService.findAll(query);
 
         page.getItems().forEach(workerDto -> {
