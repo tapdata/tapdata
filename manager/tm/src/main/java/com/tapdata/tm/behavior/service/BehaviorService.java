@@ -9,7 +9,6 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
-import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -41,6 +40,8 @@ public class BehaviorService extends BaseService<BehaviorDto, BehaviorEntity, Ob
     private Map<String, BehaviorEntity> cacheForInsight = new ConcurrentHashMap<>();
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:00:00");
 
+    @Autowired
+    private DataFlowService dataFlowService;
 
     public BehaviorService(@NonNull BehaviorRepository repository) {
         super(repository, BehaviorDto.class, BehaviorEntity.class);
@@ -137,7 +138,6 @@ public class BehaviorService extends BaseService<BehaviorDto, BehaviorEntity, Ob
 
                 Query query = Query.query(Criteria.where("_id").is(new ObjectId(dataFlowInsightDto.getDataFlowId())));
                 query.fields().include("agentId");
-                DataFlowService dataFlowService = SpringContextHelper.getBean(DataFlowService.class);
                 DataFlowDto dataFlow = dataFlowService.findOne(query);
                 if (dataFlow != null) {
                     behaviorDto.setAgentId(dataFlow.getAgentId());

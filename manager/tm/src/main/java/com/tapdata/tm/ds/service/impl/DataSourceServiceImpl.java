@@ -134,6 +134,8 @@ public class DataSourceServiceImpl extends DataSourceService{
     @Autowired
     private JobService jobService;
     @Autowired
+    private DataFlowService dataFlowService;
+    @Autowired
     private TaskService taskService;
     @Autowired
     private MessageQueueService messageQueueService;
@@ -770,7 +772,6 @@ public class DataSourceServiceImpl extends DataSourceService{
         Criteria regex = Criteria.where("stages.connectionId").is(id);
         Query dataflowQuery = new Query(regex);
         dataflowQuery.fields().include("_id", "name");
-        DataFlowService dataFlowService = SpringContextHelper.getBean(DataFlowService.class);
         List<DataFlowDto> dataFlowDtos = dataFlowService.findAll(dataflowQuery);
 
         if (CollectionUtils.isNotEmpty(jobDtos) || CollectionUtils.isNotEmpty(dataFlowDtos)) {
