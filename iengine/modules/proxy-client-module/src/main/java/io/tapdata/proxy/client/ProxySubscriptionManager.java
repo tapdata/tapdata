@@ -14,10 +14,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.modules.api.net.data.Data;
-import io.tapdata.modules.api.net.data.FileMeta;
-import io.tapdata.modules.api.net.data.IncomingData;
-import io.tapdata.modules.api.net.data.OutgoingData;
+import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.EngineMessageResultEntity;
 import io.tapdata.modules.api.pdk.PDKUtils;
@@ -179,9 +176,17 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 						fileMeta = (FileMeta)callResult;
 					}
 				}
-				imClient.sendData(new IncomingData().id(serviceCaller.getId())
-						.message(engineMessageResultEntity)
-						.fileMeta(fileMeta))
+				IncomingData incomingData = null;
+				if (fileMeta == null) {
+					incomingData = new IncomingData().id(serviceCaller.getId())
+							.message(engineMessageResultEntity);
+				} else {
+					incomingData = new TransferFileMessage()
+							.fileMeta(fileMeta)
+							.id(serviceCaller.getId())
+							.message(engineMessageResultEntity);
+				}
+				imClient.sendData(incomingData)
 						.exceptionally(throwable1 -> {
 					TapLogger.error(TAG, "Send EngineMessageResultEntity failed, {} EngineMessageResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
 					return null;
