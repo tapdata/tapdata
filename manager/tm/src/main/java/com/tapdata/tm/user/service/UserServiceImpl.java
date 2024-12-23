@@ -1042,10 +1042,14 @@ public class UserServiceImpl extends UserService{
         if (StringUtils.isBlank(accessCode)) {
             throw new BizException("AccessCode.Is.Null");
         }
-        updateById(userDetail.getUserId(), Update.update("accessCode", accessCode), userDetail);
+        Query query = Query.query(Criteria.where("_id").is(userDetail.getUserId()));
+        UpdateResult updateResult = update(query, Update.update("accessCode", accessCode));
         Field field = new Field();
         field.put("accesscode", 1);
         UserDto userDto = findById(new ObjectId(userDetail.getUserId()), field);
+        if (updateResult.getModifiedCount() > 0) {
+            userLogService.addUserLog(Modular.ACCESS_CODE, Operation.UPDATE, userDetail.getUserId(), userDto.getUserId(), userDto.getAccessCode());
+        }
         return userDto.getAccessCode();
     }
 }
