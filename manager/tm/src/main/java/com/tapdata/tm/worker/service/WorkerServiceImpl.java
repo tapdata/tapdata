@@ -40,7 +40,6 @@ import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.WorkerSingletonLock;
 import com.tapdata.tm.worker.dto.*;
 import com.tapdata.tm.worker.entity.Worker;
