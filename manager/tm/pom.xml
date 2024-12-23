@@ -159,29 +159,38 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>service-skeleton-module</artifactId>
-			<version>1.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>
                     <groupId>io.tapdata</groupId>
                 </exclusion>
+				<exclusion>
+					<groupId>io.tapdata</groupId>
+					<artifactId>modules-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>io.tapdata</groupId>
+					<artifactId>websocket-server-module</artifactId>
+				</exclusion>
             </exclusions>
         </dependency>
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>tapdata-proxy</artifactId>
-			<version>1.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>
                     <groupId>io.tapdata</groupId>
                 </exclusion>
+				<exclusion>
+					<groupId>io.tapdata</groupId>
+					<artifactId>websocket-server-module</artifactId>
+				</exclusion>
             </exclusions>
         </dependency>
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>mongodb-storage-module</artifactId>
-			<version>1.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <artifactId>tapdata-pdk-runner</artifactId>
@@ -193,6 +202,14 @@
 				</exclusion>
 			</exclusions>
         </dependency>
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>modules-api</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>websocket-server-module</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>com.deepoove</groupId>
 			<artifactId>poi-tl-plugin-highlight</artifactId>
@@ -207,7 +224,7 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>tapdata-pdk-api</artifactId>
-			<version>1.4.1-SNAPSHOT</version>
+			<version>1.4.2-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>

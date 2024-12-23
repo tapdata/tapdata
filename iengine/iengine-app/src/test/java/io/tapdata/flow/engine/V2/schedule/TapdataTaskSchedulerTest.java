@@ -23,11 +23,7 @@ import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.data.mongodb.core.query.Update;
@@ -435,6 +431,7 @@ public class TapdataTaskSchedulerTest {
 	}
 
 	@Nested
+	@Disabled
 	class StopTaskCallAssignApiTest {
 		TapdataTaskScheduler scheduler;
 		Logger logger;

@@ -339,7 +339,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			logListener.fatal("test fatal");
 			logListener.memory("test memory");
 			verify(obsLogger, new Times(1)).debug("test debug");
-			verify(obsLogger, new Times(1)).info("test info");
+			verify(obsLogger, new Times(1)).trace("test info");
 			verify(obsLogger, new Times(1)).warn("test warn");
 			verify(obsLogger, new Times(1)).error("test error");
 			verify(obsLogger, new Times(1)).fatal("test fatal");
@@ -1358,14 +1358,14 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			hazelcastBaseNode.doClose();
 			verify(tapTableMap, new Times(1)).reset();
 			verify(monitorManager, new Times(1)).close();
-			verify(mockObsLogger, new Times(2)).info(anyString());
+			verify(mockObsLogger, new Times(2)).trace(anyString());
 		}
 
 		@Test
 		void testDoCloseTapTableMapIsNull() {
 			when(processorBaseContext.getTapTableMap()).thenReturn(null);
 			assertDoesNotThrow(() -> hazelcastBaseNode.doClose());
-			verify(mockObsLogger, new Times(2)).info(anyString());
+			verify(mockObsLogger, new Times(2)).trace(anyString());
 		}
 
 		@Test
@@ -1379,7 +1379,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		void testDoCloseResetMonitorManagerIsNull() {
 			ReflectionTestUtils.setField(hazelcastBaseNode, "monitorManager", null);
 			assertDoesNotThrow(() -> hazelcastBaseNode.doClose());
-			verify(mockObsLogger, new Times(2)).info(anyString());
+			verify(mockObsLogger, new Times(2)).trace(anyString());
 		}
 
 		@Test

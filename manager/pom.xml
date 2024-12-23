@@ -28,6 +28,12 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>4.7.0</mongo.version>
+		<tapdata-api.version>1.4.2-SNAPSHOT</tapdata-api.version>
+		<modules-api.version>1.2-SNAPSHOT</modules-api.version>
+		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
+		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
+		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
+		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
 	</properties>
@@ -100,6 +106,36 @@
 				<groupId>org.mongodb</groupId>
 				<artifactId>mongodb-driver-core</artifactId>
 				<version>${mongo.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-api</artifactId>
+				<version>${tapdata-api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>modules-api</artifactId>
+				<version>${modules-api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>websocket-server-module</artifactId>
+				<version>${websocket-server-module.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>service-skeleton-module</artifactId>
+				<version>${service-skeleton-module.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-proxy</artifactId>
+				<version>${tapdata-proxy.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>mongodb-storage-module</artifactId>
+				<version>${mongodb-storage-module.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

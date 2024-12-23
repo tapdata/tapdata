@@ -29,6 +29,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.handler.DeduceSchemaHandler;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.data.mongodb.core.query.Query;
@@ -88,7 +89,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             long startTs = System.currentTimeMillis();
             taskClient = execTask(taskDto);
 
-            obsLogger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+            obsLogger.trace("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
             //成功
             TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
             if (obsLogger.isDebugEnabled()) {
@@ -113,7 +114,7 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
             taskClient = execTask(taskDto);
 
-            obsLogger.info("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+            obsLogger.trace("load MigrateJsResultVos task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
             //成功
             List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
             if (obsLogger.isDebugEnabled()) {
@@ -225,7 +226,9 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
 
     protected TapTable convertTapTable(MetadataInstancesDto item){
         FilterMetadataInstanceUtil.filterMetadataInstancesFields(item);
-        return PdkSchemaConvert.toPdk(item);
+        TapTable tapTable = PdkSchemaConvert.toPdk(item);
+        TapTableUtil.sortFieldMap(tapTable);
+        return tapTable;
     }
 
     @Override

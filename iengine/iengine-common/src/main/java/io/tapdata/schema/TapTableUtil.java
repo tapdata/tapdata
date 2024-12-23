@@ -7,12 +7,15 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -106,6 +109,30 @@ public class TapTableUtil {
 			return schemaList.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());
 		} else {
 			return Collections.emptyList();
+		}
+	}
+
+	public static void sortFieldMap(TapTable tapTable) {
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isNotEmpty(nameFieldMap)) {
+			LinkedHashMap<String, TapField> sortedFieldMap = new LinkedHashMap<>();
+			nameFieldMap.entrySet().stream().sorted((o1, o2) -> {
+				Integer o1Pos = o1.getValue().getPos();
+				Integer o2Pos = o2.getValue().getPos();
+				if (o1Pos == null && o2Pos == null) {
+					return 0;
+				}
+
+				if (o1Pos == null) {
+					return -1;
+				}
+
+				if (o2Pos == null) {
+					return 1;
+				}
+				return o1Pos.compareTo(o2Pos);
+			}).forEach(entry -> sortedFieldMap.put(entry.getKey(), entry.getValue()));
+			tapTable.setNameFieldMap(sortedFieldMap);
 		}
 	}
 }

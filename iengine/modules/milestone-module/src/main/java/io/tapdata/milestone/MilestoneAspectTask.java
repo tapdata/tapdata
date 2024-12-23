@@ -160,7 +160,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStart(TaskStartAspect startAspect) {
-        log.info("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
+        log.trace("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
         taskMilestone(KPI_TASK, this::setFinish);
         taskMilestone(KPI_DEDUCTION,null);
         if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
@@ -182,7 +182,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     @Override
     public void onStop(TaskStopAspect stopAspect) {
-        log.info("Stop task milestones: {}({}) ", task.getId().toHexString(), task.getName());
+        log.trace("Stop task milestones: {}({}) ", task.getId().toHexString(), task.getName());
         try {
             // Release resources
             executorService.shutdown();

@@ -16,7 +16,7 @@ spring:
     mongodb:
       cursorBatchSize: 1000
       default:
-        uri: ${TAPDATA_MONGO_URI:'mongodb://127.0.0.1:27017/tapdata'}
+        uri: ${TAPDATA_MONGO_URI:mongodb://127.0.0.1:27017/tapdata_v29}
       ssl: ${ssl:false}
       caPath: ${sslCAPath:''}
       keyPath: ${sslCertKeyPath:''}

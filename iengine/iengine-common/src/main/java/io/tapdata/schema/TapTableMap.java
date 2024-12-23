@@ -424,27 +424,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
 		}
 
-		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		if (MapUtils.isNotEmpty(nameFieldMap)) {
-			LinkedHashMap<String, TapField> sortedFieldMap = new LinkedHashMap<>();
-			nameFieldMap.entrySet().stream().sorted((o1, o2) -> {
-				Integer o1Pos = o1.getValue().getPos();
-				Integer o2Pos = o2.getValue().getPos();
-				if (o1Pos == null && o2Pos == null) {
-					return 0;
-				}
-
-				if (o1Pos == null) {
-					return -1;
-				}
-
-				if (o2Pos == null) {
-					return 1;
-				}
-				return o1Pos.compareTo(o2Pos);
-			}).forEach(entry -> sortedFieldMap.put(entry.getKey(), entry.getValue()));
-			tapTable.setNameFieldMap(sortedFieldMap);
-		}
+		TapTableUtil.sortFieldMap(tapTable);
 		return (V) tapTable;
 	}
 

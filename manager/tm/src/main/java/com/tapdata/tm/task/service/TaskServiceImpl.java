@@ -32,6 +32,7 @@ import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
+import com.tapdata.tm.userLog.constant.Operation;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
@@ -1092,8 +1093,10 @@ public class TaskServiceImpl extends TaskService{
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             messageService.addMigration(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
+            userLogService.addUserLog(Modular.MIGRATION, Operation.DELETE, user, id.toString(), taskDto.getName());
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getDeleteName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
+            userLogService.addUserLog(Modular.SYNC, Operation.DELETE, user, id.toString(), taskDto.getName());
         }
 
         try {

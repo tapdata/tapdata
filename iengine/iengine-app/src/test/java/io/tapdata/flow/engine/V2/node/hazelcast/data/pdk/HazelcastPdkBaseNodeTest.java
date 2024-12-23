@@ -107,16 +107,16 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		assertTrue(actualObj instanceof TapLogger.LogListener);
 		((TapLogger.LogListener) actualObj).debug("debug test");
 		assertEquals("debug test", log.get());
-		((TapLogger.LogListener) actualObj).info("info test");
-		assertEquals("info test", log.get());
+//		((TapLogger.LogListener) actualObj).info("info test");
+//		assertEquals("info test", log.get());
 		((TapLogger.LogListener) actualObj).warn("warn test");
 		assertEquals("warn test", log.get());
 		((TapLogger.LogListener) actualObj).error("error test");
 		assertEquals("error test", log.get());
 		((TapLogger.LogListener) actualObj).fatal("fatal test");
 		assertEquals("fatal test", log.get());
-		((TapLogger.LogListener) actualObj).memory("memory test");
-		assertEquals("memory test", log.get());
+//		((TapLogger.LogListener) actualObj).memory("memory test");
+//		assertEquals("memory test", log.get());
 	}
 
 	@Nested

@@ -53,4 +53,6 @@ public abstract class RoleMappingService extends BaseService<RoleMappingDto, Rol
         c.orOperator(or);
         return Optional.ofNullable(findAll(Query.query(c))).orElse(Lists.newArrayList());
     }
+
+    public abstract void addUserLogIfNeed(List<RoleMappingDto> dtos, UserDetail userDetail);
 }
