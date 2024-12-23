@@ -20,6 +20,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
@@ -138,7 +139,7 @@ public class MessageServiceImpl extends MessageService{
     }
 
     @NotNull
-    private Page<MessageListVo> getMessageListVoPage(Locale locale, Query query, TmPageable tmPageable) {
+    protected Page<MessageListVo> getMessageListVoPage(Locale locale, Query query, TmPageable tmPageable) {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
         query.with(Sort.by("createTime").descending());
         query.with(tmPageable);
@@ -162,7 +163,11 @@ public class MessageServiceImpl extends MessageService{
     }
 
     public Page<MessageListVo> list(Locale locale, MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
-        Query query = new Query(Criteria.where("user_id").is(userDetail.getUserId()).and("msg").is(type.getValue()));
+        Criteria criteria = Criteria.where("msg").is(type.getValue());
+        if (!userDetail.isRoot()) {
+            criteria.and("user_id").is(userDetail.getUserId());
+        }
+        Query query = new Query(criteria);
         if (StringUtils.isNotBlank(level)) {
             query.addCriteria(Criteria.where("level").is(level));
         }

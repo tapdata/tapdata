@@ -10,6 +10,8 @@ import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.service.EventsService;
@@ -17,6 +19,7 @@ import com.tapdata.tm.message.constant.*;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.repository.MessageRepository;
+import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.mp.service.MpService;
 import com.tapdata.tm.sms.SmsService;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -41,7 +44,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -53,6 +58,7 @@ import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -823,7 +829,7 @@ class MessageServiceTest {
         MessageMetadata messageMetadata = JSONUtil.toBean(json, MessageMetadata.class);
 
         Assertions.assertNotNull(messageMetadata.getName());
-        Assertions.assertEquals("xxxx",messageMetadata.getName());
+        assertEquals("xxxx",messageMetadata.getName());
 
 
     }
@@ -838,7 +844,7 @@ class MessageServiceTest {
         when(alarmMailService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(alarmMailDto);
         List<String> result = messageServiceUnderTest.getMailAddressList(userDetail);
         expect.add(userDetail.getEmail());
-        Assertions.assertEquals(expect,result);
+        assertEquals(expect,result);
     }
 
     @Test
@@ -846,6 +852,51 @@ class MessageServiceTest {
         List<String> expect = new ArrayList<>();
         List<String> result = messageServiceUnderTest.getMailAddressList(userDetail);
         expect.add(userDetail.getEmail());
-        Assertions.assertEquals(expect,result);
+        assertEquals(expect,result);
+    }
+
+    @Nested
+    class listTest {
+        Locale locale;
+        MsgTypeEnum type;
+        String level;
+        Boolean read;
+        Integer page;
+        Integer size;
+        UserDetail userDetail;
+        @BeforeEach
+        void beforeEach() {
+            locale = new Locale("zh_cn");
+            type = MsgTypeEnum.ALARM;
+            page = 1;
+            size = 2;
+            userDetail = mock(UserDetail.class);
+        }
+        @Test
+        void testForRoot() {
+            messageServiceUnderTest = spy(messageServiceUnderTest);
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(mockMessageRepository.getMongoOperations()).thenReturn(template);
+            Query query = new Query(Criteria.where("msg").is(type.getValue()));
+            when(template.count(query, MessageEntity.class)).thenReturn(1L);
+            when(userDetail.isRoot()).thenReturn(true);
+            Page<MessageListVo> list = messageServiceUnderTest.list(locale, type, level, read, page, size, userDetail);
+            verify(messageServiceUnderTest, new Times(1)).getMessageListVoPage(any(Locale.class), any(Query.class), any(TmPageable.class));
+            assertEquals(1, list.getTotal());
+        }
+        @Test
+        void testForUser() {
+            level = "info";
+            read = true;
+            messageServiceUnderTest = spy(messageServiceUnderTest);
+            MongoTemplate template = mock(MongoTemplate.class);
+            when(userDetail.getUserId()).thenReturn("663a025e196c465b52e01332");
+            when(mockMessageRepository.getMongoOperations()).thenReturn(template);
+            when(template.count(any(Query.class), any(Class.class))).thenReturn(1L);
+            when(userDetail.isRoot()).thenReturn(false);
+            Page<MessageListVo> list = messageServiceUnderTest.list(locale, type, level, read, page, size, userDetail);
+            verify(messageServiceUnderTest, new Times(1)).getMessageListVoPage(any(Locale.class), any(Query.class), any(TmPageable.class));
+            assertEquals(1, list.getTotal());
+        }
     }
 }
