@@ -78,12 +78,6 @@
 		<dependencies>
 			<dependency>
 				<groupId>com.tapdata</groupId>
-				<artifactId>tcm</artifactId>
-				<version>0.0.1</version>
-				<scope>compile</scope>
-			</dependency>
-			<dependency>
-				<groupId>com.tapdata</groupId>
 				<artifactId>tm-oss</artifactId>
 				<version>1.0.0-SNAPSHOT</version>
 			</dependency>

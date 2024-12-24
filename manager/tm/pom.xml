@@ -134,6 +134,8 @@
 				<dependency>
 					<groupId>com.tapdata</groupId>
 					<artifactId>${tcm.artifactId}</artifactId>
+					<version>0.0.1</version>
+					<scope>compile</scope>
 				</dependency>
 
 			</dependencies>
