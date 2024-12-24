@@ -116,7 +116,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 				}
 			} else {
 				if (null == syncProgressObj) {
-					obsLogger.info("Sync progress not exists, will run task as first time");
+					obsLogger.trace("Sync progress not exists, will run task as first time");
 				} else {
 					throw new RuntimeException("Unrecognized sync progress type: " + syncProgressObj.getClass().getName() + ", should be a map");
 				}

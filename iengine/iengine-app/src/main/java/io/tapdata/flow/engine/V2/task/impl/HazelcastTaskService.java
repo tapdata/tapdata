@@ -178,9 +178,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
 			hazelcastTaskClient.setJob(job);
+			obsLogger.info("Task started");
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
-			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
@@ -190,7 +190,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		Job job;
 		try {
 			final JetDag jetDag = task2HazelcastDAG(taskDto, true);
-			obsLogger.info("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
+			obsLogger.trace("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			job = jet.newJob(jetDag.getDag(), jobConfig);
 		} catch (Exception e) {
 			hazelcastTaskClient.close();
@@ -308,6 +308,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			try {
 				AutoInspectNode inspectNode = AutoInspectNodeUtil.firstAutoInspectNode(taskDtoAtomicReference.get());
 				if (null != inspectNode) {
+					ObsLoggerFactory.getInstance().getObsLogger(taskDto).info("Enable automatic data verification");
 					nodes.add(inspectNode);
 					nodeMap.put(inspectNode.getId(), inspectNode);
 					edges.add(new Edge(inspectNode.getFromNode().getId(), inspectNode.getId()));
@@ -449,7 +450,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			SnapshotOrderService snapshotOrderService = SnapshotOrderService.getInstance();
 			SnapshotOrderController snapshotOrderController = snapshotOrderService.addController(taskDtoAtomicReference.get());
 			snapshotOrderController.flush();
-			ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).info(snapshotOrderService.getController(taskDtoAtomicReference.get().getId().toHexString()).toString());
+			ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get()).trace(snapshotOrderService.getController(taskDtoAtomicReference.get().getId().toHexString()).toString());
 		} catch (Exception e) {
 			throw new TapCodeException(SnapshotOrderControllerExCode_21.UNKNOWN_ERROR, e);
 		}
@@ -1029,6 +1030,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	protected Map<String, TapTableMap<String, TapTable>> engineTransformSchema(TaskDto taskDto) {
 		AspectUtils.executeAspect(new EngineDeductionAspect().start());
+		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
 		try {
 			com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
@@ -1047,8 +1049,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			});
 			dagDataService.initializeModel((StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_SYNC)));
 			AspectUtils.executeAspect(new EngineDeductionAspect().end());
+			obsLogger.info("Loading table structure completed");
 		} catch (Exception e) {
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));
+			obsLogger.info("Loading table structure error: {}", e.getMessage());
 			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE, "reason:" + e.getMessage(), e)
 					.dynamicDescriptionParameters(taskDto.getName(), taskDto.getId(), taskDto.getSyncType());
 		}

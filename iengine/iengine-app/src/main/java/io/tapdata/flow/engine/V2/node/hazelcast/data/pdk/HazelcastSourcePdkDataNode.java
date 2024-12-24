@@ -263,15 +263,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			try {
 				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
+						obsLogger.info("Starting batch read from {} tables", tables.size());
 						doSnapshotWithControl(new ArrayList<>(tables));
 					}
 				}
 
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
+					obsLogger.info("Starting batch read from {} new tables", newTables.size());
 					doSnapshot(newTables);
 				}
 
 				addLdpNewTablesIfNeed(taskDto);
+				obsLogger.info("Batch read completed.");
 			} catch (Throwable e) {
 				executeAspect(new SnapshotReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 				throw e;
@@ -298,6 +301,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					TaskClient<TaskDto> taskClient = tapdataTaskScheduler.getTaskClient(dataProcessorContext.getTaskDto().getId().toHexString());
 					if (null != taskClient) {
 						taskClient.terminalMode(TerminalMode.COMPLETE);
+						obsLogger.info("Task run completed");
 					}
 				}
 			}
@@ -390,7 +394,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					TapTable tapTable = tapTableMap.get(tableName);
 					String tableId = tapTable.getId();
 					if (BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId)) {
-						obsLogger.info("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
+						obsLogger.trace("Skip table [{}] in batch read, reason: last task, this table has been completed batch read",
 								tableId);
 						continue;
 					}
@@ -406,7 +410,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							this.removeTables.remove(tableName);
 							continue;
 						}
-						obsLogger.info("Starting batch read, table name: {}", tableId);
+						obsLogger.info("Starting batch read from table: {}", tableId);
 
 						doSnapshotInvoke(tableName, functions, tapTable, firstBatch, tableId);
 					} catch (Throwable throwable) {
@@ -562,7 +566,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														throw new NodeException("Execute error: " + executeResult.getError().getMessage(), executeResult.getError());
 													}
 													if (executeResult.getResult() == null) {
-														obsLogger.info("Execute result is null");
+														obsLogger.trace("Execute result is null");
 														return;
 													}
 
@@ -580,7 +584,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									));
 							if (getTerminatedMode() == null || getTerminatedMode() == TerminalMode.COMPLETE) {
 								BatchOffsetUtil.updateBatchOffset(syncProgress, tableName, null,  TableBatchReadStatus.OVER.name());
-								obsLogger.info("Table [{}] has been completed batch read, will skip batch read on the next run", tableName);
+								obsLogger.info("Table {} has been completed batch read", tableName);
 							}
 		} finally {
 			removePdkMethodInvoker(pdkMethodInvoker);
@@ -609,7 +613,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			List<TapEvent> events = maps.stream().map(m -> TapSimplify.insertRecordEvent(m, tableName)).collect(Collectors.toList());
 			consumer.accept(events, null);
 		}else {
-			obsLogger.info("The execution result is:{}, because the result is not a list it will be ignored.",result);
+			obsLogger.trace("The execution result is:{}, because the result is not a list it will be ignored.",result);
 		}
 	}
 
@@ -708,7 +712,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				while (isRunning()) {
 					if (this.eventQueue.isEmpty()) {
 						this.eventQueue = new LinkedBlockingQueue<>(newSourceQueueCapacity);
-						obsLogger.info("{}Source queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
+						obsLogger.trace("{}Source queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
 						this.sourceQueueCapacity = newSourceQueueCapacity;
 						break;
 					}
@@ -779,7 +783,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					} catch (ShareCdcUnsupportedException e) {
 						if (e.isContinueWithNormalCdc() && !taskDto.getEnforceShareCdc()) {
 							// If share cdc is unavailable, and continue with normal cdc is true
-							obsLogger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
+							obsLogger.trace("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 							try {
 								doNormalCDC();
 							} catch (Exception ex) {
@@ -904,7 +908,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 
 		if (null != anyError) {
-			obsLogger.info("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+			obsLogger.trace("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
+			obsLogger.info("Starting incremental sync using database log parser");
 
 			CommonUtils.AnyError finalAnyError = anyError;
 			String finalStreamReadFunctionName = streamReadFunctionName;
@@ -982,7 +987,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
 				sendCdcStartedEvent();
 				PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
-				obsLogger.info("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
+				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
 	}
@@ -1065,7 +1070,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						pdkMethodInvoker.runnable(()-> {
 							// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 							this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext, syncProgress.getStreamOffsetObj());
-							obsLogger.info("Starting incremental sync, read from share log storage...");
+							obsLogger.info("Starting incremental sync using share log storage mode");
 							// Start listen message entity from share storage log
 							this.shareCdcReader.listen(streamReadConsumer);
 						});
@@ -1096,6 +1101,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			throw new IllegalArgumentException("Polling cdc must specify conditional field");
 		}
 		conditionFields = cdcPollingFields.stream().map(TableNode.CdcPollingField::getField).collect(Collectors.toList());
+		obsLogger.info("Enable polling cdc by fields: ", String.join(",", conditionFields));
 	}
 
 	private void doPollingCDC() {
@@ -1132,7 +1138,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		String logMsg = "Start run table [" + tableName + "] polling cdc with parameters \n - Conditional field(s): " + streamOffsetObj;
 		logMsg += "\n - Loop polling interval: " + cdcPollingInterval + " ms\n - Batch size: " + cdcPollingBatchSize;
-		obsLogger.info(logMsg);
+		obsLogger.trace(logMsg);
+		obsLogger.info("Start incremental sync using polling mode");
 		while (isRunning()) {
 			TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 			for (Map.Entry<String, Object> entry : tablePollingCDCOffset.entrySet()) {
@@ -1160,7 +1167,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			tapAdvanceFilter.limit(cdcPollingBatchSize);
 			try {
 				if (loopTime.get() == 1L || loopTime.get() % logLoopTime == 0) {
-					obsLogger.info("Query by advance filter\n - loop time: " + loopTime + "\n - table: " + tapTable.getId()
+					obsLogger.trace("Query by advance filter\n - loop time: " + loopTime + "\n - table: " + tapTable.getId()
 							+ "\n - filter: " + tapAdvanceFilter.getOperators()
 							+ "\n - limit: " + tapAdvanceFilter.getLimit() + "\n - sort: " + tapAdvanceFilter.getSortOnList());
 				}

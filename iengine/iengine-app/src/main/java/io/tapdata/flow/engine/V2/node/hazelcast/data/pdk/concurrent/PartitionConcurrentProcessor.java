@@ -10,6 +10,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.EngineExCode_33;
+import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
@@ -215,6 +216,9 @@ public class PartitionConcurrentProcessor {
 	protected boolean toSingleMode(TapEvent tapEvent, List<Object> partitionValue, AtomicBoolean singleMode) throws InterruptedException {
 		// 如果遇到，删除事件&&关联键有空值，切换成单线程模式
 		if (tapEvent instanceof TapDeleteRecordEvent) {
+			if (null == partitionValue) {
+				throw new TapCodeException(TaskTargetProcessorExCode_15.CONCURRENT_PROCESSOR_PARTITION_VALUE_NULL);
+			}
 			for (Object o : partitionValue) {
 				if (null != o) continue;
 

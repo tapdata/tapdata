@@ -126,7 +126,7 @@ public class HazelcastDataBaseNodeTest {
             ObsLogger obsLogger = mock(ObsLogger.class);
             ReflectionTestUtils.setField(hazelcastDataBaseNodeTest, "obsLogger", obsLogger);
             hazelcastDataBaseNodeTest.foundAllSyncProgress(attrs);
-            verify(obsLogger, times(1)).info(anyString());
+            verify(obsLogger, times(1)).trace(anyString());
         }
 
         @SneakyThrows
