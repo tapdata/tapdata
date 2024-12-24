@@ -60,6 +60,7 @@ public class TMApplication {
 		try {
 			Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
 			String path = System.getenv("TCM_CONF") != null ? System.getenv("TCM_CONF") : "classpath:application-tcm.yml";
+			log.info("TCM_CONF: {}", path);
 			new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
 					.build().run(args);
 		}catch (ClassNotFoundException e){
