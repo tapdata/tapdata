@@ -171,7 +171,9 @@ public class FileAppender extends BaseTaskAppender<MonitoringLogsDto> {
 
 	public boolean closeCatchData() {
 		catchData.set(false);
-		DataCacheFactory.getInstance().removeDataCache(getTaskId());
+		String taskId = getTaskId();
+		if (taskId != null) taskId = taskId.replace("_debug", "");
+		DataCacheFactory.getInstance().removeDataCache(taskId);
 		return true;
 	}
 }
