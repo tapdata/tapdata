@@ -213,6 +213,8 @@ public class DataCacheFactoryTest {
             getEventType.setAccessible(true);
             Object result = getEventType.invoke(dataCache, Collections.emptyList());
             Assertions.assertNull(result);
+
+            dataCache.processCompleted("eid=test");
         });
 
         try (MockedStatic<ObsLoggerFactory> mockObsLoggerFactory = mockStatic(ObsLoggerFactory.class)) {
@@ -250,6 +252,14 @@ public class DataCacheFactoryTest {
             Assertions.assertNotNull(status);
             Assertions.assertEquals("Cache is null", status.get("cache"));
         }
+
+        Assertions.assertDoesNotThrow(() -> {
+            DataCache dc = new DataCache("test", null ,null);
+            dc.searchAndRemove(null, null);
+            dc.processCompleted(null);
+            dc.processCompleted("test");
+            dc.processCompleted("eid=test");
+        });
     }
 
     @Test
