@@ -13,6 +13,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.runtime.TapRuntime;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration;
@@ -59,10 +60,14 @@ public class TMApplication {
 		SpringContextHelper.applicationContext = applicationContext;
 		try {
 			Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
-			String path = System.getenv("TCM_CONF") != null ? System.getenv("TCM_CONF") : "classpath:application-tcm.yml";
-			log.info("TCM_CONF: {}", path);
-			new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
-					.build().run(args);
+			String path = System.getenv("TCM_CONF");
+			if(StringUtils.isNotBlank(path)){
+				new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
+						.build().run(args);
+				log.info("TCM start,TCM_CONF: {}", path);
+			}else{
+				log.info("No need to start TCM,TCM_CONF not found");
+			}
 		}catch (ClassNotFoundException e){
 			log.info("No need to start TCM");
 		}
