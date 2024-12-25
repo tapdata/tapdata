@@ -20,6 +20,7 @@ public class MonitoringLogQueryParam {
     public static final String LEVEL_INFO = "INFO";
     public static final String LEVEL_WARN = "WARN";
     public static final String LEVEL_ERROR = "ERROR";
+    public static final String LEVEL_TRACE = "TRACE";
 
     private Long start;
     private Long end;
@@ -103,7 +104,7 @@ public class MonitoringLogQueryParam {
 
     public List<String> getFullLevels() {
         return Arrays.asList(
-                LEVEL_DEBUG, LEVEL_INFO, LEVEL_WARN, LEVEL_ERROR
+                LEVEL_DEBUG, LEVEL_INFO, LEVEL_WARN, LEVEL_ERROR,LEVEL_TRACE
         );
     }
 }
