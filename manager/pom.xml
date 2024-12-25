@@ -34,6 +34,8 @@
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
+		<tcm.artifactId>tcm</tcm.artifactId>
+		<tcm.module>tcm-module</tcm.module>
 	</properties>
 
 	<modules>
@@ -59,6 +61,16 @@
 				<tm.impl.artifactId>tm-enterprise</tm.impl.artifactId>
 				<tm.oss.module>../../tapdata-enterprise/tm-enterprise</tm.oss.module>
 			</properties>
+		</profile>
+		<profile>
+			<id>cloud</id>
+			<properties>
+				<tcm.artifactId>tcm</tcm.artifactId>
+				<tcm.module>../../tapdata-cloud/drs/tcm</tcm.module>
+			</properties>
+			<modules>
+				<module>${tcm.module}</module>
+			</modules>
 		</profile>
 	</profiles>
 
