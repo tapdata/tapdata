@@ -493,10 +493,11 @@ public class MailUtils {
 
         Properties properties = new Properties();
         properties.put("mail.smtp.host", parms.getHost());
-        properties.put("mail.smtp.port", parms.getPort());
+        properties.put("mail.smtp.port", String.valueOf(parms.getPort()));
         properties.put("mail.smtp.auth", "true");
         if ("SSL".equals(parms.getProtocol())) {
             properties.put("mail.smtp.ssl.enable", "true");
+            properties.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
         } else if ("TLS".equals(parms.getProtocol())) {
             properties.put("mail.smtp.starttls.enable", "true");
         } else {
