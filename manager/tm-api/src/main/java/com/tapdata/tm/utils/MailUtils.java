@@ -498,6 +498,7 @@ public class MailUtils {
         if ("SSL".equals(parms.getProtocol())) {
             properties.put("mail.smtp.ssl.enable", "true");
             properties.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+            properties.put("mail.smtp.ssl.checkserveridentity", "true");
         } else if ("TLS".equals(parms.getProtocol())) {
             properties.put("mail.smtp.starttls.enable", "true");
         } else {
