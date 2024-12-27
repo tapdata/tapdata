@@ -110,6 +110,7 @@ public class PdkSchemaConvert {
                 tapIndex.setIndexFields(tapIndexFields);
                 tapIndex.setUnique(in.isUnique());
                 tapIndex.setPrimary("true".equals(in.getPrimaryKey()));
+                if(in.getClustered() != null) tapIndex.setCluster("true".equalsIgnoreCase(in.getClustered()));
                 tapIndex.setName(in.getIndexName());
 
                 return tapIndex;
@@ -197,6 +198,7 @@ public class PdkSchemaConvert {
                 tapIndex.setIndexFields(tapIndexFields);
                 tapIndex.setUnique(in.isUnique());
                 tapIndex.setPrimary("true".equals(in.getPrimaryKey()));
+                if(in.getClustered() != null) tapIndex.setCluster("true".equalsIgnoreCase(in.getClustered()));
                 tapIndex.setName(in.getIndexName());
 
                 return tapIndex;
@@ -451,6 +453,7 @@ public class PdkSchemaConvert {
                 //tableIndex.setIndexType();
                 //tableIndex.setIndexSourceType();
                 tableIndex.setUnique(in.isUnique());
+                if(in.getCluster() != null) tableIndex.setClustered(String.valueOf(in.getCluster()));
                 List<TapIndexField> indexFields = in.getIndexFields();
 
 
