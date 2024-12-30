@@ -4,13 +4,13 @@ spring:
     include: '@env.PRODUCT@,default'
 
   data:
-      mongodb:
-            cursorBatchSize: 1000
-            default:
-                uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
-            obs:
-                uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
-            log:
-                uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
+    mongodb:
+      cursorBatchSize: 1000
+      default:
+        uri: mongodb://127.0.0.1:27017/tapdata_v29
+      obs:
+        uri: mongodb://127.0.0.1:27017/tapdata_v29
+      log:
+        uri: mongodb://127.0.0.1:27017/tapdata_v29
 tcm:
-    url: http://139.198.127.226:30103
+  url: http://139.198.127.226:30103

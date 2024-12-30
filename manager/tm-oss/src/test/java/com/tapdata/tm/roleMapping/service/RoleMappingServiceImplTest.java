@@ -8,6 +8,10 @@ import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.*;
+import java.util.List;
+import java.util.ArrayList;
+import com.tapdata.tm.config.security.UserDetail;
 
 class RoleMappingServiceImplTest {
     RoleMappingServiceImpl service;
@@ -23,5 +27,10 @@ class RoleMappingServiceImplTest {
             doCallRealMethod().when(service).removeRoleFromUser(anyString());
             Assertions.assertDoesNotThrow(() -> service.removeRoleFromUser("Id"));
         }
+    }
+    @Test
+    void testAddUserLogIfNeed() {
+        doCallRealMethod().when(service).addUserLogIfNeed(anyList(), any(UserDetail.class));
+        Assertions.assertDoesNotThrow(() -> service.addUserLogIfNeed(new ArrayList(), mock(UserDetail.class)));
     }
 }

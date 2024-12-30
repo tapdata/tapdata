@@ -152,7 +152,7 @@ public class PartitionFieldParentHandler {
 //		long time = System.currentTimeMillis();
 		if (batchReadFuncAspect != null)
 			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
-//		sourcePdkDataNode.getObsLogger().info("STATE_READ_COMPLETE events {} takes {}", events.size(), (System.currentTimeMillis() - time));
+//		sourcePdkDataNode.getObsLogger().trace("STATE_READ_COMPLETE events {} takes {}", events.size(), (System.currentTimeMillis() - time));
 
 		if (sourcePdkDataNode.logger.isDebugEnabled()) {
 			sourcePdkDataNode.logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(sourcePdkDataNode.getConnectorNode()));
@@ -160,7 +160,7 @@ public class PartitionFieldParentHandler {
 //					((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
 //		time = System.currentTimeMillis();
 		List<TapdataEvent> tapdataEvents = sourcePdkDataNode.wrapTapdataEvent(events);
-//		sourcePdkDataNode.getObsLogger().info("wrapTapdataEvent events {} takes {}", events.size(), (System.currentTimeMillis() - time));
+//		sourcePdkDataNode.getObsLogger().trace("wrapTapdataEvent events {} takes {}", events.size(), (System.currentTimeMillis() - time));
 
 		if (batchReadFuncAspect != null)
 			AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
@@ -176,12 +176,12 @@ public class PartitionFieldParentHandler {
 				}
 				sourcePdkDataNode.enqueue(tapdataEvent);
 			});
-//			sourcePdkDataNode.getObsLogger().info("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
+//			sourcePdkDataNode.getObsLogger().trace("enqueue events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
 
 //			time = System.currentTimeMillis();
 			if (batchReadFuncAspect != null)
 				AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-//			sourcePdkDataNode.getObsLogger().info("STATE_ENQUEUED events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
+//			sourcePdkDataNode.getObsLogger().trace("STATE_ENQUEUED events {} takes {}", tapdataEvents.size(), (System.currentTimeMillis() - time));
 		}
 	}
 

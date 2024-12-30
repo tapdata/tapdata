@@ -151,6 +151,7 @@ class TaskServiceImplTest {
     UserDetail user;
     ChartViewService chartViewService;
     DataSourceService dataSourceService;
+    UserLogService userLogService;
     @BeforeEach
     void init() {
         taskService = mock(TaskServiceImpl.class);
@@ -167,6 +168,8 @@ class TaskServiceImplTest {
         user = mock(UserDetail.class);
         dataSourceService = mock(DataSourceServiceImpl.class);
         ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
+        userLogService = mock(UserLogService.class);
+        ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
     }
 
     @Nested
@@ -1225,13 +1228,10 @@ class TaskServiceImplTest {
     @Nested
     class CopyTest{
         private ObjectId id;
-        private UserLogService userLogService;
         @BeforeEach
         void setUp(){
             id = mock(ObjectId.class);
             taskDto = mock(TaskDto.class);
-            userLogService = mock(UserLogService.class);
-            ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
         }
         @Test
         void testCopy(){
@@ -3417,7 +3417,7 @@ class TaskServiceImplTest {
 
         TaskScheduleService taskScheduleService = mock(TaskScheduleService.class);
 
-        UserLogService serLogService = mock(UserLogService.class);
+        UserLogService userLogService = mock(UserLogService.class);
 
         WorkerService workerService = mock(WorkerService.class);
 
@@ -3429,7 +3429,7 @@ class TaskServiceImplTest {
             taskService = new TaskServiceImpl(taskRepository);
             taskService.setSettingsService(settingsService);
             taskService.setTaskScheduleService(taskScheduleService);
-            taskService.setUserLogService(serLogService);
+            taskService.setUserLogService(userLogService);
             ReflectionTestUtils.setField(taskService,"workerService",workerService);
         }
 

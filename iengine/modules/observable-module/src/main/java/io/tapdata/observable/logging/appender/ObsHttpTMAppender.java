@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import io.tapdata.observable.logging.LogLevel;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -68,7 +69,8 @@ public class ObsHttpTMAppender extends BaseTaskAppender<MonitoringLogsDto> {
 		if (!obsHttpTMLog4jAppender.isStarted()) {
 			return;
 		}
-		this.logger.info(logJson);
+		if (log.getLevel() != null && LogLevel.getLogLevel(log.getLevel()).getValue() >= LogLevel.INFO.getValue())
+			this.logger.info(logJson);
 	}
 
 	@Override

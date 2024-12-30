@@ -7,6 +7,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.exception.TapExClass;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.service.skeleton.annotation.RemoteService;
+import io.tapdata.utils.AppType;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
@@ -23,6 +24,30 @@ import java.util.stream.Collectors;
  **/
 @RemoteService
 public class ErrorCodeService implements MemoryFetcher {
+	private static final String DEFAULT_SOLUTION_DAAS_CN = "运行出现未知异常，建议: " +
+			"\n 1. 检查任务配置;" +
+			"\n 2. 检查每个节点的数据模型是否正确，如果不正确，请尝试点击源节点的\"重新加载\";" +
+			"\n 3. 重新启动任务进行重试;" +
+			"\n 4. 根据显示的错误堆栈信息进行初步排查并尝试解决。" +
+			"\n如仍未能解决问题，点击\"复制\"按钮，将错误详情发送给售后支持团队，我们将竭诚为您提供专业协助。";
+	private static final String DEFAULT_SOLUTION_DFS_CN = "运行出现未知异常，建议: " +
+			"\n 1. 检查任务配置;" +
+			"\n 2. 检查每个节点的数据模型是否正确，如果不正确，请尝试点击源节点的\"重新加载\";" +
+			"\n 3. 重新启动任务进行重试;" +
+			"\n 4. 根据显示的错误堆栈信息进行初步排查并尝试解决。" +
+			"\n如仍未能解决问题，点击下方\"创建工单\"按钮，将错误详情发送给售后支持团队，我们将竭诚为您提供专业协助。";
+	private static final String DEFAULT_SOLUTION_DAAS_EN = "An unknown exception occurred during operation. Recommended:" +
+			"\n 1. Check task configuration;" +
+			"\n 2. Check whether the data model of each node is correct. If it is incorrect, please try to click \"Reload\" of the source node;" +
+			"\n 3. Restart the task and try again;" +
+			"\n 4. Conduct preliminary troubleshooting based on the displayed error stack information and try to solve it." +
+			"\nIf the problem still cannot be solved, click the \"Copy\" button and send the error details to the after-sales support team. We will wholeheartedly provide you with professional assistance.";
+	private static final String DEFAULT_SOLUTION_DFS_EN = "An unknown exception occurred during operation. Recommended:" +
+			"\n 1. Check task configuration;" +
+			"\n 2. Check whether the data model of each node is correct. If it is incorrect, please try to click \"Reload\" of the source node;" +
+			"\n 3. Restart the task and try again;" +
+			"\n 4. Conduct preliminary troubleshooting based on the displayed error stack information and try to solve it." +
+			"\nIf the problem still cannot be solved, click the \"Create Ticket\" button and send the error details to the after-sales support team. We will wholeheartedly provide you with professional assistance.";
 
 	public ErrorCodeService() {
 		PDKIntegration.registerMemoryFetcher("ErrorCode", this);
@@ -68,6 +93,9 @@ public class ErrorCodeService implements MemoryFetcher {
 			solution = errorCode.getSolution();
 			dynamicDescribe = getDynamicDescribe(dynamicDescriptionParameters, errorCode.getDynamicDescription());
 		}
+		if (StringUtils.isBlank(solution)) {
+			solution = defaultSolution(AppType.currentType(), languageEnum);
+		}
 		res.put("errorCode", code);
 		res.put("fullErrorCode", fullErrorCode);
 		res.put("module", module);
@@ -87,7 +115,7 @@ public class ErrorCodeService implements MemoryFetcher {
 		return res;
 	}
 
-	private enum Language {
+	protected enum Language {
 		EN("en"),
 
 		CN("cn"),
@@ -158,5 +186,32 @@ public class ErrorCodeService implements MemoryFetcher {
 			}
 		}
 		return dataMap;
+	}
+
+	protected String defaultSolution(AppType appType, Language languageEnum) {
+		if (null == appType) {
+			appType = AppType.DAAS;
+		}
+		String defaultSolution = "";
+		switch (appType) {
+			case DAAS:
+				if (languageEnum == Language.CN) {
+					defaultSolution = DEFAULT_SOLUTION_DAAS_CN;
+				} else {
+					defaultSolution = DEFAULT_SOLUTION_DAAS_EN;
+				}
+				break;
+			case DRS:
+			case DFS:
+				if (languageEnum == Language.CN) {
+					defaultSolution = DEFAULT_SOLUTION_DFS_CN;
+				} else {
+					defaultSolution = DEFAULT_SOLUTION_DFS_EN;
+				}
+				break;
+			default:
+				break;
+		}
+		return defaultSolution;
 	}
 }

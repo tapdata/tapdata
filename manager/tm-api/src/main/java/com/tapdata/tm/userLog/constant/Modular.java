@@ -21,6 +21,8 @@ public enum Modular {
     WORKERS("Workers"),
     SYSTEM("system"),
     USER("user"),
+    ROLE("role"),
+    ACCESS_CODE("accessCode"),
     CUSTOMER("customer");
 
     private final String value;
