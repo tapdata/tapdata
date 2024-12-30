@@ -419,12 +419,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
 						boolean same = true;
 						for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
-							if (null != tapIndex.getIndexFields().get(i).getName() && null != existsIndex.getIndexFields().get(i).getName()) {
-								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
-										|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
-									same = false;
-									break;
-								}
+							if (null != existsIndex.getIndexFields().get(i).getName() && !existsIndex.getIndexFields().get(i).getName().equals(tapIndex.getIndexFields().get(i).getName())
+									|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
+								same = false;
+								break;
 							}
 						}
 						if (same) {
