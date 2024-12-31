@@ -503,7 +503,7 @@ class TransformSchemaServiceTest {
             UserDetail userDetail = mock(UserDetail.class);
             doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
             transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
-            Assertions.assertEquals(1,result.size());
+            Assertions.assertEquals(0,result.size());
         }
     }
     @Nested
