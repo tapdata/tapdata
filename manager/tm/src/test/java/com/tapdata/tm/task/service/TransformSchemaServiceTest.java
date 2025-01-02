@@ -87,7 +87,12 @@ class TransformSchemaServiceTest {
             taskDto.setId(new ObjectId());
             List<String> includes = new ArrayList<>();
             boolean allParam = true;
-            doNothing().when(dag).addNodeEventListener(any());
+            doAnswer(invocation -> {
+                Node.EventListener<Object> listener = invocation.getArgument(0);
+                listener.schemaTransformResult("node1",null,new ArrayList<>());
+                listener.onTransfer(null,null,new ArrayList<>(),"node1");
+                return null;
+            }).when(dag).addNodeEventListener(any());
             doCallRealMethod().when(transformSchemaService).getTransformParam(taskDto,user,includes,allParam);
             TransformerWsMessageDto actual = transformSchemaService.getTransformParam(taskDto, user, includes, allParam);
             verify(metadataTransformerService,new Times(1)).findAllDto(any(),any());
@@ -562,6 +567,9 @@ class TransformSchemaServiceTest {
         }
         @Test
         void testTransformerResultSimple() {
+            List<String> batchRemoveMetaDataList = new ArrayList<>();
+            batchRemoveMetaDataList.add("T_mongodb_io_tapdata_1_0-SNAPSHOT_TEST_63468098c87faf3ba64fece0");
+            when(result.getBatchRemoveMetaDataList()).thenReturn(batchRemoveMetaDataList);
             when(result.getTaskId()).thenReturn("6720c4a18c6b586b9e1b493b");
             when(taskService.checkExistById(any(ObjectId.class), anyString())).thenReturn(mock(TaskDto.class));
             doCallRealMethod().when(transformSchemaService).transformerResult(user, result, saveHistory);
