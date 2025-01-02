@@ -74,6 +74,7 @@ public class TransformSchemaService {
     private TaskDagCheckLogService taskDagCheckLogService;
     private LdpService ldpService;
     private static final String IS_DELETED = "is_deleted";
+    private static final String QUALIFIED_NAME = "qualified_name";
     @Autowired
     private AgentGroupService agentGroupService;
 
@@ -145,9 +146,9 @@ public class TransformSchemaService {
                 }
 
                 List<String> sourceQualifiedNames = outputSchemaList.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
-                Criteria criteria = Criteria.where("qualified_name").in(sourceQualifiedNames);
+                Criteria criteria = Criteria.where(QUALIFIED_NAME).in(sourceQualifiedNames);
                 Query query = new Query(criteria);
-                query.fields().include("_id", "qualified_name");
+                query.fields().include("_id", QUALIFIED_NAME);
                 List<MetadataInstancesEntity> all = metadataInstancesService.findAll(query, user);
                 Map<String, MetadataInstancesEntity> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesEntity::getQualifiedName, m -> m, (m1, m2) -> m1));
                 for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
@@ -308,27 +309,12 @@ public class TransformSchemaService {
         dag.getNodes().forEach(node -> {
             if(node instanceof LogCollectorNode){
                 LogCollectorNode logNode = (LogCollectorNode) node;
-                Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
-                Query queryMetadata = new Query();
-                Map<String, LogCollecotrConnConfig> connConfigs = logNode.getLogCollectorConnConfigs();
-                if (null != connConfigs && !connConfigs.isEmpty()) {
-                    List<Criteria> criteriaList = new ArrayList<>();
-                    for (LogCollecotrConnConfig config : connConfigs.values()) {
-                        criteriaList.add(Criteria.where("source._id").is(config.getConnectionId())
-                                .and("originalName").in(config.getTableNames()));
-                    }
-                    criteriaTable.and(IS_DELETED).ne(true).orOperator(criteriaList);
+                Map<String, String> logNodeMap = metadataInstancesService.findKVByNode(logNode.getId());
+                if(CollectionUtils.isNotEmpty(logNodeMap.values())){
+                    Criteria criteriaTable = Criteria.where(QUALIFIED_NAME).in(logNodeMap.values()).and(IS_DELETED).ne(true);
+                    Query queryMetadata = new Query();
                     queryMetadata.addCriteria(criteriaTable);
                     metadataInstancesDtoList.addAll(metadataInstancesService.findAllDto(queryMetadata, user));
-                } else {
-                    List<String> logConnectionIds = logNode.getConnectionIds();
-                    if (CollectionUtils.isNotEmpty(logConnectionIds)) {
-                        String connectionId = logConnectionIds.get(0);
-                        queryMetadata.addCriteria(criteriaTable);
-                        criteriaTable.and("source._id").is(connectionId)
-                                .and("originalName").in(logNode.getTableNames()).and(IS_DELETED).ne(true);
-                        metadataInstancesDtoList.addAll(metadataInstancesService.findAllDto(queryMetadata, user));
-                    }
                 }
             }
         });
@@ -478,7 +464,7 @@ public class TransformSchemaService {
                 }
             }
             batchRemoveMetaDataList.addAll(newBatchRemoveMetaDataList);
-            Criteria criteria = Criteria.where("qualified_name").in(batchRemoveMetaDataList);
+            Criteria criteria = Criteria.where(QUALIFIED_NAME).in(batchRemoveMetaDataList);
             Query query = new Query(criteria);
             metadataInstancesService.deleteAll(query, user);
         }
