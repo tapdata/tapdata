@@ -14,9 +14,14 @@ import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
@@ -24,15 +29,13 @@ import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
-import com.tapdata.tm.modules.vo.ApiDetailVo;
-import com.tapdata.tm.modules.vo.ApiListVo;
-import com.tapdata.tm.modules.vo.PreviewVo;
-import com.tapdata.tm.modules.vo.RankListsVo;
+import com.tapdata.tm.modules.vo.*;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -48,10 +51,17 @@ class ModulesServiceTest {
     ModulesService modulesService;
     ModulesRepository modulesRepository;
 
+    DataSourceService dataSourceService;
+    DataSourceDefinitionService dataSourceDefinitionService;
+
     @BeforeEach
     void init(){
         modulesRepository = mock(ModulesRepository.class);
         modulesService = new ModulesService(modulesRepository);
+        dataSourceService = mock(DataSourceService.class);
+        dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+        ReflectionTestUtils.setField(modulesService, "dataSourceService", dataSourceService);
+        ReflectionTestUtils.setField(modulesService, "dataSourceDefinitionService", dataSourceDefinitionService);
     }
 
     @Nested
@@ -565,6 +575,86 @@ class ModulesServiceTest {
             ApiDetailParam apiDetailParam = new ApiDetailParam();
             apiDetailParam.setType("other");
             assertEquals(0, modulesService.pickValue(apiDetailParam, apiCallMinuteStatsDto));
+        }
+    }
+
+    @Nested
+    class apiDefinitionTest {
+        UserDetail userDetail;
+        @BeforeEach
+        void beforeEach() {
+            userDetail = mock(UserDetail.class);
+        }
+        @Test
+        void testApiDefinitionNormal() {
+            modulesService = spy(modulesService);
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            modulesDto.setConnection(new ObjectId());
+            apis.add(modulesDto);
+            doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+            List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            Map<String, Object> config = new HashMap<>();
+            config.put("isUri", true);
+            config.put("ssl", true);
+            config.put("uri", "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true");
+            config.put("sslKey", "----test key----");
+            config.put("sslValidate", true);
+            config.put("sslCA", "----test ca----");
+            config.put("_connectionType", "source_and_target");
+            config.put("id", "677648e54a46a10e04af5446");
+            dataSourceConnectionDto.setConfig(config);
+            dataSourceConnectionDto.setDatabase_type("MongoDB");
+            dataSourceConnectionDtoList.add(dataSourceConnectionDto);
+            when(dataSourceService.findAll(any(Query.class))).thenReturn(dataSourceConnectionDtoList);
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", properties);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+            when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
+            ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
+            assertEquals(1, actual.getConnections().size());
+            assertTrue(actual.getConnections().get(0).getSsl());
+            assertEquals("----test ca----", actual.getConnections().get(0).getSslCA());
+        }
+        @Test
+        void testApiDefinitionsimple() {
+            modulesService = spy(modulesService);
+            List<ModulesDto> apis = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            modulesDto.setConnection(new ObjectId());
+            apis.add(modulesDto);
+            doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
+            List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            Map<String, Object> config = new HashMap<>();
+            config.put("isUri", true);
+            config.put("user", "root");
+            config.put("password", "123456");
+            config.put("host", "127.0.0.1:27017");
+            config.put("database", "test");
+            config.put("ssl", false);
+            config.put("uri", null);
+            config.put("_connectionType", "source_and_target");
+            config.put("id", "677648e54a46a10e04af5446");
+            dataSourceConnectionDto.setConfig(config);
+            dataSourceConnectionDto.setDatabase_type("MongoDB");
+            dataSourceConnectionDtoList.add(dataSourceConnectionDto);
+            when(dataSourceService.findAll(any(Query.class))).thenReturn(dataSourceConnectionDtoList);
+            DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
+            LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
+            LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
+            connection.put("properties", properties);
+            properties.put("connection", connection);
+            definitionDto.setProperties(properties);
+            when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
+            ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
+            assertEquals(1, actual.getConnections().size());
+            assertNull(actual.getConnections().get(0).getSsl());
+            assertNull(actual.getConnections().get(0).getSslCA());
         }
     }
 }
