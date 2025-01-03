@@ -545,14 +545,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 
 	protected void putInCheckJoinKeyUpdateCacheMapAndWriteSign(String id, String cacheName) {
 		List<String> joinKeyIncludePK = checkJoinKeyIncludePK(id);
+		Node<?> preNode = getPreNode(id);
 		if (CollectionUtils.isNotEmpty(joinKeyIncludePK)) {
 			throw new TapCodeException(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, String.format("Join key include pk, id: %s, both join key and pk: %s", id, joinKeyIncludePK))
-					.dynamicDescriptionParameters(id, joinKeyIncludePK);
+					.dynamicDescriptionParameters(preNode.getName(), id, joinKeyIncludePK);
 		}
 		if (!isSourceHaveBefore(id)) {
 			Connections connections = this.sourceConnectionMap.get(id);
 			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY, String.format("current node not support get before data, id: %s", id))
-					.dynamicDescriptionParameters(id, connections.getName(), connections.getDatabase_type());
+					.dynamicDescriptionParameters(preNode.getName(), id, connections.getName(), connections.getDatabase_type());
 		}
 		int inMemSize = CommonUtils.getPropertyInt(UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE);
 		ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(inMemSize);
@@ -561,7 +562,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		this.checkJoinKeyUpdateCacheMap.put(id, constructIMap);
 		if (constructIMap.isEmpty()) {
 			Document sign = new Document("original_name", cacheName);
-			Node<?> preNode = getPreNode(id);
 			if (null != preNode) {
 				sign.append("pre_node_id", preNode.getId());
 				sign.append("pre_node_name", preNode.getName());
