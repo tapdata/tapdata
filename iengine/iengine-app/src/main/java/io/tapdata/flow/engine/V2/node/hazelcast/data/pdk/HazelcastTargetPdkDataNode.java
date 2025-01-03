@@ -356,6 +356,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			List<TapIndex> indexList = new ArrayList<>();
 			List<TapIndex> indices = tapTable.getIndexList();
+			if (null == indices) {
+				indices = new ArrayList<>();
+			}
 			indices.forEach(index -> {
 				TapIndex tapIndex = new TapIndex().unique(index.getUnique()).primary(index.getPrimary());
 				tapIndex.setIndexFields(index.getIndexFields());
