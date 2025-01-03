@@ -720,6 +720,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> after = new HashMap<>();
 			((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
 			tapdataEvent.setTapEvent(tapRecordEvent);
+			tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataRecordEvent(tapdataEvent);
 			TapRecordEvent result = hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
 			assertInstanceOf(TapInsertRecordEvent.class, result);
@@ -734,6 +735,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Map<String, Object> after = new HashMap<>();
 			((TapDeleteRecordEvent) tapRecordEvent).setBefore(after);
 			tapdataEvent.setTapEvent(tapRecordEvent);
+			tapdataEvent.setSyncStage(SyncStage.CDC);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataRecordEvent(tapdataEvent);
 			TapRecordEvent result = hazelcastTargetPdkBaseNode.handleTapdataRecordEvent(tapdataEvent);
 			assertInstanceOf(TapInsertRecordEvent.class, result);
