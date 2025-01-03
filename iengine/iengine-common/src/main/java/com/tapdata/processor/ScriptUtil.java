@@ -418,7 +418,8 @@ public class ScriptUtil {
 	}
 
 	public static void urlClassLoader(Consumer<URLClassLoader> consumer, List<URL> urlList){
-		try(final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());) {
+		try {
+			final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());
 			if (consumer != null) {
 				consumer.accept(urlClassLoader);
 			}
