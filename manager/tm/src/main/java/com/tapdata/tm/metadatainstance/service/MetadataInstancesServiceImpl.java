@@ -1858,7 +1858,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                                 .and(IS_DELETED).ne(true);
 
                         if (StringUtils.isNotBlank(tableFilter)) {
-                            Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
+                            Pattern pattern = Pattern.compile("^" + tableFilter + "$", Pattern.CASE_INSENSITIVE);
                             criteriaTable.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
                         }
 

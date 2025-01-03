@@ -2296,8 +2296,8 @@ public class MetadataInstancesServiceImplTest {
 			assertThrows(BizException.class, () -> metadataInstancesService.findByNodeId(nodeId, fields, userDetail, taskDto, tableFilter, filterType, page, pageSize));
 		}
 
-		//		@Test
-		@DisplayName("test findByNodeId method for MigrateProcessorNode")
+		@Test
+		@DisplayName("test findByNodeId method for DatabaseNode")
 		void test2() {
 			nodeId = "111";
 			page = 1;
@@ -2307,12 +2307,24 @@ public class MetadataInstancesServiceImplTest {
 			taskDto.setId(mock(ObjectId.class));
 			DAG dag = mock(DAG.class);
 			taskDto.setDag(dag);
-			Node node = new MigrateFieldRenameProcessorNode();
+			Node node = new DatabaseNode();
+			node.setId(nodeId);
+			List<String> tableNames=new ArrayList<>();
+			tableNames.add("testTable1");
+			((DatabaseNode)node).setTableNames(tableNames);
+			Graph mockGraph = mock(Graph.class);
+			List<String> predecessors=new ArrayList<>();
+			List<String> successors=new ArrayList<>();
+			successors.add(nodeId);
+			when(mockGraph.predecessors(nodeId)).thenReturn(predecessors);
+			when(mockGraph.successors(nodeId)).thenReturn(successors);
+			node.setGraph(mockGraph);
 			when(dag.getNode(nodeId)).thenReturn(node);
 			List<MetadataInstancesDto> all = new ArrayList<>();
 			all.add(mock(MetadataInstancesDto.class));
 			doReturn(all).when(metadataInstancesService).findAll(any(Query.class));
 			metadataInstancesService.findByNodeId(nodeId, fields, userDetail, taskDto, tableFilter, filterType, page, pageSize);
+			verify(metadataInstancesService,times(1)).findAllDto(any(Query.class),any(UserDetail.class));
 		}
 	}
 
