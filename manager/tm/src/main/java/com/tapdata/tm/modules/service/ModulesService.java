@@ -400,6 +400,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						config.put("uri", uri);
 
 					}
+					if (null != config.get("ssl") && (Boolean) config.get("ssl")) {
+						dataSourceConnectionDto.setSsl((Boolean) config.get("ssl"));
+						dataSourceConnectionDto.setSslCA((String) config.get("sslCA"));
+						dataSourceConnectionDto.setSslKey((String) config.get("sslKey"));
+						dataSourceConnectionDto.setSslCRL((String) config.get("sslCRL"));
+						dataSourceConnectionDto.setSslCert((String) config.get("sslCert"));
+						dataSourceConnectionDto.setSslPass((String) config.get("sslPass"));
+						dataSourceConnectionDto.setSslValidate((Boolean) config.get("sslValidate"));
+					}
 				}
 				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail);
 				Map<String, Object> properties = definitionDto.getProperties();
