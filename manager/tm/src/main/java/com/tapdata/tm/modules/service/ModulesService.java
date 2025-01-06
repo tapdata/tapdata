@@ -433,30 +433,29 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	private void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {
-		LinkedHashMap properties1 = (LinkedHashMap) connection.get("properties");
-		properties1.forEach((k, v) -> {
-			LinkedHashMap v1 = (LinkedHashMap) v;
-			String key = StringUtils.isBlank(parent) ? (String) k : parent + "." + k;
-			if ("object".equals(((LinkedHashMap<?, ?>) v).get("type"))) {
-				analyzeApiServerKey(dataSourceConnectionDto, v1, key);
+		LinkedList<LinkedHashMap> linkedList = new LinkedList<>();
+		linkedList.offer((LinkedHashMap) connection.get("properties"));
+		while (!linkedList.isEmpty()) {
+			LinkedHashMap properties1 = linkedList.poll();
+			if (null == properties1) {
+				properties1 = new LinkedHashMap();
 			}
-			String apiServerKey = (String) v1.get("apiServerKey");
-			if (StringUtils.isNotBlank(apiServerKey)) {
-				setApiServerKey(dataSourceConnectionDto, key, apiServerKey);
-			}
-			if (k.equals("OPTIONAL_FIELDS")) {
-				LinkedHashMap properties2 = (LinkedHashMap) v1.get("properties");
-				properties2.forEach((k2, v2) -> {
-					LinkedHashMap v3 = (LinkedHashMap) v2;
-					String k3 = StringUtils.isBlank(parent) ? (String) k2 : parent + "." + k2;
-					String apiServerKey1 = (String) v3.get("apiServerKey");
-					if (StringUtils.isNotBlank(apiServerKey1)) {
-						setApiServerKey(dataSourceConnectionDto, k3, apiServerKey1);
-					}
-				});
-			}
-
-		});
+			properties1.forEach((k, v) -> {
+				LinkedHashMap v1 = (LinkedHashMap) v;
+				String key = StringUtils.isBlank(parent) ? (String) k : parent + "." + k;
+				if ("object".equals(((LinkedHashMap<?, ?>) v).get("type"))) {
+					analyzeApiServerKey(dataSourceConnectionDto, v1, key);
+				}
+				String apiServerKey = (String) v1.get("apiServerKey");
+				if (StringUtils.isNotBlank(apiServerKey)) {
+					setApiServerKey(dataSourceConnectionDto, key, apiServerKey);
+				}
+				LinkedHashMap properties = (LinkedHashMap) v1.get("properties");
+				if (null != properties) {
+					linkedList.offer(properties);
+				}
+			});
+		}
 	}
 
 	private void setApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, String k, String apiServerKey) {

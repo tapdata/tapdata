@@ -635,6 +635,10 @@ class ModulesServiceTest {
             value5.put("type","string");
             value5.put("apiServerKey","sslCA");
             value.put("sslCA", value5);
+            LinkedHashMap<Object, Object> value6 = new LinkedHashMap<>();
+            value6.put("type","object");
+            value6.put("apiServerKey","sslCA");
+            value.put("sslCA", value6);
             optional.put("properties", value);
             prop.put("OPTIONAL_FIELDS", optional);
             connection.put("type", "object");
@@ -648,7 +652,7 @@ class ModulesServiceTest {
             assertEquals("----test ca----", actual.getConnections().get(0).getSslCA());
         }
         @Test
-        void testApiDefinitionsimple() {
+        void testApiDefinitionSimple() {
             modulesService = spy(modulesService);
             List<ModulesDto> apis = new ArrayList<>();
             ModulesDto modulesDto = new ModulesDto();
@@ -674,7 +678,7 @@ class ModulesServiceTest {
             DataSourceDefinitionDto definitionDto = new DataSourceDefinitionDto();
             LinkedHashMap<String, Object> properties = new LinkedHashMap<>();
             LinkedHashMap<String, Object> connection = new LinkedHashMap<>();
-            connection.put("properties", properties);
+            connection.put("properties", new LinkedHashMap<>());
             properties.put("connection", connection);
             definitionDto.setProperties(properties);
             when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
