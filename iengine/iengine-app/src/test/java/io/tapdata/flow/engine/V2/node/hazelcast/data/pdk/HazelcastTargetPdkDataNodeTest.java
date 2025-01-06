@@ -551,6 +551,23 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			verify(obsLogger, new Times(1)).warn(anyString(),anyString());
 		}
 		@Test
+		@DisplayName("test sync method when indices is null")
+		@SneakyThrows
+		void testSyncIndex13(){
+			autoCreateTable = true;
+			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
+			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
+			TableInfo tableInfo = mock(TableInfo.class);
+			when(tableInfo.getNumOfRows()).thenReturn(1L);
+			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
+			when(tapTable.getIndexList()).thenReturn(null);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+		}
+		@Test
 		@DisplayName("test sync method when exists index with same name")
 		@SneakyThrows
 		void testSyncIndex7(){
@@ -602,6 +619,133 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			List<TapIndexField> indexFields = new ArrayList<>();
 			TapIndexField indexField = mock(TapIndexField.class);
 			when(indexField.getName()).thenReturn("indexField");
+			indexFields.add(indexField);
+			when(tapIndex.getIndexFields()).thenReturn(indexFields);
+			indices.add(tapIndex);
+			when(tapTable.getIndexList()).thenReturn(indices);
+			doAnswer(invocationOnMock -> {
+				Consumer consumer = invocationOnMock.getArgument(2);
+				List<TapIndex> tapIndexList = new ArrayList<>();
+				TapIndex index = mock(TapIndex.class);
+				when(index.getName()).thenReturn("index1");
+				when(index.getIndexFields()).thenReturn(indexFields);
+				tapIndexList.add(index);
+				consumer.accept(tapIndexList);
+				return null;
+			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+		}
+		@Test
+		@DisplayName("test sync method when exists index with different field")
+		@SneakyThrows
+		void testSyncIndex14(){
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
+			autoCreateTable = true;
+			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
+			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
+			TableInfo tableInfo = mock(TableInfo.class);
+			when(tableInfo.getNumOfRows()).thenReturn(1L);
+			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
+			List<TapIndex> indices = new ArrayList<>();
+			TapIndex tapIndex = mock(TapIndex.class);
+			when(tapIndex.getUnique()).thenReturn(false);
+			when(tapIndex.getPrimary()).thenReturn(false);
+			when(tapIndex.getName()).thenReturn("index");
+			List<TapIndexField> indexFields = new ArrayList<>();
+			TapIndexField indexField = mock(TapIndexField.class);
+			when(indexField.getName()).thenReturn("indexField");
+			indexFields.add(indexField);
+			when(tapIndex.getIndexFields()).thenReturn(indexFields);
+			indices.add(tapIndex);
+			List<TapIndexField> indexFields1 = new ArrayList<>();
+			TapIndexField indexField1 = mock(TapIndexField.class);
+			when(indexField1.getName()).thenReturn("indexField1");
+			indexFields1.add(indexField1);
+			when(tapTable.getIndexList()).thenReturn(indices);
+			doAnswer(invocationOnMock -> {
+				Consumer consumer = invocationOnMock.getArgument(2);
+				List<TapIndex> tapIndexList = new ArrayList<>();
+				TapIndex index = mock(TapIndex.class);
+				when(index.getName()).thenReturn("index1");
+				when(index.getIndexFields()).thenReturn(indexFields1);
+				tapIndexList.add(index);
+				consumer.accept(tapIndexList);
+				return null;
+			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			verify(hazelcastTargetPdkDataNode, new Times(1)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+		}
+		@Test
+		@DisplayName("test sync method when exists index with different asc")
+		@SneakyThrows
+		void testSyncIndex15(){
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
+			autoCreateTable = true;
+			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
+			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
+			TableInfo tableInfo = mock(TableInfo.class);
+			when(tableInfo.getNumOfRows()).thenReturn(1L);
+			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
+			List<TapIndex> indices = new ArrayList<>();
+			TapIndex tapIndex = mock(TapIndex.class);
+			when(tapIndex.getUnique()).thenReturn(false);
+			when(tapIndex.getPrimary()).thenReturn(false);
+			when(tapIndex.getName()).thenReturn("index");
+			List<TapIndexField> indexFields = new ArrayList<>();
+			TapIndexField indexField = mock(TapIndexField.class);
+			when(indexField.getName()).thenReturn("indexField");
+			when(indexField.getFieldAsc()).thenReturn(true);
+			indexFields.add(indexField);
+			when(tapIndex.getIndexFields()).thenReturn(indexFields);
+			indices.add(tapIndex);
+			List<TapIndexField> indexFields1 = new ArrayList<>();
+			TapIndexField indexField1 = mock(TapIndexField.class);
+			when(indexField1.getName()).thenReturn("indexField");
+			when(indexField1.getFieldAsc()).thenReturn(false);
+			indexFields1.add(indexField1);
+			when(tapTable.getIndexList()).thenReturn(indices);
+			doAnswer(invocationOnMock -> {
+				Consumer consumer = invocationOnMock.getArgument(2);
+				List<TapIndex> tapIndexList = new ArrayList<>();
+				TapIndex index = mock(TapIndex.class);
+				when(index.getName()).thenReturn("index1");
+				when(index.getIndexFields()).thenReturn(indexFields1);
+				tapIndexList.add(index);
+				consumer.accept(tapIndexList);
+				return null;
+			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			verify(hazelcastTargetPdkDataNode, new Times(1)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
+		}
+		@Test
+		@DisplayName("test sync method when exists index when index name is null")
+		@SneakyThrows
+		void testSyncIndex16(){
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).queryExistsIndexes(any(), any());
+			autoCreateTable = true;
+			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
+			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
+			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
+			TableInfo tableInfo = mock(TableInfo.class);
+			when(tableInfo.getNumOfRows()).thenReturn(1L);
+			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
+			List<TapIndex> indices = new ArrayList<>();
+			TapIndex tapIndex = mock(TapIndex.class);
+			when(tapIndex.getUnique()).thenReturn(false);
+			when(tapIndex.getPrimary()).thenReturn(false);
+			when(tapIndex.getName()).thenReturn("index");
+			List<TapIndexField> indexFields = new ArrayList<>();
+			TapIndexField indexField = mock(TapIndexField.class);
+			when(indexField.getName()).thenReturn(null);
 			indexFields.add(indexField);
 			when(tapIndex.getIndexFields()).thenReturn(indexFields);
 			indices.add(tapIndex);
