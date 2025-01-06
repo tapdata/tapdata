@@ -400,15 +400,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 						config.put("uri", uri);
 
 					}
-					if (null != config.get("ssl") && (Boolean) config.get("ssl")) {
-						dataSourceConnectionDto.setSsl((Boolean) config.get("ssl"));
-						dataSourceConnectionDto.setSslCA((String) config.get("sslCA"));
-						dataSourceConnectionDto.setSslKey((String) config.get("sslKey"));
-						dataSourceConnectionDto.setSslCRL((String) config.get("sslCRL"));
-						dataSourceConnectionDto.setSslCert((String) config.get("sslCert"));
-						dataSourceConnectionDto.setSslPass((String) config.get("sslPass"));
-						dataSourceConnectionDto.setSslValidate((Boolean) config.get("sslValidate"));
-					}
 				}
 				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail);
 				Map<String, Object> properties = definitionDto.getProperties();
@@ -452,6 +443,17 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			String apiServerKey = (String) v1.get("apiServerKey");
 			if (StringUtils.isNotBlank(apiServerKey)) {
 				setApiServerKey(dataSourceConnectionDto, key, apiServerKey);
+			}
+			if (k.equals("OPTIONAL_FIELDS")) {
+				LinkedHashMap properties2 = (LinkedHashMap) v1.get("properties");
+				properties2.forEach((k2, v2) -> {
+					LinkedHashMap v3 = (LinkedHashMap) v2;
+					String k3 = StringUtils.isBlank(parent) ? (String) k2 : parent + "." + k2;
+					String apiServerKey1 = (String) v3.get("apiServerKey");
+					if (StringUtils.isNotBlank(apiServerKey1)) {
+						setApiServerKey(dataSourceConnectionDto, k3, apiServerKey1);
+					}
+				});
 			}
 
 		});
