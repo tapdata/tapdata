@@ -10,11 +10,14 @@ import com.tapdata.tm.Settings.repository.SettingsRepository;
 import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,6 +30,11 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.File;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -51,20 +59,23 @@ public class SettingsServiceTest {
     private SettingsRepository mockSettingsRepository;
 
     private CaffeineCacheManager caffeineCacheManager;
+    @BeforeEach
+    void beforeEach() {
+        settingsService=spy(SettingsServiceImpl.class);
+        mongoTemplate = mock(MongoTemplate.class);
+        mockSettingsRepository = mock(SettingsRepository.class);
+        userService = mock(UserService.class);
+        alarmMailService = mock(AlarmMailService.class);
+        caffeineCacheManager = mock(CaffeineCacheManager.class);
+        settingsService.setMongoTemplate(mongoTemplate);
+        settingsService.setSettingsRepository(mockSettingsRepository);
+        ReflectionTestUtils.setField(settingsService,"caffeineCacheManager",caffeineCacheManager);
+        ReflectionTestUtils.setField(settingsService,"alarmMailService",alarmMailService);
+    }
     @Nested
     class getMailAccountTest{
         @BeforeEach
         void beforeEach(){
-            settingsService=spy(SettingsServiceImpl.class);
-            mongoTemplate = mock(MongoTemplate.class);
-            mockSettingsRepository = mock(SettingsRepository.class);
-            userService = mock(UserService.class);
-            alarmMailService = mock(AlarmMailService.class);
-            caffeineCacheManager = mock(CaffeineCacheManager.class);
-            settingsService.setMongoTemplate(mongoTemplate);
-            settingsService.setSettingsRepository(mockSettingsRepository);
-            ReflectionTestUtils.setField(settingsService,"caffeineCacheManager",caffeineCacheManager);
-            ReflectionTestUtils.setField(settingsService,"alarmMailService",alarmMailService);
             userDetail = new UserDetail("123", "customerId", "username", "password", "customerType",
                     "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
             userDetail.setEmail("test@tapdata.io");
@@ -273,6 +284,63 @@ public class SettingsServiceTest {
                 doCallRealMethod().when(settingsService).testSendMail(testMailDto);
                 TestResponseDto actual = settingsService.testSendMail(testMailDto);
                 assertEquals(false,actual.isResult());
+            }
+        }
+    }
+
+    @Nested
+    class getApplicationVersionTest {
+        @Test
+        @SneakyThrows
+        void testApplicationVersionNormal() {
+            File file = new File(".version.json");
+            boolean created = false;
+            if (!file.exists()) {
+                file.createNewFile();
+                created = true;
+            }
+            String tagName = "develop-67776061";
+            String jsonString = "{\"app_version\":\""+tagName+"\"}";
+            try (Writer write = new OutputStreamWriter(Files.newOutputStream(file.toPath()), "UTF-8");){
+                write.write(jsonString);
+                write.flush();
+            } catch (Exception e) {
+                throw new RuntimeException();
+            }
+            String actual = settingsService.applicationVersion();
+            assertEquals(tagName, actual);
+            if (created) {
+                file.delete();
+            }
+        }
+        @Test
+        void testApplicationVersionWhenFileNotExists() {
+            try (MockedStatic<StringUtils> mb = Mockito
+                    .mockStatic(StringUtils.class)) {
+                mb.when(()->StringUtils.isNotEmpty(eq(null))).thenReturn(true);
+                String actual = settingsService.applicationVersion();
+                assertEquals("DAAS_BUILD_NUMBER", actual);
+            }
+        }
+        @Test
+        @SneakyThrows
+        void testApplicationVersionWhenReadFileFailed() {
+            File file = new File(".version.json");
+            boolean created = false;
+            if (!file.exists()) {
+                file.createNewFile();
+                created = true;
+            }
+            String tagName = "develop-67776061";
+            try (Writer write = new OutputStreamWriter(Files.newOutputStream(file.toPath()), "UTF-8");){
+                write.write(tagName);
+                write.flush();
+            } catch (Exception e) {
+                throw new RuntimeException();
+            }
+            assertThrows(BizException.class, () -> settingsService.applicationVersion());
+            if (created) {
+                file.delete();
             }
         }
     }
