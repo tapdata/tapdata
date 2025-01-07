@@ -27,10 +27,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -79,6 +76,13 @@ public class MongoOAuth2AuthorizationService implements OAuth2AuthorizationServi
 
     @Override
     public void save(OAuth2Authorization authorization) {
+        OAuth2Authorization existingAuthorization = findValidToken(authorization);
+        if (existingAuthorization != null) {
+            OAuth2Authorization.Token<OAuth2AccessToken> accessToken = existingAuthorization.getAccessToken();
+            if (accessToken != null && !accessToken.isExpired()) {
+                return;
+            }
+        }
         mongoOperations.save(mapperEntity(authorization), collectionName);
     }
 
@@ -119,6 +123,16 @@ public class MongoOAuth2AuthorizationService implements OAuth2AuthorizationServi
             if (entity != null)
                 return mapperEntity(entity);
         }
+        return null;
+    }
+
+    protected OAuth2Authorization findValidToken(OAuth2Authorization authorization) {
+        Criteria criteria = Criteria.where("tokens").elemMatch(Criteria.where("tokenType").is(TOKEN_TYPE_ACCESS_TOKEN))
+                .and("registeredClientId").is(authorization.getRegisteredClientId())
+                .and("authorizationGrantType").is(authorization.getAuthorizationGrantType().getValue());
+        OAuth2AuthorizationEntity entity = mongoOperations.findOne(Query.query(criteria), OAuth2AuthorizationEntity.class, collectionName);
+        if (entity != null)
+            return mapperEntity(entity);
         return null;
     }
 
