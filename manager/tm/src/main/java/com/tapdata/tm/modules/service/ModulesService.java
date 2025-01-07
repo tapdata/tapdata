@@ -436,12 +436,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		LinkedList<LinkedHashMap> linkedList = new LinkedList<>();
 		linkedList.offer((LinkedHashMap) connection.get("properties"));
 		while (!linkedList.isEmpty()) {
-			LinkedHashMap properties1 = linkedList.poll();
+			LinkedHashMap<String, Object> properties1 = linkedList.poll();
 			if (null == properties1) {
 				properties1 = new LinkedHashMap();
 			}
 			properties1.forEach((k, v) -> {
-				LinkedHashMap v1 = (LinkedHashMap) v;
+				LinkedHashMap<String, Object> v1 = (LinkedHashMap) v;
 				String key = StringUtils.isBlank(parent) ? (String) k : parent + "." + k;
 				if ("object".equals(((LinkedHashMap<?, ?>) v).get("type"))) {
 					analyzeApiServerKey(dataSourceConnectionDto, v1, key);
@@ -450,7 +450,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				if (StringUtils.isNotBlank(apiServerKey)) {
 					setApiServerKey(dataSourceConnectionDto, key, apiServerKey);
 				}
-				LinkedHashMap properties = (LinkedHashMap) v1.get("properties");
+				LinkedHashMap<String, Object> properties = (LinkedHashMap) v1.get("properties");
 				if (null != properties) {
 					linkedList.offer(properties);
 				}
