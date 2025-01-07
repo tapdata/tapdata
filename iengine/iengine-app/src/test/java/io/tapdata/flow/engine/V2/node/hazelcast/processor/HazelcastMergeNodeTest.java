@@ -884,11 +884,12 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			try(MockedStatic<HazelcastMergeNode> hazelcastMergeNodeMockedStatic = mockStatic(HazelcastMergeNode.class)){
 				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.buildConstructIMap(any(), anyString(),anyString(),any())).thenReturn(constructIMap);
 				hazelcastMergeNodeMockedStatic.when(() -> HazelcastMergeNode.getCheckUpdateJoinKeyValueCacheName(any())).thenReturn("Merge_Test");
+				ObsLogger nodeLogger = mock(ObsLogger.class);
+				ReflectionTestUtils.setField(mockHazelcastMergeNode, "nodeLogger", nodeLogger);
 				TapTable b = tapTableMap.get("b");
 				b.getNameFieldMap().get("b_id").primaryKeyPos(1);
-				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap());
-				assertEquals(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, tapCodeException.getCode());
-				assertNotNull(tapCodeException.getMessage());
+				assertDoesNotThrow(() -> mockHazelcastMergeNode.initCheckJoinKeyUpdateCacheMap());
+				verify(nodeLogger).warn(any(), any());
 			}
 		}
 	}
@@ -1313,25 +1314,6 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 			tapUpdateRecordEvent.setAfter(new HashMap<>());
 			assertDoesNotThrow(() -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
-		}
-
-		@Test
-		@SneakyThrows
-		@DisplayName("when source connection's capability have before, but event not have before")
-		void sourceHaveBeforeAndEventNotHaveBefore() {
-			Map<String, Object> after = new HashMap<>();
-			after.put("a_id", 1);
-			after.put("a_id1", 2);
-			after.put("cid", 2);
-			after.put("id", 1);
-			TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
-			tapUpdateRecordEvent.setAfter(after);
-			TapdataEvent tapdataEvent = new TapdataEvent();
-			tapdataEvent.setTapEvent(tapUpdateRecordEvent);
-			doReturn("1").when(mockHazelcastMergeNode).getPreNodeId(tapdataEvent);
-
-			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> mockHazelcastMergeNode.handleUpdateJoinKey(tapdataEvent));
-			assertEquals(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE, tapCodeException.getCode());
 		}
 
 		@Test
@@ -2334,7 +2316,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
 					mockHazelcastMergeNode.putInCheckJoinKeyUpdateCacheMapAndWriteSign(id, "cacheName");
 				});
-				assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY);
+				assertEquals(tapCodeException.getCode(),TaskMergeProcessorExCode_16.INIT_CHECK_UPDATE_JOIN_KEY_VALUE_CACHE_WRITE_SIGN_FAILED);
 
 			}
 
