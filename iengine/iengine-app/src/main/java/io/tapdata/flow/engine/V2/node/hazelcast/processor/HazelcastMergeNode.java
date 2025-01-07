@@ -160,6 +160,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
+		nodeLogger = ObsLoggerFactory.getInstance().getObsLogger(processorBaseContext.getTaskDto().getId().toHexString(), getNode().getId());
 		if (AppType.currentType().isCloud())
 			externalStorageDto = ExternalStorageUtil.getTargetNodeExternalStorage(
 					processorBaseContext.getNode(),
@@ -177,7 +178,6 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		this.mapIterator = new AllLayerMapIterator();
 		batchProcessMetrics = new BatchProcessMetrics();
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey(), this), TAG);
-		nodeLogger = ObsLoggerFactory.getInstance().getObsLogger(processorBaseContext.getTaskDto().getId().toHexString(), getNode().getId());
 	}
 
 	protected void initFirstLevelIds() {
@@ -546,14 +546,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	protected void putInCheckJoinKeyUpdateCacheMapAndWriteSign(String id, String cacheName) {
 		List<String> joinKeyIncludePK = checkJoinKeyIncludePK(id);
 		Node<?> preNode = getPreNode(id);
-		if (CollectionUtils.isNotEmpty(joinKeyIncludePK)) {
-			throw new TapCodeException(TaskMergeProcessorExCode_16.BUILD_CHECK_UPDATE_JOIN_KEY_CACHE_FAILED_JOIN_KEY_INCLUDE_PK, String.format("Join key include pk, id: %s, both join key and pk: %s", id, joinKeyIncludePK))
-					.dynamicDescriptionParameters(preNode.getName(), id, joinKeyIncludePK);
-		}
-		if (!isSourceHaveBefore(id)) {
-			Connections connections = this.sourceConnectionMap.get(id);
-			throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY, String.format("current node not support get before data, id: %s", id))
-					.dynamicDescriptionParameters(preNode.getName(), id, connections.getName(), connections.getDatabase_type());
+		if (CollectionUtils.isNotEmpty(joinKeyIncludePK) && !isSourceHaveBefore(id)) {
+			nodeLogger.warn("It is detected that the merged node ({}[{}]) has enable update join key. " +
+							"\nThe primary key and join key overlap ({}), and the source cannot provide before update data. " +
+							"\nIf the primary key is updated, it may not be correct process target data. " +
+							"\nPlease determine whether you need to turn on the \"Enable update join key\" switch or modify the join keys.",
+					preNode.getName(), id, joinKeyIncludePK);
 		}
 		int inMemSize = CommonUtils.getPropertyInt(UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY, DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE);
 		ExternalStorageDto externalStorageDtoCopy = copyExternalStorage(inMemSize);
@@ -1950,16 +1948,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			return;
 		}
 		if (MapUtils.isEmpty(before)) {
-			if (isSourceHaveBefore(preNodeId)) {
-				Node<?> preNode = getPreNode(preNodeId);
-				throw new TapCodeException(TaskMergeProcessorExCode_16.GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_HAVE_BEFORE, "Node name: " + preNode.getName() + ", id: " + preNodeId)
-						.dynamicDescriptionParameters(preNode.getName(), preNodeId, ErrorCodeUtils.truncateData(tapEvent));
-			}
 			before = getAndUpdateJoinKeyCache(tapdataEvent);
 		}
-		if (before.containsKey("_ts")) {
-			before.remove("_ts");
-		}
+		before.remove("_ts");
 
 		removeMergeCacheIfUpdateJoinKey(tapdataEvent, before);
 
