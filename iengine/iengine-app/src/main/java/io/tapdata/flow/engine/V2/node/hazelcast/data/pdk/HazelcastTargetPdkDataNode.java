@@ -337,7 +337,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					obsLogger.info("Table: {} already exists Index: {} and will no longer create index", tableId, i.getName());
 					indexList.remove(i);
 				});
-				return;
 			}
 			if (CollectionUtils.isEmpty(indexList)) {
 				obsLogger.info("Table: {} already exists Index list: {}", tableId, indices);
