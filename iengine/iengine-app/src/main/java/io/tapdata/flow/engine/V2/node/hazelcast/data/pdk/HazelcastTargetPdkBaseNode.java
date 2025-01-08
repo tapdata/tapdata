@@ -1179,7 +1179,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 tapRecordEvent = tapInsertRecordEvent;
             }
         }
-        return tapRecordEvent;
+		SyncStage syncStage = tapdataEvent.getSyncStage();
+		tapRecordEvent.addInfo(TapRecordEvent.INFO_KEY_SYNC_STAGE, syncStage.name());
+		return tapRecordEvent;
     }
 
     protected void fromTapValueMergeInfo(TapdataEvent tapdataEvent) {

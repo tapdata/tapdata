@@ -19,6 +19,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -96,6 +97,9 @@ public class DataCache {
 
     public Map<String, Object> searchAndRemove(Integer count, String query) {
 
+        if (cache == null) {
+            return emptyMap();
+        }
         List<CacheItem> dataList = new ArrayList<>();
         Iterator<Cache.Entry<String, CacheItem>> iterator = cache.iterator();
         boolean hasQuery = StringUtils.isNotBlank(query);
@@ -143,7 +147,7 @@ public class DataCache {
             eventId = "eid=" + eventId;
         }
         try {
-            if (cache.containsKey(eventId)) {
+            if (cache != null && cache.containsKey(eventId)) {
                 CacheItem item = cache.get(eventId);
                 if (item != null)
                     item.setProcessCompleted(true);
@@ -153,6 +157,7 @@ public class DataCache {
     }
 
     public void destroy() {
+        Optional.ofNullable(cache).ifPresent(Cache::clear);
         cache = null;
     }
 

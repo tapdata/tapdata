@@ -171,16 +171,21 @@ public final class DataCacheFactory {
         if (maxOffHeapSize == null) maxOffHeapSize = 10;
         if (maxDiskSize == null) maxDiskSize = 50;
 
-        ResourcePoolsBuilder builder = ResourcePoolsBuilder.newResourcePoolsBuilder()
-                .heap(maxHeapEntries, EntryUnit.ENTRIES)
-                .offheap(maxOffHeapSize, MemoryUnit.MB)
-                .disk(maxDiskSize, MemoryUnit.MB, true);
+        try {
+            ResourcePoolsBuilder builder = ResourcePoolsBuilder.newResourcePoolsBuilder()
+                    .heap(maxHeapEntries, EntryUnit.ENTRIES)
+                    .offheap(maxOffHeapSize, MemoryUnit.MB)
+                    .disk(maxDiskSize, MemoryUnit.MB, true);
 
-        Cache<String, DataCache.CacheItem> cache = cacheManager.createCache(taskId, CacheConfigurationBuilder
-                .newCacheConfigurationBuilder(String.class, DataCache.CacheItem.class, builder)
-                .withExpiry(ExpiryPolicyBuilder.timeToLiveExpiration(Duration.ofMinutes(10)))
-        );
+            Cache<String, DataCache.CacheItem> cache = cacheManager.createCache(taskId, CacheConfigurationBuilder
+                    .newCacheConfigurationBuilder(String.class, DataCache.CacheItem.class, builder)
+                    .withExpiry(ExpiryPolicyBuilder.timeToLiveExpiration(Duration.ofMinutes(10)))
+            );
 
-        return new DataCache(taskId, null, cache);
+            return new DataCache(taskId, null, cache);
+        } catch (Exception e) {
+            logger.error("Create data cache failed {}", e.getMessage(), e);
+            return new DataCache(taskId, null, null);
+        }
     }
 }

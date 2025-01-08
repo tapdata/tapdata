@@ -87,7 +87,12 @@ class TransformSchemaServiceTest {
             taskDto.setId(new ObjectId());
             List<String> includes = new ArrayList<>();
             boolean allParam = true;
-            doNothing().when(dag).addNodeEventListener(any());
+            doAnswer(invocation -> {
+                Node.EventListener<Object> listener = invocation.getArgument(0);
+                listener.schemaTransformResult("node1",null,new ArrayList<>());
+                listener.onTransfer(null,null,new ArrayList<>(),"node1");
+                return null;
+            }).when(dag).addNodeEventListener(any());
             doCallRealMethod().when(transformSchemaService).getTransformParam(taskDto,user,includes,allParam);
             TransformerWsMessageDto actual = transformSchemaService.getTransformParam(taskDto, user, includes, allParam);
             verify(metadataTransformerService,new Times(1)).findAllDto(any(),any());
@@ -413,7 +418,7 @@ class TransformSchemaServiceTest {
         @Nested
         class getLogCollectorMetadataInstancesDtoTest{
             @Test
-            void testConnConfigMapIsNotNull(){
+            void testMain(){
                 DAG dag1 = mock(DAG.class);
                 List<Node> nodes = new ArrayList<>();
                 LogCollectorNode logCollectorNode = new LogCollectorNode();
@@ -442,12 +447,43 @@ class TransformSchemaServiceTest {
                 metadataInstancesDto2.setOriginalName("name2");
                 metadataInstancesDto2.setQualifiedName("test2");
                 metadataInstancesDto2.setMetaType("table");
+                Map<String,String> logMap = new HashMap<>();
+                logMap.put("c_1","name1");
+                logMap.put("c_2","name1");
+                when(metadataInstancesService.findKVByNode("LogCollectorNode")).thenReturn(logMap);
                 when(metadataInstancesService.findAllDto(any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2));
                 List<MetadataInstancesDto> result = new ArrayList<>();
                 UserDetail userDetail = mock(UserDetail.class);
                 doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
                 transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
                 Assertions.assertEquals(2,result.size());
+            }
+
+            @Test
+            void testLogKvIsEmpty(){
+                DAG dag1 = mock(DAG.class);
+                List<Node> nodes = new ArrayList<>();
+                LogCollectorNode logCollectorNode = new LogCollectorNode();
+                logCollectorNode.setId("LogCollectorNode");
+                Map<String, LogCollecotrConnConfig> connConfigMap = new HashMap<>();
+                LogCollecotrConnConfig logCollecotrConnConfig1 = new LogCollecotrConnConfig();
+                logCollecotrConnConfig1.setConnectionId("c_1");
+                logCollecotrConnConfig1.setTableNames(Arrays.asList("test1"));
+                LogCollecotrConnConfig logCollecotrConnConfig2 = new LogCollecotrConnConfig();
+                logCollecotrConnConfig2.setConnectionId("c_2");
+                logCollecotrConnConfig2.setTableNames(Arrays.asList("test2"));
+                connConfigMap.put("c_1",logCollecotrConnConfig1);
+                connConfigMap.put("c_2",logCollecotrConnConfig2);
+                logCollectorNode.setLogCollectorConnConfigs(connConfigMap);
+                nodes.add(logCollectorNode);
+                when(dag1.getNodes()).thenReturn(nodes);
+                Map<String,String> logMap = new HashMap<>();
+                when(metadataInstancesService.findKVByNode("LogCollectorNode")).thenReturn(logMap);
+                List<MetadataInstancesDto> result = new ArrayList<>();
+                UserDetail userDetail = mock(UserDetail.class);
+                doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+                transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
+                Assertions.assertEquals(0,result.size());
             }
         }
 
@@ -459,31 +495,6 @@ class TransformSchemaServiceTest {
             logCollectorNode.setId("LogCollectorNode");
             logCollectorNode.setConnectionIds(Arrays.asList("c_1"));
             logCollectorNode.setTableNames(Arrays.asList("test1"));
-            nodes.add(logCollectorNode);
-            when(dag1.getNodes()).thenReturn(nodes);
-            MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
-            metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
-            metadataInstancesDto1.setNodeId("LogCollectorNode");
-            metadataInstancesDto1.setOriginalName("name1");
-            metadataInstancesDto1.setQualifiedName("test1");
-            metadataInstancesDto1.setMetaType("table");
-            when(metadataInstancesService.findAllDto(any(),any())).thenReturn(Arrays.asList(metadataInstancesDto1));
-            List<MetadataInstancesDto> result = new ArrayList<>();
-            UserDetail userDetail = mock(UserDetail.class);
-            doCallRealMethod().when(transformSchemaService).getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
-            transformSchemaService.getLogCollectorMetadataInstancesDto(dag1,userDetail,result);
-            Assertions.assertEquals(1,result.size());
-        }
-        @Test
-        void testConnConfigMapIsEmpty(){
-            DAG dag1 = mock(DAG.class);
-            List<Node> nodes = new ArrayList<>();
-            LogCollectorNode logCollectorNode = new LogCollectorNode();
-            logCollectorNode.setId("LogCollectorNode");
-            List<String> connectionIds = new ArrayList<>();
-            logCollectorNode.setConnectionIds(connectionIds);
-            logCollectorNode.setTableNames(Arrays.asList("test1"));
-            logCollectorNode.setLogCollectorConnConfigs(new HashMap<>());
             nodes.add(logCollectorNode);
             when(dag1.getNodes()).thenReturn(nodes);
             MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
@@ -556,6 +567,9 @@ class TransformSchemaServiceTest {
         }
         @Test
         void testTransformerResultSimple() {
+            List<String> batchRemoveMetaDataList = new ArrayList<>();
+            batchRemoveMetaDataList.add("T_mongodb_io_tapdata_1_0-SNAPSHOT_TEST_63468098c87faf3ba64fece0");
+            when(result.getBatchRemoveMetaDataList()).thenReturn(batchRemoveMetaDataList);
             when(result.getTaskId()).thenReturn("6720c4a18c6b586b9e1b493b");
             when(taskService.checkExistById(any(ObjectId.class), anyString())).thenReturn(mock(TaskDto.class));
             doCallRealMethod().when(transformSchemaService).transformerResult(user, result, saveHistory);

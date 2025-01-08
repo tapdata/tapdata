@@ -151,6 +151,11 @@ public class FileAppenderTest {
                 fileAppender.append(MonitoringLogsDto.builder().logTag("catchData").level(LogLevel.DEBUG.getLevel()).build());
                 verify(cache, times(2)).put(any(), any());
 
+                ReflectionTestUtils.setField(fileAppender, "taskId", null);
+                Assertions.assertDoesNotThrow(() -> {
+                    fileAppender.closeCatchData();
+                });
+
             }
 
         }

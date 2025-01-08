@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.util;
 
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,12 +28,18 @@ public class SkipIdleProcessor<T> implements AutoCloseable, MemoryFetcher {
 	private final LinkedList<Item> idleList = new LinkedList<>();
 	private final Supplier<Boolean> isRunning;
 	private Thread th;
+	private final int waitCounts;
 
-	public SkipIdleProcessor(Supplier<Boolean> isRunning, Collection<T> collection) {
+	public SkipIdleProcessor(Supplier<Boolean> isRunning, Collection<T> collection, int waitCounts) {
 		this.isRunning = isRunning;
 		this.queue = new LinkedBlockingQueue<>();
 		for (T v : collection) {
 			queue.add(new Item(v));
+		}
+		if (waitCounts <= 0) {
+			this.waitCounts = MAX_COUNTS;
+		} else {
+			this.waitCounts = waitCounts;
 		}
 
 		th = new Thread(() -> {
@@ -145,7 +152,7 @@ public class SkipIdleProcessor<T> implements AutoCloseable, MemoryFetcher {
 
 		public void toIdleList() {
 			// max sleep interval 2 seconds
-			if (counts < MAX_COUNTS) counts++;
+			if (counts < waitCounts) counts++;
 
 			nextTimes = System.currentTimeMillis() + (SLEEP_INTERVAL * counts);
 			synchronized (idleList) {

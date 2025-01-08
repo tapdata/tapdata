@@ -357,6 +357,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			List<TapIndex> indexList = new ArrayList<>();
 			List<TapIndex> indices = tapTable.getIndexList();
+			if (null == indices) {
+				indices = new ArrayList<>();
+			}
 			indices.forEach(index -> {
 				TapIndex tapIndex = new TapIndex().unique(index.getUnique()).primary(index.getPrimary());
 				tapIndex.setIndexFields(index.getIndexFields());
@@ -417,12 +420,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
 						boolean same = true;
 						for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
-							if (null != tapIndex.getIndexFields().get(i).getName() && null != existsIndex.getIndexFields().get(i).getName()) {
-								if (!tapIndex.getIndexFields().get(i).getName().equals(existsIndex.getIndexFields().get(i).getName())
-										|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
-									same = false;
-									break;
-								}
+							if (null != existsIndex.getIndexFields().get(i).getName() && !existsIndex.getIndexFields().get(i).getName().equals(tapIndex.getIndexFields().get(i).getName())
+									|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
+								same = false;
+								break;
 							}
 						}
 						if (same) {
