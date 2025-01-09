@@ -38,6 +38,8 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.TapIndex;
+import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.error.TapEventException;
@@ -97,6 +99,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.createIndexEvent;
 import static io.tapdata.entity.simplify.TapSimplify.createTableEvent;
@@ -1073,7 +1076,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		// fix: #140674 Bulk write data failed, write model list is empty, received record size: 7
 		// The method may be called concurrently, need to clean the 'indexList' and field primaryKey mark after set 'logicPrimaries', because tapTable call the method 'primaryKey(true)' maybe empty
 		tapTable.setLogicPrimaries(logicPrimaries);
-		tapTable.setIndexList(null);
+		List<TapIndex> indexList = tapTable.getIndexList();
+		if (CollectionUtils.isNotEmpty(indexList) && CollectionUtils.isNotEmpty(logicPrimaries)) {
+			Iterator<TapIndex> iterator = indexList.iterator();
+			while (iterator.hasNext()) {
+				TapIndex tapIndex = iterator.next();
+				List<TapIndexField> tapIndexFieldNames = tapIndex.getIndexFields();
+				if (tapIndexFieldNames.size() == logicPrimaries.size()) {
+					boolean same = true;
+					for (int i = 0; i < tapIndexFieldNames.size(); i++) {
+						String fieldName = tapIndexFieldNames.get(i).getName();
+						if (null != fieldName && !fieldName.equals(logicPrimaries.get(i)) && Boolean.TRUE.equals(tapIndexFieldNames.get(i).getFieldAsc())) {
+							same = false;
+							break;
+						}
+					}
+					if (same) {
+						iterator.remove();
+					}
+				}
+			}
+		}
 		tapTable.refreshPrimaryKeys();
 		tapTable.getNameFieldMap().values().forEach(v -> {
 			v.setPrimaryKeyPos(0);
