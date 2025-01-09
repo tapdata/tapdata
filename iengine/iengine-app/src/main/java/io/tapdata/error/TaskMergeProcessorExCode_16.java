@@ -382,8 +382,8 @@ public interface TaskMergeProcessorExCode_16 {
 	@TapExCode(
 			describe = "When enabling the update of association condition changes, it is not supported for the association condition field to be both an association key and a primary key",
 			describeCN = "当开启更新关联条件变更时，不支持关联条件字段同时是关联键和主键",
-			dynamicDescription = "Join key include pk, id: {}, both join key and pk: {}",
-			dynamicDescriptionCN = "关联键包含主键，id：{}，同时是关联键和主键：{}",
+			dynamicDescription = "Join key include pk, node: {}[{}], both join key and pk: {}",
+			dynamicDescriptionCN = "关联键包含主键，节点：{}[{}]，同时是关联键和主键：{}",
 			solution = "Choose any of the following ways to resolve: \n" +
 					"1. Disable the update association condition function+\n" +
 					"2. Modify the associated field to a non primary key field",
@@ -522,8 +522,8 @@ public interface TaskMergeProcessorExCode_16 {
 	@TapExCode(
 			describe = "When the update association condition is enabled, the incremental event of the source node needs to support get before data, which is not supported by the current node",
 			describeCN = "当开启更新关联条件时，源节点增量事件需要支持获取before数据，当前节点不支持该能力",
-			dynamicDescription = "Node ID: {}, connection name: {}, connection type: {}",
-			dynamicDescriptionCN = "节点id：{}，连接名：{}，连接类型：{}",
+			dynamicDescription = "Node: {}[{}], connection name: {}, connection type: {}",
+			dynamicDescriptionCN = "节点：{}[{}]，连接名：{}，连接类型：{}",
 			solution = "Restart the task after disabling the association condition change function",
 			solutionCN = "关闭关联条件变更功能后重新启动任务"
 	)
