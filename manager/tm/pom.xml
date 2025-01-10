@@ -499,6 +499,10 @@
 					<artifactId>commons-collections4</artifactId>
 					<groupId>org.apache.commons</groupId>
 				</exclusion>
+				<exclusion>
+					<artifactId>protobuf-java</artifactId>
+					<groupId>com.google.protobuf</groupId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.quartz-scheduler/quartz -->
@@ -565,6 +569,11 @@
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
 			<version>2.10.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.protobuf</groupId>
+			<artifactId>protobuf-java</artifactId>
+			<version>3.23.2</version>
 		</dependency>
 
 		<!---->
