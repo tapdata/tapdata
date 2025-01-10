@@ -62,9 +62,12 @@ public class TMApplication {
 			Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
 			String path = System.getenv("TCM_CONF");
 			if(StringUtils.isNotBlank(path)){
-				new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
-						.build().run(args);
-				log.info("TCM start,TCM_CONF: {}", path);
+				try{
+					new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
+							.build().run(args);
+				}catch (Exception e){
+					log.error("Start TCM failed", e);
+				}
 			}else{
 				log.info("No need to start TCM,TCM_CONF not found");
 			}
