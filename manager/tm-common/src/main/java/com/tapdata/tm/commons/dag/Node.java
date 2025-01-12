@@ -295,17 +295,6 @@ public abstract class Node<S> extends Element{
                     saveSchema(predecessors, nodeId, changedSchema, options);
                 }
             } else if (schema instanceof List){
-//                List<Schema> updateSchema = new ArrayList<>();
-//                for (Schema o : ((List<Schema>) changedSchema)) {
-//                    if ( o.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
-//                        updateSchema.add(o);
-//                    }
-//                }
-//
-//                if (CollectionUtils.isNotEmpty(updateSchema)) {
-//                    saveSchema(predecessors, nodeId, (S) updateSchema, options);
-//                }
-
                 saveSchema(predecessors, nodeId, changedSchema, options);
             }
         }
@@ -313,7 +302,6 @@ public abstract class Node<S> extends Element{
 
         // 触发后序节点模型推演
         next(options);
-
     }
 
     private void next(DAG.Options options) {

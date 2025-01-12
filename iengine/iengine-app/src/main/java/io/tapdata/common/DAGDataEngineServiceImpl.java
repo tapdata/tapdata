@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
@@ -176,13 +177,13 @@ public class DAGDataEngineServiceImpl extends DAGDataServiceImpl {
             List<Node> nodes = taskDto.getDag().getNodes();
             if (CollectionUtils.isNotEmpty(nodes)) {
                 nodes.forEach(f -> {
-                    if(f instanceof MergeTableNode){
+                    if(f instanceof MergeTableNode || f instanceof JoinProcessorNode){
                         List<Node> predecessors = taskDto.getDag().predecessors(f.getId());
                         TapTableMap<String, TapTable> tapTableMap = tapTableMapHashMap.get(f.getId());
                         if(tapTableMap == null)return;
                         predecessors.forEach(node -> {
                             TapTableMap<String, TapTable> preTapTableMap = tapTableMapHashMap.get(node.getId());
-                            mergeTableMap(tapTableMap,preTapTableMap);
+                            mergeTableMap(tapTableMap, preTapTableMap);
                         });
                     }else if(f instanceof LogCollectorNode){
                         LogCollectorNode logCollectorNode = (LogCollectorNode) f;

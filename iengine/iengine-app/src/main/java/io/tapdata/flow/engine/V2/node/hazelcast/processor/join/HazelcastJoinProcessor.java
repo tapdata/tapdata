@@ -11,7 +11,10 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import io.tapdata.construct.InMemoryKVStore;
+import io.tapdata.construct.KVStoreFactory;
 import io.tapdata.construct.constructImpl.BytesIMap;
+import io.tapdata.construct.constructImpl.KVStore;
 import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
 import io.tapdata.entity.codec.filter.impl.AllLayerMapIterator;
@@ -57,13 +60,12 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	private JoinType joinType;
 
-	private final static String IMAP_NAME_DELIMITER = "-";
 
 	private String referenceId;
-	private BytesIMap<Map<String, Map<String, Object>>> leftJoinCache;
-	private BytesIMap<Map<String, Map<String, Object>>> rightJoinCache;
-
-//  private List<String> keyFields;
+	private KVStore<Map<String, Object>> leftRowCache;
+	private KVStore<String> leftPKCache;
+	private KVStore<Map<String, Object>> rightRowCache;
+	private KVStore<String> rightPKCache;
 
 	private List<String> leftJoinKeyFields;
 	private List<String> rightJoinKeyFields;
@@ -74,20 +76,16 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	private List<String> leftPrimaryKeys;
 	private List<String> rightPrimaryKeys;
-	private TapTable tapTable;
+	private Map<String, TapTable> tapTables;
+	private TapTable leftTapTable = null;
+	private TapTable rightTapTable = null;
 	private MapIteratorEx mapIterator;
 
 	public HazelcastJoinProcessor(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
+		tapTables = new HashMap<>();
 		this.referenceId = referenceId(processorBaseContext.getNode());
-		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
-		Iterator<String> iterator = tapTableMap.keySet().iterator();
-		if (iterator.hasNext()) {
-			String next = iterator.next();
-			tapTable = tapTableMap.get(next);
-		} else {
-			throw new RuntimeException("Cannot find join node's schema");
-		}
+		tapTables = processorBaseContext.getTapTableMap();
 	}
 
 	private void pkChecker() {
@@ -175,25 +173,29 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		this.leftNodeId = joinNode.getLeftNodeId();
 		this.rightNodeId = joinNode.getRightNodeId();
 
+		for (String key : tapTables.keySet()) {
+			if (leftTapTable == null) {
+				leftTapTable = tapTables.get(key);
+				continue;
+			}
+			rightTapTable = tapTables.get(key);
+			break;
+		}
+
 		this.leftPrimaryKeys = joinNode.getLeftPrimaryKeys();
 		this.rightPrimaryKeys = joinNode.getRightPrimaryKeys();
 		pkChecker();
-		this.leftJoinCache = new BytesIMap<>(
-				context.hazelcastInstance(),
-			referenceId,
-				joinCacheMapName(leftNodeId, "leftJoinCache"),
-				externalStorageDto
-		);
-		this.rightJoinCache = new BytesIMap<>(
-				context.hazelcastInstance(),
-			referenceId,
-				joinCacheMapName(rightNodeId, "rightCache"),
-				externalStorageDto
-		);
+		ExternalStorageDto externalStorage = ExternalStorageUtil.getExternalStorage(node);
+		this.leftRowCache = KVStoreFactory.createKVStore(externalStorage, joinCacheMapName(leftNodeId, "leftJoinCache"));
+		this.leftPKCache = KVStoreFactory.createKVStore(externalStorage, joinCacheMapName(leftNodeId, "leftPKCache"));
+		this.rightRowCache = KVStoreFactory.createKVStore(externalStorage, joinCacheMapName(rightNodeId, "rightCache"));
+		this.rightPKCache = KVStoreFactory.createKVStore(externalStorage, joinCacheMapName(rightNodeId, "rightPKCache"));
 		if (!taskHasBeenRun()) {
 			try {
-				leftJoinCache.clear();
-				rightJoinCache.clear();
+				leftRowCache.clear();
+				leftPKCache.clear();
+				rightRowCache.clear();
+				rightPKCache.clear();
 			} catch (Exception e) {
 				throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, "Clear join cache failed", e);
 			}
@@ -267,7 +269,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			consumer.accept(tapdataEvent, null);
 			return;
 		}
-		transformDateTime(before,after);
+		transformDateTime(before, after);
 		List<JoinResult> joinResults;
 		if (tapdataEvent.getNodeIds().contains(leftNodeId)) {
 			joinResults = leftJoinLeftProcess(before, after, opType);
@@ -279,16 +281,6 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			for (JoinResult joinResult : joinResults) {
 				TapRecordEvent joinEvent = joinResult2DataEvent(dataEvent, joinResult);
-				if (OperationType.INSERT.getOp().equals(TapEventUtil.getOp(joinEvent))) {
-					final TapRecordEvent deleteEvent = generateDeleteEventForModifyJoinKey(joinEvent);
-					if (deleteEvent != null) {
-						TapdataEvent deleteTapdataEvent = new TapdataEvent();
-						deleteTapdataEvent.setTapEvent(deleteEvent);
-						deleteTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
-						tapdataEvents.add(deleteTapdataEvent);
-					}
-				}
-
 				TapdataEvent joinTapdataEvent = new TapdataEvent();
 				joinTapdataEvent.setTapEvent(joinEvent);
 				joinTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
@@ -305,90 +297,17 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	@Override
 	public void doClose() throws TapCodeException {
-		CommonUtils.handleAnyError(
-				() -> rightJoinCache.destroy(),
-				throwable -> logger.warn("Destroy right join cache [" + rightJoinCache.getName() + "] failed. Message: " + throwable.getMessage() + "\n Stack: " + Log4jUtil.getStackString(throwable))
-		);
-		CommonUtils.handleAnyError(
-				() -> leftJoinCache.destroy(),
-				throwable -> logger.warn("Destroy left join cache [" + leftJoinCache.getName() + "] failed. Message: " + throwable.getMessage() + "\n Stack: " + Log4jUtil.getStackString(throwable))
-		);
 		super.doClose();
 	}
 
 	private void vatidate(Node<?> node) {
-		List<TapField> pks = tapTable.getNameFieldMap().values().stream()
-				.filter(f -> null != f.getPrimaryKeyPos() && f.getPrimaryKeyPos() > 0)
-				.collect(Collectors.toList());
-		if (CollectionUtils.isNotEmpty(pks)) {
-			throw new NodeException(
-					String.format(
-							"left join node [id: %s, node name: %s] schema cannot contain primary key(s), pk fields %s",
-							node.getId(),
-							node.getName(),
-							String.join(",", tapTable.primaryKeys())
-					)
-			);
-		}
-
-		List<TapIndex> indexList = tapTable.getIndexList();
-		if (null == indexList) {
-			throw new NodeException(
-					String.format(
-							"left join node [id: %s, node name: %s] does not contain unique index",
-							node.getId(),
-							node.getName()
-					)
-			);
-		}
-		TapIndex uniqueIndex = indexList.stream().filter(TapIndex::isUnique).findFirst().orElse(null);
-		if (null == uniqueIndex) {
-			throw new NodeException(
-					String.format(
-							"left join node [id: %s, node name: %s] does not contain unique index",
-							node.getId(),
-							node.getName()
-					)
-			);
-		}
-	}
-
-	/**
-	 * If the right row pk was modified in join result, the downstream cannot guarantee write idempotent.
-	 * So generate delete event, before join event.
-	 *
-	 * @param joinEvent
-	 * @return delete dml event, if null：the join key value has not been modified。
-	 */
-	private TapRecordEvent generateDeleteEventForModifyJoinKey(TapRecordEvent joinEvent) {
-		TapRecordEvent deleteEvent = null;
-		Map<String, Object> before = TapEventUtil.getBefore(joinEvent);
-		Map<String, Object> after = TapEventUtil.getAfter(joinEvent);
-		if (MapUtils.isNotEmpty(before) && MapUtils.isNotEmpty(after)) {
-			final String beforeJoinKey = project(before, rightPrimaryKeys);
-			final String afterJoinKey = project(after, rightPrimaryKeys);
-
-			if (!StringUtils.equals(beforeJoinKey, afterJoinKey)) {
-				deleteEvent = new TapDeleteRecordEvent();
-				TapEventUtil.setBefore(deleteEvent, TapEventUtil.getBefore(joinEvent));
-				deleteEvent.setTableId(joinEvent.getTableId());
-				deleteEvent.setTime(System.currentTimeMillis());
-
-				if (logger.isDebugEnabled()) {
-					logger.debug("join key has been modified, will generate delete event before join event, delete event {}, join event {}.", deleteEvent, joinEvent);
-				}
-			}
-		}
-
-		return deleteEvent;
 	}
 
 	private static String joinCacheMapName(String leftNodeId, String name) {
-		return leftNodeId + IMAP_NAME_DELIMITER + name;
+		return leftNodeId + "-" + name;
 	}
 
 	private TapRecordEvent joinResult2DataEvent(TapRecordEvent originEvent, JoinResult joinResult) {
-
 		TapRecordEvent tapRecordEvent = null;
 		String opType = joinResult.getOpType();
 		OperationType operationType = OperationType.fromOp(opType);
@@ -407,8 +326,6 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 				TapEventUtil.setBefore(tapRecordEvent, joinResult.getBefore());
 				break;
 			default:
-//        tapRecordEvent = new TapRecordEvent();
-//        break;
 				throw new IllegalArgumentException("operationType " + operationType + " is unexpected while joinResult2DataEvent");
 		}
 		tapRecordEvent.setTableId(originEvent.getTableId());
@@ -418,74 +335,247 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		return tapRecordEvent;
 	}
 
+	private void updateCache(
+			String table,
+			String opType,
+			Map<String, Object> before,
+			Map<String, Object> after) throws IllegalAccessException, InstantiationException {
+		Map<String, Object> before2 = new HashMap<>();
+		MapUtil.deepCloneMap(before, before2);
+		Map<String, Object> after2 = new HashMap<>();
+		MapUtil.deepCloneMap(after, after2);
+
+		KVStore<Map<String, Object>> rowCache;
+		KVStore<String> pkCache;
+		List<String> primaryKeys;
+		List<String> joinKeyFields;
+
+		if ("left".equals(table)) {
+			rowCache = leftRowCache;
+			pkCache = leftPKCache;
+			primaryKeys = leftPrimaryKeys;
+			joinKeyFields = leftJoinKeyFields;
+		} else {
+			rowCache = rightRowCache;
+			pkCache = rightPKCache;
+			primaryKeys = rightPrimaryKeys;
+			joinKeyFields = rightJoinKeyFields;
+		}
+
+		if ("insert".equals(opType)) {
+			String pk = project(after2, primaryKeys);
+			String joinKey = project(after2, joinKeyFields);
+			String rowCacheKey = joinKey + "-" + pk;
+			rowCache.insert(rowCacheKey, after2);
+			pkCache.insert(pk, joinKey);
+			return;
+		}
+
+		// 不需要为更新设计缓存调整, 更新会按照 插入, 或者 删除+插入的方式进行
+		if ("delete".equals(opType)) {
+			String pk = project(before2, primaryKeys);
+			String joinKey = project(before2, joinKeyFields);
+			if (StringUtils.isBlank(joinKey)) {
+				joinKey = pkCache.find(pk);
+			}
+			String rowCacheKey = joinKey + "-" + pk;
+			rowCache.delete(rowCacheKey);
+			pkCache.delete(pk);
+		}
+	}
+
+	private List<JoinResult> leftJoinLeftInsertProcess(
+			Map<String, Object> after
+	) throws Exception {
+		List<JoinResult> joinResults = new ArrayList<>();
+
+		// 构建主记录缓存, 以及 PK -> 关联条件的缓存
+		updateCache("left", "insert", null, after);
+
+		String joinKey = project(after, leftJoinKeyFields);
+
+		Map<String, Map<String, Object>> rightRows = rightRowCache.findByPrefix(joinKey+"-");
+		if (rightRows.isEmpty()) {
+			// 如果是 leftJoin, 且没有右关联数据, 则遍历右表属性, 补充 NULL
+			if (joinType == JoinType.LEFT) {
+				for (String rightTableField : rightTapTable.getNameFieldMap().keySet()) {
+					after.put(rightTableField, null);
+				}
+				joinResults.add(new JoinResult(null, after, OperationType.INSERT.getOp()));
+				return joinResults;
+			}
+			// 如果是 innerJoin, 且没有右关联数据, 则返回空
+			if (joinType == JoinType.INNER) {
+				return joinResults;
+			}
+		}
+
+		// 将右表属性添加到左表中, 形成完整记录
+		for (Map<String, Object> rightRow : rightRows.values()) {
+			after.putAll(rightRow);
+			joinResults.add(getJoinResult(null, after, OperationType.INSERT.getOp()));
+		}
+		return joinResults;
+	}
+
+	private List<JoinResult> leftJoinRightInsertProcess(
+			Map<String, Object> after
+	) throws Exception {
+		List<JoinResult> joinResults = new ArrayList<>();
+
+		// 构建主记录缓存, 以及 PK -> 关联条件的缓存
+		updateCache("right", "insert", null, after);
+
+		String joinKey = project(after, rightJoinKeyFields);
+
+		Map<String, Map<String, Object>> leftRows = leftRowCache.findByPrefix(joinKey+"-");
+		if (leftRows.isEmpty()) {
+			// 如果主表为空, 则 LEFT Join 与 Inner Join 都返回空
+			return joinResults;
+		}
+
+		// 将左表属性添加到右表中, 形成完整记录
+		// 先将之前可能为 NULL 的 JOIN 数据删掉
+		for (Map<String, Object> leftRow : leftRows.values()) {
+			Map<String, Object> before3 = new HashMap<>();
+			for(String leftPrimaryKey: leftPrimaryKeys) {
+				before3.put(leftPrimaryKey, leftRow.get(leftPrimaryKey));
+			}
+			for (String rightPrimaryKey : rightPrimaryKeys) {
+				before3.put(rightPrimaryKey, null);
+			}
+			joinResults.add(getJoinResult(before3, null, OperationType.DELETE.getOp()));
+		}
+		// 再写入新的非 NULL 的数据, 这样做可以保持幂等
+		for (Map<String, Object> leftRow : leftRows.values()) {
+			Map<String, Object> after2 = new HashMap<>();
+			MapUtil.deepCloneMap(after, after2);
+			after2.putAll(leftRow);
+			joinResults.add(getJoinResult(null, after2, OperationType.INSERT.getOp()));
+		}
+		return joinResults;
+	}
+
+	private List<JoinResult> leftJoinLeftDeleteProcess(
+			Map<String, Object> before
+	) throws Exception {
+		List<JoinResult> joinResults = new ArrayList<>();
+		// 删除主记录缓存, 以及 PK -> 关联条件的缓存
+		updateCache("left", "delete", before, null);
+
+		// 主表删除, 直接将主表关联的所有主记录直接删除
+		joinResults.add(getJoinResult(before, null, OperationType.DELETE.getOp()));
+		return joinResults;
+	}
+
+	private List<JoinResult> leftJoinRightDeleteProcess(
+			Map<String, Object> before
+	) throws Exception {
+		List<JoinResult> joinResults = new ArrayList<>();
+
+		// 如果 before 数据不全, 先查出 before 的值
+		String pk = project(before, rightPrimaryKeys);
+		String joinKey = project(before, rightJoinKeyFields);
+		if (StringUtils.isBlank(joinKey)) {
+			joinKey = rightPKCache.find(pk);
+		}
+
+		// 再删除主记录缓存, 以及 PK -> 关联条件的缓存
+		updateCache("right", "delete", before, null);
+
+		// 查询所有关联的左表数据
+		Map<String, Map<String, Object>> leftRows = leftRowCache.findByPrefix(joinKey+"-");
+		if (leftRows.isEmpty()) {
+			// 如果没有关联的数据, 直接返回空
+			return joinResults;
+		}
+
+		for (Map<String, Object> leftRow : leftRows.values()) {
+			// 这里注意, 对于 LEFT JOIN, 所以即使没有右表数据, 也要返回一条记录, 且右表数据为 NULL
+			// 需要从右表缓存中, 匹配是否还有其他的右表数据
+			Map<String, Map<String, Object>> otherRightRows = new HashMap<>();
+			if (joinType == JoinType.LEFT) {
+				otherRightRows = rightRowCache.findByPrefix(joinKey + "-");
+			}
+			if (joinType == JoinType.LEFT && otherRightRows.isEmpty()) {
+				// 如果没有其他可以匹配的右值, 就设置右值为 NULL, 做一条更新
+				Map<String, Object> before2 = new HashMap<>();
+				MapUtil.deepCloneMap(before, before2);
+				Map<String, Object> after = new HashMap<>();
+				for (String field : rightTapTable.getNameFieldMap().keySet()) {
+					after.put(field, null);
+				}
+				for (String leftPrimaryKey : leftPrimaryKeys) {
+					before2.put(leftPrimaryKey, leftRow.get(leftPrimaryKey));
+				}
+				joinResults.add(getJoinResult(before2, after, OperationType.UPDATE.getOp()));
+			} else {
+				// 如果还有其他的可以匹配的右值, 就直接删除当前匹配到的这一条
+				Map<String, Object> before3 = new HashMap<>();
+				for (String field : rightPrimaryKeys) {
+					before3.put(field, before.get(field));
+				}
+				for (String field : leftPrimaryKeys) {
+					before3.put(field, leftRow.get(field));
+				}
+				joinResults.add(getJoinResult(before, null, OperationType.DELETE.getOp()));
+			}
+		}
+		return joinResults;
+	}
+
+	private List<JoinResult> leftJoinLeftUpdateProcess(
+			Map<String, Object> before,
+			Map<String, Object> after
+	) throws Exception {
+		List<JoinResult> joinResults = new ArrayList<>();
+
+		String beforeJoinKey = project(before, leftJoinKeyFields);
+		String afterJoinKey = project(after, leftJoinKeyFields);
+
+		// 考虑 join key 发生变化的情况, 发生此情况时, 将视为 删除+插入 两个事情来做
+		if (!Objects.equals(beforeJoinKey, afterJoinKey)) {
+			joinResults.addAll(leftJoinLeftDeleteProcess(before));
+		}
+		joinResults.addAll(leftJoinLeftInsertProcess(after));
+		return joinResults;
+	}
+
+	private List<JoinResult> leftJoinRightUpdateProcess(
+			Map<String, Object> before,
+			Map<String, Object> after
+	) throws Exception {
+		List<JoinResult> joinResults = new ArrayList<>();
+
+		String beforeJoinKey = project(before, rightJoinKeyFields);
+		String afterJoinKey = project(after, rightJoinKeyFields);
+
+		// 考虑 join key 发生变化的情况, 发生此情况时, 将视为 删除+插入 两个事情来做
+		if (!Objects.equals(beforeJoinKey, afterJoinKey)) {
+			joinResults.addAll(leftJoinRightDeleteProcess(before));
+		}
+		joinResults.addAll(leftJoinRightInsertProcess(after));
+		return joinResults;
+	}
+
 	@SneakyThrows
 	private List<JoinResult> leftJoinLeftProcess(
 			Map<String, Object> before,
 			Map<String, Object> after,
 			String opType
 	) {
-		String beforeJoinKey = null;
-		String beforeLeftKey = null;
-		Map<String, Object> beforeLeftRow = null;
-		String afterJoinKey = null;
-		String afterLeftKey = null;
-		Map<String, Object> afterLeftRow = null;
 		OperationType operationType = OperationType.fromOp(opType);
 		switch (operationType) {
 			case INSERT:
+				return leftJoinLeftInsertProcess(after);
 			case UPDATE:
-				afterLeftRow = after;
-				afterLeftKey = project(afterLeftRow, leftPrimaryKeys);
-				afterJoinKey = project(afterLeftRow, leftJoinKeyFields);
-				if (MapUtils.isNotEmpty(before)) {
-					beforeLeftRow = before;
-					beforeLeftKey = project(before, leftPrimaryKeys);
-					beforeJoinKey = project(before, leftJoinKeyFields);
-				}
-				break;
+				return leftJoinLeftUpdateProcess(before, after);
 			case DELETE:
-				beforeLeftRow = before;
-				beforeLeftKey = project(beforeLeftRow, leftPrimaryKeys);
-				beforeJoinKey = project(beforeLeftRow, leftJoinKeyFields);
-				break;
-			default:
-				return null;
+				return leftJoinLeftDeleteProcess(before);
 		}
-
-		if (!OperationType.DELETE.getOp().equals(opType) && !leftJoinCache.exists(afterJoinKey)) {
-			Map<String, Map<String, Object>> leftKeyCache = new HashMap<>();
-			leftKeyCache.put(afterLeftKey, afterLeftRow);
-			leftJoinCache.insert(afterJoinKey, leftKeyCache);
-		} else {
-			String joinKey = afterJoinKey;
-			String key = afterLeftKey;
-			if (OperationType.DELETE.getOp().equals(opType)) {
-				deleteRowFromCache(beforeJoinKey, beforeLeftKey, leftJoinCache);
-			} else {
-				final Map<String, Map<String, Object>> leftKeyCache = Optional.ofNullable(leftJoinCache.find(joinKey)).orElse(new HashMap<>());
-				if (MapUtils.isNotEmpty(beforeLeftRow) && leftKeyCache.containsKey(key)) {
-					beforeLeftRow = leftKeyCache.get(key);
-					beforeLeftKey = project(beforeLeftRow, leftPrimaryKeys);
-					beforeJoinKey = project(beforeLeftRow, leftJoinKeyFields);
-				}
-				leftKeyCache.put(afterLeftKey, afterLeftRow);
-				leftJoinCache.insert(afterJoinKey, leftKeyCache);
-			}
-		}
-
-		return leftJoinLeftRow(afterJoinKey, afterLeftKey, afterLeftRow, beforeJoinKey, beforeLeftKey, beforeLeftRow, opType);
+		return null;
 	}
 
-	private void deleteRowFromCache(String joinKey, String key, BytesIMap<Map<String, Map<String, Object>>> joinCache) throws Exception {
-		final Map<String, Map<String, Object>> keyCache = joinCache.find(joinKey);
-		String finalBeforeKey = key;
-		Optional.ofNullable(keyCache).ifPresent(m -> m.remove(finalBeforeKey));
-		if (MapUtils.isEmpty(keyCache)) {
-			joinCache.delete(joinKey);
-		} else {
-			joinCache.update(joinKey, keyCache);
-		}
-	}
 
 	@SneakyThrows
 	private List<JoinResult> leftJoinRightProcess(
@@ -493,92 +583,18 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 			Map<String, Object> after,
 			String opType
 	) {
-		String beforeJoinKey = null;
-		String beforeRightKey = null;
-		Map<String, Object> beforeRightRow = null;
-		String afterJoinKey = null;
-		String afterRightKey = null;
-		Map<String, Object> afterRightRow = null;
-		JoinOperation joinOperation;
 		OperationType operationType = OperationType.fromOp(opType);
 		switch (operationType) {
 			case INSERT:
+				return leftJoinRightInsertProcess(after);
 			case UPDATE:
-				afterRightRow = after;
-				afterJoinKey = project(afterRightRow, rightJoinKeyFields);
-				afterRightKey = project(afterRightRow, rightPrimaryKeys);
-				if (MapUtils.isNotEmpty(before)) {
-					beforeRightRow = before;
-					beforeRightKey = project(before, rightPrimaryKeys);
-					beforeJoinKey = project(before, rightJoinKeyFields);
-				}
-				joinOperation = Upsert;
-				break;
+				return leftJoinRightUpdateProcess(before, after);
 			case DELETE:
-				beforeRightRow = before;
-				beforeJoinKey = project(beforeRightRow, rightJoinKeyFields);
-				joinOperation = JoinOperation.Update;
-				beforeRightKey = project(beforeRightRow, rightPrimaryKeys);
-				break;
-			default:
-				return null;
+				return leftJoinRightDeleteProcess(before);
 		}
-
-		if (!OperationType.DELETE.getOp().equals(opType) && !rightJoinCache.exists(afterJoinKey)) {
-			Map<String, Map<String, Object>> rightKeyCache = new HashMap<>();
-			rightKeyCache.put(afterRightKey, afterRightRow);
-			rightJoinCache.insert(afterJoinKey, rightKeyCache);
-		} else {
-			if (OperationType.DELETE.getOp().equals(opType)) {
-				deleteRowFromCache(beforeJoinKey, beforeRightKey, rightJoinCache);
-			} else {
-				final Map<String, Map<String, Object>> rightKeyCache = Optional.ofNullable(rightJoinCache.find(afterJoinKey)).orElse(new HashMap<>());
-				if (MapUtils.isEmpty(beforeRightRow) && rightKeyCache.containsKey(beforeRightKey)) {
-					beforeRightRow = rightKeyCache.get(beforeRightKey);
-					beforeRightKey = project(beforeRightRow, rightPrimaryKeys);
-					beforeJoinKey = project(beforeRightRow, rightJoinKeyFields);
-				}
-				rightKeyCache.put(afterRightKey, afterRightRow);
-				rightJoinCache.insert(afterJoinKey, rightKeyCache);
-			}
-		}
-
-		return leftJoinRightRow(afterJoinKey, afterRightKey, afterRightRow, beforeJoinKey, beforeRightKey, beforeRightRow, joinOperation, opType);
+		return null;
 	}
 
-	@SneakyThrows
-	private List<JoinResult> leftJoinLeftRow(
-			String afterJoinKey,
-			String afterLeftKey,
-			Map<String, Object> afterLeftRow,
-			String beforeJoinKey,
-			String beforeLeftKey,
-			Map<String, Object> beforeLeftRow,
-			String opType
-	) {
-		List<JoinResult> joinResults = null;
-		String joinKey = StringUtils.isNotBlank(afterJoinKey) ? afterJoinKey : beforeJoinKey;
-		Map<String, Object> row = MapUtils.isNotEmpty(afterLeftRow) ? afterLeftRow : beforeLeftRow;
-
-//    Map<String, Map<String, Object>> leftKeyCache = leftJoinCache.find(afterJoinKey);
-		final Map<String, Map<String, Object>> rightKeyCache = rightJoinCache.find(joinKey);
-		if (MapUtils.isNotEmpty(rightKeyCache)) {
-			joinResults = new ArrayList<>(rightKeyCache.values().size());
-			for (Map<String, Object> rightRow : rightKeyCache.values()) {
-				final JoinResult joinResult = getJoinResult(beforeLeftRow, row, opType);
-				join(rightRow, Upsert, joinResult.getBefore());
-				join(rightRow, Upsert, joinResult.getAfter());
-				joinResults.add(joinResult);
-			}
-		} else {
-			final JoinResult joinResult = getJoinResult(beforeLeftRow, row, opType);
-			leftJoinFillRightRow(joinResult.getBefore());
-			leftJoinFillRightRow(joinResult.getAfter());
-			joinResults = Arrays.asList(joinResult);
-		}
-
-		return joinResults;
-	}
 
 	@NotNull
 	private JoinResult getJoinResult(Map<String, Object> beforeRow, Map<String, Object> afterRow, String opType) throws IllegalAccessException, InstantiationException {
@@ -595,144 +611,9 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		return new JoinResult(beforeJoinResult, afterJoinResult, opType);
 	}
 
-	private void leftJoinFillRightRow(Map<String, Object> joinResult) {
-		if (MapUtils.isNotEmpty(joinResult) && tapTable != null && MapUtils.isNotEmpty(tapTable.getNameFieldMap())) {
-			LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-			nameFieldMap.values().forEach(f -> {
-				if (!f.getName().contains("\\.") && !joinResult.containsKey(f.getName())) {
-					try {
-						MapUtil.putValueInMap(joinResult, f.getName(), null);
-					} catch (Exception e) {
-						throw new NodeException(String.format("fill right row fields to null failed %s", e.getMessage()), e);
-					}
-				}
-			});
-		}
-	}
-
-	private List<JoinResult> leftJoinRightRow(
-			String afterJoinKey,
-			String afterRightKey,
-			Map<String, Object> afterRightRow,
-			String beforeJoinKey,
-			String beforeRightKey,
-			Map<String, Object> beforeRightRow,
-			JoinOperation joinOperation,
-			String opType
-	) throws Exception {
-
-		List<JoinResult> joinResults = null;
-		String joinKey = StringUtils.isNotBlank(afterJoinKey) ? afterJoinKey : beforeJoinKey;
-
-		if (leftJoinCache.exists(joinKey)) {
-			final Map<String, Map<String, Object>> leftKeyCache = Optional.ofNullable(leftJoinCache.find(joinKey)).orElse(new HashMap<>());
-			joinResults = new ArrayList<>(leftKeyCache.size());
-			for (Map<String, Object> beforeLeftRow : leftKeyCache.values()) {
-
-				Map<String, Object> beforeJoinResult = new HashMap<>();
-				MapUtil.deepCloneMap(beforeLeftRow, beforeJoinResult);
-				if (MapUtils.isNotEmpty(beforeRightRow)) {
-					join(beforeRightRow, Upsert, beforeJoinResult);
-				}
-				leftJoinFillRightRow(beforeJoinResult);
-
-				Map<String, Object> afterJoinResult = new HashMap<>();
-				if (OperationType.DELETE.getOp().equals(opType)) {
-					MapUtil.deepCloneMap(beforeLeftRow, afterJoinResult);
-					leftJoinFillRightRow(afterJoinResult);
-				} else if (MapUtils.isNotEmpty(afterRightRow)) {
-					MapUtil.deepCloneMap(beforeLeftRow, afterJoinResult);
-					join(afterRightRow, Upsert, afterJoinResult);
-				}
-
-				final String joinOpType = dealWithLeftJoinRightRowOpType(
-						beforeJoinResult,
-						afterJoinResult,
-						opType,
-						joinKey
-				);
-				joinResults.add(
-						new JoinResult(
-								beforeJoinResult,
-								afterJoinResult,
-								joinOpType
-						)
-				);
-			}
-		}
-
-		return joinResults;
-	}
-
-	/**
-	 * deal the join result op type
-	 *
-	 * @param before
-	 * @param after
-	 * @param opType
-	 * @return
-	 */
-	private String dealWithLeftJoinRightRowOpType(
-			Map<String, Object> before,
-			Map<String, Object> after,
-			String opType,
-			String joinKey
-	) throws Exception {
-		if (OperationType.DELETE.getOp().equals(opType)) {
-
-			final Map<String, Map<String, Object>> rightKeyCache = rightJoinCache.find(joinKey);
-			if (MapUtils.isNotEmpty(rightKeyCache)) {
-				return OperationType.DELETE.getOp();
-			} else {
-				return OperationType.UPDATE.getOp();
-			}
-		}
-
-		if (MapUtils.isNotEmpty(before) && MapUtils.isNotEmpty(after)) {
-			final String beforeRightKey = project(before, rightPrimaryKeys);
-			final String afterRightKey = project(after, rightPrimaryKeys);
-
-			if (StringUtils.equals(beforeRightKey, afterRightKey)) {
-				return OperationType.UPDATE.getOp();
-			}
-		}
-		return OperationType.INSERT.getOp();
-	}
-
-	private void join(Map<String, Object> rightRow, JoinOperation joinOperation, Map<String, Object> leftRow) {
-		if (leftRow == null) {
-			return;
-		}
-		if (StringUtils.isNotBlank(embeddedPath)) {
-			if (leftRow.containsKey(embeddedPath)) {
-				final Object o = leftRow.get(embeddedPath);
-				if (o instanceof Map) {
-					final Map joinPathMap = (Map) leftRow.get(embeddedPath);
-					if (joinOperation == Delete) {
-						rightRow.keySet().forEach(k -> joinPathMap.put(k, null));
-					} else {
-						joinPathMap.putAll(rightRow);
-					}
-					return;
-				}
-			}
-
-			if (joinOperation != Delete) {
-				leftRow.put(embeddedPath, rightRow);
-			}
-		} else {
-			if (joinOperation == Delete) {
-				leftRow.keySet().removeIf(rightRow::containsKey);
-			} else {
-				leftRow.putAll(rightRow);
-			}
-		}
-	}
-
 	public static String project(Map<String, Object> record, List<String> fields) {
 		Object[] key = new Object[fields.size()];
 		for (int i = 0; i < fields.size(); i++) {
-
 			key[i] = record.get(fields.get(i));
 		}
 		return Arrays.deepToString(key);

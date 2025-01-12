@@ -152,6 +152,9 @@ public class JoinProcessorNode extends ProcessorNode {
                 field.setOriginalFieldName(String.format("%s.%s", embeddedPath, field.getOriginalFieldName()));
                 baseFields.add(field);
             }
+            baseSchema.setOriginalName("join");
+            baseSchema.setName("join");
+            baseSchema.setAncestorsName("join");
             return baseSchema;
         } else {
             List<String> basePrimaryKey = new ArrayList<>();
@@ -232,6 +235,9 @@ public class JoinProcessorNode extends ProcessorNode {
                 }
                 baseIndices.add(primaryUniq);
             }
+            baseSchema.setOriginalName("join");
+            baseSchema.setName("join");
+            baseSchema.setAncestorsName("join");
             return baseSchema;
         }
     }
