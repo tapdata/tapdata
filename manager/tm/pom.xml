@@ -138,7 +138,6 @@
 					<scope>compile</scope>
 				</dependency>
 
-
 			</dependencies>
 		</profile>
 	</profiles>
