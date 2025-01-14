@@ -136,7 +136,14 @@
 					<artifactId>${tcm.artifactId}</artifactId>
 					<version>0.0.1</version>
 					<scope>compile</scope>
+					<exclusions>
+						<exclusion>
+							<groupId>io.netty</groupId>
+							<artifactId>netty-tcnative-boringssl-static</artifactId>
+						</exclusion>
+					</exclusions>
 				</dependency>
+
 
 			</dependencies>
 		</profile>
@@ -503,6 +510,10 @@
 					<artifactId>protobuf-java</artifactId>
 					<groupId>com.google.protobuf</groupId>
 				</exclusion>
+				<exclusion>
+					<artifactId>guava</artifactId>
+					<groupId>com.google.guava</groupId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.quartz-scheduler/quartz -->
@@ -574,6 +585,12 @@
 			<groupId>com.google.protobuf</groupId>
 			<artifactId>protobuf-java</artifactId>
 			<version>3.23.2</version>
+		</dependency>
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>31.0.1-jre</version>
+
 		</dependency>
 
 		<!---->
