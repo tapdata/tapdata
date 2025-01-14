@@ -20,9 +20,9 @@ import java.util.function.Supplier;
 public class SkipIdleProcessor<T> implements AutoCloseable, MemoryFetcher {
 	private final static Logger logger = LogManager.getLogger(SkipIdleProcessor.class);
 
-	private final static int SLEEP_INTERVAL = 100;
+	private final static int SLEEP_INTERVAL = CommonUtils.getPropertyInt("SLEEP_INTERVAL", 100);
 	private final static int LOOP_INTERVAL = 50;
-	private final static int MAX_COUNTS = 40;
+	private final static int MAX_COUNTS = CommonUtils.getPropertyInt("MAX_COUNTS", 40);
 
 	private final Queue<Item> queue;
 	private final LinkedList<Item> idleList = new LinkedList<>();
