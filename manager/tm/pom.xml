@@ -504,10 +504,6 @@
 					<artifactId>protobuf-java</artifactId>
 					<groupId>com.google.protobuf</groupId>
 				</exclusion>
-				<exclusion>
-					<artifactId>guava</artifactId>
-					<groupId>com.google.guava</groupId>
-				</exclusion>
 			</exclusions>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.quartz-scheduler/quartz -->
@@ -579,12 +575,6 @@
 			<groupId>com.google.protobuf</groupId>
 			<artifactId>protobuf-java</artifactId>
 			<version>3.23.2</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-			<version>33.2.1-jre</version>
-
 		</dependency>
 
 		<!---->
