@@ -417,14 +417,10 @@ public class ScriptUtil {
 		return buildInMethod.toString();
 	}
 
-	public static void urlClassLoader(Consumer<URLClassLoader> consumer, List<URL> urlList){
-		try {
-			final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());
-			if (consumer != null) {
-				consumer.accept(urlClassLoader);
-			}
-		}catch (IOException e){
-			throw new TapCodeException(ScriptProcessorExCode_30.URL_CLASS_LOADER_ERROR,String.format("Url class loader failed: %s",urlList),e);
+	public static void urlClassLoader(Consumer<URLClassLoader> consumer, List<URL> urlList) {
+		final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), ScriptUtil.class.getClassLoader());
+		if (consumer != null) {
+			consumer.accept(urlClassLoader);
 		}
 	}
 
