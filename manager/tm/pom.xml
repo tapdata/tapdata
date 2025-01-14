@@ -136,12 +136,6 @@
 					<artifactId>${tcm.artifactId}</artifactId>
 					<version>0.0.1</version>
 					<scope>compile</scope>
-					<exclusions>
-						<exclusion>
-							<groupId>io.netty</groupId>
-							<artifactId>netty-tcnative-boringssl-static</artifactId>
-						</exclusion>
-					</exclusions>
 				</dependency>
 
 
@@ -589,7 +583,7 @@
 		<dependency>
 			<groupId>com.google.guava</groupId>
 			<artifactId>guava</artifactId>
-			<version>31.0.1-jre</version>
+			<version>33.2.1-jre</version>
 
 		</dependency>
 
