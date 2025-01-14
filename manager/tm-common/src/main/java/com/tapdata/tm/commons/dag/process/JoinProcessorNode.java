@@ -24,8 +24,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -155,52 +154,16 @@ public class JoinProcessorNode extends ProcessorNode {
             return baseSchema;
         } else {
             List<String> basePrimaryKey = new ArrayList<>();
-            final List<Field> baseFields = baseSchema.getFields();
-
-            if (CollectionUtils.isNotEmpty(baseFields)) {
-                for (Field field : baseFields) {
-                    if ((field.getPrimaryKey() != null && field.getPrimaryKey()) ||
-                            (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0)) {
-                        field.setPrimaryKey(false);
-                        field.setPrimaryKeyPosition(0);
-                        basePrimaryKey.add(field.getFieldName());
-                    }
-                }
-            }
-
-            List<TableIndex> baseUniqIndices = new ArrayList<>();
-            List<TableIndex> baseIndices = baseSchema.getIndices();
-            if (CollectionUtils.isNotEmpty(baseIndices)) {
-                for (TableIndex index : baseIndices) {
-                    if (index.isUnique()) {
-                        baseUniqIndices.add(index);
-                    }
-                }
-            }
-
+            List<Field> baseFields = new ArrayList<>();
+            addMergeFieldAndPK(baseSchema.getFields(), basePrimaryKey, baseFields, false);
+            Set<String> baseFieldNames = baseFields.stream().map(Field::getFieldName).collect(Collectors.toSet());
+            List<TableIndex> baseUniqIndices = getUniqueIndices(baseSchema.getIndices(), baseFieldNames);
 
             List<String> joinPrimaryKey = new ArrayList<>();
-            for (Field field : joinSchema.getFields()) {
-                if ((field.getPrimaryKey() != null && field.getPrimaryKey()) ||
-                        (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0) ) {
-                    field.setPrimaryKey(false);
-                    field.setPrimaryKeyPosition(0);
-                    joinPrimaryKey.add(field.getFieldName());
-                }
-
-                field.setIsNullable(true);
-                baseFields.add(field);
-            }
-
-            List<TableIndex> joinUniqIndices = new ArrayList<>();
-            List<TableIndex> joinIndices = joinSchema.getIndices();
-            if (CollectionUtils.isNotEmpty(joinIndices)) {
-                for (TableIndex index : joinIndices) {
-                    if (index.isUnique()) {
-                        joinUniqIndices.add(index);
-                    }
-                }
-            }
+            List<Field> joinFields = new ArrayList<>();
+            addMergeFieldAndPK(joinSchema.getFields(), joinPrimaryKey, joinFields, true);
+            Set<String> joinFieldNames = joinFields.stream().map(Field::getFieldName).collect(Collectors.toSet());
+            List<TableIndex> joinUniqIndices = getUniqueIndices(joinSchema.getIndices(), joinFieldNames);
 
             TableIndex primaryUniq = getUniq(basePrimaryKey, baseUniqIndices);
             TableIndex joinUniq = getUniq(joinPrimaryKey, joinUniqIndices);
@@ -221,18 +184,53 @@ public class JoinProcessorNode extends ProcessorNode {
                 primaryUniq = joinUniq;
             }
 
-            if (CollectionUtils.isNotEmpty(baseIndices)) {
-                baseIndices.clear();
-            }
 
+            List<TableIndex> mergeTableIndex = new ArrayList<>();
             if (primaryUniq != null) {
-                if (baseIndices == null) {
-                    baseIndices = new ArrayList<>();
-                    baseSchema.setIndices(baseIndices);
-                }
-                baseIndices.add(primaryUniq);
+                mergeTableIndex.add(primaryUniq);
             }
+            baseSchema.setIndices(mergeTableIndex);
+            baseFields.addAll(joinFields);
+            baseSchema.setFields(baseFields);
             return baseSchema;
+        }
+    }
+
+    public List<TableIndex> getUniqueIndices(List<TableIndex> indices, Set<String> baseFieldName) {
+        List<TableIndex> baseUniqIndices = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(indices)) {
+            for (TableIndex index : indices) {
+                if (index.isUnique()) {
+                    List<TableIndexColumn> columns = index.getColumns();
+                    List<String> indexColumnName = CollectionUtils.isEmpty(columns) ? new ArrayList<>() : columns.stream().map(TableIndexColumn::getColumnName).
+                            filter(name -> !Objects.isNull(name)).collect(Collectors.toList());
+                    if (baseFieldName.containsAll(indexColumnName)) {
+                        baseUniqIndices.add(index);
+                    }
+                }
+            }
+        }
+        return baseUniqIndices;
+    }
+
+
+    public void addMergeFieldAndPK(List<Field> baseFields, List<String> basePrimaryKey, List<Field> mergeFields, boolean setNullable) {
+        if (CollectionUtils.isNotEmpty(baseFields)) {
+            for (Field field : baseFields) {
+                if (field.isDeleted()) {
+                    continue;
+                }
+                if ((field.getPrimaryKey() != null && field.getPrimaryKey()) ||
+                        (field.getPrimaryKeyPosition() != null && field.getPrimaryKeyPosition() > 0)) {
+                    field.setPrimaryKey(false);
+                    field.setPrimaryKeyPosition(0);
+                    basePrimaryKey.add(field.getFieldName());
+                }
+                mergeFields.add(field);
+                if (Boolean.TRUE.equals(setNullable)) {
+                    field.setIsNullable(true);
+                }
+            }
         }
     }
 
