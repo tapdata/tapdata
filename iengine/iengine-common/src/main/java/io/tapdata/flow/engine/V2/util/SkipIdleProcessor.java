@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.util;
 
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,9 +20,9 @@ import java.util.function.Supplier;
 public class SkipIdleProcessor<T> implements AutoCloseable, MemoryFetcher {
 	private final static Logger logger = LogManager.getLogger(SkipIdleProcessor.class);
 
-	private final static int SLEEP_INTERVAL = 100;
+	private final static int SLEEP_INTERVAL = CommonUtils.getPropertyInt("SLEEP_INTERVAL", 100);
 	private final static int LOOP_INTERVAL = 50;
-	private final static int MAX_COUNTS = 40;
+	private final static int MAX_COUNTS = CommonUtils.getPropertyInt("MAX_COUNTS", 40);
 
 	private final Queue<Item> queue;
 	private final LinkedList<Item> idleList = new LinkedList<>();
