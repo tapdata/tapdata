@@ -58,19 +58,26 @@ public class TMApplication {
 				.listeners(new StartupListener())
 				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
-		try {
-			Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
-			String path = System.getenv("TCM_CONF");
-			if(StringUtils.isNotBlank(path)){
-				new SpringApplicationBuilder(tcmApplicationClass).properties("spring.config.location="+path)
-						.build().run(args);
-				log.info("TCM start,TCM_CONF: {}", path);
-			}else{
-				log.info("No need to start TCM,TCM_CONF not found");
+		// 启动 TCMApplication 的线程
+		new Thread(() -> {
+			try {
+				Class<?> tcmApplicationClass = Class.forName("com.tapdata.manager.TCMApplication");
+				String path = System.getenv("TCM_CONF");
+				if (StringUtils.isNotBlank(path)) {
+					try {
+						new SpringApplicationBuilder(tcmApplicationClass)
+								.properties("spring.config.location=" + path)
+								.build().run(args);
+					} catch (Exception e) {
+						log.error("Start TCM failed", e);
+					}
+				} else {
+					log.info("No need to start TCM, TCM_CONF not found");
+				}
+			} catch (ClassNotFoundException e) {
+				log.info("No need to start TCM");
 			}
-		}catch (ClassNotFoundException e){
-			log.info("No need to start TCM");
-		}
+		}).start();
 
 
 		UserDataReportService userDataReportService = applicationContext.getBean(UserDataReportService.class);

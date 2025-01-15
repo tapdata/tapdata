@@ -149,7 +149,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         for (String queryConnId : queryConnIds) {
             orList.add(Criteria.where("shareCdcTaskId."+queryConnId).is(taskId));
         }
-        Query query = Query.query(new Criteria().orOperator(orList));
+        Query query = Query.query(new Criteria().and("shareCdcEnable").is(true).orOperator(orList));
         Update update = null;
         switch (taskStatus) {
             case TaskDto.STATUS_ERROR:

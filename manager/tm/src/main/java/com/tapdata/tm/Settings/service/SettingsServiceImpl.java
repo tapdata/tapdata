@@ -1,6 +1,7 @@
 package com.tapdata.tm.Settings.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -16,15 +17,17 @@ import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
+
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MailUtils;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SpringContextHelper;
+import com.tapdata.tm.utils.*;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -338,5 +341,27 @@ public class SettingsServiceImpl implements SettingsService {
                 .from(testMailDto.getEmail_Send_Address()).user(testMailDto.getSMTP_Server_User()).pass(testMailDto.getSMTP_Server_password())
                 .receivers(Arrays.asList(split)).protocol(testMailDto.getEmail_Communication_Protocol())
                 .proxyHost(testMailDto.getSMTP_Proxy_Host()).proxyPort(Integer.valueOf(proxyPort)).build();
+    }
+
+    public String applicationVersion() {
+        String defaultVersion = "DAAS_BUILD_NUMBER";
+        //从文件读取
+        String fullPath = ".version.json";
+        if(StringUtils.isNotEmpty(System.getenv("TAPDATA_WORK_DIR"))){
+            fullPath = System.getenv("TAPDATA_WORK_DIR") + File.separator + fullPath;
+        }
+        ObjectMapper objectMapper = new ObjectMapper();
+        File file = new File(fullPath);
+        if (!file.exists()) {
+            return defaultVersion;
+        }
+        Map<String, Object> map = null;
+        try {
+            map = objectMapper.readValue(file, Map.class);
+        } catch (IOException e) {
+            throw new BizException("read.version.file.failed", e);
+        }
+        String appVersion = (String) map.get("app_version");
+        return appVersion != null ? appVersion : defaultVersion;
     }
 }
