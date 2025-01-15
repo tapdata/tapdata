@@ -127,6 +127,61 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 
 		}
 		@Nested
+		class testGetIndexList{
+			@DisplayName("test getTapTableIndex when when not use pk")
+			@Test
+			void getTapTableIndexTest3(){
+				TapTable tapTable = new TapTable();
+				TapField field = new TapField();
+				field.setName("_id");
+				field.setPrimaryKey(true);
+				field.setPrimaryKeyPos(1);
+				TapField index = new TapField();
+				index.setName("index");
+				tapTable.add(field);
+				tapTable.add(index);
+				List<String> pks =new ArrayList<>();
+				pks.add("_id");
+				TapIndex tapIndex = new TapIndex();
+				TapIndexField tapIndexField = new TapIndexField();
+				tapIndexField.setFieldAsc(true);
+				tapIndexField.setName("index");
+				tapIndex.indexField(tapIndexField);
+				tapTable.add(tapIndex);
+				List<String> list = Arrays.asList("index");
+				when(hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable)).thenCallRealMethod();
+				List<TapIndex> tapTableIndex = hazelcastTargetPdkDataNode.getTapTableIndex(list, tapTable);
+				assertEquals(1,tapTableIndex.size());
+			}
+			@DisplayName("test getTapTableIndex when when use pk")
+			@Test
+			void getTapTableIndexTest4(){
+				TapTable tapTable = new TapTable();
+				TapField field = new TapField();
+				field.setName("_id");
+				field.setPrimaryKey(true);
+				field.setPrimaryKeyPos(1);
+				TapField index = new TapField();
+				index.setName("index");
+				tapTable.add(field);
+				tapTable.add(index);
+
+				TapIndex tapIndex = new TapIndex();
+				TapIndexField tapIndexField = new TapIndexField();
+				tapIndexField.setFieldAsc(true);
+				tapIndexField.setName("index");
+				tapIndex.indexField(tapIndexField);
+				tapTable.add(tapIndex);
+				List<String> list = Arrays.asList("_id");
+				List<String> pks =new ArrayList<>();
+				pks.add("_id");
+				when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
+				when(hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable)).thenCallRealMethod();
+				hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable);
+				assertEquals(1,tapTable.getIndexList().size());
+			}
+		}
+		@Nested
 		class testProcessExactlyOnceWriteCache{
 			@BeforeEach
 			void init(){
@@ -415,7 +470,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(tapTableMap.get(tableId)).thenReturn(mock(TapTable.class));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
 			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
-			verify(hazelcastTargetPdkDataNode,new Times(0)).syncIndex(anyString(),any(TapTable.class),anyBoolean());
+			verify(hazelcastTargetPdkDataNode, new Times(0)).syncIndex(anyString(), any(TapTable.class), anyList(), anyBoolean());
 		}
 		@Test
 		@DisplayName("test createTable method normal")
@@ -424,7 +479,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode,"writeStrategy","appendWrite");
 			when(funcAspect.state(TableInitFuncAspect.STATE_PROCESS)).thenReturn(mock(TableInitFuncAspect.class));
 			hazelcastTargetPdkDataNode.createTable(tapTableMap,funcAspect,node,existsDataProcessEnum,tableId,true);
-			verify(hazelcastTargetPdkDataNode,new Times(1)).syncIndex(anyString(),any(TapTable.class),anyBoolean());
+			verify(hazelcastTargetPdkDataNode,new Times(1)).syncIndex(anyString(),any(TapTable.class),anyList(),anyBoolean());
 		}
 	}
 	@Nested
@@ -458,8 +513,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		@DisplayName("test sync method when sync index switch is off")
 		void testSyncIndex1(){
 			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(false);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -467,8 +522,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void testSyncIndex2(){
 			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
 			autoCreateTable = false;
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable,null, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null, autoCreateTable);
 			verify(obsLogger, new Times(1)).warn(anyString(),anyString());
 		}
 		@Test
@@ -477,8 +532,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			autoCreateTable = true;
 			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
 			when(connectorFunctions.getCreateIndexFunction()).thenReturn(null);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable,null, autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -488,8 +543,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
 			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
 			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(null);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -500,8 +555,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(connectorFunctions.getCreateIndexFunction()).thenReturn(createIndexFunction);
 			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
 			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(null);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable,null, autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null, autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -516,8 +571,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			TableInfo tableInfo = mock(TableInfo.class);
 			when(tableInfo.getNumOfRows()).thenReturn(5000001L);
 			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -532,8 +587,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			TableInfo tableInfo = mock(TableInfo.class);
 			when(tableInfo.getNumOfRows()).thenReturn(null);
 			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null,autoCreateTable);
 			verify(obsLogger, new Times(1)).warn(anyString(),anyString());
 		}
 		@Test
@@ -546,8 +601,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(connectorFunctions.getGetTableInfoFunction()).thenReturn(getTableInfoFunction);
 			when(connectorFunctions.getQueryIndexesFunction()).thenReturn(queryIndexesFunction);
 			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(null);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null, autoCreateTable);
 			verify(obsLogger, new Times(1)).warn(anyString(),anyString());
 		}
 		@Test
@@ -563,8 +618,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(tableInfo.getNumOfRows()).thenReturn(1L);
 			when(getTableInfoFunction.getTableInfo(any(TapConnectorContext.class),anyString())).thenReturn(tableInfo);
 			when(tapTable.getIndexList()).thenReturn(null);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, null,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, null,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -594,8 +649,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -633,8 +688,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -676,8 +731,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(1)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -721,8 +776,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(1)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -760,8 +815,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -788,8 +843,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(tapIndex.getIndexFields()).thenReturn(indexFields);
 			indices.add(tapIndex);
 			when(tapTable.getIndexList()).thenReturn(indices);
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
+			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(1)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@Test
@@ -818,9 +873,9 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			List<TapIndex> tapIndices=new ArrayList<>();
 			when(hazelcastTargetPdkDataNode.queryExistsIndexes(any(),any())).thenReturn(tapIndices);
 			when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class))).thenThrow(new RuntimeException("failed"));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
-			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable));
+			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable));
 			assertEquals(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED,tapCodeException.getCode());
 		}
 	}

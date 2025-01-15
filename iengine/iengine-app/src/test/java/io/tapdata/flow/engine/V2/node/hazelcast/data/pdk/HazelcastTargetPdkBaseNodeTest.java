@@ -231,43 +231,6 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(false, indexField.getPrimaryKey());
 			assertEquals(false, idField.getPrimaryKey());
 		}
-		@DisplayName("test table exist")
-		@Test
-		void ignorePksAndIndicesTest3(){
-			TapTable tapTable = new TapTable();
-			TapField field = getField("_id");
-			TapField index = getField("index");
-			tapTable.add(field);
-			tapTable.add(index);
-
-			TapIndex tapIndex = new TapIndex();
-			TapIndexField tapIndexField = new TapIndexField();
-			tapIndexField.setFieldAsc(true);
-			tapIndexField.setName("index");
-			tapIndex.indexField(tapIndexField);
-			tapTable.add(tapIndex);
-			List<String> list = Arrays.asList("index");
-			HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable, list);
-			assertEquals(0,tapTable.getIndexList().size());
-		}
-		@Test
-		void ignorePksAndIndicesTest4(){
-			TapTable tapTable = new TapTable();
-			TapField field = getField("_id");
-			TapField index = getField("index");
-			tapTable.add(field);
-			tapTable.add(index);
-
-			TapIndex tapIndex = new TapIndex();
-			TapIndexField tapIndexField = new TapIndexField();
-			tapIndexField.setFieldAsc(true);
-			tapIndexField.setName("index");
-			tapIndex.indexField(tapIndexField);
-			tapTable.add(tapIndex);
-			List<String> list = Arrays.asList("_id");
-			HazelcastTargetPdkBaseNode.ignorePksAndIndices(tapTable, list);
-			assertEquals(1,tapTable.getIndexList().size());
-		}
 	}
 
 	public TapField getField(String name) {
