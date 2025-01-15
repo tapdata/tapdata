@@ -17,6 +17,10 @@ public class Field implements Serializable {
     public static final String SOURCE_VIRTUAL_HASH = "virtual_hash";
 
     private Object autoincrement;
+    @JsonProperty("auto_inc_start_value")
+    private Long autoIncStartValue;
+    @JsonProperty("auto_increment_value")
+    private Long autoIncrementValue;
 
     private Integer columnSize;
     @JsonProperty("data_code")
