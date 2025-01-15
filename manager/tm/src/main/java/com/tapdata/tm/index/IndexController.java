@@ -55,13 +55,14 @@ public class IndexController {
     }
 
     @GetMapping("/docs/**/{path:[^\\.]*}")
-    public String deepForwardDocs() {
-        return "forward:/docs/index.html";
-    }
+    public String deepForwardDocs(HttpServletRequest request) {
+        String requestPath = request.getRequestURI();
 
-    @GetMapping("/docs/en/**/{path:[^\\.]*}")
-    public String deepForwardDocsEn() {
-        return "forward:/docs/en/index.html";
+        if (!requestPath.endsWith("/")) {
+            requestPath += "/";
+        }
+
+        return "forward:" + requestPath + "index.html";
     }
 
     @GetMapping("/version")
