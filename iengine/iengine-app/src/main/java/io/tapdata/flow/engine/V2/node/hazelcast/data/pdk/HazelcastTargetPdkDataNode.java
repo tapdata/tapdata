@@ -223,13 +223,41 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
+		List<TapIndex> indexList = getTapTableIndex(updateConditionFields, tapTable);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
 		//sync index
-		syncIndex(tableId, tapTable, succeed.get());
+		syncIndex(tableId, tapTable, indexList, succeed.get());
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
+	}
+
+	protected List<TapIndex> getTapTableIndex(List<String> updateConditionFields, TapTable tapTable) {
+		List<TapIndex> indexList = tapTable.getIndexList();
+		if (checkSyncIndexOpen() && !usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys())) {
+			if (CollectionUtils.isNotEmpty(indexList) && CollectionUtils.isNotEmpty(updateConditionFields)) {
+				Iterator<TapIndex> iterator = indexList.iterator();
+				while (iterator.hasNext()) {
+					TapIndex tapIndex = iterator.next();
+					List<TapIndexField> tapIndexFieldNames = tapIndex.getIndexFields();
+					if (tapIndexFieldNames.size() == updateConditionFields.size()) {
+						boolean same = true;
+						for (int i = 0; i < tapIndexFieldNames.size(); i++) {
+							String fieldName = tapIndexFieldNames.get(i).getName();
+							if (null != fieldName && (!fieldName.equals(updateConditionFields.get(i)) || !Boolean.TRUE.equals(tapIndexFieldNames.get(i).getFieldAsc()))) {
+								same = false;
+								break;
+							}
+						}
+						if (same) {
+							iterator.remove();
+						}
+					}
+				}
+			}
+		}
+		return indexList;
 	}
 
 	private List<String> getUpdateConditionFields(Node<?> node, TapTable tapTable) {
@@ -315,7 +343,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return true;
 	}
 
-	protected void syncIndex(String tableId, TapTable tapTable, boolean autoCreateTable) throws TapEventException {
+	protected void syncIndex(String tableId, TapTable tapTable, List<TapIndex> tapIndexList, boolean autoCreateTable) throws TapEventException {
 		long start = System.currentTimeMillis();
 		if (!checkSyncIndexOpen()) return;
 		if (!autoCreateTable) {
@@ -355,7 +383,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				return;
 			}
 			List<TapIndex> indexList = new ArrayList<>();
-			List<TapIndex> indices = tapTable.getIndexList();
+			List<TapIndex> indices = tapIndexList;
 			if (null == indices) {
 				indices = new ArrayList<>();
 			}
