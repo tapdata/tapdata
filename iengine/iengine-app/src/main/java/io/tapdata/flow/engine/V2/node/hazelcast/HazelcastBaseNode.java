@@ -280,7 +280,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void startMonitorIfNeed(@NotNull Context context) {
-		if (!processorBaseContext.getTaskDto().isTestTask() && !processorBaseContext.getTaskDto().isPreviewTask()) {
+		if (!processorBaseContext.getTaskDto().isTestTask()) {
 			try {
 				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
 			} catch (Exception e) {
@@ -366,7 +366,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName, TapValueTransform tapValueTransform) {
-		if (processorBaseContext.getTaskDto().isPreviewTask()) {
+		if (processorBaseContext.getTaskDto().isPreviewTask() && !processorBaseContext.getTaskDto().isTestTask()) {
 			return;
 		}
 		if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) return;
@@ -727,7 +727,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
 				taskDtoTaskClient.error(error);
 			}
-			hazelcastJob.suspend();
+			if (!hazelcastJob.isLightJob()) {
+				hazelcastJob.suspend();
+			}
 		}
 	}
 

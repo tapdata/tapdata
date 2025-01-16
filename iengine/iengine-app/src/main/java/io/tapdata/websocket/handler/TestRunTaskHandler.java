@@ -60,9 +60,11 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 		TaskClient<TaskDto> taskClient = null;
 		try {
 			taskClient = taskService.startTestTask(taskDto);
-			taskClientMap.put(taskId, taskClient);
-			taskClient.join();
-			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(taskClient.getError()));
+			if (null != taskClient) {
+				taskClientMap.put(taskId, taskClient);
+				taskClient.join();
+				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(taskClient.getError()));
+			}
 		} catch (Throwable throwable) {
 			logger.error(taskId + " task error", throwable);
 			if (taskClient != null) {
@@ -75,7 +77,7 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 			taskDtoMap.remove(taskId);
 		}
 
-		logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+		logger.info("test run task {}, cost {}ms", taskDto.getName(), (System.currentTimeMillis() - startTs));
 
 		return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_RUN, true);
 	}

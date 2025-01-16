@@ -479,4 +479,44 @@ public class DAGTest {
 			assertNotNull(graph.getEdge(node3.getId(), node2.getId()));
 		}
 	}
+
+	@Nested
+	@DisplayName("Method addSourceNode test")
+	class addSourceNodeTest {
+		@Test
+		@DisplayName("test add node2 before node1, expect: node2->node1")
+		void test1() {
+			Graph<Node, Edge> graph = new Graph<>();
+			TableNode node1 = new TableNode();
+			node1.setId("node 1");
+			graph.setNode(node1.getId(), node1);
+			TableNode node2 = new TableNode();
+			node2.setId("node 2");
+			DAG dag = new DAG(graph);
+			dag.addSourceNode(node2, node1);
+			assertNotNull(graph.getNode(node2.getId()));
+			assertNotNull(graph.getEdge(node2.getId(), node1.getId()));
+		}
+
+		@Test
+		@DisplayName("test add node3 into node1->node2, expect: node1->node3->node2")
+		void test2() {
+			Graph<Node, Edge> graph = new Graph<>();
+			TableNode node1 = new TableNode();
+			node1.setId("node 1");
+			graph.setNode(node1.getId(), node1);
+			TableNode node2 = new TableNode();
+			node2.setId("node 2");
+			DAG dag = new DAG(graph);
+			graph.setNode(node2.getId(), node2);
+			graph.setEdge(node1.getId(), node2.getId(), new Edge(node1.getId(), node2.getId()));
+			TableNode node3 = new TableNode();
+			node3.setId("node 3");
+
+			dag.addSourceNode(node3, node2);
+			assertNotNull(graph.getNode(node3.getId()));
+			assertNotNull(graph.getEdge(node1.getId(), node3.getId()));
+			assertNotNull(graph.getEdge(node3.getId(), node2.getId()));
+		}
+	}
 }

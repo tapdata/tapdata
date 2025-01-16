@@ -40,10 +40,12 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ProcessorNodeType;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.taskmilestones.EngineDeductionAspect;
@@ -52,6 +54,7 @@ import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.DAGDataEngineServiceImpl;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.common.utils.StopWatch;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.schema.TapTable;
@@ -102,6 +105,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -211,18 +215,53 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
+	protected boolean testTaskUsingPreview(TaskDto taskDto) {
+		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
+		Node<?> mergeNode = dag.getNodes().stream().filter(n -> n instanceof MergeTableNode).findFirst().orElse(null);
+		if (null == mergeNode) {
+			return false;
+		}
+		List<? extends Node<?>> successors = mergeNode.successors();
+		if (CollectionUtils.isNotEmpty(successors)) {
+			Node<?> scriptNode = successors.stream().filter(n -> n instanceof ScriptProcessNode).findFirst().orElse(null);
+			if (null == scriptNode) {
+				return false;
+			} else {
+				if (scriptNode instanceof StandardJsProcessorNode) {
+					throw new RuntimeException("After the master-slave merges nodes, the connection Standard JS node is not supported. Please change to the Enhanced JS node.");
+				} else if (scriptNode instanceof JsProcessorNode) {
+					JsProcessorNode jsProcessorNode = (JsProcessorNode) scriptNode;
+					Integer jsType = Optional.ofNullable(jsProcessorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
+					if (ProcessorNodeType.Standard_JS.contrast(jsType)) {
+						throw new RuntimeException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
+					}
+					return true;
+				} else {
+					String type = scriptNode.getType();
+					throw new RuntimeException(String.format("After the master-slave merges nodes, the connection %s node is not supported.", type));
+				}
+			}
+		}
+		return false;
+	}
+
 	@Override
 	public TaskClient<TaskDto> startTestTask(TaskDto taskDto) {
 		try {
-			taskDto.setDag(taskDto.getDag());
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).log(new TapLog()));
-			long startTs = System.currentTimeMillis();
-			final JetDag jetDag = task2HazelcastDAG(taskDto, false);
-			JobConfig jobConfig = new JobConfig();
-			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
-			Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
-			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			if (testTaskUsingPreview(taskDto)) {
+				taskDto.setTestUsingPreview(true);
+				StopWatch stopWatch = StopWatch.create(String.join("-", taskDto.getName(), taskDto.getSyncType(), System.currentTimeMillis() + ""));
+				InstanceFactory.bean(TaskPreviewService.class).previewTask(taskDto, Collections.EMPTY_LIST, 1, stopWatch);
+				logger.info(stopWatch.prettyPrint(TimeUnit.MILLISECONDS));
+				return null;
+			} else {
+				final JetDag jetDag = task2HazelcastDAG(taskDto, false);
+				JobConfig jobConfig = new JobConfig();
+				jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
+				Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+				return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			}
 		} catch (Throwable throwable) {
 			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
@@ -233,7 +272,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Override
 	public TaskClient<TaskDto> startTestTask(TaskDto taskDto, AtomicReference<Object> result) {
 		try {
-			taskDto.setDag(taskDto.getDag());
+			testTaskUsingPreview(taskDto);
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("KYE_OF_SCRIPT_RUN_RESULT", result).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
 			final JetDag jetDag = task2HazelcastDAG(taskDto, false);
@@ -252,7 +291,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	@Override
 	public TaskClient<TaskDto> startPreviewTask(TaskDto taskDto) {
-		final JetDag jetDag = task2HazelcastDAG(taskDto, true);
+		boolean deduce = true;
+		String syncType = taskDto.getSyncType();
+		if (StringUtils.equalsAny(syncType, TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			deduce = false;
+		}
+		JetDag jetDag = task2HazelcastDAG(taskDto, deduce);
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
@@ -460,9 +504,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		TapTableMap<String, TapTable> tapTableMap;
 		if (node instanceof AutoInspectNode) {
 			tapTableMap = TapTableUtil.getTapTableMapByNodeId(AutoInspectConstants.MODULE_NAME, ((AutoInspectNode) node).getTargetNodeId(), System.currentTimeMillis());
-		} else if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
-//						TaskDto.SYNC_TYPE_TEST_RUN,
-				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+		} else if (node instanceof PreviewTargetNode) {
+			tapTableMap = TapTableMap.create(node.getId());
+		} else if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
 		} else if (node instanceof VirtualTargetNode) {
 			tapTableMap = TapTableMap.create(node.getId());
@@ -474,7 +518,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			} else {
 				tapTableMap = TapTableMap.create(node.getId());
 			}
-
 		}
 		return tapTableMap;
 	}
@@ -563,7 +606,11 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build();
 						if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
+							if (taskDto.isTestUsingPreview()) {
+								hazelcastNode = new HazelcastPreviewSourcePdkDataNode(processorContext);
+							} else {
+								hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
+							}
 						} else {
 							ReadPartitionOptions readPartitionOptions = null;
 							if (node instanceof DataParentNode) {
@@ -1037,10 +1084,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
 					TransformerWsMessageDto.class);
+			transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
 			if (taskDto.isPreviewTask()) {
-				transformerWsMessageDto.getTaskDto().setSyncType(taskDto.getSyncType());
 				transformerWsMessageDto.getTaskDto().setTestTaskId(taskDto.getTestTaskId());
-				transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
+				transformerWsMessageDto.getOptions().setPreview(true);
 			}
 			transformerWsMessageDto.getTaskDto().setDag(dag);
 			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto, taskService, tapTableMapHashMap, clientMongoOperator);

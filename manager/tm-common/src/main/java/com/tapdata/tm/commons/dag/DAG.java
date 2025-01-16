@@ -1148,6 +1148,7 @@ public class DAG implements Serializable, Cloneable {
         private String syncType;
         private FieldChangeRuleGroup fieldChangeRules;
         private boolean isIsomorphismTask;
+        private boolean preview;
 
         public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
             this.rollback = rollback;
@@ -1286,5 +1287,24 @@ public class DAG implements Serializable, Cloneable {
         graph.setEdge(sourceNode.getId(), targetNode.getId(), edge);
         targetNode.setGraph(graph);
         targetNode.setDag(this);
+    }
+
+    public void addSourceNode(Node sourceNode, Node targetNode) {
+        graph.setNode(sourceNode.getId(), sourceNode);
+        LinkedList<Edge> edges = getEdges();
+        if (null != edges) {
+            List<Edge> edgeAsTarget = edges.stream().filter(edge -> edge.getTarget().equals(targetNode.getId())).collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(edgeAsTarget)) {
+                for (Edge edge : edgeAsTarget) {
+                    graph.removeEdge(edge.getSource(), edge.getTarget());
+                    Edge newEdge = new Edge(edge.getSource(), sourceNode.getId());
+                    graph.setEdge(newEdge.getSource(), newEdge.getTarget(), newEdge);
+                }
+            }
+        }
+        Edge edge = new Edge(sourceNode.getId(), targetNode.getId());
+        graph.setEdge(sourceNode.getId(), targetNode.getId(), edge);
+        sourceNode.setGraph(graph);
+        sourceNode.setDag(this);
     }
 }
