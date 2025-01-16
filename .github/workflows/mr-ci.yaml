@@ -31,6 +31,7 @@ jobs:
       TAPDATA_BRANCH: ${{ steps.set-output.outputs.TAPDATA_BRANCH }}
       ENTERPRISE_BRANCH: ${{ steps.set-output.outputs.ENTERPRISE_BRANCH }}
       FRONTEND_BRANCH: ${{ steps.set-output.outputs.FRONTEND_BRANCH }}
+      TAPCE_BRANCH: ${{ steps.set-output.outputs.TAPCE_BRANCH}}
       TAG_NAME: ${{ steps.set-output.outputs.TAG_NAME }}
     steps:
       - name: Checkout Tapdata Opensource
@@ -98,7 +99,7 @@ jobs:
           TAPDATA_BRANCH=${{ env.TAPDATA_BRANCH }}
           ENTERPRISE_BRANCH="develop"
           FRONTEND_BRANCH="develop"
-          TAPCE_BRANCH="master"
+          TAPCE_BRANCH="develop"
           echo "::set-output name=TAPDATA_BRANCH::${TAPDATA_BRANCH}"
           echo "::set-output name=ENTERPRISE_BRANCH::${ENTERPRISE_BRANCH}"
           echo "::set-output name=FRONTEND_BRANCH::${FRONTEND_BRANCH}"
