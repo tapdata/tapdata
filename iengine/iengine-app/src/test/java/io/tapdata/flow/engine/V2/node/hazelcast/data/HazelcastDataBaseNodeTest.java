@@ -168,7 +168,7 @@ public class HazelcastDataBaseNodeTest {
             SyncProgress syncProgress = new SyncProgress();
             syncProgress.setEventSerialNo(null);
             syncProgressMap.put("source1,targetNode", syncProgress);
-            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap, SyncProgressNodeType.SOURCE);
+            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap, SyncProgressNodeType.TARGET);
             assertEquals(syncProgressResult, syncProgress);
         }
 
@@ -181,7 +181,7 @@ public class HazelcastDataBaseNodeTest {
             SyncProgress source2Progress = new SyncProgress();
             syncProgressMap.put("source2,targetNode", source2Progress);
             source2Progress.setEventSerialNo(1L);
-            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap, SyncProgressNodeType.SOURCE);
+            SyncProgress syncProgressResult = hazelcastDataBaseNodeTest.foundNodeSyncProgress(syncProgressMap, SyncProgressNodeType.TARGET);
             assertEquals(syncProgressResult.getEventSerialNo(), 1L);
         }
     }

@@ -1710,8 +1710,11 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"syncProgressMap",allSyncProgressMap);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initSyncProgressMap();
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).foundAllSyncProgress(attrs);
+			Node node = new TableNode();
+			node.setId("targetId");
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn(node);
 			hazelcastTargetPdkBaseNode.initSyncProgressMap();
-			assertEquals(allSyncProgressMap.size()>0,true);
+			assertFalse(allSyncProgressMap.isEmpty());
 		}
 		@SneakyThrows
 		public Map<String, String> genSyncProgress() {

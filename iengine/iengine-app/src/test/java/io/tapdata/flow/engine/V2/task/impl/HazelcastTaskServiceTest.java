@@ -1007,7 +1007,7 @@ public class HazelcastTaskServiceTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setId(new ObjectId());
             taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
-            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            taskDto.setPreview(true);
             List<Node> nodes = new ArrayList<>();
             MergeTableNode node = new MergeTableNode();
             Map<String, Object> attrs = new HashMap<>();
@@ -1047,7 +1047,7 @@ public class HazelcastTaskServiceTest {
         @DisplayName("test main process")
         void test1() {
             TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
-            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            taskDto.setPreview(true);
             JetDag jetDag = mock(JetDag.class);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
@@ -1079,7 +1079,7 @@ public class HazelcastTaskServiceTest {
         @DisplayName("test main process")
         void test1() {
             TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
-            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            taskDto.setPreview(true);
             Node node = taskDto.getDag().getNodes().get(0);
             TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
             Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = new HashMap<>();
@@ -1100,7 +1100,7 @@ public class HazelcastTaskServiceTest {
         @DisplayName("test previewQualifiedName is empty")
         void test2() {
             TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
-            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            taskDto.setPreview(true);
             Node node = taskDto.getDag().getNodes().get(0);
             TableNode tableNode = assertInstanceOf(TableNode.class, node);
             TapTable tapTable = new TapTable("POLICY");
@@ -1119,7 +1119,7 @@ public class HazelcastTaskServiceTest {
         @DisplayName("test previewTapTable is empty")
         void test3() {
             TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview2.json");
-            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            taskDto.setPreview(true);
             Node node = taskDto.getDag().getNodes().get(0);
             TableNode tableNode = assertInstanceOf(TableNode.class, node);
             tableNode.setPreviewTapTable(null);
@@ -1135,7 +1135,7 @@ public class HazelcastTaskServiceTest {
         @DisplayName("test is not table node")
         void test4() {
             TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile("preview/tasklet/preview4.json");
-            taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+            taskDto.setPreview(true);
             Map mockNodeTapTableMap = mock(Map.class);
             doReturn(mockNodeTapTableMap).when(hazelcastTaskService).engineTransformSchema(any(TaskDto.class));
             Map<String, TapTableMap<String, TapTable>> nodeTapTableMap = hazelcastTaskService.transformSchemaWhenPreview(taskDto);

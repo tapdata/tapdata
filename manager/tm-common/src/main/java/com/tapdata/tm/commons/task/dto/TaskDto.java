@@ -39,7 +39,6 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * 模型推演
      */
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
-    public static final String SYNC_TYPE_PREVIEW = "preview";
 
     public static final String LASTTASKRECORDID = "taskRecordId";
 
