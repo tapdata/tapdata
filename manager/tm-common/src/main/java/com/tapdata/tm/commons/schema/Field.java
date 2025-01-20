@@ -46,7 +46,8 @@ public class Field implements Serializable {
     @org.springframework.data.mongodb.core.mapping.Field("default_value")
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Object defaultValue;
-
+    @JsonProperty("default_function")
+    private Object defaultFunction;
     private Object originalDefaultValue;
 
     @JsonProperty("field_name")
