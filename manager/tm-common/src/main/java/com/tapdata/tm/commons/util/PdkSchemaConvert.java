@@ -135,6 +135,7 @@ public class PdkSchemaConvert {
 
                 tapField.setId(field.getId());
                 tapField.setDefaultValue(field.getDefaultValue());
+                tapField.setDefaultFunction(field.getDefaultFunction());
                 tapField.setNullable((Boolean) field.getIsNullable());
                 tapField.setName(field.getFieldName());
                 //tapField.setPartitionKeyPos(field.get);
@@ -275,6 +276,7 @@ public class PdkSchemaConvert {
                 tapField.setTableName(field.getTableName());
                 tapField.setColumnPosition(field.getColumnPosition());
                 tapField.setDefaultValue(field.getDefaultValue());
+                tapField.setDefaultFunction(field.getDefaultFunction());
                 tapField.setForeignKeyTable(field.getForeignKeyTable());
                 tapField.setAutoInc(field.getIsAutoAllowed());
                 tapField.setComment(field.getComment());
@@ -415,6 +417,7 @@ public class PdkSchemaConvert {
                     field.setSource(tapField1.getCreateSource());
                 }
                 field.setDefaultValue(tapField.getDefaultValue());
+                field.setDefaultFunction(tapField.getDefaultFunction());
                 field.setIsNullable(tapField.getNullable());
                 field.setFieldName(tapField.getName());
                 if (StringUtils.isBlank(field.getOriginalFieldName())) {
@@ -567,6 +570,7 @@ public class PdkSchemaConvert {
                     field.setTableName(tapField1.getTableName());
                     field.setColumnPosition(tapField1.getColumnPosition());
                     field.setDefaultValue(tapField1.getDefaultValue());
+                    field.setDefaultFunction(tapField1.getDefaultFunction());
                     field.setForeignKeyTable(tapField1.getForeignKeyTable());
                     field.setIsAutoAllowed(tapField1.getAutoAllowed());
                     field.setComment(tapField1.getComment());
@@ -577,6 +581,7 @@ public class PdkSchemaConvert {
                     field.setDeleted(tapField1.isDeleted());
                 }
                 field.setDefaultValue(tapField.getDefaultValue());
+                field.setDefaultFunction(tapField.getDefaultFunction());
                 field.setIsNullable(tapField.getNullable());
                 field.setFieldName(tapField.getName());
                 if (StringUtils.isBlank(field.getOriginalFieldName())) {
