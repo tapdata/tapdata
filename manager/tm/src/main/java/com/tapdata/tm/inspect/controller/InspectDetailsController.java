@@ -85,7 +85,7 @@ public class InspectDetailsController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(inspectDetailsService.find(filter, getLoginUser()));
+        return success(inspectDetailsService.find(filter));
     }
 
     /**
