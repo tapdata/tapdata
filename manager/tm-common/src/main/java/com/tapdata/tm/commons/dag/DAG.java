@@ -512,7 +512,6 @@ public class DAG implements Serializable, Cloneable {
      */
     public Map<String, List<Message>> transformSchema(String nodeId, DAGDataService dagDataService, Options options, Consumer<Exception> consumer) {
         try {
-
             long start = System.currentTimeMillis();
             if (dagDataService != null) {
                 graph.getNodes().stream().map(graph::getNode)
