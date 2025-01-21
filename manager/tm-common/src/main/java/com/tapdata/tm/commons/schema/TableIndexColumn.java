@@ -18,4 +18,6 @@ public class TableIndexColumn implements Serializable {
     private Boolean columnIsAsc;
 
     private Object columnValue;
+
+    private Integer columnSubPart;
 }
