@@ -121,4 +121,10 @@ public class SettingsController extends BaseController {
         TestResponseDto res = settingsService.testSendMail(testMailDto);
         return success(res);
     }
+
+    @Operation(summary = "get application version")
+    @GetMapping("appVersion")
+    public ResponseMessage<String> applicationVersion() {
+        return success(settingsService.applicationVersion());
+    }
 }

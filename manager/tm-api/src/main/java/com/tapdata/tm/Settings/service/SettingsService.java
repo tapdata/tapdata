@@ -56,4 +56,6 @@ public interface SettingsService {
     void setSettingsRepository(com.tapdata.tm.Settings.repository.SettingsRepository settingsRepository);
 
     void setMongoTemplate(org.springframework.data.mongodb.core.MongoTemplate mongoTemplate);
+
+    String applicationVersion();
 }

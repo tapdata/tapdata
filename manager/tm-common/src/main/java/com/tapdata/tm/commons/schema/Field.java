@@ -17,6 +17,10 @@ public class Field implements Serializable {
     public static final String SOURCE_VIRTUAL_HASH = "virtual_hash";
 
     private Object autoincrement;
+    @JsonProperty("auto_inc_start_value")
+    private Long autoIncStartValue;
+    @JsonProperty("auto_increment_value")
+    private Long autoIncrementValue;
 
     private Integer columnSize;
     @JsonProperty("data_code")
@@ -42,7 +46,8 @@ public class Field implements Serializable {
     @org.springframework.data.mongodb.core.mapping.Field("default_value")
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Object defaultValue;
-
+    @JsonProperty("default_function")
+    private Object defaultFunction;
     private Object originalDefaultValue;
 
     @JsonProperty("field_name")
