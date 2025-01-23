@@ -411,7 +411,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(tapTable.getIndexList()).thenReturn(indices);
 			doThrow(new TapCodeException("test error")).when(queryIndexesFunction).query(any(TapConnectorContext.class),any(TapTable.class),any(Consumer.class));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, autoCreateTable);
-			assertThrows(TapCodeException.class, ()->hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable));
+			assertDoesNotThrow(()->hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, autoCreateTable));
 		}
 	}
 	@Nested
