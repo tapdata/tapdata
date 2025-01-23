@@ -12,10 +12,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -44,6 +41,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
 
 class TransformSchemaServiceTest {
@@ -338,6 +336,13 @@ class TransformSchemaServiceTest {
             when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_SYNC);
         }
 
+        @Test
+        void transformSchema() {
+            when(taskService.checkExistById(taskId)).thenReturn(taskDto);
+            doCallRealMethod().when(transformSchemaService).transformSchema(dag, user, taskId);
+            assertDoesNotThrow(() -> transformSchemaService.transformSchema(dag, user, taskId));
+        }
+
         @Nested
         class TransformSchemaBeforeDynamicTableNameTest {
             @BeforeEach
@@ -541,6 +546,29 @@ class TransformSchemaServiceTest {
             Assertions.assertEquals(0,result.size());
         }
 
+    }
+    @Nested
+    class transformerResultTest {
+        UserDetail user;
+        TransformerWsMessageResult result;
+        boolean saveHistory;
+        LdpService ldpService;
+        @BeforeEach
+        void beforeEach() {
+            user = mock(UserDetail.class);
+            result = mock(TransformerWsMessageResult.class);
+            saveHistory = true;
+            ldpService = mock(LdpService.class);
+            ReflectionTestUtils.setField(transformSchemaService, "ldpService", ldpService);
+        }
+        @Test
+        void testTransformerResultSimple() {
+            when(result.getTaskId()).thenReturn("6720c4a18c6b586b9e1b493b");
+            when(taskService.checkExistById(any(ObjectId.class), anyString())).thenReturn(mock(TaskDto.class));
+            doCallRealMethod().when(transformSchemaService).transformerResult(user, result, saveHistory);
+            transformSchemaService.transformerResult(user, result, saveHistory);
+            verify(ldpService, new Times(1)).afterLdpTask(anyString(), any(UserDetail.class));
+        }
     }
 
 }
