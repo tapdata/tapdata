@@ -920,25 +920,17 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				List<String> arrayKeys = mergeProperty.getArrayKeys();
 				Collection<String> primaryKeys = tapTable.primaryKeys(true);
 				List<String> fieldNames;
-				switch (mergeType) {
-					case appendWrite:
-					case updateOrInsert:
-					case updateWrite:
-						if (CollectionUtils.isEmpty(primaryKeys)) {
-							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType))
-									.dynamicDescriptionParameters(sourceNodeId,tableName,nodeName,mergeType);
-						}
-						fieldNames = new ArrayList<>(primaryKeys);
-						break;
-					case updateIntoArray:
-						if (CollectionUtils.isEmpty(arrayKeys)) {
-							throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName))
-									.dynamicDescriptionParameters(sourceNodeId,tableName,nodeName);
-						}
-						fieldNames = arrayKeys;
-						break;
-					default:
-						throw new RuntimeException("Unrecognized merge type: " + mergeType);
+				if (CollectionUtils.isNotEmpty(arrayKeys)) {
+					fieldNames = new ArrayList<>(arrayKeys);
+				} else if (CollectionUtils.isNotEmpty(primaryKeys)) {
+					fieldNames = new ArrayList<>(primaryKeys);
+				} else {
+					throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_PRIMARY_KEY, String.format("- Table name: %s\n- Node name: %s\n- Merge operation: %s", tableName, nodeName, mergeType))
+							.dynamicDescriptionParameters(tableName, nodeName, sourceNodeId, mergeType);
+				}
+				if (mergeType == MergeTableProperties.MergeType.updateIntoArray && CollectionUtils.isEmpty(arrayKeys)) {
+					throw new TapCodeException(TaskMergeProcessorExCode_16.TAP_MERGE_TABLE_NO_ARRAY_KEY, String.format("- Table name: %s- Node name: %s\n", tableName, nodeName))
+							.dynamicDescriptionParameters(sourceNodeId,tableName,nodeName);
 				}
 				this.sourcePkOrUniqueFieldMap.put(sourceNodeId, fieldNames);
 			}

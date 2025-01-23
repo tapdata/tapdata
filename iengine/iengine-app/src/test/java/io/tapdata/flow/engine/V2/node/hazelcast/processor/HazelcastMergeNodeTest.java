@@ -2876,6 +2876,33 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 		}
 
+		@Test
+		@DisplayName("merge type: update write, array keys: id, don't have any primary keys")
+		void test2(){
+			MergeTableProperties mergeTableProperties = new MergeTableProperties();
+			mergeTableProperties.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			mergeTableProperties.setMergeType(MergeTableProperties.MergeType.updateWrite);
+			mergeTableProperties.setChildren(new ArrayList<>());
+			mergeTableProperties.setArrayKeys(Arrays.asList("id"));
+			List<MergeTableProperties> mergeTablePropertiesList  = new ArrayList<>();
+			mergeTablePropertiesList.add(mergeTableProperties);
+			List<Node> nodes = new ArrayList<>();
+			Map<String, Object> attrs = new HashMap<>();
+			TableNode node = new TableNode();
+			node.setId("2cbc1a4d-906d-4b32-9cf4-6596ed4bd0e4");
+			node.setTableName("test");
+			node.setAttrs(attrs);
+			nodes.add(node);
+			when(processorBaseContextTest.getNodes()).thenReturn(nodes);
+			TapTableMap tapTableMap = mock(TapTableMap.class);
+			when(processorBaseContextTest.getTapTableMap()).thenReturn(tapTableMap);
+			TapTable tapTable = mock(TapTable.class);
+			when(tapTableMap.get(any())).thenReturn(tapTable);
+			when(tapTable.primaryKeys(true)).thenReturn(null);
+			hazelcastMergeNode.initSourcePkOrUniqueFieldMap(mergeTablePropertiesList);
+			Assertions.assertEquals(1,sourcePkOrUniqueFieldMap.size());
+		}
+
 	}
 
 	@Nested
