@@ -358,13 +358,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				obsLogger.info("Table: {} create Index: {} successfully, cost {}ms", indexEvent.get().getTableId(), index.getName(), currentIndexEnd-currentIndexStart);
 			});
 		}catch (Throwable throwable){
-			Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-			if (null != matched) {
-				throw (TapCodeException) matched;
-			}else {
-				throw new TapEventException(TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED, "Table name: " + tableId, throwable)
-						.addEvent(indexEvent.get());
-			}
+			obsLogger.warn("Table: {} create Index: {} failed, please create the index manually", tableId, indexEvent.get() != null ? indexEvent.get().getIndexList() : new ArrayList<>(), throwable);
 		}
 		long end = System.currentTimeMillis();
 		obsLogger.info("Table: {} synchronize indexes completed, cost {}ms totally", tableId, end-start);
