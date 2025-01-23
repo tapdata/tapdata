@@ -218,6 +218,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			readBatchOffset(entry.getValue());
 		}
 		syncProgressMap.putAll(allSyncProgress);
+        flushOffset.set(true);
 	}
 
 	protected void initCodecsFilterManager() {
