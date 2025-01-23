@@ -100,7 +100,7 @@ public class TransformSchemaService {
     private int transformBatchNum;
 
     public void transformSchema(DAG dag, UserDetail user, ObjectId taskId) {
-        TaskDto taskDto = taskService.checkExistById(taskId, user);
+        TaskDto taskDto = taskService.checkExistById(taskId);
         taskDto.setDag(dag);
         try {
             transformSchema(taskDto, user);
@@ -437,7 +437,7 @@ public class TransformSchemaService {
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
 
         String taskId = result.getTaskId();
-        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), user, "transformUuid");
+        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), "transformUuid");
 
         if (taskDto == null) {
             return;
