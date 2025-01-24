@@ -50,7 +50,10 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
             throws IOException {
         JSONArray jsonArray = new JSONArray();
         Map<String, JSONObject> map = new HashMap<>();
-        InspectResultDto inspectResultDto = inspectResultService.findById(new ObjectId(inspectDetails.getInspectResultId()), userDetail);
+        InspectResultDto inspectResultDto = inspectResultService.findById(new ObjectId(inspectDetails.getInspectResultId()));
+        if (null == inspectResultDto) {
+            return;
+        }
         List<Stats> stats = inspectResultDto.getStats();
         Query query = Query.query(Criteria.where("inspectResultId").is(inspectDetails.getInspectResultId()));
         Sort sort = Sort.by("createTime").descending();
