@@ -300,6 +300,21 @@ public class InspectDetailsServiceTest {
             verify(zipOutputStream,times(1)).write(JSONObject.toJSONString(jsonArray, SerializerFeature.WriteMapNullValue).getBytes());
 
         }
+        @Test
+        void testExportWhenDetailIsNull() throws IOException {
+            InspectDetailsService inspectDetailsService = mock(InspectDetailsService.class);
+            InspectDetailsDto inspectDetails = new InspectDetailsDto();
+            String inspectResultId = ObjectId.get().toHexString();
+            inspectDetails.setInspectResultId(inspectResultId);
+            inspectDetails.setFullField(false);
+            ZipOutputStream zipOutputStream = mock(ZipOutputStream.class);
+            UserDetail userDetail = mock(UserDetail.class);
+            InspectResultService inspectResultService = mock(InspectResultService.class);
+            when(inspectResultService.findById(new ObjectId(inspectResultId))).thenReturn(null);
+            doCallRealMethod().when(inspectDetailsService).export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
+            inspectDetailsService.export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
+            verify(zipOutputStream,times(0)).write(JSONObject.toJSONString(anyList(), SerializerFeature.WriteMapNullValue).getBytes());
+        }
 
         @Test
         void testExport_fullFiled_false_message_null() {
