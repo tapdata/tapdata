@@ -97,7 +97,7 @@ public class JsonUtil {
 	}
 
 	public static <T> T loadJsonFromClasspath(String resource, Type type) throws IOException {
-		InputStream in = Utils.getSystemResourceAsStream(resource);
+		InputStream in = JsonUtil.class.getResourceAsStream(resource);
 		return in == null ? null : buildGson().fromJson(new InputStreamReader(in), type);
 	}
 
