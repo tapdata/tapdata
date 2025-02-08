@@ -117,6 +117,7 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             tapTable.setIndexList(tapIndexList);
         }
+        tapTable.setConstraintList(schema.getConstraints());
 
         List<Field> fields = schema.getFields();
 
@@ -208,7 +209,7 @@ public class PdkSchemaConvert {
         } else if (schema.getIndices() != null) {
             tapTable.setIndexList(Lists.newArrayList());
         }
-
+        tapTable.setConstraintList(schema.getConstraints());
         List<Field> fields = schema.getFields();
 
         Set<Integer> partitionSet = schema.getPartitionSet();
@@ -482,6 +483,7 @@ public class PdkSchemaConvert {
         } else if (indexList != null) {
             schema.setIndices(Lists.newArrayList());
         }
+        schema.setConstraints(tapTable.getConstraintList());
         setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
         return schema;
     }
@@ -633,6 +635,7 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             schema.setIndices(tableIndexList);
         }
+        schema.setConstraints(tapTable.getConstraintList());
         setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
         return schema;
     }
