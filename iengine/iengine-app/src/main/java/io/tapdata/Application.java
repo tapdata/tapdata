@@ -15,6 +15,7 @@ import io.tapdata.aspect.LoggerInitAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.JetExceptionFilter;
+import io.tapdata.constant.AgentRuntime;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
@@ -67,13 +68,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.Security;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -127,8 +122,11 @@ public class Application {
 			Date datetime = parse.parse((String) buildInfo.get("timestamp"));
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 			String formatVersion = sdf.format(datetime);
+			AgentRuntime.codeVersion = formatVersion;
 
 			logger.info("Starting application, code version {}", formatVersion);
+			AgentRuntime.version = (configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString();
+			initTimeZoneInfo();
 			SpringApplication springApplication = new SpringApplication(Application.class);
 			springApplication.setWebApplicationType(WebApplicationType.NONE);
 			ConfigurableApplicationContext run = springApplication.run(args);
@@ -184,7 +182,7 @@ public class Application {
 			TapLogger.info(TAG, "Looking for Aspect annotations takes " + (System.currentTimeMillis() - time));
 
 			try {
-				StartResultUtil.writeStartResult(tapdataWorkDir, configurationCenter.getConfig("version").toString(), null);
+				StartResultUtil.writeStartResult(tapdataWorkDir, AgentRuntime.toMap(), null);
 			} catch (Exception e) {
 				logger.error(e.getMessage(), e);
 			}
@@ -202,8 +200,7 @@ public class Application {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);
 			try {
-				StartResultUtil.writeStartResult(tapdataWorkDir,
-						(configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString(), e);
+				StartResultUtil.writeStartResult(tapdataWorkDir, AgentRuntime.toMap(), e);
 			} catch (Exception exception) {
 				logger.error("Write start result failed, cause: " + exception.getMessage(), exception);
 			}
@@ -362,5 +359,16 @@ public class Application {
 		}
 
 		return true;
+	}
+
+	private static void initTimeZoneInfo() {
+		TimeZone jvmTimeZone = TimeZone.getDefault();
+		AgentRuntime.jvmZoneId = jvmTimeZone.toZoneId();
+		TimeZone.setDefault(null);
+		System.setProperty("user.timezone", "");
+		TimeZone osTimeZone = TimeZone.getDefault();
+		AgentRuntime.osZoneId = osTimeZone.toZoneId();
+		TimeZone.setDefault(jvmTimeZone);
+		System.setProperty("user.timezone", jvmTimeZone.getID());
 	}
 }

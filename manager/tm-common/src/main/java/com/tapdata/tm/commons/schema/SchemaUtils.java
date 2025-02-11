@@ -192,6 +192,7 @@ public class SchemaUtils {
             field.setJavaType1(operation.getJava_type());
         }
 				field.setColumnPosition(0);
+        field.setIsNullable(true);
         return field;
     }
 
