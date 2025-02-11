@@ -43,22 +43,13 @@ public interface TaskMergeProcessorExCode_16 {
 			dynamicDescriptionCN = "预期是MergeTableNode，但是检测出{}"
 	)
 	String WRONG_NODE_TYPE = "16005";
-	//TODO 节点ID 减少重复信息
 	@TapExCode(
 			describe = "The merged source table does not have a primary key or a unique index, the data cannot be cached, and the merge cannot be performed normally",
 			describeCN = "合并的源表没有主键或唯一索引，无法对数据缓存，合并无法正常进行",
-			dynamicDescription = "Node ID: {},Table name: {}, node name: {}, merge operation: {}",
-			dynamicDescriptionCN = "节点ID：{}，表名：{}，节点名：{}，合并操作：{}",
-			solution = "1. Add a primary key or unique index to the table in the database of the source table, based on the table name suggested\n" +
-					"2. Add the enhanced JS node after the node name indicating the missing primary key. In the enhanced JS basic Settings, click Use Model Declaration and add the " +
-					"<pre><code>TapModelDeclare.setPk(tapTable, 'fieldName')" +
-					"</code></pre>\n" +
-					"script to the script to set the logical primary key for the source table. Restart tasks",
-			solutionCN = "1. 根据提示的表名，在源表的数据库中为表添加主键或唯一索引。并在同步工具中重新刷新模型后重新启动任务\n" +
-					"2. 根据提示缺少主键的的节点名，在对应的节点后面添加增强JS节点。在增强JS的基础设置中点击使用模型声明，并在脚本中添加\n" +
-					"<pre><code>TapModelDeclare.setPk(tapTable, 'fieldName')" +
-					"</code></pre>\n" +
-					"为源表设置逻辑主键后。重新启动任务"
+			dynamicDescription = "Table Name: {}, Node: {}[{}], Merge Operation: {}",
+			dynamicDescriptionCN = "表名: {}, 节点: {}[{}], 合并操作: {}",
+			solution = "In the master-slave merge node, after selecting the subtable in the error message in the left list, select the appropriate primary key field in the table primary key drop-down box on the right" ,
+			solutionCN = "主从合并节点中，在左侧列表选中报错信息中的子表后，在右侧表主键下拉框，选中合适的主键字段"
 	)
 	String TAP_MERGE_TABLE_NO_PRIMARY_KEY = "16006";
 
