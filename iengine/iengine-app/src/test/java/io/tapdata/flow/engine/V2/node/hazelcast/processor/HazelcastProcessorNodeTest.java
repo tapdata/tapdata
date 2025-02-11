@@ -194,10 +194,15 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 			FieldProcessorNode.Operation remove = new FieldProcessorNode.Operation();
 			remove.setOp("REMOVE");
 			remove.setField("field_remove");
+			FieldProcessorNode.Operation revert = new FieldProcessorNode.Operation();
+			revert.setOp("REMOVE");
+			revert.setOperand("false");
+			revert.setField("field_revert");
 			List<FieldProcessorNode.Operation> operations = new ArrayList<>();
 			operations.add(create);
 			operations.add(rename);
 			operations.add(remove);
+			operations.add(revert);
 
 			FieldProcessorNode fieldProcessorNode = new FieldProcessorNode();
 			fieldProcessorNode.setOperations(operations);
@@ -208,9 +213,11 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 					.beforeTransformedToTapValueFieldNames(new HashSet<String>() {{
 						add("field_old");
 						add("field_remove");
+						add("field_revert");
 					}}).afterTransformedToTapValueFieldNames(new HashSet<String>() {{
 						add("field_old");
 						add("field_remove");
+						add("field_revert");
 					}});
 			tapdataEvent.setTransformToTapValueResult(transformToTapValueResult);
 
@@ -219,6 +226,7 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 			Set<String> expect = new HashSet<String>() {{
 				add("field_create");
 				add("field_new");
+				add("field_revert");
 			}};
 
 			assertEquals(expect, tapdataEvent.getTransformToTapValueResult().getBeforeTransformedToTapValueFieldNames());
