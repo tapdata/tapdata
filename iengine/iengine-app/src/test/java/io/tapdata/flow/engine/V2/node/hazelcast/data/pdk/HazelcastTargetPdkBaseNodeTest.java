@@ -1708,8 +1708,6 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).getDataProcessorContext();
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", dataProcessorContext);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"syncProgressMap",allSyncProgressMap);
-			AtomicBoolean flushOffset = new AtomicBoolean(false);
-			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "flushOffset", flushOffset);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initSyncProgressMap();
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).foundAllSyncProgress(attrs);
 			hazelcastTargetPdkBaseNode.initSyncProgressMap();
