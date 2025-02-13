@@ -178,13 +178,13 @@ class TapCodecUtilTest {
 			ToTapValueCodec<?> customToTapValueCodec = engineCodecsFilterManger.getCodecsRegistry().getCustomToTapValueCodec(byte[].class);
 			TapValue<?, ?> tapValue = customToTapValueCodec.toTapValue(bytes, new TapBinary());
 			assertInstanceOf(TapBinaryValue.class, tapValue);
-			assertArrayEquals(bytes, ((TapBinaryValue) tapValue).getValue());
+			assertArrayEquals(bytes, ((TapBinaryValue) tapValue).getValue().getValue());
 
 			str = "testtesttesttesttesttest";
 			bytes = str.getBytes(StandardCharsets.UTF_8);
 			tapValue = customToTapValueCodec.toTapValue(bytes, new TapBinary());
 			assertInstanceOf(TapBinaryValue.class, tapValue);
-			assertArrayEquals(bytes, ((TapBinaryValue) tapValue).getValue());
+			assertArrayEquals(bytes, ((TapBinaryValue) tapValue).getValue().getValue());
 		}
 	}
 
