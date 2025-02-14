@@ -56,6 +56,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
@@ -557,8 +558,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (compareIndexName) {
 			String name1 = index1.getName();
 			String name2 = index2.getName();
-			if (!Objects.equals(name1, name2)) {
-				return false;
+			if (null != name1 && name1.equals(name2)) {
+				return true;
 			}
 		}
 		List<TapIndexField> indexFields1 = index1.getIndexFields();
