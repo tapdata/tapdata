@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.TapConstraintException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.constraint.TapCreateConstraintEvent;
@@ -53,7 +54,6 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.client.utils.CloneUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -300,19 +300,33 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						}
 					});
 				} catch (Throwable e) {
-					logger.warn("Before creating a foreign key, check whether the foreign key already exists, the query fails. Table name: {}, the error will be ignored, please check and create by manually", tableId, e);
+					obsLogger.warn("Before creating a foreign key, check whether the foreign key already exists, the query fails. Table name: {}, the error will be ignored, please check and create by manually", tableId, e);
 				}
-				for (TapConstraint tobeCreateForeignKey : tobeCreateForeignKeys) {
-					try {
-						TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
-						tapCreateConstraintEvent.constraintList(tobeCreateForeignKeys);
-						createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent);
-					} catch (Throwable e) {
-						logger.warn("Failed to create a foreign key, table name: {}, foreign keys: {}, reference table name: {}, reference keys: {}, the error will be ignored, please check and create by manually",
-								tableId, tobeCreateForeignKey.getMappingFields().stream().map(TapConstraintMapping::getForeignKey).collect(Collectors.joining(",")),
-								tobeCreateForeignKey.getReferencesTableName(), tobeCreateForeignKey.getMappingFields().stream().map(TapConstraintMapping::getReferenceKey).collect(Collectors.joining(",")), e);
+				try {
+					TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
+					tapCreateConstraintEvent.constraintList(tobeCreateForeignKeys);
+					createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent);
+				} catch (Throwable e) {
+					if (e instanceof TapConstraintException) {
+						TapConstraintException tapConstraintException = (TapConstraintException) e;
+						List<String> sqlList = tapConstraintException.getSqlList();
+						List<Throwable> exceptions = tapConstraintException.getExceptions();
+						if (CollectionUtils.isNotEmpty(sqlList)) {
+							for (int i = 0; i < sqlList.size(); i++) {
+								String sql = sqlList.get(i);
+								Throwable cause = exceptions.get(i);
 
+								if (null == cause) {
+									obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}", tableId, sql);
+								} else {
+									obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}, error: {}", tableId, sql, Log4jUtil.getStackString(cause));
+								}
+							}
+						}
+					} else {
+						obsLogger.warn("Due to unknown error, the creation of foreign key failed, the table name: {}, this step will be skipped, please check manually and create", tableId, e);
 					}
+
 				}
 			}
 		}));
