@@ -83,11 +83,10 @@ import io.tapdata.flow.engine.V2.util.*;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
-import io.tapdata.services.CatchDataService;
-import io.tapdata.utils.ErrorCodeUtils;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -973,7 +972,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return TaskConfig.create()
 				.taskDto(taskDto)
 				.taskRetryConfig(getTaskRetryConfig(taskDto))
-				.externalStorageDtoMap(ExternalStorageUtil.getExternalStorageMap(taskDto, clientMongoOperator));
+				.externalStorageDtoMap(ExternalStorageUtil.getExternalStorageMap(taskDto, clientMongoOperator))
+				.isomorphism(sourceAndSinkIsomorphismType(taskDto));
 	}
 
 	protected TaskRetryConfig getTaskRetryConfig(TaskDto taskDto) {
@@ -1034,6 +1034,30 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		MergeNodeCleaner mergeNodeCleaner = new MergeNodeCleaner();
 		mergeNodeCleaner.cleanTaskNode(taskDto.getId().toHexString(), nodeId);
 		logger.info("Clear {} master-slave merge cache", nodeId);
+	}
+
+	protected TapConnectorContext.IsomorphismType sourceAndSinkIsomorphismType(TaskDto taskDto) {
+		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
+		List<Node> sourceNodes = dag.getSourceNodes();
+		List<Node> targetNodes = dag.getTargetNodes();
+		if (null == sourceNodes || null == targetNodes || sourceNodes.size() > 1 || targetNodes.size() > 1) {
+			return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
+		}
+		Node<?> sourceNode = sourceNodes.get(0);
+		Node<?> targetNode = targetNodes.get(0);
+		if (sourceNode instanceof DataParentNode && targetNode instanceof DataParentNode) {
+			Connections sourceConnection = getConnection(((DataParentNode<?>) sourceNode).getConnectionId());
+			DatabaseTypeEnum.DatabaseType sourceDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConnection.getPdkHash());
+			Connections targetConnection = getConnection(((DataParentNode<?>) targetNode).getConnectionId());
+			DatabaseTypeEnum.DatabaseType targetDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, targetConnection.getPdkHash());
+
+			if (sourceDatabaseType.getPdkId().equals(targetDatabaseType.getPdkId())) {
+				return TapConnectorContext.IsomorphismType.ISOMORPHISM;
+			} else {
+				return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
+			}
+		}
+		return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
 	}
 
 }
