@@ -9,4 +9,5 @@ public class AlarmVO {
     private String nodeId;
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
+    private List<String> emailReceivers;
 }
