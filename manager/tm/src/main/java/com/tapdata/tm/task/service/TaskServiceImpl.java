@@ -1644,8 +1644,7 @@ public class TaskServiceImpl extends TaskService{
         where.put("shareCache", notShareCache);
 
 
-        Boolean deleted = (Boolean) where.get(IS_DELETED);
-        if (deleted == null) {
+        if (where.get(IS_DELETED) == null) {
             Document document = new Document();
             document.put("$ne", true);
             where.put(IS_DELETED, document);
