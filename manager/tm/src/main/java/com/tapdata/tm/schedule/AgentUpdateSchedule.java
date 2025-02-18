@@ -39,7 +39,7 @@ public class AgentUpdateSchedule {
             workerService.cleanWorkers();
         }
 
-        log.info("执行扫描，更新agent 版本");
+        log.debug("执行扫描，更新agent 版本");
         clusterOperationService.sendOperation();
     }
 
