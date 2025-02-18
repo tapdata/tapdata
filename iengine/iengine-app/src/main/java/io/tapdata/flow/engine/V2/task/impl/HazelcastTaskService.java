@@ -227,17 +227,17 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				return false;
 			} else {
 				if (scriptNode instanceof StandardJsProcessorNode) {
-					throw new RuntimeException("After the master-slave merges nodes, the connection Standard JS node is not supported. Please change to the Enhanced JS node.");
+					throw new IllegalArgumentException("After the master-slave merges nodes, the connection Standard JS node is not supported. Please change to the Enhanced JS node.");
 				} else if (scriptNode instanceof JsProcessorNode) {
 					JsProcessorNode jsProcessorNode = (JsProcessorNode) scriptNode;
 					Integer jsType = Optional.ofNullable(jsProcessorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
 					if (ProcessorNodeType.Standard_JS.contrast(jsType)) {
-						throw new RuntimeException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
+						throw new IllegalArgumentException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
 					}
 					return true;
 				} else {
 					String type = scriptNode.getType();
-					throw new RuntimeException(String.format("After the master-slave merges nodes, the connection %s node is not supported.", type));
+					throw new IllegalArgumentException(String.format("After the master-slave merges nodes, the connection %s node is not supported.", type));
 				}
 			}
 		}
