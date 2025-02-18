@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.schema;
 import cn.hutool.core.collection.CollUtil;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.type.TapArray;
 import io.tapdata.entity.schema.type.TapMap;
 import io.tapdata.entity.simplify.TapSimplify;
@@ -100,6 +101,12 @@ public class SchemaUtils {
                         .flatMap(s -> s.getIndices().stream())
                         .filter(Objects::nonNull).collect(Collectors.toList());
                 targetSchema.setIndices(inputIndices);
+                List<TapConstraint> inputConstraints = inputSchemas.stream()
+                        .filter(Objects::nonNull)
+                        .filter(s -> null != s.getConstraints())
+                        .flatMap(s -> s.getConstraints().stream())
+                        .filter(Objects::nonNull).collect(Collectors.toList());
+                targetSchema.setConstraints(inputConstraints);
             }
         }
 
