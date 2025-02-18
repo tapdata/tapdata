@@ -508,8 +508,16 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 							});
 							break;
 						case "REMOVE":
-							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(b -> b.remove(operation.getField()));
-							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(a -> a.remove(operation.getField()));
+							Optional.ofNullable(transformToTapValueResult.getBeforeTransformedToTapValueFieldNames()).ifPresent(b -> {
+								if (!"false".equals(operation.getOperand())) {
+									b.remove(operation.getField());
+								}
+							});
+							Optional.ofNullable(transformToTapValueResult.getAfterTransformedToTapValueFieldNames()).ifPresent(a -> {
+								if (!"false".equals(operation.getOperand())) {
+									a.remove(operation.getField());
+								}
+							});
 							break;
 					}
 				}

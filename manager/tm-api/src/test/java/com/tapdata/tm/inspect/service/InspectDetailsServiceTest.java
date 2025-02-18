@@ -64,7 +64,7 @@ public class InspectDetailsServiceTest {
             stats.add(stats1);
 
             inspectResultDto.setStats(stats);
-            when(inspectResultService.findById(new ObjectId(inspectResultId),userDetail)).thenReturn(inspectResultDto);
+            when(inspectResultService.findById(new ObjectId(inspectResultId))).thenReturn(inspectResultDto);
             org.springframework.data.mongodb.core.query.Query query = org.springframework.data.mongodb.core.query.Query.query(Criteria.where("inspectResultId").is(inspectDetails.getInspectResultId()));
             Sort sort = Sort.by("createTime").descending();
             query.with(sort);
@@ -148,7 +148,7 @@ public class InspectDetailsServiceTest {
             stats.add(stats1);
 
             inspectResultDto.setStats(stats);
-            when(inspectResultService.findById(new ObjectId(inspectResultId),userDetail)).thenReturn(inspectResultDto);
+            when(inspectResultService.findById(new ObjectId(inspectResultId))).thenReturn(inspectResultDto);
             org.springframework.data.mongodb.core.query.Query query = org.springframework.data.mongodb.core.query.Query.query(Criteria.where("inspectResultId").is(inspectDetails.getInspectResultId()));
             Sort sort = Sort.by("createTime").descending();
             query.with(sort);
@@ -244,7 +244,7 @@ public class InspectDetailsServiceTest {
             stats1.setRowFailed(0l);
             stats.add(stats1);
             inspectResultDto.setStats(stats);
-            when(inspectResultService.findById(new ObjectId(inspectResultId),userDetail)).thenReturn(inspectResultDto);
+            when(inspectResultService.findById(new ObjectId(inspectResultId))).thenReturn(inspectResultDto);
             org.springframework.data.mongodb.core.query.Query query = org.springframework.data.mongodb.core.query.Query.query(Criteria.where("inspectResultId").is(inspectDetails.getInspectResultId()));
             Sort sort = Sort.by("createTime").descending();
             query.with(sort);
@@ -299,6 +299,21 @@ public class InspectDetailsServiceTest {
 
             verify(zipOutputStream,times(1)).write(JSONObject.toJSONString(jsonArray, SerializerFeature.WriteMapNullValue).getBytes());
 
+        }
+        @Test
+        void testExportWhenDetailIsNull() throws IOException {
+            InspectDetailsService inspectDetailsService = mock(InspectDetailsService.class);
+            InspectDetailsDto inspectDetails = new InspectDetailsDto();
+            String inspectResultId = ObjectId.get().toHexString();
+            inspectDetails.setInspectResultId(inspectResultId);
+            inspectDetails.setFullField(false);
+            ZipOutputStream zipOutputStream = mock(ZipOutputStream.class);
+            UserDetail userDetail = mock(UserDetail.class);
+            InspectResultService inspectResultService = mock(InspectResultService.class);
+            when(inspectResultService.findById(new ObjectId(inspectResultId))).thenReturn(null);
+            doCallRealMethod().when(inspectDetailsService).export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
+            inspectDetailsService.export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
+            verify(zipOutputStream,times(0)).write(JSONObject.toJSONString(anyList(), SerializerFeature.WriteMapNullValue).getBytes());
         }
 
         @Test

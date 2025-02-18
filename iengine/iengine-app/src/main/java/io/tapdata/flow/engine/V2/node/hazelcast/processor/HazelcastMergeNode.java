@@ -1609,7 +1609,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				mergeLookupResult.setData(lookupData);
 				mergeLookupResult.setDataExists(!mockData);
 				mergeLookupResult.setTapTable(tapTable);
-				mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, lookupData, mergeLookupResult.isDataExists()));
+				mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, mergeLookupData(lookupData, data), mergeLookupResult.isDataExists()));
 				mergeLookupResults.add(mergeLookupResult);
 			} else if (MergeTableProperties.MergeType.updateIntoArray == mergeType) {
 				Collection<Object> lookupArray;
@@ -1627,12 +1627,25 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 					mergeLookupResult.setData((Map<String, Object>) arrayData);
 					mergeLookupResult.setDataExists(!mockData);
 					mergeLookupResult.setTapTable(tapTable);
-					mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, (Map<String, Object>) arrayData, true));
+					mergeLookupResult.setMergeLookupResults(recursiveLookup(childMergeProperty, mergeLookupData((Map<String, Object>) arrayData, data), true));
 					mergeLookupResults.add(mergeLookupResult);
 				}
 			}
 		}
 		return mergeLookupResults;
+	}
+
+	protected Map<String, Object> mergeLookupData(Map<String, Object> data, Map<String, Object> parentData) {
+		if(MapUtils.isEmpty(data) || MapUtils.isEmpty(parentData)) {
+			return data;
+		}
+		Map<String, Object> result = new HashMap<>(data);
+		parentData.forEach((k,v)->{
+			if (!result.containsKey(k)) {
+				result.put(k, v);
+			}
+		});
+		return result;
 	}
 
 	@NotNull
