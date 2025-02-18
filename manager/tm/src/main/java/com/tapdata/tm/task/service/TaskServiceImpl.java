@@ -1660,6 +1660,8 @@ public class TaskServiceImpl extends TaskService{
                 taskDtoPage = findDataDevList(filter, userDetail);
             } else if (SyncType.CONN_HEARTBEAT.getValue().equals(synType)) {
                 taskDtoPage = findDataDevList(filter, userDetail);
+            } else if (SyncType.LOG_COLLECTOR.getValue().equals(synType)) {
+                taskDtoPage = super.find(filter, userDetail);
             }
             items = taskDtoPage.getItems();
         } else {
