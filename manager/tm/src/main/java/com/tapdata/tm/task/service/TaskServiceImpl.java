@@ -1644,8 +1644,7 @@ public class TaskServiceImpl extends TaskService{
         where.put("shareCache", notShareCache);
 
 
-        Boolean deleted = (Boolean) where.get(IS_DELETED);
-        if (deleted == null) {
+        if (where.get(IS_DELETED) == null) {
             Document document = new Document();
             document.put("$ne", true);
             where.put(IS_DELETED, document);
@@ -1661,6 +1660,8 @@ public class TaskServiceImpl extends TaskService{
                 taskDtoPage = findDataDevList(filter, userDetail);
             } else if (SyncType.CONN_HEARTBEAT.getValue().equals(synType)) {
                 taskDtoPage = findDataDevList(filter, userDetail);
+            } else if (SyncType.LOG_COLLECTOR.getValue().equals(synType)) {
+                taskDtoPage = super.find(filter, userDetail);
             }
             items = taskDtoPage.getItems();
         } else {
@@ -4005,7 +4006,7 @@ public class TaskServiceImpl extends TaskService{
      *                  第二位 是否开启打点任务      1 是   0 否
      */
     public void start(TaskDto taskDto, UserDetail user, String startFlag) {
-        cleanRemovedTableMeasurementIfNeed(taskDto);
+        cleanRemovedTableMeasurementAndIfNeed(taskDto);
         boolean canStart = iLicenseService.checkTaskPipelineLimit(taskDto, user);
         if (!canStart) throw new BizException("Task.LicenseScheduleLimit");
         if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()) && TaskDto.STATUS_COMPLETE.equals(taskDto.getStatus()) && !taskDto.getCrontabExpressionFlag()) {
@@ -4104,7 +4105,7 @@ public class TaskServiceImpl extends TaskService{
         }
     }
 
-    protected void cleanRemovedTableMeasurementIfNeed(TaskDto taskDto) {
+    protected void cleanRemovedTableMeasurementAndIfNeed(TaskDto taskDto) {
         DAG dag = taskDto.getDag();
         if (null == dag || CollectionUtils.isEmpty(dag.getSourceNode()) || StringUtils.isBlank(taskDto.getTaskRecordId())) {
             return;
@@ -4118,6 +4119,52 @@ public class TaskServiceImpl extends TaskService{
                     measurementServiceV2.cleanRemovedTableMeasurement(taskDto.getId().toHexString(), taskDto.getTaskRecordId(), tableName);
                 }
             });
+            cleanRemoveTableBatchOffset(taskDto, tables);
+        }
+    }
+
+    protected void cleanRemoveTableBatchOffset(TaskDto taskDto, List<String> tables) {
+        if (null != taskDto.getAttrs() && taskDto.getAttrs().get("syncProgress") instanceof Map) {
+            LinkedHashMap<String, String> syncProgress = (LinkedHashMap) taskDto.getAttrs().get("syncProgress");
+            AtomicBoolean needUpdate = new AtomicBoolean(false);
+            syncProgress.forEach((k, v) -> {
+                ObjectMapper objectMapper = new ObjectMapper();
+                Map<String, Object> resultMap = null;
+                try {
+                    resultMap = objectMapper.readValue(v.toString(), new TypeReference<Map<String, Object>>() {
+                    });
+                } catch (Exception e) {
+                    throw new BizException(e);
+                }
+                String batchOffset = (String) resultMap.get("batchOffset");
+                if (StringUtils.isBlank(batchOffset)) return;
+                byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset);
+                Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
+                Iterator<Map.Entry<String, HashMap>> iterator = tablesMap.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<String, HashMap> next = iterator.next();
+                    if (!tables.contains(next.getKey())) {
+                        needUpdate.set(true);
+                        iterator.remove();
+                    }
+                }
+                byte[] offsetBytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(tablesMap);
+                if (offsetBytes == null) {
+                    return;
+                }
+                resultMap.put("batchOffset", org.apache.commons.net.util.Base64.encodeBase64String(offsetBytes));
+                try {
+                    String jsonString = objectMapper.writeValueAsString(resultMap);
+                    syncProgress.put(k, jsonString);
+                } catch (JsonProcessingException e) {
+                    throw new BizException(e);
+                }
+            });
+            if (Boolean.TRUE.equals(needUpdate.get())) {
+                Update update = Update.update("attrs.syncProgress", syncProgress);
+                Query query = Query.query(Criteria.where("_id").is(taskDto.getId().toHexString()));
+                update(query, update);
+            }
         }
     }
 

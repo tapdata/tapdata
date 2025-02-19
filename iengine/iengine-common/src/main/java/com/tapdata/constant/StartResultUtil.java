@@ -21,13 +21,7 @@ public class StartResultUtil {
 	private static Logger logger = LogManager.getLogger(StartResultUtil.class);
 	private final static String AGENT_START_RESULT_JSON = ".agentStartMsg.json";
 
-	public static void writeStartResult(String workDir, String daasVersion, Exception e) {
-		Map<String, String> result = new HashMap<>();
-		if (StringUtils.isNotBlank(daasVersion)) {
-			result.put("version", daasVersion);
-		} else {
-			result.put("version", "-");
-		}
+	public static void writeStartResult(String workDir, Map<String, String> result, Exception e) {
 		if (e == null) {
 			result.put("status", "ok");
 			result.put("msg", "");
@@ -51,11 +45,11 @@ public class StartResultUtil {
 		}
 		try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
 			String json = JSONUtil.map2Json(result);
-			logger.info("Write start result to file: " + filePath + "\n  " + json);
+			logger.info("Write start result to file: {}\n  {}", filePath, json);
 			fileOutputStream.write(json.getBytes(StandardCharsets.UTF_8));
 			fileOutputStream.flush();
 		} catch (Exception exception) {
-			String err = "Write start result failed, work dir: " + workDir + ", version: " + daasVersion + ", e: " + e == null ? "-" : e.getMessage() + ", cause: " + exception.getMessage();
+			String err = "Write start result failed, work dir: " + workDir + ", version: " + result.get("version") + ", e: " + (e == null ? "-" : e.getMessage() + ", cause: " + exception.getMessage());
 			throw new RuntimeException(err);
 		}
 	}

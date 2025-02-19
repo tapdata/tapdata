@@ -121,7 +121,7 @@ public class DatasourceAop {
     @After("updateByWherePointCut()||upsertByWherePointCut()")
     public Object afterUpdateByWherePointcut(JoinPoint joinPoint) {
         if (!shouldRecord()) {
-            log.info("不是来自用户操作");
+            log.debug("不是来自用户操作");
             return null;
         }
         Object[] args = joinPoint.getArgs();
@@ -157,7 +157,7 @@ public class DatasourceAop {
      */
     @Around("copyPointCut()")
     public Object afterCopyReturning(ProceedingJoinPoint joinPoint) throws Throwable {
-        log.info("拦截  DataSourceService copy");
+        log.debug("拦截  DataSourceService copy");
         DataSourceConnectionDto result = null;
         Object[] args = joinPoint.getArgs();
         result = (DataSourceConnectionDto) joinPoint.proceed(args);
@@ -175,10 +175,10 @@ public class DatasourceAop {
  /*   @AfterReturning(value = "copyPointCut()", returning = "result")
     public void afterCopyReturning(Object result) {
         if (!shouldRecord()) {
-            log.info("不是来自用户操作");
+            log.debug("不是来自用户操作");
             return ;
         }
-        log.info("执行了 更新链接 操作");
+        log.debug("执行了 更新链接 操作");
         try {
             DataSourceConnectionDto dataSourceConnectionDto = (DataSourceConnectionDto) result;
             UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(dataSourceConnectionDto.getUserId()));
@@ -196,9 +196,9 @@ public class DatasourceAop {
      */
     @After("updateTagPointCut()")
     public Object afterUpdateTagPointcut(JoinPoint joinPoint) {
-        log.info("拦截  DataSourceService update");
+        log.debug("拦截  DataSourceService update");
         if (!shouldRecord()) {
-            log.info("不是来自用户操作");
+            log.debug("不是来自用户操作");
             return null;
         }
         Object[] args = joinPoint.getArgs();
@@ -247,14 +247,14 @@ public class DatasourceAop {
      */
     @Around(value = "updatePointCut()")
     public DataSourceConnectionDto afterUpdateReturning(ProceedingJoinPoint joinPoint) throws Throwable {
-        log.info("拦截  DataSourceService update");
+        log.debug("拦截  DataSourceService update");
 
         DataSourceConnectionDto dtoAfter = null;
         Object[] args = joinPoint.getArgs();
 
         //业务方法执行完毕
         if (shouldRecord()) {
-            log.info("是来自用户操作");
+            log.debug("是来自用户操作");
 
             UserDetail userDetail = (UserDetail) args[0];
 
@@ -272,12 +272,12 @@ public class DatasourceAop {
             String afterName = dtoAfter.getName();
 
             if ("testing".equals(statusBefore)) {
-                log.info(" 测试连接，不记录日志");
+                log.debug(" 测试连接，不记录日志");
             } else if (beforeName.equals(afterName)) {
-                log.info("不是修改名称");
+                log.debug("不是修改名称");
                 userLogService.addUserLog(Modular.CONNECTION, Operation.UPDATE, userDetail, dtoAfter.getId().toString(), afterName);
             } else if (!beforeName.equals(afterName)) {
-                log.info("修改了名称");
+                log.debug("修改了名称");
                 userLogService.addUserLog(Modular.CONNECTION, Operation.UPDATE, userDetail, dtoBefore.getId().toString(),afterName, beforeName,  true);
             }
         }
@@ -293,10 +293,10 @@ public class DatasourceAop {
     @AfterReturning(value = "addPointCut()", returning = "result")
     public void afterSaveReturning(Object result) {
         if (!shouldRecord()) {
-            log.info("不是来自用户操作");
+            log.debug("不是来自用户操作");
             return;
         }
-        log.info("执行了 创建链接 操作");
+        log.debug("执行了 创建链接 操作");
         DataSourceConnectionDto dataSourceConnectionDto = (DataSourceConnectionDto) result;
         UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(dataSourceConnectionDto.getUserId()));
         userLogService.addUserLog(Modular.CONNECTION, Operation.CREATE, userDetail, dataSourceConnectionDto.getId().toString(), dataSourceConnectionDto.getName());
@@ -314,7 +314,7 @@ public class DatasourceAop {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
             HttpServletRequest request = attributes.getRequest();
             String userAgent = request.getHeader("User-Agent");
-            log.info("接收到的 userAgent：{} ", userAgent);
+            log.debug("接收到的 userAgent：{} ", userAgent);
             return !StringUtils.isNotEmpty(userAgent) || (!userAgent.contains("Java") && !userAgent.contains("java") && !userAgent.contains("nodejs"));
         } catch ( Exception e) {
             return false;
