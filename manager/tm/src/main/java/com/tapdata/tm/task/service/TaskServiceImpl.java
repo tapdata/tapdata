@@ -1644,8 +1644,7 @@ public class TaskServiceImpl extends TaskService{
         where.put("shareCache", notShareCache);
 
 
-        Boolean deleted = (Boolean) where.get(IS_DELETED);
-        if (deleted == null) {
+        if (where.get(IS_DELETED) == null) {
             Document document = new Document();
             document.put("$ne", true);
             where.put(IS_DELETED, document);
@@ -1661,6 +1660,8 @@ public class TaskServiceImpl extends TaskService{
                 taskDtoPage = findDataDevList(filter, userDetail);
             } else if (SyncType.CONN_HEARTBEAT.getValue().equals(synType)) {
                 taskDtoPage = findDataDevList(filter, userDetail);
+            } else if (SyncType.LOG_COLLECTOR.getValue().equals(synType)) {
+                taskDtoPage = super.find(filter, userDetail);
             }
             items = taskDtoPage.getItems();
         } else {
