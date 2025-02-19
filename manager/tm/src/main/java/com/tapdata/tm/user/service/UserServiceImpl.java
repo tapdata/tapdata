@@ -371,7 +371,7 @@ public class UserServiceImpl extends UserService{
         Optional<User> userOptional = repository.findOne(Query.query(Criteria.where("email").is(email)
                 .orOperator(Criteria.where("isDeleted").is(false), Criteria.where("isDeleted").exists(false))));
         if (!userOptional.isPresent()) {
-            throw new BizException("User.email.Found");
+            throw new BizException(checkLoginBriefTipsEnable("User.email.Found"));
         }
         return userOptional.get();
     }
@@ -820,6 +820,15 @@ public class UserServiceImpl extends UserService{
             return settings.getOpen();
         }
         return false;
+    }
+
+    @Override
+    public String checkLoginBriefTipsEnable(String messageCode) {
+        Settings settings = settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_BRIEF_TIPS);
+        if (settings != null && settings.getOpen()) {
+            return "Incorrect.Vague";
+        }
+        return messageCode;
     }
 
     @Override
