@@ -1573,12 +1573,14 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			job = mock(Job.class);
 			when(hazelcastInstance.getJet()).thenReturn(jetService);
 			when(jetService.getJob(anyString())).thenReturn(job);
+			when(jetService.getJob(anyLong())).thenReturn(job);
 			when(jetContext.hazelcastInstance()).thenReturn(hazelcastInstance);
 		}
 
 		@Test
 		@DisplayName("Main process test")
 		void testGetJetJob() {
+			when(jetContext.jobId()).thenReturn(1L);
 			Job actual = hazelcastBaseNode.getJetJob(taskDto);
 			assertEquals(job, actual);
 		}
@@ -1592,7 +1594,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@Test
 		@DisplayName("When jetService's getJob method return null")
 		void testGetJetJobWhenHazelcastReturnNull() {
-			when(jetService.getJob(anyString())).thenReturn(null);
+			when(jetService.getJob(anyLong())).thenReturn(null);
 			StopWatch stopWatch = StopWatch.create("testGetJetJobWhenHazelcastReturnNull");
 			stopWatch.start();
 			Job actual;

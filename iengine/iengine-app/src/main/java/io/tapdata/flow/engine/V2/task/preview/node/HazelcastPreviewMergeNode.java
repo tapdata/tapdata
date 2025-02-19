@@ -88,6 +88,13 @@ public class HazelcastPreviewMergeNode extends HazelcastProcessorBaseNode {
 			}
 			for (Map<String, Object> dataMap : dataMaps) {
 				taskPreviewNodeMergeResultVO.data(dataMap);
+				TaskDto taskDto = processorBaseContext.getTaskDto();
+				if (taskDto.getSyncType().equals(TaskDto.SYNC_TYPE_TEST_RUN)) {
+					TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create().after(dataMap);
+					TapdataEvent event = new TapdataEvent();
+					event.setTapEvent(tapInsertRecordEvent);
+					consumer.accept(event, null);
+				}
 			}
 			consumer.accept(tapdataEvent, null);
 		} else {

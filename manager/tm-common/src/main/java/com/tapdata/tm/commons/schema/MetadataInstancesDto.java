@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -61,6 +62,7 @@ public class MetadataInstancesDto extends BaseDto {
     @JsonProperty("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;
+    private List<TapConstraint> constraints;
     private boolean hasUnionIndex;
     private Set<Integer> partitionSet;
     private FileProperty fileProperty;

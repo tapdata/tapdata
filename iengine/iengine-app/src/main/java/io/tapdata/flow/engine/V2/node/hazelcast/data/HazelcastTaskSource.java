@@ -23,6 +23,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.SourceException;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import org.apache.commons.collections.CollectionUtils;
@@ -135,7 +136,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 		try {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(taskDto.getAttrs());
-			this.syncProgress = foundNodeSyncProgress(allSyncProgress);
+			this.syncProgress = foundNodeSyncProgress(allSyncProgress, SyncProgressNodeType.SOURCE);
 			if (this.syncProgress == null || StringUtils.isBlank(this.syncProgress.getOffset()) || this.sourceContext == null || this.sourceContext.getJob() == null) {
 				return;
 			}

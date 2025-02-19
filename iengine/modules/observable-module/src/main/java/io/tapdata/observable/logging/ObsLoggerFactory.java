@@ -90,7 +90,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task) {
-		if (task.isPreviewTask()) {
+		if (task.isBlankLog()) {
 			return BLANK_LOGGER;
 		}
 		String taskId = task.getId().toHexString();
@@ -139,7 +139,7 @@ public final class ObsLoggerFactory implements MemoryFetcher {
 	}
 
 	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName, List<String> tags) {
-		if (task.isPreviewTask()) {
+		if (task.isBlankLog()) {
 			return BLANK_LOGGER;
 		}
 		TaskLogger taskLogger = (TaskLogger) getObsLogger(task);

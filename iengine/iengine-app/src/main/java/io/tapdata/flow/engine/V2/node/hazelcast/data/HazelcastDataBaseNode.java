@@ -8,6 +8,7 @@ import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -126,10 +127,12 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		return allSyncProgressMap;
 	}
 
-	protected SyncProgress foundNodeSyncProgress(Map<String, SyncProgress> allSyncProgress) {
+	protected SyncProgress foundNodeSyncProgress(Map<String, SyncProgress> allSyncProgress, SyncProgressNodeType syncProgressNodeType) {
 		SyncProgress syncProgress = null;
 		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
-			if (entry.getKey().contains(getNode().getId())) {
+			String key = entry.getKey();
+			String[] nodeIds = key.split(",");
+			if (getNode().getId().equals(nodeIds[syncProgressNodeType.getIndex()])) {
 				SyncProgress temp = entry.getValue();
 				if (null == syncProgress) {
 					syncProgress = temp;

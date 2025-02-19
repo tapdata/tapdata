@@ -277,7 +277,9 @@ public class ObservableAspectTaskTest {
             TaskSampleHandlerV2 taskSampleHandler = mock(TaskSampleHandlerV2.class);
             doNothing().when(taskSampleHandler).handleWriteBatchSplit();
             ReflectionTestUtils.setField(observableAspectTask,"taskSampleHandler",taskSampleHandler);
-            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT);
+            TableNode tableNode = new TableNode();
+            DataProcessorContext dataProcessorContext = DataProcessorContext.newBuilder().withNode(tableNode).build();
+            WriteRecordFuncAspect aspect = new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext);
             observableAspectTask.handleWriteRecordFunc(aspect);
             verify(taskSampleHandler, times(1)).handleWriteBatchSplit();
         }

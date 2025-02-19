@@ -15,9 +15,12 @@ import com.tapdata.tm.commons.util.PartitionTableFieldRenameOperator;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.schema.TapConstraint;
+import io.tapdata.entity.schema.TapConstraintMapping;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -66,6 +69,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				field.setFieldName(toName);
 			}
 		};
+		IOperator<List<TapConstraint>> foreignKeyConstraintIOperator = createForeignKeyConstraintIOperator();
+		IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator = createReferenceForeignKeyConstraintIOperator();
 		for (Schema schema : retSchemaList) {
 			if (null == schema.getFields()) continue;
 
@@ -74,6 +79,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 			PartitionTableFieldRenameOperator operator = apply.startPartitionTableFieldRename();
 			for (Field field : fields) {
 				apply.apply(tableName, field.getPreviousFieldName(), field, fieldIOperator);
+				handleForeignKeyConstraints(schema, field, apply, tableName, foreignKeyConstraintIOperator);
+				handleReferenceForeignKeyConstraints(schema, apply, referenceForeignKeyConstraintIOperator);
 			}
 			operator.endOf(schema);
 		}
@@ -81,7 +88,99 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		return retSchemaList;
 	}
 
+	protected void handleReferenceForeignKeyConstraints(Schema schema, ApplyConfig apply, IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator) {
+		List<TapConstraint> constraints = schema.getConstraints();
+		if (CollectionUtils.isNotEmpty(constraints)) {
+			for (TapConstraint constraint : constraints) {
+				String referencesTableName = constraint.getReferencesTableName();
+				List<TapConstraintMapping> mappingFields = constraint.getMappingFields();
+				for (TapConstraintMapping mappingField : mappingFields) {
+					String referenceKey = mappingField.getReferenceKey();
+					apply.apply(referencesTableName, referenceKey, constraints, referenceForeignKeyConstraintIOperator);
+				}
+			}
+		}
+	}
 
+	protected void handleForeignKeyConstraints(Schema schema, Field field, ApplyConfig apply, String tableName,
+													  IOperator<List<TapConstraint>> createForeignKeyConstraintIOperator) {
+		List<TapConstraint> constraints = schema.getConstraints();
+		if(CollectionUtils.isNotEmpty(constraints)) {
+			apply.apply(tableName, field.getOriginalFieldName(), constraints, createForeignKeyConstraintIOperator);
+		}
+	}
+
+	protected IOperator<List<TapConstraint>> createForeignKeyConstraintIOperator() {
+		return new IOperator<List<TapConstraint>>() {
+			@Override
+			public void renameField(List<TapConstraint> param, String fromName, String toName) {
+				param.forEach(tapConstraint -> {
+					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
+						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						mappingFields.forEach(mappingField -> {
+							if (mappingField.getForeignKey().equals(fromName)) {
+								mappingField.foreignKey(toName);
+							}
+						});
+					}
+				});
+			}
+
+			@Override
+			public void deleteField(List<TapConstraint> param, String originalName) {
+				List<TapConstraint> needRemove = new ArrayList<>();
+				param.forEach(tapConstraint -> {
+					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
+						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						if (null != mappingFields.stream().filter(mappingField -> mappingField.getForeignKey().equals(originalName)).findFirst().orElse(null)) {
+							if (!needRemove.contains(tapConstraint)) {
+								needRemove.add(tapConstraint);
+							}
+						}
+					}
+				});
+				if (CollectionUtils.isNotEmpty(needRemove)) {
+					needRemove.forEach(param::remove);
+				}
+			}
+		};
+	}
+
+	protected IOperator<List<TapConstraint>> createReferenceForeignKeyConstraintIOperator() {
+		return new IOperator<List<TapConstraint>>() {
+			@Override
+			public void deleteField(List<TapConstraint> param, String originalName) {
+				List<TapConstraint> needRemove = new ArrayList<>();
+				param.forEach(tapConstraint -> {
+					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
+						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						if (null != mappingFields.stream().filter(mappingField -> mappingField.getReferenceKey().equals(originalName)).findFirst().orElse(null)) {
+							if (!needRemove.contains(tapConstraint)) {
+								needRemove.add(tapConstraint);
+							}
+						}
+					}
+				});
+				if (CollectionUtils.isNotEmpty(needRemove)) {
+					needRemove.forEach(param::remove);
+				}
+			}
+
+			@Override
+			public void renameField(List<TapConstraint> param, String fromName, String toName) {
+				param.forEach(tapConstraint -> {
+					if (tapConstraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
+						List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+						mappingFields.forEach(mappingField -> {
+							if (mappingField.getReferenceKey().equals(fromName)) {
+								mappingField.referenceKey(toName);
+							}
+						});
+					}
+				});
+			}
+		};
+	}
 
 	@Override
 	public void fieldDdlEvent(TapDDLEvent tapEvent) throws Exception {

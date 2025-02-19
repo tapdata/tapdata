@@ -109,6 +109,7 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     /** 无主键表同步模式， */
     private String noPkSyncMode;
+    private boolean ignoreMetrics;
     /**
      * constructor for node
      *

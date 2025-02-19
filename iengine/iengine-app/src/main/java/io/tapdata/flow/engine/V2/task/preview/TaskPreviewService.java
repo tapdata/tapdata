@@ -6,6 +6,7 @@ import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.PreviewTargetNode;
@@ -35,7 +36,6 @@ import org.bson.types.ObjectId;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -59,6 +59,10 @@ public class TaskPreviewService {
 			logger.error("Parse task json failed: {}", taskJson, e);
 			return TaskPreviewResultVO.parseFailed(e);
 		}
+		return previewTask(taskDto, includeNodeIds, previewRows, stopWatch);
+	}
+
+	public TaskPreviewResultVO previewTask(TaskDto taskDto, List<String> includeNodeIds, Integer previewRows, StopWatch stopWatch) {
 		stopWatch.start("before");
 		try {
 			validateTask(taskDto);
@@ -81,7 +85,6 @@ public class TaskPreviewService {
 			taskPreviewInstance.getTaskPreviewResultVO().failed(e);
 			return taskPreviewInstance.getTaskPreviewResultVO();
 		}
-		stopWatch.stop();
 		previewPrivate(taskDto, stopWatch);
 		stopWatch.start("after");
 		TaskPreviewResultVO taskPreviewResultVO = taskPreviewInstanceMap.remove(taskPreviewInstanceId).getTaskPreviewResultVO();
@@ -224,12 +227,12 @@ public class TaskPreviewService {
 		previewRows = (null == previewRows || previewRows < 0) ? DEFAULT_PREVIEW_ROWS : previewRows;
 		taskDto.setName(String.join("_", "preview", taskDto.getName(), taskPreviewInstanceId(taskDto)));
 		taskDto.setPreviewRows(previewRows);
-		taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
 		taskDto.setType(TaskDto.TYPE_INITIAL_SYNC);
 		taskDto.setDag(handleDAG(taskDto, includeNodeIds));
 		taskDto.setTestTaskId(new ObjectId().toHexString());
 		taskDto.setRetryIntervalSecond(0L);
 		taskDto.setMaxRetryTimeMinute(0L);
+		taskDto.setPreview(true);
 		handleMergeNode(taskDto);
 	}
 
@@ -245,10 +248,7 @@ public class TaskPreviewService {
 			PreviewTargetNode previewTargetNode = new PreviewTargetNode();
 			previewTargetNode.setName(PreviewTargetNode.class.getSimpleName());
 			previewTargetNode.setId(UUID.randomUUID().toString());
-			List predecessors = targetNode.predecessors();
-			if (CollectionUtils.isEmpty(predecessors)) {
-				dag.addTargetNode(targetNode, previewTargetNode);
-			} else if (targetNode instanceof TableNode || targetNode instanceof DatabaseNode) {
+			if (targetNode.isDataNode() || targetNode instanceof VirtualTargetNode) {
 				dag.replaceNode(targetNode, previewTargetNode);
 			} else {
 				dag.addTargetNode(targetNode, previewTargetNode);
@@ -276,7 +276,7 @@ public class TaskPreviewService {
 		for (Node node : nodes) {
 			if (includeNodeIds.contains(node.getId())) {
 				includeNodes.add(node);
-				edges.stream().filter(edge -> edge.getSource().equals(node.getId()) || edge.getTarget().equals(node.getId())).forEach(edge->{
+				edges.stream().filter(edge -> edge.getSource().equals(node.getId()) || edge.getTarget().equals(node.getId())).forEach(edge -> {
 					if (includeEdges.stream().noneMatch(e -> e.getSource().equals(edge.getSource()) && e.getTarget().equals(edge.getTarget()))
 							&& includeNodeIds.contains(edge.getSource())
 							&& includeNodeIds.contains(edge.getTarget())) {

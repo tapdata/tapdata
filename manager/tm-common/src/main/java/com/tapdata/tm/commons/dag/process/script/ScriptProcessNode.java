@@ -114,7 +114,7 @@ public class ScriptProcessNode extends ProcessorNode {
         }
         // Used to test-run data to get the model
         TapTable tapTable = null;
-        if (!TaskDto.SYNC_TYPE_PREVIEW.equals(options.getSyncType())) {
+        if (!options.isPreview()) {
             tapTable = getTapTable(target, taskDtoCopy);
         }
 

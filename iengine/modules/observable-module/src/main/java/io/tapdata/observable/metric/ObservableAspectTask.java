@@ -4,6 +4,7 @@ import com.google.common.collect.HashBiMap;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.*;
@@ -150,6 +151,9 @@ public class ObservableAspectTask extends AspectTask {
 			dataNodeSampleHandlers = new HashMap<>();
 		}
 		Node<?> node = aspect.getDataProcessorContext().getNode();
+		if (node instanceof TableNode && ((TableNode) node).isIgnoreMetrics()) {
+			return null;
+		}
 		String nodeId = node.getId();
 		DataNodeSampleHandler handler = new DataNodeSampleHandler(task, node);
 		dataNodeSampleHandlers.put(nodeId, handler);
@@ -227,11 +231,15 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleBatchReadFunc(BatchReadFuncAspect aspect) {
-		String nodeId = aspect.getDataProcessorContext().getNode().getId();
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
 		String table = aspect.getTable().getName();
 
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
+				if (node instanceof TableNode && ((TableNode) node).isIgnoreMetrics()) {
+					break;
+				}
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncStart(table, aspect.getTime()));
 				taskSampleHandler.addTable(table);
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
@@ -254,10 +262,14 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	public Void handleStreamReadFunc(StreamReadFuncAspect aspect) {
-		String nodeId = aspect.getDataProcessorContext().getNode().getId();
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		String nodeId = node.getId();
 
 		switch (aspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
+				if (node instanceof TableNode && ((TableNode) node).isIgnoreMetrics()) {
+					break;
+				}
 				List<String> tables = aspect.getTables().stream().filter(t -> {
 					if (Boolean.TRUE.equals(joinHeartbeatMap.get(nodeId))) {
 						if (ConnHeartbeatUtils.TABLE_NAME.equals(t)) return false;
@@ -438,11 +450,14 @@ public class ObservableAspectTask extends AspectTask {
 	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
 		switch (aspect.getState()) {
 			case WriteRecordFuncAspect.STATE_START:
-				Node<?> node = aspect.getDataProcessorContext().getNode();
 				String nodeId = node.getId();
 				String table = aspect.getTable().getName();
+				if (node instanceof TableNode && ((TableNode) node).isSourceAndTarget()) {
+					break;
+				}
 				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(aspect.getRecordEvents());
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> {
