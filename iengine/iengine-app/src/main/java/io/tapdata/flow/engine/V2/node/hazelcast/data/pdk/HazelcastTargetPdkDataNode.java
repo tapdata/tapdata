@@ -306,7 +306,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				try {
 					TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
 					tapCreateConstraintEvent.constraintList(tobeCreateForeignKeys);
-					createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent);
+					createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent, true);
 				} catch (Throwable e) {
 					if (e instanceof TapConstraintException) {
 						TapConstraintException tapConstraintException = (TapConstraintException) e;
