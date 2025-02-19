@@ -227,6 +227,7 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
 
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
+    private List<String> emailReceivers;
 
     private Map<String, Object> logSetting;
     private Integer resetTimes;
