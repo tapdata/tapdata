@@ -15,7 +15,8 @@ public enum KeyEnum {
     SHARE_AGENT_EXPRIRE_DAYS("shareAgentExprireDays"),
     LDAP_LOGIN_ENABLE("ldap.login.enable"),
     LDAP_SSL_ENABLE("ldap.ssl.enable"),
-    LOGIN_SINGLE_SESSION("login.single.session")
+    LOGIN_SINGLE_SESSION("login.single.session"),
+    LOGIN_BRIEF_TIPS("login.brief.tips")
     ;
 
     private String value;
