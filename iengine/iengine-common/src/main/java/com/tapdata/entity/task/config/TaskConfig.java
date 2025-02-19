@@ -3,11 +3,11 @@ package com.tapdata.entity.task.config;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections.MapUtils;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author samuel
@@ -63,5 +63,16 @@ public class TaskConfig implements Serializable {
 			externalStorageDto = externalStorageDtoMap.values().stream().filter(e -> e.getName().equals(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME)).findFirst().orElse(null);
 		}
 		return externalStorageDto;
+	}
+
+	protected TapConnectorContext.IsomorphismType isomorphism;
+
+	public TaskConfig isomorphism(TapConnectorContext.IsomorphismType isomorphism) {
+		this.isomorphism = isomorphism;
+		return this;
+	}
+
+	public TapConnectorContext.IsomorphismType isomorphism() {
+		return isomorphism;
 	}
 }

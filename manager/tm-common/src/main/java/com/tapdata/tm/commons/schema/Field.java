@@ -21,6 +21,8 @@ public class Field implements Serializable {
     private Long autoIncStartValue;
     @JsonProperty("auto_increment_value")
     private Long autoIncrementValue;
+    @JsonProperty("auto_inc_cache_value")
+    private Long autoIncCacheValue;
 
     private Integer columnSize;
     @JsonProperty("data_code")

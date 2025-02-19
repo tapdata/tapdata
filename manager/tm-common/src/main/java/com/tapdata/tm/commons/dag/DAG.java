@@ -1250,6 +1250,10 @@ public class DAG implements Serializable, Cloneable {
         return getNodes().stream().filter(node -> null != node && sinks.contains(node.getId())).collect(Collectors.toList());
     }
 
+    public List<Node> getTargetNodes() {
+        return graph.getSinks().stream().map(graph::getNode).collect(Collectors.toList());
+    }
+
     public void replaceNode(Node oldNode, Node newNode) {
         LinkedList<Edge> edges = getEdges();
         LinkedList<Edge> edgesAsSource = edges.stream().filter(edge -> edge.getSource().equals(oldNode.getId())).collect(Collectors.toCollection(LinkedList::new));

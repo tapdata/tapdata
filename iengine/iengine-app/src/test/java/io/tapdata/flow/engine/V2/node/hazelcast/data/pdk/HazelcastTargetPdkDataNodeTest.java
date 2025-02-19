@@ -692,6 +692,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).tapIndexEquals(any(TapIndex.class), any(TapIndex.class), eq(true));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
@@ -731,6 +732,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).tapIndexEquals(any(TapIndex.class), any(TapIndex.class), eq(true));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
@@ -858,6 +860,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).tapIndexEquals(any(TapIndex.class), any(TapIndex.class), eq(true));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
@@ -1133,6 +1136,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		private String tableId;
 		private TapTable tapTable;
 		private boolean createdTable;
+		private List<TapIndex> tapIndices;
+
 		@BeforeEach
 		void beforeEach(){
 			updateConditionFields = new ArrayList<>();
@@ -1155,12 +1160,13 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			ConnectorFunctions functions = mock(ConnectorFunctions.class);
 			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
 			when(functions.getCreateIndexFunction()).thenReturn(mock(CreateIndexFunction.class));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			tapIndices = new ArrayList<>();
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable, tapIndices);
 		}
 		@Test
 		@DisplayName("test createTargetIndex method for build error consumer")
 		void test1(){
-			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable, tapIndices);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
 		}
 		@Test
@@ -1170,7 +1176,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			List<TapIndex> existsIndexes = new ArrayList<>();
 			existsIndexes.add(mock(TapIndex.class));
 			when(hazelcastTargetPdkDataNode.queryExistsIndexes(any(TapTable.class),anyList())).thenReturn(existsIndexes);
-			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable, tapIndices);
 			verify(hazelcastTargetPdkDataNode,never()).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@DisplayName("test createTargetIndex error exception")
@@ -1179,7 +1185,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class))).thenThrow(new RuntimeException("mock error"));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-				hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields, createUnique, tableId, tapTable, createdTable);
+				hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields, createUnique, tableId, tapTable, createdTable, tapIndices);
 			});
 			assertEquals(tapCodeException.getCode(),TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED);
 		}
