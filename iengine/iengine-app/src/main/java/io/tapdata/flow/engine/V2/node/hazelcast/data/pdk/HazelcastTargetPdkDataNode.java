@@ -232,7 +232,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
-		List<TapIndex> indexList = getTapTableIndex(updateConditionFields, tapTable);
+		List<TapIndex> indexList = tapTable.getIndexList();
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable, indexList);
@@ -331,33 +331,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				}
 			}
 		}));
-	}
-
-	protected List<TapIndex> getTapTableIndex(List<String> updateConditionFields, TapTable tapTable) {
-		List<TapIndex> indexList = tapTable.getIndexList();
-		if (checkSyncIndexOpen() && !usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys())) {
-			if (CollectionUtils.isNotEmpty(indexList) && CollectionUtils.isNotEmpty(updateConditionFields)) {
-				Iterator<TapIndex> iterator = indexList.iterator();
-				while (iterator.hasNext()) {
-					TapIndex tapIndex = iterator.next();
-					List<TapIndexField> tapIndexFieldNames = tapIndex.getIndexFields();
-					if (tapIndexFieldNames.size() == updateConditionFields.size()) {
-						boolean same = true;
-						for (int i = 0; i < tapIndexFieldNames.size(); i++) {
-							String fieldName = tapIndexFieldNames.get(i).getName();
-							if (null != fieldName && (!fieldName.equals(updateConditionFields.get(i)) || !Boolean.TRUE.equals(tapIndexFieldNames.get(i).getFieldAsc()))) {
-								same = false;
-								break;
-							}
-						}
-						if (same) {
-							iterator.remove();
-						}
-					}
-				}
-			}
-		}
-		return indexList;
 	}
 
 	private List<String> getUpdateConditionFields(Node<?> node, TapTable tapTable) {
