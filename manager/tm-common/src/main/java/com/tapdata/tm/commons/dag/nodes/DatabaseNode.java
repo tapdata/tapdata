@@ -32,13 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -100,6 +94,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private int concurrentReadThreadNumber;
 
     public static final String SELF_TYPE = "database";
+    private static final String MONGODB = "MongoDB";
 
     public DatabaseNode() {
         super("database");
@@ -175,6 +170,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             if (getSyncTargetPartitionTableEnable() == null || !getSyncTargetPartitionTableEnable()) {
                 schema.setPartitionMasterTableId(null);
             }
+        }
+        if (dataSource.getDatabase_type().contains(MONGODB)) {
+            outputSchema.stream().filter(Objects::nonNull).forEach(schema -> SchemaUtils.addFieldObjectIdIfMongoDatabase(schema, dataSource.getDatabase_type()));
         }
         return SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, outputSchema);
     }
