@@ -274,12 +274,12 @@ public class SchemaUtils {
         AtomicBoolean primaryKey = new AtomicBoolean(false);
         Map<String, Field> fieldMap = fields.stream()
                 .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
+        if(fieldMap.containsKey(_ID)) return ;
         fieldMap.values().forEach(field -> {
-            if(field.getPrimaryKey()){
+            if(null != field.getPrimaryKey() && field.getPrimaryKey()){
                 primaryKey.set(true);
             }
         });
-        if(fieldMap.containsKey(_ID)) return ;
         FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
         fieldOperation.setType(OBJECT_ID);
         fieldOperation.setField(_ID);
