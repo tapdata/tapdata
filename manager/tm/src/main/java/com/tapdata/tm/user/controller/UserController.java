@@ -404,7 +404,7 @@ public class UserController extends BaseController {
         if (!"admin@admin.com".equals(userDetail.getEmail())) {
             filter.getWhere().and("name", new BasicDBObject().append("$ne", "admin"));
         }
-        Page<RoleDto> roleDtoPage = roleService.find(filter, userDetail);
+        Page<RoleDto> roleDtoPage = roleService.find(filter);
         List<RoleDto> items = roleDtoPage.getItems();
         if (CollectionUtils.isNotEmpty(items)) {
             List<ObjectId> userIds = items.stream().map(item -> toObjectId(item.getUserId())).collect(Collectors.toList());
