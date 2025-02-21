@@ -100,18 +100,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -273,10 +262,21 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         if (CollectionUtils.isNotEmpty(metadataInstancesDtoList)) {
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition)).map(Field::getFieldName).collect(Collectors.toList());
+                if (CollectionUtils.isNotEmpty(primaryKeys)) {
+                    metadataInstancesVo.setSortColumns(primaryKeys);
+                } else if (CollectionUtils.isNotEmpty(metadataInstancesDto.getIndices())) {
+                    metadataInstancesDto.getIndices().stream().filter(TableIndex::isUnique).findAny()
+                            .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList())));
+                } else {
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().filter(v -> Boolean.FALSE.equals(v.getIsNullable())).map(Field::getFieldName).collect(Collectors.toList()));
+                }
+                if (CollectionUtils.isEmpty(metadataInstancesVo.getSortColumns())) {
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().map(Field::getFieldName).collect(Collectors.toList()));
+                }
                 metadataInstancesVoList.add(metadataInstancesVo);
             }
         }
-
         return metadataInstancesVoList;
     }
 
