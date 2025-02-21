@@ -135,6 +135,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
+    private List<String> emailReceivers;
 
     private Integer resetTimes;
 

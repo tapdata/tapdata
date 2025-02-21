@@ -536,7 +536,7 @@ public class WorkerServiceImpl extends WorkerService{
         update.set("updateStatus", "fail");
         update.set("updateMsg", "time out");
         UpdateResult updateResult = update(query, update);
-        log.info("clean worker :{}", updateResult.getModifiedCount());
+        log.debug("clean worker :{}", updateResult.getModifiedCount());
     }
 
 
@@ -578,7 +578,7 @@ public class WorkerServiceImpl extends WorkerService{
         query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
         query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
         WorkerDto worker = findOne(query);
-        log.info("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
+        log.debug("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
         List<ApiWorkerStatusVo> list = Lists.newArrayList();
         if (null != worker) {
             ApiWorkerStatusVo workerStatusVo = new ApiWorkerStatusVo();

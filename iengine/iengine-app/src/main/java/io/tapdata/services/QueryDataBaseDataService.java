@@ -8,6 +8,8 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
@@ -19,6 +21,7 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableInfoFunction;
 import io.tapdata.pdk.apis.functions.connection.TableInfo;
+import io.tapdata.pdk.apis.functions.connector.source.RunRawCommandFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -66,6 +69,60 @@ public class QueryDataBaseDataService {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	public List<Map<String, Object>> query(String connectionId, String tableName, String sql) {
+		String associateId = "query_" + connectionId +  "_" + UUID.randomUUID();
+		TapTable tapTable = new TapTable();
+		if (tableName != null && !tableName.isEmpty()) {
+			tapTable = TapTableUtil.getTapTableByConnectionId(connectionId, tableName);
+		}
+
+		try {
+			ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+			Connections connections = HazelcastTaskService.taskService().getConnection(connectionId);
+			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
+			ConnectorNode connectorNode = createConnectorNode(associateId, (HttpClientMongoOperator) clientMongoOperator, databaseType, connections.getConfig());
+			List<Map<String, Object>> maps = Collections.emptyList();
+			String TAG = this.getClass().getSimpleName();
+			try {
+				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
+				TapCodecsFilterManager codecsFilterManager = connectorNode.getCodecsFilterManager();
+				AtomicReference<List<Map<String, Object>>> resultsAtomic = new AtomicReference<>();
+				RunRawCommandFunction runRawCommandFunction = connectorNode.getConnectorFunctions().getRunRawCommandFunction();
+				try {
+					runRawCommandFunction.run(connectorNode.getConnectorContext(), sql, tapTable, 99999, events -> {
+						List<Map<String, Object>> results = new ArrayList<>();
+						for (TapEvent event : events) {
+							results.add(((TapInsertRecordEvent) event).getAfter());
+						}
+						resultsAtomic.set(results);
+					});
+					maps = resultsAtomic.get();
+					if (CollectionUtils.isNotEmpty(maps)) {
+						for (Map<String, Object> map : maps) {
+							codecsFilterManager.transformToTapValueMap(map, tapTable.getNameFieldMap());
+							originCodecsFilterManager.transformFromTapValueMap(map);
+						}
+					}
+
+				} catch (Throwable e1) {
+					log.error("Query raw query error :", e1);
+					maps = resultsAtomic.get();
+				}
+			} catch (Exception e) {
+				log.error("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
+			} finally {
+				try {
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
+				} catch (Exception e) {
+					log.error(" Stop error{}", e.getMessage());
+				}
+			}
+			return maps;
+		} finally {
+			PDKIntegration.releaseAssociateId(associateId);
+		}
 	}
 
 	public Map<String, Object> getData(String connectionId, String tableName) throws Throwable {

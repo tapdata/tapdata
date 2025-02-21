@@ -303,7 +303,7 @@ public class UserController extends BaseController {
         if (adLoginEnable && !"admin@admin.com".equals(loginRequest.getEmail())) {
             boolean login = userService.loginByLdap(loginRequest.getEmail(), password);
             if (!login) {
-                throw new BizException("Incorrect.Password");
+                throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
             }
             //登录成功查询用户是否存在没有就创建用户
             if (StringUtils.isNotBlank(loginRequest.getEmail())) {
@@ -359,7 +359,7 @@ public class UserController extends BaseController {
         } else {
             Update update = Update.update("loginTimes", user.getLoginTimes() != null ? (user.getLoginTimes() % 6 + 1) : 1).set("loginTime", new Date());
             userService.update(Query.query(Criteria.where("id").is(user.getId())), update);
-            throw new BizException("Incorrect.Password");
+            throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
         }
         try {
             userLogService.addUserLog(Modular.SYSTEM, com.tapdata.tm.userLog.constant.Operation.LOGIN, user.getId().toHexString(), "", "");
