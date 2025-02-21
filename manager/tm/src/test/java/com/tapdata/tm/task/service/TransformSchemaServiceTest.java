@@ -585,6 +585,19 @@ class TransformSchemaServiceTest {
             transformSchemaService.transformerResult(user, result, saveHistory);
             verify(ldpService, new Times(1)).afterLdpTask(anyString(), any(UserDetail.class));
         }
+
+        @Test
+        void testTransformerResultWithTransformUuid() {
+            List<String> batchRemoveMetaDataList = new ArrayList<>();
+            batchRemoveMetaDataList.add("T_mongodb_io_tapdata_1_0-SNAPSHOT_TEST_63468098c87faf3ba64fece0");
+            when(result.getBatchRemoveMetaDataList()).thenReturn(batchRemoveMetaDataList);
+            when(result.getTaskId()).thenReturn("6720c4a18c6b586b9e1b493b");
+            when(result.getTransformUuid()).thenReturn("6720c4a18c6b586b9e1b493b");
+            when(taskService.checkExistById(any(ObjectId.class), anyString())).thenReturn(mock(TaskDto.class));
+            doCallRealMethod().when(transformSchemaService).transformerResult(user, result, saveHistory);
+            transformSchemaService.transformerResult(user, result, saveHistory);
+            verify(ldpService, new Times(1)).afterLdpTask(anyString(), any(UserDetail.class));
+        }
     }
 
 }

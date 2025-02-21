@@ -59,6 +59,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TransformSchemaService {
 
+    public static final String TRANSFORM_UUID = "transformUuid";
+    public static final String TRANSFORMED = "transformed";
     private final DAGDataService dagDataService;
     private final MetadataInstancesService metadataInstancesService;
     private final TaskService taskService;
@@ -387,7 +389,7 @@ public class TransformSchemaService {
     }
 
     protected void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
-        taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false));
+        taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update(TRANSFORM_UUID, transformParam.getOptions().getUuid()).set(TRANSFORMED, false));
 
         boolean taskContainJs = checkTaskContainJs(taskDto);
 
@@ -423,7 +425,7 @@ public class TransformSchemaService {
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
 
         String taskId = result.getTaskId();
-        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), "transformUuid");
+        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), TRANSFORM_UUID);
 
         if (taskDto == null) {
             return;
@@ -491,9 +493,9 @@ public class TransformSchemaService {
             }
 
             if (StringUtils.isNotBlank(result.getTransformUuid())) {
-                criteria = criteria.and("transformUuid").lte(result.getTransformUuid());
-                set = (null == set) ? Update.update("transformed", true) : set.set("transformed", true);
-                set.set("transformUuid", result.getTransformUuid());
+                criteria = criteria.and(TRANSFORM_UUID).lte(result.getTransformUuid());
+                set = (null == set) ? Update.update(TRANSFORMED, true) : set.set(TRANSFORMED, true);
+                set.set(TRANSFORM_UUID, result.getTransformUuid());
             }
 
             taskService.update(new Query(criteria), set);
