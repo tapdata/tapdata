@@ -253,5 +253,29 @@ public class DatabaseNodeTest {
             Assertions.assertEquals(1,result.size());
             Assertions.assertEquals(2,result.get(0).getFields().size());
         }
+
+        @Test
+        void test_mongoSchema_notPrimaryKey(){
+            DAG dag = mock(DAG.class);
+            when(dag.getSyncType()).thenReturn("logCollector");
+            when(databaseNode.getDag()).thenReturn(dag);
+            List<List<Schema>> inputSchemas = new ArrayList<>();
+            List<Schema> schemas = new ArrayList<>();
+            Schema schema = new Schema();
+            schema.setName("test1");
+            schema.setOriginalName("test1");
+            schema.setAncestorsName("test1");
+            List<Field> fields = new ArrayList<>();
+            Field field = new Field();
+            field.setFieldName("test1");
+            fields.add(field);
+            schema.setFields(fields);
+            schemas.add(schema);
+            inputSchemas.add(schemas);
+            when(databaseNode.transformFields(any(), any(),any())).thenReturn(fields);
+            List<Schema> result = databaseNode.mergeSchema(inputSchemas,schemas, new DAG.Options());
+            Assertions.assertEquals(1,result.size());
+            Assertions.assertEquals(2,result.get(0).getFields().size());
+        }
     }
 }
