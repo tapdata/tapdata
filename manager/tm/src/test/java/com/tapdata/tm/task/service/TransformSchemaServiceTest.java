@@ -339,6 +339,15 @@ class TransformSchemaServiceTest {
             when(taskDto.getId()).thenReturn(taskId);
             when(taskDto.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_SYNC);
         }
+        @Test
+        void testTransformSchema() {
+            TransformerWsMessageDto transformParam = new TransformerWsMessageDto();
+            transformParam.setMetadataInstancesDtoList(new ArrayList<>());
+            transformParam.setOptions(mock(DAG.Options.class));
+            doCallRealMethod().when(transformSchemaService).transformSchema(taskDto, transformParam, false, user);
+            transformSchemaService.transformSchema(taskDto, transformParam, false, user);
+            verify(taskService).update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false));
+        }
 
         @Nested
         class TransformSchemaBeforeDynamicTableNameTest {

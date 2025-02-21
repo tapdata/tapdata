@@ -386,8 +386,8 @@ public class TransformSchemaService {
         transformSchema(taskDto, transformParam, checkJs, user);
     }
 
-    private void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
-        taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
+    protected void transformSchema(TaskDto taskDto, TransformerWsMessageDto transformParam, boolean checkJs, UserDetail user) {
+        taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false));
 
         boolean taskContainJs = checkTaskContainJs(taskDto);
 
@@ -496,7 +496,7 @@ public class TransformSchemaService {
                 set.set("transformUuid", result.getTransformUuid());
             }
 
-            taskService.update(new Query(criteria), set, user);
+            taskService.update(new Query(criteria), set);
         }
 
         ldpService.afterLdpTask(taskId, user);
