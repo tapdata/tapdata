@@ -15,7 +15,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import io.tapdata.Application;
-import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
@@ -246,6 +246,9 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	@NotNull
 	private TapTable getNewTapTable(TapRecordEvent tapEvent) {
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+        if (tapEvent instanceof TapDeleteRecordEvent) {
+            after = TapEventUtil.getBefore(tapEvent);
+        }
 		if (obsLogger.isDebugEnabled()) {
 			obsLogger.debug("after map is [{}]", after);
 		}
