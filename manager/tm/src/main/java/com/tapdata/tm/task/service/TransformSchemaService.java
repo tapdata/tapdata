@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.HuaweiDrsKafkaConvertorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
@@ -562,7 +563,8 @@ public class TransformSchemaService {
                             || node instanceof MigrateJsProcessorNode
                             || node instanceof CustomProcessorNode
                             || node instanceof PyProcessNode
-                            || node instanceof MigratePyProcessNode ) {
+                            || node instanceof MigratePyProcessNode
+                            || node instanceof HuaweiDrsKafkaConvertorNode) {
                         return true;
                     }
                 }
