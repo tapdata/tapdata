@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node;
 
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
+import com.tapdata.tm.commons.dag.process.HuaweiDrsKafkaConvertorNode;
 
 import java.util.Collections;
 import java.util.Map;
@@ -51,7 +52,8 @@ public enum NodeTypeEnum {
 	UNWIND_PROCESS("unwind_processor"),
 	ADD_DATE_FIELD_PROCESS("add_date_field_processor"),
 	MIGRATE_ADD_DATE_FIELD_PROCESSOR("migrate_add_date_field_processor"),
-	PREVIEW_TARGET("preview_target")
+	PREVIEW_TARGET("preview_target"),
+    HUAWEI_DRS_KAFKA_CONVERTOR(HuaweiDrsKafkaConvertorNode.TYPE),
 	;
 
 	public final String type;
