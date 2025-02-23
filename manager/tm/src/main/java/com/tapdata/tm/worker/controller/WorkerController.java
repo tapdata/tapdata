@@ -3,11 +3,14 @@ package com.tapdata.tm.worker.controller;
 import com.alibaba.fastjson.JSONObject;
 import com.google.gson.reflect.TypeToken;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -23,6 +26,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -52,6 +56,8 @@ public class WorkerController extends BaseController {
     private final UserLogService userLogService;
     private SettingsService settingsService;
     private WorkerService workerService;
+    @Autowired
+    private PermissionService permissionService;
 
     public WorkerController(WorkerService workerService, UserLogService userLogService, SettingsService settingsService) {
         this.workerService = workerService;
@@ -67,8 +73,12 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<WorkerDto> save(@RequestBody WorkerDto worker) {
-        worker.setId(null);
-        return success(workerService.save(worker, getLoginUser()));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            worker.setId(null);
+            return success(workerService.save(worker, getLoginUser()));
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     /**
@@ -149,7 +159,11 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<WorkerDto> put(@RequestBody WorkerDto worker) {
-        return success(workerService.replaceOrInsert(worker, getLoginUser()));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            return success(workerService.replaceOrInsert(worker, getLoginUser()));
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 
 
@@ -410,7 +424,11 @@ public class WorkerController extends BaseController {
     @Operation(summary = "创建实例接口")
     @PostMapping("/createWorker")
     public ResponseMessage<WorkerDto> createWorker(@RequestBody WorkerDto workerDto) {
-        return success(workerService.createWorker(workerDto, getLoginUser()));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            return success(workerService.createWorker(workerDto, getLoginUser()));
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     @Operation(summary = "查询实例状态")
@@ -469,10 +487,19 @@ public class WorkerController extends BaseController {
     }
     @GetMapping("/queryAllBindWorker")
     public ResponseMessage<List<Worker>> queryAllBindWorker() {
-        return success(workerService.queryAllBindWorker());
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
+            return success(workerService.queryAllBindWorker());
+        }else{
+            throw new BizException("NotAuthorized");
+        }
+
     }
     @PostMapping("/unbindByProcessId")
     public ResponseMessage<Boolean> unbindByProcessId(@RequestParam String processId) {
-        return success(workerService.unbindByProcessId(processId));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
+            return success(workerService.unbindByProcessId(processId));
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 }
