@@ -2,20 +2,17 @@ package io.tapdata.huawei.drs.kafka.serialization.mysql.types;
 
 import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.value.TapNumberValue;
-import io.tapdata.huawei.drs.kafka.serialization.IType;
+import io.tapdata.huawei.drs.kafka.types.BasicType;
 
 import java.math.BigDecimal;
 
 /**
- *
- *
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/2/22 17:10 Create
  */
-public class BigintMysqlType implements IType {
-    @Override
-    public String type() {
-        return "bigint";
+public class BigintMysqlType extends BasicType {
+    public BigintMysqlType() {
+        super("bigint");
     }
 
     @Override
@@ -29,8 +26,4 @@ public class BigintMysqlType implements IType {
         return value;
     }
 
-    @Override
-    public Object encode(Object value) {
-        return null;
-    }
 }
