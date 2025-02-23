@@ -33,7 +33,7 @@ public abstract class RoleMappingService extends BaseService<RoleMappingDto, Rol
 
     @Transactional
     public abstract List<RoleMappingDto> saveAll(List<RoleMappingDto> roleDtos, UserDetail userDetail);
-    
+
     public abstract void removeRoleFromUser(String roleMappingId);
 
     public List<RoleMappingDto> updateUserRoleMapping(List<RoleMappingDto> roleDto, UserDetail userDetail) {
@@ -55,4 +55,6 @@ public abstract class RoleMappingService extends BaseService<RoleMappingDto, Rol
     }
 
     public abstract void addUserLogIfNeed(List<RoleMappingDto> dtos, UserDetail userDetail);
+
+    public abstract boolean checkHasPermission(PrincipleType principleType, List<ObjectId> roleIdList, String permissionName);
 }

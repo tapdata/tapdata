@@ -6,10 +6,13 @@
  */
 package com.tapdata.tm.role.controller;
 
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.permissions.DataPermissionHelper;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -17,6 +20,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import org.bson.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +34,10 @@ import java.util.Map;
 public class RoleController extends BaseController {
 
 	private RoleService roleService;
+	@Autowired
+	private PermissionService permissionService;
+	@Autowired
+	private SettingsService settingsService;
 	public RoleController(RoleService roleService) {
 		this.roleService = roleService;
 	}
@@ -42,15 +50,19 @@ public class RoleController extends BaseController {
 	@Operation(summary = "Create a new instance of the model and persist it into the data source")
 	@PostMapping
 	public ResponseMessage<RoleDto> save(@RequestBody RoleDto roleDto) {
-		if (roleDto == null){
-			throw new BizException("IllegalArgument", "roleDto");
+		if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
+			if (roleDto == null) {
+				throw new BizException("IllegalArgument", "roleDto");
+			}
+			roleDto.setId(null);
+			RoleDto dto = roleService.findOne(Query.query(Criteria.where("name").is(roleDto.getName())));
+			if (dto != null) {
+				throw new BizException("Role.Already.Exists");
+			}
+			return success(roleService.save(roleDto, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
 		}
-		roleDto.setId(null);
-		RoleDto dto = roleService.findOne(Query.query(Criteria.where("name").is(roleDto.getName())));
-		if (dto != null) {
-			throw new BizException("Role.Already.Exists");
-		}
-		return success(roleService.save(roleDto, getLoginUser()));
 	}
 
 	/**
@@ -61,7 +73,11 @@ public class RoleController extends BaseController {
 	@Operation(summary = "Patch an existing model instance or insert a new one into the data source")
 	@PatchMapping()
 	public ResponseMessage<RoleDto> update(@RequestBody RoleDto roleDto) {
-		return success(roleService.save(roleDto, getLoginUser()));
+		if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
+			return success(roleService.save(roleDto, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
+		}
 	}
 
 
@@ -92,7 +108,11 @@ public class RoleController extends BaseController {
 	@Operation(summary = "Replace an existing model instance or insert a new one into the data source")
 	@PutMapping
 	public ResponseMessage<RoleDto> put(@RequestBody RoleDto roleDto) {
-		return success(roleService.replaceOrInsert(roleDto, getLoginUser()));
+		if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
+			return success(roleService.replaceOrInsert(roleDto, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
+		}
 	}
 
 
@@ -117,8 +137,13 @@ public class RoleController extends BaseController {
 	@Operation(summary = "Patch attributes for a model instance and persist it into the data source")
 	@PatchMapping("{id}")
 	public ResponseMessage<RoleDto> updateById(@PathVariable("id") String id, @RequestBody RoleDto roleDto) {
-		roleDto.setId(MongoUtils.toObjectId(id));
-		return success(roleService.save(roleDto, getLoginUser()));
+		if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
+			roleDto.setId(MongoUtils.toObjectId(id));
+			return success(roleService.save(roleDto, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
+		}
+
 	}
 
 
@@ -254,7 +279,12 @@ public class RoleController extends BaseController {
 	@Operation(summary = "Update an existing model instance or insert a new one into the data source based on the where criteria.")
 	@PostMapping("upsertWithWhere")
 	public ResponseMessage<RoleDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody RoleDto roleDto) {
-		Where where = parseWhere(whereJson);
-		return success(roleService.upsertByWhere(where, roleDto, getLoginUser()));
+		if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_ROLE_MANAGEMENT, getLoginUser().getUserId())) {
+			Where where = parseWhere(whereJson);
+			return success(roleService.upsertByWhere(where, roleDto, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
+		}
+
 	}
 }

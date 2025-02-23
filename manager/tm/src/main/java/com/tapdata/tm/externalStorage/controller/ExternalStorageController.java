@@ -1,5 +1,7 @@
 package com.tapdata.tm.externalStorage.controller;
 
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -8,6 +10,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -40,6 +43,10 @@ public class ExternalStorageController extends BaseController {
 
 	@Autowired
 	private ExternalStorageService externalStorageService;
+	@Autowired
+	private PermissionService permissionService;
+	@Autowired
+	private SettingsService settingsService;
 
 	/**
 	 * Create a new instance of the model and persist it into the data source
@@ -50,7 +57,11 @@ public class ExternalStorageController extends BaseController {
 	@Operation(summary = "Create a new instance of the model and persist it into the data source")
 	@PostMapping
 	public ResponseMessage<ExternalStorageDto> save(@RequestBody(required = false) ExternalStorageDto externalStorage) {
-		return success(externalStorageService.save(externalStorage, getLoginUser()));
+		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
+			return success(externalStorageService.save(externalStorage, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
+		}
 	}
 
 	/**
@@ -62,7 +73,12 @@ public class ExternalStorageController extends BaseController {
 	@Operation(summary = "Patch an existing model instance or insert a new one into the data source")
 	@PatchMapping()
 	public ResponseMessage<ExternalStorageDto> update(@RequestBody ExternalStorageDto externalStorage) {
-		return success(externalStorageService.update(externalStorage, getLoginUser()));
+		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
+			return success(externalStorageService.update(externalStorage, getLoginUser()));
+		} else {
+			throw new BizException("NotAuthorized");
+		}
+
 	}
 
 
@@ -124,8 +140,13 @@ public class ExternalStorageController extends BaseController {
 	@Operation(summary = "Patch attributes for a model instance and persist it into the data source")
 	@PatchMapping("{id}")
 	public ResponseMessage<ExternalStorageDto> updateById(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
-		externalStorage.setId(MongoUtils.toObjectId(id));
-		return success(externalStorageService.update(externalStorage, getLoginUser()));
+		if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
+			externalStorage.setId(MongoUtils.toObjectId(id));
+			return success(externalStorageService.update(externalStorage, getLoginUser()));
+		}else{
+			throw new BizException("NotAuthorized");
+		}
+
 	}
 
 
