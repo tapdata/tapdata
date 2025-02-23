@@ -5,8 +5,7 @@ package io.tapdata.huawei.drs.kafka.serialization.mysql.types;
  * @version v1.0 2025/2/21 18:03 Create
  */
 public class DoubleMysqlType extends DecimalMysqlType {
-    @Override
-    public String type() {
-        return "double";
+    public DoubleMysqlType() {
+        super("double");
     }
 }

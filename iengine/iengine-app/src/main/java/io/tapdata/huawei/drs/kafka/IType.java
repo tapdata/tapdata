@@ -1,4 +1,4 @@
-package io.tapdata.huawei.drs.kafka.serialization;
+package io.tapdata.huawei.drs.kafka;
 
 import java.util.Map;
 
