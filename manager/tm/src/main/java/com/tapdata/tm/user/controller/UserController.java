@@ -468,7 +468,7 @@ public class UserController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<UserDto> save(@RequestBody @Validated CreateUserRequest request) {
-        if (productList != null && !productList.contains("dfs") &&
+        if ((productList != null && productList.contains("dfs")) ||
                 Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId()))) {
             return success(userService.save(request, getLoginUser()));
         } else {

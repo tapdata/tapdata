@@ -44,7 +44,7 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<UserGroupDto> save(@RequestBody UserGroupDto userGroup) {
-        if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
             userGroup.setId(null);
             return success(userGroupService.save(userGroup, getLoginUser()));
         } else {
@@ -60,7 +60,7 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
     public ResponseMessage<UserGroupDto> update(@RequestBody UserGroupDto userGroup) {
-        if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
             return success(userGroupService.save(userGroup, getLoginUser()));
         } else {
             throw new BizException("NotAuthorized");
@@ -95,7 +95,7 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<UserGroupDto> put(@RequestBody UserGroupDto userGroup) {
-        if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
             return success(userGroupService.replaceOrInsert(userGroup, getLoginUser()));
         } else {
             throw new BizException("NotAuthorized");
@@ -124,7 +124,7 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
     public ResponseMessage<UserGroupDto> updateById(@PathVariable("id") String id, @RequestBody UserGroupDto userGroup) {
-        if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
             userGroup.setId(MongoUtils.toObjectId(id));
             return success(userGroupService.save(userGroup, getLoginUser()));
         } else {
@@ -255,7 +255,7 @@ public class UserGroupController extends BaseController {
     @Operation(summary = "Update an existing model instance or insert a new one into the data source based on the where criteria.")
     @PostMapping("upsertWithWhere")
     public ResponseMessage<UserGroupDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody UserGroupDto userGroup) {
-        if (!settingsService.isCloud() && permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
+        if (settingsService.isCloud() || permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId())) {
             Where where = parseWhere(whereJson);
             return success(userGroupService.upsertByWhere(where, userGroup, getLoginUser()));
         } else {
