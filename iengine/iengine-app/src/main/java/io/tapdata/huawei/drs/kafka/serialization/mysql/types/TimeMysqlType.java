@@ -1,8 +1,8 @@
 package io.tapdata.huawei.drs.kafka.serialization.mysql.types;
 
-import io.tapdata.entity.schema.type.TapDateTime;
+import io.tapdata.entity.schema.type.TapTime;
 import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.huawei.drs.kafka.types.BasicType;
 
 /**
@@ -18,8 +18,8 @@ public class TimeMysqlType extends BasicType {
     public Object decode(Object value) {
         if (value instanceof String) {
             String str = (String) value;
-            DateTime dateTime = new DateTime(str, "time");
-            value = new TapDateTimeValue(dateTime).tapType(new TapDateTime());
+            DateTime dateTime = DateTime.withTimeStr(str);
+            value = new TapTimeValue(dateTime).tapType(new TapTime());
         }
         return value;
     }
