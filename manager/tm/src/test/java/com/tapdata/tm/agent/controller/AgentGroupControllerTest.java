@@ -1,6 +1,7 @@
 package com.tapdata.tm.agent.controller;
 
 
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
 import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
 import com.tapdata.tm.agent.dto.AgentToGroupDto;
@@ -62,9 +63,11 @@ class AgentGroupControllerTest {
     @Nested
     class CreateAgentGroupTest {
         GroupDto dto;
+        SettingsService settingsService;
         @BeforeEach
         void init() {
             dto = mock(GroupDto.class);
+            settingsService = mock(SettingsService.class);
             when(agentGroupService.createGroup(any(GroupDto.class), any(UserDetail.class)))
                     .thenReturn(mock(AgentGroupDto.class));
             when(agentGroupController.createAgentGroup(dto)).thenCallRealMethod();
@@ -73,6 +76,8 @@ class AgentGroupControllerTest {
         }
         @Test
         void testNormal() {
+            when(settingsService.isCloud()).thenReturn(true);
+            ReflectionTestUtils.setField(agentGroupController,"settingsService",settingsService);
             Assertions.assertDoesNotThrow(() -> agentGroupController.createAgentGroup(dto));
             verify(agentGroupController, times(1)).getLoginUser();
             verify(agentGroupService, times(1)).createGroup(any(GroupDto.class), any(UserDetail.class));
