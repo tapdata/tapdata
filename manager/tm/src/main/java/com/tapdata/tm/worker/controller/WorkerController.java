@@ -497,6 +497,7 @@ public class WorkerController extends BaseController {
     @PostMapping("/unbindByProcessId")
     public ResponseMessage<Boolean> unbindByProcessId(@RequestParam String processId) {
         if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_EXTERNAL_STORAGE_MENU, getLoginUser().getUserId()))) {
+            System.out.println(processId);
             return success(workerService.unbindByProcessId(processId));
         } else {
             throw new BizException("NotAuthorized");

@@ -1,6 +1,7 @@
 package com.tapdata.tm.worker.controller;
 
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.base.dto.Filter;
@@ -36,12 +37,18 @@ import static org.mockito.Mockito.*;
 class WorkerControllerTest {
     WorkerController workerController;
     WorkerService workerService;
+    PermissionService permissionService;
+    SettingsService settingsService;
     @Nested
     class TestQueryAllBindWorker{
         @Test
         void testQueryAllBindWorkerSimple(){
+            settingsService = mock(SettingsService.class);
+            permissionService = mock(PermissionService.class);
             workerService = mock(WorkerService.class);
+            when(settingsService.isCloud()).thenReturn(true);
             workerController = spy(new WorkerController(workerService,mock(UserLogService.class),mock(SettingsService.class)));
+            ReflectionTestUtils.setField(workerController,"settingsService",settingsService);
             List<Worker> workers = mock(ArrayList.class);
             when(workerService.queryAllBindWorker()).thenReturn(workers);
             ResponseMessage<List<Worker>> actual = workerController.queryAllBindWorker();
@@ -53,9 +60,18 @@ class WorkerControllerTest {
         @Test
         void testUnbindByProcessId(){
             workerService = mock(WorkerService.class);
-            workerController = spy(new WorkerController(workerService,mock(UserLogService.class),mock(SettingsService.class)));
+            settingsService = mock(SettingsService.class);
+            workerController = mock(WorkerController.class);
+            when(settingsService.isCloud()).thenReturn(true);
+            ReflectionTestUtils.setField(workerController, "settingsService", settingsService);
+            ReflectionTestUtils.setField(workerController,"workerService",workerService);
+            UserDetail userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("testUserId");
+            when(workerController.getLoginUser()).thenReturn(userDetail);
             String processId ="111";
             when(workerService.unbindByProcessId(processId)).thenReturn(true);
+            when(workerController.unbindByProcessId(processId)).thenCallRealMethod();
+            when(workerController.success(true)).thenCallRealMethod();
             ResponseMessage<Boolean> actual = workerController.unbindByProcessId(processId);
             assertEquals(true,actual.getData());
         }
