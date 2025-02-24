@@ -201,6 +201,7 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Date pausedTime;
     private Date finishTime;
     private Long pingTime;
+    private Map<String, String> env;
 
     //需要重启标识
     private Boolean restartFlag;
