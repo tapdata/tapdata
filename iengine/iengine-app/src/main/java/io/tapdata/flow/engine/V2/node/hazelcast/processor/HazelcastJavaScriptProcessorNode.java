@@ -31,7 +31,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
@@ -177,6 +176,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				((ScriptEngine) engine).put(SOURCE_TAG, source);
 				((ScriptEngine) engine).put(TARGET_TAG, target);
 			}
+			((ScriptEngine) engine).put("env", getTaskEnvReadMap());
 			return engine;
 		});
 	}

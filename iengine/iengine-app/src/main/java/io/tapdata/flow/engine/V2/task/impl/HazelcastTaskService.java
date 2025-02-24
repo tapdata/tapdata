@@ -64,6 +64,8 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.cleaner.impl.MergeNodeCleaner;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.log.LogFactory;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -315,9 +317,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		} else {
 			tapTableMapHashMap = new HashMap<>();
 		}
+		initEnv(taskDto, hazelcastInstance);
 		DAG dag = new DAG();
 		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
-
 		Long tmCurrentTime = taskDtoAtomicReference.get().getTmCurrentTime();
 		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0 && taskDto.isNormalTask()) {
 			Map<String, Object> params = new HashMap<>();
@@ -1140,4 +1142,17 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
 	}
 
+	protected void initEnv(TaskDto taskDto, HazelcastInstance hazelcastInstance) {
+		if (null == taskDto) {
+			return;
+		}
+		Map<String, String> env = taskDto.getEnv();
+		TaskEnvMap taskEnvMap = new TaskEnvMap();
+		if (MapUtils.isNotEmpty(env)) {
+			taskEnvMap.putAll(env);
+		}
+		String taskId = taskDto.getId().toHexString();
+		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+		globalStateMap.put(TaskEnvMap.name(taskId), taskEnvMap);
+	}
 }
