@@ -83,4 +83,8 @@ public class PermissionServiceImpl implements PermissionService {
     public List<PermissionEntity> getTopPermissionAndNoChild(Set<String> codes) {
         throw new BizException("TapOssNonSupportFunctionException");
     }
+    @Override
+    public boolean checkCurrentUserHasPermission(String permissionName, String userId) {
+        return true;
+    }
 }
