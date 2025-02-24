@@ -1,9 +1,13 @@
 package com.tapdata.tm.cluster.controller;
 
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.*;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +35,11 @@ import java.util.Map;
 public class ClusterStateController extends BaseController {
 
     private ClusterStateService clusterStateService;
+
+    @Autowired
+    private PermissionService permissionService;
+    @Autowired
+    private SettingsService settingsService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -83,7 +92,12 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<ClusterStateDto> put(@RequestBody ClusterStateDto clusterState) {
-        return success(clusterStateService.replaceOrInsert(clusterState, getLoginUser()));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            return success(clusterStateService.replaceOrInsert(clusterState, getLoginUser()));
+        }else{
+            throw new BizException("NotAuthorized");
+        }
+
     }
 
 
@@ -158,7 +172,11 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "Delete a model instance by {{id}} from the data source")
     @DeleteMapping("{id}")
     public ResponseMessage<Boolean> delete(@PathVariable("id") String id) {
-        return success(clusterStateService.deleteCluster(MongoUtils.toObjectId(id), getLoginUser()));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            return success(clusterStateService.deleteCluster(MongoUtils.toObjectId(id), getLoginUser()));
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     /**
@@ -261,22 +279,40 @@ public class ClusterStateController extends BaseController {
     @Operation(summary = "add monitor")
     @PostMapping("/addMonitor")
     public ResponseMessage<Map<String, Integer>> addMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.AddMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
-        Integer result = clusterStateService.addMonitor(editMonitorRequest,getLoginUser());
-        return success(new HashMap<String, Integer>(){{put("status", result);}});
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            Integer result = clusterStateService.addMonitor(editMonitorRequest,getLoginUser());
+            return success(new HashMap<String, Integer>(){{put("status", result);}});
+        }else{
+            throw new BizException("NotAuthorized");
+        }
+
     }
 
     @Operation(summary = "edit monitor")
     @PostMapping("/editMonitor")
     public ResponseMessage<Map<String, Integer>> editMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.EditMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
-        Integer result = clusterStateService.editMonitor(editMonitorRequest);
-        return success(new HashMap<String, Integer>(){{put("status", result);}});
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            Integer result = clusterStateService.editMonitor(editMonitorRequest);
+            return success(new HashMap<String, Integer>() {{
+                put("status", result);
+            }});
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     @Operation(summary = "remove monitor")
     @PostMapping("/removeMonitor")
     public ResponseMessage<Map<String, Integer>> removeMonitor(@RequestBody @Validated(ClusterStateMonitorRequest.ValidationType.RemoveMonitor.class) ClusterStateMonitorRequest editMonitorRequest) {
-        Integer result = clusterStateService.removeMonitor(editMonitorRequest,getLoginUser());
-        return success(new HashMap<String, Integer>(){{put("status", result);}});
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            Integer result = clusterStateService.removeMonitor(editMonitorRequest, getLoginUser());
+            return success(new HashMap<String, Integer>() {{
+                put("status", result);
+            }});
+        } else {
+            throw new BizException("NotAuthorized");
+        }
+
     }
 
     @Operation(summary = "get simple flow engine info list")

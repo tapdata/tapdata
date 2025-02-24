@@ -1,5 +1,7 @@
 package com.tapdata.tm.agent.controller;
 
+import com.tapdata.tm.Permission.service.PermissionService;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.agent.dto.AgentGroupDto;
 import com.tapdata.tm.agent.dto.AgentRemoveFromGroupDto;
 import com.tapdata.tm.agent.dto.AgentToGroupDto;
@@ -13,6 +15,8 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -42,6 +46,10 @@ import java.util.List;
 public class AgentGroupController extends BaseController {
     @Autowired
     AgentGroupService agentGroupService;
+    @Autowired
+    private SettingsService settingsService;
+    @Autowired
+    private PermissionService permissionService;
 
     /**
      * 分页返回 agent group with agents
@@ -67,7 +75,12 @@ public class AgentGroupController extends BaseController {
     @Operation(summary = "Find all agent of the model matched by filter from the data source")
     @PostMapping("/create-group")
     public ResponseMessage<AgentGroupDto> createAgentGroup(@RequestBody GroupDto groupDto) {
-        return success(agentGroupService.createGroup(groupDto, getLoginUser()));
+        if (settingsService.isCloud() || Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_CLUSTER_MANAGEMENT, getLoginUser().getUserId()))) {
+            return success(agentGroupService.createGroup(groupDto, getLoginUser()));
+        }else{
+            throw new BizException("NotAuthorized");
+        }
+
     }
 
     /**
