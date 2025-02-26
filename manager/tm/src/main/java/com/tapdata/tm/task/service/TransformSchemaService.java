@@ -559,7 +559,6 @@ public class TransformSchemaService {
                 for (Node node : nodes) {
                     if (node instanceof JsProcessorNode
                             || node instanceof MigrateJsProcessorNode
-                            || node instanceof CustomProcessorNode
                             || node instanceof PyProcessNode
                             || node instanceof MigratePyProcessNode
                             || node instanceof HuaweiDrsKafkaConvertorNode) {

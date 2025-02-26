@@ -7,6 +7,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.huawei.drs.kafka.ISerialization;
+import lombok.Getter;
 
 import java.util.function.BiConsumer;
 
@@ -18,7 +19,8 @@ import java.util.function.BiConsumer;
  */
 public class HazelcastHuaweiDrsKafkaConvertorNode extends HazelcastProcessorBaseNode {
 
-    private ISerialization serialization = null;
+    @Getter
+    private final ISerialization serialization;
 
     public HazelcastHuaweiDrsKafkaConvertorNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -36,6 +38,7 @@ public class HazelcastHuaweiDrsKafkaConvertorNode extends HazelcastProcessorBase
             return;
         }
 
-        serialization.process(tapdataEvent, consumer, processResult);
+        getSerialization().process(tapdataEvent, consumer, processResult);
     }
+
 }
