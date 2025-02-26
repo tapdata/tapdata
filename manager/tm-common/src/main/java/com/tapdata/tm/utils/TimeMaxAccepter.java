@@ -23,8 +23,8 @@ public class TimeMaxAccepter {
     private final AtomicLong counts = new AtomicLong(0);
 
     public TimeMaxAccepter(long times, long max) {
-        this.times = times;
-        this.max = max;
+        setTimes(times);
+        setMax(max);
     }
 
     public boolean check() {
@@ -32,10 +32,10 @@ public class TimeMaxAccepter {
             synchronized (counts) {
                 if (System.currentTimeMillis() > expired) {
                     counts.set(0);
-                    expired = System.currentTimeMillis() + times;
+                    expired = System.currentTimeMillis() + getTimes();
                 }
             }
         }
-        return counts.incrementAndGet() < max;
+        return counts.incrementAndGet() <= getMax();
     }
 }
