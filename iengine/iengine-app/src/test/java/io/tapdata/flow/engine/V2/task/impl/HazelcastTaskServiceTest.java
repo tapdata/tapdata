@@ -522,6 +522,20 @@ public class HazelcastTaskServiceTest {
             HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
             assertEquals(HazelcastSourceConcurrentReadDataNode.class, actual.getClass());
         }
+
+        @Test
+        @SneakyThrows
+        @DisplayName("test createNode method for huawei drs kafka convertor")
+        void testCreateNodeHuaweiDrsKafkaConvertor() {
+            node = mock(HuaweiDrsKafkaConvertorNode.class);
+            when(node.getType()).thenReturn("huawei_drs_kafka_convertor");
+            when(node.disabledNode()).thenReturn(false);
+            when(connection.getPdkType()).thenReturn("pdk");
+            when(taskDto.getType()).thenReturn("initial_sync");
+            when(taskDto.getSyncType()).thenReturn("sync");
+            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
+            assertEquals(HazelcastHuaweiDrsKafkaConvertorNode.class, actual.getClass());
+        }
     }
 
     @Nested

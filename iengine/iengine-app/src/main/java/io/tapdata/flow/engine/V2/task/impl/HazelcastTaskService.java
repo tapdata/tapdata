@@ -908,6 +908,19 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						.build();
 				hazelcastNode = new HazelcastPreviewTargetNode(dataProcessorContext);
 				break;
+            case HUAWEI_DRS_KAFKA_CONVERTOR:
+                hazelcastNode = new HazelcastHuaweiDrsKafkaConvertorNode(
+                    DataProcessorContext.newBuilder()
+                        .withTaskDto(taskDto)
+                        .withNode(node)
+                        .withNodes(nodes)
+                        .withEdges(edges)
+                        .withConfigurationCenter(config)
+                        .withTapTableMap(tapTableMap)
+                        .withTaskConfig(taskConfig)
+                        .build()
+                );
+                break;
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()
