@@ -41,6 +41,7 @@ import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
+import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
@@ -222,26 +223,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		if (null == mergeNode) {
 			return false;
 		}
-		List<? extends Node<?>> successors = mergeNode.successors();
+		List<Node<?>> successors = GraphUtil.successors(mergeNode, n -> n instanceof ScriptProcessNode);
 		if (CollectionUtils.isNotEmpty(successors)) {
-			Node<?> scriptNode = successors.stream().filter(n -> n instanceof ScriptProcessNode).findFirst().orElse(null);
-			if (null == scriptNode) {
-				return false;
-			} else {
-				if (scriptNode instanceof StandardJsProcessorNode) {
-					throw new IllegalArgumentException("After the master-slave merges nodes, the connection Standard JS node is not supported. Please change to the Enhanced JS node.");
-				} else if (scriptNode instanceof JsProcessorNode) {
-					JsProcessorNode jsProcessorNode = (JsProcessorNode) scriptNode;
-					Integer jsType = Optional.ofNullable(jsProcessorNode.getJsType()).orElse(ProcessorNodeType.DEFAULT.type());
-					if (ProcessorNodeType.Standard_JS.contrast(jsType)) {
-						throw new IllegalArgumentException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
-					}
-					return true;
-				} else {
-					String type = scriptNode.getType();
-					throw new IllegalArgumentException(String.format("After the master-slave merges nodes, the connection %s node is not supported.", type));
-				}
+			if (successors.stream().anyMatch(n -> n instanceof StandardJsProcessorNode)) {
+				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Standard JS node is not supported. Please change to the Enhanced JS node.");
+			} else if (successors.stream().anyMatch(n -> n instanceof PyProcessNode)) {
+				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Python node is not supported. Please change to the Enhanced JS node.");
+			} else if (successors.stream().anyMatch(n -> n instanceof CustomProcessorNode)) {
+				throw new IllegalArgumentException("After the master-slave merges nodes, the connection Custom processor node is not supported. Please change to the Enhanced JS node.");
+			} else if (successors.stream().anyMatch(n -> n instanceof JsProcessorNode && ProcessorNodeType.Standard_JS.contrast(Optional.ofNullable(((JsProcessorNode) n).getJsType()).orElse(ProcessorNodeType.DEFAULT.type())))) {
+				throw new IllegalArgumentException("After the master-slave merges nodes, the connection standard js type is not supported. Please change the standard js to the default.");
 			}
+			return true;
 		}
 		return false;
 	}
