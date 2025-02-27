@@ -5,6 +5,7 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.huawei.drs.kafka.types.BasicType;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -20,12 +21,19 @@ public class DatetimeMysqlType extends BasicType {
 
     @Override
     public Object decode(Object value) {
-        if (value instanceof String) {
-            String str = (String) value;
-            LocalDateTime localDateTime = LocalDateTime.parse(str, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-            DateTime dateTime = new DateTime(localDateTime.toInstant(ZoneOffset.UTC));
-            value = new TapDateTimeValue(dateTime).tapType(new TapDateTime());
+        TapDateTimeValue result = new TapDateTimeValue();
+        result.originValue(value).tapType(new TapDateTime());
+
+        if (null == value) {
+            return result;
+        } else if (value instanceof String) {
+            LocalDateTime localDateTime = LocalDateTime.parse((String) value, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+            Instant instant = localDateTime.toInstant(ZoneOffset.UTC);
+            DateTime dateTime = new DateTime(instant);
+            result.value(dateTime);
+        } else {
+            return value;
         }
-        return value;
+        return result;
     }
 }

@@ -87,9 +87,13 @@ public abstract class JsonSerialization implements ISerialization {
 
     protected abstract JSONObject getFieldTypes(JSONObject jsonValue);
 
-    protected abstract JSONArray getAfter(JSONObject jsonValue);
+    protected JSONArray getAfter(JSONObject jsonValue) {
+        return jsonValue.getJSONArray("data");
+    }
 
-    protected abstract JSONArray getBefore(JSONObject jsonValue);
+    protected JSONArray getBefore(JSONObject jsonValue) {
+        return jsonValue.getJSONArray("old");
+    }
 
     protected abstract boolean decodeRecord(String tableName, Long referenceTime, JSONObject jsonValue, String opStr, Consumer<TapEvent> sender);
 

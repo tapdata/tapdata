@@ -1,6 +1,5 @@
 package io.tapdata.huawei.drs.kafka.serialization.mysql;
 
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.huawei.drs.kafka.MysqlOpType;
 import io.tapdata.entity.event.TapEvent;
@@ -46,16 +45,6 @@ public class MysqlJsonSerialization extends JsonSerialization {
     @Override
     protected JSONObject getFieldTypes(JSONObject jsonValue) {
         return jsonValue.getJSONObject("mysqlType");
-    }
-
-    @Override
-    protected JSONArray getAfter(JSONObject jsonValue) {
-        return jsonValue.getJSONArray("data");
-    }
-
-    @Override
-    protected JSONArray getBefore(JSONObject jsonValue) {
-        return jsonValue.getJSONArray("old");
     }
 
     @Override

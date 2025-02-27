@@ -13,8 +13,6 @@ public interface IType {
 
     Object decode(Object value);
 
-    Object encode(Object value);
-
     default void append2(Map<String, IType> map) {
         String type = type();
         if (map.containsKey(type))

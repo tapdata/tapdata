@@ -13,7 +13,7 @@ public enum MysqlOpType {
     DDL(Stage.CDC),       // 增量-DDL
     INIT(Stage.INIT),     // 全量-数据
     INIT_DDL(Stage.INIT), // 全量-DDL
-    UNDEFINED(Stage.INIT),// 未定义
+    UNDEFINED(null),// 未定义
     ;
 
     private final Stage stage;

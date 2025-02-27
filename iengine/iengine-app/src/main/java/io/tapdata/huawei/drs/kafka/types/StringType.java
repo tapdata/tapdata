@@ -2,6 +2,9 @@ package io.tapdata.huawei.drs.kafka.types;
 
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapValue;
+
+import java.util.function.Function;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -14,16 +17,25 @@ public class StringType extends BasicType {
 
     @Override
     public Object decode(Object value) {
-        String str;
+        return decodeString(value, Object::toString);
+    }
+
+    protected Object decodeString(Object value, Function<Object, String> otherFn) {
+        TapStringValue result = new TapStringValue();
+        result.originValue(value).tapType(new TapString());
+
         if (null == value) {
-            return null;
+            return result;
         } else if (value instanceof String) {
-            str = (String) value;
+            result.value((String) value);
         } else if (value instanceof byte[]) {
-            str = new String((byte[]) value);
+            result.value(new String((byte[]) value));
+        } else if (value instanceof TapValue) {
+            return value;
         } else {
-            str = value.toString();
+            result.value(otherFn.apply(value));
         }
-        return new TapStringValue(str).tapType(new TapString());
+        return result;
+
     }
 }

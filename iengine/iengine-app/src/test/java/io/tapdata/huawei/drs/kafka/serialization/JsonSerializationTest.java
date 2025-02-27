@@ -3,20 +3,20 @@ package io.tapdata.huawei.drs.kafka.serialization;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.huawei.drs.kafka.FromDBType;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
+import io.tapdata.huawei.drs.kafka.serialization.oracle.OracleJsonSerialization;
 import io.tapdata.huawei.drs.kafka.types.BytesType;
 import io.tapdata.huawei.drs.kafka.types.StringType;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -80,6 +80,20 @@ class JsonSerializationTest {
         }
     }
 
+    @Nested
+    class CreateTest {
+        @Test
+        void testOracle() {
+            JsonSerialization serialization = JsonSerialization.create(FromDBType.ORACLE.name());
+            Assertions.assertInstanceOf(OracleJsonSerialization.class, serialization);
+        }
+
+        @Test
+        void testUnSupport() {
+            Assertions.assertThrows(RuntimeException.class, () -> JsonSerialization.create("-"));
+        }
+    }
+
 
     @Nested
     class ProcessTest {
@@ -88,12 +102,12 @@ class JsonSerializationTest {
         void testUnSupportOp() {
             TapdataEvent tapdataEvent = new TapdataEvent();
             tapdataEvent.setTapEvent(TapInsertRecordEvent.create()
-                .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
-                    LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
-                    insertRecord.put(KEY_OP, "-");
-                    after.put("value", insertRecord);
-                    return after;
-                }).get())
+                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
+                        LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
+                        insertRecord.put(KEY_OP, "-");
+                        after.put("value", insertRecord);
+                        return after;
+                    }).get())
             );
 
             BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = Mockito.mock(BiConsumer.class);
@@ -109,20 +123,20 @@ class JsonSerializationTest {
         void testInsertRecord() {
             TapdataEvent tapdataEvent = new TapdataEvent();
             tapdataEvent.setTapEvent(TapInsertRecordEvent.create()
-                .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
-                    LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
-                    insertRecord.put(KEY_OP, "INSERT");
-                    insertRecord.put(KEY_FIELD_TYPES, Optional.of(new LinkedHashMap<>()).map(types -> {
-                        types.put("id", "string");
-                        return types;
-                    }).get());
-                    insertRecord.put(KEY_AFTER, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("id", "1");
-                        return data;
-                    }).get())));
-                    after.put("value", insertRecord);
-                    return after;
-                }).get())
+                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
+                        LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
+                        insertRecord.put(KEY_OP, "INSERT");
+                        insertRecord.put(KEY_FIELD_TYPES, Optional.of(new LinkedHashMap<>()).map(types -> {
+                            types.put("id", "string");
+                            return types;
+                        }).get());
+                        insertRecord.put(KEY_AFTER, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
+                            data.put("id", "1");
+                            return data;
+                        }).get())));
+                        after.put("value", insertRecord);
+                        return after;
+                    }).get())
             );
 
             BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = Mockito.mock(BiConsumer.class);
@@ -136,24 +150,24 @@ class JsonSerializationTest {
         void testUpdateRecord() {
             TapdataEvent tapdataEvent = new TapdataEvent();
             tapdataEvent.setTapEvent(TapInsertRecordEvent.create()
-                .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
-                    LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
-                    insertRecord.put(KEY_OP, "UPDATE");
-                    insertRecord.put(KEY_FIELD_TYPES, Optional.of(new LinkedHashMap<>()).map(types -> {
-                        types.put("id", "string");
-                        return types;
-                    }).get());
-                    insertRecord.put(KEY_AFTER, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("id", "1");
-                        return data;
-                    }).get())));
-                    insertRecord.put(KEY_BEFORE, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("id", "1");
-                        return data;
-                    }).get())));
-                    after.put("value", insertRecord);
-                    return after;
-                }).get())
+                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
+                        LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
+                        insertRecord.put(KEY_OP, "UPDATE");
+                        insertRecord.put(KEY_FIELD_TYPES, Optional.of(new LinkedHashMap<>()).map(types -> {
+                            types.put("id", "string");
+                            return types;
+                        }).get());
+                        insertRecord.put(KEY_AFTER, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
+                            data.put("id", "1");
+                            return data;
+                        }).get())));
+                        insertRecord.put(KEY_BEFORE, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
+                            data.put("id", "1");
+                            return data;
+                        }).get())));
+                        after.put("value", insertRecord);
+                        return after;
+                    }).get())
             );
 
             BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = Mockito.mock(BiConsumer.class);
@@ -167,20 +181,20 @@ class JsonSerializationTest {
         void testDeleteRecord() {
             TapdataEvent tapdataEvent = new TapdataEvent();
             tapdataEvent.setTapEvent(TapInsertRecordEvent.create()
-                .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
-                    LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
-                    insertRecord.put(KEY_OP, "DELETE");
-                    insertRecord.put(KEY_FIELD_TYPES, Optional.of(new LinkedHashMap<>()).map(types -> {
-                        types.put("id", "string");
-                        return types;
-                    }).get());
-                    insertRecord.put(KEY_BEFORE, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
-                        data.put("id", "1");
-                        return data;
-                    }).get())));
-                    after.put("value", insertRecord);
-                    return after;
-                }).get())
+                    .after(Optional.of(new LinkedHashMap<String, Object>()).map(after -> {
+                        LinkedHashMap<String, Object> insertRecord = new LinkedHashMap<>();
+                        insertRecord.put(KEY_OP, "DELETE");
+                        insertRecord.put(KEY_FIELD_TYPES, Optional.of(new LinkedHashMap<>()).map(types -> {
+                            types.put("id", "string");
+                            return types;
+                        }).get());
+                        insertRecord.put(KEY_BEFORE, new ArrayList<>(Collections.singletonList(Optional.of(new LinkedHashMap<String, Object>()).map(data -> {
+                            data.put("id", "1");
+                            return data;
+                        }).get())));
+                        after.put("value", insertRecord);
+                        return after;
+                    }).get())
             );
 
             BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer = Mockito.mock(BiConsumer.class);
@@ -191,4 +205,14 @@ class JsonSerializationTest {
         }
     }
 
+    @Nested
+    class GetValueTest {
+        @Test
+        void testNotJsonValue() {
+            Map<String, Object> mockValue = new LinkedHashMap<>();
+            mockValue.put("value", "100");
+
+            Assertions.assertThrows(RuntimeException.class, () -> ins.getValue(mockValue));
+        }
+    }
 }

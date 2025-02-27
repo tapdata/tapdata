@@ -147,35 +147,34 @@ public class HuaweiDrsKafkaConvertorNode extends ProcessorNode {
         Schema inputSchema = inputSchemas.get(0);
         if (null == inputSchema) return schema;
 
+        String sourceDbType = null;
+        List<Field> originFieldList = inputSchema.getFields();
+        Map<String, Field> originFieldMap = originFieldList.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
+        if (CollectionUtils.isNotEmpty(originFieldList)) {
+            sourceDbType = originFieldList.get(0).getSourceDbType();
+        }
+
         schema.setDatabaseId(inputSchema.getDatabaseId());
         schema.setDatabase(inputSchema.getDatabase());
         schema.setName(inputSchema.getName());
         schema.setOriginalName(inputSchema.getOriginalName());
         schema.setCreateSource(inputSchema.getCreateSource());
 
-        List<Field> originFieldList = inputSchema.getFields();
-        Map<String, Field> originFieldMap = originFieldList.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
-
-        String sourceDbType = null;
-        if (CollectionUtils.isNotEmpty(originFieldList)) {
-            sourceDbType = originFieldList.get(0).getSourceDbType();
-        }
-
         List<Field> fields = schema.getFields();
         if (CollectionUtils.isNotEmpty(fields)) {
             for (Field field : fields) {
                 field.setDataTypeTemp(field.getDataType());
                 field.setOriginalDataType(field.getDataType());
-                Field field1 = originFieldMap.get(field.getFieldName());
-                if (field1 != null) {
-                    field1.setDataType(field.getDataType());
-                    field1.setColumnPosition(field.getColumnPosition());
-                    field1.setTapType(field.getTapType());
-                    field1.setPrimaryKey(field.getPrimaryKey());
-                    field1.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
-                    BeanUtils.copyProperties(field1, field);
-                } else {
+                Field newField = originFieldMap.get(field.getFieldName());
+                if (newField == null) {
                     field.setSourceDbType(sourceDbType);
+                } else {
+                    newField.setDataType(field.getDataType());
+                    newField.setColumnPosition(field.getColumnPosition());
+                    newField.setTapType(field.getTapType());
+                    newField.setPrimaryKey(field.getPrimaryKey());
+                    newField.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                    BeanUtils.copyProperties(newField, field);
                 }
             }
         }

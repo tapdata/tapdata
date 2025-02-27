@@ -19,5 +19,4 @@ class ITypeTest {
         new StringType("string").append2(types);
         Assertions.assertThrows(RuntimeException.class, () -> new StringType("string").append2(types));
     }
-
 }

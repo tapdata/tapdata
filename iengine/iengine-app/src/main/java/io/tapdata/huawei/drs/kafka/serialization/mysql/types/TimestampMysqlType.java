@@ -5,7 +5,7 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.huawei.drs.kafka.types.BasicType;
 
-import java.time.Instant;
+import java.math.BigDecimal;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -18,13 +18,23 @@ public class TimestampMysqlType extends BasicType {
 
     @Override
     public Object decode(Object value) {
-        if (value instanceof String) {
-            String valStr = (String) value;
-            double valDouble = Double.parseDouble(valStr);
-            Instant instant = Instant.ofEpochMilli((long) valDouble * 1000L);
-            DateTime dateTime = new DateTime(instant);
-            value = new TapDateTimeValue(dateTime).tapType(new TapDateTime());
+        TapDateTimeValue result = new TapDateTimeValue();
+        result.originValue(value).tapType(new TapDateTime().fraction(3));
+
+        if (null == value) {
+            return result;
+        } else if (value instanceof String) {
+            result.value(double2DateTime(new BigDecimal((String) value)));
+        } else if (value instanceof Number) {
+            result.value(double2DateTime(new BigDecimal(value.toString())));
+        } else {
+            return value;
         }
-        return value;
+        return result;
+    }
+
+    protected DateTime double2DateTime(BigDecimal decimal) {
+        decimal = decimal.multiply(new BigDecimal(1000));
+        return new DateTime(decimal.longValue(), 3);
     }
 }

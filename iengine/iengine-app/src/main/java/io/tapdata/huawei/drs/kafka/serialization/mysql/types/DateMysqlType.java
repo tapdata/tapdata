@@ -16,11 +16,17 @@ public class DateMysqlType extends BasicType {
 
     @Override
     public Object decode(Object value) {
-        if (value instanceof String) {
-            String str = (String) value;
-            DateTime dateTime = DateTime.withDateStr(str);
-            value = new TapDateValue(dateTime).tapType(new TapDate());
+        TapDateValue result = new TapDateValue();
+        result.originValue(value).tapType(new TapDate());
+
+        if (null == value) {
+            return result;
+        } else if (value instanceof String) {
+            DateTime dateTime = DateTime.withDateStr((String) value);
+            result.value(dateTime);
+        } else {
+            return value;
         }
-        return value;
+        return result;
     }
 }

@@ -2,6 +2,7 @@ package io.tapdata.huawei.drs.kafka.serialization.oracle.types;
 
 import io.tapdata.entity.schema.type.TapBoolean;
 import io.tapdata.entity.schema.value.TapBooleanValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.huawei.drs.kafka.types.BytesType;
 
 /**
@@ -19,17 +20,23 @@ public class BooleanOracleType extends BytesType {
 
     @Override
     public Object decode(Object value) {
-        boolean boolValue;
-        if (value instanceof Boolean) {
-            boolValue = (Boolean) value;
+        TapBooleanValue result = new TapBooleanValue();
+        result.originValue(value).tapType(new TapBoolean());
+
+        if (null == value) {
+            return result;
+        } else if (value instanceof Boolean) {
+            result.value((Boolean) value);
         } else if (value instanceof String) {
-            boolValue = Boolean.parseBoolean((String) value);
+            result.value(Boolean.parseBoolean((String) value));
         } else if (value instanceof Number) {
             Number numValue = (Number) value;
-            boolValue = numValue.doubleValue() > 0;
-        } else {
+            result.value(numValue.doubleValue() > 0);
+        } else if (value instanceof TapValue) {
             return value;
+        } else {
+            result.value(Boolean.parseBoolean(value.toString()));
         }
-        return new TapBooleanValue(boolValue).tapType(new TapBoolean());
+        return result;
     }
 }

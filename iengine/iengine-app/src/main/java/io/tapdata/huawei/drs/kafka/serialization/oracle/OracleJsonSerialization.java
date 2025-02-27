@@ -1,6 +1,5 @@
 package io.tapdata.huawei.drs.kafka.serialization.oracle;
 
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.tapdata.huawei.drs.kafka.OracleOpType;
 import io.tapdata.entity.event.TapEvent;
@@ -36,16 +35,6 @@ public class OracleJsonSerialization extends JsonSerialization {
     @Override
     protected JSONObject getFieldTypes(JSONObject jsonValue) {
         return jsonValue.getJSONObject("columnType");
-    }
-
-    @Override
-    protected JSONArray getAfter(JSONObject jsonValue) {
-        return jsonValue.getJSONArray("data");
-    }
-
-    @Override
-    protected JSONArray getBefore(JSONObject jsonValue) {
-        return jsonValue.getJSONArray("old");
     }
 
     @Override
