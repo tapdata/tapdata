@@ -153,6 +153,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public static final String TABLE_COMMENT = "tableComment";
     public static final String PARTITION_MASTER_TABLE_ID = "partitionMasterTableId";
     public static final int UPSERT_BATCH_SIZE = 100;
+    private static final String NO_PDK_HASH = "_no_pk_hash";
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -260,20 +261,26 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         List<MetadataInstancesVo> metadataInstancesVoList = new ArrayList<>();
 
         if (CollectionUtils.isNotEmpty(metadataInstancesDtoList)) {
+
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
-                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).collect(Collectors.toList());
+                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
+
                 if (CollectionUtils.isNotEmpty(primaryKeys)) {
                     metadataInstancesVo.setSortColumns(primaryKeys);
                 } else if (CollectionUtils.isNotEmpty(metadataInstancesDto.getIndices()) && metadataInstancesDto.getIndices().stream().anyMatch(TableIndex::isUnique)) {
                     metadataInstancesDto.getIndices().stream().filter(TableIndex::isUnique).findAny()
-                            .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList())));
+                            .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList())));
                 } else {
-                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().filter(v -> Boolean.FALSE.equals(v.getIsNullable())).map(Field::getFieldName).collect(Collectors.toList()));
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().filter(v -> Boolean.FALSE.equals(v.getIsNullable())).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList()));
                 }
                 if (CollectionUtils.isEmpty(metadataInstancesVo.getSortColumns())) {
-                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().map(Field::getFieldName).collect(Collectors.toList()));
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList()));
                 }
+                List<Field> fields = metadataInstancesDto.getFields().stream().filter(tapField -> {
+                    return StringUtils.isNotBlank(tapField.getFieldName()) && !NO_PDK_HASH.equalsIgnoreCase(tapField.getFieldName());
+                }).collect(Collectors.toList());
+                metadataInstancesVo.setFields(fields);
                 metadataInstancesVoList.add(metadataInstancesVo);
             }
         }
