@@ -40,8 +40,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.value.*;
@@ -89,6 +87,7 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import org.apache.commons.collections.CollectionUtils;
@@ -1046,7 +1045,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     private void handleTapdataCompleteTableSnapshotEvent(TapdataCompleteTableSnapshotEvent tapdataEvent) {
         List<String> nodeIds = tapdataEvent.getNodeIds();
-        if (CollectionUtils.isEmpty(nodeIds) && nodeIds.size() >= 1) {
+        if (CollectionUtils.isEmpty(nodeIds)) {
             return;
         }
         String srcNodeId = nodeIds.get(0);
@@ -1147,6 +1146,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         if (obj instanceof AtomicInteger) {
             ((AtomicInteger) obj).decrementAndGet();
         }
+		processConnectorAfterSnapshot();
         executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();
     }
@@ -1788,4 +1788,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             this.currentTapEvent = currentTapEvent;
         }
     }
+
+	protected void processConnectorAfterSnapshot() {
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (null == tapTableMap) {
+			return;
+		}
+		List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
+		Set<String> tableIds = tapTableMap.keySet();
+		for (String tableId : tableIds) {
+			CompletableFuture<Void> completableFuture = CompletableFuture.runAsync(() -> {
+				long startMillis = System.currentTimeMillis();
+				TapTable tapTable = tapTableMap.get(tableId);
+				processConnectorAfterSnapshot(tapTable);
+				obsLogger.trace("Process after table \"{}\" initial sync finished, cost: {} ms", tableId, (System.currentTimeMillis() - startMillis));
+			});
+			completableFutures.add(completableFuture);
+		}
+		CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
+		obsLogger.info("Process after all table(s) initial sync are finished，table number: {}", tableIds.size());
+	}
+
+	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+	}
 }

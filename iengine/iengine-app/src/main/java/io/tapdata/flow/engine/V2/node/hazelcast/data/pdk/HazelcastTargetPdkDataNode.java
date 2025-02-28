@@ -58,7 +58,6 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
@@ -1298,5 +1297,31 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			});
 		}
 
+	}
+
+	@Override
+	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+		if (null == tapTable) {
+			return;
+		}
+		ConnectorNode connectorNode = this.getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		if (null == connectorFunctions) {
+			return;
+		}
+		AfterInitialSyncFunction afterInitialSyncFunction = connectorFunctions.getAfterInitialSyncFunction();
+		if (null == afterInitialSyncFunction) {
+			return;
+		}
+		try {
+			afterInitialSyncFunction.afterInitialSync(connectorNode.getConnectorContext(), tapTable);
+		} catch (Throwable e) {
+			TapCodeException tapCodeException = new TapCodeException(TaskTargetProcessorExCode_15.PROCESS_CONNECTOR_AFTER_SNAPSHOT, e)
+					.dynamicDescriptionParameters(tapTable.getId(), e.getMessage());
+			errorHandle(tapCodeException);
+		}
 	}
 }
