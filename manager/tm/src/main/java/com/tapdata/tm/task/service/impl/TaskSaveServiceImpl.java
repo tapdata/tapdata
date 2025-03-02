@@ -160,7 +160,12 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                             TableIndex tableIndex = schema.getIndices() == null ? null : schema.getIndices().stream().filter(TableIndex::isUnique).findFirst().orElse(null);
                                             List<String> columnList;
                                             if (null != tableIndex) {
-                                                columnList = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
+                                                if("Sybase".equalsIgnoreCase(schema.getSource().getDatabase_type())){
+                                                    List<String> timestampFieldName = schema.getFields().stream().filter(field -> "timestamp".equalsIgnoreCase(field.getDataType())).map(Field::getFieldName).collect(Collectors.toList());
+                                                    columnList = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).filter(indexColumnName -> !timestampFieldName.contains(indexColumnName)).collect(Collectors.toList());
+                                                }else {
+                                                    columnList = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
+                                                }
                                             } else {
                                                 columnList = NoPrimaryKeyVirtualField.getVirtualHashFieldNames(schema);
                                             }
