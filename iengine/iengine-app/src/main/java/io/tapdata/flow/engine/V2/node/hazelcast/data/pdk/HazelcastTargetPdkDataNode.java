@@ -386,19 +386,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return ((TableNode) node).getUpdateConditionFields();
 		} else if (node instanceof DatabaseNode) {
 			Map<String, List<String>> updateConditionFieldMap = ((DatabaseNode) node).getUpdateConditionFieldMap();
-			List<String> pks = updateConditionFieldMap.computeIfAbsent(tapTable.getId(), s -> new ArrayList<>(tapTable.primaryKeys(true)));
-			DatabaseNode databaseNode = (DatabaseNode) node;
-			if ("Sybase".equalsIgnoreCase(databaseNode.getDatabaseType())) {
-				LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-				Iterator<String> pkIterator = pks.iterator();
-				while (pkIterator.hasNext()) {
-					TapField tapField = nameFieldMap.get(pkIterator.next());
-					if ("timestamp".equalsIgnoreCase(tapField.getDataType())) {
-						pkIterator.remove();
-					}
-				}
-			}
-			return pks;
+			return updateConditionFieldMap.computeIfAbsent(tapTable.getId(), s -> new ArrayList<>(tapTable.primaryKeys(true)));
 		} else {
 			return null;
 		}

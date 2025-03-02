@@ -58,10 +58,7 @@ import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MetadataUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SchemaTransformUtils;
+import com.tapdata.tm.utils.*;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.TypeExprResult;
 import io.tapdata.entity.mapping.type.TapStringMapping;
@@ -261,13 +258,13 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         List<MetadataInstancesVo> metadataInstancesVoList = new ArrayList<>();
 
         if (CollectionUtils.isNotEmpty(metadataInstancesDtoList)) {
-            Set<String> timestampFieldNameList = new HashSet<>();
+            Map<String, List<String>> timeStampFieldMap = new HashMap<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
                 if ("Sybase".equalsIgnoreCase(metadataInstancesDto.getSource().getDatabase_type())) {
                     List<String> timestampFieldName = metadataInstancesDto.getFields().stream().filter(field -> {
                         return "timestamp".equalsIgnoreCase(field.getDataType());
                     }).map(Field::getFieldName).filter(StringUtils::isNotBlank).collect(Collectors.toList());
-                    timestampFieldNameList.addAll(timestampFieldName);
+                    timeStampFieldMap.put(metadataInstancesDto.getOriginalName(), timestampFieldName);
                 }
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
                 List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
@@ -291,12 +288,13 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             }
             if (CollectionUtils.isNotEmpty(metadataInstancesVoList)){
                 for (MetadataInstancesVo metadataInstancesVo : metadataInstancesVoList) {
-                    if (CollectionUtils.isNotEmpty(timestampFieldNameList)) {
+                    List<String> timestampFiledName = timeStampFieldMap.get(metadataInstancesVo.getOriginalName());
+                    if (CollectionUtils.isNotEmpty(timestampFiledName)) {
                         List<String> sortColumns = metadataInstancesVo.getSortColumns();
                         Iterator<String> sortColumnsIterator = sortColumns.iterator();
                         while (sortColumnsIterator.hasNext()) {
                             String columnName = sortColumnsIterator.next();
-                            if (timestampFieldNameList.contains(columnName)) {
+                            if (timestampFiledName.contains(columnName)) {
                                 sortColumnsIterator.remove();
                             }
                         }
