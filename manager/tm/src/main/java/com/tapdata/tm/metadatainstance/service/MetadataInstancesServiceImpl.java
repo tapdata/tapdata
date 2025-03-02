@@ -261,8 +261,14 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         List<MetadataInstancesVo> metadataInstancesVoList = new ArrayList<>();
 
         if (CollectionUtils.isNotEmpty(metadataInstancesDtoList)) {
-
+            Set<String> timestampFieldNameList = new HashSet<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
+                if ("Sybase".equalsIgnoreCase(metadataInstancesDto.getSource().getDatabase_type())) {
+                    List<String> timestampFieldName = metadataInstancesDto.getFields().stream().filter(field -> {
+                        return "timestamp".equalsIgnoreCase(field.getDataType());
+                    }).map(Field::getFieldName).filter(StringUtils::isNotBlank).collect(Collectors.toList());
+                    timestampFieldNameList.addAll(timestampFieldName);
+                }
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
                 List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
 
@@ -282,6 +288,20 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 }).collect(Collectors.toList());
                 metadataInstancesVo.setFields(fields);
                 metadataInstancesVoList.add(metadataInstancesVo);
+            }
+            if (CollectionUtils.isNotEmpty(metadataInstancesVoList)){
+                for (MetadataInstancesVo metadataInstancesVo : metadataInstancesVoList) {
+                    if (CollectionUtils.isNotEmpty(timestampFieldNameList)) {
+                        List<String> sortColumns = metadataInstancesVo.getSortColumns();
+                        Iterator<String> sortColumnsIterator = sortColumns.iterator();
+                        while (sortColumnsIterator.hasNext()) {
+                            String columnName = sortColumnsIterator.next();
+                            if (timestampFieldNameList.contains(columnName)) {
+                                sortColumnsIterator.remove();
+                            }
+                        }
+                    }
+                }
             }
         }
         return metadataInstancesVoList;
