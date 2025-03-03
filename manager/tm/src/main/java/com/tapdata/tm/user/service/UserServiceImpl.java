@@ -54,6 +54,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -105,7 +106,7 @@ public class UserServiceImpl extends UserService{
 
     @Autowired
     private RoleService roleService;
-
+    @Lazy
     @Autowired
     private UserLogService userLogService;
 
@@ -119,7 +120,7 @@ public class UserServiceImpl extends UserService{
 
     @Autowired
     MailUtils mailUtils;
-
+    @Lazy
     @Autowired
     private LdpService ldpService;
     @Autowired

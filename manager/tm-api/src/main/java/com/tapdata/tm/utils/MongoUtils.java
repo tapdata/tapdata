@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.schema.MongoJsonSchema;
 import org.springframework.data.mongodb.repository.support.MappingMongoEntityInformation;
 
 import java.util.*;
@@ -42,7 +43,17 @@ public class MongoUtils {
             preConvertWhereOptions(where, entityInformation, getAllFieldType(entityInformation.getJavaType()));
             Document doc = new Document(where);
 
-            return Criteria.matchingDocumentStructure(() -> doc);
+            return Criteria.matchingDocumentStructure(new MongoJsonSchema() {
+                @Override
+                public Document schemaDocument() {
+                    return doc;
+                }
+                @Override
+                public Document toDocument() {
+                    return doc;
+                }
+
+            });
         }
 
         return new Criteria();

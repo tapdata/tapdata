@@ -3,9 +3,9 @@ package com.tapdata.tm.base.filter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.ServletOutputStream;
-import javax.servlet.WriteListener;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 
 /**
@@ -13,7 +13,7 @@ import java.io.*;
  * @date 2021/9/15 下午9:29
  * @description
  */
-public class HttpServletResponseWrapper extends javax.servlet.http.HttpServletResponseWrapper{
+public class HttpServletResponseWrapper extends jakarta.servlet.http.HttpServletResponseWrapper{
     private Logger logger = LoggerFactory.getLogger(HttpServletResponseWrapper.class);
     private CachedHttpServletResponse outputStream;
     private String characterEncoding = "UTF-8";

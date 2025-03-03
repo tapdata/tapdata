@@ -8,7 +8,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.commons.util.ThrowableUtils;
 import com.tapdata.tm.utils.WebUtils;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.http.HttpStatus;
@@ -21,7 +21,7 @@ import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;

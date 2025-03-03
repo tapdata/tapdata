@@ -2,7 +2,7 @@ package com.tapdata.tm.utils;
 
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.FileUtils;
-import org.springframework.web.multipart.commons.CommonsMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import java.io.*;
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -12,7 +12,7 @@ import java.util.function.BiConsumer;
 
 public class PdkSourceUtils {
     private static final String TAG = PdkSourceUtils.class.getSimpleName();
-    public static String getFileMD5(CommonsMultipartFile originFile){
+    public static String getFileMD5(MultipartFile originFile){
         return calcFileMD5(originFile);
     }
 
@@ -23,10 +23,10 @@ public class PdkSourceUtils {
     protected static String calcFileMD5(Object originFile){
         AtomicReference<File> file;
         AtomicBoolean needDeleteFile = new AtomicBoolean(false);
-        if (originFile instanceof CommonsMultipartFile){
+        if (originFile instanceof MultipartFile){
             file = new AtomicReference<>();
             try {
-                transformToFile((CommonsMultipartFile) originFile, (k, v)->{
+                transformToFile((MultipartFile) originFile, (k, v)->{
                     file.set((File) k);
                     needDeleteFile.set((Boolean) v);
                 });
@@ -68,7 +68,7 @@ public class PdkSourceUtils {
         BigInteger bigInt = new BigInteger(1, digest.digest());
         return bigInt.toString(16);
     }
-    protected static void transformToFile(CommonsMultipartFile originFile, BiConsumer consumer) throws IOException {
+    protected static void transformToFile(MultipartFile originFile, BiConsumer consumer) throws IOException {
         File file;
         Boolean needDeleteFile = false;
         file = new File(originFile.getName());

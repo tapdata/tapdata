@@ -45,7 +45,6 @@ import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.job.service.JobService;
 import com.tapdata.tm.jobddlhistories.service.JobDDLHistoriesService;
-import com.tapdata.tm.log.service.LogService;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
@@ -135,8 +134,8 @@ public class DataFlowServiceImpl extends DataFlowService{
 	@Autowired
 	private BehaviorService behaviorService;
 
-	@Autowired
-	private LogService logService;
+//	@Autowired
+//	private LogService logService;
 
 	private static ThreadPoolExecutor completableFutureThreadPool;
 
@@ -314,7 +313,7 @@ public class DataFlowServiceImpl extends DataFlowService{
 		if (isNew) {
 			behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.createDataFlow);
 
-			logService.afterCreatedDataFlow(dataFlowDto.getId().toHexString());
+//			logService.afterCreatedDataFlow(dataFlowDto.getId().toHexString());
 		}
 
 		return dataFlowDto;
@@ -325,7 +324,7 @@ public class DataFlowServiceImpl extends DataFlowService{
 		boolean result = super.deleteById(objectId, userDetail);
 
 		if (result) {
-			logService.afterDeletedDataFlow(objectId.toHexString());
+//			logService.afterDeletedDataFlow(objectId.toHexString());
 		}
 		return result;
 	}
@@ -725,6 +724,6 @@ public class DataFlowServiceImpl extends DataFlowService{
 
 	public CloseableIterator<DataFlow> stream(Query query) {
 		query.cursorBatchSize(1000);
-		return repository.getMongoOperations().stream(query, DataFlow.class);
+		return null;
 	}
 }

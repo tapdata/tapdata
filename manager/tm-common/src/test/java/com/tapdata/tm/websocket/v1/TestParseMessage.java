@@ -1,8 +1,9 @@
 package com.tapdata.tm.websocket.v1;
 
 import com.tapdata.tm.commons.websocket.v1.MessageInfoV1;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -15,69 +16,69 @@ public class TestParseMessage {
 
         String message = "v1:bf18022c-a5b4-42b3-8925-59190b3eeaeb:dataFlowService/start:{\"name\": \"value\"}";
         MessageInfoV1 messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("bf18022c-a5b4-42b3-8925-59190b3eeaeb", messageInfo.getReqId());
-        Assert.assertEquals("dataFlowService/start", messageInfo.getType());
-        Assert.assertEquals("{\"name\": \"value\"}", messageInfo.getBody());
-        Assert.assertEquals("dataFlowService", messageInfo.getBeanName());
-        Assert.assertEquals("start", messageInfo.getMethodName());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("bf18022c-a5b4-42b3-8925-59190b3eeaeb", messageInfo.getReqId());
+        Assertions.assertEquals("dataFlowService/start", messageInfo.getType());
+        Assertions.assertEquals("{\"name\": \"value\"}", messageInfo.getBody());
+        Assertions.assertEquals("dataFlowService", messageInfo.getBeanName());
+        Assertions.assertEquals("start", messageInfo.getMethodName());
 
         message = "v1::dataFlowService/start:{\"name\": \"value\"}";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("", messageInfo.getReqId());
-        Assert.assertEquals("dataFlowService/start", messageInfo.getType());
-        Assert.assertEquals("{\"name\": \"value\"}", messageInfo.getBody());
-        Assert.assertEquals("dataFlowService", messageInfo.getBeanName());
-        Assert.assertEquals("start", messageInfo.getMethodName());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("", messageInfo.getReqId());
+        Assertions.assertEquals("dataFlowService/start", messageInfo.getType());
+        Assertions.assertEquals("{\"name\": \"value\"}", messageInfo.getBody());
+        Assertions.assertEquals("dataFlowService", messageInfo.getBeanName());
+        Assertions.assertEquals("start", messageInfo.getMethodName());
 
 
         message = "v1:1:2:3";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("1", messageInfo.getReqId());
-        Assert.assertEquals("2", messageInfo.getType());
-        Assert.assertEquals("3", messageInfo.getBody());
-        Assert.assertNull(messageInfo.getBeanName());
-        Assert.assertNull(messageInfo.getMethodName());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("1", messageInfo.getReqId());
+        Assertions.assertEquals("2", messageInfo.getType());
+        Assertions.assertEquals("3", messageInfo.getBody());
+        Assertions.assertNull(messageInfo.getBeanName());
+        Assertions.assertNull(messageInfo.getMethodName());
 
         message = "v1:1:2";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNull(messageInfo);
+        Assertions.assertNull(messageInfo);
 
         message = "v1:1:2:";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("1", messageInfo.getReqId());
-        Assert.assertEquals("2", messageInfo.getType());
-        Assert.assertEquals("", messageInfo.getBody());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("1", messageInfo.getReqId());
+        Assertions.assertEquals("2", messageInfo.getType());
+        Assertions.assertEquals("", messageInfo.getBody());
 
         message = "v1:::";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("", messageInfo.getReqId());
-        Assert.assertEquals("", messageInfo.getType());
-        Assert.assertEquals("", messageInfo.getBody());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("", messageInfo.getReqId());
+        Assertions.assertEquals("", messageInfo.getType());
+        Assertions.assertEquals("", messageInfo.getBody());
 
         message = "v1:::";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("", messageInfo.getReqId());
-        Assert.assertEquals("", messageInfo.getType());
-        Assert.assertEquals("", messageInfo.getBody());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("", messageInfo.getReqId());
+        Assertions.assertEquals("", messageInfo.getType());
+        Assertions.assertEquals("", messageInfo.getBody());
 
         message = "v1::::::";
         messageInfo = MessageInfoV1.parse(message);
-        Assert.assertNotNull(messageInfo);
-        Assert.assertEquals("v1", messageInfo.getVersion());
-        Assert.assertEquals("", messageInfo.getReqId());
-        Assert.assertEquals("", messageInfo.getType());
-        Assert.assertEquals(":::", messageInfo.getBody());
+        Assertions.assertNotNull(messageInfo);
+        Assertions.assertEquals("v1", messageInfo.getVersion());
+        Assertions.assertEquals("", messageInfo.getReqId());
+        Assertions.assertEquals("", messageInfo.getType());
+        Assertions.assertEquals(":::", messageInfo.getBody());
     }
 }

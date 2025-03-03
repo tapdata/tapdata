@@ -136,8 +136,18 @@
 					<artifactId>${tcm.artifactId}</artifactId>
 					<version>0.0.1</version>
 					<scope>compile</scope>
-				</dependency>
+					<exclusions>
+						<exclusion>
+							<groupId>cn.hutool</groupId>
+							<artifactId>hutool-http</artifactId>
+						</exclusion>
+						<exclusion>
+							<groupId>cn.hutool</groupId>
+							<artifactId>hutool-log</artifactId>
+						</exclusion>
 
+					</exclusions>
+				</dependency>
 			</dependencies>
 		</profile>
 	</profiles>
@@ -148,11 +158,11 @@
 			<artifactId>${tm.impl.artifactId}</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>de.flapdoodle.embed</groupId>
-			<artifactId>de.flapdoodle.embed.mongo</artifactId>
-			<scope>test</scope>
-		</dependency>
+<!--		<dependency>-->
+<!--			<groupId>de.flapdoodle.embed</groupId>-->
+<!--			<artifactId>de.flapdoodle.embed.mongo</artifactId>-->
+<!--			<scope>test</scope>-->
+<!--		</dependency>-->
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>tm-sdk</artifactId>
@@ -237,44 +247,58 @@
 					<artifactId>mongodb-driver-sync</artifactId>
 					<groupId>org.mongodb</groupId>
 				</exclusion>
+				<exclusion>
+					<artifactId>bson-record-codec</artifactId>
+					<groupId>org.mongodb</groupId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.data</groupId>
 			<artifactId>spring-data-elasticsearch</artifactId>
+			<version>5.4.2</version>
 		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-thymeleaf</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-aop</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-context</artifactId>
+			<version>6.2.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-configuration-processor</artifactId>
+			<version>3.4.2</version>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>io.micrometer</groupId>
@@ -326,12 +350,12 @@
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-webmvc-core</artifactId>
-			<version>1.4.6</version>
+			<version>1.8.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-ui</artifactId>
-			<version>1.4.6</version>
+			<version>1.8.0</version>
 		</dependency>
 
 		<dependency>
@@ -354,6 +378,7 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
+			<version>3.4.2</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -399,7 +424,7 @@
 		<dependency>
 			<groupId>cn.hutool</groupId>
 			<artifactId>hutool-all</artifactId>
-			<version>5.5.2</version>
+			<version>5.8.36</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jsoup</groupId>
@@ -433,15 +458,17 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+			<version>3.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-crypto</artifactId>
+			<version>6.4.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-rsa</artifactId>
-			<version>1.0.10.RELEASE</version>
+			<version>1.1.5</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>bcprov-jdk15on</artifactId>
@@ -455,9 +482,9 @@
 		</dependency>
 		<!-- OAuth2 authorization server -->
 		<dependency>
-			<groupId>org.springframework.security.experimental</groupId>
+			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-oauth2-authorization-server</artifactId>
-			<version>0.1.2</version>
+			<version>1.4.2</version>
 		</dependency>
 		<!-- Spring security end -->
 
@@ -573,7 +600,7 @@
 		<dependency>
 			<groupId>com.google.protobuf</groupId>
 			<artifactId>protobuf-java</artifactId>
-			<version>3.23.2</version>
+			<version>4.29.3</version>
 		</dependency>
 
 		<!---->
@@ -623,7 +650,7 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
-					<fork>true</fork>
+<!--					<fork>true</fork>-->
 					<classifier>exec</classifier>
 					<!--<executable>true</executable>-->
 					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
@@ -711,6 +738,23 @@
                     </execution>
                 </executions>
             </plugin>
+
+			<plugin>
+				<groupId>org.owasp</groupId>
+				<artifactId>dependency-check-maven</artifactId>
+				<version>7.0.0</version>
+				<configuration>
+					<autoUpdate>true</autoUpdate>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 
 		<!--<extensions>

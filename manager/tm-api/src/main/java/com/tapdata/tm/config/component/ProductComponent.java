@@ -1,12 +1,13 @@
 package com.tapdata.tm.config.component;
 
 import com.tapdata.tm.Settings.service.SettingsService;
+import jakarta.annotation.PostConstruct;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+
 import java.util.Objects;
 
 @Component

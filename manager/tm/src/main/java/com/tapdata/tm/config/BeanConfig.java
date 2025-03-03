@@ -5,10 +5,13 @@ import org.apache.coyote.ProtocolHandler;
 import org.apache.coyote.http11.Http11NioProtocol;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.multipart.MultipartResolver;
-import org.springframework.web.multipart.commons.CommonsMultipartResolver;
+import org.springframework.web.multipart.support.MultipartFilter;
+import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,12 +29,7 @@ public class BeanConfig {
     @Value("${server.maxKeepAliveRequests:1024}")
     private String maxKeepAliveRequestsStr;
 
-    @Bean(name = "multipartResolver")
-    public MultipartResolver multipartResolver() {
-        CommonsMultipartResolver resolver = new CommonsMultipartResolver();
-        resolver.setDefaultEncoding("UTF-8");
-        return resolver;
-    }
+
 
     @Bean
     public TomcatServletWebServerFactory tomcatServletWebServerFactory(){

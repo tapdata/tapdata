@@ -40,6 +40,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.core.schema.MongoJsonSchema;
 import org.springframework.stereotype.Service;
 
 /**
@@ -245,7 +246,17 @@ public class SettingsServiceImpl implements SettingsService {
 
     public long updateByWhere(Where where, Document body) {
         Document doc = new Document(where);
-        return mongoTemplate.updateFirst(Query.query(Criteria.matchingDocumentStructure(() -> doc)), Update.fromDocument(body), "Settings").getModifiedCount();
+        return mongoTemplate.updateFirst(Query.query(Criteria.matchingDocumentStructure(new MongoJsonSchema() {
+            @Override
+            public Document schemaDocument() {
+                return doc;
+            }
+            @Override
+            public Document toDocument() {
+                return doc;
+            }
+
+        })), Update.fromDocument(body), "Settings").getModifiedCount();
     }
 
     public long enterpriseUpdate(Where where, String value) {

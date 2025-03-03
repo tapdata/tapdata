@@ -1,13 +1,14 @@
 package com.tapdata.tm.base.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
-import javax.validation.constraints.Max;
-import javax.validation.constraints.Min;
+
 import java.io.Serializable;
 
 @AllArgsConstructor

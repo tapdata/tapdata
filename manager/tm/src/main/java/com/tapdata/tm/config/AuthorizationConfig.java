@@ -20,15 +20,20 @@ import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer;
+
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.server.authorization.JwtEncodingContext;
-import org.springframework.security.oauth2.server.authorization.OAuth2TokenCustomizer;
+
+
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.config.ProviderSettings;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
+import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
+import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
@@ -72,7 +77,7 @@ public class AuthorizationConfig {
             roles.addAll(roleNames);
 
             // 优先使用 Registered Client 中配置的 Access Token TTL
-            Duration accessTokenTTL = registeredClient.getTokenSettings().accessTokenTimeToLive();
+            Duration accessTokenTTL = registeredClient.getTokenSettings().getAccessTokenTimeToLive();
             //Duration refreshTokenTTL = registeredClient.getTokenSettings().refreshTokenTimeToLive();
 
             Instant now = Instant.now();
@@ -104,24 +109,16 @@ public class AuthorizationConfig {
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         http.setSharedObject(OAuth2TokenCustomizer.class, new CustomOAuth2TokenCustomizer());
-        OAuth2AuthorizationServerConfigurer<HttpSecurity> authorizationServerConfigurer =
-                new OAuth2AuthorizationServerConfigurer<>();
-        RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
-        http.headers().frameOptions().sameOrigin();
-        return http
+        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
+        http
                 //.requestMatcher(endpointsMatcher)
-                .csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher))
-                .authorizeRequests(authorizeRequests -> authorizeRequests
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         // 暂时只对 /oauth/ path 启用认证
-                        .antMatchers("/oauth/**").authenticated()
+                        .requestMatchers("/oauth/**").authenticated()
                         .anyRequest().permitAll())
-
-                .apply(authorizationServerConfigurer)
-                .and()
-                .formLogin()
-                .and()
-                .csrf().disable()
-                .build();
+                .formLogin(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable);
+        return http.build();
     }
 
     /**
@@ -197,14 +194,14 @@ public class AuthorizationConfig {
      * 配置一些端点的路径，比如：获取token、授权端点 等
      */
     @Bean
-    public ProviderSettings providerSettings() {
-        return new ProviderSettings()
+    public AuthorizationServerSettings authorizationServerSettings() {
+        return AuthorizationServerSettings.builder()
                 .tokenEndpoint("/oauth/token")
                 .authorizationEndpoint("/oauth/authorize")
                 .tokenRevocationEndpoint("/oauth/revoke")
                 .tokenIntrospectionEndpoint("/oauth/introspect")
-                // 发布者的url地址,一般是本系统访问的根路径
-                .issuer("http://127.0.0.1:3000");
+                .issuer("http://127.0.0.1:3000")
+                .build();
     }
     /*@PostConstruct
     public void oAuth2ClientAuthenticationProvider() {

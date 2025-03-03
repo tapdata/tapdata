@@ -198,9 +198,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.AsyncContext;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
@@ -3781,7 +3781,6 @@ public class TaskServiceImpl extends TaskService{
 
     public List<TaskDto> findAllTasksByIds(List<String> list) {
         List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
-
         Query query = new Query(Criteria.where("_id").in(ids));
         List<TaskEntity> entityList = findAllEntity(query);
         return CglibUtil.copyList(entityList, TaskDto::new);
