@@ -136,6 +136,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
+    private List<String> emailReceivers;
 
     private Integer resetTimes;
 
@@ -223,6 +224,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Long retryIntervalSecond = null;
     private Long maxRetryTimeMinute = null;
+
+    private Map<String, String> env;
 
     public DAG getDag() {
         if (dag != null) {

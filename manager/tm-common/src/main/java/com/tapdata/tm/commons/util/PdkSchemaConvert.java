@@ -141,8 +141,6 @@ public class PdkSchemaConvert {
                 //tapField.setPartitionKeyPos(field.get);
                 tapField.setPos(field.getColumnPosition());
                 tapField.setPrimaryKeyPos(field.getPrimaryKeyPosition());
-                tapField.setForeignKeyTable(field.getForeignKeyTable());
-                tapField.setForeignKeyField(field.getForeignKeyColumn());
                 tapField.setAutoInc("YES".equals(field.getAutoincrement()));
                 tapField.setAutoIncStartValue(field.getAutoIncStartValue());
                 tapField.setAutoIncrementValue(field.getAutoIncrementValue());
@@ -277,7 +275,6 @@ public class PdkSchemaConvert {
                 tapField.setColumnPosition(field.getColumnPosition());
                 tapField.setDefaultValue(field.getDefaultValue());
                 tapField.setDefaultFunction(field.getDefaultFunction());
-                tapField.setForeignKeyTable(field.getForeignKeyTable());
                 tapField.setAutoInc(field.getIsAutoAllowed());
                 tapField.setComment(field.getComment());
                 tapField.setPrimaryKey(field.getPrimaryKey());
@@ -293,8 +290,6 @@ public class PdkSchemaConvert {
                 //tapField.setPartitionKeyPos(field.get);
                 tapField.setPos(field.getColumnPosition());
                 tapField.setPrimaryKeyPos(field.getPrimaryKeyPosition());
-                tapField.setForeignKeyTable(field.getForeignKeyTable());
-                tapField.setForeignKeyField(field.getForeignKeyColumn());
                 tapField.setAutoInc("YES".equals(field.getAutoincrement()));
                 //tapField.setAutoIncStartValue(dd);
                 //tapField.setCheck(field.);
@@ -408,7 +403,6 @@ public class PdkSchemaConvert {
                     field.setTableName(tapField1.getTableName());
                     field.setColumnPosition(tapField1.getColumnPosition());
                     field.setDefaultValue(tapField1.getDefaultValue());
-                    field.setForeignKeyTable(tapField1.getForeignKeyTable());
                     field.setIsAutoAllowed(tapField1.getAutoAllowed());
                     field.setComment(tapField1.getComment());
                     field.setPrimaryKey(tapField1.getPrimaryKey());
@@ -425,8 +419,6 @@ public class PdkSchemaConvert {
                 }
                 field.setColumnPosition(tapField.getPos());
                 field.setPrimaryKeyPosition(tapField.getPrimaryKeyPos());
-                field.setForeignKeyTable(tapField.getForeignKeyTable());
-                field.setForeignKeyColumn(tapField.getForeignKeyField());
                 field.setAutoincrement(tapField.getAutoInc() != null && tapField.getAutoInc() ? "YES" : "NO");
                 field.setAutoIncStartValue(tapField.getAutoIncStartValue());
                 field.setAutoIncrementValue(tapField.getAutoIncrementValue());
@@ -571,7 +563,6 @@ public class PdkSchemaConvert {
                     field.setColumnPosition(tapField1.getColumnPosition());
                     field.setDefaultValue(tapField1.getDefaultValue());
                     field.setDefaultFunction(tapField1.getDefaultFunction());
-                    field.setForeignKeyTable(tapField1.getForeignKeyTable());
                     field.setIsAutoAllowed(tapField1.getAutoAllowed());
                     field.setComment(tapField1.getComment());
                     field.setPrimaryKey(tapField1.getPrimaryKey());
@@ -589,8 +580,6 @@ public class PdkSchemaConvert {
                 }
                 field.setColumnPosition(tapField.getPos());
                 field.setPrimaryKeyPosition(tapField.getPrimaryKeyPos());
-                field.setForeignKeyTable(tapField.getForeignKeyTable());
-                field.setForeignKeyColumn(tapField.getForeignKeyField());
                 field.setAutoincrement(tapField.getAutoInc() ? "YES" : "NO");
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());

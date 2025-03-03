@@ -666,32 +666,5 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(true, aspect.get().isRetrying());
 		}
 	}
-
-    @Nested
-    class cleanTableBatchOffsetIfNeedTest {
-        @Test
-        void testCleanTableBatchOffsetIfNeed() {
-            hazelcastPdkBaseNode = spy(hazelcastPdkBaseNode);
-            when(hazelcastPdkBaseNode.getConnectorNode()).thenReturn(mock(ConnectorNode.class));
-            SyncProgress syncProgress = new SyncProgress();
-            syncProgress.setBatchOffset("gAFkABFqYXZhLnV0aWwuSGFzaE1hcAEUAAp0YWJsZV8xTV80AWQAEWphdmEudXRpbC5IYXNoTWFw\n" +
-                    "ARQAG2JhdGNoX3JlYWRfY29ubmVjdG9yX3N0YXR1cwEUAARPVkVSqAEUAAt0YWJsZV8yMEtfNwFk\n" +
-                    "ABFqYXZhLnV0aWwuSGFzaE1hcAEUABtiYXRjaF9yZWFkX2Nvbm5lY3Rvcl9zdGF0dXMBFAAET1ZF\n" +
-                    "Uqio");
-            TapTableMap tapTableMap = mock(TapTableMap.class);
-            Set<String> tableIds = new HashSet<>();
-            tableIds.add("table_1M_4");
-            when(tapTableMap.keySet()).thenReturn(tableIds);
-            when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
-            hazelcastPdkBaseNode.readBatchOffset(syncProgress);
-            assertEquals(1, ((Map)syncProgress.getBatchOffsetObj()).size());
-        }
-
-		@Test
-		@DisplayName("test when tap table map is null")
-		void test1() {
-			SyncProgress syncProgress = new SyncProgress();
-			assertDoesNotThrow(() -> hazelcastPdkBaseNode.cleanTableBatchOffsetIfNeed(syncProgress));
-		}
-	}
+	
 }

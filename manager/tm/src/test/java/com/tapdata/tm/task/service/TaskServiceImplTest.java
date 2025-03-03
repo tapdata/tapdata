@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
@@ -96,7 +97,10 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
 import org.bson.BsonValue;
@@ -5358,9 +5362,88 @@ class TaskServiceImplTest {
             runTables.add("table1");
             runTables.add("table2");
             when(measurementServiceV2.findRunTable(anyString(), anyString())).thenReturn(runTables);
-            doCallRealMethod().when(taskService).cleanRemovedTableMeasurementIfNeed(taskDto);
-            taskService.cleanRemovedTableMeasurementIfNeed(taskDto);
+            doCallRealMethod().when(taskService).cleanRemovedTableMeasurementAndIfNeed(taskDto);
+            taskService.cleanRemovedTableMeasurementAndIfNeed(taskDto);
             verify(measurementServiceV2, new Times(1)).cleanRemovedTableMeasurement(taskId, taskRecordId, "table2");
+        }
+    }
+
+    @Nested
+    class cleanRemoveTableBatchOffsetTest {
+        private TaskDto taskDto;
+        private String taskId;
+        ObjectMapper objectMapper;
+
+        @BeforeEach
+        void beforeEach() {
+            objectMapper = new ObjectMapper();
+            taskDto = mock(TaskDto.class);
+            taskId = "6739ff5046a4de5089e231de";
+            when(taskDto.getId()).thenReturn(new ObjectId(taskId));
+
+
+
+
+        }
+        @DisplayName("test cleanRemoveTableBatchOffset when have remove table")
+        @Test
+        void test1() throws JsonProcessingException {
+            try (MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)) {
+                ObjectSerializableImplV2 objectSerializableImplV21 = new ObjectSerializableImplV2();
+                instanceFactoryMockedStatic.when(()->{InstanceFactory.instance(ObjectSerializable.class);}).thenReturn(objectSerializableImplV21);
+                Map<String, Object> attrs = new HashMap<>();
+                LinkedHashMap<String, String> syncProgress = new LinkedHashMap<>();
+                attrs.put("syncProgress", syncProgress);
+                Map<String, Object> syncProgressMap = new HashMap<>();
+
+                Map<String, HashMap> tablesMap = getTablesMap();
+                ObjectSerializableImplV2 objectSerializableImplV2 = new ObjectSerializableImplV2();
+                byte[] offsetBytes = objectSerializableImplV2.fromObject(tablesMap);
+                syncProgressMap.put("batchOffset", org.apache.commons.net.util.Base64.encodeBase64String(offsetBytes));
+                syncProgress.put("[\"388fe2c5-c426-4c79-a331-1f2a9d91a90c\",\"a11c115c-8eac-48fd-b4d4-1ae4626d2876\"]", objectMapper.writeValueAsString(syncProgressMap));
+                when(taskDto.getAttrs()).thenReturn(attrs);
+                List<String> tables = new ArrayList<>();
+                tables.add("test1");
+                doCallRealMethod().when(taskService).cleanRemoveTableBatchOffset(taskDto,tables);
+                taskService.cleanRemoveTableBatchOffset(taskDto,tables);
+                verify(taskService, times(1)).update(any(Query.class), any(Update.class));
+            }
+        }
+        @DisplayName("test cleanRemoveTableBatchOffset when no remove table")
+        @Test
+        void test2() throws JsonProcessingException {
+            try (MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)) {
+                ObjectSerializableImplV2 objectSerializableImplV21 = new ObjectSerializableImplV2();
+                instanceFactoryMockedStatic.when(()->{InstanceFactory.instance(ObjectSerializable.class);}).thenReturn(objectSerializableImplV21);
+                Map<String, Object> attrs = new HashMap<>();
+                LinkedHashMap<String, String> syncProgress = new LinkedHashMap<>();
+                attrs.put("syncProgress", syncProgress);
+                Map<String, Object> syncProgressMap = new HashMap<>();
+
+                Map<String, HashMap> tablesMap = getTablesMap();
+                ObjectSerializableImplV2 objectSerializableImplV2 = new ObjectSerializableImplV2();
+                byte[] offsetBytes = objectSerializableImplV2.fromObject(tablesMap);
+                syncProgressMap.put("batchOffset", org.apache.commons.net.util.Base64.encodeBase64String(offsetBytes));
+                syncProgress.put("[\"388fe2c5-c426-4c79-a331-1f2a9d91a90c\",\"a11c115c-8eac-48fd-b4d4-1ae4626d2876\"]", objectMapper.writeValueAsString(syncProgressMap));
+                when(taskDto.getAttrs()).thenReturn(attrs);
+                List<String> tables = new ArrayList<>();
+                tables.add("test1");
+                tables.add("test2");
+                doCallRealMethod().when(taskService).cleanRemoveTableBatchOffset(taskDto,tables);
+                taskService.cleanRemoveTableBatchOffset(taskDto,tables);
+                verify(taskService, times(0)).update(any(Query.class), any(Update.class));
+            }
+        }
+
+        private Map<String, HashMap> getTablesMap() {
+            Map<String, HashMap> tablesMap = new HashMap<>();
+            HashMap<String, String> test1Status = new HashMap<>();
+            test1Status.put("batch_read_connector_status", "OVER");
+            tablesMap.put("test1", test1Status);
+            HashMap<String, String> test2Status = new HashMap<>();
+            test2Status.put("batch_read_connector_status", "OVER");
+            tablesMap.put("test2", test2Status);
+            return tablesMap;
         }
     }
 
