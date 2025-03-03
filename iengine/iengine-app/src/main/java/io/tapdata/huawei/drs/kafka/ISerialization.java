@@ -12,15 +12,17 @@ import java.util.function.BiConsumer;
  * @version v1.0 2025/2/21 17:24 Create
  */
 public interface ISerialization {
+    boolean isDeduceSchema();
+
     IType getType(String type);
 
     void process(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, HazelcastProcessorBaseNode.ProcessResult> consumer, HazelcastProcessorBaseNode.ProcessResult processResult);
 
-    static ISerialization create(String storeType, String fromDBType) {
+    static ISerialization create(String storeType, String fromDBType, boolean isDeduceSchema) {
         StoreType storeTypeEnum = StoreType.fromValue(storeType);
         switch (storeTypeEnum) {
             case JSON:
-                return JsonSerialization.create(fromDBType);
+                return JsonSerialization.create(fromDBType, isDeduceSchema);
             case AVRO:
             case JSON_C:
             default:

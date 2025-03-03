@@ -42,7 +42,7 @@ class JsonSerializationTest {
 
     static class MockJsonSerialization extends JsonSerialization {
         public MockJsonSerialization() {
-            super(new BytesType("bytes"), new StringType("string"));
+            super(false, new BytesType("bytes"), new StringType("string"));
         }
 
         @Override
@@ -84,13 +84,13 @@ class JsonSerializationTest {
     class CreateTest {
         @Test
         void testOracle() {
-            JsonSerialization serialization = JsonSerialization.create(FromDBType.ORACLE.name());
+            JsonSerialization serialization = JsonSerialization.create(FromDBType.ORACLE.name(), false);
             Assertions.assertInstanceOf(OracleJsonSerialization.class, serialization);
         }
 
         @Test
         void testUnSupport() {
-            Assertions.assertThrows(RuntimeException.class, () -> JsonSerialization.create("-"));
+            Assertions.assertThrows(RuntimeException.class, () -> JsonSerialization.create("-", false));
         }
     }
 

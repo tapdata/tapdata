@@ -17,8 +17,9 @@ import java.util.function.Consumer;
  */
 @Slf4j
 public class MysqlJsonSerialization extends JsonSerialization {
-    public MysqlJsonSerialization() {
-        super(new BigintMysqlType(),
+    public MysqlJsonSerialization(boolean isDeduceSchema) {
+        super(isDeduceSchema,
+            new BigintMysqlType(),
             new BinaryMysqlType(),
             new BlobMysqlType(),
             new CharMysqlType(),
@@ -56,6 +57,7 @@ public class MysqlJsonSerialization extends JsonSerialization {
             case UPDATE:
                 return decodeUpdateRecord(tableName, referenceTime, jsonValue, sender);
             case DELETE:
+                if (isDeduceSchema()) return false;
                 return decodeDeleteRecord(tableName, referenceTime, jsonValue, sender);
             default:
                 return false;

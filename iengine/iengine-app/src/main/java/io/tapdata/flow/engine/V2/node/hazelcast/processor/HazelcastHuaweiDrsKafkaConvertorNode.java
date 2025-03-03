@@ -3,12 +3,14 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.process.HuaweiDrsKafkaConvertorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.huawei.drs.kafka.ISerialization;
 import lombok.Getter;
 
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 /**
@@ -25,7 +27,8 @@ public class HazelcastHuaweiDrsKafkaConvertorNode extends HazelcastProcessorBase
     public HazelcastHuaweiDrsKafkaConvertorNode(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         HuaweiDrsKafkaConvertorNode node = (HuaweiDrsKafkaConvertorNode) getNode();
-        serialization = ISerialization.create(node.getStoreType(), node.getFromDBType());
+        boolean isDeduceSchema = Optional.ofNullable(processorBaseContext.getTaskDto()).map(TaskDto::isDeduceSchemaTask).orElse(false);
+        serialization = ISerialization.create(node.getStoreType(), node.getFromDBType(), isDeduceSchema);
     }
 
     @Override

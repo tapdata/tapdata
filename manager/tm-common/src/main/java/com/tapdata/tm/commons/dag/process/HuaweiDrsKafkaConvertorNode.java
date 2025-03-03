@@ -57,7 +57,7 @@ public class HuaweiDrsKafkaConvertorNode extends ProcessorNode {
             // 根据 sample 任务跑出模型
             TapTable sampleTable = getService().loadTapTable(getId(), sampleNodeId, sampleTask);
 
-            if (null != sampleTable) {
+            if (null != sampleTable && null != sampleTable.getNameFieldMap()) {
                 // 根据源节点处理字段类型
                 resetFieldTypeWithFirstExpression(inputSchemas, sampleTable);
 

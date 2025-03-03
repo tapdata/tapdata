@@ -19,7 +19,7 @@ class OracleJsonSerializationTest {
 
     @BeforeEach
     void setUp() {
-        ins = new OracleJsonSerialization();
+        ins = new OracleJsonSerialization(false);
         mockIns = Mockito.spy(ins);
     }
 

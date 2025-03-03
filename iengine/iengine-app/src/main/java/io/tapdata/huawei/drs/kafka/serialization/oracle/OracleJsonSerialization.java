@@ -16,8 +16,9 @@ import java.util.function.Consumer;
 @Slf4j
 public class OracleJsonSerialization extends JsonSerialization {
 
-    public OracleJsonSerialization() {
-        super(new BitOracleType(),
+    public OracleJsonSerialization(boolean isDeduceSchema) {
+        super(isDeduceSchema,
+            new BitOracleType(),
             new BooleanOracleType(),
             new CharacterOracleType(),
             new JsonOracleType(),
@@ -45,6 +46,7 @@ public class OracleJsonSerialization extends JsonSerialization {
             case UPDATE:
                 return decodeUpdateRecord(tableName, referenceTime, jsonValue, sender);
             case DELETE:
+                if (isDeduceSchema()) return false;
                 return decodeDeleteRecord(tableName, referenceTime, jsonValue, sender);
             default:
                 return false;

@@ -14,12 +14,12 @@ class ISerializationTest {
 
     @Test
     void testCreateJson() {
-        ISerialization serialization = ISerialization.create(StoreType.JSON.name(), FromDBType.MYSQL.name());
+        ISerialization serialization = ISerialization.create(StoreType.JSON.name(), FromDBType.MYSQL.name(), false);
         Assertions.assertTrue(serialization instanceof JsonSerialization);
     }
 
     @Test
     void testUnSupport() {
-        Assertions.assertThrows(RuntimeException.class, () -> ISerialization.create(StoreType.JSON_C.name(), FromDBType.MYSQL.name()));
+        Assertions.assertThrows(RuntimeException.class, () -> ISerialization.create(StoreType.JSON_C.name(), FromDBType.MYSQL.name(), false));
     }
 }

@@ -34,11 +34,18 @@ public abstract class JsonSerialization implements ISerialization {
 
     private final Map<String, IType> TYPES = new HashMap<>();
     private final TimeMaxAccepter timeMaxAccepter = new TimeMaxAccepter(10, 1);
+    private final boolean isDeduceSchema;
 
-    public JsonSerialization(IType... types) {
+    public JsonSerialization(boolean isDeduceSchema, IType... types) {
+        this.isDeduceSchema = isDeduceSchema;
         for (IType type : types) {
             type.append2(TYPES);
         }
+    }
+
+    @Override
+    public boolean isDeduceSchema() {
+        return isDeduceSchema;
     }
 
     @Override
@@ -163,17 +170,17 @@ public abstract class JsonSerialization implements ISerialization {
         return true;
     }
 
-    public static JsonSerialization create(String fromDBType) {
+    public static JsonSerialization create(String fromDBType, boolean isDeduceSchema) {
         FromDBType fromDBTypeEnum = FromDBType.fromValue(fromDBType);
         switch (fromDBTypeEnum) {
             case MYSQL:
             case GAUSSDB_MYSQL:
-                return new MysqlJsonSerialization();
+                return new MysqlJsonSerialization(isDeduceSchema);
             case ORACLE:
             case MSSQL:
             case POSTGRESQL:
             case GAUSSDB:
-                return new OracleJsonSerialization();
+                return new OracleJsonSerialization(isDeduceSchema);
             default:
                 throw new RuntimeException("un-support DB type '" + fromDBType + "'");
         }

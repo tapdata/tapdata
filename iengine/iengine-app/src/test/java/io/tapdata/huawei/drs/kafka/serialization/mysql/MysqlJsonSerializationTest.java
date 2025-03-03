@@ -20,7 +20,7 @@ class MysqlJsonSerializationTest {
 
     @BeforeEach
     void setUp() {
-        ins = new MysqlJsonSerialization();
+        ins = new MysqlJsonSerialization(false);
         mockIns = Mockito.spy(ins);
     }
 
