@@ -1087,9 +1087,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected TaskEnvMap getTaskEnvReadMap() {
 		HazelcastInstance hazelcastInstance = jetContext.hazelcastInstance();
-		if(null == hazelcastInstance) {
-			throw new IllegalArgumentException("hazelcastInstance is null");
-		}
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		String taskId = processorBaseContext.getTaskDto().getId().toHexString();
 		Object taskEnvReadMap = globalStateMap.get(TaskEnvMap.name(taskId));
