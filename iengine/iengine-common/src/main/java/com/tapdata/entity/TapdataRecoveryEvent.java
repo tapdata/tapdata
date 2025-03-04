@@ -27,9 +27,11 @@ public class TapdataRecoveryEvent extends TapdataEvent {
     private String recoveryType;
 
     public TapdataRecoveryEvent() {
+        super.syncStage = SyncStage.CDC;
     }
 
     public TapdataRecoveryEvent(String inspectTaskId, String recoveryType) {
+        super.syncStage = SyncStage.CDC;
         this.inspectTaskId = inspectTaskId;
         this.recoveryType = recoveryType;
     }
