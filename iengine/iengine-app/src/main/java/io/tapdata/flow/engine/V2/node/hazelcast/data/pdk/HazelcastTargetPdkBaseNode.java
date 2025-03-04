@@ -1143,10 +1143,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected void handleTapdataCompleteSnapshotEvent() {
         Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
         Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
+        processConnectorAfterSnapshot();
         if (obj instanceof AtomicInteger) {
             ((AtomicInteger) obj).decrementAndGet();
         }
-		processConnectorAfterSnapshot();
         executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();
     }
