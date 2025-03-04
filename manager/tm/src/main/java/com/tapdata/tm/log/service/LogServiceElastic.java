@@ -1,6 +1,8 @@
 package com.tapdata.tm.log.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import co.elastic.clients.elasticsearch._types.FieldValue;
+import co.elastic.clients.elasticsearch._types.aggregations.*;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
@@ -13,21 +15,24 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.lang3.StringUtils;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.ParsedStringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
+import org.springframework.data.elasticsearch.client.elc.ElasticsearchAggregations;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
-import org.springframework.data.elasticsearch.core.query.*;
+import org.springframework.data.elasticsearch.core.query.ByQueryResponse;
+import org.springframework.data.elasticsearch.core.query.Criteria;
+import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
+import org.springframework.data.elasticsearch.core.query.Query;
+
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+
+import org.springframework.data.elasticsearch.client.elc.ElasticsearchTemplate;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -35,8 +40,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+
 
 /**
  * @Author:
@@ -56,7 +60,7 @@ public class LogServiceElastic {
     private String indexName;
 
     @Autowired
-    private ElasticsearchRestTemplate elasticsearchRestTemplate;
+    private ElasticsearchTemplate elasticsearchRestTemplate;
 
     private IndexCoordinates getIndexCoordinates() {
         if (StringUtils.isEmpty(indexName)) {
@@ -282,14 +286,19 @@ public class LogServiceElastic {
         //IndexCoordinates index = IndexCoordinates.of("logs-leon");
         IndexCoordinates index = getIndexCoordinates();
 
-        Query query = new NativeSearchQueryBuilder()
-                .addAggregation(
-                        terms("groupByDataFlowId")
-                                .field("contextMap.dataFlowId.keyword")
-                                // TODO: Paginated queries should be used
-                                .size(Integer.MAX_VALUE)
-                                .subAggregation(
-                                max("maxMillis").field("millis")))
+        Query query = NativeQuery.builder()
+                .withAggregation("groupByDataFlowId",
+                        Aggregation.of(a -> a
+                                .terms(t -> t
+                                        .field("contextMap.dataFlowId.keyword")
+                                        .size(Integer.MAX_VALUE)
+                                ).aggregations("maxMillis",
+                                        maxAgg -> maxAgg.max(m -> m
+                                                .field("millis")
+                                        )
+                                )
+                        )
+                )
                 .withMaxResults(0)
                 .build();
 
@@ -297,22 +306,21 @@ public class LogServiceElastic {
 
         Map<String, Long[]> dataFlowIdAndLastLogAt = new HashMap<>();
         if (result.hasAggregations() && result.getAggregations() != null) {
-            Aggregation groupTerms = result.getAggregations().get("groupByDataFlowId");
-            if (groupTerms instanceof ParsedStringTerms) {
-                List<? extends Terms.Bucket> buckets = ((ParsedStringTerms) groupTerms).getBuckets();
+            ElasticsearchAggregations aggregations = (ElasticsearchAggregations) result.getAggregations();
+            var groupTerms = aggregations.get("groupByDataFlowId");
+            Buckets<StringTermsBucket> buckets = groupTerms.aggregation().getAggregate().sterms().buckets();
+            buckets.array().forEach(stringTermsBucket -> {
+                        FieldValue key = stringTermsBucket.key();
+                        long docCount = stringTermsBucket.docCount();
+                        Aggregate maxMillisAggr = stringTermsBucket.aggregations().get("maxMillis");
+                        double maxMillis = 0;
+                        if (maxMillisAggr.isMax()) {
+                            maxMillis = maxMillisAggr.max().value();
+                        }
+                        dataFlowIdAndLastLogAt.put(key.stringValue(), new Long[]{Double.valueOf(maxMillis).longValue(), docCount});
 
-
-                buckets.forEach(bucket -> {
-                    String dataFlowId = bucket.getKeyAsString();
-                    long docCount = bucket.getDocCount();
-                    Aggregation maxMillisAggr = bucket.getAggregations().get("maxMillis");
-                    double maxMillis = 0;
-                    if (maxMillisAggr instanceof ParsedMax) {
-                        maxMillis = ((ParsedMax) maxMillisAggr).getValue();
                     }
-                    dataFlowIdAndLastLogAt.put(dataFlowId, new Long[]{Double.valueOf(maxMillis).longValue(), docCount});
-                });
-            }
+            );
         }
 
         if (dataFlowIdAndLastLogAt.isEmpty()) {
