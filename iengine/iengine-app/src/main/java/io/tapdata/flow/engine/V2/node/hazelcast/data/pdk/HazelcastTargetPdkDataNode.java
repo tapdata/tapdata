@@ -15,22 +15,22 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.entity.TapConstraintException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.constraint.TapCreateConstraintEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
-import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.*;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
 import io.tapdata.exception.*;
+import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.policy.PDkNodeInsertRecordPolicyService;
@@ -55,9 +55,9 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.client.utils.CloneUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
@@ -165,14 +165,19 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Node<?> node = dataProcessorContext.getNode();
 			ExistsDataProcessEnum existsDataProcessEnum = getExistsDataProcess(node);
 			Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
-			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress);
+			SyncProgress syncProgress = foundNodeSyncProgress(allSyncProgress, SyncProgressNodeType.TARGET);
 			if (null == syncProgress) {
+				Set<String> createdTableIds = new HashSet<>();
 				for (String tableId : tableIds) {
 					if (!isRunning()) {
 						return;
 					}
-					createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId,true);
+					boolean created = createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId,true);
+					if (created) {
+						createdTableIds.add(tableId);
+					}
 				}
+				createForeignKeyConstraints(tapTableMap, createdTableIds);
 			}
 
 			//对于复制任务停下来后新增表的建表。
@@ -190,18 +195,23 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 								List<SyncObjects> syncObjects = last.getSyncObjects();
 								SyncObjects syncObjects1 = syncObjects.get(0);
 								LinkedHashMap<String, String> tableNameRelation = syncObjects1.getTableNameRelation();
-								if (tableNameRelation != null && tableNameRelation.size() > 0) {
+								if (tableNameRelation != null && !tableNameRelation.isEmpty()) {
 									sourceAndTargetMap = syncObjects1.getTableNameRelation();
 								}
+								Set<String> createdTableIds = new HashSet<>();
 								for (String ldpNewTable : ldpNewTables) {
 									String tableId = sourceAndTargetMap.get(ldpNewTable);
 									if (tableId != null) {
 										if (!isRunning()) {
 											return;
 										}
-										createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId,true);
+										boolean created = createTable(tapTableMap, funcAspect, node, existsDataProcessEnum, tableId,true);
+										if (created) {
+											createdTableIds.add(tableId);
+										}
 									}
 								}
+								createForeignKeyConstraints(tapTableMap, createdTableIds);
 							}
 						}
 					}
@@ -210,7 +220,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}));
 	}
 
-	protected void createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId,boolean init) {
+	protected boolean createTable(TapTableMap<String, TapTable> tapTableMap, TableInitFuncAspect funcAspect, Node<?> node, ExistsDataProcessEnum existsDataProcessEnum, String tableId,boolean init) {
 		TapTable tapTable = tapTableMap.get(tableId);
 		List<String> updateConditionFields = getUpdateConditionFields(node, tapTable);
 		if (null == tapTable) {
@@ -219,18 +229,109 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			throw e;
 		}
 		if (StringUtils.isNotBlank(tableId) && StringUtils.equalsAny(tableId, ExactlyOnceUtil.EXACTLY_ONCE_CACHE_TABLE_NAME)) {
-			return;
+			return false;
 		}
 		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
 		List<TapIndex> indexList = getTapTableIndex(updateConditionFields, tapTable);
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
-		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable);
+		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable, indexList);
 		//sync index
 		syncIndex(tableId, tapTable, indexList, succeed.get());
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
+		return createdTable;
+	}
+
+	protected void createForeignKeyConstraints(TapTableMap<String, TapTable> tapTableMap, Set<String> tableIds) {
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || !taskDto.isNormalTask()) {
+			return;
+		}
+		Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> Optional.ofNullable(connectorNode.getConnectorFunctions()).ifPresent(connectorFunctions -> {
+			QueryConstraintsFunction queryConstraintsFunction = connectorFunctions.getQueryConstraintsFunction();
+			CreateConstraintFunction createConstraintFunction = connectorFunctions.getCreateConstraintFunction();
+			if (null == queryConstraintsFunction || null == createConstraintFunction) {
+				return;
+			}
+			for (String tableId : tableIds) {
+				if (!isRunning()) {
+					break;
+				}
+				TapTable tapTable = tapTableMap.get(tableId);
+				List<TapConstraint> constraintList = tapTable.getConstraintList();
+				if (CollectionUtils.isEmpty(constraintList)) {
+					continue;
+				}
+				List<TapConstraint> tobeCreateForeignKeys = new ArrayList<>();
+				try {
+					queryConstraintsFunction.query(connectorNode.getConnectorContext(), tapTable, existsConstraints -> {
+						for (TapConstraint tapConstraint : constraintList) {
+							if (!TapConstraint.ConstraintType.FOREIGN_KEY.equals(tapConstraint.getType())) {
+								continue;
+							}
+							TapConstraint existsForeignKey = existsConstraints.stream().filter(ec -> {
+								if (!ec.getType().equals(tapConstraint.getType())) {
+									return false;
+								}
+								if (!ec.getReferencesTableName().equals(tapConstraint.getReferencesTableName())) {
+									return false;
+								}
+								List<TapConstraintMapping> existsMappingFields = ec.getMappingFields();
+								List<TapConstraintMapping> mappingFields = tapConstraint.getMappingFields();
+								if (null == existsMappingFields || null == mappingFields) {
+									return false;
+								}
+								String existsForeignKeyString = existsMappingFields.stream().map(TapConstraintMapping::getForeignKey).sorted().collect(Collectors.joining(","));
+								String foreignKeyString = mappingFields.stream().map(TapConstraintMapping::getForeignKey).sorted().collect(Collectors.joining(","));
+								if (!existsForeignKeyString.equals(foreignKeyString)) {
+									return false;
+								}
+								String existsReferenceKeyString = existsMappingFields.stream().map(TapConstraintMapping::getReferenceKey).sorted().collect(Collectors.joining(","));
+								String referenceKeyString = mappingFields.stream().map(TapConstraintMapping::getReferenceKey).sorted().collect(Collectors.joining(","));
+								if (!existsReferenceKeyString.equals(referenceKeyString)) {
+									return false;
+								}
+								return true;
+							}).findFirst().orElse(null);
+							if (null != existsForeignKey) {
+								continue;
+							}
+							tobeCreateForeignKeys.add(tapConstraint);
+						}
+					});
+				} catch (Throwable e) {
+					obsLogger.warn("Before creating a foreign key, check whether the foreign key already exists, the query fails. Table name: {}, the error will be ignored, please check and create by manually", tableId, e);
+				}
+				try {
+					TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
+					tapCreateConstraintEvent.constraintList(tobeCreateForeignKeys);
+					createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent, true);
+				} catch (Throwable e) {
+					if (e instanceof TapConstraintException) {
+						TapConstraintException tapConstraintException = (TapConstraintException) e;
+						List<String> sqlList = tapConstraintException.getSqlList();
+						List<Throwable> exceptions = tapConstraintException.getExceptions();
+						if (CollectionUtils.isNotEmpty(sqlList)) {
+							for (int i = 0; i < sqlList.size(); i++) {
+								String sql = sqlList.get(i);
+								Throwable cause = exceptions.get(i);
+
+								if (null == cause) {
+									obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}", tableId, sql);
+								} else {
+									obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}, error: {}", tableId, sql, Log4jUtil.getStackString(cause));
+								}
+							}
+						}
+					} else {
+						obsLogger.warn("Due to unknown error, the creation of foreign key failed, the table name: {}, this step will be skipped, please check manually and create", tableId, e);
+					}
+
+				}
+			}
+		}));
 	}
 
 	protected List<TapIndex> getTapTableIndex(List<String> updateConditionFields, TapTable tapTable) {
@@ -271,7 +372,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	protected void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable, boolean createdTable) {
+	protected void createTargetIndex(List<String> updateConditionFields, boolean createUnique, String tableId, TapTable tapTable, boolean createdTable, List<TapIndex> indexList) {
 
 		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
 			return;
@@ -313,11 +414,15 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 				List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, tapIndices);
 				if(CollectionUtils.isNotEmpty(existsIndexes)){
-					existsIndexes.forEach(i -> {
-						obsLogger.trace("Table: {} already exists Index: {} and will no longer create index", tableId, i);
-					});
+					existsIndexes.forEach(i -> obsLogger.trace("Table: {} already exists Index: {} and will no longer create index", tableId, i));
 					return;
 				}
+				Optional.ofNullable(indexList).ifPresent(indexes -> {
+					TapIndex equalsIndex = indexes.stream().filter(index -> tapIndexEquals(index, tapIndex, false)).findFirst().orElse(null);
+					if (null != equalsIndex && null != equalsIndex.getName()) {
+						tapIndex.name(equalsIndex.getName());
+					}
+				});
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -436,31 +541,44 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return new ArrayList<>();
 		}
 		List<TapIndex> existsIndexes = new ArrayList<>();
-		queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)->{
-			tapIndexList.forEach(existsIndex -> {
-				// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
-				for (TapIndex tapIndex : indexList) {
-					if (null != tapIndex.getName() && null != existsIndex.getName() && tapIndex.getName().equals(existsIndex.getName())) {
-						existsIndexes.add(tapIndex);
-						continue;
-					}
-					if (tapIndex.getIndexFields().size() == existsIndex.getIndexFields().size()) {
-						boolean same = true;
-						for (int i = 0; i < tapIndex.getIndexFields().size(); i++) {
-							if (null != existsIndex.getIndexFields().get(i).getName() && !existsIndex.getIndexFields().get(i).getName().equals(tapIndex.getIndexFields().get(i).getName())
-									|| !Objects.equals(tapIndex.getIndexFields().get(i).getFieldAsc(), existsIndex.getIndexFields().get(i).getFieldAsc())) {
-								same = false;
-								break;
-							}
-						}
-						if (same) {
-							existsIndexes.add(tapIndex);
-						}
-					}
+		queryIndexesFunction.query(getConnectorNode().getConnectorContext(), tapTable, (tapIndexList)-> tapIndexList.forEach(existsIndex -> {
+			// If the index already exists, it will no longer be created; Having the same name is considered as existence; Fields with the same order are also considered to exist
+			for (TapIndex tapIndex : indexList) {
+				if (tapIndexEquals(existsIndex, tapIndex, true)) {
+					existsIndexes.add(tapIndex);
 				}
-			});
-		});
+			}
+		}));
 		return existsIndexes;
+	}
+
+	protected boolean tapIndexEquals(TapIndex index1, TapIndex index2, boolean compareIndexName) {
+		if(null == index1 || null == index2) {
+			return false;
+		}
+		if (compareIndexName) {
+			String name1 = index1.getName();
+			String name2 = index2.getName();
+			if (null != name1 && name1.equals(name2)) {
+				return true;
+			}
+		}
+		List<TapIndexField> indexFields1 = index1.getIndexFields();
+		List<TapIndexField> indexFields2 = index2.getIndexFields();
+		if (indexFields1.size() != indexFields2.size()) {
+			return false;
+		}
+		for (int i = 0; i < indexFields1.size(); i++) {
+			TapIndexField tapIndexField1 = indexFields1.get(i);
+			TapIndexField tapIndexField2 = indexFields2.get(i);
+			if (!Objects.equals(tapIndexField1.getName(), tapIndexField2.getName())) {
+				return false;
+			}
+			if (!Objects.equals(tapIndexField1.getFieldAsc(), tapIndexField2.getFieldAsc())) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	protected boolean checkSyncIndexOpen(){

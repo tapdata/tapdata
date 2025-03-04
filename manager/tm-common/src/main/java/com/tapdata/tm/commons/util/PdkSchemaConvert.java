@@ -117,6 +117,7 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             tapTable.setIndexList(tapIndexList);
         }
+        tapTable.setConstraintList(schema.getConstraints());
 
         List<Field> fields = schema.getFields();
 
@@ -144,6 +145,7 @@ public class PdkSchemaConvert {
                 tapField.setAutoInc("YES".equals(field.getAutoincrement()));
                 tapField.setAutoIncStartValue(field.getAutoIncStartValue());
                 tapField.setAutoIncrementValue(field.getAutoIncrementValue());
+                tapField.setAutoIncCacheValue(field.getAutoIncCacheValue());
                 //tapField.setCheck(field.);
                 tapField.setComment(field.getComment());
                 tapField.setConstraint(field.getPkConstraintName());
@@ -207,7 +209,7 @@ public class PdkSchemaConvert {
         } else if (schema.getIndices() != null) {
             tapTable.setIndexList(Lists.newArrayList());
         }
-
+        tapTable.setConstraintList(schema.getConstraints());
         List<Field> fields = schema.getFields();
 
         Set<Integer> partitionSet = schema.getPartitionSet();
@@ -250,6 +252,7 @@ public class PdkSchemaConvert {
                 tapField.setAutoincrement(field.getAutoincrement());
                 tapField.setAutoIncStartValue(field.getAutoIncStartValue());
                 tapField.setAutoIncrementValue(field.getAutoIncrementValue());
+                tapField.setAutoIncCacheValue(field.getAutoIncCacheValue());
                 tapField.setColumnSize(field.getColumnSize());
                 tapField.setDataTypeTemp(field.getDataTypeTemp());
                 tapField.setOriginalDefaultValue(field.getOriginalDefaultValue());
@@ -379,6 +382,7 @@ public class PdkSchemaConvert {
                     field.setAutoincrement(tapField1.getAutoincrement());
                     field.setAutoIncStartValue(tapField1.getAutoIncStartValue());
                     field.setAutoIncrementValue(tapField1.getAutoIncrementValue());
+                    field.setAutoIncCacheValue(tapField1.getAutoIncCacheValue());
                     field.setColumnSize(tapField1.getColumnSize());
                     field.setDataTypeTemp(tapField1.getDataTypeTemp());
                     field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
@@ -422,6 +426,7 @@ public class PdkSchemaConvert {
                 field.setAutoincrement(tapField.getAutoInc() != null && tapField.getAutoInc() ? "YES" : "NO");
                 field.setAutoIncStartValue(tapField.getAutoIncStartValue());
                 field.setAutoIncrementValue(tapField.getAutoIncrementValue());
+                field.setAutoIncCacheValue(tapField.getAutoIncCacheValue());
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
@@ -478,6 +483,7 @@ public class PdkSchemaConvert {
         } else if (indexList != null) {
             schema.setIndices(Lists.newArrayList());
         }
+        schema.setConstraints(tapTable.getConstraintList());
         setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
         return schema;
     }
@@ -538,6 +544,7 @@ public class PdkSchemaConvert {
                     field.setAutoincrement(tapField1.getAutoincrement());
                     field.setAutoIncStartValue(tapField1.getAutoIncStartValue());
                     field.setAutoIncrementValue(tapField1.getAutoIncrementValue());
+                    field.setAutoIncCacheValue(tapField1.getAutoIncCacheValue());
                     field.setColumnSize(tapField1.getColumnSize());
                     field.setDataTypeTemp(tapField1.getDataTypeTemp());
                     field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
@@ -628,6 +635,7 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             schema.setIndices(tableIndexList);
         }
+        schema.setConstraints(tapTable.getConstraintList());
         setTapTypeToPdk(schema.getPartitionInfo(), tapTable);
         return schema;
     }

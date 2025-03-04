@@ -16,19 +16,12 @@ public class JetDag implements Serializable {
 	private static final long serialVersionUID = -6279685445298195786L;
 
 	private DAG dag;
-	private Map<String, AbstractProcessor> processorMap;
-	private Map<String, AbstractProcessor> typeConvertMap;
+	private final Map<String, AbstractProcessor> processorMap;
 
 
 	public JetDag(DAG dag, Map<String, AbstractProcessor> processorMap) {
 		this.dag = dag;
 		this.processorMap = processorMap;
-	}
-
-	public JetDag(DAG dag, Map<String, AbstractProcessor> processorMap, Map<String, AbstractProcessor> typeConvertMap) {
-		this.dag = dag;
-		this.processorMap = processorMap;
-		this.typeConvertMap = typeConvertMap;
 	}
 
 	public DAG getDag() {
@@ -37,9 +30,5 @@ public class JetDag implements Serializable {
 
 	public Map<String, AbstractProcessor> getProcessorMap() {
 		return processorMap;
-	}
-
-	public Map<String, AbstractProcessor> getTypeConvertMap() {
-		return typeConvertMap;
 	}
 }

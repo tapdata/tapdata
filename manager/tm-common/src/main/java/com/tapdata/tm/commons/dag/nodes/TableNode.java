@@ -192,6 +192,8 @@ public class TableNode extends DataNode {
     private TapTable previewTapTable;
     private static final String MONGODB = "MongoDB";
 
+    private boolean sourceAndTarget;
+
     public TableNode() {
         super("table");
     }
