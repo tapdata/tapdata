@@ -34,7 +34,7 @@ public class RestUtil {
 		String url = urlInfo.getUrl();
 		Map<String, Object> headers = urlInfo.getHeaders();
 		Map<String, Object> requestParameters = urlInfo.getRequest_parameters();
-		HttpMethod httpMethod = HttpMethod.resolve(urlInfo.getMethod());
+		HttpMethod httpMethod = HttpMethod.valueOf(urlInfo.getMethod());
 		if (HttpMethod.POST == httpMethod) {
 			Map<String, String> urlParams = splitQuery(url);
 			if (requestParameters == null) {
@@ -63,7 +63,7 @@ public class RestUtil {
 
 		HttpEntity httpEntity = null;
 		HttpHeaders httpHeaders = httpHeaders(headers);
-		if (HttpMethod.GET == HttpMethod.resolve(method)) {
+		if (HttpMethod.GET == HttpMethod.valueOf(method)) {
 			httpEntity = new HttpEntity(httpHeaders);
 		} else {
 			MultiValueMap<String, Object> multiValueMap = new LinkedMultiValueMap<>();
@@ -97,7 +97,7 @@ public class RestUtil {
 		Map<String, Object> requestParams = restURLInfo.getRequest_parameters();
 		String url = restURLInfo.getUrl();
 
-		HttpMethod httpMethod = HttpMethod.resolve(urlInfo.getMethod());
+		HttpMethod httpMethod = HttpMethod.valueOf(urlInfo.getMethod());
 		if (HttpMethod.GET == httpMethod) {
 			url = RestUtil.urlQueryString(url, requestParams);
 		}

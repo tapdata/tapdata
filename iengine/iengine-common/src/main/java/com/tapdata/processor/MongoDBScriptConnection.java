@@ -1,6 +1,6 @@
 package com.tapdata.processor;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UpdateOptions;
@@ -198,7 +198,7 @@ public class MongoDBScriptConnection implements ScriptConnection {
 		Map<String, Object> filter = executeObject.getFilter();
 		Document filterDocument = filter == null ? new Document() : new Document(filter);
 
-		return mongoClient.getDatabase(database).getCollection(collection).count(filterDocument);
+		return mongoClient.getDatabase(database).getCollection(collection).countDocuments(filterDocument);
 	}
 
 	@Override

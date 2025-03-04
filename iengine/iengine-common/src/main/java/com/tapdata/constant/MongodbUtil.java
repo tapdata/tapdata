@@ -1,17 +1,10 @@
 package com.tapdata.constant;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientOptions;
-import com.mongodb.MongoClientURI;
-import com.mongodb.MongoCommandException;
-import com.mongodb.MongoCredential;
+import com.mongodb.*;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.bulk.BulkWriteUpsert;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.ListIndexesIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.*;
+import com.mongodb.client.internal.MongoClientImpl;
 import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.Collation;
 import com.mongodb.client.model.CollationAlternate;
@@ -138,10 +131,10 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	}
 
 	public static MongoClient createMongoClient(Connections connection) throws UnsupportedEncodingException {
-		return createMongoClient(connection, MongoClientOptions.builder().build());
+		return createMongoClient(connection, MongoClientSettings.builder().build());
 	}
 
-	public static MongoClient createMongoClient(Connections connection, MongoClientOptions mongoClientOptions)
+	public static MongoClient createMongoClient(Connections connection, MongoClientSettings mongoClientSettings)
 			throws UnsupportedEncodingException {
 		MongoClient mongoClient;
 		try {
@@ -155,11 +148,11 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			String databaseName = connection.getDatabase_name();
 			String additionalString = connection.getAdditionalString();
 
-			MongoClientOptions.Builder builder;
-			if (null != mongoClientOptions) {
-				builder = MongoClientOptions.builder(mongoClientOptions);
+			MongoClientSettings.Builder builder;
+			if (null != mongoClientSettings) {
+				builder = MongoClientSettings.builder(mongoClientSettings);
 			} else {
-				builder = MongoClientOptions.builder();
+				builder = MongoClientSettings.builder();
 			}
 
 			// ssl config
@@ -183,7 +176,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 							return null;
 						}
 					}}, new SecureRandom());
-					builder.sslEnabled(true).sslContext(sslContext).sslInvalidHostNameAllowed(true);
+					builder.applyToSslSettings(sslSettingsBuilder -> sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build());
 
 				} else {
 					sslMongoClientOption(connection.getSslValidate(), connection.getSslCA(), connection.getSslCert(),
@@ -191,11 +184,11 @@ public class MongodbUtil extends BaseDatabaseUtil {
 				}
 			}
 
-			builder.cursorFinalizerEnabled(false);
+//			builder.cursorFinalizerEnabled(false);
 
 			if (StringUtils.isNotEmpty(databaseUri)) {
-				MongoClientURI uri = new MongoClientURI(databaseUri, builder);
-				mongoClient = new MongoClientProxy(uri);
+				ConnectionString uri = new ConnectionString(databaseUri);
+				mongoClient = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
 			} else {
 				StringBuilder sb = new StringBuilder("mongodb://");
 				if (StringUtils.isNoneBlank(username, password)) {
@@ -231,8 +224,8 @@ public class MongodbUtil extends BaseDatabaseUtil {
 						}
 					}
 				}
-				MongoClientURI uri = new MongoClientURI(sb.toString(), builder);
-				mongoClient = new MongoClientProxy(uri);
+				ConnectionString uri = new ConnectionString(sb.toString());
+				mongoClient = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
 			}
 
 		} catch (Exception e) {
@@ -252,7 +245,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		try {
 
 			final String databaseUri = connections.getDatabase_uri();
-			MongoClientURI mongoClientURI = new MongoClientURI(databaseUri);
+			ConnectionString mongoClientURI = new ConnectionString(databaseUri);
 
 			List<String> hostPorts = mongoClientURI.getHosts();
 			String hostString = hostPorts.stream().map(hostPort -> {
@@ -301,7 +294,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	}
 
 	public static MongoClient createMongoClient(Connections connection, CodecRegistry codecRegistry) throws UnsupportedEncodingException {
-		MongoClientOptions.Builder builder = MongoClientOptions.builder();
+		MongoClientSettings.Builder builder = MongoClientSettings.builder();
 		if (null != codecRegistry) {
 			builder.codecRegistry(codecRegistry);
 		}
@@ -310,7 +303,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	}
 
 	public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslCert, String sslKeyStr, String sslPass,
-											boolean checkServerIdentity, MongoClientOptions.Builder builder) throws Exception {
+											boolean checkServerIdentity, MongoClientSettings.Builder builder) throws Exception {
 		List<String> trustCertificates = null;
 		if (sslValidate) {
 			trustCertificates = SSLUtil.retriveCertificates(sslCA);
@@ -319,9 +312,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		String sslKey = SSLUtil.retrivePrivateKey(sslKeyStr);
 		if (StringUtils.isNotBlank(sslKey) && CollectionUtils.isNotEmpty(certificates)) {
 			SSLContext sslContext = SSLUtil.createSSLContext(sslKey, certificates, trustCertificates, sslPass);
-			builder.sslContext(sslContext);
-			builder.sslEnabled(true);
-			builder.sslInvalidHostNameAllowed(!checkServerIdentity);
+			builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 		}
 	}
 
@@ -397,7 +388,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		BsonTypeClassMap bsonTypeCodecMap = new BsonTypeClassMap(replacementsForDefaults);
 		DocumentCodecProvider documentCodecProvider = new DocumentCodecProvider(bsonTypeCodecMap);
 
-		CodecRegistry defaultCodecRegistry = MongoClient.getDefaultCodecRegistry();
+		CodecRegistry defaultCodecRegistry = MongoClientSettings.getDefaultCodecRegistry();
 
 		CodecRegistry codecRegistry = CodecRegistries.fromRegistries(
 				CodecRegistries.fromCodecs(codecs),
@@ -442,7 +433,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		String databaseName = null;
 
 		if (StringUtils.isNotBlank(mongodbURI)) {
-			MongoClientURI uri = new MongoClientURI(mongodbURI);
+			ConnectionString uri = new ConnectionString(mongodbURI);
 			databaseName = uri.getDatabase();
 		}
 		return databaseName;
@@ -462,7 +453,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		String databaseUri = connection.getDatabase_uri();
 		if (StringUtils.isNotBlank(databaseUri)) {
 			hosts.clear();
-			MongoClientURI uri = new MongoClientURI(databaseUri);
+			ConnectionString uri = new ConnectionString(databaseUri);
 			username = uri.getUsername();
 			char[] passChars = uri.getPassword();
 			if (passChars != null && passChars.length > 0) {
@@ -556,7 +547,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		Map<String, String> nodesURI = new HashMap<>();
 		if (StringUtils.isNotBlank(connection.getDatabase_uri())) {
 			String databaseUri = connection.getDatabase_uri();
-			MongoClientURI mongoClientURI = new MongoClientURI(databaseUri);
+			ConnectionString mongoClientURI = new ConnectionString(databaseUri);
 			List<String> hosts = mongoClientURI.getHosts();
 			String hostPort = "";
 			for (String host : hosts) {
@@ -752,11 +743,11 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	}
 
 	public static MongoClient createMongoClient(String uriStr) {
-		return createMongoClient(new MongoClientURI(uriStr));
+		return createMongoClient(new ConnectionString(uriStr));
 	}
 
-	public static MongoClient createMongoClient(MongoClientURI mongoClientURI) {
-		return new MongoClientProxy(mongoClientURI);
+	public static MongoClient createMongoClient(ConnectionString mongoClientURI) {
+		return MongoClients.create(mongoClientURI);
 	}
 
 	public static long getDBCount(Connections connection) throws UnsupportedEncodingException {
@@ -779,7 +770,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		String sourceDB = null;
 		String databaseUri = connection.getDatabase_uri();
 		if (StringUtils.isNotBlank(databaseUri)) {
-			MongoClientURI uri = new MongoClientURI(databaseUri);
+			ConnectionString uri = new ConnectionString(databaseUri);
 			sourceDB = uri.getDatabase();
 		} else {
 			sourceDB = connection.getDatabase_name();
@@ -828,7 +819,6 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	 * @param values    the values to join together.
 	 * @return a new {@code String} that is composed of the {@code elements} separated by the {@code delimiter}
 	 * @throws NullPointerException If {@code delimiter} or {@code elements} is {@code null}
-	 * @see java.lang.String#join
 	 */
 	public static <T> String join(CharSequence delimiter, Iterable<T> values) {
 		return join(delimiter, values, v -> {
@@ -845,7 +835,6 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	 *                   is to be excluded
 	 * @return a new {@code String} that is composed of the {@code elements} separated by the {@code delimiter}
 	 * @throws NullPointerException If {@code delimiter} or {@code elements} is {@code null}
-	 * @see java.lang.String#join
 	 */
 	public static <T> String join(CharSequence delimiter, Iterable<T> values, Function<T, String> conversion) {
 		Objects.requireNonNull(delimiter);
@@ -881,7 +870,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			String database = jobTargetConn.getDatabase_name();
 			String databaseUri = jobTargetConn.getDatabase_uri();
 			if (StringUtils.isNoneEmpty(databaseUri)) {
-				MongoClientURI uri = new MongoClientURI(databaseUri);
+				ConnectionString uri = new ConnectionString(databaseUri);
 				database = uri.getDatabase();
 			}
 			collections = MongodbUtil.dropTargetByMappings(job, mongoClient, database, pk_filter);
@@ -1049,7 +1038,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			indexOptions.max(document.getDouble("max"));
 		}
 		if (document.get("bucketSize") != null) {
-			indexOptions.bucketSize(document.getDouble("bucketSize"));
+//			indexOptions.bucketSize(document.getDouble("bucketSize"));
 		}
 		if (document.get("storageEngine") != null) {
 			if (document.get("storageEngine") instanceof Bson) {
@@ -1207,8 +1196,8 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	public static String maskUriPassword(String mongodbUri) {
 		if (StringUtils.isNotBlank(mongodbUri)) {
 			try {
-				MongoClientURI mongoClientURI = new MongoClientURI(mongodbUri);
-				MongoCredential credentials = mongoClientURI.getCredentials();
+				ConnectionString mongoClientURI = new ConnectionString(mongodbUri);
+				MongoCredential credentials = mongoClientURI.getCredential();
 				if (credentials != null) {
 					char[] password = credentials.getPassword();
 					if (password != null) {
@@ -1255,7 +1244,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 	 * false: change stream
 	 */
 	public static Boolean checkOplogOrChangeStream(Job job, Connections connections) throws UnsupportedEncodingException {
-		Boolean isOplog = new Boolean(true);
+		Boolean isOplog = true;
 
 		if (job != null && connections != null) {
 			String mappingTemplate = job.getMapping_template();
@@ -1347,7 +1336,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		String databaseUri = connections.getDatabase_uri();
 
 		if (StringUtils.isNotBlank(databaseUri)) {
-			MongoClientURI uri = new MongoClientURI(databaseUri);
+			ConnectionString uri = new ConnectionString(databaseUri);
 			hosts = uri.getHosts();
 		}
 
@@ -1405,7 +1394,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		String sourceDB = null;
 		String databaseUri = connection.getDatabase_uri();
 		if (StringUtils.isNotBlank(databaseUri)) {
-			MongoClientURI uri = new MongoClientURI(databaseUri);
+			ConnectionString uri = new ConnectionString(databaseUri);
 			sourceDB = uri.getDatabase();
 		} else {
 			sourceDB = connection.getDatabase_name();
@@ -1461,7 +1450,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			String db;
 			String databaseUri = connection.getDatabase_uri();
 			if (StringUtils.isNotBlank(databaseUri)) {
-				MongoClientURI uri = new MongoClientURI(databaseUri);
+				ConnectionString uri = new ConnectionString(databaseUri);
 				db = uri.getDatabase();
 			} else {
 				db = connection.getDatabase_name();
@@ -1497,7 +1486,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			String db;
 			String databaseUri = connection.getDatabase_uri();
 			if (StringUtils.isNotBlank(databaseUri)) {
-				MongoClientURI uri = new MongoClientURI(databaseUri);
+				ConnectionString uri = new ConnectionString(databaseUri);
 				db = uri.getDatabase();
 			} else {
 				db = connection.getDatabase_name();
@@ -1644,7 +1633,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		if (uri != null) {
 			MongoClient client = null;
 			try {
-				client = new MongoClientProxy(new MongoClientURI(uri));
+				client = MongoClients.create(new ConnectionString(uri));
 
 				MongoDatabase database = client.getDatabase("admin");
 
@@ -1758,7 +1747,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		StringBuffer portBuffer = new StringBuffer();
 
 		if (StringUtils.isNotBlank(uri)) {
-			MongoClientURI mongoClientURI = new MongoClientURI(uri);
+			ConnectionString mongoClientURI = new ConnectionString(uri);
 			List<String> hostList = mongoClientURI.getHosts();
 			if (CollectionUtils.isNotEmpty(hostList)) {
 				for (String hostPort : hostList) {
@@ -1793,7 +1782,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		List<String> list = new ArrayList<>();
 		if (StringUtils.isNotBlank(uri)) {
 			try (
-					MongoClient mongoClient = new MongoClientProxy(new MongoClientURI(uri))
+					MongoClient mongoClient = MongoClients.create(new ConnectionString(uri))
 			) {
 				Document document = mongoClient.getDatabase("admin").runCommand(new Document("getCmdLineOpts", 1));
 				if (MapUtils.isNotEmpty(document)) {
@@ -2138,12 +2127,12 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			return "";
 		}
 
-		MongoClientURI mongoClientURI = new MongoClientURI(connections.getDatabase_uri());
+		ConnectionString mongoClientURI = new ConnectionString(connections.getDatabase_uri());
 
 		return getSimpleMongodbUri(mongoClientURI);
 	}
 
-	public static String getSimpleMongodbUri(MongoClientURI mongoClientURI) {
+	public static String getSimpleMongodbUri(ConnectionString mongoClientURI) {
 		if (mongoClientURI == null) {
 			return "";
 		}
@@ -2238,19 +2227,19 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		}
 	}
 
-	public static MongoClientURI verifyMongoDBUri(String uri) {
+	public static ConnectionString verifyMongoDBUri(String uri) {
 		if (StringUtils.isBlank(uri)) throw new IllegalArgumentException("MongoDB client uri is blank");
-		MongoClientURI mongoClientURI;
+		ConnectionString mongoClientURI;
 		try {
-			mongoClientURI = new MongoClientURI(uri);
+			mongoClientURI = new ConnectionString(uri);
 		} catch (Exception e) {
 			throw new IllegalArgumentException("Illegal MongoDB client uri: " + uri + ", error message: " + e.getMessage(), e);
 		}
 		return mongoClientURI;
 	}
 
-	public static MongoClientURI verifyMongoDBUriWithDB(String uri) {
-		MongoClientURI mongoClientURI = verifyMongoDBUri(uri);
+	public static ConnectionString verifyMongoDBUriWithDB(String uri) {
+		ConnectionString mongoClientURI = verifyMongoDBUri(uri);
 		String database = mongoClientURI.getDatabase();
 		if (StringUtils.isBlank(database))
 			throw new IllegalArgumentException("MongoDB client uri missing database: " + maskUriPassword(uri));

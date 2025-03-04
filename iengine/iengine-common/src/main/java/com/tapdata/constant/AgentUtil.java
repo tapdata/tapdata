@@ -84,7 +84,7 @@ public class AgentUtil {
 				criteria = new Criteria().andOperator(pingTime, workType);
 			}
 
-			Query query = new Query(criteria).with(new Sort(Sort.Direction.ASC, Worker.PROCESS_ID));
+			Query query = new Query(criteria).with(Sort.by(Sort.Direction.ASC, Worker.PROCESS_ID));
 
 			List<Worker> workers = clientMongoOperator.find(query, ConnectorConstant.WORKER_COLLECTION, Worker.class);
 

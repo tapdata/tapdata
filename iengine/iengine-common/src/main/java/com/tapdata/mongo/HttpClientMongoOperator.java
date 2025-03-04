@@ -1,9 +1,8 @@
 package com.tapdata.mongo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.mongodb.Mongo;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.IndexModel;
 import com.mongodb.client.result.UpdateResult;
@@ -73,7 +72,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		this.configCenter = configCenter;
 	}
 
-	public HttpClientMongoOperator(MongoTemplate template, MongoClient mongoClient, MongoClientURI mongoClientURI, RestTemplateOperator restTemplateOperator, ConfigurationCenter configCenter) {
+	public HttpClientMongoOperator(MongoTemplate template, MongoClient mongoClient, ConnectionString mongoClientURI, RestTemplateOperator restTemplateOperator, ConfigurationCenter configCenter) {
 
 		super(template, mongoClient, mongoClientURI);
 
@@ -499,8 +498,8 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 	@Override
 	public void releaseResource() {
 		if (mongoTemplate != null) {
-			Mongo mongo = mongoTemplate.getMongoDbFactory().getLegacyDb().getMongo();
-			mongo.close();
+//			Mongo mongo = mongoTemplate.getMongoDbFactory().getLegacyDb().getMongo();
+//			mongo.close();
 		}
 	}
 

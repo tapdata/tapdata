@@ -299,7 +299,7 @@ public class LoadJarLibEventHandler implements WebSocketEventHandler<WebSocketEv
 		classMap.put("HanLPUtil", HanLPUtil.class);
 //    classMap.put("split_chinese", ArrayList.class);
 		classMap.put("rest", CustomRest.class);
-		classMap.put("tcp", CustomTcp.class);
+//		classMap.put("tcp", CustomTcp.class);
 		classMap.put("util", Util.class);
 		classMap.put("mongo", CustomMongodb.class);
 		classMap.put("MD5Util", MD5Util.class);

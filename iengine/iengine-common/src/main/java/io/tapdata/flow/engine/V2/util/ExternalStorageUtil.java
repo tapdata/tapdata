@@ -5,7 +5,7 @@ import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.persistence.config.*;
 import com.hazelcast.persistence.store.StoreLogger;
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.constant.OsUtil;
@@ -164,7 +164,7 @@ public class ExternalStorageUtil {
 
 	private static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		String uri = externalStorageDto.getUri();
-		MongoClientURI mongoClientURI;
+		ConnectionString mongoClientURI;
 		try {
 			mongoClientURI = MongodbUtil.verifyMongoDBUriWithDB(uri);
 		} catch (Exception e) {

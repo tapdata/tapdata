@@ -1,6 +1,6 @@
 package com.tapdata.constant;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -41,9 +41,9 @@ public class MongodbLookupUtil {
 			throw new IllegalArgumentException(validate);
 		}
 
-		String mongodbUri = MongodbUtil.getSimpleMongodbUri(targetMongoOperator.getMongoClientURI());
+		String mongodbUri = MongodbUtil.getSimpleMongodbUri(targetMongoOperator.getConnectionString());
 		if (StringUtils.isBlank(mongodbUri)) {
-			throw new Exception(String.format("Cannot get mongodb uri from target connection, connection uri: %s", targetMongoOperator.getMongoClientURI()));
+			throw new Exception(String.format("Cannot get mongodb uri from target connection, connection uri: %s", targetMongoOperator.getConnectionString()));
 		}
 
 		// look up oneone delete documents
