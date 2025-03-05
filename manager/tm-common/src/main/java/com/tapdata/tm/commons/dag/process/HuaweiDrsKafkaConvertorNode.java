@@ -45,7 +45,7 @@ public class HuaweiDrsKafkaConvertorNode extends ProcessorNode {
 
     @Override
     protected Schema loadSchema(DAG.Options options) {
-        if (!options.isPreview()) return null;
+        if (options.isPreview()) return null;
 
         List<Schema> inputSchemas = getInputSchema();
         if (CollectionUtils.isEmpty(inputSchemas)) return null;

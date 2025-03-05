@@ -80,6 +80,7 @@ class HuaweiDrsKafkaConvertorNodeTest {
 
         options = new DAG.Options();
         options.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+        options.setPreview(false);
     }
 
     @Nested
