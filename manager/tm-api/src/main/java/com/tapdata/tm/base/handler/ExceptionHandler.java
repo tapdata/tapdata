@@ -22,6 +22,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,6 +48,9 @@ public class ExceptionHandler extends BaseController {
 		Locale locale = WebUtils.getLocale(request);
 
 		String errorCode = "SystemError";
+		if (e instanceof NoResourceFoundException) {
+			throw e;
+		}
 		String message = e.getMessage();
 
 		if (e instanceof BizException){
