@@ -241,12 +241,12 @@ jobs:
           cd docs && git fetch --tags
       - name: Checkout Frontend Code
         run: |
-          rm -rf tapdata-enterprise-web
+          rm -rf tapdata-web
           git clone -b ${{ inputs.frontend_branch }} git@gitee.com:${{ secrets.GITEE_USER }}/tapdata-web.git
-          cd tapdata-enterprise-web && git fetch --tags
+          cd tapdata-web && git fetch --tags
       - name: Get Frontend Version
         run: |
-          cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
+          cd tapdata-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
           mkdir -p version/${{ needs.Set-Branch.outputs.TAG_NAME }}/
           echo "- tapdata-enterprise-web: ${{ inputs.frontend_branch }} $tapdata_enterprise_web_version" > version/${{ needs.Set-Branch.outputs.TAG_NAME }}/tapdata-enterprise-web.version
           echo "Gotapd8!" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
@@ -258,8 +258,8 @@ jobs:
       - name: Build Docs
         run: |
           cd docs && npm install && npm run build:docs && cd ..
-          mkdir -p tapdata-enterprise-web/dist/docs/
-          rsync -av docs/build/ tapdata-enterprise-web/dist/docs/
+          mkdir -p tapdata-web/dist/docs/
+          rsync -av docs/build/ tapdata-web/dist/docs/
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p frontend
