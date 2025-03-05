@@ -2,7 +2,7 @@ package com.tapdata.tm.init;
 
 import com.mongodb.client.model.Collation;
 import lombok.Data;
-import org.bson.conversions.Bson;
+import org.bson.Document;
 
 @Data
 public class MongoIndex {
@@ -12,7 +12,7 @@ public class MongoIndex {
     private boolean sparse;
     private Long expireAfterSeconds;
     private Integer version;
-    private Bson weights;
+    private Document weights;
     private String defaultLanguage;
     private String languageOverride;
     private Integer textVersion;
@@ -21,10 +21,11 @@ public class MongoIndex {
     private Double min;
     private Double max;
     private Double bucketSize;
-    private Bson storageEngine;
-    private Bson partialFilterExpression;
+    private Document storageEngine;
+    private Document partialFilterExpression;
     private Collation collation;
-    private Bson wildcardProjection;
+    private Document wildcardProjection;
     private boolean hidden;
-    private Bson key;
+    private Document key;
+    private Integer v;
 }
