@@ -39,7 +39,10 @@ public enum NodeEnum {
     migrate_field_mod_type_filter_processor("类型过滤节点"),
     unwind_processor("Unwind节点"),
     ADD_DATE_FIELD_PROCESSOR("增加时间字段节点"),
-    MIGRATE_ADD_DATE_FIELD_PROCESSOR("增加时间字段节点");
+    MIGRATE_ADD_DATE_FIELD_PROCESSOR("增加时间字段节点"),
+    huawei_drs_kafka_convertor("华为 DRS Kafka 消息转换器"),
+    migrate_huawei_drs_kafka_convertor("华为 DRS Kafka 消息转换器"),
+    ;
 
     @Getter
     private String nodeName;
