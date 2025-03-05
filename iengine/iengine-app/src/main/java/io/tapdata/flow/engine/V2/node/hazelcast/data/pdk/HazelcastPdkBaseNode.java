@@ -221,22 +221,22 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
 		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto);
-		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
-				PdkUtil.createNode(taskDto.getId().toHexString(),
-						databaseType,
-						clientMongoOperator,
-						generateNodePdkAssociateId(dataProcessorContext),
-						connectionConfig,
-						nodeConfig,
-						pdkTableMap,
-						pdkStateMap,
-						globalStateMap,
-						connectorCapabilities,
-						() -> Log4jUtil.setThreadContext(taskDto),
-						new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this),
-						taskDto
-				)
+		ConnectorNode connectorNode = PdkUtil.createNode(taskDto.getId().toHexString(),
+				databaseType,
+				clientMongoOperator,
+				generateNodePdkAssociateId(dataProcessorContext),
+				connectionConfig,
+				nodeConfig,
+				pdkTableMap,
+				pdkStateMap,
+				globalStateMap,
+				connectorCapabilities,
+				() -> Log4jUtil.setThreadContext(taskDto),
+				new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this),
+				taskDto
 		);
+		connectorNode.getConnectorContext().setIsomorphism(dataProcessorContext.getTaskConfig().isomorphism());
+		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
 		processorBaseContext.setPdkAssociateId(this.associateId);
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));

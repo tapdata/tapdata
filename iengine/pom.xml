@@ -171,11 +171,11 @@
         <mockito.version>4.11.0</mockito.version>
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
-        <tapdata-api.version>1.4.3-SNAPSHOT</tapdata-api.version>
-        <modules-api.version>1.2-SNAPSHOT</modules-api.version>
-        <websocket-client-module.version>1.2-SNAPSHOT</websocket-client-module.version>
-        <service-skeleton-module.version>1.2-SNAPSHOT</service-skeleton-module.version>
-        <tapdata-storage-module.version>1.2-SNAPSHOT</tapdata-storage-module.version>
+        <tapdata-api.version>1.4.4-SNAPSHOT</tapdata-api.version>
+        <modules-api.version>1.3-SNAPSHOT</modules-api.version>
+        <websocket-client-module.version>1.3-SNAPSHOT</websocket-client-module.version>
+        <service-skeleton-module.version>1.3-SNAPSHOT</service-skeleton-module.version>
+        <tapdata-storage-module.version>1.3-SNAPSHOT</tapdata-storage-module.version>
     </properties>
 
     <modules>
