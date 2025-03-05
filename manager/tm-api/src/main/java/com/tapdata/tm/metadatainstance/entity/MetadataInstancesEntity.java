@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -63,6 +64,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     @Field("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;
+    private List<TapConstraint> constraints;
     private boolean hasUnionIndex;
     private Set<Integer> partitionSet;
     private FileProperty fileProperty;
