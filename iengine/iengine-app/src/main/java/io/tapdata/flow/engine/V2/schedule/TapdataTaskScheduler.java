@@ -99,7 +99,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
 
 	@Bean(name = "taskControlScheduler")
-	public TaskScheduler myTaskScheduler() {
+	public TaskScheduler taskControlScheduler() {
 		return new ThreadPoolTaskScheduler();
 	}
 
