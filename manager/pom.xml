@@ -29,13 +29,14 @@
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>5.2.1</mongo.version>
 		<tapdata-api.version>2.0.0-SNAPSHOT</tapdata-api.version>
-		<modules-api.version>1.2-SNAPSHOT</modules-api.version>
+		<modules-api.version>2.0-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
+		<tapdata-pdk-runner.version>2.0-SNAPSHOT</tapdata-pdk-runner.version>
 	</properties>
 
 	<modules>
