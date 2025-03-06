@@ -1755,7 +1755,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (cache.exists("sign")) {
 			msg += ", sign: " + cache.find("sign");
 		}
-		return msg += ", error: " + e.getMessage() + ", stack: " + Log4jUtil.getStackString(e);
+		return msg + (", error: " + e.getMessage() + ", stack: " + Log4jUtil.getStackString(e));
 	}
 
 	private TapCreateIndexEvent generateCreateIndexEventsForTarget() {

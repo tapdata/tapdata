@@ -21,4 +21,5 @@ public interface PermissionService {
     List<String> getAllParentIds();
 
     List<PermissionEntity> getTopPermissionAndNoChild(Set<String> codes);
+    boolean checkCurrentUserHasPermission(String permissionName, String userId);
 }

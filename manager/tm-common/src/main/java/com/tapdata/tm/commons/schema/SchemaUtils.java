@@ -2,10 +2,12 @@ package com.tapdata.tm.commons.schema;
 
 import cn.hutool.core.collection.CollUtil;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.type.TapArray;
 import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -17,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -30,6 +33,10 @@ public class SchemaUtils {
     public static final String TAP_ARRAY = TapSimplify.toJson(new TapArray());
 
     private static Logger log = LoggerFactory.getLogger(SchemaUtils.class);
+
+    private static final String _ID = "_id";
+
+    public static final String OBJECT_ID = "OBJECT_ID";
 
     private enum PriorityEnum {
         manual(3),
@@ -260,5 +267,41 @@ public class SchemaUtils {
         String tapType = field.getTapType();
         //3. If the type of the parent property is not TapMap and TapArray, it will jump out
         return TAP_MAP.equals(tapType) || TAP_ARRAY.equals(tapType);
+    }
+
+    /**
+     * 添加mongo数据库的_id字段
+     * @param schema
+     */
+    public static void addFieldObjectIdIfMongoDatabase(Schema schema, String databaseType){
+        List<Field> fields = schema.getFields();
+        if (CollUtil.isEmpty(fields)) {
+            return ;
+        }
+        AtomicBoolean primaryKey = new AtomicBoolean(false);
+        Map<String, Field> fieldMap = fields.stream()
+                .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
+        if(fieldMap.containsKey(_ID)) return ;
+        fieldMap.values().forEach(field -> {
+            if(null != field.getPrimaryKey() && field.getPrimaryKey()){
+                primaryKey.set(true);
+            }
+        });
+        FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
+        fieldOperation.setType(OBJECT_ID);
+        fieldOperation.setField(_ID);
+        fieldOperation.setOp("CREATE");
+        fieldOperation.setTableName(schema.getName());
+        Field field = createField(schema.getNodeId(), schema.getOriginalName(), fieldOperation);
+        field.setSource("job_analyze");
+        field.setTapType( JsonUtil.toJsonUseJackson(new TapString(24L, false)));
+        field.setDataType(OBJECT_ID);
+        field.setDataTypeTemp(OBJECT_ID);
+        field.setSourceDbType(databaseType);
+        if(!primaryKey.get()){
+            field.setPrimaryKey(true);
+            field.setPrimaryKeyPosition(1);
+        };
+        schema.getFields().add(field);
     }
 }

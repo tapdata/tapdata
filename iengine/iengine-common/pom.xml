@@ -380,6 +380,12 @@
             <artifactId>mapdb</artifactId>
             <version>3.0.8</version>
             <!--      <type>bundle</type>-->
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

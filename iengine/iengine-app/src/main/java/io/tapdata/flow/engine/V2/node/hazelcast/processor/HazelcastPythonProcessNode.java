@@ -113,6 +113,7 @@ public class HazelcastPythonProcessNode extends HazelcastProcessorBaseNode {
         this.target = getDefaultScriptExecutor(GraphUtil.successors(node, Node::isDataNode), "target");
         ((ScriptEngine) this.engine).put("source", source);
         ((ScriptEngine) this.engine).put("target", target);
+        ((ScriptEngine) this.engine).put("env", getTaskEnvReadMap());
     }
 
     @SneakyThrows

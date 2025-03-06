@@ -972,5 +972,45 @@ public class UserServiceImplTest {
             assertFalse(result);
         }
     }
+
+    @Nested
+    class checkLoginBriefTipsEnable{
+        @BeforeEach
+        void beforeEach() {
+            doCallRealMethod().when(userService).checkLoginBriefTipsEnable(any());
+        }
+
+
+        @Test
+        @DisplayName("test checkLoginBriefTipsEnable method when open is true")
+        void test1() {
+            Settings settings = new Settings();
+            settings.setOpen(true);
+            when(settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_BRIEF_TIPS)).thenReturn(settings);
+            Assertions.assertEquals("Incorrect.Vague", userService.checkLoginBriefTipsEnable("Incorrect.Password"));
+        }
+
+        @Test
+        @DisplayName("test checkLoginBriefTipsEnable method when settings is null")
+        void test2() {
+            when(settingsService.getByCategoryAndKey(CategoryEnum.LOGIN, KeyEnum.LOGIN_SINGLE_SESSION)).thenReturn(null);
+            Assertions.assertEquals("Incorrect.Password", userService.checkLoginBriefTipsEnable("Incorrect.Password"));
+        }
+    }
+    @Nested
+    class findOneByEmail{
+        @BeforeEach
+        void beforeEach() {
+            doCallRealMethod().when(userService).findOneByEmail(any());
+            when(repository.findOne(any())).thenReturn(Optional.empty());
+        }
+        @Test
+        void test(){
+            when(userService.checkLoginBriefTipsEnable("User.email.Found")).thenReturn("User.email.Found");
+            Assertions.assertThrows(BizException.class,()->{
+                userService.findOneByEmail("");
+            });
+        }
+    }
 }
 

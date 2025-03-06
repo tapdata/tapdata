@@ -39,7 +39,6 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      * 模型推演
      */
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
-    public static final String SYNC_TYPE_PREVIEW = "preview";
 
     public static final String LASTTASKRECORDID = "taskRecordId";
 
@@ -136,6 +135,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
+    private List<String> emailReceivers;
 
     private Integer resetTimes;
 
@@ -223,6 +223,10 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
      */
     private Long retryIntervalSecond = null;
     private Long maxRetryTimeMinute = null;
+    private boolean preview;
+    private boolean testUsingPreview;
+
+    private Map<String, String> env;
 
     public DAG getDag() {
         if (dag != null) {
@@ -257,7 +261,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     }
 
     public boolean isPreviewTask() {
-        return StringUtils.equalsAnyIgnoreCase(getSyncType(), SYNC_TYPE_PREVIEW);
+        return preview;
+    }
+
+    public boolean isBlankLog() {
+        return preview && !this.getSyncType().equals(TaskDto.SYNC_TYPE_TEST_RUN);
     }
 
     public boolean isDeduceSchemaTask() {

@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.node.hazelcast;
 
 import cn.hutool.core.date.StopWatch;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.jet.JetService;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
@@ -22,8 +24,6 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
@@ -31,6 +31,7 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.HazelcastTaskNodeOffer;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.DataNodeCloseAspect;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -56,6 +57,8 @@ import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkBaseException;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -144,6 +147,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String lastTableName;
 	protected ExternalStorageDto externalStorageDto;
 	protected TaskPreviewInstance taskPreviewInstance;
+	protected HazelcastTaskNodeOffer hazelcastTaskNodeOffer;
 
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
@@ -231,6 +235,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			if (null != processorBaseContext && processorBaseContext.getTaskDto().isPreviewTask()) {
 				this.taskPreviewInstance = TaskPreviewService.taskPreviewInstance(processorBaseContext.getTaskDto());
 			}
+			this.hazelcastTaskNodeOffer = this::offer;
 			if (!getNode().disabledNode() || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),TaskDto.SYNC_TYPE_TEST_RUN,TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 				doInit(context);
 			} else {
@@ -278,7 +283,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void startMonitorIfNeed(@NotNull Context context) {
-		if (!processorBaseContext.getTaskDto().isTestTask() && !processorBaseContext.getTaskDto().isPreviewTask()) {
+		if (!processorBaseContext.getTaskDto().isTestTask()) {
 			try {
 				monitorManager.startMonitor(MonitorManager.MonitorType.JET_JOB_STATUS_MONITOR, context.hazelcastInstance().getJet().getJob(context.jobId()), processorBaseContext.getNode().getId());
 			} catch (Exception e) {
@@ -364,7 +369,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName, TapValueTransform tapValueTransform) {
-		if (processorBaseContext.getTaskDto().isPreviewTask()) {
+		if (processorBaseContext.getTaskDto().isPreviewTask() && !processorBaseContext.getTaskDto().isTestTask()) {
 			return;
 		}
 		if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) return;
@@ -725,7 +730,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				taskDtoTaskClient.terminalMode(TerminalMode.ERROR);
 				taskDtoTaskClient.error(error);
 			}
-			hazelcastJob.suspend();
+			if (!hazelcastJob.isLightJob()) {
+				hazelcastJob.suspend();
+			}
 		}
 	}
 
@@ -736,11 +743,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 		com.hazelcast.jet.Job hazelcastJob = null;
 		for (int i = 5; i > 0; i--) {
-			if (null != jetContext) {
-				hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
-			} else {
+			if (null == jetContext) {
 				break;
 			}
+			JetService jet = jetContext.hazelcastInstance().getJet();
+			hazelcastJob = jet.getJob(jetContext.jobId());
 
 			if (null != hazelcastJob) break;
 			try {
@@ -1082,5 +1089,21 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			throw err;
 		};
+	}
+
+	protected TaskEnvMap getTaskEnvReadMap() {
+		HazelcastInstance hazelcastInstance = jetContext.hazelcastInstance();
+		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+		String taskId = processorBaseContext.getTaskDto().getId().toHexString();
+		Object taskEnvReadMap = globalStateMap.get(TaskEnvMap.name(taskId));
+		if (taskEnvReadMap instanceof TaskEnvMap) {
+			return (TaskEnvMap) taskEnvReadMap;
+		} else {
+			return null;
+		}
+	}
+
+	public void setHazelcastTaskNodeOffer(HazelcastTaskNodeOffer hazelcastTaskNodeOffer) {
+		this.hazelcastTaskNodeOffer = hazelcastTaskNodeOffer;
 	}
 }

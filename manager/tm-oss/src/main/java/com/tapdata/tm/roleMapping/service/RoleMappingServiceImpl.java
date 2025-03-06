@@ -66,4 +66,9 @@ public class RoleMappingServiceImpl extends RoleMappingService{
     public void addUserLogIfNeed(List<RoleMappingDto> dtos, UserDetail userDetail) {
         //do Notiong
     }
+
+    @Override
+    public boolean checkHasPermission(PrincipleType principleType, List<ObjectId> roleIdList, String permissionName) {
+        return true;
+    }
 }

@@ -12,9 +12,9 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
-import com.tapdata.tm.roleMapping.dto.PrincipleType;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.roleMapping.service.RoleMappingService;
 import com.tapdata.tm.user.dto.*;
@@ -303,7 +303,7 @@ public class UserController extends BaseController {
         if (adLoginEnable && !"admin@admin.com".equals(loginRequest.getEmail())) {
             boolean login = userService.loginByLdap(loginRequest.getEmail(), password);
             if (!login) {
-                throw new BizException("Incorrect.Password");
+                throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
             }
             //登录成功查询用户是否存在没有就创建用户
             if (StringUtils.isNotBlank(loginRequest.getEmail())) {
@@ -359,7 +359,7 @@ public class UserController extends BaseController {
         } else {
             Update update = Update.update("loginTimes", user.getLoginTimes() != null ? (user.getLoginTimes() % 6 + 1) : 1).set("loginTime", new Date());
             userService.update(Query.query(Criteria.where("id").is(user.getId())), update);
-            throw new BizException("Incorrect.Password");
+            throw new BizException(userService.checkLoginBriefTipsEnable("Incorrect.Password"));
         }
         try {
             userLogService.addUserLog(Modular.SYSTEM, com.tapdata.tm.userLog.constant.Operation.LOGIN, user.getId().toHexString(), "", "");
@@ -404,7 +404,7 @@ public class UserController extends BaseController {
         if (!"admin@admin.com".equals(userDetail.getEmail())) {
             filter.getWhere().and("name", new BasicDBObject().append("$ne", "admin"));
         }
-        Page<RoleDto> roleDtoPage = roleService.find(filter, userDetail);
+        Page<RoleDto> roleDtoPage = roleService.find(filter);
         List<RoleDto> items = roleDtoPage.getItems();
         if (CollectionUtils.isNotEmpty(items)) {
             List<ObjectId> userIds = items.stream().map(item -> toObjectId(item.getUserId())).collect(Collectors.toList());
@@ -468,7 +468,12 @@ public class UserController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
     public ResponseMessage<UserDto> save(@RequestBody @Validated CreateUserRequest request) {
-        return success(userService.save(request, getLoginUser()));
+        if ((productList != null && productList.contains("dfs")) ||
+                Boolean.TRUE.equals(permissionService.checkCurrentUserHasPermission(DataPermissionEnumsName.V2_USER_MANAGEMENT, getLoginUser().getUserId()))) {
+            return success(userService.save(request, getLoginUser()));
+        } else {
+            throw new BizException("NotAuthorized");
+        }
     }
 
     @Operation(summary = "User change password")

@@ -1,8 +1,12 @@
 package com.tapdata.tm.commons.dag.nodes;
 
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.dynamic.DynamicTableConfig;
 import com.tapdata.tm.commons.dag.dynamic.DynamicTableNameUtil;
 import com.tapdata.tm.commons.dag.dynamic.DynamicTableResult;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +14,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -232,6 +239,74 @@ class TableNodeTest {
             node.updateSchemaAfterDynamicTableName(null, "table", "newTable");
             Assertions.assertEquals(before, schema.getBeforeDynamicTableName());
             Assertions.assertEquals(after, schema.getAfterDynamicTableName());
+        }
+    }
+    @Nested
+    class mergeSchemaTest{
+        TableNode tableNode;
+        @BeforeEach
+        void init() {
+            tableNode = mock(TableNode.class);
+            ReflectionTestUtils.setField(tableNode, "tableName", "tableName");
+            DAGDataServiceImpl dagDataService = mock(DAGDataServiceImpl.class);
+            ReflectionTestUtils.setField(tableNode, "connectionId", "connectionId");
+            ReflectionTestUtils.setField(tableNode, "service", dagDataService);
+            DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
+            dataSourceConnectionDto.setDatabase_type("MongoDB");
+            when(dagDataService.getDataSource("connectionId")).thenReturn(dataSourceConnectionDto);
+            doCallRealMethod().when(tableNode).mergeSchema(any(), any(), any());
+        }
+
+        @Test
+        void test_mongoSchema_exist_id(){
+            DAG dag = mock(DAG.class);
+            when(dag.getSyncType()).thenReturn("logCollector");
+            DynamicTableResult dynamicTableResult = DynamicTableResult.of()
+                    .withOldTableName("test1")
+                    .withDynamicName("test2");
+            when(tableNode.dynamicTableName(any())).thenReturn(dynamicTableResult);
+            when(tableNode.getDag()).thenReturn(dag);
+            List<Schema> schemas = new ArrayList<>();
+            Schema schema = new Schema();
+            schema.setName("test1");
+            schema.setOriginalName("test1");
+            schema.setAncestorsName("test1");
+            List<Field> fields = new ArrayList<>();
+            Field field = new Field();
+            field.setFieldName("_id");
+            field.setPrimaryKey(true);
+            fields.add(field);
+            schema.setFields(fields);
+            schemas.add(schema);
+            when(tableNode.transformFields(any(), any(),any())).thenReturn(fields);
+            Schema result = tableNode.mergeSchema(schemas,schema, new DAG.Options());
+            Assertions.assertEquals(1,result.getFields().size());
+        }
+
+        @Test
+        void test_mongoSchema_no_exist_id(){
+            DAG dag = mock(DAG.class);
+            when(dag.getSyncType()).thenReturn("logCollector");
+            DynamicTableResult dynamicTableResult = DynamicTableResult.of()
+                    .withOldTableName("test1")
+                    .withDynamicName("test2");
+            when(tableNode.dynamicTableName(any())).thenReturn(dynamicTableResult);
+            when(tableNode.getDag()).thenReturn(dag);
+            List<Schema> schemas = new ArrayList<>();
+            Schema schema = new Schema();
+            schema.setName("test1");
+            schema.setOriginalName("test1");
+            schema.setAncestorsName("test1");
+            List<Field> fields = new ArrayList<>();
+            Field field = new Field();
+            field.setFieldName("test");
+            field.setPrimaryKey(false);
+            fields.add(field);
+            schema.setFields(fields);
+            schemas.add(schema);
+            when(tableNode.transformFields(any(), any(),any())).thenReturn(fields);
+            Schema result = tableNode.mergeSchema(schemas,schema, new DAG.Options());
+            Assertions.assertEquals(2,result.getFields().size());
         }
     }
 }
