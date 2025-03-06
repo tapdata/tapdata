@@ -167,7 +167,7 @@ class TapCodecUtilTest {
 			ToTapValueCodec<?> customToTapValueCodec = engineCodecsFilterManger.getCodecsRegistry().getCustomToTapValueCodec(byte[].class);
 			TapValue<?, ?> tapValue = customToTapValueCodec.toTapValue(null, new TapDateTime());
 			assertInstanceOf(TapBinaryValue.class, tapValue);
-			assertNull(((TapBinaryValue) tapValue).getValue());
+			assertNull(((TapBinaryValue) tapValue).getValue().getValue());
 		}
 
 		@Test
