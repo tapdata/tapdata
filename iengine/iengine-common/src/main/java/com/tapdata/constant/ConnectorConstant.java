@@ -96,6 +96,7 @@ public class ConnectorConstant {
 	public static final String TASK_NODE = "node";
 	public static final String METRICS_COLLECTION = "Metrics";
 	public static final String CUSTOMNODETEMP_COLLECTION = "customNode";
+	public static final String FOREIGN_KEY_CONSTRAINT = "foreignKeyConstraint";
 
 	/**
 	 * This is for both statistics and samples report, these two values share one api

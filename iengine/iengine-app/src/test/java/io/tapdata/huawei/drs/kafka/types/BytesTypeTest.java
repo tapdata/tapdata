@@ -22,18 +22,18 @@ class BytesTypeTest extends AbsTypeTest<BytesType, TapBinaryValue> {
     @Override
     protected void assertDecodeBytes(Object result) {
         Assertions.assertInstanceOf(TapBinaryValue.class, result);
-        Assertions.assertEquals(mockBytes, ((TapBinaryValue) result).getValue());
+        Assertions.assertEquals(mockBytes, ((TapBinaryValue) result).getValue().getValue());
     }
 
     @Override
     protected void assertDecodeString(Object result) {
         Assertions.assertInstanceOf(TapBinaryValue.class, result);
-        Assertions.assertEquals("中文", new String(((TapBinaryValue) result).getValue()));
+        Assertions.assertEquals("中文", new String(((TapBinaryValue) result).getValue().getValue()));
     }
 
     @Override
     protected void assertDecodeInteger(Object result) {
         Assertions.assertInstanceOf(TapBinaryValue.class, result);
-        Assertions.assertEquals(mockInteger.toString(), new String(((TapBinaryValue) result).getValue()));
+        Assertions.assertEquals(mockInteger.toString(), new String(((TapBinaryValue) result).getValue().getValue()));
     }
 }

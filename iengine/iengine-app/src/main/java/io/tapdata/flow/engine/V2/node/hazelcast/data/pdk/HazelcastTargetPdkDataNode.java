@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.google.common.collect.Maps;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -19,6 +20,7 @@ import io.tapdata.entity.TapConstraintException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.constraint.TapCreateConstraintEvent;
+import io.tapdata.entity.event.ddl.constraint.TapDropConstraintEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.*;
@@ -57,7 +59,6 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
@@ -233,7 +234,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		dropTable(existsDataProcessEnum, tapTable, init);
 		AtomicBoolean succeed = new AtomicBoolean(false);
-		List<TapIndex> indexList = getTapTableIndex(updateConditionFields, tapTable);
+		List<TapIndex> indexList = tapTable.getIndexList();
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
 		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable, indexList);
@@ -255,6 +256,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null == queryConstraintsFunction || null == createConstraintFunction) {
 				return;
 			}
+			List<String> saveForeignKeys = new ArrayList<>();
 			for (String tableId : tableIds) {
 				if (!isRunning()) {
 					break;
@@ -265,6 +267,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					continue;
 				}
 				List<TapConstraint> tobeCreateForeignKeys = new ArrayList<>();
+				List<TapConstraint> tobeDropForeignKeys = new ArrayList<>();
 				try {
 					queryConstraintsFunction.query(connectorNode.getConnectorContext(), tapTable, existsConstraints -> {
 						for (TapConstraint tapConstraint : constraintList) {
@@ -296,6 +299,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 								return true;
 							}).findFirst().orElse(null);
 							if (null != existsForeignKey) {
+								tobeDropForeignKeys.add(existsForeignKey);
 								continue;
 							}
 							tobeCreateForeignKeys.add(tapConstraint);
@@ -304,61 +308,78 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				} catch (Throwable e) {
 					obsLogger.warn("Before creating a foreign key, check whether the foreign key already exists, the query fails. Table name: {}, the error will be ignored, please check and create by manually", tableId, e);
 				}
-				try {
-					TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
-					tapCreateConstraintEvent.constraintList(tobeCreateForeignKeys);
-					createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent, true);
-				} catch (Throwable e) {
-					if (e instanceof TapConstraintException) {
-						TapConstraintException tapConstraintException = (TapConstraintException) e;
-						List<String> sqlList = tapConstraintException.getSqlList();
-						List<Throwable> exceptions = tapConstraintException.getExceptions();
-						if (CollectionUtils.isNotEmpty(sqlList)) {
-							for (int i = 0; i < sqlList.size(); i++) {
-								String sql = sqlList.get(i);
-								Throwable cause = exceptions.get(i);
-
-								if (null == cause) {
-									obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}", tableId, sql);
-								} else {
-									obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}, error: {}", tableId, sql, Log4jUtil.getStackString(cause));
-								}
-							}
-						}
-					} else {
-						obsLogger.warn("Due to unknown error, the creation of foreign key failed, the table name: {}, this step will be skipped, please check manually and create", tableId, e);
-					}
-
+				if(connectorNode.getConnectorContext().getSpecification().getTags().contains("disableForeignKey")){
+					createForeignKeyConstraints(tobeCreateForeignKeys,tapTable,createConstraintFunction);
+				}else{
+					List<String> dropForeignKeys = dropForeignKeyConstraints(tobeCreateForeignKeys,tobeDropForeignKeys,connectorNode,tapTable,createConstraintFunction,connectorFunctions.getDropConstraintFunction());
+					if(CollectionUtils.isNotEmpty(dropForeignKeys)) saveForeignKeys.addAll(dropForeignKeys);
 				}
 			}
+			if(CollectionUtils.isNotEmpty(saveForeignKeys))saveForeignKeySql(saveForeignKeys);
 		}));
 	}
 
-	protected List<TapIndex> getTapTableIndex(List<String> updateConditionFields, TapTable tapTable) {
-		List<TapIndex> indexList = tapTable.getIndexList();
-		if (checkSyncIndexOpen() && !usePkAsUpdateConditions(updateConditionFields, tapTable.primaryKeys())) {
-			if (CollectionUtils.isNotEmpty(indexList) && CollectionUtils.isNotEmpty(updateConditionFields)) {
-				Iterator<TapIndex> iterator = indexList.iterator();
-				while (iterator.hasNext()) {
-					TapIndex tapIndex = iterator.next();
-					List<TapIndexField> tapIndexFieldNames = tapIndex.getIndexFields();
-					if (tapIndexFieldNames.size() == updateConditionFields.size()) {
-						boolean same = true;
-						for (int i = 0; i < tapIndexFieldNames.size(); i++) {
-							String fieldName = tapIndexFieldNames.get(i).getName();
-							if (null != fieldName && (!fieldName.equals(updateConditionFields.get(i)) || !Boolean.TRUE.equals(tapIndexFieldNames.get(i).getFieldAsc()))) {
-								same = false;
-								break;
-							}
-						}
-						if (same) {
-							iterator.remove();
+	protected void createForeignKeyConstraints(List<TapConstraint> tobeCreateForeignKeys,TapTable tapTable,CreateConstraintFunction createConstraintFunction){
+		try {
+			TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
+			tapCreateConstraintEvent.constraintList(tobeCreateForeignKeys);
+			createConstraintFunction.createConstraint(getConnectorNode().getConnectorContext(), tapTable, tapCreateConstraintEvent, true);
+		} catch (Throwable e) {
+			if (e instanceof TapConstraintException) {
+				TapConstraintException tapConstraintException = (TapConstraintException) e;
+				List<String> sqlList = tapConstraintException.getSqlList();
+				List<Throwable> exceptions = tapConstraintException.getExceptions();
+				if (CollectionUtils.isNotEmpty(sqlList)) {
+					for (int i = 0; i < sqlList.size(); i++) {
+						String sql = sqlList.get(i);
+						Throwable cause = exceptions.get(i);
+						if (null == cause) {
+							obsLogger.warn("Failed to drop a foreign key, table name: {}, sql: {}", tapTable.getId(), sql);
+						} else {
+							obsLogger.warn("Failed to drop a foreign key, table name: {}, sql: {}, error: {}", tapTable.getId(), sql, Log4jUtil.getStackString(cause));
 						}
 					}
 				}
+			} else {
+				obsLogger.warn("Due to unknown error, the creation of foreign key failed, the table name: {}, this step will be skipped, please check manually and create", tapTable.getId(), e);
 			}
+
 		}
-		return indexList;
+	}
+
+	protected List<String> dropForeignKeyConstraints(List<TapConstraint> tobeCreateForeignKeys,List<TapConstraint> tobeDropForeignKeys,ConnectorNode connectorNode,TapTable tapTable,CreateConstraintFunction createConstraintFunction,DropConstraintFunction dropConstraintFunction){
+		if(null == dropConstraintFunction) return null;
+		TapDropConstraintEvent tapDropConstraintEvent = new TapDropConstraintEvent();
+		TapCreateConstraintEvent tapCreateConstraintEvent = new TapCreateConstraintEvent();
+		tapDropConstraintEvent.setConstraintList(tobeDropForeignKeys);
+		tobeCreateForeignKeys.addAll(tobeDropForeignKeys);
+		tapCreateConstraintEvent.setConstraintList(tobeCreateForeignKeys);
+		try{
+			dropConstraintFunction.dropConstraint(connectorNode.getConnectorContext(), tapTable, tapDropConstraintEvent);
+		}catch (Throwable e){
+			obsLogger.warn("Failed to delete the foreign key: {}", e.getMessage());
+		}
+		try {
+			createConstraintFunction.createConstraint(connectorNode.getConnectorContext(), tapTable, tapCreateConstraintEvent, false);
+		}catch (Throwable e){
+			obsLogger.warn("Failed to get foreign key sql ,table name: {}, error: {}", tapTable.getId(), e);
+		}
+		return tapCreateConstraintEvent.getConstraintSqlList();
+
+	}
+
+	protected void saveForeignKeySql(List<String> sqlList) {
+		try {
+			if(CollectionUtils.isNotEmpty(sqlList)){
+				Map<String, Object> queryMap = new HashMap<>();
+				queryMap.put("taskId",dataProcessorContext.getTaskDto().getId().toHexString());
+				Map<String, Object> updateMap = new HashMap<>();
+				updateMap.put("sqlList",sqlList);
+				clientMongoOperator.upsert(queryMap, updateMap, ConnectorConstant.FOREIGN_KEY_CONSTRAINT);
+			}
+		}catch (Throwable e){
+			obsLogger.warn("Failed to get foreign key sql ,taskId: {}, error: {}",dataProcessorContext.getTaskDto().getId().toHexString(), e);
+		}
 	}
 
 	private List<String> getUpdateConditionFields(Node<?> node, TapTable tapTable) {
@@ -1277,5 +1298,31 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			});
 		}
 
+	}
+
+	@Override
+	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+		if (null == tapTable) {
+			return;
+		}
+		ConnectorNode connectorNode = this.getConnectorNode();
+		if (null == connectorNode) {
+			return;
+		}
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		if (null == connectorFunctions) {
+			return;
+		}
+		AfterInitialSyncFunction afterInitialSyncFunction = connectorFunctions.getAfterInitialSyncFunction();
+		if (null == afterInitialSyncFunction) {
+			return;
+		}
+		try {
+			afterInitialSyncFunction.afterInitialSync(connectorNode.getConnectorContext(), tapTable);
+		} catch (Throwable e) {
+			TapCodeException tapCodeException = new TapCodeException(TaskTargetProcessorExCode_15.PROCESS_CONNECTOR_AFTER_SNAPSHOT, e)
+					.dynamicDescriptionParameters(tapTable.getId(), e.getMessage());
+			errorHandle(tapCodeException);
+		}
 	}
 }

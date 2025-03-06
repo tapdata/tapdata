@@ -1,6 +1,7 @@
 package io.tapdata.huawei.drs.kafka.types;
 
 import io.tapdata.entity.schema.type.TapBinary;
+import io.tapdata.entity.schema.value.ByteData;
 import io.tapdata.entity.schema.value.TapBinaryValue;
 import io.tapdata.entity.schema.value.TapValue;
 
@@ -21,13 +22,13 @@ public class BytesType extends BasicType {
         if (null == value) {
             return result;
         } else if (value instanceof String) {
-            result.value(bytesStringDecode((String) value));
+            result.value(new ByteData(bytesStringDecode((String) value)));
         } else if (value instanceof byte[]) {
-            result.value((byte[]) value);
+            result.value(new ByteData((byte[]) value));
         } else if (value instanceof TapValue) {
             return value;
         } else {
-            result.value(object2Bytes(value));
+            result.value(new ByteData(object2Bytes(value)));
         }
         return result;
     }

@@ -58,7 +58,7 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
         Query query = Query.query(Criteria.where("inspectResultId").is(inspectDetails.getInspectResultId()));
         Sort sort = Sort.by("createTime").descending();
         query.with(sort);
-        List<InspectDetailsDto> inspectDetailsDto = findAllDto(query, userDetail);
+        List<InspectDetailsDto> inspectDetailsDto = findAll(query);
         inspectDetailsDto.forEach(inspectDetailsDtoTmp -> {
             JSONObject jsonObject = new JSONObject();
             Stats statsTmp = null;

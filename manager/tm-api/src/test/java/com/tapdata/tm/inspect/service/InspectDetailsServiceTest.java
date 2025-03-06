@@ -73,7 +73,7 @@ public class InspectDetailsServiceTest {
             inspectDetailsDto1.setTaskId(taskId);
             inspectDetailsDto.add(inspectDetailsDto1);
             inspectDetailsDto.add(inspectDetailsDto1);
-            when(inspectDetailsService.findAllDto(query,userDetail)).thenReturn(inspectDetailsDto);
+            when(inspectDetailsService.findAll(query)).thenReturn(inspectDetailsDto);
             doCallRealMethod().when(inspectDetailsService).export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
             inspectDetailsService.export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
 
@@ -166,7 +166,7 @@ public class InspectDetailsServiceTest {
             inspectDetailsDto1.setTaskId(taskId);
             inspectDetailsDto1.setMessage("Different fields:name");
             inspectDetailsDto.add(inspectDetailsDto1);
-            when(inspectDetailsService.findAllDto(query,userDetail)).thenReturn(inspectDetailsDto);
+            when(inspectDetailsService.findAll(query)).thenReturn(inspectDetailsDto);
             doCallRealMethod().when(inspectDetailsService).compareDifferenceFields(any(),any());
             doCallRealMethod().when(inspectDetailsService).export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
             inspectDetailsService.export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
@@ -263,7 +263,7 @@ public class InspectDetailsServiceTest {
             inspectDetailsDto1.setMessage("Different index:1");
             inspectDetailsDto1.setTaskId("test");
             inspectDetailsDto.add(inspectDetailsDto1);
-            when(inspectDetailsService.findAllDto(query,userDetail)).thenReturn(inspectDetailsDto);
+            when(inspectDetailsService.findAll(query)).thenReturn(inspectDetailsDto);
             doCallRealMethod().when(inspectDetailsService).compareDifferenceFields(any(),any());
             doCallRealMethod().when(inspectDetailsService).export(inspectDetails, zipOutputStream, userDetail, inspectResultService);
             inspectDetailsService.export(inspectDetails, zipOutputStream, userDetail, inspectResultService);

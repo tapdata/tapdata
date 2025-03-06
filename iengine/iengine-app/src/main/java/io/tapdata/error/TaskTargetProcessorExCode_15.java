@@ -217,4 +217,13 @@ public interface TaskTargetProcessorExCode_15 {
 					"检查是否存在中间节点将事件中更新条件字段的值删除或将事件中的数据结构改变如:x字段改为xxx.x。如果存在上述操作，则需要关闭多线程写入或将上述操作删除\n"
 	)
 	String CONCURRENT_PROCESSOR_PARTITION_VALUE_NULL = "15023";
+	@TapExCode(
+			describe = "After the full synchronization is completed, the additional processing of the database fails",
+			describeCN = "全量同步完成后，数据库额外处理失败",
+			dynamicDescription = "Table name: {}; Error: {}",
+			dynamicDescriptionCN = "表名: {}; 异常信息: {}",
+			solution = "After the full synchronization is completed, the engine will do some additional processing on the database, such as the alignment of the current value of the auto-increment column, etc. Please check whether the operation fails due to insufficient permissions. For specific execution, refer to the exception information.",
+			solutionCN = "全量同步完成后，引擎会对数据库做一些额外的处理，比如自增列当前值对齐等，请查看是否权限不足导致操作失败，具体执行情况参考异常信息"
+	)
+	String PROCESS_CONNECTOR_AFTER_SNAPSHOT = "15024";
 }

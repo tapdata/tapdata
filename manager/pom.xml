@@ -29,7 +29,7 @@
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>4.7.0</mongo.version>
 		<tapdata-api.version>1.4.4-SNAPSHOT</tapdata-api.version>
-		<modules-api.version>1.2-SNAPSHOT</modules-api.version>
+		<modules-api.version>1.3-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
