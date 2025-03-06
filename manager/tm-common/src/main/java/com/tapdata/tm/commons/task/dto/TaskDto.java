@@ -228,6 +228,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private Map<String, String> env;
 
+    private Map<String, String> env;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
