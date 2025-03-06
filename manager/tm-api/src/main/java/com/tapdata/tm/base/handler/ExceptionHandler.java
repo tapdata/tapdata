@@ -126,8 +126,7 @@ public class ExceptionHandler extends BaseController {
 	@org.springframework.web.bind.annotation.ExceptionHandler(BizException.class)
 	public ResponseMessage<?> handlerException(BizException e, HttpServletRequest request, HttpServletResponse response) {
 		log.error("System error:{}", ThrowableUtils.getStackTraceByPn(e));
-
-		if ("NotLogin".equals(e.getErrorCode())) {
+		if ("NotAuthorized".equals(e.getErrorCode()) || "NotLogin".equals(e.getErrorCode())) {
 			response.setStatus(HttpStatus.SC_UNAUTHORIZED);
 		}
 

@@ -190,6 +190,9 @@ public class TableNode extends DataNode {
 
     private String previewQualifiedName;
     private TapTable previewTapTable;
+    private static final String MONGODB = "MongoDB";
+
+    private boolean sourceAndTarget;
 
     public TableNode() {
         super("table");
@@ -249,6 +252,9 @@ public class TableNode extends DataNode {
         outputSchema.setOriginalName(tableName);
         updateSchemaAfterDynamicTableName(outputSchema, dynamicTableResult.getOldName(), dynamicTableResult.getDynamicName());
         handleAppendWrite(outputSchema);
+        if (dataSource.getDatabase_type().contains(MONGODB)){
+            SchemaUtils.addFieldObjectIdIfMongoDatabase(outputSchema, dataSource.getDatabase_type());
+        }
         return SchemaUtils.removeSubFieldsWhichFromFreeSchema(service.getDataSource(connectionId), outputSchema);
     }
 

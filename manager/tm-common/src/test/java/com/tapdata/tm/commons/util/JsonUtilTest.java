@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.ObjectCodec;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.node.TextNode;
+import com.google.common.reflect.TypeToken;
 import io.tapdata.entity.schema.partition.type.TapPartitionRange;
 import io.tapdata.entity.schema.partition.type.TapPartitionType;
 import org.junit.jupiter.api.Assertions;
@@ -19,6 +20,7 @@ import org.mockito.MockedStatic;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -126,5 +128,21 @@ class JsonUtilTest {
             when(jsonObject.toJavaObject(TapPartitionRange.class)).thenReturn(mock(TapPartitionRange.class));
             Assertions.assertDoesNotThrow(() -> deserializer.deserialze(parser, type, "name"));
         }
+    }
+
+    @Test
+    void testLoadJsonFromClasspath() throws IOException {
+        Object data = JsonUtil.loadJsonFromClasspath("/test1.json",
+                new TypeToken<Map<String, Object>>() {
+                }.getType());
+
+        Assertions.assertNull(data);
+
+        data = JsonUtil.loadJsonFromClasspath("/test.json",
+                new TypeToken<Map<String, Object>>() {
+                }.getType());
+        Assertions.assertNotNull(data);
+        Assertions.assertInstanceOf(Map.class, data);
+        Assertions.assertEquals("test", ((Map) data).get("type"));
     }
 }

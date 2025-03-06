@@ -201,6 +201,7 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
     private Date pausedTime;
     private Date finishTime;
     private Long pingTime;
+    private Map<String, String> env;
 
     //需要重启标识
     private Boolean restartFlag;
@@ -227,6 +228,7 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
 
     private List<AlarmSettingVO> alarmSettings;
     private List<AlarmRuleVO> alarmRules;
+    private List<String> emailReceivers;
 
     private Map<String, Object> logSetting;
     private Integer resetTimes;

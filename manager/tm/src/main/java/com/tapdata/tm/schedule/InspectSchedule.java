@@ -32,7 +32,7 @@ public class InspectSchedule {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-execute");
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         String processName = runtimeMXBean.getName();
-        log.info(processName+"**************** 获得了 InspectSchedule  锁");
+        log.debug(processName+"**************** 获得了 InspectSchedule  锁");
         inspectService.setRepeatInspectTask();
 
     }
@@ -46,7 +46,7 @@ public class InspectSchedule {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-cleanDeadInspect");
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         String processName = runtimeMXBean.getName();
-        log.info(processName+"**************** 获得了 cleanDeadInspect  锁");
+        log.debug(processName+"**************** 获得了 cleanDeadInspect  锁");
         inspectService.cleanDeadInspect();
 
     }

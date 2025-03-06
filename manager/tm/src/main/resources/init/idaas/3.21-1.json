@@ -1,0 +1,26 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "category": "Login",
+        "key": "login.brief.tips",
+        "value": "",
+        "default_value": " ",
+        "documentation": "Login_Brief_Tips_doc",
+        "last_update": {
+          "$numberLong": "0"
+        },
+        "last_update_by": "",
+        "scope": "global",
+        "category_sort": "93",
+        "sort": "0",
+        "key_label": "Login Brief Tips",
+        "user_visible": true,
+        "hot_reloading": true,
+        "open": false,
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto"
+      }
+    ]
+  }
+]
