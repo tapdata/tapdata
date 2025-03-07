@@ -452,11 +452,15 @@ public class MetadataInstancesServiceImplTest {
 			where.put("source.id", "111");
 			filter.setWhere(where);
 			List metadataInstancesDtoList = new ArrayList<>();
-			MetadataInstancesDto metadataInstancesDto = mock(MetadataInstancesDto.class);
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setSource(mock(SourceDto.class));
+			metadataInstancesDto.setFields(new ArrayList<>());
 			metadataInstancesDtoList.add(metadataInstancesDto);
 			when(metadataInstancesService.findAll(filter)).thenReturn(metadataInstancesDtoList);
 			List<MetadataInstancesVo> actual = metadataInstancesService.findInspect(filter, userDetail);
-			assertEquals(BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class), actual.get(0));
+			MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+			metadataInstancesVo.setSortColumns(new ArrayList<>());
+			assertEquals(metadataInstancesVo, actual.get(0));
 		}
 
 		@Test
