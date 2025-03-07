@@ -380,8 +380,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						TaskPreviewInstance taskPreviewInstance = TaskPreviewService.taskPreviewInstance(taskDto);
 						Map<String, PreviewConnectionInfo> nodeConnectionInfoMap = taskPreviewInstance.getNodeConnectionInfoMap();
 						PreviewConnectionInfo previewConnectionInfo = nodeConnectionInfoMap.get(((DataParentNode<?>) node).getConnectionId());
-						connection = previewConnectionInfo.getConnections();
-						databaseType = previewConnectionInfo.getDatabaseType();
+						if (null == previewConnectionInfo) {
+							connection = getConnection(((DataParentNode<?>) node).getConnectionId());
+							databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+						} else {
+							connection = previewConnectionInfo.getConnections();
+							databaseType = previewConnectionInfo.getDatabaseType();
+						}
 					} else {
 						connection = getConnection(((DataParentNode<?>) node).getConnectionId());
 						databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
