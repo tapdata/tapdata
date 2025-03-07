@@ -334,9 +334,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						String sql = sqlList.get(i);
 						Throwable cause = exceptions.get(i);
 						if (null == cause) {
-							obsLogger.warn("Failed to drop a foreign key, table name: {}, sql: {}", tapTable.getId(), sql);
+							obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}", tapTable.getId(), sql);
 						} else {
-							obsLogger.warn("Failed to drop a foreign key, table name: {}, sql: {}, error: {}", tapTable.getId(), sql, Log4jUtil.getStackString(cause));
+							obsLogger.warn("Failed to create a foreign key, table name: {}, sql: {}, error: {}", tapTable.getId(), sql, Log4jUtil.getStackString(cause));
 						}
 					}
 				}
