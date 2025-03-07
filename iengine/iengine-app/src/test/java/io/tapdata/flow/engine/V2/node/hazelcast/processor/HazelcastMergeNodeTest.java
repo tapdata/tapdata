@@ -348,6 +348,22 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(4, after.size());
 			assertInstanceOf(Instant.class, after.get("create_time"));
 		}
+
+		@Test
+		@DisplayName("test illegal date")
+		void transformDateTimeWithIllegal() {
+			ReflectionTestUtils.setField(hazelcastMergeNode, "mapIterator", new AllLayerMapIterator());
+			Instant now = Instant.now();
+			Map<String, Object> after = new HashMap<>();
+			after.put("id", 1);
+			DateTime value = mock(DateTime.class);
+			after.put("create_time", value);
+			when(value.isContainsIllegal()).thenReturn(true);
+			when(value.getIllegalDate()).thenReturn("0000-00-00 00:00:00");
+			hazelcastMergeNode.transformDateTime(after);
+			assertEquals(2, after.size());
+			assertEquals("0000-00-00 00:00:00", after.get("create_time"));
+		}
 	}
 
 	@Nested

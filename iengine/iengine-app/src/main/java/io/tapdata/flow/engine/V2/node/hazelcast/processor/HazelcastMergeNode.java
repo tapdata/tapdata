@@ -1269,6 +1269,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	protected void transformDateTime(Map<String, Object> after) {
 		mapIterator.iterate(after, (key, value, recursive) -> {
 			if (value instanceof DateTime) {
+				if (((DateTime) value).isContainsIllegal()) {
+					return ((DateTime) value).getIllegalDate();
+				}
 				return ((DateTime) value).toInstant();
 			}
 			return value;
