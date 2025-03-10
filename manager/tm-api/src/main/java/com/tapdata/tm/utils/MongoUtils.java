@@ -150,7 +150,16 @@ public class MongoUtils {
                         map.put("$options", ((Map) cond).get("options"));
                     }
                     where.put(key, map);
-                } else if (((Map) cond).containsKey("$inq")) {
+                }else if(((Map) cond).containsKey("$regularExpression")){
+                    HashMap<String, Object> map = new HashMap<>();
+                    Map<String, Object> like = (Map<String, Object>) ((Map) cond).get("$regularExpression");
+                    map.put("$regex", like.get("pattern"));
+                    if (like.containsKey("$options") && StringUtils.isNotBlank(like.get("$options").toString())) {
+                        map.put("$options", like.get("$options").toString());
+                    }
+                    where.put(key, map);
+                }
+                else if (((Map) cond).containsKey("$inq")) {
                     ((Map) cond).put("$in", ((Map) cond).remove("$inq"));
                 } else if (((Map) cond).containsKey("inq")) {
                     ((Map) cond).put("$in", ((Map) cond).remove("inq"));

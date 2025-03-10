@@ -58,6 +58,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -730,7 +731,7 @@ public class RestTemplateOperator {
 				return result;
 			} catch (RestDoNotRetryException | TmUnavailableException e) {
 				throw e;
-			} catch (HttpMessageConversionException | InterruptedException ignored) {
+			} catch (HttpMessageConversionException | InterruptedException | CancellationException ignored  ) {
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;

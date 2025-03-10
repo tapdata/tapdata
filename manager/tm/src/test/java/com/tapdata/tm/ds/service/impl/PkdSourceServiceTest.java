@@ -13,7 +13,7 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.MessageUtil;
 import lombok.SneakyThrows;
-import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload2.core.FileItem;
 import org.apache.commons.io.FileUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;

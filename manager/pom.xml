@@ -37,6 +37,7 @@
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
 		<tapdata-pdk-runner.version>2.0-SNAPSHOT</tapdata-pdk-runner.version>
+		<commons-net.version>3.11.1</commons-net.version>
 	</properties>
 
 	<modules>
@@ -63,16 +64,16 @@
 				<tm.oss.module>../../tapdata-enterprise/tm-enterprise</tm.oss.module>
 			</properties>
 		</profile>
-		<profile>
-			<id>cloud</id>
-			<properties>
-				<tcm.artifactId>tcm</tcm.artifactId>
-				<tcm.module>../../tapdata-cloud/drs/tcm</tcm.module>
-			</properties>
-			<modules>
-				<module>${tcm.module}</module>
-			</modules>
-		</profile>
+<!--		<profile>-->
+<!--			<id>cloud</id>-->
+<!--			<properties>-->
+<!--				<tcm.artifactId>tcm</tcm.artifactId>-->
+<!--				<tcm.module>../../tapdata-cloud/drs/tcm</tcm.module>-->
+<!--			</properties>-->
+<!--			<modules>-->
+<!--				<module>${tcm.module}</module>-->
+<!--			</modules>-->
+<!--		</profile>-->
 	</profiles>
 
 	<dependencyManagement>
@@ -131,6 +132,11 @@
 				<groupId>io.tapdata</groupId>
 				<artifactId>mongodb-storage-module</artifactId>
 				<version>${mongodb-storage-module.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>commons-net</groupId>
+				<artifactId>commons-net</artifactId>
+				<version>${commons-net.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
