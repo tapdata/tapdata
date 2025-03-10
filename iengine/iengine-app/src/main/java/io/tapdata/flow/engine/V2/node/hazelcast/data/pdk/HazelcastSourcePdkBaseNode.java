@@ -167,6 +167,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final int BATCH_SCAN_PARTITION_SUB_TABLE_BATCH = 10;
 	public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT";
 	public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT_NUM";
+	public static final int BATCH_SIZE = 200;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
 	protected ThreadPoolExecutorEx sourceRunner;
@@ -982,40 +983,43 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}).orElse(tapTable -> false);
 			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
 			Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
-			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
-				if (table.contains(tapTable.getId())) return;
-				if (Objects.nonNull(syncSourcePartitionTableEnable)
-						&& !syncSourcePartitionTableEnable) {
-					//开启了仅同步子表
-					if (tapTable.checkIsMasterPartitionTable()) {
-						//主表忽略
-						addList.remove(tapTable.getId());
-						return;
+			for (int i = 0; i < addList.size(); i += BATCH_SIZE) {
+				List<String> batchList = new ArrayList<>(addList.subList(i, Math.min(i + BATCH_SIZE, addList.size())));
+				LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
+					if (table.contains(tapTable.getId())) return;
+					if (Objects.nonNull(syncSourcePartitionTableEnable)
+							&& !syncSourcePartitionTableEnable) {
+						//开启了仅同步子表
+						if (tapTable.checkIsMasterPartitionTable()) {
+							//主表忽略
+							batchList.remove(tapTable.getId());
+							return;
+						}
+						if (tapTable.checkIsSubPartitionTable()) {
+							//转成普通表处理
+							tapTable.setPartitionMasterTableId(null);
+							tapTable.setPartitionInfo(null);
+						}
 					}
-					if (tapTable.checkIsSubPartitionTable()) {
-						//转成普通表处理
-						tapTable.setPartitionMasterTableId(null);
-						tapTable.setPartitionInfo(null);
+					try {
+						//主表已存在，需要新增表后更新主表的分区信息
+						if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
+							masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
+							batchList.remove(tapTable.getId());
+							return;
+						}
+					} catch (Exception e) {
+						logger.debug("{} don't exists in table map", tapTable.getId());
 					}
-				}
-				try {
-					//主表已存在，需要新增表后更新主表的分区信息
-					if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
-						masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
-						addList.remove(tapTable.getId());
-						return;
-					}
-				} catch (Exception e) {
-					logger.debug("{} don't exists in table map", tapTable.getId());
-				}
 
-				if (filterTableByNoPrimaryKey.apply(tapTable)) {
-					logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
-					noPrimaryKeyTableNames.add(tapTable.getId());
-					return;
-				}
-				addTapTables.add(tapTable);
-			});
+					if (filterTableByNoPrimaryKey.apply(tapTable)) {
+						logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
+						noPrimaryKeyTableNames.add(tapTable.getId());
+						return;
+					}
+					addTapTables.add(tapTable);
+				});
+			}
 			if (obsLogger.isDebugEnabled()) {
 				if (CollectionUtils.isNotEmpty(addTapTables)) {
 					addTapTables.forEach(tapTable -> obsLogger.debug("Loaded new table schema: {}", tapTable));
