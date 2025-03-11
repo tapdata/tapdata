@@ -4,6 +4,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
@@ -983,8 +984,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}).orElse(tapTable -> false);
 			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
 			Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
-			for (int i = 0; i < addList.size(); i += BATCH_SIZE) {
-				List<String> batchList = new ArrayList<>(addList.subList(i, Math.min(i + BATCH_SIZE, addList.size())));
+			List<List<String>> partition = Lists.partition(addList, BATCH_SIZE);
+            partition.forEach(batchList -> {
 				LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
 					if (table.contains(tapTable.getId())) return;
 					if (Objects.nonNull(syncSourcePartitionTableEnable)
@@ -1019,7 +1020,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					addTapTables.add(tapTable);
 				});
-			}
+			});
 			if (obsLogger.isDebugEnabled()) {
 				if (CollectionUtils.isNotEmpty(addTapTables)) {
 					addTapTables.forEach(tapTable -> obsLogger.debug("Loaded new table schema: {}", tapTable));
