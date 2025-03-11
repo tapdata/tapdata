@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.SourceAndTargetNodeExCode_38;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -34,9 +35,11 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	public HazelcastPdkSourceAndTargetTableNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		if (dataProcessorContext.getTaskDto().isNormalTask()) {
+			dataProcessorContext.setSourceThreadGroupName(String.join("_", ConnectorOnTaskThreadGroup.class.getSimpleName(), "S", getNode().getId(), getNode().getName()));
+			dataProcessorContext.setTargetThreadGroupName(String.join("_", ConnectorOnTaskThreadGroup.class.getSimpleName(), "T", getNode().getId(), getNode().getName()));
 			this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
-			this.callCompleteMethodThreadPool = new ScheduledThreadPoolExecutor(1);
 			this.target = new HazelcastTargetPdkDataNode(dataProcessorContext);
+			this.callCompleteMethodThreadPool = new ScheduledThreadPoolExecutor(1);
 		}
 	}
 

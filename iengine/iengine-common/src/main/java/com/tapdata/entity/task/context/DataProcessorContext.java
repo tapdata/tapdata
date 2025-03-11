@@ -22,6 +22,8 @@ public class DataProcessorContext extends ProcessorBaseContext implements Serial
 	private final ICacheService cacheService;
 	private final Map<String, Object> connectionConfig;
 	private final DatabaseTypeEnum.DatabaseType databaseType;
+	private String sourceThreadGroupName;
+	private String targetThreadGroupName;
 
 	public Connections getSourceConn() {
 		return sourceConn;
@@ -105,5 +107,21 @@ public class DataProcessorContext extends ProcessorBaseContext implements Serial
 		public DataProcessorContext build() {
 			return new DataProcessorContext(this);
 		}
+	}
+
+	public String getSourceThreadGroupName() {
+		return sourceThreadGroupName;
+	}
+
+	public void setSourceThreadGroupName(String sourceThreadGroupName) {
+		this.sourceThreadGroupName = sourceThreadGroupName;
+	}
+
+	public String getTargetThreadGroupName() {
+		return targetThreadGroupName;
+	}
+
+	public void setTargetThreadGroupName(String targetThreadGroupName) {
+		this.targetThreadGroupName = targetThreadGroupName;
 	}
 }

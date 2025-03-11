@@ -9,6 +9,11 @@ public class ConnectorOnTaskThreadGroup extends ThreadGroup {
         this.dataProcessorContext = dataProcessorContext;
     }
 
+    public ConnectorOnTaskThreadGroup(DataProcessorContext dataProcessorContext, String threadGroupName) {
+        super(threadGroupName);
+        this.dataProcessorContext = dataProcessorContext;
+    }
+
     public DataProcessorContext getDataProcessorContext() {
         return dataProcessorContext;
     }
