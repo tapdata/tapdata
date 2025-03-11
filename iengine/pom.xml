@@ -175,6 +175,7 @@
         <service-skeleton-module.version>2.0-SNAPSHOT</service-skeleton-module.version>
         <tapdata-storage-module.version>2.0-SNAPSHOT</tapdata-storage-module.version>
         <tapdata-pdk-runner.version>2.0-SNAPSHOT</tapdata-pdk-runner.version>
+        <tapdata-common.version>2.0-SNAPSHOT</tapdata-common.version>
     </properties>
 
     <modules>
@@ -811,6 +812,12 @@
                 <groupId>com.tapdata</groupId>
                 <artifactId>tm-common</artifactId>
                 <version>${tm-common.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.tapdata</groupId>
+                <artifactId>tapdata-common</artifactId>
+                <version>${tapdata-common.version}</version>
             </dependency>
 
             <dependency>
