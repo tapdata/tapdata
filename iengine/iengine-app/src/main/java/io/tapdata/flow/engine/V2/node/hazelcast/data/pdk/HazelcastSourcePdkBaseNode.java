@@ -985,7 +985,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
 			Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
 			List<List<String>> partition = Lists.partition(addList, BATCH_SIZE);
-            partition.forEach(batchList -> {
+            partition.forEach(part -> {
+				List<String> batchList = new ArrayList<>(part);
 				LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
 					if (table.contains(tapTable.getId())) return;
 					if (Objects.nonNull(syncSourcePartitionTableEnable)
