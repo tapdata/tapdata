@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.error.TapDynamicTableNameExCode_35;
+import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.exception.TapCodeException;
 import lombok.Getter;
 import lombok.Setter;
@@ -102,9 +103,26 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
                     }
                 }
             });
+            handleForeignKeyConstraints(schema);
         });
 
         return outputSchemas;
+    }
+
+    protected void handleForeignKeyConstraints(Schema schema) {
+        List<TapConstraint> constraints = schema.getConstraints();
+        if (CollectionUtils.isNotEmpty(constraints)) {
+            constraints.forEach(constraint -> {
+                if (constraint.getType().equals(TapConstraint.ConstraintType.FOREIGN_KEY)) {
+                    Map<String, TableRenameTableInfo> originaledMap = originalMap();
+                    String ancestorsName = constraint.getReferencesTableName();
+                    String currentTableName = convertTableName(originaledMap, ancestorsName, false);
+                    if (!ancestorsName.equals(currentTableName)) {
+                        constraint.referencesTable(currentTableName);
+                    }
+                }
+            });
+        }
     }
 
     protected void updatePartitionMasterName(Schema schema, String currentTableName) {

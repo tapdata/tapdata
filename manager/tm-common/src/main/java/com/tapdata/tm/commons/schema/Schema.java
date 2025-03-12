@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.bean.Relation;
 import io.tapdata.entity.conversion.PossibleDataTypes;
+import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.partition.TapPartition;
 import lombok.Getter;
 import lombok.Setter;
@@ -61,6 +62,7 @@ public class Schema implements Cloneable, Serializable {
     private List<Tag> classifications;
 
     private List<TableIndex> indices;
+    private List<TapConstraint> constraints;
     @JsonProperty("alias_name")
     private String aliasName;
     @JsonProperty("custom_properties")

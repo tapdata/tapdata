@@ -226,7 +226,7 @@ public class NoPrimaryKeyVirtualField {
         field.setTapType(InstanceFactory.instance(JsonParser.class).toJson(FIELD_TAP_TYPE));
         field.setColumnPosition(schema.getFields().size() + 1);
         field.setPrimaryKey(false);
-        field.setIsNullable(false);
+        field.setIsNullable(true);
         field.setId(MetaDataBuilderUtils.generateFieldId(node.getId(), field.getTableName(), field.getFieldName()));
         return field;
     }

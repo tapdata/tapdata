@@ -1304,6 +1304,9 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	protected void transformDateTime(Map<String, Object> after) {
 		mapIterator.iterate(after, (key, value, recursive) -> {
 			if (value instanceof DateTime) {
+				if (((DateTime) value).isContainsIllegal()) {
+					return ((DateTime) value).getIllegalDate();
+				}
 				return ((DateTime) value).toInstant();
 			}
 			return value;
@@ -1755,7 +1758,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (cache.exists("sign")) {
 			msg += ", sign: " + cache.find("sign");
 		}
-		return msg += ", error: " + e.getMessage() + ", stack: " + Log4jUtil.getStackString(e);
+		return msg + (", error: " + e.getMessage() + ", stack: " + Log4jUtil.getStackString(e));
 	}
 
 	private TapCreateIndexEvent generateCreateIndexEventsForTarget() {

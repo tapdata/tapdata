@@ -21,7 +21,6 @@ import io.tapdata.aspect.PDKNodeInitAspect;
 import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
-import io.tapdata.common.utils.DateUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManagerSchemaEnforced;
 import io.tapdata.entity.event.TapEvent;
@@ -221,22 +220,22 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
 		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto);
-		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
-				PdkUtil.createNode(taskDto.getId().toHexString(),
-						databaseType,
-						clientMongoOperator,
-						generateNodePdkAssociateId(dataProcessorContext),
-						connectionConfig,
-						nodeConfig,
-						pdkTableMap,
-						pdkStateMap,
-						globalStateMap,
-						connectorCapabilities,
-						() -> Log4jUtil.setThreadContext(taskDto),
-						new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this),
-						taskDto
-				)
+		ConnectorNode connectorNode = PdkUtil.createNode(taskDto.getId().toHexString(),
+				databaseType,
+				clientMongoOperator,
+				generateNodePdkAssociateId(dataProcessorContext),
+				connectionConfig,
+				nodeConfig,
+				pdkTableMap,
+				pdkStateMap,
+				globalStateMap,
+				connectorCapabilities,
+				() -> Log4jUtil.setThreadContext(taskDto),
+				new StopTaskOnErrorLog(InstanceFactory.instance(LogFactory.class).getLog(processorBaseContext), this),
+				taskDto
 		);
+		connectorNode.getConnectorContext().setIsomorphism(dataProcessorContext.getTaskConfig().isomorphism());
+		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(connectorNode);
 		logger.info(String.format("Create PDK connector on node %s[%s] complete | Associate id: %s", getNode().getName(), getNode().getId(), associateId));
 		processorBaseContext.setPdkAssociateId(this.associateId);
 		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
@@ -483,9 +482,18 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 
 	protected ThreadGroup getReuseOrNewThreadGroup(ConcurrentHashSet<TaskNodeInfo> taskNodeInfos) {
+		String threadGroupName;
+		if (this instanceof HazelcastSourcePdkBaseNode && StringUtils.isNotBlank(dataProcessorContext.getSourceThreadGroupName())) {
+			threadGroupName = dataProcessorContext.getSourceThreadGroupName();
+		} else if (this instanceof HazelcastTargetPdkBaseNode && StringUtils.isNotBlank(dataProcessorContext.getTargetThreadGroupName())) {
+			threadGroupName = dataProcessorContext.getTargetThreadGroupName();
+		} else {
+			threadGroupName = String.join("_", ConnectorOnTaskThreadGroup.class.getSimpleName(), dataProcessorContext.getNode().getId(), dataProcessorContext.getNode().getName());
+		}
+		String finalThreadGroupName = threadGroupName;
 		Optional<TaskNodeInfo> leakTaskNodeInfo = taskNodeInfos.stream().filter(
 						(taskNodeInfo) -> getNode().getId().equals(taskNodeInfo.getNode().getId())
-								&& taskNodeInfo.isHasLaked())
+								&& taskNodeInfo.isHasLaked() && finalThreadGroupName.equals(taskNodeInfo.getNodeThreadGroup().getName()))
 				.findAny();
 		AtomicReference<ThreadGroup> connectorOnTaskThreadGroup = new AtomicReference<>();
 		leakTaskNodeInfo.ifPresent(taskNodeInfo -> {
@@ -493,7 +501,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				if (!taskNodeInfo.isHasLaked()) return;
 				taskNodeInfo.setHasLeaked(false);
 				ThreadGroup nodeThreadGroup = taskNodeInfo.getNodeThreadGroup();
-				if (nodeThreadGroup instanceof ConnectorOnTaskThreadGroup) {
+				if (nodeThreadGroup instanceof ConnectorOnTaskThreadGroup && !nodeThreadGroup.isDestroyed()) {
 					taskNodeInfo.setNode(getNode());
 					((ConnectorOnTaskThreadGroup) nodeThreadGroup).setDataProcessorContext(dataProcessorContext);
 					connectorOnTaskThreadGroup.set(nodeThreadGroup);
@@ -501,7 +509,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			}
 		});
 		if (connectorOnTaskThreadGroup.get() == null) {
-			connectorOnTaskThreadGroup.set(new ConnectorOnTaskThreadGroup(dataProcessorContext));
+			connectorOnTaskThreadGroup.set(new ConnectorOnTaskThreadGroup(dataProcessorContext, threadGroupName));
 		}
 		return connectorOnTaskThreadGroup.get();
 	}

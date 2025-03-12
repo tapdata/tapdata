@@ -160,10 +160,14 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
+      - name: Set SSH Key
+        run: |
+          echo '${{ secrets.GITEE_SSH_KEY }}' > /root/.ssh/id_rsa
+          chmod 600 /root/.ssh/id_rsa
+          echo '${{ secrets.GITEE_KNOWN_HOSTS }}' > /root/.ssh/known_hosts
       - name: Checkout Tapdata Code
         run: |
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata.git
+          git clone -b ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }} git@gitee.com:${{ secrets.GITEE_USER }}/tapdata.git
           cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
         run: |
@@ -263,43 +267,6 @@ jobs:
           PORT=$(cat .service_ip_port | awk -F':' '{print $2}')
           echo "::set-output name=IP::$IP"
           echo "::set-output name=PORT::$PORT"
-
-      #  Functional-Test:
-      #    if: ${{ !startsWith(github.base_ref, 'release-v') && github.event_name == 'pull_request' }}
-      #    runs-on: office-scan
-      #    needs:
-      #      - Build-And-Deploy
-      #      - Get-Stable-Branch
-      #    steps:
-      #      - name: Set Env
-      #        run: |
-      #          echo "IP=${{ needs.Build-And-Deploy.outputs.IP }}" >> $GITHUB_ENV
-      #          echo "PORT=${{ needs.Build-And-Deploy.outputs.PORT }}" >> $GITHUB_ENV
-      #          echo "t-layer3-test-branch=master" >> $GITHUB_ENV
-      #          echo "send-message-to-feishu=n" >> $GITHUB_ENV
-      #          echo "test-case=1" >> $GITHUB_ENV
-      #          echo "exclude-case=8,4.4.2,81.11,81.13,81.14,81.15,81.16,3,5,9,11,81,83,85" >> $GITHUB_ENV
-      #      - name: Fetch Code -- t-layer3-test repo
-      #        run: |
-      #          rm -rf ./t-layer3-test
-      #          export GIT_LFS_SKIP_SMUDGE=1
-      #          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-      #          git clone -b ${{ env.t-layer3-test-branch }} --single-branch ssh://git@113.98.206.141:10022/tapdata/t-layer3-test.git
-      #          cd t-layer3-test && git fetch --tags
-      #      - name: Run Functional Test
-      #        run: |
-      #          apt install unixodbc -y
-      #          apt-get install python3.11-dev -y
-      #          cd t-layer3-test
-      #          virtualenv venv && source venv/bin/activate
-      #          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
-      #          ./taptest install --test
-      #          if [[ "${{ env.send-message-to-feishu }}" == "y" ]]; then
-      #            ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -z f
-      #          else
-      #            yes n | ./taptest run -t=${{ env.test-case }} -e=${{ env.exclude-case }} -s=${{ env.IP }}:${{ env.PORT }} -f=ci.config.yaml -d -z f
-      #          fi
-
 
   MRCI:
     runs-on: ubuntu-latest

@@ -4,6 +4,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
@@ -76,6 +77,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.filter.FilterUtil;
 import io.tapdata.flow.engine.V2.filter.TargetTableDataEventFilter;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
@@ -87,7 +89,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
-import io.tapdata.flow.engine.V2.task.preview.TaskPreviewService;
+import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -166,6 +168,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public static final int BATCH_SCAN_PARTITION_SUB_TABLE_BATCH = 10;
 	public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT";
 	public static final String SOURCE_TO_TAP_VALUE_CONCURRENT_NUM_PROP_KEY = "SOURCE_TO_TAP_VALUE_CONCURRENT_NUM";
+	public static final int BATCH_SIZE = 200;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
 	protected ThreadPoolExecutorEx sourceRunner;
@@ -220,6 +223,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected Boolean syncSourcePartitionTableEnable;
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
 	protected List<String> loggedTables = new ArrayList<>();
+	private List<Node<?>> targetDataNodes;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -281,10 +285,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initTableMonitor();
 			initDynamicAdjustMemory();
 			initSourceRunnerOnce();
+			initTargetDataNodes();
 			initAndStartSourceRunner();
 			initTapCodecsFilterManager();
 			initToTapValueConcurrent();
 		});
+	}
+
+	private void initTargetDataNodes() {
+		Node<?> node = getNode();
+		targetDataNodes = GraphUtil.successors(node, n -> n instanceof TableNode || n instanceof DatabaseNode);
 	}
 
 	/**
@@ -403,7 +413,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node node = getNode();
 		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(taskDto.getAttrs());
-		this.syncProgress = foundNodeSyncProgress(allSyncProgress);
+		this.syncProgress = foundNodeSyncProgress(allSyncProgress, SyncProgressNodeType.SOURCE);
 		if (null == this.syncProgress) {
 			obsLogger.trace("On the first run, the breakpoint will be initialized", node.getName());
 		} else {
@@ -664,8 +674,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-
-
 	protected void initBatchAndStreamOffsetFirstTime(TaskDto taskDto) {
 		syncProgress = new SyncProgress();
 		// null present current
@@ -769,7 +777,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	public boolean complete() {
 		try {
-			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			if (firstComplete) {
 				Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
 				firstComplete = false;
@@ -806,7 +813,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 				for (int i = 0; i < tapdataEvents.size(); i++) {
 					TapdataEvent tapdataEvent = tapdataEvents.get(i);
-					if (!offer(tapdataEvent)) {
+					if (!hazelcastTaskNodeOffer.offer(tapdataEvent)) {
 						pendingEvents = new ArrayList<>(tapdataEvents.subList(i, tapdataEvents.size()));
 						return false;
 					}
@@ -814,23 +821,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 
 			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
-					&& null == pendingEvent && eventQueue.isEmpty()) {
-				Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
-				Object sourceInitialCounter = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
-				Map<String, Object> taskGlobalVariablePreview = TaskGlobalVariable.INSTANCE
-						.getTaskGlobalVariable(TaskPreviewService.taskPreviewInstanceId(taskDto));
-				Object previewComplete = taskGlobalVariablePreview.get(TaskGlobalVariable.PREVIEW_COMPLETE_KEY);
-				if (sourceInitialCounter instanceof AtomicInteger) {
-					if (((AtomicInteger) sourceInitialCounter).get() <= 0) {
-						this.running.set(false);
-					}
-				} else if (previewComplete instanceof Boolean) {
-					if(Boolean.TRUE.equals(previewComplete)) {
-						this.running.set(false);
-					}
-				} else {
-					this.running.set(false);
-				}
+					&& null == pendingEvent && eventQueue.isEmpty() && checkAllTargetNodesFinishInitial()) {
+				this.running.set(false);
 			}
 
 		} catch (InterruptedException e) {
@@ -844,6 +836,27 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		return false;
+	}
+
+	private boolean checkAllTargetNodesFinishInitial() {
+		boolean allTargetNodesFinishInitial = true;
+		if (null == targetDataNodes) {
+			return allTargetNodesFinishInitial;
+		}
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		if (null == taskDto) {
+			return true;
+		}
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+		for (Node<?> targetDataNode : targetDataNodes) {
+			String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, targetDataNode.getId());
+			Object sourceInitialCounter = taskGlobalVariable.get(key);
+			if(((AtomicInteger) sourceInitialCounter).intValue() > 0) {
+				allTargetNodesFinishInitial = false;
+				break;
+			}
+		}
+		return allTargetNodesFinishInitial;
 	}
 
 	protected void batchTransformToTapValue(List<TapdataEvent> tapdataEvents) {
@@ -971,39 +984,43 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}).orElse(tapTable -> false);
 			final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
 			Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
-			LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, tapTable -> {
-				if (table.contains(tapTable.getId())) return;
-				if (Objects.nonNull(syncSourcePartitionTableEnable)
-						&& !syncSourcePartitionTableEnable) {
-					//开启了仅同步子表
-					if (tapTable.checkIsMasterPartitionTable()) {
-						//主表忽略
-						addList.remove(tapTable.getId());
-						return;
+			List<List<String>> partition = Lists.partition(addList, BATCH_SIZE);
+            partition.forEach(part -> {
+				List<String> batchList = new ArrayList<>(part);
+				LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
+					if (table.contains(tapTable.getId())) return;
+					if (Objects.nonNull(syncSourcePartitionTableEnable)
+							&& !syncSourcePartitionTableEnable) {
+						//开启了仅同步子表
+						if (tapTable.checkIsMasterPartitionTable()) {
+							//主表忽略
+							batchList.remove(tapTable.getId());
+							return;
+						}
+						if (tapTable.checkIsSubPartitionTable()) {
+							//转成普通表处理
+							tapTable.setPartitionMasterTableId(null);
+							tapTable.setPartitionInfo(null);
+						}
 					}
-					if (tapTable.checkIsSubPartitionTable()) {
-						//转成普通表处理
-						tapTable.setPartitionMasterTableId(null);
-						tapTable.setPartitionInfo(null);
+					try {
+						//主表已存在，需要新增表后更新主表的分区信息
+						if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
+							masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
+							batchList.remove(tapTable.getId());
+							return;
+						}
+					} catch (Exception e) {
+						logger.debug("{} don't exists in table map", tapTable.getId());
 					}
-				}
-				try {
-					//主表已存在，需要新增表后更新主表的分区信息
-					if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
-						masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
-						addList.remove(tapTable.getId());
-						return;
-					}
-				} catch (Exception e) {
-					logger.debug("{} don't exists in table map", tapTable.getId());
-				}
 
-				if (filterTableByNoPrimaryKey.apply(tapTable)) {
-					logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
-					noPrimaryKeyTableNames.add(tapTable.getId());
-					return;
-				}
-				addTapTables.add(tapTable);
+					if (filterTableByNoPrimaryKey.apply(tapTable)) {
+						logger.warn("Ignore DDL no primary key table '{}'", tapTable.getId());
+						noPrimaryKeyTableNames.add(tapTable.getId());
+						return;
+					}
+					addTapTables.add(tapTable);
+				});
 			});
 			if (obsLogger.isDebugEnabled()) {
 				if (CollectionUtils.isNotEmpty(addTapTables)) {

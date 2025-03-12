@@ -126,104 +126,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			assertEquals(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED,tapCodeException.getCode());
 
 		}
-		@Nested
-		class testGetIndexList{
-			@DisplayName("test getTapTableIndex when not open sync index")
-			@Test
-			void getTapTableIndexTest2(){
-				TapTable tapTable = new TapTable();
-				TapField field = new TapField();
-				field.setName("_id");
-				field.setPrimaryKey(true);
-				field.setPrimaryKeyPos(1);
-				TapField index = new TapField();
-				index.setName("index");
-				tapTable.add(field);
-				tapTable.add(index);
-				List<String> list = Arrays.asList("index");
-				TapIndex tapIndex = new TapIndex();
-				TapIndexField tapIndexField = new TapIndexField();
-				tapIndexField.setFieldAsc(true);
-				tapIndexField.setName("index");
-				tapIndex.indexField(tapIndexField);
-				tapTable.add(tapIndex);
-				when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(false);
-				when(hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable)).thenCallRealMethod();
-				List<TapIndex> tapTableIndex = hazelcastTargetPdkDataNode.getTapTableIndex(list, tapTable);
-				assertEquals(1,tapTableIndex.size());
-			}
-			@DisplayName("test getTapTableIndex when when not use pk")
-			@Test
-			void getTapTableIndexTest3(){
-				TapTable tapTable = new TapTable();
-				TapField field = new TapField();
-				field.setName("_id");
-				field.setPrimaryKey(true);
-				field.setPrimaryKeyPos(1);
-				TapField index = new TapField();
-				index.setName("index");
-				tapTable.add(field);
-				tapTable.add(index);
-				TapField name1 = new TapField();
-				name1.setName("name1");
-				tapTable.add(name1);
-				TapField name2=new TapField();
-				name2.setName("name2");
-				tapTable.add(name2);
-				List<String> pks =new ArrayList<>();
-				pks.add("_id");
-				TapIndex tapIndex = new TapIndex();
-				TapIndexField tapIndexField = new TapIndexField();
-				tapIndexField.setFieldAsc(true);
-				tapIndexField.setName("index");
-				tapIndex.indexField(tapIndexField);
-				tapTable.add(tapIndex);
-
-				TapIndex tapIndex1 =new TapIndex();
-				TapIndexField tapIndexNameField1 = new TapIndexField();
-				tapIndexNameField1.setFieldAsc(true);
-				tapIndexNameField1.setName("name1");
-				tapIndex1.indexField(tapIndexNameField1);
-				TapIndexField tapIndexNameField2 = new TapIndexField();
-				tapIndexNameField1.setFieldAsc(false);
-				tapIndexNameField1.setName("name2");
-				tapIndex1.indexField(tapIndexNameField2);
-				tapTable.add(tapIndex1);
-
-				List<String> list = Arrays.asList("index");
-				when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
-				when(hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable)).thenCallRealMethod();
-				List<TapIndex> tapTableIndex = hazelcastTargetPdkDataNode.getTapTableIndex(list, tapTable);
-				assertEquals(1,tapTableIndex.size());
-			}
-			@DisplayName("test getTapTableIndex when when use pk")
-			@Test
-			void getTapTableIndexTest4(){
-				TapTable tapTable = new TapTable();
-				TapField field = new TapField();
-				field.setName("_id");
-				field.setPrimaryKey(true);
-				field.setPrimaryKeyPos(1);
-				TapField index = new TapField();
-				index.setName("index");
-				tapTable.add(field);
-				tapTable.add(index);
-
-				TapIndex tapIndex = new TapIndex();
-				TapIndexField tapIndexField = new TapIndexField();
-				tapIndexField.setFieldAsc(true);
-				tapIndexField.setName("index");
-				tapIndex.indexField(tapIndexField);
-				tapTable.add(tapIndex);
-				List<String> list = Arrays.asList("_id");
-				List<String> pks =new ArrayList<>();
-				pks.add("_id");
-				when(hazelcastTargetPdkDataNode.checkSyncIndexOpen()).thenReturn(true);
-				when(hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable)).thenCallRealMethod();
-				hazelcastTargetPdkDataNode.getTapTableIndex(list,tapTable);
-				assertEquals(1,tapTable.getIndexList().size());
-			}
-		}
+		
 		@Nested
 		class testProcessExactlyOnceWriteCache{
 			@BeforeEach
@@ -692,6 +595,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).tapIndexEquals(any(TapIndex.class), any(TapIndex.class), eq(true));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
@@ -731,6 +635,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).tapIndexEquals(any(TapIndex.class), any(TapIndex.class), eq(true));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
@@ -858,6 +763,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				consumer.accept(tapIndexList);
 				return null;
 			}).when(queryIndexesFunction).query(any(),any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).tapIndexEquals(any(TapIndex.class), any(TapIndex.class), eq(true));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).syncIndex(tableId, tapTable, indices,autoCreateTable);
 			hazelcastTargetPdkDataNode.syncIndex(tableId, tapTable, indices,autoCreateTable);
 			verify(hazelcastTargetPdkDataNode, new Times(0)).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
@@ -1133,6 +1039,8 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		private String tableId;
 		private TapTable tapTable;
 		private boolean createdTable;
+		private List<TapIndex> tapIndices;
+
 		@BeforeEach
 		void beforeEach(){
 			updateConditionFields = new ArrayList<>();
@@ -1155,12 +1063,13 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			ConnectorFunctions functions = mock(ConnectorFunctions.class);
 			when(connectorNode.getConnectorFunctions()).thenReturn(functions);
 			when(functions.getCreateIndexFunction()).thenReturn(mock(CreateIndexFunction.class));
-			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			tapIndices = new ArrayList<>();
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable, tapIndices);
 		}
 		@Test
 		@DisplayName("test createTargetIndex method for build error consumer")
 		void test1(){
-			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable, tapIndices);
 			verify(hazelcastTargetPdkDataNode,new Times(1)).buildErrorConsumer(tableId);
 		}
 		@Test
@@ -1170,7 +1079,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			List<TapIndex> existsIndexes = new ArrayList<>();
 			existsIndexes.add(mock(TapIndex.class));
 			when(hazelcastTargetPdkDataNode.queryExistsIndexes(any(TapTable.class),anyList())).thenReturn(existsIndexes);
-			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable);
+			hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields,createUnique,tableId,tapTable,createdTable, tapIndices);
 			verify(hazelcastTargetPdkDataNode,never()).executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class));
 		}
 		@DisplayName("test createTargetIndex error exception")
@@ -1179,7 +1088,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(Class.class),any(Callable.class),any(CommonUtils.AnyErrorConsumer.class))).thenThrow(new RuntimeException("mock error"));
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
-				hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields, createUnique, tableId, tapTable, createdTable);
+				hazelcastTargetPdkDataNode.createTargetIndex(updateConditionFields, createUnique, tableId, tapTable, createdTable, tapIndices);
 			});
 			assertEquals(tapCodeException.getCode(),TaskTargetProcessorExCode_15.CREATE_INDEX_FAILED);
 		}

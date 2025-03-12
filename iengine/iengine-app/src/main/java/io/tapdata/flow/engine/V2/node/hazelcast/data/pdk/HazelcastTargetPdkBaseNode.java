@@ -27,6 +27,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import com.tapdata.tm.shareCdcTableMetrics.ShareCdcTableMetricsDto;
+import io.tapdata.TargetAllInitialCompleteNotify;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
@@ -40,8 +41,6 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
 import io.tapdata.entity.schema.value.*;
@@ -89,6 +88,7 @@ import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import org.apache.commons.collections.CollectionUtils;
@@ -167,6 +167,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     TaskResourceSupervisorManager taskResourceSupervisorManager = InstanceFactory.bean(TaskResourceSupervisorManager.class);
     private TapCodecsFilterManager codecsFilterManagerForBatchRead;
 	protected boolean syncTargetPartitionTableEnable;
+	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 
     public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -214,10 +215,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected void initSyncProgressMap() {
 		Map<String, SyncProgress> allSyncProgress = foundAllSyncProgress(dataProcessorContext.getTaskDto().getAttrs());
+		String nodeId = getNode().getId();
 		for (Map.Entry<String, SyncProgress> entry : allSyncProgress.entrySet()) {
-			readBatchOffset(entry.getValue());
+			String key = entry.getKey();
+			String[] nodeIds = key.split(",");
+			if (nodeId.equals(nodeIds[1])) {
+				readBatchOffset(entry.getValue());
+				syncProgressMap.put(entry.getKey(), entry.getValue());
+			}
 		}
-		syncProgressMap.putAll(allSyncProgress);
 	}
 
 	protected void initCodecsFilterManager() {
@@ -1046,7 +1052,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     private void handleTapdataCompleteTableSnapshotEvent(TapdataCompleteTableSnapshotEvent tapdataEvent) {
         List<String> nodeIds = tapdataEvent.getNodeIds();
-        if (CollectionUtils.isEmpty(nodeIds) && nodeIds.size() >= 1) {
+        if (CollectionUtils.isEmpty(nodeIds)) {
             return;
         }
         String srcNodeId = nodeIds.get(0);
@@ -1143,10 +1149,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected void handleTapdataCompleteSnapshotEvent() {
         Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
-        Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
-        if (obj instanceof AtomicInteger) {
-            ((AtomicInteger) obj).decrementAndGet();
-        }
+		String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, getNode().getId());
+        Object obj = taskGlobalVariable.get(key);
+		processConnectorAfterSnapshot();
+        if (obj instanceof AtomicInteger&& ((AtomicInteger) obj).decrementAndGet() == 0) {
+			allInitialCompleteNotify();
+		}
         executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();
     }
@@ -1788,4 +1796,38 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             this.currentTapEvent = currentTapEvent;
         }
     }
+
+	protected void allInitialCompleteNotify() {
+		if (null == this.targetAllInitialCompleteNotify) {
+			return;
+		}
+		targetAllInitialCompleteNotify.execute();
+	}
+
+	public void targetAllInitialCompleteNotify(TargetAllInitialCompleteNotify targetAllInitialCompleteNotify) {
+		this.targetAllInitialCompleteNotify = targetAllInitialCompleteNotify;
+	}
+
+	protected void processConnectorAfterSnapshot() {
+		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (null == tapTableMap) {
+			return;
+		}
+		List<CompletableFuture<Void>> completableFutures = new ArrayList<>();
+		Set<String> tableIds = tapTableMap.keySet();
+		for (String tableId : tableIds) {
+			CompletableFuture<Void> completableFuture = CompletableFuture.runAsync(() -> {
+				long startMillis = System.currentTimeMillis();
+				TapTable tapTable = tapTableMap.get(tableId);
+				processConnectorAfterSnapshot(tapTable);
+				obsLogger.trace("Process after table \"{}\" initial sync finished, cost: {} ms", tableId, (System.currentTimeMillis() - startMillis));
+			});
+			completableFutures.add(completableFuture);
+		}
+		CompletableFuture.allOf(completableFutures.toArray(new CompletableFuture[0])).join();
+		obsLogger.info("Process after all table(s) initial sync are finished，table number: {}", tableIds.size());
+	}
+
+	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+	}
 }
