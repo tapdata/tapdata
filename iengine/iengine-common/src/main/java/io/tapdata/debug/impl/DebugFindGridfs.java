@@ -14,7 +14,7 @@ import io.tapdata.debug.DebugContext;
 import io.tapdata.debug.DebugException;
 import io.tapdata.debug.DebugFind;
 import io.tapdata.debug.DebugUtil;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;

@@ -7,7 +7,7 @@ import com.tapdata.entity.values.*;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.ConvertLog;
 import io.tapdata.exception.ConvertException;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;

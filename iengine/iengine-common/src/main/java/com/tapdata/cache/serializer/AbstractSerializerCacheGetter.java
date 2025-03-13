@@ -6,7 +6,7 @@ import com.tapdata.cache.ICacheStats;
 import com.tapdata.cache.ICacheStore;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;

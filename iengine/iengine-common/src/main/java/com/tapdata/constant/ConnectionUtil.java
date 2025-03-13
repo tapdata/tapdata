@@ -6,7 +6,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Query;

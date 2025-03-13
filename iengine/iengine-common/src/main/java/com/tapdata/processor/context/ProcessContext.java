@@ -3,7 +3,7 @@ package com.tapdata.processor.context;
 import com.tapdata.constant.TapdataOffset;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.Job;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.io.Serializable;
 import java.util.Map;

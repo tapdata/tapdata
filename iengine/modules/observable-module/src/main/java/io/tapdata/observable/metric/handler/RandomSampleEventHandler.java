@@ -4,8 +4,8 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.*;

@@ -3,7 +3,7 @@ package io.tapdata.common;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Worker;
 import com.tapdata.mongo.ClientMongoOperator;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 

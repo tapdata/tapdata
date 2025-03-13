@@ -10,8 +10,8 @@ import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.dataflow.SyncPoint;
 import io.tapdata.exception.DataFlowException;
 import io.tapdata.schema.SchemaList;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;

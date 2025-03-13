@@ -30,7 +30,7 @@ import io.tapdata.schema.EmptyTapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
 import java.time.LocalDateTime;

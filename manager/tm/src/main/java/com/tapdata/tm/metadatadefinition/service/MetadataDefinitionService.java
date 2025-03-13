@@ -405,7 +405,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
         List<MetadataDefinitionDto> ldpDirs = findAll(new Query(criteria));
         Map<String, String> oldLdpMap = null;
-        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(ldpDirs)) {
+        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(ldpDirs)) {
             oldLdpMap = ldpDirs.stream().collect(Collectors.toMap(s -> s.getValue(), s -> s.getId().toHexString()));
 
         }

@@ -45,7 +45,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;

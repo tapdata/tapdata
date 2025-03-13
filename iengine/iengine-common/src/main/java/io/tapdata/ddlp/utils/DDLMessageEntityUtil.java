@@ -7,7 +7,7 @@ import com.tapdata.entity.MessageEntity;
 import io.tapdata.ddlp.DDLEvent;
 import io.tapdata.ddlp.events.AbsField;
 import io.tapdata.ddlp.events.AbsStruct;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

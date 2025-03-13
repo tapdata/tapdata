@@ -5,7 +5,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.schema.TapTableMap;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

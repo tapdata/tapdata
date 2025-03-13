@@ -26,7 +26,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

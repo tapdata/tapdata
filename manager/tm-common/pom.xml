@@ -135,7 +135,6 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-collections4</artifactId>
-      <version>4.3</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
@@ -160,7 +159,22 @@
     </dependency>
     <dependency>
       <groupId>cn.hutool</groupId>
-      <artifactId>hutool-all</artifactId>
+      <artifactId>hutool-core</artifactId>
+      <version>5.8.36</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-crypto</artifactId>
+      <version>5.8.36</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-json</artifactId>
+      <version>5.8.36</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-extra</artifactId>
       <version>5.8.36</version>
     </dependency>
 

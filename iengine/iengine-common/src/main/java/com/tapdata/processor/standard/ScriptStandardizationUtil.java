@@ -15,7 +15,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.utils.AppType;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 

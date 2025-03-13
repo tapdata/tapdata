@@ -350,11 +350,11 @@ public class IndicesUtil {
 			return;
 		}
 		final List<String> conditionIndexCol = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
-		if (org.apache.commons.collections.CollectionUtils.isNotEmpty(table.getIndices())) {
+		if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(table.getIndices())) {
 			for (TableIndex index : table.getIndices()) {
-				if (index.isUnique() && org.apache.commons.collections.CollectionUtils.isNotEmpty(index.getColumns())) {
+				if (index.isUnique() && org.apache.commons.collections4.CollectionUtils.isNotEmpty(index.getColumns())) {
 					final List<String> indexColumns = index.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
-					if (org.apache.commons.collections.CollectionUtils.isEqualCollection(conditionIndexCol, indexColumns)) {
+					if (org.apache.commons.collections4.CollectionUtils.isEqualCollection(conditionIndexCol, indexColumns)) {
 						tableIndex.setUnique(true);
 						break;
 					}

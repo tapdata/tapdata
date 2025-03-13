@@ -20,7 +20,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import io.tapdata.annotation.DatabaseTypeAnnotation;
-import org.apache.commons.collections.map.HashedMap;
+import org.apache.commons.collections4.map.HashedMap;
 import org.bson.Document;
 
 import java.util.ArrayList;

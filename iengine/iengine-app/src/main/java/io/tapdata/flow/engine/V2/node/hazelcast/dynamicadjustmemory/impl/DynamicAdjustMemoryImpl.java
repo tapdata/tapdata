@@ -7,8 +7,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryContext;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.math.BigDecimal;

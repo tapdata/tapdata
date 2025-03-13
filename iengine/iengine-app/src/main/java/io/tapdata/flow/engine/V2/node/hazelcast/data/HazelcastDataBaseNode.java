@@ -13,8 +13,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import lombok.SneakyThrows;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -85,7 +85,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	public Map<String,SyncProgress> foundAllSyncProgress(Map<String, Object> attrs) {
 		Map<String, SyncProgress> allSyncProgressMap = new HashMap<>();
 		try {
-			if (org.apache.commons.collections.MapUtils.isEmpty(attrs)) {
+			if (org.apache.commons.collections4.MapUtils.isEmpty(attrs)) {
 				return allSyncProgressMap;
 			}
 			Object syncProgressObj = attrs.get("syncProgress");

@@ -4,7 +4,7 @@ import java.util.*;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.commons.collections.SetUtils;
+import org.apache.commons.collections4.SetUtils;
 import org.springframework.util.StringUtils;
 
 /**

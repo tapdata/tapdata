@@ -22,7 +22,7 @@ import io.tapdata.common.WarningEmailEventExecutor;
 import io.tapdata.common.WarningMaker;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.exception.TmUnavailableException;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;

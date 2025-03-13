@@ -110,7 +110,7 @@ import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;

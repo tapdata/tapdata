@@ -3,7 +3,7 @@ package com.tapdata.entity;
 import com.tapdata.constant.ListUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.processor.context.ProcessContext;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 
