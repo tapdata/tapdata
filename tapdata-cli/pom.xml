@@ -19,7 +19,6 @@
 
         <graalvm.py.group0>org</graalvm.py.group0>
         <graalvm.py.group1>python</graalvm.py.group1>
-        <graalvm.py.artifactId>jython-standalone</graalvm.py.artifactId>
         <graalvm.py.version>2.7.2</graalvm.py.version>
     </properties>
     <!--<dependencyManagement>-->

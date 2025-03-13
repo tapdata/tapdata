@@ -767,21 +767,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
-			case PYTHON_PROCESS:
-			case MIGRATE_PYTHON_PROCESS:
-				hazelcastNode = new HazelcastPythonProcessNode(
-						DataProcessorContext.newBuilder()
-								.withTaskDto(taskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withCacheService(cacheService)
-								.withConfigurationCenter(config)
-								.withTapTableMap(tapTableMap)
-								.withTaskConfig(taskConfig)
-								.build()
-				);
-				break;
 			case UNWIND_PROCESS:
 				hazelcastNode = new HazelcastUnwindProcessNode(
 						DataProcessorContext.newBuilder()
