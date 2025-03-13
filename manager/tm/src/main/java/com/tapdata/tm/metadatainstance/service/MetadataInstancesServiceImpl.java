@@ -260,6 +260,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         if (CollectionUtils.isNotEmpty(metadataInstancesDtoList)) {
             Map<String, List<String>> timeStampFieldMap = new HashMap<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
+                MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
                 if ("Sybase".equalsIgnoreCase(metadataInstancesDto.getSource().getDatabase_type())) {
                     List<String> timestampFieldName = metadataInstancesDto.getFields().stream().filter(field -> {
                         return "timestamp".equalsIgnoreCase(field.getDataType());
