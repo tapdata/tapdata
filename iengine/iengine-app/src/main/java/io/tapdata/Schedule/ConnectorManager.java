@@ -554,7 +554,7 @@ public class ConnectorManager {
 			if (StringUtils.isNotBlank(mongoURI)) {
 				MongoClientSettings.Builder builder = MongoClientSettings.builder();
 				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-
+				builder.applyConnectionString(new ConnectionString(mongoURI));
 				if (ssl) {
 					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
 					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
@@ -583,6 +583,7 @@ public class ConnectorManager {
 			if (StringUtils.isNotBlank(mongoURI)) {
 				MongoClientSettings.Builder builder = MongoClientSettings.builder();
 				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+				builder.applyConnectionString(new ConnectionString(mongoURI));
 
 				if (ssl) {
 					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
