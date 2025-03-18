@@ -355,7 +355,10 @@ public class SettingsServiceImpl implements SettingsService {
             throw new BizException("read.version.file.failed", e);
         }
         String appVersion = (String) map.get("app_version");
+        if (null == appVersion) {
+            appVersion = defaultVersion;
+        }
         log.info("app version: {}", appVersion);
-        return appVersion != null ? appVersion : defaultVersion;
+        return appVersion;
     }
 }
