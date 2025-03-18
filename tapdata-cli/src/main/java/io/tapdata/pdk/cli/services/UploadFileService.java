@@ -8,6 +8,7 @@ import com.tapdata.tm.sdk.auth.Signer;
 import com.tapdata.tm.sdk.util.Base64Util;
 import com.tapdata.tm.sdk.util.IOUtil;
 import com.tapdata.tm.sdk.util.SignUtil;
+import io.tapdata.encryptor.JarEncryptor;
 import io.tapdata.pdk.cli.utils.HttpRequest;
 import io.tapdata.pdk.cli.utils.OkHttpUtils;
 import io.tapdata.pdk.cli.utils.PrintUtil;
@@ -38,7 +39,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @Slf4j
 public class UploadFileService {
 
-  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk, PrintUtil printUtil) {
+  public static void upload(Map<String, InputStream> inputStreamMap, File file, List<String> jsons, boolean latest, String hostAndPort, String accessCode, String ak, String sk, PrintUtil printUtil) throws Exception {
 
     boolean cloud = StringUtils.isNotBlank(ak);
 
@@ -220,6 +221,7 @@ public class UploadFileService {
       printUtil.print(PrintUtil.TYPE.INFO, String.format("* Register Connector: %s Completed", file.getName()));
     }
     printUtil.print(PrintUtil.TYPE.WARN, "result:" + result + ", name:" + file.getName() + ", msg:" + msg + ", response:" + response);
+    JarEncryptor.encryptJar(file.getPath());
   }
 
   public static RequestBody create(final MediaType mediaType, final InputStream inputStream) {

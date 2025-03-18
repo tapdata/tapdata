@@ -729,7 +729,7 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException("Task.nodeRefresh", e);
             }
             String batchOffset = (String) resultMap.get("batchOffset");
-            byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset.replace("\r\n", ""));
+            byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
             Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
             Set<String> tables = tablesMap.keySet();
             LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
@@ -4137,7 +4137,7 @@ public class TaskServiceImpl extends TaskService{
                 }
                 String batchOffset = (String) resultMap.get("batchOffset");
                 if (StringUtils.isBlank(batchOffset)) return;
-                byte[] bytes = java.util.Base64.getEncoder().encode(batchOffset.getBytes(StandardCharsets.UTF_8));
+                byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
                 Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
                 Iterator<Map.Entry<String, HashMap>> iterator = tablesMap.entrySet().iterator();
                 while (iterator.hasNext()) {
