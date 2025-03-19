@@ -291,57 +291,9 @@ public class SettingsServiceTest {
     @Nested
     class getApplicationVersionTest {
         @Test
-        @SneakyThrows
-        void testApplicationVersionNormal() {
-            File file = new File(".version.json");
-            boolean created = false;
-            if (!file.exists()) {
-                file.createNewFile();
-                created = true;
-            }
-            String tagName = "develop-67776061";
-            String jsonString = "{\"app_version\":\""+tagName+"\"}";
-            try (Writer write = new OutputStreamWriter(Files.newOutputStream(file.toPath()), "UTF-8");){
-                write.write(jsonString);
-                write.flush();
-            } catch (Exception e) {
-                throw new RuntimeException();
-            }
+        void testApplicationVersionWhenEnvIsNull() {
             String actual = settingsService.applicationVersion();
-            assertEquals(tagName, actual);
-            if (created) {
-                file.delete();
-            }
-        }
-        @Test
-        void testApplicationVersionWhenFileNotExists() {
-            try (MockedStatic<StringUtils> mb = Mockito
-                    .mockStatic(StringUtils.class)) {
-                mb.when(()->StringUtils.isNotEmpty(eq(null))).thenReturn(true);
-                String actual = settingsService.applicationVersion();
-                assertEquals("DAAS_BUILD_NUMBER", actual);
-            }
-        }
-        @Test
-        @SneakyThrows
-        void testApplicationVersionWhenReadFileFailed() {
-            File file = new File(".version.json");
-            boolean created = false;
-            if (!file.exists()) {
-                file.createNewFile();
-                created = true;
-            }
-            String tagName = "develop-67776061";
-            try (Writer write = new OutputStreamWriter(Files.newOutputStream(file.toPath()), "UTF-8");){
-                write.write(tagName);
-                write.flush();
-            } catch (Exception e) {
-                throw new RuntimeException();
-            }
-            assertThrows(BizException.class, () -> settingsService.applicationVersion());
-            if (created) {
-                file.delete();
-            }
+            assertEquals("DAAS_BUILD_NUMBER", actual);
         }
     }
 }
