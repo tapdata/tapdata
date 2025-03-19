@@ -376,32 +376,36 @@ public class ScriptUtil {
 					if (javaScriptFunction.isJar() && AppType.currentType().isDaas()) {
 						//定义类加载器
 						String fileId = javaScriptFunction.getFileId();
-						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
-						if (Files.notExists(filePath)) {
-							if (clientMongoOperator instanceof HttpClientMongoOperator) {
-								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
-								if (null == file) {
-									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("file not found，fileId:%s,filePath:%s",fileId,filePath));
-								}
-							} else {
-								GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-								try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
-									if (Files.notExists(filePath.getParent())) {
-										Files.createDirectories(filePath.getParent());
+						String workingDir = System.getenv("TAPDATA_WORK_DIR");
+						if(StringUtils.isNotBlank(workingDir)){
+							final Path filePath = Paths.get(workingDir, "lib", fileId);
+							if (Files.notExists(filePath)) {
+								if (clientMongoOperator instanceof HttpClientMongoOperator) {
+									File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
+									if (null == file) {
+										throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("file not found，fileId:%s,filePath:%s",fileId,filePath));
 									}
-									Files.createFile(filePath);
-									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-								} catch (Exception e) {
-									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
+								} else {
+									GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
+									try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
+										if (Files.notExists(filePath.getParent())) {
+											Files.createDirectories(filePath.getParent());
+										}
+										Files.createFile(filePath);
+										Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+									} catch (Exception e) {
+										throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
+									}
 								}
 							}
+							try {
+								URL url = filePath.toUri().toURL();
+								urlList.add(url);
+							} catch (Exception e) {
+								throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath), e);
+							}
 						}
-						try {
-							URL url = filePath.toUri().toURL();
-							urlList.add(url);
-						} catch (Exception e) {
-							throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath), e);
-						}
+
                     }
 				}
 			}
