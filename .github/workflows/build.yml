@@ -246,7 +246,7 @@ jobs:
         run: |
           rm -rf tapdata-enterprise-web
           git clone -b ${{ inputs.frontend_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-web.git
-          cd tapdata-web && git fetch --tags
+          cd tapdata-web && git fetch --tags && cd ..
           mkdir -p tapdata-enterprise-web
           rsync -av tapdata-web/ tapdata-enterprise-web/
       - name: Get Frontend Version
