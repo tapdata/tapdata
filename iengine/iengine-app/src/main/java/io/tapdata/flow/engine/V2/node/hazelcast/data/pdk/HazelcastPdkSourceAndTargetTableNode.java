@@ -2,14 +2,18 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataPreviewCompleteEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.exception.SourceAndTargetNodeExCode_38;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -23,26 +27,32 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	private static final String TAG = HazelcastPdkSourceAndTargetTableNode.class.getSimpleName();
-	private final HazelcastSourcePdkDataNode source;
-	private final HazelcastTargetPdkDataNode target;
+	private HazelcastSourcePdkDataNode source;
+	private HazelcastTargetPdkDataNode target;
 	private final AtomicBoolean sourceStartFlag = new AtomicBoolean(false);
-	private final ScheduledExecutorService callCompleteMethodThreadPool;
+	private ScheduledExecutorService callCompleteMethodThreadPool;
 
 	public HazelcastPdkSourceAndTargetTableNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
-		this.callCompleteMethodThreadPool = new ScheduledThreadPoolExecutor(1);
-		this.target = new HazelcastTargetPdkDataNode(dataProcessorContext);
+		if (dataProcessorContext.getTaskDto().isNormalTask()) {
+			dataProcessorContext.setSourceThreadGroupName(String.join("_", ConnectorOnTaskThreadGroup.class.getSimpleName(), "S", getNode().getId(), getNode().getName()));
+			dataProcessorContext.setTargetThreadGroupName(String.join("_", ConnectorOnTaskThreadGroup.class.getSimpleName(), "T", getNode().getId(), getNode().getName()));
+			this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
+			this.target = new HazelcastTargetPdkDataNode(dataProcessorContext);
+			this.callCompleteMethodThreadPool = new ScheduledThreadPoolExecutor(1);
+		}
 	}
 
 	@Override
 	public void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
-		startTarget(context);
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		boolean sourceHaveSyncProgress = isSourceHaveSyncProgress(taskDto);
-		if (TaskDto.TYPE_CDC.equals(taskDto.getType()) || sourceHaveSyncProgress) {
-			startSource(context);
+		if (taskDto.isNormalTask()) {
+			startTarget(context);
+			boolean sourceHaveSyncProgress = isSourceHaveSyncProgress(taskDto);
+			if (TaskDto.TYPE_CDC.equals(taskDto.getType()) || sourceHaveSyncProgress) {
+				startSource(context);
+			}
 		}
 	}
 
@@ -126,7 +136,20 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
-		this.target.process(ordinal, inbox);
+		if (null != this.target) {
+			this.target.process(ordinal, inbox);
+		} else {
+			List<TapdataEvent> tapdataEvents = new ArrayList<>();
+			int drainTo = inbox.drainTo(tapdataEvents);
+			if (drainTo > 0) {
+				tapdataEvents.forEach(tapdataEvent -> {
+					offer(tapdataEvent);
+					if (tapdataEvent instanceof TapdataPreviewCompleteEvent) {
+						this.running.set(false);
+					}
+				});
+			}
+		}
 	}
 
 	public void targetAllInitialCompleteNotifyExecute() {

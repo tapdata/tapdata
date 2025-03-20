@@ -58,10 +58,7 @@ import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MetadataUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SchemaTransformUtils;
+import com.tapdata.tm.utils.*;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.mapping.TypeExprResult;
 import io.tapdata.entity.mapping.type.TapStringMapping;
@@ -100,18 +97,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -164,6 +150,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     public static final String TABLE_COMMENT = "tableComment";
     public static final String PARTITION_MASTER_TABLE_ID = "partitionMasterTableId";
     public static final int UPSERT_BATCH_SIZE = 100;
+    private static final String NO_PDK_HASH = "_no_pk_hash";
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -271,12 +258,51 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         List<MetadataInstancesVo> metadataInstancesVoList = new ArrayList<>();
 
         if (CollectionUtils.isNotEmpty(metadataInstancesDtoList)) {
+            Map<String, List<String>> timeStampFieldMap = new HashMap<>();
             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtoList) {
+                MetadataInstancesDto.sortField(metadataInstancesDto.getFields());
+                if ("Sybase".equalsIgnoreCase(metadataInstancesDto.getSource().getDatabase_type())) {
+                    List<String> timestampFieldName = metadataInstancesDto.getFields().stream().filter(field -> {
+                        return "timestamp".equalsIgnoreCase(field.getDataType());
+                    }).map(Field::getFieldName).filter(StringUtils::isNotBlank).collect(Collectors.toList());
+                    timeStampFieldMap.put(metadataInstancesDto.getOriginalName(), timestampFieldName);
+                }
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
+
+                if (CollectionUtils.isNotEmpty(primaryKeys)) {
+                    metadataInstancesVo.setSortColumns(primaryKeys);
+                } else if (CollectionUtils.isNotEmpty(metadataInstancesDto.getIndices()) && metadataInstancesDto.getIndices().stream().anyMatch(TableIndex::isUnique)) {
+                    metadataInstancesDto.getIndices().stream().filter(TableIndex::isUnique).findAny()
+                            .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList())));
+                } else {
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().filter(v -> Boolean.FALSE.equals(v.getIsNullable())).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList()));
+                }
+                if (CollectionUtils.isEmpty(metadataInstancesVo.getSortColumns())) {
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList()));
+                }
+                List<Field> fields = metadataInstancesDto.getFields().stream().filter(tapField -> {
+                    return StringUtils.isNotBlank(tapField.getFieldName()) && !NO_PDK_HASH.equalsIgnoreCase(tapField.getFieldName());
+                }).collect(Collectors.toList());
+                metadataInstancesVo.setFields(fields);
                 metadataInstancesVoList.add(metadataInstancesVo);
             }
+            if (CollectionUtils.isNotEmpty(metadataInstancesVoList)){
+                for (MetadataInstancesVo metadataInstancesVo : metadataInstancesVoList) {
+                    List<String> timestampFiledName = timeStampFieldMap.get(metadataInstancesVo.getOriginalName());
+                    if (CollectionUtils.isNotEmpty(timestampFiledName)) {
+                        List<String> sortColumns = metadataInstancesVo.getSortColumns();
+                        Iterator<String> sortColumnsIterator = sortColumns.iterator();
+                        while (sortColumnsIterator.hasNext()) {
+                            String columnName = sortColumnsIterator.next();
+                            if (timestampFiledName.contains(columnName)) {
+                                sortColumnsIterator.remove();
+                            }
+                        }
+                    }
+                }
+            }
         }
-
         return metadataInstancesVoList;
     }
 

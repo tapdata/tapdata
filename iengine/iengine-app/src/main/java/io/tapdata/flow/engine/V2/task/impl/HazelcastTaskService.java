@@ -380,8 +380,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						TaskPreviewInstance taskPreviewInstance = TaskPreviewService.taskPreviewInstance(taskDto);
 						Map<String, PreviewConnectionInfo> nodeConnectionInfoMap = taskPreviewInstance.getNodeConnectionInfoMap();
 						PreviewConnectionInfo previewConnectionInfo = nodeConnectionInfoMap.get(((DataParentNode<?>) node).getConnectionId());
-						connection = previewConnectionInfo.getConnections();
-						databaseType = previewConnectionInfo.getDatabaseType();
+						if (null == previewConnectionInfo) {
+							connection = getConnection(((DataParentNode<?>) node).getConnectionId());
+							databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+						} else {
+							connection = previewConnectionInfo.getConnections();
+							databaseType = previewConnectionInfo.getDatabaseType();
+						}
 					} else {
 						connection = getConnection(((DataParentNode<?>) node).getConnectionId());
 						databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
@@ -946,6 +951,19 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 						.build();
 				hazelcastNode = new HazelcastPreviewTargetNode(dataProcessorContext);
 				break;
+            case HUAWEI_DRS_KAFKA_CONVERTOR:
+                hazelcastNode = new HazelcastHuaweiDrsKafkaConvertorNode(
+                    DataProcessorContext.newBuilder()
+                        .withTaskDto(taskDto)
+                        .withNode(node)
+                        .withNodes(nodes)
+                        .withEdges(edges)
+                        .withConfigurationCenter(config)
+                        .withTapTableMap(tapTableMap)
+                        .withTaskConfig(taskConfig)
+                        .build()
+                );
+                break;
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()

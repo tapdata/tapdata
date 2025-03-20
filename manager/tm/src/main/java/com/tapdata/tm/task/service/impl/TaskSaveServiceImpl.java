@@ -157,17 +157,15 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                         if (CollectionUtils.isNotEmpty(fields)) {
                                             databaseNode.getUpdateConditionFieldMap().put(schema.getName(), fields);
                                         } else {
-                                            List<String> columnList = schema.getIndices() == null ? null : schema.getIndices().stream().filter(TableIndex::isUnique)
-                                                    .flatMap(idc -> idc.getColumns().stream())
-                                                    .map(TableIndexColumn::getColumnName)
-                                                    .collect(Collectors.toList());
-                                            if (CollectionUtils.isNotEmpty(columnList)) {
-                                                databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
+                                            TableIndex tableIndex = schema.getIndices() == null ? null : schema.getIndices().stream().filter(TableIndex::isUnique).findFirst().orElse(null);
+                                            List<String> columnList;
+                                            if (null != tableIndex) {
+                                                columnList = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
                                             } else {
                                                 columnList = NoPrimaryKeyVirtualField.getVirtualHashFieldNames(schema);
-                                                if (CollectionUtils.isNotEmpty(columnList)) {
-                                                    databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
-                                                }
+                                            }
+                                            if (CollectionUtils.isNotEmpty(columnList)) {
+                                                databaseNode.getUpdateConditionFieldMap().put(schema.getName(), columnList);
                                             }
                                         }
                                     });

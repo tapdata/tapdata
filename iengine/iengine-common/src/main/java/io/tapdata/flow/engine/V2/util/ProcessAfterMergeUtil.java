@@ -9,7 +9,6 @@ import org.springframework.beans.BeanUtils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * @author samuel
@@ -19,7 +18,7 @@ import java.util.UUID;
 public class ProcessAfterMergeUtil {
 
 	public static final String NODE_ID_SUFFIX = "tpv";
-	public static final String TABLE_NAME_PREFIX = "process_after_merge_";
+	public static final String TABLE_NAME_PREFIX = "process_after_merge";
 
 	public static List<TableNode> handleDagWhenProcessAfterMerge(TaskDto taskDto) {
 		com.tapdata.tm.commons.dag.DAG tmDag = taskDto.getDag();
@@ -54,7 +53,7 @@ public class ProcessAfterMergeUtil {
 					BeanUtils.copyProperties(targetTableNode, tableNode);
 					tableNode.setId(String.join("_", tableNode.getId(), NODE_ID_SUFFIX));
 					String tableName = tableNode.getTableName();
-					tableName = TABLE_NAME_PREFIX + String.join("_", tableName, tableNode.getId());
+					tableName = String.join("_", TABLE_NAME_PREFIX, tableName, tableNode.getId());
 					tableNode.setName(tableName);
 					tableNode.setTableName(tableName);
 					tableNode.setSourceAndTarget(true);

@@ -29,5 +29,6 @@ public class MetadataInstancesVo extends BaseVo {
 
     private String database;
 
+    private List<String> sortColumns;
 
 }

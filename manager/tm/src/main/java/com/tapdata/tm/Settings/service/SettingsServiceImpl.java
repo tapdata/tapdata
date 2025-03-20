@@ -356,23 +356,20 @@ public class SettingsServiceImpl implements SettingsService {
 
     public String applicationVersion() {
         String defaultVersion = "DAAS_BUILD_NUMBER";
-        //从文件读取
-        String fullPath = ".version.json";
-        if(StringUtils.isNotEmpty(System.getenv("TAPDATA_WORK_DIR"))){
-            fullPath = System.getenv("TAPDATA_WORK_DIR") + File.separator + fullPath;
-        }
+        //从环境变量读取
+        String tapdataVersion = System.getenv("tapdataVersion");
         ObjectMapper objectMapper = new ObjectMapper();
-        File file = new File(fullPath);
-        if (!file.exists()) {
-            return defaultVersion;
-        }
-        Map<String, Object> map = null;
+        Map<String, Object> map;
         try {
-            map = objectMapper.readValue(file, Map.class);
+            map = objectMapper.readValue(tapdataVersion != null ? tapdataVersion : "{}", Map.class);
         } catch (IOException e) {
             throw new BizException("read.version.file.failed", e);
         }
         String appVersion = (String) map.get("app_version");
-        return appVersion != null ? appVersion : defaultVersion;
+        if (null == appVersion) {
+            appVersion = defaultVersion;
+        }
+        log.info("app version: {}", appVersion);
+        return appVersion;
     }
 }
