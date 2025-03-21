@@ -24,6 +24,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -90,8 +91,9 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
 	protected void handleReferenceForeignKeyConstraints(Schema schema, ApplyConfig apply, IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator) {
 		List<TapConstraint> constraints = schema.getConstraints();
+		CopyOnWriteArrayList<TapConstraint> tapConstraints = new CopyOnWriteArrayList<>(constraints);
 		if (CollectionUtils.isNotEmpty(constraints)) {
-			for (TapConstraint constraint : constraints) {
+			for (TapConstraint constraint : tapConstraints) {
 				String referencesTableName = constraint.getReferencesTableName();
 				List<TapConstraintMapping> mappingFields = constraint.getMappingFields();
 				for (TapConstraintMapping mappingField : mappingFields) {
@@ -100,6 +102,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 				}
 			}
 		}
+		schema.setConstraints(new ArrayList<>(tapConstraints));
 	}
 
 	protected void handleForeignKeyConstraints(Schema schema, Field field, ApplyConfig apply, String tableName,

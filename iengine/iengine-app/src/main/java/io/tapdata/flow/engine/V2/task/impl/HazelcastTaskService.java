@@ -1133,7 +1133,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> sourceNodes = dag.getSourceNodes();
 		List<Node> targetNodes = dag.getTargetNodes();
-		if (null == sourceNodes || null == targetNodes || sourceNodes.size() > 1 || targetNodes.size() > 1) {
+		if (CollectionUtils.isEmpty(sourceNodes) || CollectionUtils.isEmpty(targetNodes) || sourceNodes.size() > 1 || targetNodes.size() > 1) {
 			return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
 		}
 		Node<?> sourceNode = sourceNodes.get(0);
