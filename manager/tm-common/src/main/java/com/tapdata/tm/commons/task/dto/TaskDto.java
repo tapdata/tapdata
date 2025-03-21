@@ -52,6 +52,7 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     public static final String RETRY_STATUS_RUNNING = "Retrying";
     public static final String RETRY_STATUS_NONE = "";
+    public static final String SYNC_TYPE_PREVIEW = "preview";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
