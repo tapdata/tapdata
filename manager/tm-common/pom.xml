@@ -386,21 +386,6 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <groupId>org.owasp</groupId>
-        <artifactId>dependency-check-maven</artifactId>
-        <version>12.1.0</version>
-        <configuration>
-          <autoUpdate>true</autoUpdate>
-        </configuration>
-        <executions>
-          <execution>
-            <goals>
-              <goal>check</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
     </plugins>
   </build>
   <repositories>
