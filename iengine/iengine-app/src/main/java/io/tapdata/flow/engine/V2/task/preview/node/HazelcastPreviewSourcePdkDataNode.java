@@ -367,11 +367,6 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 	}
 
 	@Override
-	protected boolean isRunning() {
-		return super.isRunning();
-	}
-
-	@Override
 	protected boolean offer(TapdataEvent dataEvent) {
 		return super.offer(dataEvent);
 	}
