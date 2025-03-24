@@ -293,7 +293,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		JetDag jetDag = task2HazelcastDAG(taskDto, deduce);
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+		Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
 	}
 

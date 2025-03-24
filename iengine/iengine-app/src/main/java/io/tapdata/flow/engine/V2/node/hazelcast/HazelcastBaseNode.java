@@ -133,7 +133,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
 
-	public AtomicBoolean running = new AtomicBoolean(false);
+	public AtomicBoolean running = new AtomicBoolean(true);
 	protected TapCodecsFilterManager codecsFilterManager;
 
 	/**
@@ -201,7 +201,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			this.jetContext = context;
 			super.init(context);
-			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
 				this.clientMongoOperator = initClientMongoOperator();
