@@ -360,7 +360,7 @@ public class ScriptUtil {
 		}
 		buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
 		buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-		buildInMethod.append("var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
+		buildInMethod.append("var httpUtil = Java.type(\"com.tapdata.http.HttpUtil\");\n");
 		buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
 		buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
 
@@ -571,7 +571,7 @@ public class ScriptUtil {
 				"import com.tapdata.constant.MapUtil as MapUtils\n" +
 				"import com.tapdata.constant.NetworkUtil as networkUtil\n" +
 				"import com.tapdata.processor.util.CustomRest as rest\n" +
-				"import cn.hutool.http.HttpUtil as httpUtil\n" +
+				"import com.tapdata.http.HttpUtil as httpUtil\n" +
 				"import com.tapdata.processor.util.CustomTcp as tcp\n" +
 				"import com.tapdata.processor.util.CustomMongodb as mongo\n" +
 

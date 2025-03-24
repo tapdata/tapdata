@@ -150,7 +150,7 @@ public class ScriptStandardizationUtil {
         }
         buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
         buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-        buildInMethod.append("var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
+        buildInMethod.append("var httpUtil = Java.type(\"com.tapdata.http.HttpUtil\");\n");
         buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
         buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
 
