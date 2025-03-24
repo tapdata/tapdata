@@ -24,6 +24,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
@@ -117,6 +118,9 @@ public class AuthorizationConfig {
                         .requestMatchers("/oauth/**").authenticated()
                         .anyRequest().permitAll())
                 .formLogin(Customizer.withDefaults())
+                .headers(headers -> {
+                    headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+                })
                 .csrf(AbstractHttpConfigurer::disable);
         return http.build();
     }
