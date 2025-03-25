@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.OperationType;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
@@ -185,5 +187,52 @@ public class TapEventUtil {
 			baseEvent.setTableId(baseEvent.getPartitionMasterTableId());
 		}
 		baseEvent.setPartitionMasterTableId(tableId);
+	}
+	public static void flushBeforeIfNeed (Object processedBefore, TapEvent returnTapEvent, Integer index) {
+		if (null == processedBefore) return;
+		if (processedBefore instanceof List && null != index) {
+			if (index >= ((List<?>) processedBefore).size()) return;
+			Object beforeMap = ((List<?>) processedBefore).get(index);
+			if (beforeMap instanceof Map) {
+				Map<String, Object> recordMap = new HashMap<>();
+				MapUtil.copyToNewMap((Map<String, Object>) beforeMap, recordMap);
+				TapEventUtil.setBefore(returnTapEvent, recordMap);
+			}
+		} else if (processedBefore instanceof Map) {
+			Map<String, Object> recordMap = new HashMap<>();
+			MapUtil.copyToNewMap((Map<String, Object>) processedBefore, recordMap);
+			TapEventUtil.setBefore(returnTapEvent, recordMap);
+		}
+	}
+	public static TapEvent getTapEvent(TapEvent tapEvent, String op) {
+		if (StringUtils.equals(TapEventUtil.getOp(tapEvent), op)) {
+			return tapEvent;
+		}
+		OperationType operationType = OperationType.fromOp(op);
+		TapEvent result;
+
+		switch (operationType) {
+			case INSERT:
+				result = TapInsertRecordEvent.create();
+				break;
+			case UPDATE:
+				result = TapUpdateRecordEvent.create();
+				break;
+			case DELETE:
+				result = TapDeleteRecordEvent.create();
+				break;
+			default:
+				throw new IllegalArgumentException("Unsupported operation type: " + op);
+		}
+		tapEvent.clone(result);
+
+		return result;
+	}
+	public static void setRecordMap(TapEvent tapEvent, String op, Map<String, Object> recordMap) {
+		if (ConnectorConstant.MESSAGE_OPERATION_DELETE.equals(op)) {
+			TapEventUtil.setBefore(tapEvent, recordMap);
+		} else {
+			TapEventUtil.setAfter(tapEvent, recordMap);
+		}
 	}
 }

@@ -7,6 +7,7 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
@@ -15,7 +16,10 @@ import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
@@ -39,7 +43,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
@@ -129,9 +132,14 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		boolean isTapRecordEvent = true;
 		Map<String, Object> after;
 		Map<String, Object> before;
+		Map<String,Object> contextMap=new HashMap<>();
+		String op = TapEventUtil.getOp(tapEvent);
 		if (tapEvent instanceof TapRecordEvent) {
 			after = TapEventUtil.getAfter(tapEvent);
 			before = TapEventUtil.getBefore(tapEvent);
+			String tableId = TapEventUtil.getTableId(tapEvent);
+			contextMap.put("op",op);
+			contextMap.put("tableName", tableId);
 		} else {
 			messageEntity = tapdataEvent.getMessageEntity();
 			after = messageEntity.getAfter();
@@ -144,7 +152,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		Map<String, Object> record = null == after ? before : after;
 		isAfter = null != after;
 		((ScriptEngine) engine).put("log", logger);
-
+		((ScriptEngine) engine).put("context", contextMap);
 		Object result;
 		try {
 			result = engine.invokeFunction(FUNCTION_NAME, record, ((CustomProcessorNode) node).getForm());
@@ -153,29 +161,44 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		} catch (NoSuchMethodException e) {
 			throw new RuntimeException("Execute script error, cannot found function " + FUNCTION_NAME);
 		}
+
 		if (null == result) {
-			return;
-		}
-		Map<String, Object> newMap = new HashMap<>();
-		MapUtil.copyToNewMap((Map<String, Object>) result, newMap);
-		if (isAfter) {
-			after.clear();
-			after.putAll(newMap);
-			if (isTapRecordEvent) {
-				TapEventUtil.setAfter(tapEvent, after);
-			} else {
-				messageEntity.setAfter(after);
+			if (logger.isDebugEnabled()) {
+				logger.debug("The event does not need to continue to be processed {}", tapdataEvent);
 			}
 		} else {
-			before.clear();
-			before.putAll(newMap);
-			if (isTapRecordEvent) {
-				TapEventUtil.setBefore(tapEvent, before);
+			if (StringUtils.isNotEmpty((CharSequence) contextMap.get("op"))) {
+				op = (String) contextMap.get("op");
+			}
+			contextMap.clear();
+			Map<String, Object> newMap = new HashMap<>();
+			MapUtil.copyToNewMap((Map<String, Object>) result, newMap);
+			if (isAfter) {
+				after.clear();
+				after.putAll(newMap);
+				if (isTapRecordEvent) {
+					TapEvent returnTapEvent = TapEventUtil.getTapEvent(tapEvent, op);
+					TapEventUtil.setRecordMap(returnTapEvent, op, newMap);
+					TapEventUtil.flushBeforeIfNeed(result, returnTapEvent, null);
+					tapdataEvent.setTapEvent(returnTapEvent);
+				} else {
+					messageEntity.setAfter(after);
+				}
 			} else {
-				messageEntity.setBefore(before);
+				before.clear();
+				before.putAll(newMap);
+				if (isTapRecordEvent) {
+					TapEvent returnTapEvent = TapEventUtil.getTapEvent(tapEvent, op);
+					TapEventUtil.setRecordMap(returnTapEvent, op, newMap);
+					TapEventUtil.flushBeforeIfNeed(result, returnTapEvent, null);
+					tapdataEvent.setTapEvent(returnTapEvent);
+				} else {
+					messageEntity.setBefore(before);
+				}
 			}
 		}
 	}
+
 
 	@Override
 	protected void doClose() throws TapCodeException {
