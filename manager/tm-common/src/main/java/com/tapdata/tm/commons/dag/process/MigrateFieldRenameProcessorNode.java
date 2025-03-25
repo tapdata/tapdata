@@ -91,8 +91,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 
 	protected void handleReferenceForeignKeyConstraints(Schema schema, ApplyConfig apply, IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator) {
 		List<TapConstraint> constraints = schema.getConstraints();
-		CopyOnWriteArrayList<TapConstraint> tapConstraints = new CopyOnWriteArrayList<>(constraints);
 		if (CollectionUtils.isNotEmpty(constraints)) {
+			CopyOnWriteArrayList<TapConstraint> tapConstraints = new CopyOnWriteArrayList<>(constraints);
 			for (TapConstraint constraint : tapConstraints) {
 				String referencesTableName = constraint.getReferencesTableName();
 				List<TapConstraintMapping> mappingFields = constraint.getMappingFields();
@@ -101,8 +101,8 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 					apply.apply(referencesTableName, referenceKey, constraints, referenceForeignKeyConstraintIOperator);
 				}
 			}
+			schema.setConstraints(new ArrayList<>(tapConstraints));
 		}
-		schema.setConstraints(new ArrayList<>(tapConstraints));
 	}
 
 	protected void handleForeignKeyConstraints(Schema schema, Field field, ApplyConfig apply, String tableName,
