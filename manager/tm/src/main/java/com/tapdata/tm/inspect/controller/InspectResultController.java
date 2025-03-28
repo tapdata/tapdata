@@ -135,7 +135,13 @@ public class InspectResultController extends BaseController {
         }
         Object inspectIdObject = filter.getWhere().get("inspect_id");
         if (inspectIdObject instanceof Map) {
-            filter.setWhere(Where.where("inspect_id", inspectIdObject));
+            List<String> idList = filterViewPermissionNotInspectId(filter.getWhere());
+            if (idList.isEmpty()) return success(new Page<>(0, Lists.newArrayList()));
+            Where w = filter.getWhere();
+            Map<String, Object> in = new HashMap<>();
+            w.put("inspect_id", in);
+            in.put("$in", idList);
+            filter.setWhere(w);
         } else {
             String inspectId = String.valueOf(inspectIdObject);
             if (null == MongoUtils.toObjectId(inspectId)) {
@@ -151,19 +157,17 @@ public class InspectResultController extends BaseController {
     }
 
     protected List<String> filterViewPermissionNotInspectId(Where where) {
-        List<InspectResultDto> all = inspectResultService.findAll(Where.where("inspect_id", where.get("inspect_id")));
-        if (null == all) return new ArrayList<>();
+        InspectResultDto dto = inspectResultService.findOne(Query.query(Criteria.where("inspect_id").is(where.get("inspect_id"))));
+        if (null == dto) return new ArrayList<>();
         Set<String> ids = new HashSet<>();
-        all.stream().filter(Objects::nonNull).forEach(dto -> {
-            try {
-                String inspectId = dto.getInspect_id();
-                //过滤掉没有权限校验任务
-                checkInspect(inspectId, DataPermissionActionEnums.View);
-                ids.add(inspectId);
-            } catch (Exception e) {
-                log.warn(e.getMessage());
-            }
-        });
+        try {
+            String inspectId = dto.getInspect_id();
+            //过滤掉没有权限校验任务
+            checkInspect(inspectId, DataPermissionActionEnums.View);
+            ids.add(inspectId);
+        } catch (Exception e) {
+            log.warn(e.getMessage());
+        }
         return new ArrayList<>(ids);
     }
 
