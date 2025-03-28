@@ -178,14 +178,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          update-alternatives --set java /usr/java/jdk-11.0.23/bin/java
-          export JAVA_HOME=/usr/java/jdk-11.0.23
+          update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
+          export JAVA_HOME=/usr/java/jdk-17.0.12
           cd tapdata && mvn clean test -T1C -Dmaven.compile.fork=true -P idaas && mvn sonar:sonar \
             -Dsonar.projectKey=tapdata -Dsonar.host.url=${{ secrets.SONAR_HOST }} \
              -Dsonar.login=${{ secrets.SONAR_USER }} -Dsonar.password=${{ secrets.SONAR_PASS }} \
              -Dsonar.branch.name=${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
-          update-alternatives --set java /usr/java/jdk-11.0.23/bin/java
-          export JAVA_HOME=/usr/java/jdk-11.0.23
+          update-alternatives --set java /usr/java/jdk1.8.0_441/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_441
       - name: Prevent Skip Unittest
         run: |
           cd tapdata
@@ -226,7 +226,7 @@ jobs:
           workflow_file_name: build-tapdata-op.yaml
           ref: main
           wait_interval: 10
-          client_payload: '{"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main", "CONNECTORS-OPTIONS": "nightly-build", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}'
+          client_payload: '{"BUILD_CONFIG": {"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main#main", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}, "CONNECTORS-OPTIONS": "nightly-build", "JAVA_VERSION": "java8"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
