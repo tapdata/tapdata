@@ -135,13 +135,7 @@ public class InspectResultController extends BaseController {
         }
         Object inspectIdObject = filter.getWhere().get("inspect_id");
         if (inspectIdObject instanceof Map) {
-            List<String> idList = filterViewPermissionNotInspectId(filter.getWhere());
-            if (idList.isEmpty()) return success(new Page<>(0, Lists.newArrayList()));
-            Where w = filter.getWhere();
-            Map<String, Object> in = new HashMap<>();
-            w.put("inspect_id", in);
-            in.put("$in", idList);
-            filter.setWhere(w);
+            filter.setWhere(Where.where("inspect_id", inspectIdObject));
         } else {
             String inspectId = String.valueOf(inspectIdObject);
             if (null == MongoUtils.toObjectId(inspectId)) {
