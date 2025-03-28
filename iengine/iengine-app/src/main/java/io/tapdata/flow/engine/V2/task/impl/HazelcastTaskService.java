@@ -62,7 +62,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
-import io.tapdata.exception.RestException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.cleaner.impl.MergeNodeCleaner;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
@@ -1095,42 +1094,30 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap = new HashMap<>();
 		try {
-			loadTableStructure(taskDto, tapTableMapHashMap, obsLogger);
+			com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
+			TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+					ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
+					TransformerWsMessageDto.class);
+			transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
+			if (taskDto.isPreviewTask()) {
+				transformerWsMessageDto.getTaskDto().setTestTaskId(taskDto.getTestTaskId());
+				transformerWsMessageDto.getOptions().setPreview(true);
+			}
+			transformerWsMessageDto.getTaskDto().setDag(dag);
+			DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto, taskService, tapTableMapHashMap, clientMongoOperator);
+			dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions(), (e) -> {
+				throw new RuntimeException(e);
+			});
+			dagDataService.initializeModel((StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_SYNC)));
+			AspectUtils.executeAspect(new EngineDeductionAspect().end());
+			obsLogger.info("Loading table structure completed");
 		} catch (Exception e) {
-			Throwable throwable = CommonUtils.matchThrowable(e, RestException.class);
-			if (throwable instanceof RestException && "503".equals(((RestException) throwable).getCode())) {
-                try {
-                    loadTableStructure(taskDto, tapTableMapHashMap, obsLogger);
-					return tapTableMapHashMap;
-                } catch (CloneNotSupportedException ex) {
-                }
-            }
 			AspectUtils.executeAspect(new EngineDeductionAspect().error(e));
 			obsLogger.info("Loading table structure error: {}", e.getMessage());
 			throw new TapCodeException(TaskServiceExCode_23.TASK_FAILED_TO_LOAD_TABLE_STRUCTURE, "reason:" + e.getMessage(), e)
 					.dynamicDescriptionParameters(taskDto.getName(), taskDto.getId(), taskDto.getSyncType());
 		}
 		return tapTableMapHashMap;
-	}
-
-	private void loadTableStructure(TaskDto taskDto, Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap, ObsLogger obsLogger) throws CloneNotSupportedException {
-		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag().clone();
-		TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + taskDto.getId().toHexString(),
-				TransformerWsMessageDto.class);
-		transformerWsMessageDto.getOptions().setSyncType(taskDto.getSyncType());
-		if (taskDto.isPreviewTask()) {
-			transformerWsMessageDto.getTaskDto().setTestTaskId(taskDto.getTestTaskId());
-			transformerWsMessageDto.getOptions().setPreview(true);
-		}
-		transformerWsMessageDto.getTaskDto().setDag(dag);
-		DAGDataServiceImpl dagDataService = new DAGDataEngineServiceImpl(transformerWsMessageDto, taskService, tapTableMapHashMap, clientMongoOperator);
-		dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions(), (e) -> {
-			throw new RuntimeException(e);
-		});
-		dagDataService.initializeModel((StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_SYNC)));
-		AspectUtils.executeAspect(new EngineDeductionAspect().end());
-		obsLogger.info("Loading table structure completed");
 	}
 
 	protected void cleanMergeNode(TaskDto taskDto, String nodeId){
