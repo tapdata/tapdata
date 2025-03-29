@@ -94,6 +94,7 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         tapTable.setAncestorsName(schema.getAncestorsName());
@@ -186,6 +187,7 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
