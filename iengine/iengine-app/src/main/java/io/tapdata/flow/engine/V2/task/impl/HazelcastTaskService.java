@@ -293,7 +293,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		JetDag jetDag = task2HazelcastDAG(taskDto, deduce);
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+		Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
 	}
 
@@ -1133,7 +1133,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> sourceNodes = dag.getSourceNodes();
 		List<Node> targetNodes = dag.getTargetNodes();
-		if (null == sourceNodes || null == targetNodes || sourceNodes.size() > 1 || targetNodes.size() > 1) {
+		if (CollectionUtils.isEmpty(sourceNodes) || CollectionUtils.isEmpty(targetNodes) || sourceNodes.size() > 1 || targetNodes.size() > 1) {
 			return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
 		}
 		Node<?> sourceNode = sourceNodes.get(0);

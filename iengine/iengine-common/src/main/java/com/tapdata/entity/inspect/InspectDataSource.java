@@ -46,4 +46,5 @@ public class InspectDataSource implements Serializable {
 	private Map<String, Object> customCommand;
 	private Map<String, String> collate;
 	private boolean enableCustomCollate;
+	private int customNullSort;
 }

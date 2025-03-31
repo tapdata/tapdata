@@ -362,13 +362,13 @@ public class HazelcastPreviewSourcePdkDataNode extends HazelcastSourcePdkDataNod
 	}
 
 	@Override
-	protected void initTapLogger() {
-		super.initTapLogger();
+	protected boolean isRunning() {
+		return super.isRunning();
 	}
 
 	@Override
-	protected boolean isRunning() {
-		return super.isRunning();
+	protected void initTapLogger() {
+		super.initTapLogger();
 	}
 
 	@Override
