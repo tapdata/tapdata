@@ -201,6 +201,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		try {
 			this.jetContext = context;
 			super.init(context);
+			this.running.compareAndSet(false, true);
 			this.obsLogger = initObsLogger();
 			if (null != processorBaseContext.getConfigurationCenter()) {
 				this.clientMongoOperator = initClientMongoOperator();
