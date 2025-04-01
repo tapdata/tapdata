@@ -45,6 +45,7 @@
 		<module>code-gen</module>
 		<module>tm-sdk</module>
 		<module>tm</module>
+		<module>mcp-tap-server</module>
 	</modules>
 
 	<profiles>

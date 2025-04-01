@@ -28,6 +28,8 @@ spring:
     static-path-pattern: /**
     format:
       date-time: yyyyMM-dd HH:mm:ss
+    async:
+      request-timeout: 1000
   jackson:
     default-property-inclusion: non_null
 

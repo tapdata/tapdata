@@ -576,6 +576,11 @@
 			<version>3.23.2</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.tapdata</groupId>
+			<artifactId>mcp-tap-server</artifactId>
+			<version>0.0.1</version>
+		</dependency>
 		<!---->
 	</dependencies>
 
