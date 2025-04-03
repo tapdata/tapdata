@@ -1082,7 +1082,7 @@ public class HazelcastTaskServiceTest {
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
-            when(jet.newLightJob(eq(dag), any(JobConfig.class))).thenReturn(job);
+            when(jet.newJob(eq(dag), any(JobConfig.class))).thenReturn(job);
             TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
             assertNotNull(taskDtoTaskClient);
             assertSame(job, ReflectionTestUtils.getField(taskDtoTaskClient, "job"));

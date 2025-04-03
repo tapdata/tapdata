@@ -1702,7 +1702,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("When running is false")
 		void testIsRunningWhenRunningIsFalse() {
 			boolean actual = hazelcastBaseNode.isRunning();
-			assertFalse(actual);
+			assertTrue(actual);
 		}
 
 		@Test

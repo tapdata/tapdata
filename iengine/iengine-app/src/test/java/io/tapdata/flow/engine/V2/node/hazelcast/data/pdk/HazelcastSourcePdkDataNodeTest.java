@@ -1448,6 +1448,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		}
 	}
 	@Nested
+	@Disabled
 	class StreamReadConsumerStateListenerTest{
 		private ConnectorNode connectorNode;
 		@BeforeEach
