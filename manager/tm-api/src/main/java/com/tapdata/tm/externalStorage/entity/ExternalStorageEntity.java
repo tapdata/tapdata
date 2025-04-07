@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Map;
+
 
 /**
  * External Storage
@@ -34,4 +36,5 @@ public class ExternalStorageEntity extends BaseEntity {
 	private String status;
 	/** 测试响应消息 */
 	private ResponseBody response_body;
+	private Map<String, String> attrs;
 }
