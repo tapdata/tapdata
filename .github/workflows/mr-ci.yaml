@@ -151,7 +151,7 @@ jobs:
   
   Scan-Tapdata:
     runs-on: office-scan
-    if: ${{ !startsWith(github.base_ref, 'release-v') }}
+    if: ${{ !startsWith(github.base_ref, 'release-v') && !(github.event_name == 'schedule' || inputs.tapce_run) }}
     needs:
       - Get-Stable-Branch
       - Push-Code-To-GOGS
