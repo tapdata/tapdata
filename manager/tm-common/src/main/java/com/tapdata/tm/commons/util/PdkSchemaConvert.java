@@ -105,6 +105,7 @@ public class PdkSchemaConvert {
                     TapIndexField tapIndexField = new TapIndexField();
                     tapIndexField.setFieldAsc(i.getColumnIsAsc());
                     tapIndexField.setName(i.getColumnName());
+                    tapIndexField.setSubPosition(i.getSubPosition());
                     return tapIndexField;
                 }).collect(Collectors.toList());
 
@@ -197,6 +198,7 @@ public class PdkSchemaConvert {
                     TapIndexField tapIndexField = new TapIndexField();
                     tapIndexField.setFieldAsc(i.getColumnIsAsc());
                     tapIndexField.setName(i.getColumnName());
+                    tapIndexField.setSubPosition(i.getSubPosition());
                     return tapIndexField;
                 }).collect(Collectors.toList());
 
@@ -475,6 +477,7 @@ public class PdkSchemaConvert {
                     TableIndexColumn tableIndexColumn = new TableIndexColumn();
                     tableIndexColumn.setColumnName(indexField.getName());
                     tableIndexColumn.setColumnIsAsc(indexField.getFieldAsc());
+                    tableIndexColumn.setSubPosition(indexField.getSubPosition());
                     tableIndexColumns.add(tableIndexColumn);
                 }
 
@@ -630,6 +633,7 @@ public class PdkSchemaConvert {
                     TableIndexColumn tableIndexColumn = new TableIndexColumn();
                     tableIndexColumn.setColumnName(indexField.getName());
                     tableIndexColumn.setColumnIsAsc(indexField.getFieldAsc());
+                    tableIndexColumn.setSubPosition(indexField.getSubPosition());
                     tableIndexColumns.add(tableIndexColumn);
                 }
 
