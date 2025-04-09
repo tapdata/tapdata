@@ -971,10 +971,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						switch (type) {
 							case HasKeys:
 								// filter no hove primary key tables
-								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList().stream().filter(tapIndex -> tapIndex.getUnique()).collect(Collectors.toList())).map(Collection::isEmpty).orElse(true);
 							case NoKeys:
 								// filter has primary key tables
-								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList().stream().filter(tapIndex -> tapIndex.getUnique()).collect(Collectors.toList())).map(Collection::isEmpty).orElse(true);
+							case OnlyPrimaryKey:
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList().stream().filter(tapIndex -> tapIndex.getUnique()).collect(Collectors.toList())).map(Collection::isEmpty).orElse(true);
+							case OnlyUniqueIndex:
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList().stream().filter(tapIndex -> tapIndex.getUnique()).collect(Collectors.toList())).map(Collection::isEmpty).orElse(true);
 							default:
 								break;
 						}
