@@ -26,8 +26,8 @@ public class InspectSchedule {
      */
 //    @Scheduled(cron = "2 0/1 * * * ?")
 //    @Scheduled(cron = "0 */5 * * * ?")
-    @Scheduled(cron = "2 0/1 * * * ?")
-    @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "1m")
+    @Scheduled(fixedDelay = 1 * 60 * 1000)
+    @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "10s")
     public void execute() {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-execute");
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -40,8 +40,8 @@ public class InspectSchedule {
     /**
      * @desc 执行扫描，每 1分钟执行一次
      */
-    @Scheduled(cron = "2 0/1 * * * ?")
-    @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "1m")
+    @Scheduled(initialDelay = 1000, fixedDelay = 1 * 60 * 1000)
+    @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "10s")
     public void cleanDeadInspect() {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-cleanDeadInspect");
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
