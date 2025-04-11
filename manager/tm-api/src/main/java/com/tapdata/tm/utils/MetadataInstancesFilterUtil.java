@@ -4,7 +4,9 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
+import io.tapdata.entity.schema.TapIndex;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,8 +62,11 @@ public class MetadataInstancesFilterUtil {
                         case HasKeys:
                             return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
                                 if (null != metadataInstancesDto.getFields()) {
-                                    for (Field field : metadataInstancesDto.getFields()) {
-                                        if (Boolean.TRUE.equals(field.getPrimaryKey())) return false;
+                                    boolean hasPrimaryKey = metadataInstancesDto.getFields().stream().anyMatch(field -> Boolean.TRUE.equals(field.getPrimaryKey()));
+                                    if (hasPrimaryKey) return false;
+                                    if (null == metadataInstancesDto.getIndices()) return true;
+                                    for (TableIndex index : metadataInstancesDto.getIndices()) {
+                                        if (Boolean.TRUE.equals(index.isUnique())) return false;
                                     }
                                 }
                                 return true;
@@ -69,11 +74,38 @@ public class MetadataInstancesFilterUtil {
                         case NoKeys:
                             return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
                                 if (null != metadataInstancesDto.getFields()) {
-                                    for (Field field : metadataInstancesDto.getFields()) {
-                                        if (Boolean.TRUE.equals(field.getPrimaryKey())) return true;
+                                    boolean hasPrimaryKey = metadataInstancesDto.getFields().stream().anyMatch(field -> Boolean.TRUE.equals(field.getPrimaryKey()));
+                                    if (hasPrimaryKey) return true;
+                                    if (null == metadataInstancesDto.getIndices()) return true;
+                                    for (TableIndex index : metadataInstancesDto.getIndices()) {
+                                        if (Boolean.TRUE.equals(index.isUnique())) return true;
                                     }
                                 }
                                 return false;
+                            };
+                        case OnlyPrimaryKey:
+                            return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+                                if (null != metadataInstancesDto.getFields()) {
+                                    boolean hasPrimaryKey = metadataInstancesDto.getFields().stream().anyMatch(field -> Boolean.TRUE.equals(field.getPrimaryKey()));
+                                    if (!hasPrimaryKey) return true;
+                                    if (null == metadataInstancesDto.getIndices()) return true;
+                                    for (TableIndex index : metadataInstancesDto.getIndices()) {
+                                        if (Boolean.TRUE.equals(index.isUnique())) return true;
+                                    }
+                                }
+                                return false;
+                            };
+                        case OnlyUniqueIndex:
+                            return (Function<MetadataInstancesDto, Boolean>) metadataInstancesDto -> {
+                                if (null != metadataInstancesDto.getFields()) {
+                                    boolean hasPrimaryKey = metadataInstancesDto.getFields().stream().anyMatch(field -> Boolean.TRUE.equals(field.getPrimaryKey()));
+                                    if (hasPrimaryKey) return true;
+                                    if (null == metadataInstancesDto.getIndices()) return true;
+                                    for (TableIndex index : metadataInstancesDto.getIndices()) {
+                                        if (Boolean.TRUE.equals(index.isUnique())) return false;
+                                    }
+                                }
+                                return true;
                             };
                         default:
                     }
