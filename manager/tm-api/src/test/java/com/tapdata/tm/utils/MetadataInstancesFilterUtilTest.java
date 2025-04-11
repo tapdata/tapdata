@@ -239,7 +239,17 @@ public class MetadataInstancesFilterUtilTest {
         index2.setUnique(false);
         metadataInstancesDto2.setIndices(Arrays.asList(index2));
         MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
-        Long result = MetadataInstancesFilterUtil.countFilteredOriginalNames(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3),databaseNode);
+        MetadataInstancesDto metadataInstancesDto4 = new MetadataInstancesDto();
+        Field field4 = new Field();
+        field4.setPrimaryKey(false);
+        metadataInstancesDto4.setOriginalName("test4");
+        metadataInstancesDto4.setFields(Arrays.asList(field4));
+        MetadataInstancesDto metadataInstancesDto5 = new MetadataInstancesDto();
+        Field field5 = new Field();
+        field5.setPrimaryKey(true);
+        metadataInstancesDto5.setOriginalName("test5");
+        metadataInstancesDto5.setFields(Arrays.asList(field5));
+        Long result = MetadataInstancesFilterUtil.countFilteredOriginalNames(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3,metadataInstancesDto4,metadataInstancesDto5),databaseNode);
         Assertions.assertEquals(1,result);
     }
 
@@ -266,7 +276,20 @@ public class MetadataInstancesFilterUtilTest {
         index2.setUnique(true);
         metadataInstancesDto2.setIndices(Arrays.asList(index2));
         MetadataInstancesDto metadataInstancesDto3 = new MetadataInstancesDto();
-        Long result = MetadataInstancesFilterUtil.countFilteredOriginalNames(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3),databaseNode);
+        MetadataInstancesDto metadataInstancesDto4 = new MetadataInstancesDto();
+        Field field4 = new Field();
+        field4.setPrimaryKey(false);
+        metadataInstancesDto4.setOriginalName("test4");
+        metadataInstancesDto4.setFields(Arrays.asList(field4));
+        TableIndex index4 = new TableIndex();
+        index4.setUnique(false);
+        metadataInstancesDto4.setIndices(Arrays.asList(index4));
+        MetadataInstancesDto metadataInstancesDto5 = new MetadataInstancesDto();
+        Field field5 = new Field();
+        field5.setPrimaryKey(false);
+        metadataInstancesDto5.setOriginalName("test5");
+        metadataInstancesDto5.setFields(Arrays.asList(field5));
+        Long result = MetadataInstancesFilterUtil.countFilteredOriginalNames(Arrays.asList(metadataInstancesDto1,metadataInstancesDto2,metadataInstancesDto3,metadataInstancesDto4,metadataInstancesDto5),databaseNode);
         Assertions.assertEquals(1,result);
     }
 
