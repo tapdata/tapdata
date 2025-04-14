@@ -1430,8 +1430,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 if (null != syncProgress.getStreamOffsetObj()) {
                     syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
                     if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
-                        String compress = StringCompression.compress(syncProgress.getStreamOffset());
-                        syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX + compress);
+                        String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
+                        syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
                     }
                 }
 				try {

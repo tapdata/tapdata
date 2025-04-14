@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	protected static final String STREAM_OFFSET_COMPRESS_PREFIX = "_tap_zip_";
+	protected static final String STREAM_OFFSET_COMPRESS_PREFIX_V2 = "_tap_zip_v2_";
 
 	protected SyncTypeEnum syncType;
 	protected DataProcessorContext dataProcessorContext;
@@ -151,7 +152,14 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
 	@Nullable
 	protected String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
-		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
+		while (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2)) {
+			try {
+				streamOffsetStr = StringCompression.uncompressV2(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2));
+			} catch (IOException e) {
+				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
+			}
+		}
+		while (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
 			try {
 				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
 			} catch (IOException e) {
