@@ -7,6 +7,9 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.taskinspect.TaskInspect;
+import com.tapdata.taskinspect.TaskInspectContext;
+import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -24,7 +27,6 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.util.TokenBucketRateLimiter;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +63,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private long lastRetryTimeMillis;
 	private final AtomicInteger retryCounter;
 	private AtomicBoolean retrying;
+	private final TaskInspect taskInspect;
 	private final AutoRecovery autoRecovery;
     private final long createTime = System.currentTimeMillis();
 
@@ -85,11 +88,13 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			this.autoRecovery = AutoRecovery.init(taskDto.getId().toHexString());
 		} else {
 			this.autoRecovery = null;
-		}
+        }
 		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
 		this.retrying = new AtomicBoolean(false);
+        TaskInspectContext taskInspectContext = new TaskInspectContext(taskDto, clientMongoOperator);
+        this.taskInspect = TaskInspectHelper.create(taskInspectContext);
 	}
 
 	@Override
@@ -162,7 +167,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			job.cancel();
 		}
 
-		if (job.getStatus().isTerminal()) {
+		if (job.getStatus().isTerminal() && taskInspect.stop(false)) {
 			close();
 			return true;
 		}
@@ -181,6 +186,15 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 					obsLogger.warn(String.format("Close task monitor(s) failed, error: %s\n  %s", err.getMessage(), Log4jUtil.getStackString(err)));
 				}
 		);
+        CommonUtils.handleAnyError(
+            () -> {
+                if (null != taskInspect) taskInspect.close();
+                obsLogger.trace("Closed task-inspect instance\n  {}", taskInspect);
+            },
+            err -> {
+                obsLogger.warn("Closed task-inspect instance failed, error: {}\n  {}", err.getMessage(), Log4jUtil.getStackString(err));
+            }
+        );
             CommonUtils.handleAnyError(
                 () -> {
 					if(null != autoRecovery) autoRecovery.close();

@@ -18,4 +18,20 @@ import java.util.HashMap;
 @ToString(callSuper = true)
 public class Field extends HashMap<String, Object> {
 
+    public Field set(boolean include, String... fieldNames) {
+        if (null != fieldNames) {
+            for (String f : fieldNames) {
+                put(f, include);
+            }
+        }
+        return this;
+    }
+
+    public static Field includes(String... fieldNames) {
+        return new Field().set(true, fieldNames);
+    }
+
+    public static Field excludes(String... fieldNames) {
+        return new Field().set(false, fieldNames);
+    }
 }

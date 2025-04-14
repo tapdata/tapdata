@@ -10,6 +10,8 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.taskinspect.TaskInspect;
+import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
@@ -33,6 +35,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -170,6 +173,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected boolean syncTargetPartitionTableEnable;
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
+    private final TaskInspect taskInspect;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -181,6 +185,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             return thread;
         });
         TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
+        this.taskInspect = TaskInspectHelper.get(dataProcessorContext.getTaskDto().getId().toHexString());
     }
 
     @Override
@@ -824,6 +829,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else {
                 splitDDL2NewBatch(cdcEvents, this::handleTapdataEvents);
             }
+            Optional.ofNullable(cdcEvents.get(0).getTapEvent())
+                .map(tapEvent -> (tapEvent instanceof TapRecordEvent) ? (TapRecordEvent) tapEvent : null)
+                .map(TapBaseEvent::getReferenceTime)
+                .ifPresent(ts -> {
+                    if (ts > 0) {
+                        this.taskInspect.getModeJob().syncDelay(System.currentTimeMillis() - ts);
+                    }
+                });
         }
     }
 
