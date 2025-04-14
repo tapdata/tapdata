@@ -235,6 +235,7 @@ jobs:
           rm -rf tapdata-enterprise-web
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
           git clone -b ${{ inputs.frontend_branch }} --single-branch git@gitee.com:${{ env.GITEE_USER }}/tapdata-web.git
+          mv tapdata-web tapdata-enterprise-web
           cd tapdata-enterprise-web && git fetch --tags
       - name: Get Frontend Version
         run: |
