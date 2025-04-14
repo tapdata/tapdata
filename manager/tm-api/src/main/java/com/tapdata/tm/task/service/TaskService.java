@@ -294,6 +294,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
+    public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;
 
     @Data
     @AllArgsConstructor

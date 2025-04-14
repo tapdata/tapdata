@@ -18,6 +18,8 @@ import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.taskinspect.TaskInspect;
+import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
@@ -224,11 +226,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
 	protected List<String> loggedTables = new ArrayList<>();
 	private List<Node<?>> targetDataNodes;
+    private final TaskInspect taskInspect;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.tapEventFilter = TargetTableDataEventFilter.create();
 		this.sourceRunnerLock = new ReentrantLock(true);
+        this.taskInspect = TaskInspectHelper.get(dataProcessorContext.getTaskDto().getId().toHexString());
 	}
 
 	private boolean needCdcDelay() {
@@ -1517,6 +1521,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapdataEvent event = tapdataEvent;
 				if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
 					event = this.tapEventFilter.handle(tapdataEvent);
+                    taskInspect.getModeJob().acceptCdcEvent(dataProcessorContext, event);
 				}
 				if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
 					break;
