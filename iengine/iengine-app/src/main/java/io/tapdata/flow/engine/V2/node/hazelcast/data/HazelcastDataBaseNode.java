@@ -10,11 +10,9 @@ import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -152,14 +150,14 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
 	@Nullable
 	protected String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
-		while (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2)) {
+		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2)) {
 			try {
 				streamOffsetStr = StringCompression.uncompressV2(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2));
 			} catch (IOException e) {
 				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
 			}
 		}
-		while (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
+		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
 			try {
 				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
 			} catch (IOException e) {

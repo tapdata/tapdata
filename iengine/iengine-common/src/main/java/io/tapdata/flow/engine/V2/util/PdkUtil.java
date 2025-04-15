@@ -39,6 +39,7 @@ public class PdkUtil {
 
 	private static final Map<String, Object> pdkHashDownloadLockMap = new ConcurrentHashMap<>();
 	private static final String TAG;
+	public static final String ENCODE_PREFIX = "_tap_encode_";
 
 	static {
 		TAG = PdkUtil.class.getSimpleName();
@@ -137,13 +138,16 @@ public class PdkUtil {
 			byte[] offsetBytes = InstanceFactory.instance(ObjectSerializable.class).fromObject(offsetObject);
 			if (offsetBytes == null)
 				TapLogger.error(TAG, "Serialize offsetObject {} failed, as returned null", offsetObject);
-			return Base64.encodeBase64String(offsetBytes);
+			return ENCODE_PREFIX + Base64.encodeBase64String(offsetBytes);
 		}
 		return "";
 	}
 
 	public static Object decodeOffset(String offset, ConnectorNode connectorNode) {
 		if (StringUtils.isNotBlank(offset) && null != connectorNode) {
+			if (offset.startsWith(ENCODE_PREFIX)) {
+				offset = StringUtils.removeStart(offset, ENCODE_PREFIX);
+			}
 			byte[] bytes = Base64.decodeBase64(offset);
 			return InstanceFactory.instance(ObjectSerializable.class)
 					.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(connectorNode.getConnectorClassLoader()));
