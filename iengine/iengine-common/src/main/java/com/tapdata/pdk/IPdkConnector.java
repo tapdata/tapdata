@@ -14,6 +14,8 @@ import java.util.function.Predicate;
  */
 public interface IPdkConnector extends AutoCloseable {
 
+    void init() throws Exception;
+
     String getNodeId();
 
     TapTable getTapTable(String tableName);

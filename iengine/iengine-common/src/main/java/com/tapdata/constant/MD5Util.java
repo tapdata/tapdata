@@ -30,11 +30,7 @@ public class MD5Util {
         byte[] hash = md.digest();
         StringBuilder hexString = new StringBuilder();
         for (byte b : hash) {
-            if ((0xff & b) < 0x10) {
-                hexString.append("0").append(Integer.toHexString((0xFF & b)));
-            } else {
-                hexString.append(Integer.toHexString(0xFF & b));
-            }
+            hexString.append(String.format("%02x", b));
         }
 
         if (upper) {

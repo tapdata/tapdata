@@ -38,6 +38,8 @@ public class TaskInspect implements AutoCloseable {
             if (null != config) {
                 refresh(config);
             }
+        } catch (InterruptedException ignore) {
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
             log.error("init failed: {}", e.getMessage(), e);
         }

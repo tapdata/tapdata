@@ -26,6 +26,8 @@ public class TaskInspectHelper {
     public static TaskInspect create(TaskInspectContext context) {
         synchronized (INSTANCES) {
             String taskId = context.getTaskId();
+            if (null == taskId) return null;
+
             closeWithExists(taskId);
 
             TaskInspect ins = new TaskInspect(context, getOperator());
@@ -51,7 +53,10 @@ public class TaskInspectHelper {
      * @param taskId 任务编号
      */
     static TaskInspect remove(String taskId) {
-        return INSTANCES.remove(taskId);
+        if (null != taskId) {
+            return INSTANCES.remove(taskId);
+        }
+        return null;
     }
 
     protected static void closeWithExists(String taskId) {

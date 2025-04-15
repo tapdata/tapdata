@@ -50,7 +50,7 @@ public class TaskPdkConnector {
         return create(node, associateId);
     }
 
-    private IPdkConnector createFirstMatch(String associateId, boolean isSource) {
+    protected IPdkConnector createFirstMatch(String associateId, boolean isSource) {
         return Optional.ofNullable(task.getDag())
             .map(dag -> isSource ? dag.getSources() : dag.getTargets())
             .map(nodes -> {
@@ -68,13 +68,13 @@ public class TaskPdkConnector {
             Connections connections = getConnections(connectionId);
             if (null != connections) {
                 DatabaseTypeEnum.DatabaseType sourceDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-                return new TaskNodePdkConnector(clientMongoOperator, taskId, node, associateId, connections, sourceDatabaseType, taskConfig.getTaskRetryConfig());
+                return TaskNodePdkConnector.create(clientMongoOperator, taskId, node, associateId, connections, sourceDatabaseType, taskConfig.getTaskRetryConfig());
             }
         }
         return null;
     }
 
-    private TaskConfig getTaskConfig(TaskDto taskDto) {
+    protected TaskConfig getTaskConfig(TaskDto taskDto) {
         long retryIntervalSecond = 5L;
         long maxRetryTimeMinute = 20L;
         long maxRetryTimeSecond = maxRetryTimeMinute * 60;
@@ -84,7 +84,7 @@ public class TaskPdkConnector {
         return TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
     }
 
-    private Connections getConnections(String id) {
+    protected Connections getConnections(String id) {
         Query query = Query.query(Criteria.where("_id").is(id));
         query.fields().exclude("response_body").exclude("schema");
         List<Connections> list = clientMongoOperator.find(query, ConnectorConstant.CONNECTION_COLLECTION + "/listAll", Connections.class);

@@ -167,7 +167,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			job.cancel();
 		}
 
-		if (job.getStatus().isTerminal() && taskInspect.stop(false)) {
+		if (job.getStatus().isTerminal() && (null == taskInspect || taskInspect.stop(false))) {
 			close();
 			return true;
 		}

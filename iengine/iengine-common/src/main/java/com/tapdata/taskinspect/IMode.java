@@ -8,12 +8,10 @@ import com.tapdata.tm.taskinspect.TaskInspectMode;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapTable;
-import io.tapdata.schema.TapTableMap;
 
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 校验模式的实现接口
@@ -38,13 +36,14 @@ public interface IMode {
     default void acceptCdcEvent(TaskInspectCdcEvent event) {
     }
 
-    default void syncDelay(long delay) {}
+    default void syncDelay(long delay) {
+    }
 
     default void acceptCdcEvent(DataProcessorContext dataProcessorContext, TapdataEvent event) {
         if (event.getTapEvent() instanceof TapInsertRecordEvent) {
             TapInsertRecordEvent recordEvent = (TapInsertRecordEvent) event.getTapEvent();
             LinkedHashMap<String, Object> keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getAfter());
-            if (null != keys) {
+            if (!keys.isEmpty()) {
                 acceptCdcEvent(TaskInspectCdcEvent.create(
                     recordEvent.getReferenceTime(),
                     recordEvent.getTime(),
@@ -55,7 +54,7 @@ public interface IMode {
         } else if (event.getTapEvent() instanceof TapUpdateRecordEvent) {
             TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event.getTapEvent();
             LinkedHashMap<String, Object> keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getAfter());
-            if (null != keys) {
+            if (!keys.isEmpty()) {
                 acceptCdcEvent(TaskInspectCdcEvent.create(
                     recordEvent.getReferenceTime(),
                     recordEvent.getTime(),
@@ -64,7 +63,7 @@ public interface IMode {
                 ));
             }
             keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getBefore());
-            if (null != keys) {
+            if (!keys.isEmpty()) {
                 acceptCdcEvent(TaskInspectCdcEvent.create(
                     recordEvent.getReferenceTime(),
                     recordEvent.getTime(),
@@ -75,7 +74,7 @@ public interface IMode {
         } else if (event.getTapEvent() instanceof TapDeleteRecordEvent) {
             TapDeleteRecordEvent recordEvent = (TapDeleteRecordEvent) event.getTapEvent();
             LinkedHashMap<String, Object> keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getBefore());
-            if (null != keys) {
+            if (!keys.isEmpty()) {
                 acceptCdcEvent(TaskInspectCdcEvent.create(
                     recordEvent.getReferenceTime(),
                     recordEvent.getTime(),
@@ -87,20 +86,16 @@ public interface IMode {
     }
 
     default LinkedHashMap<String, Object> getKeys(DataProcessorContext dataProcessorContext, String tableId, Map<String, Object> data) {
-        TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-        if (null == tapTableMap) return null;
-
-        TapTable tapTable = tapTableMap.get(tableId);
-        if (null == tapTable) return null;
-
-        Collection<String> keys = tapTable.primaryKeys(true);
-        if (null == keys) return null;
-
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
-        for (String k : keys) {
-            result.put(k, data.get(k));
-        }
-        return result.isEmpty() ? null : result;
+        Optional.ofNullable(dataProcessorContext.getTapTableMap())
+            .map(tapTableMap -> tapTableMap.get(tableId))
+            .map(tapTable -> tapTable.primaryKeys(true))
+            .ifPresent(keys -> {
+                for (String k : keys) {
+                    result.put(k, data.get(k));
+                }
+            });
+        return result;
     }
 
     default boolean stop() {
