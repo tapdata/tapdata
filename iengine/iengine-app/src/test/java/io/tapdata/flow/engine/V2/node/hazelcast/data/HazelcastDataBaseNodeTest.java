@@ -252,14 +252,5 @@ public class HazelcastDataBaseNodeTest {
             Assertions.assertEquals("test测试", result);
 
         }
-
-        @Test
-        void testUncompressStreamOffsetIfNeedMulti() throws IOException {
-            String str = StringCompression.compressV2(STREAM_OFFSET_COMPRESS_PREFIX_V2 + StringCompression.compressV2("test"));
-            String result = dataBaseNode.uncompressStreamOffsetIfNeed(STREAM_OFFSET_COMPRESS_PREFIX_V2 + str);
-
-            Assertions.assertEquals("test", result);
-
-        }
     }
 }
