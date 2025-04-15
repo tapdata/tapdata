@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	protected static final String STREAM_OFFSET_COMPRESS_PREFIX = "_tap_zip_";
-	protected static final String STREAM_OFFSET_COMPRESS_PREFIX_V2 = "_tap_zip_v2_";
+	protected static final String STREAM_OFFSET_COMPRESS_PREFIX_V2 = "_v2_tap_zip_";
 
 	protected SyncTypeEnum syncType;
 	protected DataProcessorContext dataProcessorContext;
