@@ -28,7 +28,7 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>4.7.0</mongo.version>
-		<tapdata-api.version>1.4.5-SNAPSHOT</tapdata-api.version>
+		<tapdata-api.version>1.4.6-SNAPSHOT</tapdata-api.version>
 		<modules-api.version>1.4-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
