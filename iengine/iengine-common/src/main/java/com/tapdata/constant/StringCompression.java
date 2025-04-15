@@ -51,7 +51,7 @@ public class StringCompression {
 		return out.toByteArray();
 	}
 
-	public static String uncompress(String str) throws IOException {
+	public static String uncompress(String str) throws IOException, IllegalArgumentException {
 		if (str == null || str.length() == 0) {
 			return str;
 		}
@@ -66,7 +66,7 @@ public class StringCompression {
 		return out.toString(DEFAULT_CODE);
 	}
 
-	public static String uncompressV2(String str) throws IOException {
+	public static String uncompressV2(String str) throws IOException, IllegalArgumentException {
 		if (str == null || str.length() == 0) {
 			return str;
 		}
