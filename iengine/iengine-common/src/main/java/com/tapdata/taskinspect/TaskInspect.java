@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class TaskInspect implements AutoCloseable {
-    private static final long MAX_TIMEOUT = TimeUnit.SECONDS.toMillis(60);
+    protected static final long MAX_TIMEOUT = TimeUnit.SECONDS.toMillis(60);
     private final TaskInspectContext context;
     private final IOperator operator;
     @Getter
@@ -32,7 +32,7 @@ public class TaskInspect implements AutoCloseable {
         init();
     }
 
-    private void init() {
+    protected void init() {
         try {
             TaskInspectConfig config = operator.getConfig(context.getTaskId());
             if (null != config) {
@@ -111,7 +111,7 @@ public class TaskInspect implements AutoCloseable {
      * @param context 任务检查上下文，传递给构造函数
      * @return IModeJob 实例，用于执行特定模式的检查任务
      */
-    private static IMode create(TaskInspectMode mode, TaskInspectContext context, IOperator operator) {
+    protected static IMode create(TaskInspectMode mode, TaskInspectContext context, IOperator operator) {
         // 获取模式的具体实现类名
         String className = mode.getImplClassName();
         if (!TaskInspectMode.CLOSE.getImplClassName().equals(className)) {

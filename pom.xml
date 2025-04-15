@@ -88,6 +88,8 @@
             manager/tm/src/main/java/com/tapdata/tm/TMApplication.java,
             manager/tm-common/src/main/java/com/tapdata/tm/commons/util/PdkSchemaConvert.java,
             manager/tm-api/src/main/java/com/tapdata/tm/permissions/constants/DataPermissionEnumsName.java
+            **/vo/*.java
+            **/cons/*.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**

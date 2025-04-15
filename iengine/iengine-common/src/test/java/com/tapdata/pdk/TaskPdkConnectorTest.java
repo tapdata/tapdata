@@ -4,7 +4,6 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
@@ -26,7 +25,6 @@ import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.mockStatic;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -76,7 +74,7 @@ class TaskPdkConnectorTest {
     }
 
     @Test
-    public void testCreateSource() {
+    void testCreateSource() {
         // Arrange
         doCallRealMethod().when(taskPdkConnector).createSource(anyString());
         IPdkConnector expectPdkConnector = mock(IPdkConnector.class);
@@ -91,7 +89,7 @@ class TaskPdkConnectorTest {
     }
 
     @Test
-    public void testCreateTarget() {
+    void testCreateTarget() {
         // Arrange
         doCallRealMethod().when(taskPdkConnector).createTarget(anyString());
         IPdkConnector expectPdkConnector = mock(IPdkConnector.class);
@@ -109,7 +107,7 @@ class TaskPdkConnectorTest {
     class CreateTest {
 
         @Test
-        public void testById() {
+        void testById() {
             // Arrange
             String nodeId = "existNodeId";
             doCallRealMethod().when(taskPdkConnector).create(anyString(), anyString());
@@ -124,7 +122,7 @@ class TaskPdkConnectorTest {
         }
 
         @Test
-        public void testByNode_Null() {
+        void testByNode_Null() {
             // Arrange
             doCallRealMethod().when(taskPdkConnector).create(any(Node.class), anyString());
 
@@ -137,7 +135,7 @@ class TaskPdkConnectorTest {
         }
 
         @Test
-        public void testByNode_NullConnections() {
+        void testByNode_NullConnections() {
             // Arrange
             doCallRealMethod().when(taskPdkConnector).create(any(Node.class), anyString());
             doReturn(null).when(taskPdkConnector).getConnections(anyString());
@@ -151,7 +149,7 @@ class TaskPdkConnectorTest {
         }
 
         @Test
-        public void testByNode() {
+        void testByNode() {
             // Arrange
             doCallRealMethod().when(taskPdkConnector).create(any(Node.class), anyString());
             doReturn(connections).when(taskPdkConnector).getConnections(anyString());
@@ -161,10 +159,10 @@ class TaskPdkConnectorTest {
                 MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class);
                 MockedStatic<TaskNodePdkConnector> connectorMockedStatic = mockStatic(TaskNodePdkConnector.class)
             ) {
-                connectionUtilMockedStatic.when(()-> ConnectionUtil.getDatabaseType(eq(clientMongoOperator), anyString()))
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(eq(clientMongoOperator), anyString()))
                     .thenReturn(null);
                 TaskNodePdkConnector pdkConnector = mock(TaskNodePdkConnector.class);
-                connectorMockedStatic.when(()->TaskNodePdkConnector.create(any(), anyString(), any(), anyString(), any(), any(), any()))
+                connectorMockedStatic.when(() -> TaskNodePdkConnector.create(any(), anyString(), any(), anyString(), any(), any(), any()))
                     .thenReturn(pdkConnector);
 
 

@@ -26,8 +26,11 @@ public class TaskInspectHelper {
     public static TaskInspect create(TaskInspectContext context) {
         synchronized (INSTANCES) {
             String taskId = context.getTaskId();
-            if (null == taskId) return null;
+            if (null == taskId) {
+                return null;
+            }
 
+            // 如果已经存在一个实例，代表流程不正常，需要定位并修复
             closeWithExists(taskId);
 
             TaskInspect ins = new TaskInspect(context, getOperator());
@@ -44,6 +47,9 @@ public class TaskInspectHelper {
      * @return 返回对应任务ID的任务检查信息实例，如果不存在则返回null
      */
     public static TaskInspect get(String taskId) {
+        if (null == taskId) {
+            return null;
+        }
         return INSTANCES.get(taskId);
     }
 
@@ -53,23 +59,24 @@ public class TaskInspectHelper {
      * @param taskId 任务编号
      */
     static TaskInspect remove(String taskId) {
-        if (null != taskId) {
-            return INSTANCES.remove(taskId);
+        if (null == taskId) {
+            return null;
         }
-        return null;
+        return INSTANCES.remove(taskId);
     }
 
     protected static void closeWithExists(String taskId) {
-        // 如果已经存在一个实例，代表流程不正常，需要定位并修复
         TaskInspect ins = remove(taskId);
-        if (null != ins) {
-            log.warn("'{}' release because exist one instance", taskId);
-            try {
-                ins.close();
-            } catch (Exception e) {
-                // 捕获异常，避免影响同步任务流程
-                log.error("'{}' release failed: {}", taskId, e.getMessage(), e);
-            }
+        if (null == ins) {
+            return;
+        }
+
+        log.warn("'{}' release because exist one instance", taskId);
+        try {
+            ins.close();
+        } catch (Exception e) {
+            // 捕获异常，避免影响同步任务流程
+            log.error("'{}' release failed: {}", taskId, e.getMessage(), e);
         }
     }
 
