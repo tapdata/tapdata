@@ -153,14 +153,13 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2)) {
 			try {
 				streamOffsetStr = StringCompression.uncompressV2(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2));
-			} catch (IOException e) {
+			} catch (IOException | IllegalArgumentException e) {
 				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
 			}
-		}
-		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
+		} else if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
 			try {
 				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
-			} catch (IOException e) {
+			} catch (IOException | IllegalArgumentException e) {
 				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
 			}
 		}
