@@ -38,10 +38,9 @@ public interface TaskInspectUtils {
 
     static void stop(BooleanSupplier stopSupplier, long timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
-        long end = start + timeout;
         while (!stopSupplier.getAsBoolean()) {
             long times = System.currentTimeMillis() - start;
-            if (times > end) {
+            if (times > timeout) {
                 throw new RuntimeException("Timeout waiting " + times + "ms for task-inspect stop");
             }
             TimeUnit.SECONDS.sleep(1);

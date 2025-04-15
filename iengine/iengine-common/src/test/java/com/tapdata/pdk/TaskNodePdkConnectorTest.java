@@ -337,16 +337,17 @@ class TaskNodePdkConnectorTest {
         private TaskNodePdkConnector taskNodePdkConnector;
 
         @BeforeEach
-        public void setUp() {
+        void setUp() {
             MockitoAnnotations.openMocks(this);
 
             doReturn(codecsFilterManager).when(taskNodePdkConnector).getCodecsFilterManager();
             doReturn(defaultCodecsFilterManager).when(taskNodePdkConnector).getDefaultCodecsFilterManager();
             doCallRealMethod().when(taskNodePdkConnector).consumerResults(any(), any(TapTable.class), any(), any(), any());
+            doCallRealMethod().when(taskNodePdkConnector).formatValue(any());
         }
 
         @Test
-        public void testConsumerResults_NormalWithFields() {
+        void testConsumerResults_NormalWithFields() {
             // Arrange
             List<String> fields = Arrays.asList("field1", "field2");
             Map<String, Object> result = new HashMap<>();
@@ -373,7 +374,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testConsumerResults_NormalWithoutFields() {
+        void testConsumerResults_NormalWithoutFields() {
             // Arrange
             List<String> fields = Collections.emptyList();
             Map<String, Object> result = new HashMap<>();
@@ -401,7 +402,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testConsumerResults_WithException() {
+        void testConsumerResults_WithException() {
             // Arrange
             List<String> fields = Arrays.asList("field1", "field2");
             Throwable exception = new RuntimeException("Test Exception");
@@ -420,7 +421,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testConsumerResults_EmptyResults() {
+        void testConsumerResults_EmptyResults() {
             // Arrange
             List<String> fields = Arrays.asList("field1", "field2");
             List<Map<String, Object>> results = Collections.emptyList();
@@ -439,7 +440,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testConsumerResults_NullResults() {
+        void testConsumerResults_NullResults() {
             // Arrange
             List<String> fields = Arrays.asList("field1", "field2");
             when(filterResults.getError()).thenReturn(null);
@@ -460,16 +461,16 @@ class TaskNodePdkConnectorTest {
     @Nested
     class FormatValueTest {
         @Mock
-        private TaskNodePdkConnector taskNodePdkConnector;
+        TaskNodePdkConnector taskNodePdkConnector;
 
         @BeforeEach
-        public void setUp() {
+        void setUp() {
             MockitoAnnotations.openMocks(this);
             doCallRealMethod().when(taskNodePdkConnector).formatValue(any());
         }
 
         @Test
-        public void testFormatValue_Null() {
+        void testFormatValue_Null() {
             Object result = taskNodePdkConnector.formatValue(null);
 
             // Assert
@@ -477,7 +478,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testFormatValue_DateTime() {
+        void testFormatValue_DateTime() {
             DateTime dateTime = new DateTime(Date.from(Instant.parse("2023-10-01T00:00:00Z")));
 
             // Act
@@ -488,7 +489,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testFormatValue_ByteArray() {
+        void testFormatValue_ByteArray() {
             byte[] byteArray = "test".getBytes();
 
             // Act
@@ -499,7 +500,7 @@ class TaskNodePdkConnectorTest {
         }
 
         @Test
-        public void testFormatValue_OtherType() {
+        void testFormatValue_OtherType() {
             String input = "testString";
 
             // Act
