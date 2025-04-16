@@ -1766,7 +1766,7 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 
 	@Nested
 	@DisplayName("GetJetJobStatus method test")
-	class GetJetJobStatusTest {
+	class GetJetJobStatusTestEnum {
 		@Test
 		@DisplayName("Main process test")
 		void testGetJetJobStatus() {

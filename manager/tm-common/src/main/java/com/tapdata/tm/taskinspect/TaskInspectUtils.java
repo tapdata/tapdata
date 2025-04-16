@@ -19,8 +19,6 @@ public interface TaskInspectUtils {
     ExecutorService executorService = Executors.newFixedThreadPool(Integer.MAX_VALUE);
 
     static void close(AutoCloseable... closeables) throws Exception {
-        if (null == closeables) return;
-
         AtomicReference<Exception> error = new AtomicReference<>(null);
         for (AutoCloseable c : closeables) {
             try {

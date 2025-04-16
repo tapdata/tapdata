@@ -4,13 +4,15 @@ package com.tapdata.tm.taskinspect;
 import com.tapdata.tm.taskinspect.config.Custom;
 import com.tapdata.tm.taskinspect.config.IConfig;
 import com.tapdata.tm.taskinspect.config.Intelligent;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/3/12 16:07 Create
  */
-@Data
+@Getter
+@Setter
 public class TaskInspectConfig implements IConfig<TaskInspectConfig> {
     private Boolean enable; // 是否开启校验
     private TaskInspectMode mode; // 校验模式

@@ -1,6 +1,7 @@
 package com.tapdata.tm.taskinspect.config;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 校验配置-智能模式
@@ -8,7 +9,8 @@ import lombok.Data;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/1/17 17:02 Create
  */
-@Data
+@Getter
+@Setter
 public class Intelligent implements IConfig<Intelligent> {
 
     private Boolean enable; // 是否开启校验

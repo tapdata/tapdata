@@ -1,7 +1,8 @@
 package com.tapdata.taskinspect.vo;
 
 import com.tapdata.constant.MD5Util;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 import java.util.LinkedHashMap;
@@ -12,7 +13,8 @@ import java.util.LinkedHashMap;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/2/9 20:58 Create
  */
-@Data
+@Getter
+@Setter
 public class TaskInspectCdcEvent implements Serializable {
     private Long referenceTime; // 接收时间
     private Long time; // 事件时间
@@ -22,7 +24,7 @@ public class TaskInspectCdcEvent implements Serializable {
 
     public TaskInspectCdcEvent putKey(String k, Object v) {
         if (null == keys) {
-            keys = new LinkedHashMap<>();
+            setKeys(new LinkedHashMap<>());
         }
         keys.put(k, v);
         return this;
@@ -47,8 +49,8 @@ public class TaskInspectCdcEvent implements Serializable {
         }
 
         // 使用MD5Util工具类对拼接后的字符串进行加密，生成唯一的行ID
-        this.rowId = MD5Util.crypt(buf.toString(), false);
-        return this.rowId;
+        setRowId(MD5Util.crypt(buf.toString(), false));
+        return getRowId();
     }
 
     /**

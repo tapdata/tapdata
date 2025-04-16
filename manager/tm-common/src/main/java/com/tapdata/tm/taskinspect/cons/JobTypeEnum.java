@@ -4,7 +4,7 @@ package com.tapdata.tm.taskinspect.cons;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/3/24 18:54 Create
  */
-public enum JobType {
+public enum JobTypeEnum {
 
     UNKNOWN,
     FULL,
@@ -12,9 +12,9 @@ public enum JobType {
     RECOVER,
     ;
 
-    public static JobType fromString(String type) {
+    public static JobTypeEnum fromString(String type) {
         if (type != null) {
-            for (JobType t : values()) {
+            for (JobTypeEnum t : values()) {
                 if (t.name().equalsIgnoreCase(type)) {
                     return t;
                 }

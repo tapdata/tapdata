@@ -6,7 +6,7 @@ package com.tapdata.tm.taskinspect.cons;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/1/17 15:24 Create
  */
-public enum CustomFullTypes {
+public enum CustomFullTypeEnum {
     HASH, // 全量哈希
     COUNT, // 全量统计
     FIELDS_ALL, // 全字段校验所有数据

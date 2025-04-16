@@ -6,7 +6,7 @@ package com.tapdata.tm.taskinspect.cons;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/1/17 15:24 Create
  */
-public enum CustomCdcTypes {
+public enum CustomCdcTypeEnum {
     CLOSE, // 关闭
     SAMPLE, // 抽样
     ;

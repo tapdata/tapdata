@@ -1,6 +1,6 @@
 package com.tapdata.tm.taskinspect.vo;
 
-import com.tapdata.tm.taskinspect.cons.JobStatus;
+import com.tapdata.tm.taskinspect.cons.JobStatusEnum;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -55,7 +55,7 @@ public class JobReportVo extends HashMap<String, Object> {
         return this;
     }
 
-    public static JobReportVo create(JobStatus status) {
+    public static JobReportVo create(JobStatusEnum status) {
         JobReportVo vo = new JobReportVo();
         vo.put(FIELD_TIMESTAMP, System.currentTimeMillis());
         vo.put(FIELD_STATUS, status);

@@ -9,7 +9,7 @@ import lombok.Getter;
  * @version v1.0 2025/3/25 10:43 Create
  */
 @Getter
-public enum JobStatus {
+public enum JobStatusEnum {
     NONE(true),
     STARTING(false),
     START_ERROR(true),
@@ -21,7 +21,7 @@ public enum JobStatus {
 
     private final boolean stopped;
 
-    JobStatus(boolean stopped) {
+    JobStatusEnum(boolean stopped) {
         this.stopped = stopped;
     }
 

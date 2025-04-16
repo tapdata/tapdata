@@ -1,6 +1,6 @@
 package com.tapdata.tm.taskinspect.vo;
 
-import com.tapdata.tm.taskinspect.cons.DiffTypes;
+import com.tapdata.tm.taskinspect.cons.DiffTypeEnum;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -23,7 +23,7 @@ public class ResultsReportVo implements Serializable {
     private String targetTable;
     private List<String> targetFields;
     private LinkedHashMap<String, Object> target;
-    private DiffTypes diffType;
+    private DiffTypeEnum diffType;
     private List<String> diffFields;
 
     public ResultsReportVo table(String rowId) {
@@ -66,7 +66,7 @@ public class ResultsReportVo implements Serializable {
         return this;
     }
 
-    public ResultsReportVo diffType(DiffTypes diffType) {
+    public ResultsReportVo diffType(DiffTypeEnum diffType) {
         this.diffType = diffType;
         return this;
     }
@@ -76,7 +76,7 @@ public class ResultsReportVo implements Serializable {
         return this;
     }
 
-    public static ResultsReportVo create(DiffTypes diffType, String rowId) {
+    public static ResultsReportVo create(DiffTypeEnum diffType, String rowId) {
         return new ResultsReportVo().diffType(diffType).table(rowId);
     }
 }
