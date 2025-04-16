@@ -13,6 +13,7 @@ import com.tapdata.tm.sdk.interceptor.VersionHeaderInterceptor;
 import com.tapdata.tm.sdk.util.CloudSignUtil;
 import io.tapdata.exception.*;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
@@ -729,13 +730,18 @@ public class RestTemplateOperator {
 					baseURL = retryInfo.baseURL; // Change it to an available URL
 				}
 				return result;
-			} catch (RestDoNotRetryException | TmUnavailableException e) {
+			} catch (RestDoNotRetryException e) {
 				throw e;
 			} catch (HttpMessageConversionException | InterruptedException | CancellationException ignored  ) {
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;
-				if (e instanceof HttpClientErrorException) {
+				// TmUnavailableException need to retry for cloud
+				if (e instanceof TmUnavailableException) {
+					if (!AppType.currentType().isCloud()) {
+						throw (TmUnavailableException) e;
+					}
+				} else if (e instanceof HttpClientErrorException) {
 					// If the parameter is incorrect, no retry will be performed
 					if (404 == ((HttpClientErrorException) e).getRawStatusCode()) {
 						throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), "not found url: " + retryInfo.reqURL), e);

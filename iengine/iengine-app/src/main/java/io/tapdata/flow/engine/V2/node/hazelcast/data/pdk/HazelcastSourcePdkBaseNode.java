@@ -65,6 +65,7 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
@@ -971,10 +972,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						switch (type) {
 							case HasKeys:
 								// filter no hove primary key tables
-								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) && Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
 							case NoKeys:
 								// filter has primary key tables
-								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+							case OnlyPrimaryKey:
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+							case OnlyUniqueIndex:
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
 							default:
 								break;
 						}

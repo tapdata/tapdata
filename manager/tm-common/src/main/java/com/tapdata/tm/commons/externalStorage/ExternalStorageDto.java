@@ -9,6 +9,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.net.URLEncoder;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 
 
@@ -43,6 +44,7 @@ public class ExternalStorageDto extends BaseDto {
 	private String maxSizePolicy;
 	private Integer writeDelaySeconds;
 	private String status;
+	private Map<String, String> attrs;
 	/**
 	 * 测试响应消息
 	 */
