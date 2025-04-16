@@ -1,47 +1,53 @@
 package com.tapdata.taskinspect;
 
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.taskinspect.mock.SampleMode;
 import com.tapdata.tm.taskinspect.TaskInspectConfig;
 import com.tapdata.tm.taskinspect.TaskInspectMode;
 import io.tapdata.utils.UnitTestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/4/14 15:01 Create
  */
+@ExtendWith(MockitoExtension.class)
 class TaskInspectTest {
 
-    interface RunAndThrow<T> {
-        void runAndThrow(T v) throws Exception;
+    interface ExConsumer<T> {
+        void accept(T v) throws Exception;
     }
 
+    @Mock
+    TaskInspectContext context;
+    @Mock
+    IOperator operator;
+    @Mock
+    IMode mode;
+
     String taskId = "test-task-id";
+
+    @BeforeEach
+    void setUp() {
+        reset(context, operator, mode);
+    }
+
 
     @Nested
     class ConstructorTest {
 
-        @Mock
-        TaskInspectContext context;
-        @Mock
-        IOperator operator;
-        @Mock
-        IMode mode;
-
         @BeforeEach
         void setUp() {
-            MockitoAnnotations.openMocks(this);
-
             doReturn(taskId).when(context).getTaskId();
-            doReturn(true).when(mode).stop();
         }
 
         @Test
@@ -58,28 +64,21 @@ class TaskInspectTest {
     @Nested
     class InitTest {
         @Mock
-        TaskInspectContext context;
-        @Mock
-        IOperator operator;
-        @Mock
         TaskInspectConfig config;
-        @Mock
-        IMode mode;
 
         @BeforeEach
         void setUp() {
-            MockitoAnnotations.openMocks(this);
-
             doReturn(taskId).when(context).getTaskId();
             doReturn(true).when(mode).stop();
+            reset(config);
         }
 
-        void test(RunAndThrow<TaskInspect> consumer) throws Exception {
+        void test(ExConsumer<TaskInspect> consumer) throws Exception {
             try (TaskInspect taskInspect = mock(TaskInspect.class, CALLS_REAL_METHODS)) {
                 UnitTestUtils.injectField(TaskInspect.class, taskInspect, "context", context);
                 UnitTestUtils.injectField(TaskInspect.class, taskInspect, "operator", operator);
                 UnitTestUtils.injectField(TaskInspect.class, taskInspect, "modeJob", mode);
-                consumer.runAndThrow(taskInspect);
+                consumer.accept(taskInspect);
             }
         }
 
@@ -153,31 +152,24 @@ class TaskInspectTest {
     @Nested
     class RefreshTest {
         @Mock
-        TaskInspectContext context;
-        @Mock
-        IOperator operator;
-        @Mock
         TaskInspectConfig config;
-        @Mock
-        IMode mode;
         @Mock
         IMode newMode;
 
         @BeforeEach
         void setUp() {
-            MockitoAnnotations.openMocks(this);
-
             doReturn(taskId).when(context).getTaskId();
             doReturn(true).when(mode).stop();
             doReturn(true).when(newMode).stop();
+            reset(config, newMode);
         }
 
-        void test(RunAndThrow<TaskInspect> consumer) throws Exception {
+        void test(ExConsumer<TaskInspect> consumer) throws Exception {
             try (TaskInspect taskInspect = mock(TaskInspect.class, CALLS_REAL_METHODS)) {
                 UnitTestUtils.injectField(TaskInspect.class, taskInspect, "context", context);
                 UnitTestUtils.injectField(TaskInspect.class, taskInspect, "operator", operator);
                 UnitTestUtils.injectField(TaskInspect.class, taskInspect, "modeJob", mode);
-                consumer.runAndThrow(taskInspect);
+                consumer.accept(taskInspect);
             }
         }
 
@@ -211,6 +203,8 @@ class TaskInspectTest {
             try (MockedStatic<TaskInspect> taskInspectMockedStatic = mockStatic(TaskInspect.class)) {
                 taskInspectMockedStatic.when(() -> TaskInspect.create(any(TaskInspectMode.class), any(TaskInspectContext.class), any(IOperator.class)))
                     .thenReturn(newMode);
+                doReturn(true).when(newMode).stop();
+
                 test(taskInspect -> {
                     // Act
                     taskInspect.refresh(config);
@@ -222,28 +216,86 @@ class TaskInspectTest {
                 });
             }
         }
+    }
 
-//        @Test
-//        void testRefresh_InterruptedException() throws Exception {
-//            // Arrange
-//            TaskInspectMode currentMode = TaskInspectMode.CLOSE;
-//            TaskInspectMode newMode = TaskInspectMode.OPEN;
-//            doReturn(currentMode).when(mode).getMode();
-//            doReturn(newMode).when(config).getMode();
-//            doThrow(new InterruptedException("Test Interrupted Exception")).when(TaskInspectUtils.class).stop(any(Runnable.class), eq(TaskInspect.MAX_TIMEOUT));
-//
-//            test(taskInspect -> {
-//                // Act
-//                taskInspect.refresh(config);
-//
-//                // Assert
-//                verify(mode).stop();
-//                verify(TaskInspectUtils.class).stop(any(Runnable.class), eq(TaskInspect.MAX_TIMEOUT));
-//                verify(taskInspect, never()).create(any(TaskInspectMode.class), any(TaskInspectContext.class), any(IOperator.class));
-//                verify(newMode, never()).refresh(config);
-//                assertTrue(Thread.currentThread().isInterrupted());
-//            });
-//        }
+    @Nested
+    class createTest {
+
+        @Mock
+        TaskInspectMode taskInspectMode;
+
+        @BeforeEach
+        void setUp() {
+            reset(taskInspectMode);
+        }
+
+        void testFailure(String type) {
+            // 预定义
+            doReturn(SampleMode.class.getName()).when(taskInspectMode).getImplClassName();
+            doReturn(type).when(context).getTaskId();
+
+            // 使用 try-with-resources 来捕获 MockedStatic
+            try (MockedStatic<Log4jUtil> log4jUtilMock = mockStatic(Log4jUtil.class)) {
+                // 行为
+                IMode result = TaskInspect.create(taskInspectMode, context, operator);
+
+                // 预期检查
+                assertNotNull(result);
+                assertInstanceOf(IMode.class, result);
+                log4jUtilMock.verify(() -> Log4jUtil.getStackString(any(Throwable.class)));
+            }
+        }
+
+        @Test
+        void testCreate_ModeClose() {
+            // 预定义
+            when(taskInspectMode.getImplClassName()).thenReturn(TaskInspectMode.CLOSE.getImplClassName());
+
+            // 行为
+            IMode result = TaskInspect.create(taskInspectMode, context, operator);
+
+            // 预期检查
+            assertNotNull(result);
+        }
+
+        @Test
+        void testCreate_ModeCustom_Success() {
+            // 预定义
+            String className = SampleMode.class.getName();
+            when(taskInspectMode.getImplClassName()).thenReturn(className);
+
+            // 行为
+            IMode result = TaskInspect.create(taskInspectMode, context, operator);
+
+            // 预期检查
+            assertNotNull(result);
+            assertInstanceOf(SampleMode.class, result);
+        }
+
+        @Test
+        void testCreate_ModeCustom_ClassNotFoundException() {
+            testFailure("ClassNotFoundException");
+        }
+
+        @Test
+        void testCreate_ModeCustom_NoSuchMethodException() {
+            testFailure("NoSuchMethodException");
+        }
+
+        @Test
+        void testCreate_ModeCustom_InstantiationException() {
+            testFailure("InstantiationException");
+        }
+
+        @Test
+        void testCreate_ModeCustom_IllegalAccessException() {
+            testFailure("IllegalAccessException");
+        }
+
+        @Test
+        void testCreate_ModeCustom_InvocationTargetException() {
+            testFailure("InvocationTargetException");
+        }
     }
 
 }
