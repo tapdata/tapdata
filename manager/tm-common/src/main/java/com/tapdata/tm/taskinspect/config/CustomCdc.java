@@ -1,7 +1,8 @@
 package com.tapdata.tm.taskinspect.config;
 
-import com.tapdata.tm.taskinspect.cons.CustomCdcTypes;
-import lombok.Data;
+import com.tapdata.tm.taskinspect.cons.CustomCdcTypeEnum;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 任务校验 - 增量校验配置
@@ -10,7 +11,8 @@ import lombok.Data;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/1/17 18:16 Create
  */
-@Data
+@Getter
+@Setter
 public class CustomCdc implements IConfig<CustomCdc> {
     /**
      * 是否启用自定义 CDC 校验
@@ -20,7 +22,7 @@ public class CustomCdc implements IConfig<CustomCdc> {
     /**
      * 校验方式类型
      */
-    private CustomCdcTypes type;
+    private CustomCdcTypeEnum type;
 
     /**
      * 抽样方式配置对象
@@ -37,7 +39,7 @@ public class CustomCdc implements IConfig<CustomCdc> {
     @Override
     public CustomCdc init(int depth) {
         setEnable(init(getEnable(), false)); // 默认禁用
-        setType(init(getType(), CustomCdcTypes.SAMPLE)); // 默认使用采样方式
+        setType(init(getType(), CustomCdcTypeEnum.SAMPLE)); // 默认使用采样方式
         setSample(init(getSample(), depth, CustomCdcSample.class)); // 初始化采样配置
         return this;
     }

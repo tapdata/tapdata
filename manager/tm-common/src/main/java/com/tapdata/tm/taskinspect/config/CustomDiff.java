@@ -1,6 +1,7 @@
 package com.tapdata.tm.taskinspect.config;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 任务校验-差异校验校验配置
@@ -8,7 +9,8 @@ import lombok.Data;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/1/17 18:16 Create
  */
-@Data
+@Getter
+@Setter
 public class CustomDiff implements IConfig<CustomDiff> {
     private Boolean enable; // 是否开启差异校验
     private Long limit; // 差异存储上限

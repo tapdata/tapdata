@@ -1,6 +1,6 @@
 package com.tapdata.taskinspect;
 
-import com.tapdata.tm.taskinspect.cons.JobType;
+import com.tapdata.tm.taskinspect.cons.JobTypeEnum;
 import com.tapdata.tm.taskinspect.vo.JobReportVo;
 import com.tapdata.tm.taskinspect.vo.ResultsRecoverVo;
 import com.tapdata.tm.taskinspect.vo.ResultsReportVo;
@@ -33,7 +33,7 @@ class IOperatorTest {
 
     @Test
     public void jobStart_ReturnsNull() {
-        assertNull(iOperator.jobStart("testTaskId", JobType.UNKNOWN, new Serializable() {
+        assertNull(iOperator.jobStart("testTaskId", JobTypeEnum.UNKNOWN, new Serializable() {
         }, new LinkedHashMap<>()));
     }
 

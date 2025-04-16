@@ -1,7 +1,7 @@
 package com.tapdata.taskinspect;
 
 import com.tapdata.tm.taskinspect.TaskInspectConfig;
-import com.tapdata.tm.taskinspect.cons.JobType;
+import com.tapdata.tm.taskinspect.cons.JobTypeEnum;
 import com.tapdata.tm.taskinspect.dto.TaskInspectHistoriesDto;
 import com.tapdata.tm.taskinspect.vo.JobReportVo;
 import com.tapdata.tm.taskinspect.vo.ResultsRecoverVo;
@@ -23,7 +23,7 @@ public interface IOperator {
         return null;
     }
 
-    default TaskInspectHistoriesDto jobStart(String taskId, JobType type, Serializable config, Map<String, Serializable> ext) {
+    default TaskInspectHistoriesDto jobStart(String taskId, JobTypeEnum type, Serializable config, Map<String, Serializable> ext) {
         return null;
     }
 
