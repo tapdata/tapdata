@@ -61,7 +61,7 @@ public class TaskInspectException extends TapRuntimeException {
      * @return 异常
      */
     public static TaskInspectException uninitialized(String taskId) {
-        return new TaskInspectException(taskId, CODE_UNINITIALIZED);
+        return new TaskInspectException("not found task-inspect instance", taskId, CODE_UNINITIALIZED);
     }
 
     /**
@@ -72,7 +72,7 @@ public class TaskInspectException extends TapRuntimeException {
      * @return 异常
      */
     public static TaskInspectException illegalMode(String taskId, TaskInspectMode mode) {
-        return new TaskInspectException(String.format("illegal mode '%s'", mode), taskId, CODE_MODE_ILLEGAL);
+        return new TaskInspectException(String.format("illegal mode for task '%s'", mode), taskId, CODE_MODE_ILLEGAL);
     }
 
     /**

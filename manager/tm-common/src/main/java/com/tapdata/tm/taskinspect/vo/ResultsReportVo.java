@@ -1,7 +1,8 @@
 package com.tapdata.tm.taskinspect.vo;
 
 import com.tapdata.tm.taskinspect.cons.DiffTypeEnum;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 import java.util.LinkedHashMap;
@@ -13,7 +14,8 @@ import java.util.List;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/3/14 18:03 Create
  */
-@Data
+@Getter
+@Setter
 public class ResultsReportVo implements Serializable {
     private String rowId;
     private LinkedHashMap<String, Object> keys;
