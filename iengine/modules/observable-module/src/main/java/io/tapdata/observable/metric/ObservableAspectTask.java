@@ -65,6 +65,7 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
 		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
 		observerClassHandlers.register(AlterFieldAttributesFuncAspect.class, this::handleAlterFieldAttributesFunc);
+		observerClassHandlers.register(TruncateTableFuncAspect.class,this::handleTruncateTableFuncAspect);
 		observerClassHandlers.register(DropFieldFuncAspect.class, this::handleDropFieldFunc);
 		observerClassHandlers.register(CreateTableFuncAspect.class, this::handleCreateTableFunc);
 		observerClassHandlers.register(DropTableFuncAspect.class, this::handleDropTableFunc);
@@ -413,6 +414,20 @@ public class ObservableAspectTask extends AspectTask {
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::handleDdlStart);
 				break;
 			case AlterFieldAttributesFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::handleDdlEnd);
+				break;
+		}
+
+		return null;
+	}
+	public Void handleTruncateTableFuncAspect(TruncateTableFuncAspect aspect) {
+		String nodeId = aspect.getDataProcessorContext().getNode().getId();
+		switch (aspect.getState()) {
+			case TruncateTableFuncAspect.STATE_START:
+				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::handleDdlStart);
+				break;
+			case TruncateTableFuncAspect.STATE_END:
 				taskSampleHandler.handleDdlEnd();
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::handleDdlEnd);
 				break;
