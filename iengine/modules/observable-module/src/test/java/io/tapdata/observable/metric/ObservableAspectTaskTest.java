@@ -260,6 +260,42 @@ public class ObservableAspectTaskTest {
         }
     }
     @Nested
+    class handleTruncateTableFunc{
+        DataNodeSampleHandler dataNodeSampleHandler;
+        @BeforeEach
+        void beforeInit(){
+            dataNodeSampleHandler = mock(DataNodeSampleHandler.class);
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put("testId", dataNodeSampleHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+        }
+        @Test
+        void test1(){
+            TruncateTableFuncAspect truncateTableFuncAspect = new TruncateTableFuncAspect();
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+
+            Node node = mock(Node.class);
+            when(node.getId()).thenReturn("testId");
+            when(dataProcessorContext.getNode()).thenReturn(node);
+            truncateTableFuncAspect.dataProcessorContext(dataProcessorContext).state(TruncateTableFuncAspect.STATE_START);
+            observableAspectTask.handleTruncateTableFuncAspect(truncateTableFuncAspect);
+            verify(dataNodeSampleHandler, times(1)).handleDdlStart();
+        }
+        @Test
+        void test2(){
+            TaskSampleHandler taskSampleHandler = mock(TaskSampleHandler.class);
+            ReflectionTestUtils.setField(observableAspectTask,"taskSampleHandler",taskSampleHandler);
+            TruncateTableFuncAspect truncateTableFuncAspect = new TruncateTableFuncAspect();
+            DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+            Node node = mock(Node.class);
+            when(node.getId()).thenReturn("testId");
+            when(dataProcessorContext.getNode()).thenReturn(node);
+            truncateTableFuncAspect.dataProcessorContext(dataProcessorContext).state(TruncateTableFuncAspect.STATE_END);
+            observableAspectTask.handleTruncateTableFuncAspect(truncateTableFuncAspect);
+            verify(dataNodeSampleHandler, times(1)).handleDdlEnd();
+        }
+    }
+    @Nested
     class handleWriteRecordFunc {
         TapCompletableFutureEx writeRecordFuture;
         @BeforeEach
