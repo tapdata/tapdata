@@ -13,7 +13,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -37,17 +40,17 @@ public class McpTapServer implements InitializingBean {
         this.mcpServer = McpServer.sync(transportProvider)
                 .serverInfo("mcp-tap-server", "1.0.0")
                 .capabilities(McpSchema.ServerCapabilities.builder()
-                        //.resources(false, false)
+                        .resources(true, false)
                         .tools(true)
-                        //.prompts(false)
+                        .prompts(false)
                         .logging()
                         .build())
                 .resourceTemplates(getResourceTemplate())
                 .build();
 
-        //addResources();
+        addResources();
         addTools();
-        //addPrompts();
+        addPrompts();
 
         // Send logging notifications
         mcpServer.loggingNotification(McpSchema.LoggingMessageNotification.builder()
@@ -60,12 +63,11 @@ public class McpTapServer implements InitializingBean {
     private List<McpSchema.ResourceTemplate> getResourceTemplate() {
         return Arrays.asList(
                 new McpSchema.ResourceTemplate("tap://{connectionId}", "Connection", "Available database connections in TapData", "application/json", null),
-                new McpSchema.ResourceTemplate("tap://{connectionId}/{schemaId}", "DataSchema", "Data schema loaded by connection in TapData", "application/json", null)
+                new McpSchema.ResourceTemplate("tap://{connectionId}/{dataModelId}", "DataModel", "Data model loaded by connection in TapData", "application/json", null)
         );
     }
 
     private void addResources() {
-        // MCP Server SDK 升级后，不支持根据用户身份获取可访问resource，以后在添加支持
         Arrays.stream(applicationContext.getBeanNamesForType(Resource.class))
                 .map(n -> (Resource)applicationContext.getBean(n)).forEach(res -> {
                     McpServerFeatures.SyncResourceSpecification syncResourceSpecification =
@@ -96,6 +98,15 @@ public class McpTapServer implements InitializingBean {
     }
 
     private void addPrompts() {
-        //mcpServer.addPrompt(syncPromptSpecification);
+        mcpServer.addPrompt(new McpServerFeatures.SyncPromptSpecification(
+                new McpSchema.Prompt("Load data model", "Indicates the order in which the data model is loaded and the tools to be used", Collections.emptyList()), (exchange, params) -> {
+
+                    return new McpSchema.GetPromptResult("Load data model", Arrays.asList(
+                            new McpSchema.PromptMessage(McpSchema.Role.ASSISTANT, new McpSchema.TextContent(Arrays.asList(McpSchema.Role.ASSISTANT), 1.0,
+                                    "When you need to load the data model, you need to follow the steps below\n" +
+                                            "1. Execute listConnection to load all available database connections and obtain the database connection ID;\n" +
+                                            "2. Based on the database connection ID in the previous step, execute listDataModel to obtain the data model"))
+                    ));
+        }));
     }
 }

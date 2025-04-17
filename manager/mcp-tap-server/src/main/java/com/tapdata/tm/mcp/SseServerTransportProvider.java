@@ -6,6 +6,9 @@ package com.tapdata.tm.mcp;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.ThreadLocalUtils;
 import io.modelcontextprotocol.spec.*;
 import io.modelcontextprotocol.util.Assert;
@@ -94,6 +97,7 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 	private final String sseEndpoint;
 
 	private final RouterFunction<ServerResponse> routerFunction;
+	private final UserLogService userLogService;
 
 	private McpServerSession.Factory sessionFactory;
 
@@ -118,7 +122,7 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 	 * @param sseEndpoint The endpoint URI where clients establish their SSE connections.
 	 * @throws IllegalArgumentException if any parameter is null
 	 */
-	public SseServerTransportProvider(ObjectMapper objectMapper, String messageEndpoint, String sseEndpoint) {
+	public SseServerTransportProvider(ObjectMapper objectMapper, String messageEndpoint, String sseEndpoint, UserLogService userLogService) {
 		Assert.notNull(objectMapper, "ObjectMapper must not be null");
 		Assert.notNull(messageEndpoint, "Message endpoint must not be null");
 		Assert.notNull(sseEndpoint, "SSE endpoint must not be null");
@@ -126,24 +130,11 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 		this.objectMapper = objectMapper;
 		this.messageEndpoint = messageEndpoint;
 		this.sseEndpoint = sseEndpoint;
+		this.userLogService = userLogService;
 		this.routerFunction = RouterFunctions.route()
 			.GET(this.sseEndpoint, this::handleSseConnection)
 			.POST(this.messageEndpoint, this::handleMessage)
 			.build();
-	}
-
-	/**
-	 * Constructs a new WebMvcSseServerTransportProvider instance with the default SSE
-	 * endpoint.
-	 * @param objectMapper The ObjectMapper to use for JSON serialization/deserialization
-	 * of messages.
-	 * @param messageEndpoint The endpoint URI where clients should send their JSON-RPC
-	 * messages via HTTP POST. This endpoint will be communicated to clients through the
-	 * SSE connection's initial endpoint event.
-	 * @throws IllegalArgumentException if either objectMapper or messageEndpoint is null
-	 */
-	public SseServerTransportProvider(ObjectMapper objectMapper, String messageEndpoint) {
-		this(objectMapper, messageEndpoint, DEFAULT_SSE_ENDPOINT);
 	}
 
 	@Override
@@ -259,6 +250,11 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 						.ifPresent(accessToken -> sessionAttribute.put("params", accessToken));
 				this.sessionAttributes.put(sessionId, sessionAttribute);
 
+				Object userId = request.session().getAttribute(USER_ID);
+				if (userId != null) {
+					userLogService.addUserLog(Modular.MCP, Operation.CONNECTED, userId.toString(), null, null);
+				}
+
 				try {
 					sseBuilder.id(sessionId)
 						.event(ENDPOINT_EVENT_TYPE)
@@ -309,6 +305,11 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 			String body = request.body(String.class);
 			McpSchema.JSONRPCMessage message = McpSchema.deserializeJsonRpcMessage(objectMapper, body);
 
+			Object userId = getAttribute(sessionId, USER_ID);
+			if (userId != null) {
+				userLogService.addUserLog(Modular.MCP, Operation.READ, userId.toString(), null, body);
+			}
+
 			// Process the message through the session's handle method
 			session.handle(message).block(); // Block for WebMVC compatibility
 
@@ -325,6 +326,9 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 	}
 
 	private Map<String, Object> getSessionAttributesOrNull(String sessionId) {
+		if (sessionId == null) return null;
+		if (sessionAttributes.containsKey(sessionId))
+			return sessionAttributes.get(sessionId);
 		return sessionAttributes.values().stream().filter(c -> sessionId.equals(c.get("sessionId"))).findFirst().orElse(null);
 	}
 	public Map<String, Object> getSessionAttributes(String sessionId) {
