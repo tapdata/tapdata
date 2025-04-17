@@ -226,7 +226,7 @@ jobs:
           workflow_file_name: build-tapdata-op.yaml
           ref: main
           wait_interval: 10
-          client_payload: '{"BUILD_CONFIG": {"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "main#main", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}, "CONNECTORS-OPTIONS": "nightly-build", "JAVA_VERSION": "java17"}'
+          client_payload: '{"BUILD_CONFIG": {"FRONTEND_BRANCH": "${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}", "OPENSOURCE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}", "ENTERPRISE_BRANCH": "${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}", "CONNECTORS_BRANCH": "develop#develop", "TAG_NAME": "${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}"}, "CONNECTORS-OPTIONS": "nightly-build", "JAVA_VERSION": "java17"}'
           propagate_failure: true
           trigger_workflow: true
           wait_workflow: true
