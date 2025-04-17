@@ -233,6 +233,9 @@ public class TaskPreviewService {
 		taskDto.setRetryIntervalSecond(0L);
 		taskDto.setMaxRetryTimeMinute(0L);
 		taskDto.setPreview(true);
+		if (null == taskDto.getSyncType()) {
+			taskDto.setSyncType(TaskDto.SYNC_TYPE_PREVIEW);
+		}
 		handleMergeNode(taskDto);
 	}
 

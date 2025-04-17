@@ -133,7 +133,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
 
-	public AtomicBoolean running = new AtomicBoolean(false);
+	public AtomicBoolean running = new AtomicBoolean(true);
 	protected TapCodecsFilterManager codecsFilterManager;
 
 	/**
