@@ -27,7 +27,7 @@ import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.schema.TapTableMap;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
 import java.util.ArrayList;

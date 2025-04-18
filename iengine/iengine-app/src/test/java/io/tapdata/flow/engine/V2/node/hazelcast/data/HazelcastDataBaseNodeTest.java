@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode.STREAM_OFFSET_COMPRESS_PREFIX;
+import static io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode.STREAM_OFFSET_COMPRESS_PREFIX_V2;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -240,6 +241,15 @@ public class HazelcastDataBaseNodeTest {
             String result = dataBaseNode.uncompressStreamOffsetIfNeed(STREAM_OFFSET_COMPRESS_PREFIX + str);
 
             Assertions.assertEquals("test", result);
+
+        }
+
+        @Test
+        void testUncompressStreamOffsetIfNeedChinese() throws IOException {
+            String str = StringCompression.compressV2("test测试");
+            String result = dataBaseNode.uncompressStreamOffsetIfNeed(STREAM_OFFSET_COMPRESS_PREFIX_V2 + str);
+
+            Assertions.assertEquals("test测试", result);
 
         }
     }

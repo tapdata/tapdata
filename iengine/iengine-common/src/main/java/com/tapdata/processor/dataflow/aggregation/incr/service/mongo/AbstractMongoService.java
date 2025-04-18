@@ -1,16 +1,17 @@
 package com.tapdata.processor.dataflow.aggregation.incr.service.mongo;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientOptions;
-import com.mongodb.MongoClientURI;
-import com.mongodb.MongoCredential;
-import com.mongodb.ServerAddress;
+
+import com.mongodb.*;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.internal.MongoClientImpl;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.dataflow.aggregation.incr.service.LifeCycleService;
 import org.apache.commons.lang3.StringUtils;
+
+import java.util.Collections;
 
 abstract public class AbstractMongoService implements LifeCycleService {
 
@@ -24,13 +25,18 @@ abstract public class AbstractMongoService implements LifeCycleService {
 		if (StringUtils.isEmpty(connections.getDatabase_uri())) {
 			ServerAddress serverAddress = new ServerAddress(connections.getDatabase_host(), connections.getDatabase_port());
 			MongoCredential credential = MongoCredential.createCredential(connections.getDatabase_username(), connections.getDatabase_name(), connections.getDatabase_password().toCharArray());
-			MongoClientOptions options = MongoClientOptions.builder().sslEnabled(connections.getSsl()).codecRegistry(MongodbUtil.getForJavaCoedcRegistry()).build();
-			mongoClient = new MongoClient(serverAddress, credential, options);
+			MongoClientSettings options = MongoClientSettings.builder()
+					.applyToSslSettings(builder -> builder.enabled(connections.getSsl()))
+					.codecRegistry(MongodbUtil.getForJavaCoedcRegistry())
+					.applyToClusterSettings(builder -> builder.hosts(Collections.singletonList(serverAddress)))
+					.credential(credential)
+					.build();
+			mongoClient = new MongoClientImpl(options, MongoDriverInformation.builder().build());
 			databaseName = connections.getDatabase_name();
 		} else {
-			final MongoClientOptions.Builder builder = MongoClientOptions.builder().codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-			MongoClientURI mongoClientURI = new MongoClientURI(connections.getDatabase_uri(), builder);
-			mongoClient = new MongoClient(mongoClientURI);
+			final MongoClientSettings.Builder builder = MongoClientSettings.builder().codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+			ConnectionString mongoClientURI = new ConnectionString(connections.getDatabase_uri());
+			mongoClient = new MongoClientImpl(builder.applyConnectionString(mongoClientURI).build(), MongoDriverInformation.builder().build());
 			databaseName = mongoClientURI.getDatabase();
 		}
 		this.database = mongoClient.getDatabase(databaseName);

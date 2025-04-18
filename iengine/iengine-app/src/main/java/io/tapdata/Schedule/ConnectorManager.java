@@ -1,8 +1,11 @@
 package io.tapdata.Schedule;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientOptions;
-import com.mongodb.MongoClientURI;
+
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoDriverInformation;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.internal.MongoClientImpl;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.*;
@@ -25,6 +28,7 @@ import io.tapdata.entity.Converter;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.exception.RestException;
 import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.entity.GlobalConstant;
 import io.tapdata.metric.MetricManager;
@@ -35,9 +39,11 @@ import io.tapdata.utils.AppType;
 import io.tapdata.websocket.ManagementWebsocketHandler;
 import io.tapdata.websocket.WebSocketEvent;
 import io.tapdata.websocket.handler.PongHandler;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.Getter;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -59,8 +65,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.socket.TextMessage;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.util.*;
@@ -357,8 +361,12 @@ public class ConnectorManager {
 				resultDto = clientMongoOperator.findOne(processId, ConnectorConstant.LICENSE_COLLECTION + "/checkEngineValid", CheckEngineValidResultDto.class);
 			} catch (Exception e) {
 				Throwable cause = CommonUtils.matchThrowable(e, HttpClientErrorException.class);
-				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getRawStatusCode() == 404){
+				if (cause instanceof HttpClientErrorException && ((HttpClientErrorException) cause).getRawStatusCode() == 404 ){
 					return null;
+				}
+				Throwable throwable =CommonUtils.matchThrowable(e, RestException.class);
+				if (null != throwable) {
+					if (((RestException) throwable).isCode("SystemError"))return null;
 				}
 			}
 		}
@@ -542,25 +550,23 @@ public class ConnectorManager {
 	public ClientMongoOperator initMongoOperator() {
 		MongoTemplate mongoTemplate = null;
 		MongoClient client = null;
-		MongoClientURI uri = null;
 		try {
 			if (StringUtils.isNotBlank(mongoURI)) {
-				MongoClientOptions.Builder builder = MongoClientOptions.builder();
+				MongoClientSettings.Builder builder = MongoClientSettings.builder();
 				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-
+				builder.applyConnectionString(new ConnectionString(mongoURI));
 				if (ssl) {
 					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
 					String privateKey = SSLUtil.retrivePrivateKey(sslPEM);
 					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
 
 					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
-					builder.sslContext(sslContext).sslEnabled(true).sslInvalidHostNameAllowed(true);
+					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 				}
-				uri = new MongoClientURI(mongoURI, builder);
-				client = new MongoClient(uri);
-				mongoTemplate = new MongoTemplate(client, uri.getDatabase());
+				client = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
+				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
 			}
-			clientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, uri, restTemplateOperator, configCenter);
+			clientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI),restTemplateOperator, configCenter);
 			clientMongoOperator.setCloudRegion(jobTags);
 		} catch (Exception e) {
 			throw new RuntimeException(e);
@@ -573,11 +579,11 @@ public class ConnectorManager {
 	public ClientMongoOperator initPingMongoOperator() {
 		MongoTemplate mongoTemplate = null;
 		MongoClient client = null;
-		MongoClientURI uri = null;
 		try {
 			if (StringUtils.isNotBlank(mongoURI)) {
-				MongoClientOptions.Builder builder = MongoClientOptions.builder();
+				MongoClientSettings.Builder builder = MongoClientSettings.builder();
 				builder.codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+				builder.applyConnectionString(new ConnectionString(mongoURI));
 
 				if (ssl) {
 					List<String> trustCertificates = SSLUtil.retriveCertificates(sslCA);
@@ -585,13 +591,12 @@ public class ConnectorManager {
 					List<String> certificates = SSLUtil.retriveCertificates(sslPEM);
 
 					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
-					builder.sslContext(sslContext).sslEnabled(true).sslInvalidHostNameAllowed(true);
+					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 				}
-				uri = new MongoClientURI(mongoURI, builder);
-				client = new MongoClient(uri);
-				mongoTemplate = new MongoTemplate(client, uri.getDatabase());
+				client = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
+				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
 			}
-			pingClientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, uri, new RestTemplateOperator(
+			pingClientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI) ,new RestTemplateOperator(
 					baseURLs,
 					restRetryTime,
 					() -> {
@@ -1012,11 +1017,11 @@ public class ConnectorManager {
 		Map<String, Long> previousTotal = JOB_STATS.get(job.getId());
 		if (MapUtils.isEmpty(previousTotal)) {
 			previousTotal = new HashMap<>();
-			previousTotal.put("source_received", new Long(0));
+			previousTotal.put("source_received", 0L);
 		}
 		Long sourceReceived = total.get("source_received");
 
-		Long previousSourceReceived = previousTotal.getOrDefault("source_received", new Long(0));
+		Long previousSourceReceived = previousTotal.getOrDefault("source_received",0L);
 
 		LinkedList<Long> perSourceReceied = perSecond.getOrDefault("source_received", new LinkedList<>());
 
@@ -1248,17 +1253,17 @@ public class ConnectorManager {
 					isExit = true;
 				}
 				break;
-			case DAAS:
-				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
-				if (null != resultDto && !resultDto.getResult()){
-					isExit = true;
-					if (StringUtils.isNotBlank(resultDto.getProcessId())){
-						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
-					}else {
-						exitInfo = resultDto.getFailedReason();
-					}
-				}
-				break;
+//			case DAAS:
+//				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+//				if (null != resultDto && !resultDto.getResult()){
+//					isExit = true;
+//					if (StringUtils.isNotBlank(resultDto.getProcessId())){
+//						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
+//					}else {
+//						exitInfo = resultDto.getFailedReason();
+//					}
+//				}
+//				break;
 		}
 		if(StringUtils.isNotBlank(exitInfo)){
 			logger.info(exitInfo);

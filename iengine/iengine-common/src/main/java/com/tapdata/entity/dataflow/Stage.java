@@ -8,7 +8,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.FieldScript;
 import com.tapdata.entity.JoinTable;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.Serializable;
 import java.util.ArrayList;

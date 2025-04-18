@@ -1,6 +1,6 @@
 package io.tapdata.common;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.tapdata.constant.TapdataOffset;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.Job;

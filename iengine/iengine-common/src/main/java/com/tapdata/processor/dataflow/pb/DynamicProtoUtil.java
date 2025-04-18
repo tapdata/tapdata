@@ -9,7 +9,7 @@ import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.MapUtilV2;
 import com.tapdata.constant.NotExistsNode;
 import com.tapdata.constant.TapList;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

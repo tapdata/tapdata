@@ -19,6 +19,7 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationCode;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
@@ -49,7 +50,7 @@ public class MongoOAuth2AuthorizationService implements OAuth2AuthorizationServi
         put(OAuth2AuthorizationCode.class, TOKEN_TYPE_AUTHORIZATION_CODE);
         put(OAuth2AccessToken.class, TOKEN_TYPE_ACCESS_TOKEN);
         put(OAuth2RefreshToken.class, TOKEN_TYPE_REFRESH_TOKEN);
-        put(OAuth2RefreshToken2.class, TOKEN_TYPE_REFRESH_TOKEN);
+//        put(OAuth2RefreshToken2.class, TOKEN_TYPE_REFRESH_TOKEN);
         put(OidcIdToken.class, TOKEN_TYPE_OIDC_ID_TOKEN);
     }};
 
@@ -243,7 +244,7 @@ public class MongoOAuth2AuthorizationService implements OAuth2AuthorizationServi
                 });*/
                 authorizationToken = new OidcIdToken(token.getToken(), token.getIssuedAt(),token.getExpiresAt(), parseMap(token.getClaims()));
             } else if(TOKEN_TYPE_REFRESH_TOKEN.equals(token.getTokenType())) {
-                authorizationToken = new OAuth2RefreshToken2(token.getToken(), token.getIssuedAt(), token.getExpiresAt());
+                authorizationToken = new OAuth2RefreshToken(token.getToken(), token.getIssuedAt(), token.getExpiresAt());
             } else {
                 log.warn("Not implement by token type {}", token.getTokenType());
             }

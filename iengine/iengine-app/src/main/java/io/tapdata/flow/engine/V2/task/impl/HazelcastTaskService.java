@@ -94,9 +94,10 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import jakarta.annotation.PostConstruct;
 import lombok.SneakyThrows;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -106,7 +107,6 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -761,21 +761,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			case MIGRATE_JS_PROCESSOR:
 			case STANDARD_MIGRATE_JS_PROCESSOR:
 				hazelcastNode = new HazelcastJavaScriptProcessorNode(
-						DataProcessorContext.newBuilder()
-								.withTaskDto(taskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withCacheService(cacheService)
-								.withConfigurationCenter(config)
-								.withTapTableMap(tapTableMap)
-								.withTaskConfig(taskConfig)
-								.build()
-				);
-				break;
-			case PYTHON_PROCESS:
-			case MIGRATE_PYTHON_PROCESS:
-				hazelcastNode = new HazelcastPythonProcessNode(
 						DataProcessorContext.newBuilder()
 								.withTaskDto(taskDto)
 								.withNode(node)

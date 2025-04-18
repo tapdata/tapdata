@@ -7,8 +7,8 @@ import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.task.dto.Message;
 import io.github.openlg.graphlib.Graph;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,17 +23,17 @@ public class DAGCheckUtilTest {
         attr.put("disabled", false);
         node.setAttrs(attr);
         DAGCheckUtil.setNodeToDisabled(node);
-        Assert.assertTrue( node.isDisabled());
-        Assert.assertNotNull(node.getAttrs());
-        Assert.assertTrue(node.getAttrs().containsKey("disabled"));
-        Assert.assertEquals(Boolean.TRUE, node.getAttrs().get("disabled"));
+        Assertions.assertTrue( node.isDisabled());
+        Assertions.assertNotNull(node.getAttrs());
+        Assertions.assertTrue(node.getAttrs().containsKey("disabled"));
+        Assertions.assertEquals(Boolean.TRUE, node.getAttrs().get("disabled"));
     }
 
     @Test
     public void testSetNodeToDisabledNullNode(){
         Node<?> node = null;
         DAGCheckUtil.setNodeToDisabled(node);
-        Assert.assertNull(node);
+        Assertions.assertNull(node);
     }
 
     @Test
@@ -41,10 +41,10 @@ public class DAGCheckUtilTest {
         Node<?> node = new JoinProcessorNode();
         node.setAttrs(null);
         DAGCheckUtil.setNodeToDisabled(node);
-        Assert.assertTrue(node.isDisabled());
-        Assert.assertNotNull(node.getAttrs());
-        Assert.assertTrue(node.getAttrs().containsKey("disabled"));
-        Assert.assertEquals(Boolean.TRUE, node.getAttrs().get("disabled"));
+        Assertions.assertTrue(node.isDisabled());
+        Assertions.assertNotNull(node.getAttrs());
+        Assertions.assertTrue(node.getAttrs().containsKey("disabled"));
+        Assertions.assertEquals(Boolean.TRUE, node.getAttrs().get("disabled"));
     }
 
     @Test
@@ -52,10 +52,10 @@ public class DAGCheckUtilTest {
         Node<?> node = new JoinProcessorNode();
         node.setAttrs(new HashMap<>());
         DAGCheckUtil.setNodeToDisabled(node);
-        Assert.assertTrue(node.isDisabled());
-        Assert.assertNotNull(node.getAttrs());
-        Assert.assertTrue(node.getAttrs().containsKey("disabled"));
-        Assert.assertEquals(Boolean.TRUE, node.getAttrs().get("disabled"));
+        Assertions.assertTrue(node.isDisabled());
+        Assertions.assertNotNull(node.getAttrs());
+        Assertions.assertTrue(node.getAttrs().containsKey("disabled"));
+        Assertions.assertEquals(Boolean.TRUE, node.getAttrs().get("disabled"));
     }
 
     @Test
@@ -78,8 +78,8 @@ public class DAGCheckUtilTest {
         node.setRightNodeId(rightNode.getId());
         DAGCheckUtil.checkJoinNode(node, edges, messageList);
 
-        Assert.assertEquals(0, messageList.size());
-        Assert.assertFalse(node.disabledNode());
+        Assertions.assertEquals(0, messageList.size());
+        Assertions.assertFalse(node.disabledNode());
     }
 
     @Test
@@ -98,8 +98,8 @@ public class DAGCheckUtilTest {
         DAGCheckUtil.checkJoinNode(node, methodEdges, messageList);
         DAGCheckUtil.checkJoinNode(node, edges, messageList);
 
-        Assert.assertEquals(0, messageList.size());
-        Assert.assertTrue(node.disabledNode());
+        Assertions.assertEquals(0, messageList.size());
+        Assertions.assertTrue(node.disabledNode());
     }
 
     @Test
@@ -109,8 +109,8 @@ public class DAGCheckUtilTest {
         JoinProcessorNode node = null;
         List<Edge> methodEdges = new ArrayList<>(edges);
         DAGCheckUtil.checkJoinNode(node, methodEdges, messageList);
-        Assert.assertNull(node);
-        Assert.assertEquals(0, messageList.size());
+        Assertions.assertNull(node);
+        Assertions.assertEquals(0, messageList.size());
     }
 
     @Test
@@ -121,8 +121,8 @@ public class DAGCheckUtilTest {
         JoinProcessorNode node = getJoinNode(edges, preNodes);
         List<Edge> methodEdges = null;
         DAGCheckUtil.checkJoinNode(node, methodEdges, messageList);
-        Assert.assertNull(methodEdges);
-        Assert.assertEquals(0, messageList.size());
+        Assertions.assertNull(methodEdges);
+        Assertions.assertEquals(0, messageList.size());
     }
 
     @Test
@@ -141,8 +141,8 @@ public class DAGCheckUtilTest {
 
         DAGCheckUtil.checkJoinNode(node, methodEdges, messageList);
 
-        Assert.assertEquals(1, messageList.size());
-        Assert.assertTrue(node.disabledNode());
+        Assertions.assertEquals(1, messageList.size());
+        Assertions.assertTrue(node.disabledNode());
     }
 
     private JoinProcessorNode getJoinNode(List<Edge> edges, List<Node> preNodes) {

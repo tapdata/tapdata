@@ -1,7 +1,6 @@
 package com.tapdata.tm.utils;
 
-import cn.hutool.extra.mail.MailAccount;
-import cn.hutool.extra.mail.MailUtil;
+
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
@@ -13,7 +12,7 @@ import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.service.BlacklistService;
 import io.tapdata.entity.simplify.TapSimplify;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -23,11 +22,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.mail.*;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
+import jakarta.mail.*;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -273,11 +272,6 @@ public class MailUtils {
 
     }
 
-    @NotNull
-    private MailAccount getMailAccount() {
-        MailAccount account = new MailAccount();
-        return account;
-    }
 
 
     /**

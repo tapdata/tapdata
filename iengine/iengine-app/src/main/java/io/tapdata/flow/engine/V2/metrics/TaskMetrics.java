@@ -9,7 +9,7 @@ import com.tapdata.tm.commons.metrics.Metrics;
 import com.tapdata.tm.commons.metrics.MetricsLabel;
 import com.tapdata.tm.commons.metrics.TaskMetricsLabel;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;

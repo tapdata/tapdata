@@ -230,7 +230,7 @@ class ScriptStandardizationUtilTest {
                 "}\n";
         public static final String NOT_STANDARD_SCRIPT = "var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n" +
                 "var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n" +
-                "var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n" +
+                "var httpUtil = Java.type(\"com.tapdata.http.HttpUtil\");\n" +
                 "var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n" +
                 "var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n";
 

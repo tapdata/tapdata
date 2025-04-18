@@ -2,8 +2,8 @@ package io.tapdata.Schedule;
 
 import io.tapdata.Schedule.Watcher.AgentLogConfigurationWatcher;
 import io.tapdata.Schedule.Watcher.TaskLogConfigurationWatcher;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
-import javax.annotation.PostConstruct;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;

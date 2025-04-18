@@ -27,7 +27,7 @@ import io.tapdata.debug.DebugException;
 import io.tapdata.debug.DebugProcessor;
 import io.tapdata.debug.DebugUtil;
 import io.tapdata.exception.SourceException;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.SerializationUtils;

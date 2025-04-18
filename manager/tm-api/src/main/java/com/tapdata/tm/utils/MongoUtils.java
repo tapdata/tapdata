@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.schema.MongoJsonSchema;
 import org.springframework.data.mongodb.repository.support.MappingMongoEntityInformation;
 
 import java.util.*;
@@ -42,7 +43,17 @@ public class MongoUtils {
             preConvertWhereOptions(where, entityInformation, getAllFieldType(entityInformation.getJavaType()));
             Document doc = new Document(where);
 
-            return Criteria.matchingDocumentStructure(() -> doc);
+            return Criteria.matchingDocumentStructure(new MongoJsonSchema() {
+                @Override
+                public Document schemaDocument() {
+                    return doc;
+                }
+                @Override
+                public Document toDocument() {
+                    return doc;
+                }
+
+            });
         }
 
         return new Criteria();
@@ -139,7 +150,16 @@ public class MongoUtils {
                         map.put("$options", ((Map) cond).get("options"));
                     }
                     where.put(key, map);
-                } else if (((Map) cond).containsKey("$inq")) {
+                }else if(((Map) cond).containsKey("$regularExpression")){
+                    HashMap<String, Object> map = new HashMap<>();
+                    Map<String, Object> like = (Map<String, Object>) ((Map) cond).get("$regularExpression");
+                    map.put("$regex", like.get("pattern"));
+                    if (like.containsKey("$options") && StringUtils.isNotBlank(like.get("$options").toString())) {
+                        map.put("$options", like.get("$options").toString());
+                    }
+                    where.put(key, map);
+                }
+                else if (((Map) cond).containsKey("$inq")) {
                     ((Map) cond).put("$in", ((Map) cond).remove("$inq"));
                 } else if (((Map) cond).containsKey("inq")) {
                     ((Map) cond).put("$in", ((Map) cond).remove("inq"));

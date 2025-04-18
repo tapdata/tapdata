@@ -4,7 +4,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import io.tapdata.TapInterface;
 import io.tapdata.entity.Lib;
 import io.tapdata.entity.LibSupported;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;

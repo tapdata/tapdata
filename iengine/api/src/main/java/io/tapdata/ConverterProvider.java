@@ -7,8 +7,7 @@ import com.tapdata.entity.values.*;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.ConvertLog;
 import io.tapdata.exception.ConvertException;
-import org.apache.commons.collections.MapUtils;
-import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.commons.collections4.MapUtils;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -38,14 +37,6 @@ public interface ConverterProvider {
 
 	}
 
-	/**
-	 * convert field type to java type
-	 *
-	 * @param relateDatabaseField tapdata schema list
-	 * @return kafka schema builder
-	 * @throws ConvertException
-	 */
-	SchemaBuilder kafkaSchemaBuilder(RelateDatabaseField relateDatabaseField) throws ConvertException;
 
 	/**
 	 * returns a Object, convert the data from database type to a java type

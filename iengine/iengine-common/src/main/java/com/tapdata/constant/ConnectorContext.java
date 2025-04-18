@@ -8,7 +8,7 @@ import com.tapdata.entity.User;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.Processor;
 import io.tapdata.milestone.MilestoneService;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -31,7 +31,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.handler.DeduceSchemaHandler;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.nio.charset.StandardCharsets;

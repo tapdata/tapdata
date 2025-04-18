@@ -16,8 +16,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.server.authorization.config.ClientSettings;
-import org.springframework.security.oauth2.server.authorization.config.TokenSettings;
+
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.ConfigurationSettingNames;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
@@ -40,7 +42,7 @@ public class ApplicationController extends BaseController {
     /**
      * Create a new instance of the model and persist it into the data source
      *
-     * @param metadataDefinition
+     *
      * @return
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
@@ -53,7 +55,7 @@ public class ApplicationController extends BaseController {
         if (CollectionUtils.isEmpty(applicationDto.getClientAuthenticationMethods())) {
             applicationDto.setClientAuthenticationMethods(
                     Sets.newHashSet(
-                            ClientAuthenticationMethod.POST.getValue(),
+//                            ClientAuthenticationMethod.POST.getValue(),
                             ClientAuthenticationMethod.CLIENT_SECRET_POST.getValue(),
                             ClientAuthenticationMethod.CLIENT_SECRET_JWT.getValue(),
                             ClientAuthenticationMethod.PRIVATE_KEY_JWT.getValue())
@@ -61,17 +63,19 @@ public class ApplicationController extends BaseController {
         }
 
         if (StringUtils.isBlank(applicationDto.getTokenSettings())) {
-            TokenSettings tokenSettings = new TokenSettings();
-            tokenSettings.accessTokenTimeToLive(Duration.ofDays(14));
-            tokenSettings.refreshTokenTimeToLive(Duration.ofDays(14));
-            tokenSettings.reuseRefreshTokens(true);
-            applicationDto.setTokenSettings(MongoRegisteredClientRepository.writeMap(tokenSettings.settings()));
+            Map<String, Object> settings = new HashMap<>();
+            settings.put(ConfigurationSettingNames.Token.ACCESS_TOKEN_TIME_TO_LIVE, Duration.ofDays(14));
+            TokenSettings tokenSettings = TokenSettings.builder().
+                    accessTokenTimeToLive(Duration.ofDays(14)).
+                    refreshTokenTimeToLive(Duration.ofDays(14)).
+                    reuseRefreshTokens(true)
+                    .build();
+            applicationDto.setTokenSettings(MongoRegisteredClientRepository.writeMap(tokenSettings.getSettings()));
         }
 
         if (StringUtils.isBlank(applicationDto.getClientSettings())) {
-            ClientSettings clientSettings = new ClientSettings();
-            clientSettings.requireUserConsent(true);
-            applicationDto.setClientSettings(MongoRegisteredClientRepository.writeMap(clientSettings.settings()));
+            ClientSettings clientSettings = ClientSettings.builder().requireAuthorizationConsent(true).build();
+            applicationDto.setClientSettings(MongoRegisteredClientRepository.writeMap(clientSettings.getSettings()));
         }
 
         ApplicationDto dto = applicationService.save(applicationDto, getLoginUser());

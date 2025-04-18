@@ -12,7 +12,7 @@ import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.schema.SchemaList;
 import io.tapdata.schema.SchemaMap;
 import io.tapdata.schema.SchemaProxy;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Query;
 

@@ -4,7 +4,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.FieldProcess;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.exception.BaseDatabaseUtilException;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.sql.Connection;
 import java.util.List;

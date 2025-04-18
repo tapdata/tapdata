@@ -59,7 +59,12 @@ public class TaskSampleRetriever {
 				for (Map.Entry<String, Object> entry : item.entrySet()) {
 					String key = entry.getKey();
 					if (!key.equals("tags")) {
-						samples.put(key, (Number) entry.getValue());
+						if(entry.getValue() instanceof String && ((String) entry.getValue()).equals("NaN")){
+							samples.put(key, 0.0);
+						}else{
+							samples.put(key, (Number) entry.getValue());
+						}
+
 					}
 				}
 			}

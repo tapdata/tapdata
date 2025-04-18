@@ -4,7 +4,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.io.Serializable;
 import java.util.Map;

@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.0.0.RELEASE</version>
+        <version>3.4.3</version>
         <relativePath/>
     </parent>
 
@@ -20,16 +20,16 @@
 
         <!-- Instruct the build to use only UTF-8 encoding for source code -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
 
         <!-- Kafka and it's dependencies MUST reflect what the Kafka version uses -->
-        <version.kafka>2.3.1</version.kafka>
-        <version.kafka.scala>2.12</version.kafka.scala>
+        <version.kafka>3.7.2</version.kafka>
+        <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
-        <version.zookeeper>3.4.14</version.zookeeper>
-        <version.jackson>2.12.6</version.jackson>
-        <version.jackson.databind>2.12.6.1</version.jackson.databind>
+        <version.zookeeper>3.8.4</version.zookeeper>
+        <version.jackson>2.18.3</version.jackson>
+        <version.jackson.databind>2.18.3</version.jackson.databind>
         <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
         <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
         <version.confluent.platform>5.1.2</version.confluent.platform>
@@ -39,15 +39,15 @@
         <version.hana.driver>2.3.58</version.hana.driver>
         <version.mysql.binlog>0.28.0</version.mysql.binlog>
         <version.mongo.server>3.2.12</version.mongo.server>
-        <version.mongo.driver>3.9.1</version.mongo.driver>
+        <version.mongo.driver>5.2.1</version.mongo.driver>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
-        <version.spring>5.0.4.RELEASE</version.spring>
+        <version.spring>6.2.2</version.spring>
 
         <!-- Connectors -->
-        <version.com.google.protobuf>3.19.1</version.com.google.protobuf>
+        <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
 
         <!-- Testing -->
         <version.junit>4.12</version.junit>
@@ -82,18 +82,18 @@
         <debug.argline/>
 
         <!-- Java implementation of cryptographic algorithms -->
-        <org.bouncycastle.version>1.60</org.bouncycastle.version>
+        <org.bouncycastle.version>1.80</org.bouncycastle.version>
 
         <!-- json lib -->
-        <org.json.version>20180813</org.json.version>
-        <gson.version>2.8.6</gson.version>
+        <org.json.version>20250107</org.json.version>
+        <version>2.12.1</version>
 
         <!-- apache commons net -->
-        <commons.net.version>3.6</commons.net.version>
+        <commons.net.version>3.11.1</commons.net.version>
 
-        <dom4j.version>1.6.1</dom4j.version>
+        <dom4j.version>2.1.4</dom4j.version>
 
-        <avro.version>1.9.0</avro.version>
+        <avro.version>1.12.0</avro.version>
 
         <mq.version>2.21.74</mq.version>
 
@@ -120,24 +120,23 @@
         <!-- original hazelcast -->
         <!--    <hazelcast.version>5.0.2</hazelcast.version>-->
         <!-- hazelcast with tapdata persistence -->
-        <hazelcast.version>5.2.1</hazelcast.version>
-        <hazelcast-persistence.version>5.2.3-SNAPSHOT</hazelcast-persistence.version>
+        <hazelcast.version>5.5.0</hazelcast.version>
+        <hazelcast-persistence.version>5.5.0-SNAPSHOT</hazelcast-persistence.version>
 
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 
         <tm-sdk.version>1.0.4-SNAPSHOT</tm-sdk.version>
         <tm-common.version>0.0.3-SNAPSHOT</tm-common.version>
 
-        <okhttp.version>4.9.1</okhttp.version>
+        <okhttp.version>4.12.0</okhttp.version>
 
-        <graalvm.js.version>21.3.0</graalvm.js.version>
-        <graalvm.py.version>2.7.3</graalvm.py.version>
+        <graalvm.js.version>24.1.2</graalvm.js.version>
+        <graalvm.py.version>2.7.4</graalvm.py.version>
 
         <jna.version>5.10.0</jna.version>
         <log4j.version>2.17.1</log4j.version>
-        <log4j.mongodb.version>2.10.0</log4j.mongodb.version>
 
-        <hutool.version>5.7.15</hutool.version>
+        <hutool.version>5.8.36</hutool.version>
 
         <!-- 依赖关系：compile,provided,runtime,test -->
         <scope.libs.db2>compile</scope.libs.db2>
@@ -159,23 +158,26 @@
         <version.debezium.embedded.new>2.0.1</version.debezium.embedded.new>
         <version.debezium.connector.postgres>2.0.0</version.debezium.connector.postgres>
         <version.debezium.connector.mysql>2.0.0</version.debezium.connector.mysql>
-
         <!-- lombok -->
-        <lombok.version>1.18.20</lombok.version>
+        <lombok.version>1.18.36</lombok.version>
 
-        <error-code-core.version>1.4-SNAPSHOT</error-code-core.version>
-        <pdk-error-code.version>1.4-SNAPSHOT</pdk-error-code.version>
-        <error-code-scanner.version>1.4-SNAPSHOT</error-code-scanner.version>
-        <lucene-core.version>8.11.2</lucene-core.version>
+        <error-code-core.version>2.0-SNAPSHOT</error-code-core.version>
+        <pdk-error-code.version>2.0-SNAPSHOT</pdk-error-code.version>
+        <error-code-scanner.version>2.0-SNAPSHOT</error-code-scanner.version>
+        <lucene-core.version>9.12.1</lucene-core.version>
         <junit-jupiter.version>5.8.1</junit-jupiter.version>
         <mockito.version>4.11.0</mockito.version>
         <iengine.impl.artifactId>iengine-oss</iengine.impl.artifactId>
         <iengine.oss.module>iengine-oss</iengine.oss.module>
-        <tapdata-api.version>1.4.6-SNAPSHOT</tapdata-api.version>
-        <modules-api.version>1.4-SNAPSHOT</modules-api.version>
-        <websocket-client-module.version>1.4-SNAPSHOT</websocket-client-module.version>
-        <service-skeleton-module.version>1.4-SNAPSHOT</service-skeleton-module.version>
-        <tapdata-storage-module.version>1.4-SNAPSHOT</tapdata-storage-module.version>
+        <tapdata-api.version>2.0.0-SNAPSHOT</tapdata-api.version>
+        <modules-api.version>2.0-SNAPSHOT</modules-api.version>
+        <websocket-client-module.version>2.0-SNAPSHOT</websocket-client-module.version>
+        <service-skeleton-module.version>2.0-SNAPSHOT</service-skeleton-module.version>
+        <tapdata-storage-module.version>2.0-SNAPSHOT</tapdata-storage-module.version>
+        <tapdata-pdk-runner.version>2.0-SNAPSHOT</tapdata-pdk-runner.version>
+        <tapdata-common.version>2.0-SNAPSHOT</tapdata-common.version>
+        <gson.version>2.12.1</gson.version>
+        <netty.version>4.1.119.Final</netty.version>
     </properties>
 
     <modules>
@@ -228,8 +230,9 @@
             <dependency>
                 <groupId>com.fasterxml.woodstox</groupId>
                 <artifactId>woodstox-core</artifactId>
-                <version>6.0.1</version>
+                <version>7.1.0</version>
             </dependency>
+
 
             <!-- Kafka Connect -->
             <dependency>
@@ -328,7 +331,7 @@
             <!-- MongoDB Java driver -->
             <dependency>
                 <groupId>org.mongodb</groupId>
-                <artifactId>mongo-java-driver</artifactId>
+                <artifactId>mongodb-driver-sync</artifactId>
                 <version>${version.mongo.driver}</version>
             </dependency>
 
@@ -354,14 +357,9 @@
                 <version>${log4j.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.apache.logging.log4j</groupId>
-                <artifactId>log4j-mongodb</artifactId>
-                <version>${log4j.mongodb.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>commons-io</groupId>
                 <artifactId>commons-io</artifactId>
-                <version>2.11.0</version>
+                <version>2.18.0</version>
             </dependency>
             <dependency> <!-- 桥接：告诉commons logging使用Log4j2 -->
                 <groupId>org.apache.logging.log4j</groupId>
@@ -371,14 +369,9 @@
 
 
             <dependency>
-                <groupId>commons-collections</groupId>
-                <artifactId>commons-collections</artifactId>
-                <version>3.2.2</version>
-            </dependency>
-            <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-collections4</artifactId>
-                <version>4.3</version>
+                <version>4.5.0-M3</version>
             </dependency>
             <dependency>
                 <groupId>commons-logging</groupId>
@@ -508,7 +501,7 @@
 
             <dependency>
                 <groupId>org.bouncycastle</groupId>
-                <artifactId>bcprov-jdk15on</artifactId>
+                <artifactId>bcprov-jdk18on</artifactId>
                 <version>${org.bouncycastle.version}</version>
             </dependency>
 
@@ -531,7 +524,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
-                <version>1.21</version>
+                <version>1.27.1</version>
             </dependency>
 
             <dependency>
@@ -568,7 +561,7 @@
             <dependency>
                 <groupId>commons-beanutils</groupId>
                 <artifactId>commons-beanutils</artifactId>
-                <version>1.9.2</version>
+                <version>1.10.1</version>
             </dependency>
             <dependency>
                 <groupId>commons-cli</groupId>
@@ -578,7 +571,7 @@
             <dependency>
                 <groupId>commons-codec</groupId>
                 <artifactId>commons-codec</artifactId>
-                <version>1.9</version>
+                <version>1.17.2</version>
             </dependency>
             <dependency>
                 <groupId>commons-net</groupId>
@@ -602,11 +595,6 @@
                 <version>2.3</version>
             </dependency>
             <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty</artifactId>
-                <version>3.10.5.Final</version>
-            </dependency>
-            <dependency>
                 <groupId>com.nimbusds</groupId>
                 <artifactId>nimbus-jose-jwt</artifactId>
                 <version>9.8.1</version>
@@ -624,7 +612,7 @@
             <dependency>
                 <groupId>org.xerial.snappy</groupId>
                 <artifactId>snappy-java</artifactId>
-                <version>1.1.7.3</version>
+                <version>1.1.10.7</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.orc</groupId>
@@ -633,7 +621,7 @@
             </dependency>
 
             <dependency>
-                <groupId>dom4j</groupId>
+                <groupId>org.dom4j</groupId>
                 <artifactId>dom4j</artifactId>
                 <version>${dom4j.version}</version>
             </dependency>
@@ -719,22 +707,12 @@
                 <version>7.6.2</version>
             </dependency>
 
-            <dependency>
-                <groupId>org.apache.lucene</groupId>
-                <artifactId>lucene-core</artifactId>
-                <version>8.5.0</version>
-            </dependency>
 
             <!--引入quartz依赖-->
             <dependency>
                 <groupId>org.quartz-scheduler</groupId>
                 <artifactId>quartz</artifactId>
-                <version>2.2.1</version>
-            </dependency>
-            <dependency>
-                <groupId>org.quartz-scheduler</groupId>
-                <artifactId>quartz-jobs</artifactId>
-                <version>2.2.1</version>
+                <version>2.5.0</version>
             </dependency>
 
             <!--引入hanlp依赖-->
@@ -778,7 +756,7 @@
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
-                <version>30.1.1-android</version>
+                <version>33.4.0-jre</version>
             </dependency>
 
             <!-- hazelcast -->
@@ -834,6 +812,12 @@
             </dependency>
 
             <dependency>
+                <groupId>io.tapdata</groupId>
+                <artifactId>tapdata-common</artifactId>
+                <version>${tapdata-common.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.squareup.okhttp3</groupId>
                 <artifactId>okhttp</artifactId>
                 <version>${okhttp.version}</version>
@@ -841,12 +825,7 @@
             <dependency>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-stdlib</artifactId>
-                <version>1.4.0</version>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains.kotlin</groupId>
-                <artifactId>kotlin-stdlib-common</artifactId>
-                <version>1.4.0</version>
+                <version>2.1.10</version>
             </dependency>
             <!-- https://mvnrepository.com/artifact/org.rocksdb/rocksdbjni -->
             <dependency>
@@ -860,6 +839,7 @@
                 <groupId>org.graalvm.js</groupId>
                 <artifactId>js</artifactId>
                 <version>${graalvm.js.version}</version>
+                <type>pom</type>
             </dependency>
             <dependency>
                 <groupId>org.graalvm.js</groupId>
@@ -914,6 +894,18 @@
             </dependency>
 
             <dependency>
+                <groupId>org.apache.lucene</groupId>
+                <artifactId>lucene-analysis-common</artifactId>
+                <version>${lucene-core.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.lucene</groupId>
+                <artifactId>lucene-queryparser</artifactId>
+                <version>${lucene-core.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>it.unimi.dsi</groupId>
                 <artifactId>fastutil</artifactId>
                 <version>8.5.13</version>
@@ -941,6 +933,7 @@
                 <artifactId>tapdata-storage-module</artifactId>
                 <version>${tapdata-storage-module.version}</version>
             </dependency>
+
 
         </dependencies>
     </dependencyManagement>
@@ -1010,6 +1003,7 @@
                         <!-- executable>true</executable-->
                     </configuration>
                 </plugin>
+
             </plugins>
         </pluginManagement>
 <!--        <resources>-->

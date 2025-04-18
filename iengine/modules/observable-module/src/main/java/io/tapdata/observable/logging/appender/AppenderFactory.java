@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.core.threads.InterruptedRuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
@@ -69,10 +68,8 @@ public class AppenderFactory implements Serializable {
 
 	private AppenderFactory() {
 		cacheLogsQueue = ChronicleQueue.singleBuilder(CACHE_QUEUE_DIR)
-				.rollCycle(RollCycles.HUGE_DAILY)
-				.storeFileListener((tempCycle, file) -> {
-					deleteFileIfLessThanCurrentCycle(tempCycle, file);
-				})
+				.rollCycle(RollCycles.FAST_DAILY)
+				.storeFileListener(this::deleteFileIfLessThanCurrentCycle)
 				.build();
 		cycle = cacheLogsQueue.cycle();
 		fileAppenderTailerExecutor.submit(() -> {

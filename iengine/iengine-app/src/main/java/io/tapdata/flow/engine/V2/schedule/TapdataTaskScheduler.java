@@ -29,12 +29,14 @@ import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -42,9 +44,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -78,6 +82,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private TaskService<TaskDto> hazelcastTaskService;
 	@Autowired
 	private MessageDao messageDao;
+	@Qualifier("taskControlScheduler")
 	@Autowired
 	private TaskScheduler taskScheduler;
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
@@ -92,6 +97,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final Map<String, Long> taskRetryTimeMap = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
+
+	@Bean(name = "taskControlScheduler")
+	public TaskScheduler taskControlScheduler() {
+		return new ThreadPoolTaskScheduler();
+	}
 
 	@PostConstruct
 	public void init() {

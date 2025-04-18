@@ -56,6 +56,7 @@ public class TMApplication {
 
 		ConfigurableApplicationContext applicationContext = new SpringApplicationBuilder(TMApplication.class)
 				.listeners(new StartupListener())
+				.allowCircularReferences(true)
 				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
 		// 启动 TCMApplication 的线程

@@ -7,7 +7,7 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.observable.logging.util.Conf.LogConfiguration;
 import io.tapdata.observable.logging.util.LogUtil;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;

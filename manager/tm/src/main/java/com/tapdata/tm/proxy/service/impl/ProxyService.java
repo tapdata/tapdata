@@ -13,7 +13,7 @@ import io.tapdata.modules.api.net.entity.SubscribeToken;
 import io.tapdata.modules.api.net.entity.SubscribeURLToken;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

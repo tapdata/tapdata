@@ -725,6 +725,6 @@ public class DataFlowServiceImpl extends DataFlowService{
 
 	public CloseableIterator<DataFlow> stream(Query query) {
 		query.cursorBatchSize(1000);
-		return repository.getMongoOperations().stream(query, DataFlow.class);
+		return null;
 	}
 }

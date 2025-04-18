@@ -15,28 +15,29 @@ import io.tapdata.exception.*;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.utils.AppType;
 import io.tapdata.utils.UnitTestUtils;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.HttpRequestInterceptor;
-import org.apache.http.HttpResponseInterceptor;
-import org.apache.http.NoHttpResponseException;
+import org.apache.hc.client5.http.classic.HttpClient;
+
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.GzipCompressingEntity;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+
+import org.apache.hc.core5.http.HttpEntityContainer;
+import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.HttpResponseInterceptor;
+import org.apache.hc.core5.http.NoHttpResponseException;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.util.Timeout;
 import org.apache.http.client.config.CookieSpecs;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.entity.GzipCompressingEntity;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageConversionException;
@@ -56,10 +57,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static org.apache.hc.core5.http.HttpHeaders.CONTENT_ENCODING;
 
 public class RestTemplateOperator {
 
@@ -153,30 +158,24 @@ public class RestTemplateOperator {
 		PoolingHttpClientConnectionManager poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager();
 		poolingHttpClientConnectionManager.setMaxTotal(2000);
 		poolingHttpClientConnectionManager.setDefaultMaxPerRoute(2000);
-
 		CloseableHttpClient httpClient = HttpClientBuilder.create()
 				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
 				.disableAutomaticRetries()
-				.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
-					if (request instanceof HttpEntityEnclosingRequest) {
-						HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
-
-						if (enclosingRequest.getEntity() instanceof ByteArrayEntity) {
-							ByteArrayEntity byteArrayEntity = (ByteArrayEntity) enclosingRequest.getEntity();
-							long contentLength = byteArrayEntity.getContentLength();
+				.addRequestInterceptorFirst((HttpRequestInterceptor) (request,entityDetails, context) -> {
+					if(request instanceof HttpEntityContainer entityContainer && entityDetails != null){
+                        if (entityDetails instanceof ByteArrayEntity byteArrayEntity) {
+                            long contentLength = byteArrayEntity.getContentLength();
 							if (contentLength > threshold) {
-								request.addHeader(org.apache.http.HttpHeaders.CONTENT_ENCODING, "gzip");
-								enclosingRequest.setEntity(new GzipCompressingEntity(enclosingRequest.getEntity()));
+								request.addHeader(CONTENT_ENCODING, "gzip");
+								entityContainer.setEntity(new GzipCompressingEntity(byteArrayEntity));
 							}
 						}
-
 					}
+
 				})
-				.addInterceptorLast((HttpResponseInterceptor) (response, context) -> {
-				})
+				.addResponseInterceptorFirst((HttpResponseInterceptor) (response,entityDetails ,context) -> {})
 				.setConnectionManager(poolingHttpClientConnectionManager)
 				.build();
-
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
 		requestFactory.setConnectTimeout(connectTimeout);
 		requestFactory.setReadTimeout(readTimeout);
@@ -733,7 +732,7 @@ public class RestTemplateOperator {
 				return result;
 			} catch (RestDoNotRetryException e) {
 				throw e;
-			} catch (HttpMessageConversionException | InterruptedException ignored) {
+			} catch (HttpMessageConversionException | InterruptedException | CancellationException ignored  ) {
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;

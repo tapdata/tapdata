@@ -33,7 +33,7 @@ public class UnsubscribeHandler implements WebSocketHandler {
 		}
 		Arrays.stream(messageType.split(",")).forEach(type -> {
 			if (MessageType.LOGS.getType().equals(type)) {
-				LogsHandler.removeSession(context.getSessionId());
+//				LogsHandler.removeSession(context.getSessionId());
 				log.info("LogsHandler unsubscribed successfully");
 			} else if (MessageType.WATCH.getType().equals(type)) {
 				WatchHandler.removeSession(context.getSessionId());

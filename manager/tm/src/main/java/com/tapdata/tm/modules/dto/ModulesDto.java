@@ -9,7 +9,7 @@ import lombok.EqualsAndHashCode;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import org.bson.types.ObjectId;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 import java.util.Date;
 import java.util.List;
 
