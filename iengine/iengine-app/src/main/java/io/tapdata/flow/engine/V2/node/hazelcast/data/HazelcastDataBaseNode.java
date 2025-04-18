@@ -10,11 +10,9 @@ import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.flow.engine.V2.entity.SyncProgressNodeType;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	protected static final String STREAM_OFFSET_COMPRESS_PREFIX = "_tap_zip_";
+	protected static final String STREAM_OFFSET_COMPRESS_PREFIX_V2 = "_v2_tap_zip_";
 
 	protected SyncTypeEnum syncType;
 	protected DataProcessorContext dataProcessorContext;
@@ -151,10 +150,16 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
 	@Nullable
 	protected String uncompressStreamOffsetIfNeed(String streamOffsetStr) {
-		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
+		if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2)) {
+			try {
+				streamOffsetStr = StringCompression.uncompressV2(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX_V2));
+			} catch (IOException | IllegalArgumentException e) {
+				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
+			}
+		} else if (StringUtils.startsWith(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX)) {
 			try {
 				streamOffsetStr = StringCompression.uncompress(StringUtils.removeStart(streamOffsetStr, STREAM_OFFSET_COMPRESS_PREFIX));
-			} catch (IOException e) {
+			} catch (IOException | IllegalArgumentException e) {
 				throw new RuntimeException("Uncompress stream offset failed: " + streamOffsetStr, e);
 			}
 		}
