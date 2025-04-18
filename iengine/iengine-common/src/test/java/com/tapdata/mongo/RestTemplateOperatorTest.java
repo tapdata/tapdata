@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.internal.verification.Times;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.mock.http.client.MockClientHttpResponse;
@@ -247,11 +248,12 @@ public class RestTemplateOperatorTest {
 	 */
 	@Test(expected = ManagementException.class)
 	public void testDownloadFile_RestTemplateThrowsRestClientException() throws Exception {
+		HttpClientErrorException httpClientErrorException = new HttpClientErrorException(HttpStatusCode.valueOf(404));
 		// Setup
 		final Map<String, Object> params = new HashMap<>();
 		final RestTemplateOperator.Callback callback = null;
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
-				any(RequestCallback.class), any(ResponseExtractor.class))).thenThrow(HttpClientErrorException.class);
+				any(RequestCallback.class), any(ResponseExtractor.class))).thenThrow(httpClientErrorException);
 
 		// Run the test
 		restTemplateOperatorUnderTest.downloadFile(params, "resource", "path", "cookies", "region", callback);
