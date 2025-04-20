@@ -1,8 +1,10 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.values.BooleanNotExist;
+import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 public class CommonUtil {
 
@@ -32,7 +34,7 @@ public class CommonUtil {
 		return diff;
 	}
 
-	public static int compareObjects(Object[] val1, Object[] val2) {
+	public static int compareObjects(Object[] val1, Object[] val2,boolean ignoreTimePrecision) {
 		// First, check if both arrays are null
 		if (val1 == null && val2 == null) {
 			return 0; // Both are null, considered equal
@@ -84,6 +86,10 @@ public class CommonUtil {
 				}else if(obj1 instanceof String || obj2 instanceof String){
 					obj1 = obj1.toString().trim();
 					obj2 = obj2.toString().trim();
+				}
+				if(ignoreTimePrecision){
+					obj1 = try2IgnoreTimePrecision(obj1);
+					obj2 = try2IgnoreTimePrecision(obj2);
 				}
 				int result = ((Comparable<Object>) obj1).compareTo(obj2);
 				if (result != 0) {
@@ -158,5 +164,14 @@ public class CommonUtil {
 			}
 		}
 		return new BooleanNotExist();
+	}
+
+	private static Object try2IgnoreTimePrecision(Object val){
+		if(val instanceof DateTime){
+			return ((DateTime) val).toInstant().toString().split("\\.")[0];
+		}else if (val instanceof Instant){
+			return ((Instant) val).toString().split("\\.")[0];
+		}
+		return val;
 	}
 }
