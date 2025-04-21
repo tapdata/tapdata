@@ -34,5 +34,5 @@ public class Source {
     private Map<String, Object> customCommand;
     private boolean enableCustomCollate;
     private Map<String, String> collate;
-
+    private int customNullSort;
 }

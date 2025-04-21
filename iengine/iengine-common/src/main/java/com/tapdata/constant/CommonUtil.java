@@ -78,17 +78,18 @@ public class CommonUtil {
 
 			// Compare non-null elements using the compareTo method, assuming they implement the Comparable interface
 			if (obj1 instanceof Comparable<?> && obj2 instanceof Comparable<?>) {
-				if (obj1 instanceof Number) {
+				if (obj1 instanceof Number || obj2 instanceof Number) {
 					obj1 = new BigDecimal(obj1.toString());
-				}
-				if (obj2 instanceof Number) {
 					obj2 = new BigDecimal(obj2.toString());
+				}else if(obj1 instanceof String || obj2 instanceof String){
+					obj1 = obj1.toString().trim();
+					obj2 = obj2.toString().trim();
 				}
 				int result = ((Comparable<Object>) obj1).compareTo(obj2);
 				if (result != 0) {
 					return result; // If the comparison result is not 0, return the result
 				}
-			} else {
+			}else {
 				// If elements are not comparable, you can consider other comparison strategies
 				// Here, you can customize based on the specific scenario
 				// For example, you can compare string representations using the toString method

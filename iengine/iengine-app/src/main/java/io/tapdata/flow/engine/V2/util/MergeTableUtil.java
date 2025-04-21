@@ -4,7 +4,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskSourceAndTarget;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastTaskTarget;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.util.Map;
 

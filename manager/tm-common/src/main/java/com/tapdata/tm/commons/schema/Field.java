@@ -23,6 +23,8 @@ public class Field implements Serializable {
     private Long autoIncrementValue;
     @JsonProperty("auto_inc_cache_value")
     private Long autoIncCacheValue;
+    @JsonProperty("sequence_name")
+    private String sequenceName;
 
     private Integer columnSize;
     @JsonProperty("data_code")

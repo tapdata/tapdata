@@ -15,17 +15,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
@@ -37,7 +31,7 @@ public class PythonUtils {
     protected static final String PACKAGE_COMPILATION_FILE = "setup.py";
     public static final String PYTHON_THREAD_PACKAGE_PATH = "py-lib";
     public static final String PYTHON_THREAD_SITE_PACKAGES_PATH = "site-packages";
-    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.3.jar";
+    public static final String PYTHON_THREAD_JAR = "jython-standalone-2.7.4.jar";
     public static final String PYTHON_SITE_PACKAGES_VERSION_CONFIG = "install.json";
     protected static final String AGENT_TAG = "agent";
     protected static final String BOOT_INF_TAG = "BOOT-INF";
@@ -164,6 +158,7 @@ public class PythonUtils {
             for (File file : files) {
                 if (null == file) continue;
                 File afterUnzipFile = FixFileUtil.fixFile(file);
+                if(null == afterUnzipFile) continue;
                 File setUpPyFile = getSetUpPyFile(afterUnzipFile);
                 unPackageBySetUpPy(setUpPyFile, afterUnzipFile, pythonJarPath, logger);
             }
@@ -238,7 +233,7 @@ public class PythonUtils {
                 String.format(PACKAGE_COMPILATION_COMMAND, unPackageAbsolutePath, new File(pythonJarPath).getAbsolutePath()));
     }
 
-    protected InputStream getLibPath(String jarName, AtomicReference<String> ato) throws IOException {
+    protected InputStream getLibPath(String jarName, AtomicReference<String> ato,Log log) throws IOException{
         InputStream pyJarPath = null;
         ClassLoader classLoader = getCurrentThreadContextClassLoader();
         if (classLoader instanceof URLClassLoader) {
@@ -250,6 +245,26 @@ public class PythonUtils {
                     ato.set(jarPath);
                     break;
                 }
+            }
+        }else{
+            try{
+                Field ucpField = classLoader.getClass().getSuperclass().getDeclaredField("ucp");
+                ucpField.setAccessible(true);
+                Object ucp = ucpField.get(classLoader);
+
+                Field pathField = ucp.getClass().getDeclaredField("path");
+                pathField.setAccessible(true);
+                List<URL> paths = (List<URL>) pathField.get(ucp);
+                for (URL url : paths) {
+                    String jarPath = url.getPath();
+                    if (jarPath.contains(jarName)) {
+                        pyJarPath = url.openStream();
+                        ato.set(jarPath);
+                        break;
+                    }
+                }
+            }catch (Exception e){
+                log.error("Get python jar path error", e);
             }
         }
         return pyJarPath;
@@ -269,7 +284,7 @@ public class PythonUtils {
 
     protected Integer execute(String jarName, String unzipPath, Log log) {
         AtomicReference<String> pyJarPathAto = getAtomicReference();
-        try(InputStream inputStream = getLibPath(jarName, pyJarPathAto)) {
+        try(InputStream inputStream = getLibPath(jarName, pyJarPathAto, log)) {
             String pyJarPath = pyJarPathAto.get();
             if (null == inputStream || null == pyJarPath) {
                 return -1;

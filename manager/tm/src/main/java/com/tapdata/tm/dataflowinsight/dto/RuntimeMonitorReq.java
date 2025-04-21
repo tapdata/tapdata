@@ -6,7 +6,7 @@
  */
 package com.tapdata.tm.dataflowinsight.dto;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 

@@ -6,6 +6,7 @@ import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.schema.MongoJsonSchema;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +21,17 @@ public class QueryUtil {
      */
     public static Criteria parseWhereToCriteria(Where where) {
         Document doc = new Document(where);
-        return Criteria.matchingDocumentStructure(() -> doc);
+        return Criteria.matchingDocumentStructure(new MongoJsonSchema() {
+            @Override
+            public Document schemaDocument() {
+                return doc;
+            }
+            @Override
+            public Document toDocument() {
+                return doc;
+            }
+
+        });
     }
 
     public static void parsePageParam(Filter filter, Query query) {

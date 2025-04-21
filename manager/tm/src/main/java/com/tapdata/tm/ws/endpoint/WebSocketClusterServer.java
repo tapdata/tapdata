@@ -17,7 +17,6 @@ import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.log.dto.LogDto;
-import com.tapdata.tm.log.service.LogService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.tcm.service.TcmService;
@@ -68,8 +67,6 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Lazy
     WorkerService workerService;
 
-    @Autowired
-    LogService logService;
 
     @Autowired
     TcmService tcmService;
@@ -327,9 +324,9 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     }
 
     private void responseLog(Map map) {
-        Map data = (Map) map.get("data");
-        LogDto logDto = BeanUtil.mapToBean(map, LogDto.class, false, CopyOptions.create());
-        logService.save(logDto);
+//        Map data = (Map) map.get("data");
+//        LogDto logDto = BeanUtil.mapToBean(map, LogDto.class, false, CopyOptions.create());
+//        logService.save(logDto);
     }
 
 

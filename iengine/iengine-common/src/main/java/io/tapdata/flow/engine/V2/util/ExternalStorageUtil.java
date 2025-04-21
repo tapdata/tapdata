@@ -5,7 +5,7 @@ import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.hazelcast.persistence.config.*;
 import com.hazelcast.persistence.store.StoreLogger;
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.constant.OsUtil;
@@ -25,8 +25,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.error.ExternalStorageExCode_26;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -164,7 +164,7 @@ public class ExternalStorageUtil {
 
 	private static PersistenceMongoDBConfig getMongoDBConfig(ExternalStorageDto externalStorageDto, ConstructType constructType, String constructName) {
 		String uri = externalStorageDto.getUri();
-		MongoClientURI mongoClientURI;
+		ConnectionString mongoClientURI;
 		try {
 			mongoClientURI = MongodbUtil.verifyMongoDBUriWithDB(uri);
 		} catch (Exception e) {

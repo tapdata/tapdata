@@ -1,7 +1,6 @@
 package io.tapdata.indices;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.model.IndexOptions;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
@@ -116,8 +115,7 @@ public class IndicesUtil {
 				if ((databaseType == DatabaseTypeEnum.MONGODB || databaseType == DatabaseTypeEnum.ALIYUN_MONGODB) && StringUtils.isEmpty(connections.getDatabase_name())) {
 					String databaseUri = connections.getDatabase_uri();
 					if (StringUtils.isNotBlank(databaseUri)) {
-						MongoClientURI uri = new MongoClientURI(databaseUri);
-						connections.setDatabase_name(uri.getDatabase());
+						connections.setDatabase_name(MongodbUtil.getDatabase(databaseUri));
 					}
 				}
 				return connections.getDatabase_name();
@@ -352,11 +350,11 @@ public class IndicesUtil {
 			return;
 		}
 		final List<String> conditionIndexCol = tableIndex.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
-		if (org.apache.commons.collections.CollectionUtils.isNotEmpty(table.getIndices())) {
+		if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(table.getIndices())) {
 			for (TableIndex index : table.getIndices()) {
-				if (index.isUnique() && org.apache.commons.collections.CollectionUtils.isNotEmpty(index.getColumns())) {
+				if (index.isUnique() && org.apache.commons.collections4.CollectionUtils.isNotEmpty(index.getColumns())) {
 					final List<String> indexColumns = index.getColumns().stream().map(TableIndexColumn::getColumnName).collect(Collectors.toList());
-					if (org.apache.commons.collections.CollectionUtils.isEqualCollection(conditionIndexCol, indexColumns)) {
+					if (org.apache.commons.collections4.CollectionUtils.isEqualCollection(conditionIndexCol, indexColumns)) {
 						tableIndex.setUnique(true);
 						break;
 					}

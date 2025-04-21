@@ -94,6 +94,7 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         tapTable.setAncestorsName(schema.getAncestorsName());
@@ -104,6 +105,7 @@ public class PdkSchemaConvert {
                     TapIndexField tapIndexField = new TapIndexField();
                     tapIndexField.setFieldAsc(i.getColumnIsAsc());
                     tapIndexField.setName(i.getColumnName());
+                    tapIndexField.setSubPosition(i.getSubPosition());
                     return tapIndexField;
                 }).collect(Collectors.toList());
 
@@ -146,6 +148,7 @@ public class PdkSchemaConvert {
                 tapField.setAutoIncStartValue(field.getAutoIncStartValue());
                 tapField.setAutoIncrementValue(field.getAutoIncrementValue());
                 tapField.setAutoIncCacheValue(field.getAutoIncCacheValue());
+                tapField.setSequenceName(field.getSequenceName());
                 //tapField.setCheck(field.);
                 tapField.setComment(field.getComment());
                 tapField.setConstraint(field.getPkConstraintName());
@@ -185,6 +188,7 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
@@ -194,6 +198,7 @@ public class PdkSchemaConvert {
                     TapIndexField tapIndexField = new TapIndexField();
                     tapIndexField.setFieldAsc(i.getColumnIsAsc());
                     tapIndexField.setName(i.getColumnName());
+                    tapIndexField.setSubPosition(i.getSubPosition());
                     return tapIndexField;
                 }).collect(Collectors.toList());
 
@@ -253,6 +258,7 @@ public class PdkSchemaConvert {
                 tapField.setAutoIncStartValue(field.getAutoIncStartValue());
                 tapField.setAutoIncrementValue(field.getAutoIncrementValue());
                 tapField.setAutoIncCacheValue(field.getAutoIncCacheValue());
+                tapField.setSequenceName(field.getSequenceName());
                 tapField.setColumnSize(field.getColumnSize());
                 tapField.setDataTypeTemp(field.getDataTypeTemp());
                 tapField.setOriginalDefaultValue(field.getOriginalDefaultValue());
@@ -383,6 +389,7 @@ public class PdkSchemaConvert {
                     field.setAutoIncStartValue(tapField1.getAutoIncStartValue());
                     field.setAutoIncrementValue(tapField1.getAutoIncrementValue());
                     field.setAutoIncCacheValue(tapField1.getAutoIncCacheValue());
+                    field.setSequenceName(tapField1.getSequenceName());
                     field.setColumnSize(tapField1.getColumnSize());
                     field.setDataTypeTemp(tapField1.getDataTypeTemp());
                     field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
@@ -427,6 +434,7 @@ public class PdkSchemaConvert {
                 field.setAutoIncStartValue(tapField.getAutoIncStartValue());
                 field.setAutoIncrementValue(tapField.getAutoIncrementValue());
                 field.setAutoIncCacheValue(tapField.getAutoIncCacheValue());
+                field.setSequenceName(tapField.getSequenceName());
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
@@ -469,6 +477,7 @@ public class PdkSchemaConvert {
                     TableIndexColumn tableIndexColumn = new TableIndexColumn();
                     tableIndexColumn.setColumnName(indexField.getName());
                     tableIndexColumn.setColumnIsAsc(indexField.getFieldAsc());
+                    tableIndexColumn.setSubPosition(indexField.getSubPosition());
                     tableIndexColumns.add(tableIndexColumn);
                 }
 
@@ -545,6 +554,7 @@ public class PdkSchemaConvert {
                     field.setAutoIncStartValue(tapField1.getAutoIncStartValue());
                     field.setAutoIncrementValue(tapField1.getAutoIncrementValue());
                     field.setAutoIncCacheValue(tapField1.getAutoIncCacheValue());
+                    field.setSequenceName(tapField1.getSequenceName());
                     field.setColumnSize(tapField1.getColumnSize());
                     field.setDataTypeTemp(tapField1.getDataTypeTemp());
                     field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
@@ -623,6 +633,7 @@ public class PdkSchemaConvert {
                     TableIndexColumn tableIndexColumn = new TableIndexColumn();
                     tableIndexColumn.setColumnName(indexField.getName());
                     tableIndexColumn.setColumnIsAsc(indexField.getFieldAsc());
+                    tableIndexColumn.setSubPosition(indexField.getSubPosition());
                     tableIndexColumns.add(tableIndexColumn);
                 }
 

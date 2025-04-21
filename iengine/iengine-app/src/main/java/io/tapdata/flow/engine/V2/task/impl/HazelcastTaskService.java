@@ -90,12 +90,14 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import jakarta.annotation.PostConstruct;
 import lombok.SneakyThrows;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -105,7 +107,6 @@ import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.PostConstruct;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -293,7 +294,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		JetDag jetDag = task2HazelcastDAG(taskDto, deduce);
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+		Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
 	}
 
@@ -772,21 +773,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
-			case PYTHON_PROCESS:
-			case MIGRATE_PYTHON_PROCESS:
-				hazelcastNode = new HazelcastPythonProcessNode(
-						DataProcessorContext.newBuilder()
-								.withTaskDto(taskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withCacheService(cacheService)
-								.withConfigurationCenter(config)
-								.withTapTableMap(tapTableMap)
-								.withTaskConfig(taskConfig)
-								.build()
-				);
-				break;
 			case UNWIND_PROCESS:
 				hazelcastNode = new HazelcastUnwindProcessNode(
 						DataProcessorContext.newBuilder()
@@ -1133,7 +1119,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> sourceNodes = dag.getSourceNodes();
 		List<Node> targetNodes = dag.getTargetNodes();
-		if (null == sourceNodes || null == targetNodes || sourceNodes.size() > 1 || targetNodes.size() > 1) {
+		if (CollectionUtils.isEmpty(sourceNodes) || CollectionUtils.isEmpty(targetNodes) || sourceNodes.size() > 1 || targetNodes.size() > 1) {
 			return TapConnectorContext.IsomorphismType.HETEROGENEOUS;
 		}
 		Node<?> sourceNode = sourceNodes.get(0);

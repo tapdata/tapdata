@@ -91,8 +91,8 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
@@ -113,6 +113,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.flow.engine.V2.util.PdkUtil.ENCODE_PREFIX;
 
 /**
  * @author samuel
@@ -1428,10 +1429,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
                 }
                 if (null != syncProgress.getStreamOffsetObj()) {
-                    syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
-                    if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
-                        String compress = StringCompression.compress(syncProgress.getStreamOffset());
-                        syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX + compress);
+                    if(null != syncProgress.getStreamOffset() && !StringUtils.startsWith(syncProgress.getStreamOffset(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
+                            && !StringUtils.startsWith(syncProgress.getStreamOffset(), ENCODE_PREFIX)) {
+                        syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
+                        if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
+                            String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
+                            syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
+                        }
                     }
                 }
 				try {

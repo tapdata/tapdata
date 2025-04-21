@@ -28,14 +28,14 @@
             <artifactId>spring-web</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.apache.httpcomponents</groupId>-->
+<!--            <artifactId>httpclient</artifactId>-->
+<!--        </dependency>-->
 
         <dependency>
-            <groupId>commons-collections</groupId>
-            <artifactId>commons-collections</artifactId>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
             <scope>compile</scope>
         </dependency>
 
@@ -46,7 +46,7 @@
 
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongo-java-driver</artifactId>
+            <artifactId>mongodb-driver-sync</artifactId>
         </dependency>
 
         <dependency>
@@ -68,10 +68,6 @@
             <artifactId>log4j-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-mongodb</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <!--            <version>2.9.4</version>-->
@@ -79,7 +75,7 @@
 
         <dependency>
             <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk15on</artifactId>
+            <artifactId>bcprov-jdk18on</artifactId>
         </dependency>
 
         <dependency>  <!-- 加上这个才能辨认到log4j2.yml文件 -->
@@ -107,7 +103,13 @@
         </dependency>
 
         <dependency>
-            <groupId>dom4j</groupId>
+            <groupId>commons-beanutils</groupId>
+            <artifactId>commons-beanutils</artifactId>
+            <version>1.10.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.dom4j</groupId>
             <artifactId>dom4j</artifactId>
         </dependency>
 
@@ -129,7 +131,7 @@
         <!--kafka-->
         <dependency>
             <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka_2.12</artifactId>
+            <artifactId>kafka_2.13</artifactId>
             <exclusions>
                 <exclusion>
                     <artifactId>scala-library</artifactId>
@@ -139,6 +141,11 @@
                     <artifactId>scala-reflect</artifactId>
                     <groupId>org.scala-lang</groupId>
                 </exclusion>
+                <exclusion>
+                    <artifactId>zookeeper</artifactId>
+                    <groupId>org.apache.zookeeper</groupId>
+                </exclusion>
+
             </exclusions>
         </dependency>
         <dependency>
@@ -221,10 +228,6 @@
             <groupId>org.quartz-scheduler</groupId>
             <artifactId>quartz</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.quartz-scheduler</groupId>
-            <artifactId>quartz-jobs</artifactId>
-        </dependency>
 
         <!--引入hanlp依赖-->
         <dependency>
@@ -234,7 +237,29 @@
         <dependency>
             <groupId>com.hankcs.nlp</groupId>
             <artifactId>hanlp-lucene-plugin</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>lucene-analyzers-common</artifactId>
+                    <groupId>org.apache.lucene</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-analysis-common</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queryparser</artifactId>
+        </dependency>
+
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -266,11 +291,17 @@
         <dependency>
             <groupId>com.github.os72</groupId>
             <artifactId>protobuf-dynamic</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>protobuf-java</artifactId>
+                    <groupId>com.google.protobuf</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java-util</artifactId>
-            <version>3.19.1</version>
+            <version>4.29.3</version>
         </dependency>
         <dependency>
             <groupId>org.voovan</groupId>
@@ -286,16 +317,13 @@
         <dependency>
             <groupId>org.graalvm.js</groupId>
             <artifactId>js</artifactId>
+            <type>pom</type>
         </dependency>
         <dependency>
             <groupId>org.graalvm.js</groupId>
             <artifactId>js-scriptengine</artifactId>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>jython-standalone</artifactId>
-            <version>${graalvm.py.version}</version>
-        </dependency>
+
 <!--        <dependency>-->
 <!--            <groupId>org.python</groupId>-->
 <!--            <artifactId>jython-standalone</artifactId>-->
@@ -329,7 +357,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <version>1.12-SNAPSHOT</version>
+            <version>${tapdata-pdk-runner.version}</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
@@ -338,7 +366,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-common</artifactId>
-            <version>0.2.23-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
@@ -362,7 +389,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-text</artifactId>
-            <version>1.9</version>
+            <version>1.13.0</version>
         </dependency>
 
         <dependency>
@@ -371,8 +398,23 @@
         </dependency>
 
         <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-xml</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.hazelcast</groupId>
             <artifactId>hazelcast-persistence</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>mongo-java-driver</artifactId>
+                    <groupId>org.mongodb</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>bcprov-jdk15on</artifactId>
+                    <groupId>org.bouncycastle</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -385,6 +427,10 @@
                     <groupId>com.google.guava</groupId>
                     <artifactId>guava</artifactId>
                 </exclusion>
+                <exclusion>
+                    <artifactId>kotlin-stdlib</artifactId>
+                    <groupId>org.jetbrains.kotlin</groupId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -392,6 +438,18 @@
             <groupId>it.unimi.dsi</groupId>
             <artifactId>fastutil</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.openjdk.nashorn</groupId>
+            <artifactId>nashorn-core</artifactId>
+            <version>15.6</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.4.2</version>
+        </dependency>
+
+
 
     </dependencies>
 

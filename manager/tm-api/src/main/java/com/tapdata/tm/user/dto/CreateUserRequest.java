@@ -8,7 +8,8 @@ package com.tapdata.tm.user.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
-import javax.validation.constraints.NotBlank;
+
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 

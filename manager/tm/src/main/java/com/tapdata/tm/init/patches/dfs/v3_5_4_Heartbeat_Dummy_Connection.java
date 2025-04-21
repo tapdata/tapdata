@@ -10,7 +10,7 @@ import com.tapdata.tm.init.patches.PatchAnnotation;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import io.tapdata.utils.AppType;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;

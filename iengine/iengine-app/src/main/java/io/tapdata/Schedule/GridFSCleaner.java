@@ -1,17 +1,13 @@
 package io.tapdata.Schedule;
 
-import com.mongodb.MongoClient;
 import com.mongodb.MongoClientException;
 import com.mongodb.MongoServerException;
 import com.mongodb.MongoSocketException;
-import com.mongodb.client.ListCollectionsIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.*;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

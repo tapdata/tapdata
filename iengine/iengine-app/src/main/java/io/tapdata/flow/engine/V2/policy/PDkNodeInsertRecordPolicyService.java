@@ -14,7 +14,7 @@ import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.List;
 import java.util.Map;

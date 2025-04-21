@@ -28,7 +28,7 @@ public class DSConfigUtil {
 		encryptConfig = encryptConfig.replaceAll("\\\\r", "").replaceAll("\\\\n", "");
 		byte[] decodeBase64;
 		try {
-			decodeBase64 = Base64.decodeBase64(encryptConfig);
+			decodeBase64 = Base64.decodeBase64(encryptConfig.replace("\r\n", ""));
 		} catch (Exception e) {
 			throw new RuntimeException("Decode base64 failed, decode string: " + encryptConfig, e);
 		}

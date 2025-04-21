@@ -2,8 +2,8 @@ package com.tapdata.tm.base.validation.validator;
 
 import com.tapdata.tm.base.validation.constraints.ValueOfEnum;
 
-import javax.validation.ConstraintValidator;
-import javax.validation.ConstraintValidatorContext;
+import jakarta.validation.ConstraintValidator;
+import jakarta.validation.ConstraintValidatorContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;

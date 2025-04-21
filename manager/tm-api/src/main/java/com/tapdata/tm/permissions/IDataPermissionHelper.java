@@ -9,10 +9,11 @@ import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.vo.DataPermissionAuthInfoVo;
 import com.tapdata.tm.utils.AES256Util;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
-import javax.servlet.http.HttpServletRequest;
+
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;

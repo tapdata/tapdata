@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +54,7 @@ import static org.mockito.Mockito.when;
         ReflectionTestUtils.setField(shareCdcTableMappingService, "dataSourceService", dataSourceService);
         BulkOperations bulkOperations = Mockito.mock(BulkOperations.class);
         when(shareCdcTableMappingRepository.bulkOperations(BulkOperations.BulkMode.UNORDERED)).thenReturn(bulkOperations);
-        when(shareCdcTableMappingRepository.buildUpdateSet(org.mockito.Matchers.any(), org.mockito.Matchers.any())).thenAnswer(invocationOnMock -> {
+        when(shareCdcTableMappingRepository.buildUpdateSet(any(), any())).thenAnswer(invocationOnMock -> {
             UserDetail actualData = invocationOnMock.getArgument(1, UserDetail.class);
             UserDetail exceptData = user;
             assertEquals(exceptData, actualData);

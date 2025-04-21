@@ -123,8 +123,10 @@ public class DataSourceServiceImpl extends DataSourceService{
     @Autowired
     private SettingsService settingsService;
     private final Object checkCloudLock = new Object();
+    @Lazy
     @Autowired
     private ClassificationService classificationService;
+    @Lazy
     @Autowired
     private MetadataInstancesService metadataInstancesService;
     @Autowired

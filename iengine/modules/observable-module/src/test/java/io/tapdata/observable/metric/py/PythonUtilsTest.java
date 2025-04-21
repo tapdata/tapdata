@@ -128,7 +128,7 @@ public class PythonUtilsTest {
             Assertions.assertEquals("setup.py", PythonUtils.PACKAGE_COMPILATION_FILE);
             Assertions.assertEquals("py-lib", PythonUtils.PYTHON_THREAD_PACKAGE_PATH);
             Assertions.assertEquals("site-packages", PythonUtils.PYTHON_THREAD_SITE_PACKAGES_PATH);
-            Assertions.assertEquals("jython-standalone-2.7.3.jar", PythonUtils.PYTHON_THREAD_JAR);
+            Assertions.assertEquals("jython-standalone-2.7.4.jar", PythonUtils.PYTHON_THREAD_JAR);
             Assertions.assertEquals("install.json", PythonUtils.PYTHON_SITE_PACKAGES_VERSION_CONFIG);
             Assertions.assertEquals("agent", PythonUtils.AGENT_TAG);
             Assertions.assertEquals("BOOT-INF", PythonUtils.BOOT_INF_TAG);
@@ -803,6 +803,7 @@ public class PythonUtilsTest {
         String jarName;
         AtomicReference<String> ato;
         String mockPath;
+        Log log;
 
         @SneakyThrows
         @BeforeEach
@@ -814,6 +815,7 @@ public class PythonUtilsTest {
             stream = mock(InputStream.class);
 
             url = mock(URL.class);
+            log = mock(Log.class);
 
             when(url.getPath()).thenReturn(mockPath);
             when(url.openStream()).thenReturn(stream);
@@ -824,11 +826,11 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testGetLibPathNormal() {
-            when(utils.getLibPath(jarName, ato)).thenCallRealMethod();
+            when(utils.getLibPath(jarName, ato,log)).thenCallRealMethod();
             classLoader = mock(URLClassLoader.class);
             when(utils.getCurrentThreadContextClassLoader()).thenReturn(classLoader);
             when(((URLClassLoader)classLoader).getURLs()).thenReturn(urls);
-            InputStream libPath = utils.getLibPath(jarName, ato);
+            InputStream libPath = utils.getLibPath(jarName, ato, log);
             Assertions.assertNotNull(libPath);
             Assertions.assertEquals(stream, libPath);
             Assertions.assertEquals(mockPath, ato.get());
@@ -839,10 +841,10 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testGetLibPathNotURLClassLoader() {
-            when(utils.getLibPath(jarName, ato)).thenCallRealMethod();
+            when(utils.getLibPath(jarName, ato, log)).thenCallRealMethod();
             classLoader = mock(AbstractClassLoader.class);
             when(utils.getCurrentThreadContextClassLoader()).thenReturn(classLoader);
-            InputStream libPath = utils.getLibPath(jarName, ato);
+            InputStream libPath = utils.getLibPath(jarName, ato, log);
             Assertions.assertNull(libPath);
             Assertions.assertNotEquals(mockPath, ato.get());
             assertVerify(1, 0, 0);
@@ -850,11 +852,11 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testGetLibPathIsURLClassLoaderButURLsIsEmpty() {
-            when(utils.getLibPath(jarName, ato)).thenCallRealMethod();
+            when(utils.getLibPath(jarName, ato, log)).thenCallRealMethod();
             classLoader = mock(URLClassLoader.class);
             when(utils.getCurrentThreadContextClassLoader()).thenReturn(classLoader);
             when(((URLClassLoader)classLoader).getURLs()).thenReturn(new URL[]{});
-            InputStream libPath = utils.getLibPath(jarName, ato);
+            InputStream libPath = utils.getLibPath(jarName, ato, log);
             Assertions.assertNull(libPath);
             Assertions.assertNotEquals(mockPath, ato.get());
             assertVerify(1, 0, 0);
@@ -862,12 +864,12 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testGetLibPathIsURLClassLoaderAndURLsNotEmptyButJarPathNotContainsJarName() {
-            when(utils.getLibPath(jarName, ato)).thenCallRealMethod();
+            when(utils.getLibPath(jarName, ato, log)).thenCallRealMethod();
             classLoader = mock(URLClassLoader.class);
             when(utils.getCurrentThreadContextClassLoader()).thenReturn(classLoader);
             when(((URLClassLoader)classLoader).getURLs()).thenReturn(urls);
             when(url.getPath()).thenReturn("any-path");
-            InputStream libPath = utils.getLibPath(jarName, ato);
+            InputStream libPath = utils.getLibPath(jarName, ato, log);
             Assertions.assertNull(libPath);
             Assertions.assertNotEquals(mockPath, ato.get());
             assertVerify(1, 1, 0);
@@ -1345,7 +1347,7 @@ public class PythonUtilsTest {
 
             when(utils.getAtomicReference()).thenReturn(reference);
             when(utils.concat(anyString(), anyString())).thenReturn("mock-concat");
-            when(utils.getLibPath(anyString(), any(AtomicReference.class))).thenReturn(inputStream);
+            when(utils.getLibPath(anyString(), any(AtomicReference.class),any())).thenReturn(inputStream);
             when(utils.getPythonThreadPackageFile()).thenReturn(pythonThreadPackageFile);
             doNothing().when(utils).saveTempZipFile(any(InputStream.class), anyString(), any(Log.class));
             when(utils.setPackagesResources(any(Log.class), anyString(), anyString(), anyString(), anyString())).thenReturn(1);
@@ -1362,7 +1364,7 @@ public class PythonUtilsTest {
             Assertions.assertNotNull(execute);
             Assertions.assertEquals(executeResult, execute);
             verify(utils, times(1)).getAtomicReference();
-            verify(utils, times(1)).getLibPath(anyString(), any(AtomicReference.class));
+            verify(utils, times(1)).getLibPath(anyString(), any(AtomicReference.class),any());
             verify(reference, times(referenceGetTimes)).get();
             verify(utils, times(getPythonThreadPackageFileTimes)).getPythonThreadPackageFile();
             verify(pythonThreadPackageFile, times(existsTimes)).exists();
@@ -1380,7 +1382,7 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testExecuteNullInputStream() {
-            when(utils.getLibPath(anyString(), any(AtomicReference.class))).thenReturn(null);
+            when(utils.getLibPath(anyString(), any(AtomicReference.class),any())).thenReturn(null);
             assertVerify(-1, 1, 0, 0, 0, 0, 0, 0, 0);
         }
 
@@ -1393,7 +1395,7 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testExecuteNullPyJarPathAndNullInputStream() {
-            when(utils.getLibPath(anyString(), any(AtomicReference.class))).thenReturn(null);
+            when(utils.getLibPath(anyString(), any(AtomicReference.class),any())).thenReturn(null);
             when(reference.get()).thenReturn(null);
             assertVerify(-1, 1, 0, 0, 0, 0, 0, 0, 0);
         }
@@ -1407,7 +1409,7 @@ public class PythonUtilsTest {
         @SneakyThrows
         @Test
         void testExecuteGetLibPathThrowIOException() {
-            when(utils.getLibPath(anyString(), any(AtomicReference.class))).then(w -> {
+            when(utils.getLibPath(anyString(), any(AtomicReference.class),any())).then(w -> {
                 IOException mock = mock(IOException.class);
                 when(mock.getMessage()).thenReturn("mock-IOException");
                 throw mock;

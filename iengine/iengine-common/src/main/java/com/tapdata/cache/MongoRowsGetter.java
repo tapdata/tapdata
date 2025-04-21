@@ -7,7 +7,7 @@ import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.ScriptConnection;
 import com.tapdata.processor.ScriptUtil;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
