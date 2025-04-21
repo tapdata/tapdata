@@ -10,13 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -70,8 +67,9 @@ public class McpTapServer implements InitializingBean {
     private void addResources() {
         Arrays.stream(applicationContext.getBeanNamesForType(Resource.class))
                 .map(n -> (Resource)applicationContext.getBean(n)).forEach(res -> {
+                    McpSchema.Resource resource = new McpSchema.Resource(res.getUri(), res.getName(), res.getDescription(), res.getMimeType(), res.getAnnotations());
                     McpServerFeatures.SyncResourceSpecification syncResourceSpecification =
-                            new McpServerFeatures.SyncResourceSpecification(res, res::call);
+                            new McpServerFeatures.SyncResourceSpecification(resource, res::call);
                     mcpServer.addResource(syncResourceSpecification);
                 });
     }
@@ -79,7 +77,16 @@ public class McpTapServer implements InitializingBean {
     private void addTools() {
         Arrays.stream(applicationContext.getBeanNamesForType(Tool.class))
             .map(n -> (Tool)applicationContext.getBean(n)).forEach(tool -> {
-                McpServerFeatures.SyncToolSpecification syncToolSpecification = new McpServerFeatures.SyncToolSpecification(tool, (exchange, params) -> {
+                    McpSchema.Tool mcpTool = null;
+                if (tool.getInputSchema() != null)
+                    mcpTool = new McpSchema.Tool(tool.getName(), tool.getDescription(), tool.getInputSchema());
+                else if (tool.getJsonSchema() != null)
+                    mcpTool = new McpSchema.Tool(tool.getName(), tool.getDescription(), tool.getJsonSchema());
+                else {
+                    log.error("Tool {} input schema cannot be empty, ignore register this tool", tool.getName());
+                    return;
+                }
+                McpServerFeatures.SyncToolSpecification syncToolSpecification = new McpServerFeatures.SyncToolSpecification(mcpTool, (exchange, params) -> {
                     try {
                         long start = System.currentTimeMillis();
                         McpSchema.CallToolResult result = tool.call(exchange, params);

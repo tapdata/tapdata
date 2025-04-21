@@ -46,7 +46,7 @@ public class ConnectionResource extends Resource{
 
         UserDetail userDetail = getUserDetail(exchange);
 
-        String uri = request.getUri();
+        String uri = request.uri();
 
         Pattern pattern = Pattern.compile("^tap:\\/\\/([a-z0-9]{24})(\\/([a-z0-9]{24}))?$");
         Matcher matcher = pattern.matcher(uri);

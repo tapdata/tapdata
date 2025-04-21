@@ -5,30 +5,46 @@ import com.tapdata.tm.mcp.SessionAttribute;
 import com.tapdata.tm.user.service.UserService;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
+import lombok.Getter;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.Optional;
 
 import static com.tapdata.tm.mcp.McpConfig.USER_ID;
+import static com.tapdata.tm.mcp.Utils.getSession;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2025/3/27 14:38
  */
-public abstract class Resource extends McpSchema.Resource {
+public abstract class Resource {
+    @Getter
+    private String uri;
+    @Getter
+    private String name;
+    @Getter
+    private String description;
+    @Getter
+    private String mimeType;
+    @Getter
+    private McpSchema.Annotations annotations;
     protected SessionAttribute sessionAttribute;
     protected UserService userService;
 
     public Resource(String uri, String name, String description, String mimeType, McpSchema.Annotations annotations,
                     SessionAttribute sessionAttribute, UserService userService) {
-        super(uri, name, description, mimeType, annotations);
+        this.uri = uri;
+        this.name = name;
+        this.description = description;
+        this.mimeType = mimeType;
+        this.annotations = annotations;
         this.sessionAttribute = sessionAttribute;
         this.userService = userService;
     }
     public String getUserId(McpSyncServerExchange exchange) {
-        String sessionId = exchange.getSession().getId();
+        String sessionId = getSession(exchange).getId();
         return getUserId(sessionId);
     }
     public String getUserId(String sessionId) {

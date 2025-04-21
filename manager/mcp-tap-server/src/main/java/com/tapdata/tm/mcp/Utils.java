@@ -12,6 +12,10 @@ import com.fasterxml.jackson.databind.module.SimpleSerializers;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
+import io.modelcontextprotocol.server.McpAsyncServerExchange;
+import io.modelcontextprotocol.server.McpSyncServerExchange;
+import io.modelcontextprotocol.spec.McpServerSession;
+import io.tapdata.entity.utils.ReflectionUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.bson.types.ObjectId;
@@ -184,5 +188,16 @@ public class Utils {
         if (ds.getListtags() != null)
             data.put("tags", ds.getListtags().stream().map(tag -> tag.get("value")).collect(Collectors.toList()));
         return data;
+    }
+
+    public static McpServerSession getSession(McpSyncServerExchange exchange) {
+        try {
+            McpAsyncServerExchange asyncExchange = (McpAsyncServerExchange)
+                    ReflectionUtil.getFieldValue(exchange, "exchange");
+            return (McpServerSession)
+                    ReflectionUtil.getFieldValue(asyncExchange, "session");
+        } catch (Exception e) {
+            throw new RuntimeException("Get session from exchange failed", e);
+        }
     }
 }

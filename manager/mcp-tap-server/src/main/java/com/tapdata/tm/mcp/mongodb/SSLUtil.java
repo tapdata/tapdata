@@ -1,10 +1,10 @@
 package com.tapdata.tm.mcp.mongodb;
 
+import jakarta.xml.bind.DatatypeConverter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.net.ssl.*;
-import javax.xml.bind.DatatypeConverter;
 import java.io.*;
 import java.security.KeyFactory;
 import java.security.KeyStore;
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SSLUtil {
+
 
   public static SSLContext createSSLContext(String privateKey, List<String> certificates, List<String> trustCertificates, String password) throws Exception {
     SSLContext sslContext = SSLContext.getInstance("SSL");
@@ -64,8 +65,8 @@ public class SSLUtil {
   private static TrustManager[] createTrustAllHost() {
     TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
 
-      public X509Certificate[] getAcceptedIssuers() {
-        return new X509Certificate[]{};
+      public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+        return new java.security.cert.X509Certificate[]{};
       }
 
       public void checkClientTrusted(X509Certificate[] chain, String authType) {

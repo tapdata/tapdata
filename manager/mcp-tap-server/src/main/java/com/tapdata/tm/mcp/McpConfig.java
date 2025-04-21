@@ -70,7 +70,9 @@ public class McpConfig {
             UserDto userDetail = userService.getUserDetail(accessTokenDto.getUserId());
             List<String> allowedRoles = Arrays.asList("mcp", "admin");
             Optional<RoleMappingDto> hasMcpRole = userDetail.getRoleMappings()
-                    .stream().filter(r -> allowedRoles.contains(r.getRole().getName().toLowerCase())).findFirst();
+                    .stream()
+                    .filter(r -> r.getRole() != null && r.getRole().getName() != null)
+                    .filter(r -> allowedRoles.contains(r.getRole().getName().toLowerCase())).findFirst();
 
             if (!hasMcpRole.isPresent())
                 return ServerResponse.status(HttpStatus.UNAUTHORIZED).body("Not granted the mcp role");

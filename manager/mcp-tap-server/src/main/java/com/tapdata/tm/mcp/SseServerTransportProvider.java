@@ -152,7 +152,7 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 	 * @return A Mono that completes when the broadcast attempt is finished
 	 */
 	@Override
-	public Mono<Void> notifyClients(String method, Map<String, Object> params) {
+	public Mono<Void> notifyClients(String method, Object params) {
 		if (sessions.isEmpty()) {
 			logger.debug("No active sessions to broadcast message to");
 			return Mono.empty();
@@ -161,10 +161,10 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 		logger.debug("Attempting to broadcast message to {} active sessions", sessions.size());
 
 		return Flux.fromIterable(sessions.values())
-			.flatMap(session -> session.sendNotification(method, params)
-				.doOnError(
-						e -> logger.error("Failed to send message to session {}: {}", session.getId(), e.getMessage())))
-			.then();
+				.flatMap(session -> session.sendNotification(method, params)
+						.doOnError(
+								e -> logger.error("Failed to send message to session {}: {}", session.getId(), e.getMessage())))
+				.then();
 	}
 
 	/**
