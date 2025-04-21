@@ -4140,10 +4140,10 @@ public class TaskServiceImpl extends TaskService{
                     throw new BizException(e);
                 }
                 String batchOffset = (String) resultMap.get("batchOffset");
+                if (StringUtils.isBlank(batchOffset)) return;
                 if (batchOffset.startsWith(ENCODE_PREFIX)) {
                     batchOffset = StringUtils.removeStart(batchOffset, ENCODE_PREFIX);
                 }
-                if (StringUtils.isBlank(batchOffset)) return;
                 byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
                 Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
                 Iterator<Map.Entry<String, HashMap>> iterator = tablesMap.entrySet().iterator();
