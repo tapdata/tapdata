@@ -299,6 +299,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String COLUMN = "column";
     public static final String STOPED_DATE = "stopedDate";
     public static final String TARGET = "target";
+    public static final String ENCODE_PREFIX = "_tap_encode_";
 
     @NotNull
     private static String getTableName() {
@@ -729,6 +730,9 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException("Task.nodeRefresh", e);
             }
             String batchOffset = (String) resultMap.get("batchOffset");
+            if (batchOffset.startsWith(ENCODE_PREFIX)) {
+                batchOffset = StringUtils.removeStart(batchOffset, ENCODE_PREFIX);
+            }
             byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
             Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
             Set<String> tables = tablesMap.keySet();
@@ -4136,6 +4140,9 @@ public class TaskServiceImpl extends TaskService{
                     throw new BizException(e);
                 }
                 String batchOffset = (String) resultMap.get("batchOffset");
+                if (batchOffset.startsWith(ENCODE_PREFIX)) {
+                    batchOffset = StringUtils.removeStart(batchOffset, ENCODE_PREFIX);
+                }
                 if (StringUtils.isBlank(batchOffset)) return;
                 byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
                 Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
