@@ -45,7 +45,11 @@ public class InspectEntity extends SchedulableEntity implements IDataPermissionE
     private PlatformInfo platformInfo;
     private  Boolean is_deleted;
     private String taskId;
+
     private Integer checkTableThreadNum;
+
+    private Boolean ignoreTimePrecision;
+
 
 		private List<AlarmSettingVO> alarmSettings;
 		private List<AlarmRuleVO> alarmRules;
