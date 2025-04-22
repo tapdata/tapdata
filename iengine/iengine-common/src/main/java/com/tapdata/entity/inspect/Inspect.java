@@ -56,8 +56,15 @@ public class Inspect extends BaseEntity implements Serializable {
 
 	private Integer diffInspectTimes;
 
+	private Integer checkTableThreadNum;
 
+	public Integer getCheckTableThreadNum() {
+		return checkTableThreadNum;
+	}
 
+	public void setCheckTableThreadNum(Integer checkTableThreadNum) {
+		this.checkTableThreadNum = checkTableThreadNum;
+	}
 
 	/**
 	 * Inspect mode
