@@ -1192,7 +1192,7 @@ public class MetadataInstancesServiceImplTest {
 		void test1() {
 			sourceId = "111";
 			tableNames = new ArrayList<>();
-			fields = null;
+			fields = "test";
 			metadataInstancesService.findSourceSchemaBySourceId(sourceId, tableNames, userDetail, fields);
 			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
