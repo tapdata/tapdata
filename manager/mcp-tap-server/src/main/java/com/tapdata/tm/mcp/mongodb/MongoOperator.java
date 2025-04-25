@@ -87,10 +87,10 @@ public class MongoOperator implements Closeable {
         tmp = params.get("collation");
         if (tmp != null) {
             Collation collation = null;
-            if (tmp instanceof String) {
-                collation = Utils.parseJson(tmp.toString(), Collation.class);
-            } else if (tmp instanceof Map) {
-                collation = Utils.parseJson(toJson(tmp), Collation.class);
+            if (tmp instanceof Document doc && doc.containsKey("locale")) {
+                collation = Collation.builder().locale(StringUtils.defaultIfBlank(doc.getString("locale"), "en")).build();
+            } else if (tmp instanceof Map map && map.containsKey("locale")) {
+                collation = Collation.builder().locale(map.getOrDefault("locale", "en").toString()).build();
             }
             if (collation != null)
                 countOptions.collation(collation);
@@ -309,9 +309,9 @@ public class MongoOperator implements Closeable {
             String password = Utils.getStringValue(config, "password");
 
             if (StringUtils.isNotBlank(user)) {
-                return String.format("mongodb://%s:%s@%s:%s/%s?%s", user, password, host, database, uri, additionalString);
+                return String.format("mongodb://%s:%s@%s/%s?%s", user, password, host, database, additionalString);
             } else {
-                return String.format("mongodb://%s:%s/%s?%s", host, database, uri, additionalString);
+                return String.format("mongodb://%s/%s?%s", host, database, additionalString);
             }
         }
     }

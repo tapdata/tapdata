@@ -56,7 +56,7 @@ public class ConnectionResource extends Resource{
             if (matcher.groupCount() > 1) {
                 connectionId = matcher.group(1);
             }
-            if (matcher.groupCount() > 3) {
+            if (matcher.groupCount() > 2) {
                 dataSchemaId = matcher.group(3);
             }
         }

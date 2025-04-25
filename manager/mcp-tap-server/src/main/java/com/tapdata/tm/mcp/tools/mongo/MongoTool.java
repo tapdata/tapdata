@@ -31,12 +31,6 @@ public abstract class MongoTool extends Tool {
         this.dataSourceService = dataSourceService;
     }
 
-    public MongoTool(String name, String description, McpSchema.JsonSchema schema,
-                     SessionAttribute sessionAttribute, UserService userService, DataSourceService dataSourceService) {
-        super(name, description, schema, sessionAttribute, userService);
-        this.dataSourceService = dataSourceService;
-    }
-
     protected MongoOperator createMongoClient(McpSyncServerExchange exchange, Map<String, Object> params) {
         String connectionId = getStringValue(params, "connectionId");
         UserDetail userDetail = getUserDetail(exchange);

@@ -106,7 +106,7 @@ public class Utils {
         } catch (Exception e) {
             log.error("Read json schema failed {}", filename);
         }
-        return "{\"type\": \"object\"}";
+        return null;
     }
 
     public static String toJson(Object data) {
@@ -128,6 +128,8 @@ public class Utils {
             connection.setRequestMethod(HttpMethod.POST.name());
             connection.setRequestProperty(HttpHeaders.CONTENT_TYPE, "application/json; utf-8");
             connection.setRequestProperty(HttpHeaders.USER_AGENT, "Java HttpURLConnection");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5 * 60 * 1000);
 
             connection.setDoOutput(true);
             try (OutputStream os = connection.getOutputStream()) {

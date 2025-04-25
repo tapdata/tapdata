@@ -1,6 +1,5 @@
 package com.tapdata.tm.mcp.tools;
 
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -14,15 +13,12 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
-import javax.naming.AuthenticationException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.mcp.Utils.*;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;

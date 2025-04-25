@@ -42,13 +42,6 @@ public abstract class Tool {
         this.sessionAttribute = sessionAttribute;
         this.userService = userService;
     }
-    public Tool(String name, String description, McpSchema.JsonSchema jsonSchema, SessionAttribute sessionAttribute, UserService userService) {
-        this.name = name;
-        this.description = description;
-        this.jsonSchema = jsonSchema;
-        this.sessionAttribute = sessionAttribute;
-        this.userService = userService;
-    }
 
     public String getUserId(McpSyncServerExchange exchange) {
 

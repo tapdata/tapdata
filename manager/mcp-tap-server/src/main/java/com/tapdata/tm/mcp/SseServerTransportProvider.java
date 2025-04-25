@@ -321,6 +321,7 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 		}
 		catch (Exception e) {
 			logger.error("Error handling message: {}", e.getMessage());
+			e.printStackTrace();
 			return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new McpError(e.getMessage()));
 		}
 	}

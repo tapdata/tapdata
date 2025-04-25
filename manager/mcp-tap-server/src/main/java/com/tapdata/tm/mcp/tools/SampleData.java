@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.mcp.SessionAttribute;
+import com.tapdata.tm.mcp.Utils;
 import com.tapdata.tm.user.service.UserService;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -38,12 +39,6 @@ public class SampleData extends Tool{
 
     public McpSchema.CallToolResult call(McpSyncServerExchange exchange, Map<String, Object> params) {
 
-        String userId = getUserId(exchange);
-        if (userId == null) {
-            log.error("Not found userId in session");
-            throw new RuntimeException("Not found userId in current session");
-        }
-
         String connectionId = getStringValue(params, "connectionId");
         String schemaName = getStringValue(params, "schemaName");
 
@@ -62,7 +57,7 @@ public class SampleData extends Tool{
             String response = sendPostRequest(
                     String.format("http://localhost:%d/api/proxy/call?access_token=%s", serverPort, getAccessToken(exchange)), data);
 
-            ResponseMessage<Object> responseMessage = JsonUtil.parseJsonUseJackson(response, new TypeReference<ResponseMessage<Object>>() {
+            ResponseMessage<Object> responseMessage = Utils.parseJson(response, new TypeReference<ResponseMessage<Object>>() {
             });
             if (ResponseMessage.OK.equals(responseMessage.getCode()))
                 return makeCallToolResult(responseMessage.getData());
