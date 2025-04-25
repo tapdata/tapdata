@@ -32,7 +32,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class InspectCronJobTest {
-    Logger log;
     UserDetail userDetail;
     InspectCronJob job;
 
@@ -40,8 +39,6 @@ class InspectCronJobTest {
     void init() {
         job = mock(InspectCronJob.class);
         userDetail = mock(UserDetail.class);
-        log = mock(Logger.class);
-        mockSlf4jLog(job, log);
     }
 
     @Nested
@@ -77,8 +74,6 @@ class InspectCronJobTest {
 
             when(inspectTaskService.executeInspect(any(Where.class), any(InspectDto.class), any(UserDetail.class))).thenReturn(mock(InspectDto.class));
 
-            doNothing().when(log).info(anyString());
-            doNothing().when(log).info(anyString(), anyString(), anyString());
             doCallRealMethod().when(job).execute(jobExecutionContext);
         }
 
@@ -143,16 +138,4 @@ class InspectCronJobTest {
         }
     }
 
-    public static void mockSlf4jLog(Object mockTo, Logger log) {
-        try {
-            Field logF = mockTo.getClass().getDeclaredField("log");
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
-            modifiersField.setAccessible(true);
-            modifiersField.setInt(logF, logF.getModifiers() & ~Modifier.FINAL);
-            logF.setAccessible(true);
-            logF.set(mockTo, log);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 }
