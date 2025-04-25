@@ -227,7 +227,7 @@ jobs:
           ref: main
           wait_interval: 10
           client_payload: '{"BUILD_CONFIG": "{\"FRONTEND_BRANCH\": \"${{ needs.Get-Stable-Branch.outputs.FRONTEND_BRANCH }}\", \"OPENSOURCE_BRANCH\": \"${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}\", \"ENTERPRISE_BRANCH\": \"${{ needs.Get-Stable-Branch.outputs.ENTERPRISE_BRANCH }}\", \"CONNECTORS_BRANCH\": \"develop#develop\", \"TAG_NAME\": \"${{ needs.Get-Stable-Branch.outputs.TAG_NAME }}\"}", "CONNECTORS-OPTIONS": "nightly-build", "JAVA_VERSION": "java17", "RUN_TEST": true}'
-          propagate_failure: true
+          propagate_failure: false
           trigger_workflow: true
           wait_workflow: true
 
