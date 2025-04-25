@@ -208,7 +208,7 @@ jobs:
              --sonar-token=${{ secrets.SONAR_TOKEN }} --github-token=${{ secrets.TAPDATA_ENT_CICD_TOKEN }} \
              --repo=tapdata --pr-number=${{ github.event.pull_request.number }}
 
-  Build-And-Deploy:
+  Build-Deploy-Test:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'schedule' || inputs.tapce_run }}
     needs:
@@ -230,30 +230,3 @@ jobs:
           propagate_failure: false
           trigger_workflow: true
           wait_workflow: true
-
-  CLOSE_ENV:
-    if: ${{ !failure() }}
-    runs-on: ubuntu-latest
-    needs:
-      - Get-Stable-Branch
-    steps:
-      - id: 'auth'
-        uses: 'google-github-actions/auth@v1'
-        with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
-      - id: 'get-credentials'
-        uses: 'google-github-actions/get-gke-credentials@v1'
-        with:
-          cluster_name: 'tapdata-cloud-cluster'
-          location: 'asia-east2'
-      - name: Checkout Tapdata Application
-        uses: actions/checkout@v2
-        with:
-          repository: 'tapdata/tapdata-application'
-          ref: "main"
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-application
-      - name: Close Test Env
-        id: get_ip_port
-        run: |
-          bash tapdata-application/build/upgrade.sh --delete-env=${{ needs.Get-Stable-Branch.outputs.TAG_NAME }} --delete-env-tag=true
