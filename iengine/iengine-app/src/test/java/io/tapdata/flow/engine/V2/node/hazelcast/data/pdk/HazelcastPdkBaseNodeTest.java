@@ -444,29 +444,42 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void setUp(){
 			hazelcastPdkBaseNode = mock(HazelcastTargetPdkBaseNode.class);
 		}
-		@Test
-		void test(){
-			TableNode tableNode1 = new TableNode();
-			DmlPolicy dmlPolicy = new DmlPolicy();
-			dmlPolicy.setInsertPolicy(DmlPolicyEnum.just_insert);
-			tableNode1.setDmlPolicy(dmlPolicy);
-			ConnectorCapabilities connectorCapabilities = mock(ConnectorCapabilities.class);
-			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(tableNode1,connectorCapabilities);
-			hazelcastPdkBaseNode.initDmlPolicy(tableNode1,connectorCapabilities);
-			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
 
+		@Test
+		void testDefault1() {
+			ConnectorCapabilities connectorCapabilities = mock(ConnectorCapabilities.class);
+			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(null, connectorCapabilities);
+			hazelcastPdkBaseNode.initDmlPolicy(null, connectorCapabilities);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
 		}
 
 		@Test
-		void test2(){
-			TableNode tableNode1 = new TableNode();
-			DmlPolicy dmlPolicy = new DmlPolicy();
-			dmlPolicy.setInsertPolicy(DmlPolicyEnum.update_on_exists);
-			tableNode1.setDmlPolicy(dmlPolicy);
+		void testDefault2() {
 			ConnectorCapabilities connectorCapabilities = mock(ConnectorCapabilities.class);
-			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(tableNode1,connectorCapabilities);
-			hazelcastPdkBaseNode.initDmlPolicy(tableNode1,connectorCapabilities);
+			TableNode tableNode = new TableNode();
+			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(tableNode, connectorCapabilities);
+			hazelcastPdkBaseNode.initDmlPolicy(tableNode, connectorCapabilities);
 			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
+		}
+
+		@Test
+		void testChangePolicy() {
+			ConnectorCapabilities connectorCapabilities = mock(ConnectorCapabilities.class);
+			TableNode tableNode = new TableNode();
+			DmlPolicy dmlPolicy = new DmlPolicy();
+			dmlPolicy.setInsertPolicy(DmlPolicyEnum.just_insert);
+			dmlPolicy.setUpdatePolicy(DmlPolicyEnum.insert_on_nonexists);
+			dmlPolicy.setDeletePolicy(DmlPolicyEnum.log_on_nonexists);
+			tableNode.setDmlPolicy(dmlPolicy);
+			doCallRealMethod().when(hazelcastPdkBaseNode).initDmlPolicy(tableNode, connectorCapabilities);
+			hazelcastPdkBaseNode.initDmlPolicy(tableNode, connectorCapabilities);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS);
+			verify(connectorCapabilities,times(1)).alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_LOG_ON_NON_EXISTS);
 		}
 
 	}
