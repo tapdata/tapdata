@@ -6,13 +6,15 @@ import com.tapdata.tm.accessToken.service.AccessTokenService;
 import com.tapdata.tm.roleMapping.dto.RoleMappingDto;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.userLog.constant.Modular;
-import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.function.*;
 
@@ -22,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.tapdata.tm.mcp.Utils.getAccessCode;
+import static org.springframework.core.Ordered.HIGHEST_PRECEDENCE;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -53,6 +56,14 @@ public class McpConfig {
         this.userService = userService;
         RouterFunction<ServerResponse> router = transportProvider.getRouterFunction();
         return router.filter(this::authFilter);
+    }
+
+    @Bean
+    @Order(HIGHEST_PRECEDENCE)
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/mcp/**").permitAll())
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/mcp/**"));
+        return http.build();
     }
 
     public ServerResponse authFilter(ServerRequest request, HandlerFunction<ServerResponse> next) throws Exception {
