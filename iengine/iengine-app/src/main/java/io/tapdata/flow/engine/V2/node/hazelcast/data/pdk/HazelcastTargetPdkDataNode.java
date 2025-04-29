@@ -436,14 +436,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, tapIndices);
 				if(CollectionUtils.isNotEmpty(existsIndexes)){
 					existsIndexes.forEach(i -> obsLogger.trace("Table: {} already exists Index: {} and will no longer create index", tableId, i));
-					return;
+					if (existsIndexes.size() == tapIndices.size()) return;
 				}
-				Optional.ofNullable(indexList).ifPresent(indexes -> {
-					TapIndex equalsIndex = indexes.stream().filter(index -> tapIndexEquals(index, tapIndex, false)).findFirst().orElse(null);
-					if (null != equalsIndex && null != equalsIndex.getName()) {
-						tapIndex.name(equalsIndex.getName());
-					}
-				});
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -589,6 +583,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (indexFields1.size() != indexFields2.size()) {
 			return false;
 		}
+		indexFields1.sort(Comparator.comparing(TapIndexField::getName));
+		indexFields2.sort(Comparator.comparing(TapIndexField::getName));
 		for (int i = 0; i < indexFields1.size(); i++) {
 			TapIndexField tapIndexField1 = indexFields1.get(i);
 			TapIndexField tapIndexField2 = indexFields2.get(i);
