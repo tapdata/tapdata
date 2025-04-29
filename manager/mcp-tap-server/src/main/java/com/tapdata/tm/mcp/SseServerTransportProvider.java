@@ -290,11 +290,11 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 			return ServerResponse.status(HttpStatus.SERVICE_UNAVAILABLE).body("Server is shutting down");
 		}
 
-		if (!request.param("sessionId").isPresent()) {
+		String sessionId = request.param("sessionId").orElse(null);
+		if (sessionId == null) {
 			return ServerResponse.badRequest().body(new McpError("Session ID missing in message endpoint"));
 		}
 
-		String sessionId = request.param("sessionId").get();
 		McpServerSession session = sessions.get(sessionId);
 
 		if (session == null) {
@@ -321,7 +321,6 @@ public class SseServerTransportProvider implements McpServerTransportProvider, S
 		}
 		catch (Exception e) {
 			logger.error("Error handling message: {}", e.getMessage());
-			e.printStackTrace();
 			return ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new McpError(e.getMessage()));
 		}
 	}
