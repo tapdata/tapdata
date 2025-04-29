@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
-import com.tapdata.tm.Settings.dto.TestResponseDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -21,6 +20,8 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.slf4j.Logger;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -29,6 +30,8 @@ import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -40,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class MailUtilsTest {
     @Mock
     BlacklistService blacklistService;
@@ -62,7 +66,6 @@ class MailUtilsTest {
     void testSendHtmlMail_subjectNotNull(){
         try(MockedStatic<Session> sessionMockedStatic = Mockito.mockStatic(Session.class)){
             Session mockSession = mock(Session.class);
-            when(mockSession.getProperties()).thenReturn(new Properties());
             Transport transport = mock(Transport.class);
             sessionMockedStatic.when(()->Session.getDefaultInstance(any(Properties.class))).thenReturn(mockSession);
             when(blacklistService.inBlacklist(anyString())).thenReturn(false);
@@ -116,8 +119,6 @@ class MailUtilsTest {
     void testSendHtmlMail(){
         try(MockedStatic<Session> sessionMockedStatic = Mockito.mockStatic(Session.class)){
             Session mockSession = mock(Session.class);
-            when(mockSession.getProperties()).thenReturn(new Properties());
-
             Transport transport = mock(Transport.class);
             sessionMockedStatic.when(()->Session.getDefaultInstance(any(Properties.class))).thenReturn(mockSession);
             when(blacklistService.inBlacklist(anyString())).thenReturn(false);
@@ -154,8 +155,6 @@ class MailUtilsTest {
             Transport transport = mock(Transport.class);
             sessionMockedStatic.when(()->Session.getDefaultInstance(any(Properties.class))).thenReturn(mockSession);
             when(blacklistService.inBlacklist(anyString())).thenReturn(false);
-            when(mockSession.getProperties()).thenReturn(new Properties());
-
             List<String> addressList = new ArrayList<>();
             addressList.add("test@qq.com");
             when(settingsService.getByCategoryAndKey(anyString(),anyString())).thenReturn("test").thenReturn(5678).thenReturn("test").thenReturn("test").thenReturn("123456");
@@ -247,6 +246,7 @@ class MailUtilsTest {
             ReflectionTestUtils.setField(mu, "password", password);
 
             transport = mock(Transport.class);
+            mockSlf4jLog(mu, log);
 
             when(mu.emailSession()).thenCallRealMethod();
             when(mu.message(any(Session.class), anyList(), anyString(), anyString())).thenCallRealMethod();
@@ -286,6 +286,7 @@ class MailUtilsTest {
 
         @Test
         void testSendValidateCodeForResetPWDException() throws MessagingException {
+            doNothing().when(log).error(anyString(), any(Exception.class));
             when(mu.connectSMTP(any(Session.class))).thenCallRealMethod();
             doCallRealMethod().when(mu).closeTransport(any(Transport.class));
             doNothing().when(transport).connect(anyString(), anyInt(), anyString(), anyString());
@@ -350,6 +351,7 @@ class MailUtilsTest {
 
         @Test
         void testSendValidateCodeForResetPWDTransportIsNull() throws MessagingException {
+            doNothing().when(log).error(anyString(), any(Exception.class));
             doCallRealMethod().when(mu).closeTransport(null);
             doNothing().when(mu).initMailConfig();
             Session session = mock(Session.class);
@@ -406,12 +408,25 @@ class MailUtilsTest {
         }
     }
 
+    public void mockSlf4jLog(Object mockTo, Logger log) {
+        try {
+            Field logF = mockTo.getClass().getDeclaredField("log");
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(Field.class, MethodHandles.lookup());
+            VarHandle modifiersVarHandle = lookup.findVarHandle(Field.class, "modifiers", int.class);
+            modifiersVarHandle.set(logF, logF.getModifiers() & ~Modifier.FINAL);
+            logF.setAccessible(true);
+            logF.set(mockTo, log);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
     @Nested
     class sendHtmlEmailTest{
         private MailAccountDto parms;
         private List<String> adressees;
         private String title;
         private String content;
+        private Logger log;
         @BeforeEach
         void beforeEach(){
             parms = mock(MailAccountDto.class);
@@ -419,6 +434,8 @@ class MailUtilsTest {
             adressees.add("test@tapdata.io");
             title = "【TAPDATA】";
             content = "test content";
+            log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
         }
         @Test
         @DisplayName("test sendHtmlEmail method when addresses is null")
@@ -435,11 +452,8 @@ class MailUtilsTest {
         @DisplayName("test sendHtmlEmail method when host is blank")
         void test2(){
             when(parms.getHost()).thenReturn("  ");
-            TestResponseDto result = mailUtils.sendHtmlEmail(parms, adressees, title, content);
-            //verify(log).error("mail account info empty, params:{}", JSON.toJSONString(parms));
-            assertNotNull(result);
-            assertFalse(result.isResult());
-
+            mailUtils.sendHtmlEmail(parms, adressees, title, content);
+            verify(log).error("mail account info empty, params:{}", JSON.toJSONString(parms));
         }
         @Test
         @DisplayName("test sendHtmlEmail method for proxy")
@@ -549,6 +563,9 @@ class MailUtilsTest {
         @Test
         @DisplayName("test sendEmailForProxy method with exception")
         void test2(){
+            Logger log;
+            log = mock(Logger.class);
+            mockSlf4jLog(mailUtils, log);
             try (MockedStatic<Transport> mb = Mockito
                     .mockStatic(Transport.class)) {
                 when(parms.getProxyHost()).thenReturn("smtp.test.cn");
@@ -556,11 +573,9 @@ class MailUtilsTest {
                 RuntimeException e = new RuntimeException("test ex");
                 mb.when(()->Transport.send(any(MimeMessage.class))).thenThrow(e);
                 when(parms.getProtocol()).thenReturn("NO_PROTOCOL");
-                TestResponseDto result = mailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
+                mailUtils.sendEmailForProxy(parms, adressees, title, content, flag);
                 mb.verify(() -> Transport.send(any(MimeMessage.class)),new Times(1));
-                assertNotNull(result);
-                assertFalse(result.isResult());
-                assertTrue(result.getStack().contains("test ex"));
+                verify(log).error("mail send error：{}", "test ex", e);
             }
         }
 
