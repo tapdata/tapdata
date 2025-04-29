@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "connectionId": {
+      "type": "string",
+      "description": "The id of the connection to list data model"
+    },
+    "includeFields": {
+      "type": "boolean",
+      "description": "Optional: If true, returns data model include field information, else non-include field information"
+    },
+    "name": {
+      "type": "string",
+      "description": "Optional: If provided, returns the name that matches the data model, else return all data model."
+    }
+  },
+  "required": ["connectionId"]
+}

@@ -636,6 +636,11 @@
 			<version>4.29.3</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.tapdata</groupId>
+			<artifactId>mcp-tap-server</artifactId>
+			<version>0.0.1</version>
+		</dependency>
 		<!---->
 	</dependencies>
 
@@ -752,7 +757,6 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.8</version>
                 <executions>
                     <!--first execution : for preparing JaCoCo runtime agent-->
                     <execution>

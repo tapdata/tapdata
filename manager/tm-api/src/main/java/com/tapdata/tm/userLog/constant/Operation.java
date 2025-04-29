@@ -32,6 +32,8 @@ public enum Operation {
     UPDATE_EMAIL("update_email"),
     BIND_EMAIL("bind_email"),
     RESET_PASSWORD("reset_password"),
+
+    CONNECTED("connected"),
     ;
 
     private final String value;
