@@ -52,10 +52,14 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
 
 
     public boolean isAgentReq() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-        HttpServletRequest request = attributes.getRequest();
-        String userAgent = request.getHeader("user-agent");
-        return StringUtils.isNotBlank(userAgent) && (userAgent.contains("Java") || userAgent.contains("Node") || userAgent.contains("FlowEngine"));
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            HttpServletRequest request = attributes.getRequest();
+            String userAgent = request.getHeader("user-agent");
+            return StringUtils.isNotBlank(userAgent) && (userAgent.contains("Java") || userAgent.contains("Node") || userAgent.contains("FlowEngine"));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

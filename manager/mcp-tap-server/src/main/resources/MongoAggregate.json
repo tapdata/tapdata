@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "connectionId": {
+      "type": "string",
+      "description": "The id of the MongoDB connection to query data"
+    },
+    "collectionName": {
+      "type": "string",
+      "description": "Name of the MongoDB collection to aggregate"
+    },
+    "pipeline": {
+      "type": "array",
+      "description": "Aggregation pipeline stages"
+    },
+    "explain": {
+      "type": "string",
+      "description":
+      "Optional: Get aggregation execution information (queryPlanner, executionStats, or allPlansExecution)",
+      "enum": ["queryPlanner", "executionStats", "allPlansExecution"]
+    }
+  },
+  "required": ["connectionId", "collectionName", "pipeline"]
+}
