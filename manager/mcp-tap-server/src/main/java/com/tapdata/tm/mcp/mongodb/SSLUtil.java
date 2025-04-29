@@ -63,7 +63,22 @@ public class SSLUtil {
     X509Certificate[] x509Certificates = createCertificates(certificates);
 
     if (x509Certificates == null || x509Certificates.length == 0) {
-      return createTrustAllHostManagers();
+      return new TrustManager[]{new X509TrustManager() {
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+          return new X509Certificate[0];
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType) {
+          // 信任所有客户端证书
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) {
+          // 信任所有服务器证书
+        }
+      }};
     }
 
     KeyStore trustStore = KeyStore.getInstance(KEY_STORE_TYPE);
@@ -94,7 +109,12 @@ public class SSLUtil {
   public static KeyStore createKeyStore(String privateKey, List<String> certificates,
                                         String password) throws Exception {
     X509Certificate[] x509Certificates = createCertificates(certificates);
-    PrivateKey key = createPrivateKey(privateKey);
+
+    byte[] keyBytes = DatatypeConverter.parseBase64Binary(privateKey);
+    java.security.Security.addProvider(new BouncyCastleProvider());
+    PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+    KeyFactory factory = KeyFactory.getInstance(RSA_ALGORITHM);
+    PrivateKey key = factory.generatePrivate(spec);
 
     KeyStore keystore = KeyStore.getInstance(KEY_STORE_TYPE);
     keystore.load(null, null);
@@ -165,32 +185,6 @@ public class SSLUtil {
     return certificates;
   }
 
-  // 私有辅助方法
-
-  private static TrustManager[] createTrustAllHostManagers() {
-    return new TrustManager[]{new X509TrustManager() {
-      @Override
-      public X509Certificate[] getAcceptedIssuers() {
-        return new X509Certificate[0];
-      }
-
-      @Override
-      public void checkClientTrusted(X509Certificate[] chain, String authType) {
-        // 信任所有客户端证书
-      }
-
-      @Override
-      public void checkServerTrusted(X509Certificate[] chain, String authType) {
-        // 信任所有服务器证书
-      }
-    }};
-  }
-
-  private static PrivateKey createPrivateKey(String privateKey) throws Exception {
-    byte[] keyBytes = DatatypeConverter.parseBase64Binary(privateKey);
-    return generatePrivateKeyFromDER(keyBytes);
-  }
-
   private static X509Certificate[] createCertificates(List<String> certificates) throws Exception {
     if (CollectionUtils.isEmpty(certificates)) {
       return null;
@@ -199,22 +193,10 @@ public class SSLUtil {
     List<X509Certificate> result = new ArrayList<>();
     for (String certificate : certificates) {
       byte[] certBytes = DatatypeConverter.parseBase64Binary(certificate);
-      result.add(generateCertificateFromDER(certBytes));
+      CertificateFactory factory = CertificateFactory.getInstance(CERTIFICATE_TYPE);
+      result.add( (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(certBytes)));
     }
 
     return result.toArray(new X509Certificate[0]);
-  }
-
-  private static RSAPrivateKey generatePrivateKeyFromDER(byte[] keyBytes)
-          throws InvalidKeySpecException, NoSuchAlgorithmException {
-    java.security.Security.addProvider(new BouncyCastleProvider());
-    PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-    KeyFactory factory = KeyFactory.getInstance(RSA_ALGORITHM);
-    return (RSAPrivateKey) factory.generatePrivate(spec);
-  }
-
-  private static X509Certificate generateCertificateFromDER(byte[] certBytes) throws CertificateException {
-    CertificateFactory factory = CertificateFactory.getInstance(CERTIFICATE_TYPE);
-    return (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(certBytes));
   }
 }

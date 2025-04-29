@@ -11,6 +11,7 @@ import com.mongodb.client.model.CountOptions;
 import com.mongodb.connection.ConnectionPoolSettings;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.mcp.Utils;
+import com.tapdata.tm.mcp.exception.McpException;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -46,7 +47,7 @@ public class MongoOperator implements Closeable {
         return mongoClient.getDatabase(database);
     }
 
-    public List<?> listCollections(boolean nameOnly) {
+    public List<Object> listCollections(boolean nameOnly) {
 
         List<Object> result = new ArrayList<>();
         if (nameOnly) {
@@ -69,7 +70,7 @@ public class MongoOperator implements Closeable {
             } else if (tmp instanceof Map) {
                 query = new Document((Map<String, Object>) tmp);
             } else {
-                throw new RuntimeException("Parameter query must be a plain object");
+                throw new McpException("Parameter query must be a plain object");
             }
             convertObjectId(query);
         }
@@ -78,11 +79,11 @@ public class MongoOperator implements Closeable {
             return collection.countDocuments();
         }
 
-        Integer limit = Utils.getIntegerValue(params, "limit");
-        Integer skip = Utils.getIntegerValue(params, "skip");
-        Long maxTimeMS = Utils.getLongValue(params, "maxTimeMS");
+        var limit = Utils.getIntegerValue(params, "limit");
+        var skip = Utils.getIntegerValue(params, "skip");
+        var maxTimeMS = Utils.getLongValue(params, "maxTimeMS");
 
-        CountOptions countOptions = new CountOptions();
+        var countOptions = new CountOptions();
         if (limit != null) countOptions.limit(limit);
         if (skip != null) countOptions.skip(skip);
         if (maxTimeMS != null) countOptions.maxTime(maxTimeMS, TimeUnit.MILLISECONDS);
@@ -124,7 +125,7 @@ public class MongoOperator implements Closeable {
             } else if (tmp instanceof Map) {
                 filter = new Document((Map<String, Object>) tmp);
             } else {
-                throw new RuntimeException("Parameter filter must be a plain object");
+                throw new McpException("Parameter filter must be a plain object");
             }
             convertObjectId(filter);
         }
@@ -137,15 +138,15 @@ public class MongoOperator implements Closeable {
             } else if (tmp instanceof Map) {
                 projection = new Document((Map<String, Object>) tmp);
             } else {
-                throw new RuntimeException("Parameter projection must be a plain object");
+                throw new McpException("Parameter projection must be a plain object");
             }
             convertObjectId(filter);
         }
 
-        Integer limit = Utils.getIntegerValue(params, "limit");
-        Integer skip = Utils.getIntegerValue(params, "skip");
-        Long maxTimeMS = Utils.getLongValue(params, "maxTimeMS");
-        String explain = Utils.getStringValue(params, "explain");
+        var limit = Utils.getIntegerValue(params, "limit");
+        var skip = Utils.getIntegerValue(params, "skip");
+        var maxTimeMS = Utils.getLongValue(params, "maxTimeMS");
+        var explain = Utils.getStringValue(params, "explain");
 
         FindIterable<Document> findIterable = filter == null ? collection.find() : collection.find(filter);
         if (projection != null) findIterable.projection(projection);
@@ -176,10 +177,10 @@ public class MongoOperator implements Closeable {
             });
         }
         if (pipeline == null)
-            throw new RuntimeException("Pipeline must be an array");
+            throw new McpException("Pipeline must be an array");
         processPipeline(pipeline);
 
-        String explain = Utils.getStringValue(params, "explain");
+        var explain = Utils.getStringValue(params, "explain");
 
         MongoCollection<Document> collection = getDatabase().getCollection(collectionName);
 
@@ -208,19 +209,19 @@ public class MongoOperator implements Closeable {
         try {
             mongoClient = createClient(config);
         } catch (Exception e) {
-            throw new RuntimeException("Connect MongoDB failed " + e.getMessage());
+            throw new McpException("Connect MongoDB failed " + e.getMessage());
         }
     }
 
     private MongoClient createClient(Map<String, Object> config) {
-        String writeConcern = Utils.getStringValue(config, "writeConcern", "w1");
+        var writeConcern = Utils.getStringValue(config, "writeConcern", "w1");
         boolean ssl = Boolean.TRUE.equals(config.get("ssl"));
 
         final MongoClientSettings.Builder builder = MongoClientSettings.builder()
                 .writeConcern(WriteConcern.valueOf(writeConcern));
-        String uri = getConnectionString(config);
+        var uri = getConnectionString(config);
         if (null == uri || "".equals(uri)) {
-            throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
+            throw new McpException("Create MongoDB client failed, error: uri is blank");
         }
 
         ConnectionPoolSettings.Builder connectionPoolSettingsBuilder = ConnectionPoolSettings.builder();
@@ -240,7 +241,7 @@ public class MongoOperator implements Closeable {
                     try {
                         sslContext = SSLContext.getInstance("SSL");
                     } catch (NoSuchAlgorithmException e) {
-                        throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+                        throw new McpException(String.format("Create ssl context failed %s", e.getMessage()), e);
                     }
                     try {
                         sslContext.init(null, new TrustManager[]{new X509TrustManager() {
@@ -258,16 +259,16 @@ public class MongoOperator implements Closeable {
                             }
                         }}, new SecureRandom());
                     } catch (KeyManagementException e) {
-                        throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
+                        throw new McpException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
                     }
                     sslSettingBuilder.enabled(true).context(sslContext).invalidHostNameAllowed(true);
                 });
 
             } else {
                 boolean sslValidate = Boolean.TRUE.equals(config.get("sslValidate"));
-                String sslCa = Utils.getStringValue(config, "sslCA");
-                String sslKey = Utils.getStringValue(config, "sslKey");
-                String sslPass = Utils.getStringValue(config, "sslPass");
+                var sslCa = Utils.getStringValue(config, "sslCA");
+                var sslKey = Utils.getStringValue(config, "sslKey");
+                var sslPass = Utils.getStringValue(config, "sslPass");
                 boolean checkServerIdentity = Boolean.TRUE.equals(config.get("checkServerIdentity"));
 
                 List<String> clientCertificates = SSLUtil.retrieveCertificates(sslKey);
@@ -283,7 +284,7 @@ public class MongoOperator implements Closeable {
                         try {
                             sslContext = SSLUtil.createSSLContext(clientPrivateKey, clientCertificates, trustCertificates, sslPass);
                         } catch (Exception e) {
-                            throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+                            throw new McpException(String.format("Create ssl context failed %s", e.getMessage()), e);
                         }
                         sslSettingsBuilder.context(sslContext);
                         sslSettingsBuilder.enabled(true);
@@ -298,15 +299,14 @@ public class MongoOperator implements Closeable {
 
     private String getConnectionString(Map<String, Object> config) {
         boolean isUri = Boolean.TRUE.equals(config.get("isUri"));
-        String uri = null;
         if (isUri) {
             return config.get("uri").toString();
         } else {
-            String host = Utils.getStringValue(config, "host");
-            String database = Utils.getStringValue(config, "database");
-            String user = Utils.getStringValue(config, "user");
-            String additionalString = Utils.getStringValue(config, "additionalString");
-            String password = Utils.getStringValue(config, "password");
+            var host = Utils.getStringValue(config, "host");
+            var database = Utils.getStringValue(config, "database");
+            var user = Utils.getStringValue(config, "user");
+            var additionalString = Utils.getStringValue(config, "additionalString");
+            var password = Utils.getStringValue(config, "password");
 
             if (StringUtils.isNotBlank(user)) {
                 return String.format("mongodb://%s:%s@%s/%s?%s", user, password, host, database, additionalString);
