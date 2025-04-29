@@ -120,7 +120,7 @@
     <dependency>
       <groupId>io.github.openlg</groupId>
       <artifactId>graphlib</artifactId>
-      <version>1.0.1</version>
+      <version>1.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
@@ -312,6 +312,9 @@
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>2.22.1</version>
+          <configuration>
+            <argLine>--add-opens java.base/java.util=ALL-UNNAMED</argLine>
+          </configuration>
         </plugin>
         <plugin>
           <artifactId>maven-jar-plugin</artifactId>
@@ -352,7 +355,6 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-        <version>0.8.8</version>
         <executions>
           <!--first execution : for preparing JaCoCo runtime agent-->
           <execution>

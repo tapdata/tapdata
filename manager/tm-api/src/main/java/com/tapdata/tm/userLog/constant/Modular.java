@@ -23,7 +23,8 @@ public enum Modular {
     USER("user"),
     ROLE("role"),
     ACCESS_CODE("accessCode"),
-    CUSTOMER("customer");
+    CUSTOMER("customer"),
+    MCP("mcp");
 
     private final String value;
 

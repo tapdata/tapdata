@@ -50,6 +50,7 @@
 		<module>code-gen</module>
 		<module>tm-sdk</module>
 		<module>tm</module>
+		<module>mcp-tap-server</module>
 	</modules>
 
 	<profiles>
@@ -181,7 +182,7 @@
 				<plugin>
 					<groupId>org.jacoco</groupId>
 					<artifactId>jacoco-maven-plugin</artifactId>
-					<version>0.8.8</version>
+					<version>0.8.12</version>
 				</plugin>
 			</plugins>
 		</pluginManagement>

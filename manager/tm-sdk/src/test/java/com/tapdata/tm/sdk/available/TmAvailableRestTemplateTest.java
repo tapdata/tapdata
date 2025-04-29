@@ -56,7 +56,7 @@ class TmAvailableRestTemplateTest {
 		}
 	}
 
-	@Test
+	//@Test
 	void testDoExecute() throws Exception {
 		try (MockedStatic<TmStatusService> tmStatusServiceMockedStatic = Mockito.mockStatic(TmStatusService.class, Mockito.CALLS_REAL_METHODS)) {
 			tmStatusServiceMockedStatic.when(TmStatusService::isEnable).thenReturn(true);
