@@ -106,10 +106,9 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
           echo "::set-output name=TAPCE_BRANCH::${TAPCE_BRANCH}"
 
-  Push-Code-To-GOGS:
+  Push-Code-To-Gitee:
     runs-on: ubuntu-latest
     needs: Get-Stable-Branch
-    if: ${{ !startsWith(github.base_ref, 'release-v') && !(github.event_name == 'schedule' || inputs.tapce_run) }}
     steps:
       - name: Checkout Tapdata Code
         uses: actions/checkout@v3
@@ -155,7 +154,7 @@ jobs:
     if: ${{ !startsWith(github.base_ref, 'release-v') && !(github.event_name == 'schedule' || inputs.tapce_run) }}
     needs:
       - Get-Stable-Branch
-      - Push-Code-To-GOGS
+      - Push-Code-To-Gitee
     timeout-minutes: 60
     steps:
       - name: Clean Directory
@@ -213,6 +212,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'schedule' || inputs.tapce_run }}
     needs:
+      - Push-Code-To-Gitee
       - Get-Stable-Branch
     outputs:
       IP: ${{ steps.get_ip_port.outputs.IP }}
