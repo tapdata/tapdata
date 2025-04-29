@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "connectionId": {
+      "type": "string",
+      "description": "The id of the MongoDB connection to query data"
+    },
+    "collectionName": {
+      "type": "string",
+      "description": "Name of the MongoDB collection to query"
+    },
+    "filter": {
+      "type": "object",
+      "description": "Optional: MongoDB query filter to select documents"
+    },
+    "projection": {
+      "type": "object",
+      "description": "Optional: Fields to include/exclude"
+    },
+    "limit": {
+      "type": "number",
+      "description": "Optional: Maximum number of documents to return. Default 100",
+      "default": 100
+    },
+    "skip": {
+      "type": "number",
+      "description": "Optional: Number of documents to skip before counting"
+    },
+    "maxTimeMS": {
+      "type": "number",
+      "description": "Optional: Maximum time to allow the count to run"
+    },
+    "explain": {
+      "type": "string",
+      "description": "Optional: Get query execution information (queryPlanner, executionStats, or allPlansExecution)",
+      "enum": ["queryPlanner", "executionStats", "allPlansExecution"]
+    }
+  },
+  "required": ["connectionId", "collectionName"]
+}

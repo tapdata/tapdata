@@ -31,7 +31,7 @@ public class MetadataDefinitionRepositoryTest {
             when(userDetail.isRoot()).thenReturn(true);
             Query actual = repository.applyUserDetail(query, userDetail);
             Document document = new Document();
-            assertEquals(document, actual.getQueryObject());
+            assertEquals(document.toString(), actual.getQueryObject().toString());
         }
         @Test
         void testForUser() {

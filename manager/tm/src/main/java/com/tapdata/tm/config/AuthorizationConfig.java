@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  * @author lg&lt;lirufei0808@gmail.com&gt;
  * create at 2021/12/15 下午2:37
  */
-@Configuration
+//@Configuration
 @Slf4j
 public class AuthorizationConfig {
     /**

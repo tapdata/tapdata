@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "properties": {
+    "connectionId": {
+      "type": "string",
+      "description": "The id of the MongoDB connection to query data"
+    },
+    "nameOnly": {
+      "type": "boolean",
+      "description": "Optional: If true, returns only the collection names instead of full collection info"
+    }
+  },
+  "required": [
+    "connectionId"
+  ]
+}
