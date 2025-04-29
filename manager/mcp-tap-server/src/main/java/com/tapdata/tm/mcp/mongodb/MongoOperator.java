@@ -42,22 +42,24 @@ public class MongoOperator implements Closeable {
         this.datasourceDto = datasourceDto;
     }
 
+    private MongoDatabase getDatabase() {
+        return mongoClient.getDatabase(database);
+    }
+
     public List<?> listCollections(boolean nameOnly) {
 
-        MongoDatabase db = mongoClient.getDatabase(database);
         List<Object> result = new ArrayList<>();
         if (nameOnly) {
-            db.listCollectionNames().forEach(result::add);
+            getDatabase().listCollectionNames().forEach(result::add);
         } else {
-            db.listCollections().forEach(result::add);
+            getDatabase().listCollections().forEach(result::add);
         }
         return result;
     }
 
     public long count(String collectionName, Map<String, Object> params) {
 
-        MongoDatabase db = mongoClient.getDatabase(database);
-        MongoCollection<Document> collection = db.getCollection(collectionName);
+        MongoCollection<Document> collection = getDatabase().getCollection(collectionName);
 
         Object tmp = params.get("query");
         Document query = null;
@@ -97,7 +99,7 @@ public class MongoOperator implements Closeable {
         }
         tmp = params.get("hint");
         if (tmp != null) {
-             Document hint = null;
+            Document hint = null;
             if (tmp instanceof String) {
                 hint = Document.parse(tmp.toString());
             } else if (tmp instanceof Map) {
@@ -112,8 +114,7 @@ public class MongoOperator implements Closeable {
 
     public List<Document> query(String collectionName, Map<String, Object> params) {
 
-        MongoDatabase db = mongoClient.getDatabase(database);
-        MongoCollection<Document> collection = db.getCollection(collectionName);
+        MongoCollection<Document> collection = getDatabase().getCollection(collectionName);
 
         Object tmp = params.get("filter");
         Document filter = null;
@@ -180,8 +181,7 @@ public class MongoOperator implements Closeable {
 
         String explain = Utils.getStringValue(params, "explain");
 
-        MongoDatabase db = mongoClient.getDatabase(database);
-        MongoCollection<Document> collection = db.getCollection(collectionName);
+        MongoCollection<Document> collection = getDatabase().getCollection(collectionName);
 
         AggregateIterable<Document> iterable = collection.aggregate(pipeline);
         if (StringUtils.isNotBlank(explain))
