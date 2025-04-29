@@ -3,6 +3,7 @@ package com.tapdata.tm.mcp.mongodb;
 import jakarta.xml.bind.DatatypeConverter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import javax.net.ssl.*;
 import java.io.*;
@@ -18,219 +19,202 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * SSL工具类，用于处理SSL证书和私钥相关操作
+ */
 public class SSLUtil {
 
+  private static final String SSL_PROTOCOL = "SSL";
+  private static final String KEY_STORE_TYPE = "JKS";
+  private static final String KEY_MANAGER_ALGORITHM = "SunX509";
+  private static final String CERTIFICATE_TYPE = "X.509";
+  private static final String RSA_ALGORITHM = "RSA";
+  private static final String EMPTY_PASSWORD = "";
+  private static final String DEFAULT_ALIAS = "";
 
-  public static SSLContext createSSLContext(String privateKey, List<String> certificates, List<String> trustCertificates, String password) throws Exception {
-    SSLContext sslContext = SSLContext.getInstance("SSL");
-    if (password == null) {
-      password = "";
-    }
+  /**
+   * 创建SSL上下文
+   *
+   * @param privateKey 私钥
+   * @param certificates 证书列表
+   * @param trustCertificates 信任证书列表
+   * @param password 密码
+   * @return SSLContext实例
+   * @throws Exception 如果创建过程中发生错误
+   */
+  public static SSLContext createSSLContext(String privateKey, List<String> certificates,
+                                            List<String> trustCertificates, String password) throws Exception {
+    String finalPassword = password != null ? password : EMPTY_PASSWORD;
 
-    TrustManager[] trustManagers = createTrustManagers(trustCertificates, password);
-    KeyManager[] keyManagers = createKeyManagers(privateKey, certificates, password);
-    sslContext.init(keyManagers,
-            trustManagers,
-            null);
+    SSLContext sslContext = SSLContext.getInstance(SSL_PROTOCOL);
+    TrustManager[] trustManagers = createTrustManagers(trustCertificates, finalPassword);
+    KeyManager[] keyManagers = createKeyManagers(privateKey, certificates, finalPassword);
 
+    sslContext.init(keyManagers, trustManagers, null);
     return sslContext;
   }
 
+  /**
+   * 创建信任管理器
+   */
   public static TrustManager[] createTrustManagers(List<String> certificates, String password) throws Exception {
     X509Certificate[] x509Certificates = createCertificates(certificates);
-    TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
 
-    if (x509Certificates != null && x509Certificates.length > 0) {
-      KeyStore trustStoreContainingTheCertificate = KeyStore.getInstance("JKS");
-      trustStoreContainingTheCertificate.load(null, password.toCharArray());
-
-      trustStoreContainingTheCertificate.setCertificateEntry("", x509Certificates[0]);
-
-      trustManagerFactory.init(trustStoreContainingTheCertificate);
-
-      return trustManagerFactory.getTrustManagers();
+    if (x509Certificates == null || x509Certificates.length == 0) {
+      return createTrustAllHostManagers();
     }
 
-    return createTrustAllHost();
+    KeyStore trustStore = KeyStore.getInstance(KEY_STORE_TYPE);
+    trustStore.load(null, password.toCharArray());
+    trustStore.setCertificateEntry(DEFAULT_ALIAS, x509Certificates[0]);
+
+    TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(
+            TrustManagerFactory.getDefaultAlgorithm());
+    trustManagerFactory.init(trustStore);
+
+    return trustManagerFactory.getTrustManagers();
   }
 
-  public static KeyManager[] createKeyManagers(String privateKey, List<String> certificates, String password) throws Exception {
-    final KeyStore keystore = createKeyStore(privateKey, certificates, password);
-    final KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+  /**
+   * 创建密钥管理器
+   */
+  public static KeyManager[] createKeyManagers(String privateKey, List<String> certificates,
+                                               String password) throws Exception {
+    KeyStore keystore = createKeyStore(privateKey, certificates, password);
+    KeyManagerFactory kmf = KeyManagerFactory.getInstance(KEY_MANAGER_ALGORITHM);
     kmf.init(keystore, password.toCharArray());
     return kmf.getKeyManagers();
   }
 
-  private static TrustManager[] createTrustAllHost() {
-    TrustManager[] trustAllCerts = new TrustManager[]{new X509TrustManager() {
-
-      public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-        return new java.security.cert.X509Certificate[]{};
-      }
-
-      public void checkClientTrusted(X509Certificate[] chain, String authType) {
-
-      }
-
-      public void checkServerTrusted(X509Certificate[] chain, String authType) {
-
-      }
-    }};
-
-    return trustAllCerts;
-  }
-
   /**
-   * Create a KeyStore from standard PEM file
+   * 从PEM文件创建KeyStore
    */
-  public static KeyStore createKeyStore(String privateKey, List<String> certificates, final String password)
-          throws Exception {
+  public static KeyStore createKeyStore(String privateKey, List<String> certificates,
+                                        String password) throws Exception {
+    X509Certificate[] x509Certificates = createCertificates(certificates);
+    PrivateKey key = createPrivateKey(privateKey);
 
-    final X509Certificate[] x509Certificates = createCertificates(certificates);
-    final KeyStore keystore = KeyStore.getInstance("JKS");
-    keystore.load(null);
-    // Import private key
-    final PrivateKey key = createPrivateKey(privateKey);
-    keystore.setKeyEntry("", key, password.toCharArray(), x509Certificates);
+    KeyStore keystore = KeyStore.getInstance(KEY_STORE_TYPE);
+    keystore.load(null, null);
+    keystore.setKeyEntry(DEFAULT_ALIAS, key, password.toCharArray(), x509Certificates);
+
     return keystore;
   }
 
-  public static String retrivePrivateKey(File privateKeyPem) throws IOException {
-    try (final BufferedReader r = new BufferedReader(new FileReader(privateKeyPem))) {
-      String s = r.readLine();
-      while (s != null) {
-        if (s.contains("BEGIN") && s.contains("PRIVATE KEY")) {
-          break;
-        }
-        s = r.readLine();
-      }
-
-      final StringBuffer b = new StringBuffer();
-      s = "";
-      while (s != null) {
-        if (s.contains("END") && s.contains("PRIVATE KEY")) {
-          break;
-        }
-        b.append(s);
-        s = r.readLine();
-      }
-
-      return b.toString();
-    }
-  }
-
-  public static List<String> retrieveCertificates(File certificatePem) throws IOException {
-    List<String> result = new ArrayList<>();
-
-    try (final BufferedReader r = new BufferedReader(new FileReader(certificatePem))) {
-      String s = r.readLine();
-      while (s != null) {
-        if (s.contains("BEGIN CERTIFICATE")) {
-          break;
-        }
-        s = r.readLine();
-      }
-      StringBuffer b = new StringBuffer();
-      while (s != null) {
-        if (s.contains("END CERTIFICATE")) {
-          String hexString = b.toString();
-          result.add(hexString);
-          b = new StringBuffer();
-        } else {
-          if (!s.startsWith("----")) {
-            b.append(s);
-          }
-        }
-        s = r.readLine();
-      }
-
-      return result;
-    }
-  }
-
-  public static List<String> retrieveCertificates(String certificatePEMString) {
-    List<String> result = new ArrayList<>();
-    if (StringUtils.isNotBlank(certificatePEMString)) {
-      String[] certificate = certificatePEMString.split("\\r?\\n");
-      StringBuffer b = new StringBuffer();
-      boolean isBegin = false;
-      for (String s : certificate) {
-        if (s.contains("BEGIN CERTIFICATE")) {
-          b = new StringBuffer();
-          isBegin = true;
-          continue;
-        }
-        if (s.contains("END CERTIFICATE")) {
-          String hexString = b.toString();
-          result.add(hexString);
-          isBegin = false;
-        } else {
-          if (isBegin) {
-            b.append(s);
-          }
-        }
-      }
-    }
-    return result;
-  }
-
+  /**
+   * 从字符串中提取私钥
+   */
   public static String retrievePrivateKey(String privatePEMString) {
-    final StringBuffer b = new StringBuffer();
-    if (StringUtils.isNotBlank(privatePEMString)) {
-      String[] certificate = privatePEMString.split("\\r?\\n");
-      boolean isBegin = false;
-      for (String s : certificate) {
-        if (s.contains("BEGIN") && s.contains("PRIVATE KEY")) {
-          isBegin = true;
-          continue;
-        }
+    if (StringUtils.isBlank(privatePEMString)) {
+      return "";
+    }
 
-        if (s.contains("END") && s.contains("PRIVATE KEY")) {
-          break;
-        }
+    StringBuilder result = new StringBuilder();
+    String[] lines = privatePEMString.split("\\r?\\n");
+    boolean isPrivateKeyContent = false;
 
-        if (isBegin) {
-          b.append(s);
-        }
-
+    for (String line : lines) {
+      if (line.contains("BEGIN") && line.contains("PRIVATE KEY")) {
+        isPrivateKeyContent = true;
+        continue;
+      }
+      if (line.contains("END") && line.contains("PRIVATE KEY")) {
+        break;
+      }
+      if (isPrivateKeyContent) {
+        result.append(line);
       }
     }
-    return b.toString();
+
+    return result.toString();
+  }
+
+  /**
+   * 从字符串中提取证书
+   */
+  public static List<String> retrieveCertificates(String certificatePEMString) {
+    List<String> certificates = new ArrayList<>();
+    if (StringUtils.isBlank(certificatePEMString)) {
+      return certificates;
+    }
+
+    String[] lines = certificatePEMString.split("\\r?\\n");
+    StringBuilder currentCertificate = new StringBuilder();
+    boolean isCollecting = false;
+
+    for (String line : lines) {
+      if (line.contains("BEGIN CERTIFICATE")) {
+        isCollecting = true;
+        currentCertificate = new StringBuilder();
+        continue;
+      }
+      if (line.contains("END CERTIFICATE")) {
+        if (currentCertificate.length() > 0) {
+          certificates.add(currentCertificate.toString());
+        }
+        isCollecting = false;
+        continue;
+      }
+      if (isCollecting && !line.startsWith("----")) {
+        currentCertificate.append(line);
+      }
+    }
+
+    return certificates;
+  }
+
+  // 私有辅助方法
+
+  private static TrustManager[] createTrustAllHostManagers() {
+    return new TrustManager[]{new X509TrustManager() {
+      @Override
+      public X509Certificate[] getAcceptedIssuers() {
+        return new X509Certificate[0];
+      }
+
+      @Override
+      public void checkClientTrusted(X509Certificate[] chain, String authType) {
+        // 信任所有客户端证书
+      }
+
+      @Override
+      public void checkServerTrusted(X509Certificate[] chain, String authType) {
+        // 信任所有服务器证书
+      }
+    }};
   }
 
   private static PrivateKey createPrivateKey(String privateKey) throws Exception {
-
-    final byte[] bytes = DatatypeConverter.parseBase64Binary(privateKey);
-    return generatePrivateKeyFromDER(bytes);
+    byte[] keyBytes = DatatypeConverter.parseBase64Binary(privateKey);
+    return generatePrivateKeyFromDER(keyBytes);
   }
 
   private static X509Certificate[] createCertificates(List<String> certificates) throws Exception {
-    if (CollectionUtils.isNotEmpty(certificates)) {
-      final List<X509Certificate> result = new ArrayList<>();
-
-      for (String certificate : certificates) {
-        final byte[] bytes = DatatypeConverter.parseBase64Binary(certificate);
-        X509Certificate cert = generateCertificateFromDER(bytes);
-        result.add(cert);
-      }
-
-      return result.toArray(new X509Certificate[result.size()]);
+    if (CollectionUtils.isEmpty(certificates)) {
+      return null;
     }
-    return null;
+
+    List<X509Certificate> result = new ArrayList<>();
+    for (String certificate : certificates) {
+      byte[] certBytes = DatatypeConverter.parseBase64Binary(certificate);
+      result.add(generateCertificateFromDER(certBytes));
+    }
+
+    return result.toArray(new X509Certificate[0]);
   }
 
-  private static RSAPrivateKey generatePrivateKeyFromDER(byte[] keyBytes) throws InvalidKeySpecException, NoSuchAlgorithmException {
-    java.security.Security.addProvider(
-            new org.bouncycastle.jce.provider.BouncyCastleProvider()
-    );
-    final PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
-    final KeyFactory factory = KeyFactory.getInstance("RSA");
+  private static RSAPrivateKey generatePrivateKeyFromDER(byte[] keyBytes)
+          throws InvalidKeySpecException, NoSuchAlgorithmException {
+    java.security.Security.addProvider(new BouncyCastleProvider());
+    PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+    KeyFactory factory = KeyFactory.getInstance(RSA_ALGORITHM);
     return (RSAPrivateKey) factory.generatePrivate(spec);
   }
 
   private static X509Certificate generateCertificateFromDER(byte[] certBytes) throws CertificateException {
-    final CertificateFactory factory = CertificateFactory.getInstance("X.509");
+    CertificateFactory factory = CertificateFactory.getInstance(CERTIFICATE_TYPE);
     return (X509Certificate) factory.generateCertificate(new ByteArrayInputStream(certBytes));
   }
 }
