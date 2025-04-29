@@ -1,9 +1,11 @@
 package io.tapdata.flow.engine.V2.entity;
 
+import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
@@ -67,7 +69,7 @@ class PdkStateMapExTest {
 	@Test
 	@DisplayName("test construct")
 	void testConstruct() {
-		HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance();
+		HazelcastInstance hazelcastInstance = Hazelcast.newHazelcastInstance(HazelcastUtil.getConfig("agentId"));
 		ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
 		ConnectorConstant.clientMongoOperator = clientMongoOperator;
 		ExternalStorageDto externalStorageDto = new ExternalStorageDto();

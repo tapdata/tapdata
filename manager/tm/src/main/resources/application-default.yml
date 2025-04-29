@@ -35,6 +35,8 @@ spring:
       matching-strategy: ant_path_matcher
     format:
       date-time: yyyyMM-dd HH:mm:ss
+    async:
+      request-timeout: 1000
   jackson:
     default-property-inclusion: non_null
 
