@@ -25,4 +25,5 @@ public class DmlPolicy implements Serializable {
 	private Boolean deleteEvent;
 	private DmlPolicyEnum insertPolicy;
 	private DmlPolicyEnum updatePolicy;
+	private DmlPolicyEnum deletePolicy;
 }

@@ -162,7 +162,7 @@ public class DataSourceController extends BaseController {
 
         UserDetail userDetail;
         if (filter.getWhere().containsKey("_id") && filter.getWhere().get("_id") instanceof String) {
-            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(filter.getWhere().get("_id").toString()));
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(filter.getWhere().get("_id").toString()), "userId");
             Assert.notNull(connectionDto, "connection is null");
             userDetail = userService.loadUserById(MongoUtils.toObjectId(connectionDto.getUserId()));
         } else {
