@@ -4,9 +4,9 @@ import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 public class TruncateTableFuncAspect extends DataFunctionAspect<TruncateTableFuncAspect>{
-    private TapClearTableEvent clearTableEvent;
-    public TruncateTableFuncAspect clearTableEvent(TapClearTableEvent clearTableEvent) {
-        this.clearTableEvent = clearTableEvent;
+    private TapClearTableEvent truncateTableEvent;
+    public TruncateTableFuncAspect truncateTableEvent(TapClearTableEvent clearTableEvent) {
+        this.truncateTableEvent = clearTableEvent;
         return this;
     }
     private TapConnectorContext connectorContext;
@@ -24,11 +24,11 @@ public class TruncateTableFuncAspect extends DataFunctionAspect<TruncateTableFun
         this.connectorContext = connectorContext;
     }
 
-    public TapClearTableEvent getClearTableEvent() {
-        return clearTableEvent;
+    public TapClearTableEvent getTruncateTableEvent() {
+        return truncateTableEvent;
     }
 
-    public void setClearTableEvent(TapClearTableEvent clearTableEvent) {
-        this.clearTableEvent = clearTableEvent;
+    public void setTruncateTableEvent(TapClearTableEvent truncateTableEvent) {
+        this.truncateTableEvent = truncateTableEvent;
     }
 }
