@@ -19,12 +19,10 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
-import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
@@ -53,6 +51,7 @@ import io.tapdata.flow.engine.V2.util.ProcessAfterMergeUtil;
 import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.core.api.impl.JsonParserImpl;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -1074,7 +1073,7 @@ public class HazelcastTaskServiceTest {
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
-            when(jet.newLightJob(eq(dag), any(JobConfig.class))).thenReturn(job);
+            when(jet.newJob(eq(dag), any(JobConfig.class))).thenReturn(job);
             TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
             assertNotNull(taskDtoTaskClient);
             assertSame(job, ReflectionTestUtils.getField(taskDtoTaskClient, "job"));
@@ -1537,6 +1536,125 @@ public class HazelcastTaskServiceTest {
             TaskDto taskDto = new TaskDto();
             taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
 
+        }
+    }
+
+    @Nested
+    @DisplayName("Method sourceAndSinkIsomorphismType test")
+    class sourceAndSinkIsomorphismTypeTest {
+
+		private HazelcastTaskService hazelcastTaskService;
+
+        @BeforeEach
+        void setUp() {
+			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            TaskDto taskDto = new TaskDto();
+            String pdkId = "mongodb";
+            DatabaseTypeEnum.DatabaseType srcDatabaseType = new DatabaseTypeEnum.DatabaseType();
+            DatabaseTypeEnum.DatabaseType tgtDatabaseType = new DatabaseTypeEnum.DatabaseType();
+            srcDatabaseType.setPdkId(pdkId);
+            tgtDatabaseType.setPdkId(pdkId);
+            Connections srcConn = new Connections();
+            Connections tgtConn = new Connections();
+            srcConn.setId("1");
+            tgtConn.setId("2");
+            srcConn.setPdkHash("1");
+            tgtConn.setPdkHash("2");
+            TableNode srcNode = new TableNode();
+            TableNode tgtNode = new TableNode();
+            srcNode.setId("1");
+            tgtNode.setId("2");
+            srcNode.setConnectionId(srcConn.getId());
+            tgtNode.setConnectionId(tgtConn.getId());
+            doReturn(srcConn).when(hazelcastTaskService).getConnection(srcNode.getConnectionId());
+            doReturn(tgtConn).when(hazelcastTaskService).getConnection(tgtNode.getConnectionId());
+            Graph<Node, Edge> graph = new Graph<>();
+            graph.setNode(srcNode.getId(), srcNode);
+            graph.setNode(tgtNode.getId(), tgtNode);
+            graph.setEdge(srcNode.getId(), tgtNode.getId(), new Edge(srcNode.getId(), tgtNode.getId()));
+            DAG dag = new DAG(graph);
+            taskDto.setDag(dag);
+
+            try (
+                    MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)
+            ) {
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(any(ClientMongoOperator.class), eq(srcConn.getPdkHash()))).thenReturn(srcDatabaseType);
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(any(ClientMongoOperator.class), eq(tgtConn.getPdkHash()))).thenReturn(tgtDatabaseType);
+                TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
+                assertEquals(TapConnectorContext.IsomorphismType.ISOMORPHISM, isomorphismType);
+            }
+        }
+
+        @Test
+        @DisplayName("test different pdk id")
+        void test2() {
+            TaskDto taskDto = new TaskDto();
+            String pdkId1 = "oracle";
+            String pdkId2 = "mongodb";
+            DatabaseTypeEnum.DatabaseType srcDatabaseType = new DatabaseTypeEnum.DatabaseType();
+            DatabaseTypeEnum.DatabaseType tgtDatabaseType = new DatabaseTypeEnum.DatabaseType();
+            srcDatabaseType.setPdkId(pdkId1);
+            tgtDatabaseType.setPdkId(pdkId2);
+            Connections srcConn = new Connections();
+            Connections tgtConn = new Connections();
+            srcConn.setId("1");
+            tgtConn.setId("2");
+            srcConn.setPdkHash("1");
+            tgtConn.setPdkHash("2");
+            TableNode srcNode = new TableNode();
+            TableNode tgtNode = new TableNode();
+            srcNode.setId("1");
+            tgtNode.setId("2");
+            srcNode.setConnectionId(srcConn.getId());
+            tgtNode.setConnectionId(tgtConn.getId());
+            doReturn(srcConn).when(hazelcastTaskService).getConnection(srcNode.getConnectionId());
+            doReturn(tgtConn).when(hazelcastTaskService).getConnection(tgtNode.getConnectionId());
+            Graph<Node, Edge> graph = new Graph<>();
+            graph.setNode(srcNode.getId(), srcNode);
+            graph.setNode(tgtNode.getId(), tgtNode);
+            graph.setEdge(srcNode.getId(), tgtNode.getId(), new Edge(srcNode.getId(), tgtNode.getId()));
+            DAG dag = new DAG(graph);
+            taskDto.setDag(dag);
+
+            try (
+                    MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)
+            ) {
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(any(ClientMongoOperator.class), eq(srcConn.getPdkHash()))).thenReturn(srcDatabaseType);
+                connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(any(ClientMongoOperator.class), eq(tgtConn.getPdkHash()))).thenReturn(tgtDatabaseType);
+                TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
+                assertEquals(TapConnectorContext.IsomorphismType.HETEROGENEOUS, isomorphismType);
+            }
+        }
+
+        @Test
+        @DisplayName("test empty graph")
+        void test3() {
+            TaskDto taskDto = new TaskDto();
+            Graph<Node, Edge> graph = new Graph<>();
+            DAG dag = new DAG(graph);
+            taskDto.setDag(dag);
+            TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
+            assertEquals(TapConnectorContext.IsomorphismType.HETEROGENEOUS, isomorphismType);
+        }
+
+        @Test
+        @DisplayName("test no data node")
+        void test4() {
+            TaskDto taskDto = new TaskDto();
+            JsProcessorNode srcNode = new JsProcessorNode();
+            srcNode.setId("1");
+            Graph<Node, Edge> graph = new Graph<>();
+            graph.setNode(srcNode.getId(), srcNode);
+            DAG dag = new DAG(graph);
+            taskDto.setDag(dag);
+            TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
+            assertEquals(TapConnectorContext.IsomorphismType.HETEROGENEOUS, isomorphismType);
         }
     }
 }

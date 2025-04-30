@@ -94,6 +94,7 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         tapTable.setAncestorsName(schema.getAncestorsName());
@@ -104,6 +105,7 @@ public class PdkSchemaConvert {
                     TapIndexField tapIndexField = new TapIndexField();
                     tapIndexField.setFieldAsc(i.getColumnIsAsc());
                     tapIndexField.setName(i.getColumnName());
+                    tapIndexField.setSubPosition(i.getSubPosition());
                     return tapIndexField;
                 }).collect(Collectors.toList());
 
@@ -186,6 +188,7 @@ public class PdkSchemaConvert {
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
         tapTable.setTableAttr(schema.getTableAttr());
+        tapTable.setComment(schema.getComment());
         tapTable.setPartitionInfo(schema.getPartitionInfo());
         tapTable.setPartitionMasterTableId(schema.getPartitionMasterTableId());
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
@@ -195,6 +198,7 @@ public class PdkSchemaConvert {
                     TapIndexField tapIndexField = new TapIndexField();
                     tapIndexField.setFieldAsc(i.getColumnIsAsc());
                     tapIndexField.setName(i.getColumnName());
+                    tapIndexField.setSubPosition(i.getSubPosition());
                     return tapIndexField;
                 }).collect(Collectors.toList());
 
@@ -473,6 +477,7 @@ public class PdkSchemaConvert {
                     TableIndexColumn tableIndexColumn = new TableIndexColumn();
                     tableIndexColumn.setColumnName(indexField.getName());
                     tableIndexColumn.setColumnIsAsc(indexField.getFieldAsc());
+                    tableIndexColumn.setSubPosition(indexField.getSubPosition());
                     tableIndexColumns.add(tableIndexColumn);
                 }
 
@@ -628,6 +633,7 @@ public class PdkSchemaConvert {
                     TableIndexColumn tableIndexColumn = new TableIndexColumn();
                     tableIndexColumn.setColumnName(indexField.getName());
                     tableIndexColumn.setColumnIsAsc(indexField.getFieldAsc());
+                    tableIndexColumn.setSubPosition(indexField.getSubPosition());
                     tableIndexColumns.add(tableIndexColumn);
                 }
 

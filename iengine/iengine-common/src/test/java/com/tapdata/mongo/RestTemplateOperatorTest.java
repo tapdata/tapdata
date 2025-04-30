@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.tapdata.entity.ResponseBody;
 import io.tapdata.exception.ManagementException;
 import io.tapdata.exception.RestDoNotRetryException;
+import io.tapdata.exception.TmUnavailableException;
 import lombok.SneakyThrows;
 import org.apache.commons.io.input.BrokenInputStream;
 import org.apache.commons.io.input.NullInputStream;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.internal.verification.Times;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.mock.http.client.MockClientHttpResponse;
@@ -40,6 +42,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -245,11 +248,12 @@ public class RestTemplateOperatorTest {
 	 */
 	@Test(expected = ManagementException.class)
 	public void testDownloadFile_RestTemplateThrowsRestClientException() throws Exception {
+		HttpClientErrorException httpClientErrorException = new HttpClientErrorException(HttpStatusCode.valueOf(404));
 		// Setup
 		final Map<String, Object> params = new HashMap<>();
 		final RestTemplateOperator.Callback callback = null;
 		when(mockRestTemplate.execute(any(URI.class), any(HttpMethod.class),
-				any(RequestCallback.class), any(ResponseExtractor.class))).thenThrow(HttpClientErrorException.class);
+				any(RequestCallback.class), any(ResponseExtractor.class))).thenThrow(httpClientErrorException);
 
 		// Run the test
 		restTemplateOperatorUnderTest.downloadFile(params, "resource", "path", "cookies", "region", callback);
@@ -405,11 +409,19 @@ public class RestTemplateOperatorTest {
 	}
 
 	@Test
+	public void testRetryWarpWithTmUnavailableException() throws Exception {
+		RestTemplateOperator.TryFunc func = mock(RestTemplateOperator.TryFunc.class);
+		Predicate<?> stop = mock(Predicate.class);
+		doThrow(new TmUnavailableException("uri", "method", new Object(), mock(ResponseBody.class))).when(func).tryFunc(any());
+		assertThrows(TmUnavailableException.class, () -> restTemplateOperatorUnderTest.retryWrap(func,stop));
+	}
+
+	@Test
 	public void testHandleRequestFailed() {
 		ResponseBody responseBody = new ResponseBody();
 		responseBody.setCode("Task.NotFound");
 
-		Assertions.assertThrows(RestDoNotRetryException.class, () -> {
+		assertThrows(RestDoNotRetryException.class, () -> {
 			ReflectionTestUtils.invokeMethod(restTemplateOperatorUnderTest, "handleRequestFailed", "http://localhost:3000/api/", "post", null, responseBody);
 		});
 	}

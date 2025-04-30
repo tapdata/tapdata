@@ -5,26 +5,23 @@ import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.util.JsonUtil;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import org.apache.commons.lang3.RandomUtils;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import io.tapdata.entity.schema.TapConstraint;
+import io.tapdata.entity.schema.TapConstraintMapping;
+import org.junit.jupiter.api.*;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -215,6 +212,7 @@ public class MigrateFieldRenameProcessorNodeTest {
             MigrateFieldRenameProcessorNode.ApplyConfig config = new MigrateFieldRenameProcessorNode.ApplyConfig(mock(MigrateFieldRenameProcessorNode.class));
             assertNotNull(config.targetFieldExistMaps);
         }
+
         @Test
         void testApplyConfigConstructorWithTableFieldInfos() {
             MigrateFieldRenameProcessorNode node = mock(MigrateFieldRenameProcessorNode.class);
@@ -239,4 +237,133 @@ public class MigrateFieldRenameProcessorNodeTest {
         }
     }
 
+    @Nested
+    @DisplayName("Method handleForeignKeyConstraints test")
+    class handleForeignKeyConstraintsTest {
+
+        private MigrateFieldRenameProcessorNode migrateFieldRenameProcessorNode;
+        private String tableName;
+
+        @BeforeEach
+        void setUp() {
+            migrateFieldRenameProcessorNode = new MigrateFieldRenameProcessorNode();
+            tableName = "test";
+        }
+
+        @Test
+        @DisplayName("test rename foreignkey")
+        void test1() {
+            Schema schema = new Schema();
+            List<TapConstraint> constraints = new ArrayList<>();
+            TapConstraint tapConstraint = new TapConstraint("fk_1", TapConstraint.ConstraintType.FOREIGN_KEY);
+            List<TapConstraintMapping> tapConstraintMappings = new ArrayList<>();
+            TapConstraintMapping tapConstraintMapping = new TapConstraintMapping();
+            tapConstraintMapping.foreignKey("fid");
+            tapConstraintMapping.referenceKey("rid");
+            tapConstraintMappings.add(tapConstraintMapping);
+            tapConstraint.setMappingFields(tapConstraintMappings);
+            constraints.add(tapConstraint);
+            schema.setConstraints(constraints);
+            MigrateFieldRenameProcessorNode.ApplyConfig applyConfig = mock(MigrateFieldRenameProcessorNode.ApplyConfig.class);
+            MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>> foreignKeyConstraintIOperator = migrateFieldRenameProcessorNode.createForeignKeyConstraintIOperator();
+            when(applyConfig.apply(eq(tableName), anyString(), any(), eq(foreignKeyConstraintIOperator))).thenAnswer(invocationOnMock -> {
+                Object argument2 = invocationOnMock.getArgument(2);
+                Object argument3 = invocationOnMock.getArgument(3);
+                ((MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>>)argument3).renameField((List<TapConstraint>) argument2, "fid", "fid_new");
+                return true;
+            });
+            Field field = new Field();
+            field.setOriginalFieldName("fid");
+            migrateFieldRenameProcessorNode.handleForeignKeyConstraints(schema, field, applyConfig, tableName, foreignKeyConstraintIOperator);
+            TapConstraintMapping tapConstraintMappingRes = assertDoesNotThrow(() -> constraints.get(0).getMappingFields().get(0));
+            assertEquals("fid_new", tapConstraintMappingRes.getForeignKey());
+        }
+
+        @Test
+        @DisplayName("test delete foreignkey")
+        void test2() {
+            Schema schema = new Schema();
+            List<TapConstraint> constraints = new ArrayList<>();
+            TapConstraint tapConstraint = new TapConstraint("fk_1", TapConstraint.ConstraintType.FOREIGN_KEY);
+            List<TapConstraintMapping> tapConstraintMappings = new ArrayList<>();
+            TapConstraintMapping tapConstraintMapping = new TapConstraintMapping();
+            tapConstraintMapping.foreignKey("fid");
+            tapConstraintMapping.referenceKey("rid");
+            tapConstraintMappings.add(tapConstraintMapping);
+            tapConstraint.setMappingFields(tapConstraintMappings);
+            constraints.add(tapConstraint);
+            schema.setConstraints(constraints);
+            MigrateFieldRenameProcessorNode.ApplyConfig applyConfig = mock(MigrateFieldRenameProcessorNode.ApplyConfig.class);
+            MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>> foreignKeyConstraintIOperator = migrateFieldRenameProcessorNode.createForeignKeyConstraintIOperator();
+            when(applyConfig.apply(eq(tableName), anyString(), any(), eq(foreignKeyConstraintIOperator))).thenAnswer(invocationOnMock -> {
+                Object argument2 = invocationOnMock.getArgument(2);
+                Object argument3 = invocationOnMock.getArgument(3);
+                ((MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>>)argument3).deleteField((List<TapConstraint>) argument2, "fid");
+                return true;
+            });
+            Field field = new Field();
+            field.setOriginalFieldName("fid");
+            migrateFieldRenameProcessorNode.handleForeignKeyConstraints(schema, field, applyConfig, tableName, foreignKeyConstraintIOperator);
+            assertTrue(constraints.isEmpty());
+        }
+
+        @Test
+        @DisplayName("test rename reference foreignkey")
+        void test3() {
+            Schema schema = new Schema();
+            List<TapConstraint> constraints = new ArrayList<>();
+            TapConstraint tapConstraint = new TapConstraint("fk_1", TapConstraint.ConstraintType.FOREIGN_KEY);
+            tapConstraint.setReferencesTableName(tableName);
+            List<TapConstraintMapping> tapConstraintMappings = new ArrayList<>();
+            TapConstraintMapping tapConstraintMapping = new TapConstraintMapping();
+            tapConstraintMapping.foreignKey("fid");
+            tapConstraintMapping.referenceKey("rid");
+            tapConstraintMappings.add(tapConstraintMapping);
+            tapConstraint.setMappingFields(tapConstraintMappings);
+            constraints.add(tapConstraint);
+            schema.setConstraints(constraints);
+            MigrateFieldRenameProcessorNode.ApplyConfig applyConfig = mock(MigrateFieldRenameProcessorNode.ApplyConfig.class);
+            MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator = migrateFieldRenameProcessorNode.createReferenceForeignKeyConstraintIOperator();
+            when(applyConfig.apply(eq(tableName), anyString(), any(), eq(referenceForeignKeyConstraintIOperator))).thenAnswer(invocationOnMock -> {
+                Object argument2 = invocationOnMock.getArgument(2);
+                Object argument3 = invocationOnMock.getArgument(3);
+                ((MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>>)argument3).renameField((List<TapConstraint>) argument2, "rid", "rid_new");
+                return true;
+            });
+            Field field = new Field();
+            field.setOriginalFieldName("rid");
+            migrateFieldRenameProcessorNode.handleReferenceForeignKeyConstraints(schema, applyConfig, referenceForeignKeyConstraintIOperator);
+            TapConstraintMapping tapConstraintMappingRes = assertDoesNotThrow(() -> constraints.get(0).getMappingFields().get(0));
+            assertEquals("rid_new", tapConstraintMappingRes.getReferenceKey());
+        }
+
+        @Test
+        @DisplayName("test delete reference foreignkey")
+        void test4() {
+            Schema schema = new Schema();
+            List<TapConstraint> constraints = new ArrayList<>();
+            TapConstraint tapConstraint = new TapConstraint("fk_1", TapConstraint.ConstraintType.FOREIGN_KEY);
+            tapConstraint.setReferencesTableName(tableName);
+            List<TapConstraintMapping> tapConstraintMappings = new ArrayList<>();
+            TapConstraintMapping tapConstraintMapping = new TapConstraintMapping();
+            tapConstraintMapping.foreignKey("fid");
+            tapConstraintMapping.referenceKey("rid");
+            tapConstraintMappings.add(tapConstraintMapping);
+            tapConstraint.setMappingFields(tapConstraintMappings);
+            constraints.add(tapConstraint);
+            schema.setConstraints(constraints);
+            MigrateFieldRenameProcessorNode.ApplyConfig applyConfig = mock(MigrateFieldRenameProcessorNode.ApplyConfig.class);
+            MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>> referenceForeignKeyConstraintIOperator = migrateFieldRenameProcessorNode.createReferenceForeignKeyConstraintIOperator();
+            when(applyConfig.apply(eq(tableName), anyString(), any(), eq(referenceForeignKeyConstraintIOperator))).thenAnswer(invocationOnMock -> {
+                Object argument2 = invocationOnMock.getArgument(2);
+                Object argument3 = invocationOnMock.getArgument(3);
+                ((MigrateFieldRenameProcessorNode.IOperator<List<TapConstraint>>)argument3).deleteField((List<TapConstraint>) argument2, "rid");
+                return true;
+            });
+            Field field = new Field();
+            field.setOriginalFieldName("rid");
+            migrateFieldRenameProcessorNode.handleReferenceForeignKeyConstraints(schema, applyConfig, referenceForeignKeyConstraintIOperator);
+            assertTrue(constraints.isEmpty());
+        }
+    }
 }

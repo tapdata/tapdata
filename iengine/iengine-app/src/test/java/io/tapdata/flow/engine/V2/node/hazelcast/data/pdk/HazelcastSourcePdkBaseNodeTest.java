@@ -6,6 +6,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -44,6 +45,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
@@ -2535,6 +2537,352 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
 
 		}
+
+		@Test
+		void testFilterTableByNoPrimaryKeyWithHasKeys() throws Throwable {
+			List<TapTable> tapTables = new ArrayList<>();
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			TapNodeSpecification spec = new TapNodeSpecification();
+			spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
+			when(connectorContext.getSpecification()).thenReturn(spec);
+			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+				@Override
+				public TapTable get(String key) {
+					return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
+				}
+			};
+			when(connectorContext.getTableMap()).thenReturn(tableMap);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doAnswer(answer -> {
+				Runnable runnable = answer.getArgument(0);
+				runnable.run();
+				return null;
+			}).when(connectorNode).applyClassLoaderContext(any());
+			TapConnector connector = mock(TapConnector.class);
+			doAnswer(answer -> {
+				Consumer<List<TapTable>> consumer = answer.getArgument(3);
+
+				TapTable table = new TapTable();
+				table.setId("test");
+				table.setName("test");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				tapTables.add(table);
+				table = new TapTable();
+				table.setId("test_1");
+				table.setName("test_1");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				TapIndex index = new TapIndex();
+				index.setUnique(true);
+				table.setIndexList(Arrays.asList(index));
+				tapTables.add(table);
+				consumer.accept(tapTables);
+				return null;
+			}).
+					when(connector).discoverSchema(any(), anyList(), anyInt(), any());
+			when(connectorNode.getConnector()).thenReturn(connector);
+			when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
+			DatabaseNode node = new DatabaseNode();
+			node.setMigrateTableSelectType("expression");
+			node.setNoPrimaryKeyTableSelectType("HasKeys");
+			when(spySourcePdkBaseNod.getNode()).thenReturn((Node)node);
+
+			when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
+				TapEvent tapEvent = answer.getArgument(0);
+				TapdataEvent event = new TapdataEvent();
+				event.setTapEvent(tapEvent);
+				return event;
+			});
+			doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+
+			List<String> tables = new ArrayList<>();
+			tables.add("test");
+
+			spySourcePdkBaseNod.running.set(true);
+			spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
+			spySourcePdkBaseNod.syncProgress = new SyncProgress();
+			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
+			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
+			spySourcePdkBaseNod.handleNewTables(tables);
+
+			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
+			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
+			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
+
+		}
+
+		@Test
+		void testFilterTableByNoPrimaryKeyWithNoKeys() throws Throwable {
+			List<TapTable> tapTables = new ArrayList<>();
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			TapNodeSpecification spec = new TapNodeSpecification();
+			spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
+			when(connectorContext.getSpecification()).thenReturn(spec);
+			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+				@Override
+				public TapTable get(String key) {
+					return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
+				}
+			};
+			when(connectorContext.getTableMap()).thenReturn(tableMap);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doAnswer(answer -> {
+				Runnable runnable = answer.getArgument(0);
+				runnable.run();
+				return null;
+			}).when(connectorNode).applyClassLoaderContext(any());
+			TapConnector connector = mock(TapConnector.class);
+			doAnswer(answer -> {
+				Consumer<List<TapTable>> consumer = answer.getArgument(3);
+
+				TapTable table = new TapTable();
+				table.setId("test");
+				table.setName("test");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				TapIndex index = new TapIndex();
+				index.setUnique(true);
+				table.setIndexList(Arrays.asList(index));
+				tapTables.add(table);
+				table = new TapTable();
+				table.setId("test_1");
+				table.setName("test_1");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				tapTables.add(table);
+				consumer.accept(tapTables);
+				return null;
+			}).
+					when(connector).discoverSchema(any(), anyList(), anyInt(), any());
+			when(connectorNode.getConnector()).thenReturn(connector);
+			when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
+			DatabaseNode node = new DatabaseNode();
+			node.setMigrateTableSelectType("expression");
+			node.setNoPrimaryKeyTableSelectType("HasKeys");
+			when(spySourcePdkBaseNod.getNode()).thenReturn((Node)node);
+
+			when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
+				TapEvent tapEvent = answer.getArgument(0);
+				TapdataEvent event = new TapdataEvent();
+				event.setTapEvent(tapEvent);
+				return event;
+			});
+			doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+
+			List<String> tables = new ArrayList<>();
+			tables.add("test");
+
+			spySourcePdkBaseNod.running.set(true);
+			spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
+			spySourcePdkBaseNod.syncProgress = new SyncProgress();
+			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
+			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
+			spySourcePdkBaseNod.handleNewTables(tables);
+
+			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
+			Assertions.assertEquals(0, spySourcePdkBaseNod.newTables.size());
+		}
+
+		@Test
+		void testFilterTableByNoPrimaryKeyWithOnlyPrimaryKey() throws Throwable {
+			List<TapTable> tapTables = new ArrayList<>();
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			TapNodeSpecification spec = new TapNodeSpecification();
+			spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
+			when(connectorContext.getSpecification()).thenReturn(spec);
+			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+				@Override
+				public TapTable get(String key) {
+					return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
+				}
+			};
+			when(connectorContext.getTableMap()).thenReturn(tableMap);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doAnswer(answer -> {
+				Runnable runnable = answer.getArgument(0);
+				runnable.run();
+				return null;
+			}).when(connectorNode).applyClassLoaderContext(any());
+			TapConnector connector = mock(TapConnector.class);
+			doAnswer(answer -> {
+				Consumer<List<TapTable>> consumer = answer.getArgument(3);
+
+				TapTable table = new TapTable();
+				table.setId("test");
+				table.setName("test");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				TapIndex index = new TapIndex();
+				index.setUnique(true);
+				table.setIndexList(Arrays.asList(index));
+				tapTables.add(table);
+				table = new TapTable();
+				table.setId("test_1");
+				table.setName("test_1");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				table.setIndexList(Arrays.asList(index));
+				tapTables.add(table);
+				consumer.accept(tapTables);
+				return null;
+			}).
+					when(connector).discoverSchema(any(), anyList(), anyInt(), any());
+			when(connectorNode.getConnector()).thenReturn(connector);
+			when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
+			DatabaseNode node = new DatabaseNode();
+			node.setMigrateTableSelectType("expression");
+			node.setNoPrimaryKeyTableSelectType("OnlyPrimaryKey");
+			when(spySourcePdkBaseNod.getNode()).thenReturn((Node)node);
+
+			when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
+				TapEvent tapEvent = answer.getArgument(0);
+				TapdataEvent event = new TapdataEvent();
+				event.setTapEvent(tapEvent);
+				return event;
+			});
+			doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+
+			List<String> tables = new ArrayList<>();
+			tables.add("test");
+
+			spySourcePdkBaseNod.running.set(true);
+			spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
+			spySourcePdkBaseNod.syncProgress = new SyncProgress();
+			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
+			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
+			spySourcePdkBaseNod.handleNewTables(tables);
+
+			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
+			Assertions.assertEquals(0, spySourcePdkBaseNod.newTables.size());
+		}
+
+		@Test
+		void testFilterTableByNoPrimaryKeyWithOnlyUniqueIndex() throws Throwable {
+			List<TapTable> tapTables = new ArrayList<>();
+			HazelcastSourcePdkBaseNode spySourcePdkBaseNod = spy(sourcePdkBaseNode);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapConnectorContext connectorContext = mock(TapConnectorContext.class);
+			TapNodeSpecification spec = new TapNodeSpecification();
+			spec.setDataTypesMap(new DefaultExpressionMatchingMap(new HashMap<>()));
+			when(connectorContext.getSpecification()).thenReturn(spec);
+			KVReadOnlyMap<TapTable> tableMap = new KVReadOnlyMap<TapTable>() {
+				@Override
+				public TapTable get(String key) {
+					return tapTables.stream().filter(t -> t.getId().equals(key)).findFirst().orElse(null);
+				}
+			};
+			when(connectorContext.getTableMap()).thenReturn(tableMap);
+			when(connectorNode.getConnectorContext()).thenReturn(connectorContext);
+			doAnswer(answer -> {
+				Runnable runnable = answer.getArgument(0);
+				runnable.run();
+				return null;
+			}).when(connectorNode).applyClassLoaderContext(any());
+			TapConnector connector = mock(TapConnector.class);
+			doAnswer(answer -> {
+				Consumer<List<TapTable>> consumer = answer.getArgument(3);
+
+				TapTable table = new TapTable();
+				table.setId("test");
+				table.setName("test");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				TapIndex index = new TapIndex();
+				index.setUnique(true);
+				table.setIndexList(Arrays.asList(index));
+				tapTables.add(table);
+				table = new TapTable();
+				table.setId("test_1");
+				table.setName("test_1");
+				table.setPartitionMasterTableId("test");
+				table.setPartitionInfo(new TapPartition());
+				table.setNameFieldMap(new LinkedHashMap<>());
+				table.getNameFieldMap().put("id", new TapField("id", "integer"));
+				table.getNameFieldMap().put("name", new TapField("id", "string"));
+				table.setIndexList(Arrays.asList(index));
+				tapTables.add(table);
+				consumer.accept(tapTables);
+				return null;
+			}).
+					when(connector).discoverSchema(any(), anyList(), anyInt(), any());
+			when(connectorNode.getConnector()).thenReturn(connector);
+			when(spySourcePdkBaseNod.getConnectorNode()).thenReturn(connectorNode);
+			DatabaseNode node = new DatabaseNode();
+			node.setMigrateTableSelectType("expression");
+			node.setNoPrimaryKeyTableSelectType("OnlyUniqueIndex");
+			when(spySourcePdkBaseNod.getNode()).thenReturn((Node)node);
+
+			when(spySourcePdkBaseNod.wrapTapdataEvent(any(TapEvent.class), any(SyncStage.class), any(), anyBoolean())).thenAnswer(answer -> {
+				TapEvent tapEvent = answer.getArgument(0);
+				TapdataEvent event = new TapdataEvent();
+				event.setTapEvent(tapEvent);
+				return event;
+			});
+			doNothing().when(spySourcePdkBaseNod).enqueue(any(TapdataEvent.class));
+			JetJobStatusMonitor jetJobStatusMonitor = mock(JetJobStatusMonitor.class);
+			when(jetJobStatusMonitor.get()).thenReturn(JobStatus.RUNNING);
+			ReflectionTestUtils.setField(sourcePdkBaseNode, "jetJobStatusMonitor", jetJobStatusMonitor);
+
+			List<String> tables = new ArrayList<>();
+			tables.add("test");
+
+			spySourcePdkBaseNod.running.set(true);
+			spySourcePdkBaseNod.syncSourcePartitionTableEnable = false;
+			spySourcePdkBaseNod.syncProgress = new SyncProgress();
+			spySourcePdkBaseNod.syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
+			spySourcePdkBaseNod.newTables = new CopyOnWriteArrayList<>();
+			spySourcePdkBaseNod.endSnapshotLoop = new AtomicBoolean(false);
+			ReflectionTestUtils.setField(spySourcePdkBaseNod.noPrimaryKeyVirtualField, "addTable", (Consumer<TapTable>) tapTable -> {});
+			spySourcePdkBaseNod.handleNewTables(tables);
+
+			Assertions.assertNotNull(spySourcePdkBaseNod.newTables);
+			Assertions.assertEquals(1, spySourcePdkBaseNod.newTables.size());
+			Assertions.assertEquals("test_1", spySourcePdkBaseNod.newTables.get(0));
+
+		}
 	}
 
 	@Nested
@@ -2812,4 +3160,75 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
             assertFalse(mockInstance.complete());
         }
     }
+
+	@Nested
+	@DisplayName("Method fillConnectorPropertiesIntoEvent test")
+	class fillConnectorPropertiesIntoEventTest {
+
+		private DatabaseTypeEnum.DatabaseType databaseType = null;
+		private Connections connections = null;
+
+		private void initDatabaseType() {
+			databaseType = new DatabaseTypeEnum.DatabaseType();
+			databaseType.setPdkId("test");
+			databaseType.setGroup("group");
+			databaseType.setVersion("1.1.1");
+		}
+
+		private void initConnection() {
+			connections = new Connections();
+			connections.setDatabase_name("db");
+			connections.setDatabase_owner("schema");
+		}
+
+		@Test
+		@DisplayName("test main process")
+		void test1() {
+			initDatabaseType();
+			ReflectionTestUtils.setField(mockInstance, "databaseType", databaseType);
+			initConnection();
+			when(dataProcessorContext.getConnections()).thenReturn(connections);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			doCallRealMethod().when(mockInstance).fillConnectorPropertiesIntoEvent(tapInsertRecordEvent);
+			assertDoesNotThrow(() -> mockInstance.fillConnectorPropertiesIntoEvent(tapInsertRecordEvent));
+
+			assertEquals(databaseType.getPdkId(), tapInsertRecordEvent.getPdkId());
+			assertEquals(databaseType.getGroup(), tapInsertRecordEvent.getPdkGroup());
+			assertEquals(databaseType.getVersion(), tapInsertRecordEvent.getPdkVersion());
+			assertEquals(connections.getDatabase_name(), tapInsertRecordEvent.getDatabase());
+			assertEquals(connections.getDatabase_owner(), tapInsertRecordEvent.getSchema());
+		}
+
+		@Test
+		@DisplayName("test database type is null")
+		void test2() {
+			initConnection();
+			when(dataProcessorContext.getConnections()).thenReturn(connections);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			doCallRealMethod().when(mockInstance).fillConnectorPropertiesIntoEvent(tapInsertRecordEvent);
+			assertDoesNotThrow(() -> mockInstance.fillConnectorPropertiesIntoEvent(tapInsertRecordEvent));
+
+			assertNull(tapInsertRecordEvent.getPdkId());
+			assertNull(tapInsertRecordEvent.getPdkGroup());
+			assertNull(tapInsertRecordEvent.getPdkVersion());
+			assertEquals(connections.getDatabase_name(), tapInsertRecordEvent.getDatabase());
+			assertEquals(connections.getDatabase_owner(), tapInsertRecordEvent.getSchema());
+		}
+
+		@Test
+		@DisplayName("test connections is null")
+		void test3() {
+			initDatabaseType();
+			ReflectionTestUtils.setField(mockInstance, "databaseType", databaseType);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			doCallRealMethod().when(mockInstance).fillConnectorPropertiesIntoEvent(tapInsertRecordEvent);
+			assertDoesNotThrow(() -> mockInstance.fillConnectorPropertiesIntoEvent(tapInsertRecordEvent));
+
+			assertEquals(databaseType.getPdkId(), tapInsertRecordEvent.getPdkId());
+			assertEquals(databaseType.getGroup(), tapInsertRecordEvent.getPdkGroup());
+			assertEquals(databaseType.getVersion(), tapInsertRecordEvent.getPdkVersion());
+			assertNull(tapInsertRecordEvent.getDatabase());
+			assertNull(tapInsertRecordEvent.getSchema());
+		}
+	}
 }

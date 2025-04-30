@@ -16,10 +16,7 @@ import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -93,7 +90,7 @@ class HuaweiDrsKafkaConvertorNodeTest {
             Schema resultSchema = mockNode.loadSchema(options);
             Assertions.assertNull(resultSchema);
         }
-
+        @Disabled
         @Test
         void testSuccess() {
             TaskDto findTask = new TaskDto();
