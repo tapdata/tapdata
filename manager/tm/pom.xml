@@ -636,11 +636,11 @@
 			<version>4.29.3</version>
 		</dependency>
 
-		<!--<dependency>
+		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>mcp-tap-server</artifactId>
 			<version>0.0.1</version>
-		</dependency>-->
+		</dependency>
 		<!---->
 	</dependencies>
 
