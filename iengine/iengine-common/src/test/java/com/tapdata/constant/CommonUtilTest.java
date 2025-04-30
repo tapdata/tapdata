@@ -204,5 +204,15 @@ public class CommonUtilTest {
             assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
             assertNotEquals(0,CommonUtil.compareObjects(val1,val2,false));
         }
+
+        @DisplayName("test val2 and val1 is illegalDate ignoreTimePrecision")
+        @Test
+        void test3(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+            val2[0] = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+            assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
+        }
     }
 }
