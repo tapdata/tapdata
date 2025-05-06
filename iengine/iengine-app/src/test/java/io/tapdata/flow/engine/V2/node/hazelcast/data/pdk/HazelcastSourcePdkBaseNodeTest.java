@@ -6,6 +6,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -3159,4 +3160,75 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
             assertFalse(mockInstance.complete());
         }
     }
+
+	@Nested
+	@DisplayName("Method fillConnectorPropertiesIntoEvent test")
+	class fillConnectorPropertiesIntoEventTest {
+
+		private DatabaseTypeEnum.DatabaseType databaseType = null;
+		private Connections connections = null;
+
+		private void initDatabaseType() {
+			databaseType = new DatabaseTypeEnum.DatabaseType();
+			databaseType.setPdkId("test");
+			databaseType.setGroup("group");
+			databaseType.setVersion("1.1.1");
+		}
+
+		private void initConnection() {
+			connections = new Connections();
+			connections.setDatabase_name("db");
+			connections.setDatabase_owner("schema");
+		}
+
+		@Test
+		@DisplayName("test main process")
+		void test1() {
+			initDatabaseType();
+			ReflectionTestUtils.setField(mockInstance, "databaseType", databaseType);
+			initConnection();
+			when(dataProcessorContext.getConnections()).thenReturn(connections);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			doCallRealMethod().when(mockInstance).fillConnectorPropertiesIntoEvent(tapInsertRecordEvent);
+			assertDoesNotThrow(() -> mockInstance.fillConnectorPropertiesIntoEvent(tapInsertRecordEvent));
+
+			assertEquals(databaseType.getPdkId(), tapInsertRecordEvent.getPdkId());
+			assertEquals(databaseType.getGroup(), tapInsertRecordEvent.getPdkGroup());
+			assertEquals(databaseType.getVersion(), tapInsertRecordEvent.getPdkVersion());
+			assertEquals(connections.getDatabase_name(), tapInsertRecordEvent.getDatabase());
+			assertEquals(connections.getDatabase_owner(), tapInsertRecordEvent.getSchema());
+		}
+
+		@Test
+		@DisplayName("test database type is null")
+		void test2() {
+			initConnection();
+			when(dataProcessorContext.getConnections()).thenReturn(connections);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			doCallRealMethod().when(mockInstance).fillConnectorPropertiesIntoEvent(tapInsertRecordEvent);
+			assertDoesNotThrow(() -> mockInstance.fillConnectorPropertiesIntoEvent(tapInsertRecordEvent));
+
+			assertNull(tapInsertRecordEvent.getPdkId());
+			assertNull(tapInsertRecordEvent.getPdkGroup());
+			assertNull(tapInsertRecordEvent.getPdkVersion());
+			assertEquals(connections.getDatabase_name(), tapInsertRecordEvent.getDatabase());
+			assertEquals(connections.getDatabase_owner(), tapInsertRecordEvent.getSchema());
+		}
+
+		@Test
+		@DisplayName("test connections is null")
+		void test3() {
+			initDatabaseType();
+			ReflectionTestUtils.setField(mockInstance, "databaseType", databaseType);
+			TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+			doCallRealMethod().when(mockInstance).fillConnectorPropertiesIntoEvent(tapInsertRecordEvent);
+			assertDoesNotThrow(() -> mockInstance.fillConnectorPropertiesIntoEvent(tapInsertRecordEvent));
+
+			assertEquals(databaseType.getPdkId(), tapInsertRecordEvent.getPdkId());
+			assertEquals(databaseType.getGroup(), tapInsertRecordEvent.getPdkGroup());
+			assertEquals(databaseType.getVersion(), tapInsertRecordEvent.getPdkVersion());
+			assertNull(tapInsertRecordEvent.getDatabase());
+			assertNull(tapInsertRecordEvent.getSchema());
+		}
+	}
 }
