@@ -49,7 +49,6 @@ public class InspectEntity extends SchedulableEntity implements IDataPermissionE
 
     private Integer checkTableThreadNum;
 
-    private Boolean ignoreTimePrecision;
 
 
 		private List<AlarmSettingVO> alarmSettings;
