@@ -454,7 +454,7 @@ public class ConnectorManager {
 		while (loginResp == null) {
 			try {
 
-				if (!AppType.currentType().isCloud()) {
+				if (!AppType.currentType().isCloud() && (StringUtils.isBlank(accessCode) || "<ACCESS_CODE>".equals(accessCode))) {
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
 					if (CollectionUtils.isNotEmpty(users)) {
