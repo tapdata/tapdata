@@ -454,7 +454,7 @@ public class ConnectorManager {
 		while (loginResp == null) {
 			try {
 
-				if (!AppType.currentType().isCloud() && StringUtils.isBlank(accessCode)) {
+				if (!AppType.currentType().isCloud() && (StringUtils.isBlank(accessCode) || "<ACCESS_CODE>".equals(accessCode))) {
 					MongoTemplate mongoTemplate = clientMongoOperator.getMongoTemplate();
 					List<User> users = mongoTemplate.find(new Query(where("role").is(1)), User.class, "User");
 					if (CollectionUtils.isNotEmpty(users)) {
@@ -1253,17 +1253,17 @@ public class ConnectorManager {
 					isExit = true;
 				}
 				break;
-//			case DAAS:
-//				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
-//				if (null != resultDto && !resultDto.getResult()){
-//					isExit = true;
-//					if (StringUtils.isNotBlank(resultDto.getProcessId())){
-//						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
-//					}else {
-//						exitInfo = resultDto.getFailedReason();
-//					}
-//				}
-//				break;
+			case DAAS:
+				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+				if (null != resultDto && !resultDto.getResult()){
+					isExit = true;
+					if (StringUtils.isNotBlank(resultDto.getProcessId())){
+						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
+					}else {
+						exitInfo = resultDto.getFailedReason();
+					}
+				}
+				break;
 		}
 		if(StringUtils.isNotBlank(exitInfo)){
 			logger.info(exitInfo);

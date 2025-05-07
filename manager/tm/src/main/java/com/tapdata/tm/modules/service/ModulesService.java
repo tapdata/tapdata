@@ -427,7 +427,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return apiDefinitionVo;
 	}
 
-	private void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {
+	public void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {
 		LinkedList<LinkedHashMap> linkedList = new LinkedList<>();
 		linkedList.offer((LinkedHashMap) connection.get("properties"));
 		while (!linkedList.isEmpty()) {
@@ -488,8 +488,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			String key2 = k.substring(i + 1);
 			return getValue(key2, config1);
 
-		} else {
+		} else if (null != config) {
 			return config.get(k);
+		} else {
+			return null;
 		}
 	}
 

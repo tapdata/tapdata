@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Optional: If provided, returns the name that matches the connection, else return all connection."
+    }
+  }
+}

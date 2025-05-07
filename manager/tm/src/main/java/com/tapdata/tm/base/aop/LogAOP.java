@@ -59,7 +59,7 @@ public class LogAOP {
 			//Class[] parameterTypes = methodSignature.getParameterTypes();
 			Object[] args = joinPoint.getArgs();
 
-			for (int i = 0; i < args.length && i < parameterNames.length; i++) {
+			for (int i = 0; i < args.length && null != parameterNames && i < parameterNames.length; i++) {
 				Object obj = args[i];
 				if( !(obj instanceof ServletRequest || obj instanceof ServletResponse || obj instanceof HttpSession) ){
 					params.put(parameterNames[i], obj);

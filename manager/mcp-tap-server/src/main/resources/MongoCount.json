@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "properties": {
+    "connectionId": {
+      "type": "string",
+      "description": "The id of the MongoDB connection to query data"
+    },
+    "collectionName": {
+      "type": "string",
+      "description": "Name of the MongoDB collection to count documents in"
+    },
+    "query": {
+      "type": "object",
+      "description": "Optional: MongoDB query filter to select documents to count"
+    },
+    "limit": {
+      "type": "number",
+      "description": "Optional: Maximum number of documents to count"
+    },
+    "skip": {
+      "type": "number",
+      "description": "Optional: Number of documents to skip before counting"
+    },
+    "hint": {
+      "type": "object",
+      "description": "Optional: Index hint to force query plan"
+    },
+    "readConcern": {
+      "type": "object",
+      "description": "Optional: Read concern for the count operation"
+    },
+    "maxTimeMS": {
+      "type": "number",
+      "description": "Optional: Maximum time to allow the count to run"
+    },
+    "collation": {
+      "type": "object",
+      "description": "Optional: Collation rules for string comparison"
+    }
+  },
+  "required": [
+    "connectionId",
+    "collectionName"
+  ]
+}
