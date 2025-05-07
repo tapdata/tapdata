@@ -618,6 +618,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			ClearTableFunction clearTableFunction = getConnectorNode().getConnectorFunctions().getClearTableFunction();
 			Optional.ofNullable(clearTableFunction).ifPresent(func -> {
 				tapClearTableEvent.set(clearTableEvent(tableId));
+				if (null != sourceConnection) {
+					tapClearTableEvent.get().database(sourceConnection.getDatabase_name());
+					tapClearTableEvent.get().schema(sourceConnection.getDatabase_owner());
+				}
 				executeDataFuncAspect(ClearTableFuncAspect.class, () -> new ClearTableFuncAspect()
 						.clearTableEvent(tapClearTableEvent.get())
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -645,6 +649,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					&& Objects.nonNull(table.getPartitionInfo())
 					&& Objects.nonNull(dropPartitionTableFunction);
 			tapDropTableEvent.set(dropTableEvent(tableId));
+			if (null != sourceConnection) {
+				tapDropTableEvent.get().database(sourceConnection.getDatabase_name());
+				tapDropTableEvent.get().schema(sourceConnection.getDatabase_owner());
+			}
 			masterTableId(tapDropTableEvent.get(), table);
 			if (needDropPartitionTable) {
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()

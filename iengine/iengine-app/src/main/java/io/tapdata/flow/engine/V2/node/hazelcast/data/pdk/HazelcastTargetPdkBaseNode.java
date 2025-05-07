@@ -169,8 +169,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private TapCodecsFilterManager codecsFilterManagerForBatchRead;
 	protected boolean syncTargetPartitionTableEnable;
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
+	protected Connections sourceConnection;
 
-    public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
+	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
         initQueueConsumerThreadPool();
         //threadPoolExecutorEx = AsyncUtils.createThreadPoolExecutor("Target-" + getNode().getName() + "@task-" + dataProcessorContext.getTaskDto().getName(), 1, new ConnectorOnTaskThreadGroup(dataProcessorContext), TAG);
@@ -198,6 +199,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             initSyncProgressMap();
 			flushOffsetExecutor.scheduleWithFixedDelay(this::saveToSnapshot, 10L, 10L, TimeUnit.SECONDS);
 			initCodecsFilterManager();
+			findReplicationSourceConnection();
 		});
 		Thread.currentThread().setName(String.format("Target-Process-%s[%s]", getNode().getName(), getNode().getId()));
 		checkUnwindConfiguration();
@@ -231,6 +233,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManager = connectorNode.getCodecsFilterManager());
         Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> codecsFilterManagerForBatchRead = connectorNode.getCodecsFilterManagerSchemaEnforced());
     }
+
+	protected void findReplicationSourceConnection() {
+		Node<?> node = dataProcessorContext.getNode();
+		List<Node<?>> sourceDatabaseNodes = GraphUtil.predecessors(node, n -> n instanceof DatabaseNode);
+		if (CollectionUtils.isEmpty(sourceDatabaseNodes)) {
+			return;
+		}
+		DatabaseNode sourceDatabase = (DatabaseNode) sourceDatabaseNodes.get(0);
+		sourceConnection = ConnectionUtil.getConnection(sourceDatabase.getConnectionId(), null);
+	}
 
     @Override
     protected boolean isRunning() {
@@ -328,6 +340,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			ignorePksAndIndices(finalTapTable, null);
 		}
 		tapCreateTableEvent.set(createTableEvent(finalTapTable));
+		if (null != sourceConnection) {
+			tapCreateTableEvent.get().database(sourceConnection.getDatabase_name());
+			tapCreateTableEvent.get().schema(sourceConnection.getDatabase_owner());
+		}
 		masterTableId(tapCreateTableEvent.get(), tapTable);
 		runnable.run();
 		clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
@@ -1429,8 +1445,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
                 }
                 if (null != syncProgress.getStreamOffsetObj()) {
-                    if(null != syncProgress.getStreamOffset() && !StringUtils.startsWith(syncProgress.getStreamOffset(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
-                            && !StringUtils.startsWith(syncProgress.getStreamOffset(), ENCODE_PREFIX)) {
+                    if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
+                            && !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
                         syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
                         if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
                             String compress = StringCompression.compressV2(syncProgress.getStreamOffset());

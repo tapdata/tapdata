@@ -101,6 +101,8 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
 
     private String taskId;
 
+    private Boolean ignoreTimePrecision;
+
     /**
      * 标志是否是二次校验，如果是，值就是父校验的id,
      * 如果不是，就 空

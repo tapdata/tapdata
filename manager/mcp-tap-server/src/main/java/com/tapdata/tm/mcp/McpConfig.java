@@ -58,14 +58,6 @@ public class McpConfig {
         return router.filter(this::authFilter);
     }
 
-    @Bean
-    @Order(HIGHEST_PRECEDENCE)
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/mcp/**").permitAll())
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/mcp/**"));
-        return http.build();
-    }
-
     public ServerResponse authFilter(ServerRequest request, HandlerFunction<ServerResponse> next) throws Exception {
 
         if (sseEndpoint.equals(request.requestPath().value())) {
