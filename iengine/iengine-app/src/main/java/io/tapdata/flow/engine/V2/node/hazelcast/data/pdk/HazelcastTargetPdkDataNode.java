@@ -1000,7 +1000,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			ClearTableFunction clearTableFunction = getConnectorNode().getConnectorFunctions().getClearTableFunction();
 			Optional.ofNullable(clearTableFunction).ifPresent(func -> {
 				executeDataFuncAspect(TruncateTableFuncAspect.class, () -> new TruncateTableFuncAspect()
-						.clearTableEvent(tapClearTableEvent)
+						.truncateTableEvent(tapClearTableEvent)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.dataProcessorContext(dataProcessorContext)
 						.start(), truncateTableFuncAspect ->
