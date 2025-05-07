@@ -61,7 +61,6 @@ public class Inspect extends BaseEntity implements Serializable {
 
 	private Integer checkTableThreadNum;
 
-	private Boolean ignoreTimePrecision = false;
 
 
 
