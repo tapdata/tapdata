@@ -5,7 +5,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 public class TruncateTableFuncAspect extends DataFunctionAspect<TruncateTableFuncAspect>{
     private TapClearTableEvent clearTableEvent;
-    public TruncateTableFuncAspect clearTableEvent(TapClearTableEvent clearTableEvent) {
+    public TruncateTableFuncAspect truncateTableEvent(TapClearTableEvent clearTableEvent) {
         this.clearTableEvent = clearTableEvent;
         return this;
     }
