@@ -1327,12 +1327,15 @@ class TaskServiceImplTest {
     class AfterRenewTest{
         private TaskAutoInspectResultsService taskAutoInspectResultsService;
         private StateMachineService stateMachineService;
+        private TransformSchemaAsyncService transformSchemaAsyncService;
         @BeforeEach
         void setUp(){
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
             stateMachineService = mock(StateMachineService.class);
+            transformSchemaAsyncService = mock(TransformSchemaAsyncService.class);
             ReflectionTestUtils.setField(taskService,"taskAutoInspectResultsService",taskAutoInspectResultsService);
             ReflectionTestUtils.setField(taskService,"stateMachineService",stateMachineService);
+            ReflectionTestUtils.setField(taskService,"transformSchemaAsyncService",transformSchemaAsyncService);
 
         }
         @Test
@@ -1346,6 +1349,7 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).afterRenew(taskDto,user);
             taskService.afterRenew(taskDto,user);
             verify(taskAutoInspectResultsService,new Times(1)).cleanResultsByTask(taskDto);
+            verify(transformSchemaAsyncService,new Times(1)).transformSchema(taskDto.getDag(),user,taskDto.getId());
         }
     }
     @Nested
