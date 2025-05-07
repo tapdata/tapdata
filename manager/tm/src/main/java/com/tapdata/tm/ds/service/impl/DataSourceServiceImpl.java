@@ -537,6 +537,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                 item.setDefinitionScope(definitionDto.getScope());
                 item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
                 item.setDefinitionTags(definitionDto.getTags());
+                LinkedHashMap<String, Object> properties = definitionDto.getProperties();
+                Object connection = properties.get("connection");
+                if (connection instanceof LinkedHashMap<?,?>) {
+                    modulesService.analyzeApiServerKey(item, (LinkedHashMap) connection, null);
+                }
             }}
 	}
 

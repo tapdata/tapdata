@@ -139,6 +139,12 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Patch Maven Dependens
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
@@ -146,8 +152,7 @@ jobs:
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Get Tapdata Version
         run: |
@@ -175,11 +180,16 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
         run: |
@@ -188,8 +198,7 @@ jobs:
       - name: Checkout Connectors Code
         run: |
           rm -rf tapdata-connectors
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ inputs.connectors_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-connectors.git
+          git clone -b ${{ inputs.connectors_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-connectors.git
           cd tapdata-connectors && git fetch --tags
       - name: Get Connectors Version
         run: |
@@ -217,24 +226,29 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Checkout Docs Repo
         run: |
           rm -rf docs
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b community-data-sources-docs --single-branch ssh://git@192.168.1.170:10022/tapdata/docs.git
+          git clone -b community-data-sources-docs --single-branch git@gitee.com:tapdata_1/docs.git
           cd docs && git fetch --tags
       - name: Checkout Frontend Code
         run: |
           rm -rf tapdata-enterprise-web
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-enterprise-web.git
-          cd tapdata-enterprise-web && git fetch --tags
+          git clone -b ${{ inputs.frontend_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-web.git
+          cd tapdata-web && git fetch --tags && cd ..
+          mkdir -p tapdata-enterprise-web
+          rsync -av tapdata-web/ tapdata-enterprise-web/
       - name: Get Frontend Version
         run: |
           cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
@@ -272,11 +286,16 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Image
         run: |
@@ -295,8 +314,7 @@ jobs:
       - name: Checkout Tapdata Application
         run: |
           rm -rf tapdata-application
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b version --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
+          git clone -b version --single-branch git@gitee.com:tapdata_1/tapdata-application.git
       - name: Add Commit ID and Version Map
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
@@ -325,11 +343,16 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Tar File
         run: |

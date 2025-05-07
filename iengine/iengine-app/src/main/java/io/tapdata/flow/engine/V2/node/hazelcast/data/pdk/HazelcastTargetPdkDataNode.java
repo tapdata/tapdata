@@ -437,14 +437,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				List<TapIndex> existsIndexes = queryExistsIndexes(tapTable, tapIndices);
 				if(CollectionUtils.isNotEmpty(existsIndexes)){
 					existsIndexes.forEach(i -> obsLogger.trace("Table: {} already exists Index: {} and will no longer create index", tableId, i));
-					return;
+					if (existsIndexes.size() == tapIndices.size()) return;
 				}
-				Optional.ofNullable(indexList).ifPresent(indexes -> {
-					TapIndex equalsIndex = indexes.stream().filter(index -> tapIndexEquals(index, tapIndex, false)).findFirst().orElse(null);
-					if (null != equalsIndex && null != equalsIndex.getName()) {
-						tapIndex.name(equalsIndex.getName());
-					}
-				});
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -590,6 +584,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (indexFields1.size() != indexFields2.size()) {
 			return false;
 		}
+		indexFields1.sort(Comparator.comparing(TapIndexField::getName));
+		indexFields2.sort(Comparator.comparing(TapIndexField::getName));
 		for (int i = 0; i < indexFields1.size(); i++) {
 			TapIndexField tapIndexField1 = indexFields1.get(i);
 			TapIndexField tapIndexField2 = indexFields2.get(i);
@@ -622,6 +618,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			ClearTableFunction clearTableFunction = getConnectorNode().getConnectorFunctions().getClearTableFunction();
 			Optional.ofNullable(clearTableFunction).ifPresent(func -> {
 				tapClearTableEvent.set(clearTableEvent(tableId));
+				if (null != sourceConnection) {
+					tapClearTableEvent.get().database(sourceConnection.getDatabase_name());
+					tapClearTableEvent.get().schema(sourceConnection.getDatabase_owner());
+				}
 				executeDataFuncAspect(ClearTableFuncAspect.class, () -> new ClearTableFuncAspect()
 						.clearTableEvent(tapClearTableEvent.get())
 						.connectorContext(getConnectorNode().getConnectorContext())
@@ -649,6 +649,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					&& Objects.nonNull(table.getPartitionInfo())
 					&& Objects.nonNull(dropPartitionTableFunction);
 			tapDropTableEvent.set(dropTableEvent(tableId));
+			if (null != sourceConnection) {
+				tapDropTableEvent.get().database(sourceConnection.getDatabase_name());
+				tapDropTableEvent.get().schema(sourceConnection.getDatabase_owner());
+			}
 			masterTableId(tapDropTableEvent.get(), table);
 			if (needDropPartitionTable) {
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()

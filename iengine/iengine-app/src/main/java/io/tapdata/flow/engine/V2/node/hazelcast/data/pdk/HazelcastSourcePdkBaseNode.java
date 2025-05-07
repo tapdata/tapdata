@@ -1244,6 +1244,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		TapdataEvent tapdataEvent = null;
+		fillConnectorPropertiesIntoEvent(tapEvent);
 		switch (sourceMode) {
 			case NORMAL:
 				tapdataEvent = new TapdataEvent();
@@ -1336,6 +1337,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		return tapdataEvent;
+	}
+
+	protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {
+		Connections connections = dataProcessorContext.getConnections();
+		if (null != databaseType) {
+			tapEvent.setPdkId(databaseType.getPdkId());
+			tapEvent.setPdkGroup(databaseType.getGroup());
+			tapEvent.setPdkVersion(databaseType.getVersion());
+		}
+		if (null != connections) {
+			tapEvent.database(connections.getDatabase_name());
+			tapEvent.schema(connections.getDatabase_owner());
+		}
 	}
 
 	protected void setPartitionMasterTableId(TapTable tapTable, List<TapEvent> events) {

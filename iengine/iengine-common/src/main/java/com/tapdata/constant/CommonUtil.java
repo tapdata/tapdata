@@ -167,10 +167,14 @@ public class CommonUtil {
 	}
 
 	private static Object try2IgnoreTimePrecision(Object val){
-		if(val instanceof DateTime){
-			return ((DateTime) val).toInstant().toString().split("\\.")[0];
-		}else if (val instanceof Instant){
-			return ((Instant) val).toString().split("\\.")[0];
+		if(val instanceof DateTime dateTime){
+            if(dateTime.isContainsIllegal()){
+				return dateTime.getIllegalDate().split("\\.")[0];
+			}else{
+				return dateTime.toInstant().toString().split("\\.")[0];
+			}
+		}else if (val instanceof Instant dateTime){
+			return dateTime.toString().split("\\.")[0];
 		}
 		return val;
 	}
