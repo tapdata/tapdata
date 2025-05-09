@@ -107,47 +107,18 @@ jobs:
           echo "::set-output name=TAPCE_BRANCH::${TAPCE_BRANCH}"
 
   Push-Code-To-Gitee:
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/sync-code.yml
     needs: Get-Stable-Branch
-    steps:
-      - name: Checkout Tapdata Code
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/tapdata'
-          ref: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata
-          fetch-depth: 0
-      - name: Checkout Tapdata Application
-        uses: actions/checkout@v2
-        with:
-          repository: 'tapdata/tapdata-application'
-          ref: 'main'
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-application
-          fetch-depth: 0
-      - name: Checkout Tapce Code
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/tapce'
-          ref: ${{ needs.Get-Stable-Branch.outputs.TAPCE_BRANCH }}
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapce
-          fetch-depth: 0
-      - name: Push Tapdata to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
-      - name: Push Tapce to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapce --gogs-project-name=tapce
+    with:
+      tapdata: ${{ needs.Get-Stable-Branch.outputs.TAPDATA_BRANCH }}
+      tapdata-connectors: ''
+      tapdata-enterprise-web: ''
+      tapdata-application: 'main'
+      docs: ''
+    secrets:
+      TAPDATA_ENT_CICD_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+      GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+      GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
   
   Scan-Tapdata:
     runs-on: office-scan
