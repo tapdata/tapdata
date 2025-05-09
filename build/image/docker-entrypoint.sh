@@ -253,12 +253,15 @@ register_connectors() {
     _register_connectors
 }
 
+# 定义通用的JVM参数
+JVM_OPTS="--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.security=ALL-UNNAMED --add-opens=java.base/sun.security.rsa=ALL-UNNAMED --add-opens=java.base/sun.security.x509=ALL-UNNAMED --add-opens=java.base/sun.security.util=ALL-UNNAMED --add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp.datatype=ALL-UNNAMED -XX:+UnlockExperimentalVMOptions --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED --add-exports=java.base/sun.nio.ch=ALL-UNNAMED --add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED --add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED --add-opens=jdk.compiler/com.sun.tools.javac=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-modules=java.se --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/jdk.internal.loader=ALL-UNNAMED"
+
 start_tm() {
     if [[ $LAUNCH_SUPERVISOR == "true" ]]; then
         supervisorctl -c supervisor/supervisord.conf start manager
     else
         mkdir -p logs/ && touch logs/nohup.out
-        nohup java -Xmx$managerMem -jar -Dserver.port=$tm_port -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=$MONGO_URI --spring.data.mongodb.obs.uri=$MONGO_URI --spring.data.mongodb.log.uri=$MONGO_URI &> logs/nohup.out &
+        nohup java $JVM_OPTS -Xmx$managerMem -jar -Dserver.port=$tm_port -server components/tm.jar --spring.config.additional-location=file:etc/ --logging.config=file:etc/logback.xml --spring.data.mongodb.default.uri=$MONGO_URI --spring.data.mongodb.obs.uri=$MONGO_URI --spring.data.mongodb.log.uri=$MONGO_URI &> logs/nohup.out &
         echo $! > .manager.pid
     fi
 }
@@ -271,7 +274,7 @@ start_iengine() {
         export app_type="DAAS"
         export backend_url="http://127.0.0.1:$tm_port/api/"
         export TAPDATA_MONGO_URI=$MONGO_URI
-        nohup java -Xmx$engineMem -jar components/tapdata-agent.jar &> logs/iengine/tapdata-agent.jar.log &
+        nohup java $JVM_OPTS -Xmx$engineMem -jar components/tapdata-agent.jar &> logs/iengine/tapdata-agent.jar.log &
         echo $! > .iengine.pid
     fi
 }
