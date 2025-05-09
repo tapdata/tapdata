@@ -3062,7 +3062,7 @@ public class MetadataInstancesServiceImplTest {
 					DAG dag = getDag();
 
 
-					Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is("65ae2d427f580c320ec3bc65");
+					Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is("65ae2d427f580c320ec3bc65").and("is_deleted").ne(true);
 					Query queryHeartBeat = new Query(criteria);
 					queryHeartBeat.fields().include("_id", "dag");
 					heartbeatTaskDto.setDag(dag);
