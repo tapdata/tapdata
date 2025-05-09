@@ -131,6 +131,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::executeDropFieldFunction);
 		ddlEventHandlers.register(TapCreateTableEvent.class, this::executeCreateTableFunction);
 		ddlEventHandlers.register(TapCreateIndexEvent.class, this::executeCreateIndexFunction);
+		ddlEventHandlers.register(TapClearTableEvent.class,this::executeTruncateFunction);
 		ddlEventHandlers.register(TapDropTableEvent.class, tapDropTableEvent -> {
 			// only execute start function aspect so that it would be cheated as input
 			AspectUtils.executeAspect(new DropTableFuncAspect()
@@ -991,6 +992,25 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.addEvent(tapCreateIndexEvent)
 						.dynamicDescriptionParameters(tableId,tapCreateIndexEvent.getIndexList());
 			}
+		}
+		return true;
+	}
+	protected boolean executeTruncateFunction(TapClearTableEvent tapClearTableEvent) {
+		try {
+			ClearTableFunction clearTableFunction = getConnectorNode().getConnectorFunctions().getClearTableFunction();
+			Optional.ofNullable(clearTableFunction).ifPresent(func -> {
+				executeDataFuncAspect(TruncateTableFuncAspect.class, () -> new TruncateTableFuncAspect()
+						.truncateTableEvent(tapClearTableEvent)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
+						.start(), truncateTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent), TAG, buildErrorConsumer(tapClearTableEvent.getTableId())));
+			});
+		} catch (Throwable throwable) {
+			TapCodeException tapEventException = new TapEventException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED, "Table name: " + tapClearTableEvent.getTableId(), throwable)
+					.addEvent(tapClearTableEvent)
+					.dynamicDescriptionParameters(tapClearTableEvent.getTableId());
+			throwTapCodeException(throwable,tapEventException);
 		}
 		return true;
 	}
