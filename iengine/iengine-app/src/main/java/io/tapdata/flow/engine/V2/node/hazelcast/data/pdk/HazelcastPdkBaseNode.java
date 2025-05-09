@@ -410,7 +410,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (tapEvent instanceof TapRecordEvent) {
 			transformToTapValueResult = TransformToTapValueResult.create();
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
-			String tableName = ShareCdcUtil.getTapRecordEventTableName(tapRecordEvent);
+			String tableName = ShareCdcUtil.getTapRecordEventTableNameV2(tapRecordEvent,processorBaseContext.getTaskDto().getSyncType());
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			transformToTapValueResult.afterTransformedToTapValueFieldNames(toTapValue(after, tableName, codecsFilterManager));
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
