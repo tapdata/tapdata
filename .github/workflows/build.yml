@@ -53,8 +53,9 @@ jobs:
 
   Sync-Code-to-Internal-Repo:
     uses: ./.github/workflows/sync-code.yml
+    needs: Set-Branch
     with:
-      tapdata: ${{ github.ref_name }}
+      tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
       tapdata-connectors: ${{ inputs.connectors_branch }}
       tapdata-enterprise-web: ${{ inputs.frontend_branch }}
       tapdata-application: 'main'
