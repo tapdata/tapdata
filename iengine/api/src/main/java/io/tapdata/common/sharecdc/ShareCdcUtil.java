@@ -62,6 +62,14 @@ public class ShareCdcUtil {
 		}
 	}
 
+	public static String getTapRecordEventTableNameV2(TapRecordEvent tapRecordEvent,String taskType) {
+		if (TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(taskType) && null != tapRecordEvent.getNamespaces() && !tapRecordEvent.getNamespaces().isEmpty()) {
+			return joinNamespaces(tapRecordEvent.getNamespaces());
+		} else {
+			return tapRecordEvent.getTableId();
+		}
+	}
+
 	public static String joinNamespaces(Collection<String> namespaces) {
 		return String.join(NAMESPACE_DELIMITER, namespaces);
 	}
