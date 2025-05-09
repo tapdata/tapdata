@@ -150,12 +150,13 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			@Test
 			void test1() {
 				TapClearTableEvent tapClearTableEvent = TapSimplify.clearTableEvent("test1");
-				when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(), any(), any())).thenThrow(new TapCodeException("rest failed"));
+				when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(), any(), any())).thenThrow(new TapCodeException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED));
 				when(hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent)).thenCallRealMethod();
 				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(), any());
-				assertThrows(TapCodeException.class, () -> {
+				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
 					hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent);
 				});
+				assertEquals(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED,tapCodeException.getCode());
 			}
 			@DisplayName("test TruncateFunction success")
 			@Test
@@ -170,6 +171,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 					return null;
 				}).when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(),any(),any());
 				boolean result = hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent);
+				verify(hazelcastTargetPdkDataNode,times(1)).executeTruncateFunction(tapClearTableEvent);
 				assertEquals(true,result);
 			}
 		}
