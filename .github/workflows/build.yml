@@ -96,7 +96,12 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile opensource tapdata
         run: |
-          cd tapdata && bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
+          cd tapdata 
+          update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
+          export JAVA_HOME=/usr/java/jdk-17.0.12
+          bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
+          update-alternatives --set java /usr/java/jdk1.8.0_202/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_202
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p tapdata
@@ -142,7 +147,12 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile tapdata connectors
         run: |
-          cd tapdata && bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
+          cd tapdata
+          update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
+          export JAVA_HOME=/usr/java/jdk-17.0.12
+          bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
+          update-alternatives --set java /usr/java/jdk1.8.0_202/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_202
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p connectors
