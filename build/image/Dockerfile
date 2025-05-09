@@ -22,7 +22,10 @@ COPY components/ /tapdata/apps/components
 COPY docker-entrypoint.sh /tapdata/apps/start.sh
 COPY bin/ /tapdata/apps
 
-RUN apt update && apt install supervisor --fix-missing -y
+RUN apt update && apt install supervisor python3-pip pipx --fix-missing -y
+RUN pipx install tapflow
+
+ENV PATH="/root/.local/bin:$PATH"
 
 # 使用已经下载好的async-profiler文件
 COPY components/async-profiler/ /tapdata/apps/components/async-profiler/
