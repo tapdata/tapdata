@@ -1800,17 +1800,13 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof MigrateProcessorNode) {
-                    criteriaNode.and(NODE_ID).is(nodeId)
-                            .and(IS_DELETED).ne(true);
-
+                    Criteria criteria = Criteria.where(NODE_ID).is(nodeId).and(IS_DELETED).ne(true);
                     if (StringUtils.isNotBlank(tableFilter)) {
                         Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
-                        criteriaNode.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
+                        criteria.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
                     }
-
-                    queryMetadata.addCriteria(criteriaNode);
-
-                    List<MetadataInstancesDto> all = findAll(queryMetadata);
+                    Query nodeQuery = new Query(criteria);
+                    List<MetadataInstancesDto> all = findAll(nodeQuery);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                                     , s->s, (m1, m2) -> m1));
@@ -1836,7 +1832,6 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                         }
                     }
                     metadatas.addAll(all);
-                    totals = count(new Query(criteriaNode), user);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
                     queryMetadata.addCriteria(criteriaNode);
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);

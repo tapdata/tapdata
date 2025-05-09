@@ -59,18 +59,7 @@ public class Inspect extends BaseEntity implements Serializable {
 	private Boolean ignoreTimePrecision = false;
 
 
-	private Integer checkTableThreadNum;
 
-
-
-
-	public Integer getCheckTableThreadNum() {
-		return checkTableThreadNum;
-	}
-
-	public void setCheckTableThreadNum(Integer checkTableThreadNum) {
-		this.checkTableThreadNum = checkTableThreadNum;
-	}
 
 	/**
 	 * Inspect mode
