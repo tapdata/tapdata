@@ -22,6 +22,8 @@ import org.mockito.Mockito;
 
 import java.util.*;
 
+import static org.mockito.Mockito.when;
+
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/2/24 16:03 Create
@@ -120,7 +122,7 @@ class HuaweiDrsKafkaConvertorNodeTest {
         void testNotfoundDAG() {
             TaskDto findTask = new TaskDto();
             findTask.setTransformTaskId(taskId.toHexString());
-            Mockito.when(mockService.getTaskById(Mockito.any())).thenReturn(findTask);
+            when(mockService.getTaskById(Mockito.any())).thenReturn(findTask);
             Mockito.doReturn(null).when(mockNode).buildSampleDag(Mockito.any());
 
             TaskDto sampleTask = mockNode.buildSampleTask("");
