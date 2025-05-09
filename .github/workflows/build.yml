@@ -201,8 +201,8 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: Build Frontend
         run: |
-          nvm install 20.12.2 && nvm alias default 20.12.2
-          yes | pnpm config set registry https://registry.npmmirror.com
+          export PATH="/root/.nvm/versions/node/v20.12.2/bin:$PATH"
+          pnpm config set registry https://registry.npmmirror.com
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Build Docs
         run: |
