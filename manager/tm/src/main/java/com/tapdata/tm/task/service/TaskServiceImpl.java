@@ -1383,8 +1383,7 @@ public class TaskServiceImpl extends TaskService{
                 log.warn("Modify renew success failed, task name = {}", taskDto.getName());
             }
         }
-        //重置任务后触发一次推演，防止重置任务后节点模型错误
-        transformSchemaAsyncService.transformSchema(taskDto.getDag(), user, taskDto.getId());
+
 
 
 
@@ -3817,7 +3816,6 @@ public class TaskServiceImpl extends TaskService{
                 .set("scheduleTime", null)
                 .set("messages", null)
                 .set("errorEvents", null)
-                .set("transformed",false)
                 .unset(SHARE_CDC_STOP)
                 .unset(SHARE_CDC_STOP_MESSAGE);
 
