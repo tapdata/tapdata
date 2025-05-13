@@ -17,8 +17,6 @@ public interface ICustomCdcMode {
     default void acceptCdcEvent(TaskInspectCdcEvent event) {
     }
 
-    default void syncDelay(long delay) {}
-
     default boolean stop() {
         return true;
     }

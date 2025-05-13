@@ -18,7 +18,7 @@ public class CustomDiff implements IConfig<CustomDiff> {
 
     @Override
     public CustomDiff init(int depth) {
-        setEnable(init(getEnable(), false));
+        setEnable(init(getEnable(), true));
         setLimit(init(getLimit(), 1000L));
         setTryTimes(init(getTryTimes(), 2));
         return this;

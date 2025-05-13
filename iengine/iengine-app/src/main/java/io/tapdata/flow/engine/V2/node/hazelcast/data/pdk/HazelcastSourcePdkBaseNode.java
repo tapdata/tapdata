@@ -19,7 +19,7 @@ import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.taskinspect.TaskInspect;
+import com.tapdata.taskinspect.ITaskInspect;
 import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
@@ -229,7 +229,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
 	protected List<String> loggedTables = new ArrayList<>();
 	private List<Node<?>> targetDataNodes;
-    private final TaskInspect taskInspect;
+    private final ITaskInspect taskInspect;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);

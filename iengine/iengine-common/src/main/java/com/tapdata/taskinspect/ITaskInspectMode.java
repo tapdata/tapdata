@@ -1,6 +1,7 @@
 package com.tapdata.taskinspect;
 
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataRecoveryEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.taskinspect.vo.TaskInspectCdcEvent;
 import com.tapdata.tm.taskinspect.TaskInspectConfig;
@@ -19,7 +20,10 @@ import java.util.Optional;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/3/17 18:50 Create
  */
-public interface IMode {
+public interface ITaskInspectMode {
+
+    ITaskInspectMode EMPTY = new ITaskInspectMode() {
+    };
 
     default TaskInspectMode getMode() {
         return TaskInspectMode.CLOSE;
@@ -36,10 +40,9 @@ public interface IMode {
     default void acceptCdcEvent(TaskInspectCdcEvent event) {
     }
 
-    default void syncDelay(long delay) {
-    }
-
     default void acceptCdcEvent(DataProcessorContext dataProcessorContext, TapdataEvent event) {
+        if (event instanceof TapdataRecoveryEvent) return;
+
         if (event.getTapEvent() instanceof TapInsertRecordEvent) {
             TapInsertRecordEvent recordEvent = (TapInsertRecordEvent) event.getTapEvent();
             LinkedHashMap<String, Object> keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getAfter());
@@ -52,24 +55,32 @@ public interface IMode {
                 ));
             }
         } else if (event.getTapEvent() instanceof TapUpdateRecordEvent) {
+            String rowId = null;
             TapUpdateRecordEvent recordEvent = (TapUpdateRecordEvent) event.getTapEvent();
             LinkedHashMap<String, Object> keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getAfter());
             if (!keys.isEmpty()) {
-                acceptCdcEvent(TaskInspectCdcEvent.create(
+                TaskInspectCdcEvent taskInspectCdcEvent = TaskInspectCdcEvent.create(
                     recordEvent.getReferenceTime(),
                     recordEvent.getTime(),
                     recordEvent.getTableId(),
                     keys
-                ));
+                );
+                taskInspectCdcEvent.initRowId();
+                rowId = taskInspectCdcEvent.getRowId();
+                acceptCdcEvent(taskInspectCdcEvent);
             }
             keys = getKeys(dataProcessorContext, recordEvent.getTableId(), recordEvent.getBefore());
             if (!keys.isEmpty()) {
-                acceptCdcEvent(TaskInspectCdcEvent.create(
+                TaskInspectCdcEvent taskInspectCdcEvent = TaskInspectCdcEvent.create(
                     recordEvent.getReferenceTime(),
                     recordEvent.getTime(),
                     recordEvent.getTableId(),
                     keys
-                ));
+                );
+                taskInspectCdcEvent.initRowId();
+                if (null == rowId || !rowId.equals(taskInspectCdcEvent.getRowId())) {
+                    acceptCdcEvent(taskInspectCdcEvent);
+                }
             }
         } else if (event.getTapEvent() instanceof TapDeleteRecordEvent) {
             TapDeleteRecordEvent recordEvent = (TapDeleteRecordEvent) event.getTapEvent();

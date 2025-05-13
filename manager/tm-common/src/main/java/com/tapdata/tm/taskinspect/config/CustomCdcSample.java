@@ -15,12 +15,14 @@ public class CustomCdcSample implements IConfig<CustomCdcSample> {
     private Integer capacity; // 缓存上限
     private Integer limit; // 抽样上限
     private Integer interval; // 抽样间隔(秒)
+    private Boolean enableRecheck; // 是否开启自动二次校验
 
     @Override
     public CustomCdcSample init(int depth) {
         setCapacity(init(getCapacity(), 100));
         setLimit(init(getLimit(), 10));
         setInterval(init(getInterval(), 1));
+        setEnableRecheck(init(getEnableRecheck(), false));
         return this;
     }
 
@@ -28,5 +30,6 @@ public class CustomCdcSample implements IConfig<CustomCdcSample> {
         setCapacity(config.getCapacity());
         setLimit(config.getLimit());
         setInterval(config.getInterval());
+        setEnableRecheck(config.getEnableRecheck());
     }
 }

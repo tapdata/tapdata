@@ -7,12 +7,12 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.taskinspect.TaskInspect;
-import com.tapdata.taskinspect.TaskInspectContext;
+import com.tapdata.taskinspect.ITaskInspect;
 import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.taskinspect.TaskInspectUtils;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
@@ -63,7 +63,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private long lastRetryTimeMillis;
 	private final AtomicInteger retryCounter;
 	private AtomicBoolean retrying;
-	private final TaskInspect taskInspect;
+	private final ITaskInspect taskInspect;
 	private final AutoRecovery autoRecovery;
     private final long createTime = System.currentTimeMillis();
 
@@ -93,8 +93,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 		this.retryCounter = new AtomicInteger(0);
 		this.retrying = new AtomicBoolean(false);
-        TaskInspectContext taskInspectContext = new TaskInspectContext(taskDto, clientMongoOperator);
-        this.taskInspect = TaskInspectHelper.create(taskInspectContext);
+        this.taskInspect = TaskInspectHelper.create(taskDto, clientMongoOperator);
 	}
 
 	@Override
@@ -189,10 +188,10 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
         CommonUtils.handleAnyError(
             () -> {
                 if (null != taskInspect) taskInspect.close();
-                obsLogger.trace("Closed task-inspect instance\n  {}", taskInspect);
+                obsLogger.trace("Closed {} instance\n  {}", TaskInspectUtils.MODULE_NAME, taskInspect);
             },
             err -> {
-                obsLogger.warn("Closed task-inspect instance failed, error: {}\n  {}", err.getMessage(), Log4jUtil.getStackString(err));
+                obsLogger.warn("Closed {} instance failed, error: {}\n  {}", TaskInspectUtils.MODULE_NAME, err.getMessage(), Log4jUtil.getStackString(err));
             }
         );
             CommonUtils.handleAnyError(

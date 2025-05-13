@@ -2,6 +2,7 @@ package com.tapdata.tm.taskinspect.dto;
 
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.taskinspect.cons.DiffTypeEnum;
+import com.tapdata.tm.taskinspect.vo.ResultOperationsVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -30,6 +31,7 @@ public class TaskInspectResultsDto extends BaseDto {
     public static final String FIELD_TARGET = "target";
     public static final String FIELD_DIFF_TYPE = "diffType";
     public static final String FIELD_DIFF_FIELDS = "diffFields";
+    public static final String FIELD_OPERATIONS = "operations";
 
     private String taskId;
     private String historyId;
@@ -43,4 +45,5 @@ public class TaskInspectResultsDto extends BaseDto {
     private Map<String, Object> target;
     private DiffTypeEnum diffType;
     private List<String> diffFields;
+    private List<ResultOperationsVo> operations;
 }

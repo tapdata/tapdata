@@ -1,6 +1,6 @@
 package com.tapdata.taskinspect.vo;
 
-import com.tapdata.constant.MD5Util;
+import com.tapdata.tm.taskinspect.TaskInspectUtils;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -40,16 +40,7 @@ public class TaskInspectCdcEvent implements Serializable {
      * @return 生成的行ID
      */
     public String initRowId() {
-        // 创建StringBuilder以提高性能，适用于大量字符串拼接操作
-        StringBuilder buf = new StringBuilder(getTableName());
-
-        // 遍历所有键值，将它们拼接到StringBuilder中，用"|"分隔
-        for (Object v : keys.values()) {
-            buf.append("|").append(v);
-        }
-
-        // 使用MD5Util工具类对拼接后的字符串进行加密，生成唯一的行ID
-        setRowId(MD5Util.crypt(buf.toString(), false));
+        setRowId(TaskInspectUtils.toRowId(getTableName(), getKeys()));
         return getRowId();
     }
 

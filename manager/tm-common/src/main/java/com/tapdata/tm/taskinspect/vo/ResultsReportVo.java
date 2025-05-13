@@ -27,6 +27,7 @@ public class ResultsReportVo implements Serializable {
     private LinkedHashMap<String, Object> target;
     private DiffTypeEnum diffType;
     private List<String> diffFields;
+    private List<ResultOperationsVo> operations;
 
     public ResultsReportVo table(String rowId) {
         this.rowId = rowId;
@@ -75,6 +76,11 @@ public class ResultsReportVo implements Serializable {
 
     public ResultsReportVo diffFields(List<String> diffFields) {
         this.diffFields = diffFields;
+        return this;
+    }
+
+    public ResultsReportVo operations(List<ResultOperationsVo> operations) {
+        this.operations = operations;
         return this;
     }
 

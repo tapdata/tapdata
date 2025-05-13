@@ -86,7 +86,7 @@ class TaskInspectUtilsTest {
         void testStop_AlreadyStopped() throws InterruptedException {
             when(stopSupplier.getAsBoolean()).thenReturn(true);
 
-            TaskInspectUtils.stop(stopSupplier, 1000);
+            TaskInspectUtils.stop(1000, stopSupplier);
 
             verify(stopSupplier).getAsBoolean();
         }
@@ -95,7 +95,7 @@ class TaskInspectUtilsTest {
         void testStop_StopWithinTimeout() throws InterruptedException {
             when(stopSupplier.getAsBoolean()).thenReturn(false, false, true);
 
-            TaskInspectUtils.stop(stopSupplier, 3000);
+            TaskInspectUtils.stop(3000, stopSupplier);
 
             verify(stopSupplier, times(3)).getAsBoolean();
         }
@@ -104,7 +104,7 @@ class TaskInspectUtilsTest {
         void testStop_Timeout() throws InterruptedException {
             when(stopSupplier.getAsBoolean()).thenReturn(false);
 
-            Exception thrown = assertThrows(RuntimeException.class, () -> TaskInspectUtils.stop(stopSupplier, 1000));
+            Exception thrown = assertThrows(RuntimeException.class, () -> TaskInspectUtils.stop(1000, stopSupplier));
             assertNotNull(thrown.getMessage());
             assertTrue(thrown.getMessage().startsWith("Timeout waiting"));
 

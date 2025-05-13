@@ -1,5 +1,8 @@
 package com.tapdata.tm.taskinspect;
 
+import com.tapdata.tm.utils.MD5Utils;
+
+import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -21,6 +24,7 @@ public interface TaskInspectUtils {
     static void close(AutoCloseable... closeables) throws Exception {
         AtomicReference<Exception> error = new AtomicReference<>(null);
         for (AutoCloseable c : closeables) {
+            if (null == c) continue;
             try {
                 c.close();
             } catch (Exception e) {
@@ -34,12 +38,18 @@ public interface TaskInspectUtils {
         }
     }
 
-    static void stop(BooleanSupplier stopSupplier, long timeout) throws InterruptedException {
+    static void stop(long timeout, BooleanSupplier... suppliers) throws InterruptedException {
+        boolean hasFalse = true;
         long start = System.currentTimeMillis();
-        while (!stopSupplier.getAsBoolean()) {
+        while (hasFalse) {
+            hasFalse = false;
+            for (BooleanSupplier s : suppliers) {
+                hasFalse = hasFalse || !s.getAsBoolean();
+            }
+
             long times = System.currentTimeMillis() - start;
             if (times > timeout) {
-                throw new RuntimeException("Timeout waiting " + times + "ms for task-inspect stop");
+                throw new RuntimeException("Timeout waiting " + times + "ms for " + TaskInspectUtils.MODULE_NAME + " stop");
             }
             TimeUnit.SECONDS.sleep(1);
         }
@@ -47,5 +57,13 @@ public interface TaskInspectUtils {
 
     static Future<?> submit(Runnable runnable) {
         return executorService.submit(runnable);
+    }
+
+    static String toRowId(String tableName, LinkedHashMap<String, Object> keys) {
+        StringBuilder buf = new StringBuilder(tableName);
+        for (Object v : keys.values()) {
+            buf.append("|").append(v);
+        }
+        return MD5Utils.toLowerHex(buf.toString());
     }
 }

@@ -10,5 +10,6 @@ public enum DiffTypeEnum {
     MORE, // 多出数据
     MISS, // 丢失数据
     DIFF, // 差异数据
+    RECOVERED, // 已恢复
     ;
 }

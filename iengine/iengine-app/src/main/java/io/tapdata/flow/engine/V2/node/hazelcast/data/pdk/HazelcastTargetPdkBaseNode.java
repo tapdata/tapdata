@@ -11,7 +11,7 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.taskinspect.TaskInspect;
+import com.tapdata.taskinspect.ITaskInspect;
 import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -176,7 +176,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected boolean syncTargetPartitionTableEnable;
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
-    private final TaskInspect taskInspect;
+    private final ITaskInspect taskInspect;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -842,7 +842,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 .map(TapBaseEvent::getReferenceTime)
                 .ifPresent(ts -> {
                     if (ts > 0) {
-                        this.taskInspect.getModeJob().syncDelay(System.currentTimeMillis() - ts);
+                        Optional.ofNullable(this.taskInspect).ifPresent(o -> o.setSyncDelay(System.currentTimeMillis() - ts));
                     }
                 });
         }
