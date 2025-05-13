@@ -13,6 +13,7 @@ import lombok.Getter;
 @Getter
 public class TaskInspectRuntimeException extends TapRuntimeException {
 
+    public static final int CODE_LOGIC_ERROR = 0;
     public static final int CODE_DUPLICATE_INS = 1;
     public static final int CODE_UN_SUPPORT_MODE = 2;
     public static final int CODE_MODE_ILLEGAL = 3;
@@ -89,5 +90,9 @@ public class TaskInspectRuntimeException extends TapRuntimeException {
 
     public static TaskInspectRuntimeException notSupportedOfferResult(String taskId, int step) {
         return new TaskInspectRuntimeException(String.format("not supported offer result '%s'", step), taskId, CODE_UN_SUPPORT_MODE);
+    }
+
+    public static TaskInspectRuntimeException logicError(String taskId, String msg) {
+        return new TaskInspectRuntimeException("application logic error, need developer fixed: " + msg, taskId, CODE_LOGIC_ERROR);
     }
 }

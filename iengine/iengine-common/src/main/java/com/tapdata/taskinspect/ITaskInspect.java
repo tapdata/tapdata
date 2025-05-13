@@ -1,5 +1,7 @@
 package com.tapdata.taskinspect;
 
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.taskinspect.TaskInspectConfig;
 
 /**
@@ -10,9 +12,9 @@ import com.tapdata.tm.taskinspect.TaskInspectConfig;
  */
 public interface ITaskInspect extends AutoCloseable {
 
-    ITaskInspectMode getModeJob();
-
     void setSyncDelay(long syncDelay);
+
+    void acceptCdcEvent(DataProcessorContext dataProcessorContext, TapdataEvent event);
 
     void refresh(TaskInspectConfig config) throws InterruptedException;
 

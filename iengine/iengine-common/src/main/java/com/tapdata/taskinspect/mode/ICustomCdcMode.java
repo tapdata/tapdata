@@ -1,7 +1,8 @@
 package com.tapdata.taskinspect.mode;
 
-import com.tapdata.taskinspect.vo.TaskInspectCdcEvent;
 import com.tapdata.tm.taskinspect.config.CustomCdc;
+
+import java.util.LinkedHashMap;
 
 /**
  * 增量校验交互接口
@@ -14,7 +15,14 @@ public interface ICustomCdcMode {
     default void refresh(CustomCdc config) throws InterruptedException {
     }
 
-    default void acceptCdcEvent(TaskInspectCdcEvent event) {
+    /**
+     * @param cdcReadTs 增量读取时间
+     * @param cdcOpTs   增量变更时间
+     * @param tableName 表名
+     * @param keys      行主键
+     */
+    default void acceptCdcEvent(long cdcReadTs, long cdcOpTs, String tableName, LinkedHashMap<String, Object> keys) {
+
     }
 
     default boolean stop() {

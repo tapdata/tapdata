@@ -21,9 +21,9 @@ public interface TaskInspectUtils {
 
     ExecutorService executorService = Executors.newFixedThreadPool(Integer.MAX_VALUE);
 
-    static void close(AutoCloseable... closeables) throws Exception {
+    static void close(AutoCloseable... closeableArr) throws Exception {
         AtomicReference<Exception> error = new AtomicReference<>(null);
-        for (AutoCloseable c : closeables) {
+        for (AutoCloseable c : closeableArr) {
             if (null == c) continue;
             try {
                 c.close();

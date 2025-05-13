@@ -10,14 +10,8 @@ import lombok.Getter;
  */
 @Getter
 public enum TaskInspectMode {
-    CLOSE("-"), // 关闭校验
-    INTELLIGENT("-"), // 智能校验
-    CUSTOM("com.tapdata.taskinspect.mode.CustomMode"), // 高级校验
+    CLOSE, // 关闭校验
+    INTELLIGENT, // 智能校验
+    CUSTOM, // 高级校验
     ;
-
-    private final String implClassName;
-
-    TaskInspectMode(String implClassName) {
-        this.implClassName = implClassName;
-    }
 }

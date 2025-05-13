@@ -1548,7 +1548,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
 					event = this.tapEventFilter.handle(tapdataEvent);
                     if (null != taskInspect) {
-                        taskInspect.getModeJob().acceptCdcEvent(dataProcessorContext, event);
+                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
                     }
 				}
 				if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
