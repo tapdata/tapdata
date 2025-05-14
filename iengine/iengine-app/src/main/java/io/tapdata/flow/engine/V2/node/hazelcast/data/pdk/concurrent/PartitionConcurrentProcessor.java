@@ -170,7 +170,9 @@ public class PartitionConcurrentProcessor {
 					break;
 				} catch (Throwable throwable) {
 					currentRunning.compareAndSet(true, false);
-					errorHandler.accept(throwable, "target write record(s) failed");
+					if (!(throwable instanceof TapCodeException)) {
+						errorHandler.accept(throwable, "target write record(s) failed");
+					}
 				}
 			}
 		} finally {
