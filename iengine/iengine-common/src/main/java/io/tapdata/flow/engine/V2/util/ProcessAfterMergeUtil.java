@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.util;
 
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import org.apache.commons.collections.CollectionUtils;
@@ -27,7 +28,7 @@ public class ProcessAfterMergeUtil {
 		if (CollectionUtils.isEmpty(nodes)) {
 			return addedNodes;
 		}
-		List<Node> mergeNodes = GraphUtil.findMergeNode(taskDto);
+		List<Node> mergeNodes = GraphUtil.findNodes(taskDto, MergeTableNode.class);
 		if (CollectionUtils.isEmpty(mergeNodes)) {
 			return addedNodes;
 		}
