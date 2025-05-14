@@ -25,7 +25,6 @@ public class TaskInspectHelper {
 
     private static final Map<String, ITaskInspect> INSTANCES = new ConcurrentHashMap<>();
     private static String CLASS_NAME = "com.tapdata.taskinspect.TaskInspect";
-    private static IOperator operator;
 
     public static ITaskInspect create(TaskDto task, ClientMongoOperator clientMongoOperator) {
         String taskId = Optional.ofNullable(task.getId()).map(ObjectId::toHexString).orElse(null);

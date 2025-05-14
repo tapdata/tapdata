@@ -31,12 +31,6 @@ public interface IOperator {
         return false;
     }
 
-    default void postResults(String jobId, ResultsReportVo... vos) {
-    }
-
-    default void postRecover(String jobId, ResultsRecoverVo vo) {
-    }
-
     default LinkedHashMap<String, Serializable> params(String key, Serializable value) {
         LinkedHashMap<String, Serializable> params = new LinkedHashMap<>();
         params.put(key, value);

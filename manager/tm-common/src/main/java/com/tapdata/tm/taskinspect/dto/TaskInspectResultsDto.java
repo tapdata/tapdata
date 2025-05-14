@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 任务内校验-差异详情
@@ -20,7 +21,7 @@ import java.util.Map;
 public class TaskInspectResultsDto extends BaseDto {
 
     public static final String FIELD_TASK_ID = "taskId";
-    public static final String FIELD_HISTORY_ID = "historyId";
+    public static final String FIELD_HISTORIES = "histories";
     public static final String FIELD_ROW_ID = "rowId";
     public static final String FIELD_KEYS = "keys";
     public static final String FIELD_SOURCE_TABLE = "sourceTable";
@@ -34,7 +35,7 @@ public class TaskInspectResultsDto extends BaseDto {
     public static final String FIELD_OPERATIONS = "operations";
 
     private String taskId;
-    private String historyId;
+    private Set<String> histories;
     private String rowId;
     private Map<String, Object> keys;
     private String sourceTable;

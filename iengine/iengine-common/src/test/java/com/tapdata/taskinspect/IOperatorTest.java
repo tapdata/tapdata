@@ -2,8 +2,6 @@ package com.tapdata.taskinspect;
 
 import com.tapdata.tm.taskinspect.cons.JobTypeEnum;
 import com.tapdata.tm.taskinspect.vo.JobReportVo;
-import com.tapdata.tm.taskinspect.vo.ResultsRecoverVo;
-import com.tapdata.tm.taskinspect.vo.ResultsReportVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,43 +16,33 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class IOperatorTest {
 
-    private IOperator iOperator;
+    private IOperator operator;
 
     @BeforeEach
     public void setUp() {
-        iOperator = new IOperator() {
+        operator = new IOperator() {
         };
     }
 
     @Test
     public void getConfig_ReturnsNull() {
-        assertNull(iOperator.getConfig("testTaskId"));
+        assertNull(operator.getConfig("testTaskId"));
     }
 
     @Test
     public void jobStart_ReturnsNull() {
-        assertNull(iOperator.jobStart("testTaskId", JobTypeEnum.UNKNOWN, new Serializable() {
+        assertNull(operator.jobStart("testTaskId", JobTypeEnum.UNKNOWN, new Serializable() {
         }, new LinkedHashMap<>()));
     }
 
     @Test
     public void postJobStatus_ReturnsFalse() {
-        assertFalse(iOperator.postJobStatus("testJobId", new JobReportVo()));
-    }
-
-    @Test
-    public void postResults_NoException() {
-        iOperator.postResults("testJobId", new ResultsReportVo());
-    }
-
-    @Test
-    public void postRecover_NoException() {
-        iOperator.postRecover("testJobId", new ResultsRecoverVo());
+        assertFalse(operator.postJobStatus("testJobId", new JobReportVo()));
     }
 
     @Test
     public void params_ReturnsCorrectMap() {
-        LinkedHashMap<String, Serializable> params = iOperator.params("key1", "value1");
+        LinkedHashMap<String, Serializable> params = operator.params("key1", "value1");
         assertEquals(1, params.size());
         assertEquals("value1", params.get("key1"));
     }
@@ -63,7 +51,7 @@ class IOperatorTest {
     public void params_AddsToExistingMap() {
         LinkedHashMap<String, Serializable> existingParams = new LinkedHashMap<>();
         existingParams.put("key1", "value1");
-        LinkedHashMap<String, Serializable> params = iOperator.params(existingParams, "key2", "value2");
+        LinkedHashMap<String, Serializable> params = operator.params(existingParams, "key2", "value2");
         assertEquals(2, params.size());
         assertEquals("value1", params.get("key1"));
         assertEquals("value2", params.get("key2"));
