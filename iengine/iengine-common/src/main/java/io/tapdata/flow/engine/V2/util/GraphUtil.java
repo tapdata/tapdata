@@ -93,7 +93,7 @@ public class GraphUtil {
 			return Collections.emptyList();
 		}
 		List<Node> nodes = taskDto.getDag().getNodes();
-		if (org.apache.commons.collections.CollectionUtils.isEmpty(nodes)) {
+		if (CollectionUtils.isEmpty(nodes)) {
 			return Collections.emptyList();
 		}
 		return nodes.stream().filter(n -> {
