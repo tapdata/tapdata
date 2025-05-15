@@ -87,4 +87,22 @@ public class GraphUtil {
 				|| n instanceof JoinProcessorNode
 				|| n instanceof UnionProcessorNode).collect(Collectors.toList());
 	}
+
+	public static List<Node> findNodes(TaskDto taskDto, Class<?>... matchClazz) {
+		if (null == taskDto || null == taskDto.getDag() || null == matchClazz || matchClazz.length == 0) {
+			return Collections.emptyList();
+		}
+		List<Node> nodes = taskDto.getDag().getNodes();
+		if (CollectionUtils.isEmpty(nodes)) {
+			return Collections.emptyList();
+		}
+		return nodes.stream().filter(n -> {
+			for (Class<?> clazz : matchClazz) {
+				if (clazz.isInstance(n)) {
+					return true;
+				}
+			}
+			return false;
+		}).collect(Collectors.toList());
+	}
 }

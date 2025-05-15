@@ -64,6 +64,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -380,7 +381,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapEvent e = event.getTapEvent();
 				try {
 					if (e instanceof TapRecordEvent) {
-						String tableId = ShareCdcUtil.getTapRecordEventTableName((TapRecordEvent) e);
+						String tableId = ShareCdcUtil.getTapRecordEventTableNameV2((TapRecordEvent) e, taskDto.getSyncType());
 						TapTable tapTable = null;
 						try {
 							tapTable = tapTableMap.get(tableId);
@@ -1414,6 +1415,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		// Modify schema by ddl event
 		if (tapEvent instanceof TapCreateTableEvent) {
 			tapTable = ((TapCreateTableEvent) tapEvent).getTable();
+		} else if (tapEvent instanceof TapClearTableEvent) {
+			return;
 		} else {
 			try {
 				tapTable = processorBaseContext.getTapTableMap().get(tableId);

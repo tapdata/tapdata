@@ -1593,7 +1593,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             return taskService.findOne(query, user);
         }).map(task -> task.getId().toHexString()).map(tid -> {
             // get heartbeat task dag of the connection node
-            Query query = new Query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid));
+            Query query = new Query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid).and(IS_DELETED).ne(true));
             query.fields().include("_id", "dag");
             return taskService.findOne(query, user);
         }).map(taskDto -> {
@@ -1800,13 +1800,17 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof MigrateProcessorNode) {
-                    Criteria criteria = Criteria.where(NODE_ID).is(nodeId).and(IS_DELETED).ne(true);
+                    criteriaNode.and(NODE_ID).is(nodeId)
+                            .and(IS_DELETED).ne(true);
+
                     if (StringUtils.isNotBlank(tableFilter)) {
                         Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
-                        criteria.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
+                        criteriaNode.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
                     }
-                    Query nodeQuery = new Query(criteria);
-                    List<MetadataInstancesDto> all = findAll(nodeQuery);
+
+                    queryMetadata.addCriteria(criteriaNode);
+
+                    List<MetadataInstancesDto> all = findAll(queryMetadata);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                                     , s->s, (m1, m2) -> m1));
@@ -1832,6 +1836,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                         }
                     }
                     metadatas.addAll(all);
+                    totals = count(new Query(criteriaNode), user);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
                     queryMetadata.addCriteria(criteriaNode);
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
