@@ -17,6 +17,7 @@ public enum JobStatusEnum {
     STOPPING(false),
     STOP_ERROR(true),
     STOPPED(true),
+    PING_TIMEOUT(true),
     ;
 
     private final boolean stopped;

@@ -4,8 +4,6 @@ import com.tapdata.tm.taskinspect.TaskInspectConfig;
 import com.tapdata.tm.taskinspect.cons.JobTypeEnum;
 import com.tapdata.tm.taskinspect.dto.TaskInspectHistoriesDto;
 import com.tapdata.tm.taskinspect.vo.JobReportVo;
-import com.tapdata.tm.taskinspect.vo.ResultsRecoverVo;
-import com.tapdata.tm.taskinspect.vo.ResultsReportVo;
 
 import java.io.Serializable;
 import java.util.LinkedHashMap;
