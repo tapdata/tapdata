@@ -15,9 +15,9 @@ import static org.mockito.Mockito.mockStatic;
  * @version v1.0 2025/5/12 14:30 Create
  */
 public class MD5UtilsTest {
-    static final String testStr = "hello";
+    static final String testStr = "`1234567890-=[]\\;',./~!@#$%^&*()_+{}|:\"<>?中文\uD83D\uDE80";
     static final byte[] testBytes = testStr.getBytes();
-    static final String expectedUpperStr = "5D41402ABC4B2A76B9719D911017C592";
+    static final String expectedUpperStr = "8EA1AC319EF583CE6EF6D3D16766EA09";
     static final String expectedLowerStr = expectedUpperStr.toLowerCase();
 
     @Nested
