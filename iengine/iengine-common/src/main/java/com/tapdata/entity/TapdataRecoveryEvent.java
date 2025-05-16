@@ -24,6 +24,7 @@ public class TapdataRecoveryEvent extends TapdataEvent {
     public static final String RECOVERY_TYPE_END = "END";
 
     private String inspectTaskId;
+    private String rowId;
     private String recoveryType;
 
     public TapdataRecoveryEvent() {
@@ -49,6 +50,15 @@ public class TapdataRecoveryEvent extends TapdataEvent {
         TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
         TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
         insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
+        tapdataEvent.setTapEvent(insertRecordEvent);
+        return tapdataEvent;
+    }
+
+    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String rowId, String tableId, Map<String, Object> after) {
+        TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
+        TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
+        insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
+        tapdataEvent.setRowId(rowId);
         tapdataEvent.setTapEvent(insertRecordEvent);
         return tapdataEvent;
     }

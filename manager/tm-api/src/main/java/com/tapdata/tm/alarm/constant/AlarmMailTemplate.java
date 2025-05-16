@@ -30,6 +30,12 @@ public class AlarmMailTemplate {
             "    Task name: 【{0}】\n" +
             "    Delay times: {1}ms";
 
+    public static final String TASK_INSPECT_DIFFERENCE_TITLE = "【Tapdata Notification: Task data differences changes】{0}";
+    public static final String TASK_INSPECT_DIFFERENCE = "Your task data differences. \n" +
+        "    Task name: 【{0}】\n" +
+        "    Time range: {1} to {2}\n" +
+        "    Totals: {3}\n";
+
     public static final String DATANODE_CANNOT_CONNECT_TITLE = "【Tapdata Notification: Connection cannot be connected】{0}";
     public static final String DATANODE_CANNOT_CONNECT = "The connection used by your task cannot be connected.\n" +
             "    Task name: 【{0}】\n" +
