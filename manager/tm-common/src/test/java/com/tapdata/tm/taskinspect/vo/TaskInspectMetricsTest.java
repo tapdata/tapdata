@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/5/14 14:03 Create
  */
-class CheckQueueMetricsTest {
+class TaskInspectMetricsTest {
 
     @Test
     void testConvert() {
@@ -27,7 +27,7 @@ class CheckQueueMetricsTest {
         int diffToTotals = 100;
 
         // 赋值测试
-        CheckQueueMetrics metrics = new CheckQueueMetrics(cdcAccepts, cdcIgnores, diffChange, diffFirstTs, diffFromTs, diffFromTotals, diffToTs, diffToTotals);
+        TaskInspectMetrics metrics = new TaskInspectMetrics(cdcAccepts, cdcIgnores, diffChange, diffFirstTs, diffFromTs, diffFromTotals, diffToTs, diffToTotals);
         assertEquals(cdcAccepts, metrics.getCdcAccepts());
         assertEquals(cdcIgnores, metrics.getCdcIgnores());
         assertEquals(diffChange, metrics.getDiffChanges());
@@ -40,7 +40,7 @@ class CheckQueueMetricsTest {
         // 双向转换验证
         Map<String, Object> map = new HashMap<>();
         metrics.toMap(map);
-        CheckQueueMetrics newMetrics = CheckQueueMetrics.fromMap(map);
+        TaskInspectMetrics newMetrics = TaskInspectMetrics.fromMap(map);
         assertEquals(newMetrics.getCdcAccepts(), metrics.getCdcAccepts());
         assertEquals(newMetrics.getCdcIgnores(), metrics.getCdcIgnores());
         assertEquals(newMetrics.getDiffChanges(), metrics.getDiffChanges());
@@ -54,7 +54,7 @@ class CheckQueueMetricsTest {
     @Test
     void testDefaultValueFromMap() {
         Map<String, Object> map = new HashMap<>();
-        CheckQueueMetrics newMetrics = CheckQueueMetrics.fromMap(map);
+        TaskInspectMetrics newMetrics = TaskInspectMetrics.fromMap(map);
         assertEquals(0L, newMetrics.getCdcAccepts());
         assertEquals(0L, newMetrics.getCdcIgnores());
         assertEquals(0, newMetrics.getDiffChanges());

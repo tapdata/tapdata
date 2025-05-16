@@ -8,28 +8,28 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- * 统计范围时间内的差异指标
+ * 任务内校验-运行指标
  *
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/5/14 11:32 Create
  */
 @Getter
 @Setter
-public class CheckQueueMetrics implements Serializable {
+public class TaskInspectMetrics implements Serializable {
 
-    private long cdcAccepts;
-    private long cdcIgnores;
-    private int diffChanges;
-    private long diffFirstTs;
-    private long diffFromTs;
-    private int diffFromTotals;
-    private long diffToTs;
-    private int diffToTotals;
+    private long cdcAccepts;    // 增量抽事件样数
+    private long cdcIgnores;    // 增量忽略事件数
+    private int diffChanges;    // 差异变更数（发现和恢复都递增）
+    private long diffFirstTs;   // 第一条差异时间
+    private long diffFromTs;    // 区间-开始时间
+    private int diffFromTotals; // 区间-开始差异数
+    private long diffToTs;      // 区间-结束时间
+    private int diffToTotals;   // 区间-结束差异数
 
-    public CheckQueueMetrics() {
+    public TaskInspectMetrics() {
     }
 
-    public CheckQueueMetrics(long cdcAccepts, long cdcIgnores, int diffChanges, long diffFirstTs, long diffFromTs, int diffFromTotals, long diffToTs, int diffToTotals) {
+    public TaskInspectMetrics(long cdcAccepts, long cdcIgnores, int diffChanges, long diffFirstTs, long diffFromTs, int diffFromTotals, long diffToTs, int diffToTotals) {
         this.cdcAccepts = cdcAccepts;
         this.cdcIgnores = cdcIgnores;
         this.diffChanges = diffChanges;
@@ -40,6 +40,11 @@ public class CheckQueueMetrics implements Serializable {
         this.diffToTotals = diffToTotals;
     }
 
+    /**
+     * 将当前对象的属性值，填充到 Map 对象
+     *
+     * @param m 要填充的 Map 对象
+     */
     public void toMap(Map<String, Object> m) {
         m.put(TaskInspectHistoriesDto.FIELD_ATTRS_CDC_ACCEPTS, getCdcAccepts());
         m.put(TaskInspectHistoriesDto.FIELD_ATTRS_CDC_IGNORES, getCdcIgnores());
@@ -51,8 +56,14 @@ public class CheckQueueMetrics implements Serializable {
         m.put(TaskInspectHistoriesDto.FIELD_ATTRS_DIFF_TO_TOTALS, getDiffToTotals());
     }
 
-    public static CheckQueueMetrics fromMap(Map<?, ?> m) {
-        CheckQueueMetrics metrics = new CheckQueueMetrics();
+    /**
+     * 从 Map 对象中获取对应的属性值，并将会上设置到一个新对象中
+     *
+     * @param m 存放值的 Map 对象
+     * @return 新对象
+     */
+    public static TaskInspectMetrics fromMap(Map<?, ?> m) {
+        TaskInspectMetrics metrics = new TaskInspectMetrics();
         metrics.setCdcAccepts(getCdcAccepts(m));
         metrics.setCdcIgnores(getCdcIgnores(m));
         metrics.setDiffChanges(getDiffChanges(m));
