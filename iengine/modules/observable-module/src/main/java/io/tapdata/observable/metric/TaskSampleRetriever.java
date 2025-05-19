@@ -51,7 +51,12 @@ public class TaskSampleRetriever {
 	}
 
 	public Map<String, Number> retrieve(long startTime, Map<String, String> tags, List<String> fields) {
-		SampleResponse response = retrieveRaw(startTime, tags, fields);
+		SampleResponse response = null;
+		try {
+			response = retrieveRaw(startTime, tags, fields);
+		} catch (Exception e) {
+			// do nothing
+		}
 
 		Map<String, Number> samples = new HashMap<>();
 		if (response != null && response.getSamples() != null) {
