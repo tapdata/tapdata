@@ -4704,6 +4704,7 @@ public class TaskServiceImpl extends TaskService{
         criteria.and(DAG_NODES_CONNECTION_ID).is(connectionId).and(IS_DELETED).ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.tableNames").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName)
             );
         }
