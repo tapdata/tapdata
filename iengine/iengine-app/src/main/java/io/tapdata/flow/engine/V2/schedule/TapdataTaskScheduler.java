@@ -215,7 +215,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Stop task {} failed because of task lock, will retry later", taskId);
 						Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
-								.ifPresent(log -> log.warn("Start task failed because of task lock, will ignored"));
+								.ifPresent(log -> log.warn("Stop task failed because of task lock, will ignored"));
 					}
 				}
 				logger.info("Handled task operation: {}", taskOperation);
