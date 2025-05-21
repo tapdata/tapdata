@@ -3,6 +3,8 @@ package io.tapdata.observable.metric;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.RestTemplateOperator;
 import lombok.Data;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Map;
 public class TaskSampleRetriever {
 	private static final int MAX_RETRIEVE_ATTEMPT = 3;
 	private static final TaskSampleRetriever INSTANCE = new TaskSampleRetriever();
+	private final Logger logger = LogManager.getLogger(TaskSampleRetriever.class);
 
 	public static TaskSampleRetriever getInstance() {
 		return INSTANCE;
@@ -55,7 +58,7 @@ public class TaskSampleRetriever {
 		try {
 			response = retrieveRaw(startTime, tags, fields);
 		} catch (Exception e) {
-			// do nothing
+			logger.warn("Failed to retrieve old metric data with tags {} and fields {} with error {}", tags, fields, e.getMessage());
 		}
 
 		Map<String, Number> samples = new HashMap<>();
