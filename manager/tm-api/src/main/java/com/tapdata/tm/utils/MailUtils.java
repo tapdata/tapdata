@@ -485,12 +485,18 @@ public class MailUtils {
         final String username = parms.getUser();
         final String password = parms.getPass();
 
+        //set proxy server
+        if (StringUtils.isNotBlank(parms.getProxyHost()) && 0 != parms.getProxyPort()){
+            System.setProperty("socksProxyHost", parms.getProxyHost());
+            System.setProperty("socksProxyPort", String.valueOf(parms.getProxyPort()));
+        }
         Properties properties = new Properties();
         properties.put("mail.smtp.host", parms.getHost());
         properties.put("mail.smtp.port", String.valueOf(parms.getPort()));
         properties.put("mail.smtp.auth", "true");
         if ("SSL".equals(parms.getProtocol())) {
             properties.put("mail.smtp.ssl.enable", "true");
+            properties.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
             properties.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
             properties.put("mail.smtp.ssl.checkserveridentity", "true");
         } else if ("TLS".equals(parms.getProtocol())) {
@@ -498,11 +504,6 @@ public class MailUtils {
         } else {
             properties.put("mail.smtp.ssl.enable", "false");
             properties.put("mail.smtp.starttls.enable", "false");
-        }
-        //set proxy server
-        if (StringUtils.isNotBlank(parms.getProxyHost()) && 0 != parms.getProxyPort()){
-            properties.put("mail.smtp.socks.host", parms.getProxyHost());
-            properties.put("mail.smtp.socks.port", parms.getProxyPort());
         }
         Session session = Session.getInstance(properties, new Authenticator() {
             protected PasswordAuthentication getPasswordAuthentication() {
