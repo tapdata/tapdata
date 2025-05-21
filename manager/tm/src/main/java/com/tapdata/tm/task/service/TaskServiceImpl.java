@@ -162,6 +162,7 @@ import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 
 import io.tapdata.entity.utils.InstanceFactory;
@@ -3050,6 +3051,36 @@ public class TaskServiceImpl extends TaskService{
         return Base64.getDecoder().decode(map.get("content").toString());
     }
 
+    public <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable {
+        String callId = UUID.randomUUID().toString().replace("-", "");
+        ServiceCaller serviceCaller = ServiceCaller.create(callId).className(className).method(method);
+        Optional.ofNullable(engineId).ifPresent(id -> serviceCaller.subscribeIds("processId_" + id));
+        Optional.ofNullable(args).ifPresent(serviceCaller::args);
+        Optional.ofNullable(returnClz).ifPresent(clz -> serviceCaller.setReturnClass(clz.getName()));
+
+        long beginTime = System.currentTimeMillis();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<T> result = new AtomicReference<>(null);
+        AtomicReference<Throwable> error = new AtomicReference<>(null);
+        EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class, true);
+        if (null == engineMessageExecutionService) {
+            throw new RuntimeException("not found engine execution service instance");
+        }
+        engineMessageExecutionService.call(serviceCaller, (data, ex) -> {
+            result.set((T) data);
+            error.set(ex);
+            latch.countDown();
+        });
+        if (!latch.await(30, TimeUnit.SECONDS)) {
+            throw new TimeoutException("call " + className + "." + method + " over " + (System.currentTimeMillis() - beginTime) + "ms");
+        }
+
+        if (null == error.get()) {
+            return result.get();
+        }
+        throw error.get();
+    }
+
 
     public ResponseEntity<InputStreamResource> analyzeTask(HttpServletRequest request, HttpServletResponse response, String taskId, UserDetail user) throws IOException {
         String tarFileName = "analyze-" + taskId + "-" + System.currentTimeMillis() + ".tar";
@@ -4797,6 +4828,7 @@ public class TaskServiceImpl extends TaskService{
         criteria.and(DAG_NODES_CONNECTION_ID).is(connectionId).and(IS_DELETED).ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.tableNames").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName)
             );
         }

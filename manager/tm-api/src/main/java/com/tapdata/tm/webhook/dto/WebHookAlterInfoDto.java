@@ -89,6 +89,8 @@ public class WebHookAlterInfoDto {
                 this.metricTxt = "数据源节点的平均处理耗时超过阀值";break;
             case TASK_INCREMENT_DELAY:
                 this.metricTxt = "任务的增量延迟超过阀值";break;
+            case TASK_INSPECT_DIFFERENCE:
+                this.metricTxt = "任务校验数据差异变化";break;
             case SYSTEM_FLOW_EGINGE_DOWN:
                 this.metricTxt = "引擎离线";break;
             case PROCESSNODE_AVERAGE_HANDLE_CONSUME:

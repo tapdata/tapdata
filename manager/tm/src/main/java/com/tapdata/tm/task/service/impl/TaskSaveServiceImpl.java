@@ -198,6 +198,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_START));
 //            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
 

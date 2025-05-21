@@ -10,7 +10,11 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.taskinspect.ITaskInspect;
+import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
@@ -33,6 +37,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -95,6 +100,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -170,6 +176,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected boolean syncTargetPartitionTableEnable;
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
+    private final ITaskInspect taskInspect;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -181,6 +188,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             return thread;
         });
         TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
+        String taskId = Optional.ofNullable(dataProcessorContext)
+            .map(ProcessorBaseContext::getTaskDto)
+            .map(BaseDto::getId)
+            .map(ObjectId::toHexString)
+            .orElse(null);
+        this.taskInspect = TaskInspectHelper.get(taskId);
     }
 
     @Override
@@ -824,6 +837,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else {
                 splitDDL2NewBatch(cdcEvents, this::handleTapdataEvents);
             }
+            Optional.ofNullable(cdcEvents.get(0).getTapEvent())
+                .map(tapEvent -> (tapEvent instanceof TapRecordEvent) ? (TapRecordEvent) tapEvent : null)
+                .map(TapBaseEvent::getReferenceTime)
+                .ifPresent(ts -> {
+                    if (ts > 0) {
+                        Optional.ofNullable(this.taskInspect).ifPresent(o -> o.setSyncDelay(System.currentTimeMillis() - ts));
+                    }
+                });
         }
     }
 

@@ -95,6 +95,7 @@ import io.tapdata.common.sample.request.Sample;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
@@ -131,6 +132,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -4653,6 +4655,7 @@ class TaskServiceImplTest {
             Criteria criteria = new Criteria();
             criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.tableNames").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName));
             Query query = Query.query(criteria);
             verify(taskService).findAllDto(query,user);
@@ -5540,6 +5543,70 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).buildLdpNewTablesFromBatchOffset(taskDto, dag);
             taskService.buildLdpNewTablesFromBatchOffset(taskDto, dag);
             assertEquals(1, taskDto.getLdpNewTables().size());
+        }
+    }
+
+    @Nested
+    class CallEngineRpcTest {
+        String engineId = "test-engine-id";
+        Class<Boolean> resultClz = Boolean.class;
+        String className = "test";
+        String method = "test";
+
+        @Test
+        void testNotfoundExecutionService() {
+            assertDoesNotThrow(() -> {
+                doCallRealMethod().when(taskService).callEngineRpc(engineId, resultClz, className, method);
+
+                try (MockedStatic<InstanceFactory> mockStatic = mockStatic(InstanceFactory.class)) {
+                    mockStatic.when(() -> InstanceFactory.instance(EngineMessageExecutionService.class, true)).thenReturn(null);
+                    taskService.callEngineRpc(engineId, resultClz, className, method);
+                    Assertions.fail("expect is throws exception");
+                } catch (Exception e) {
+                    Assertions.assertEquals("not found engine execution service instance", e.getMessage());
+                }
+            });
+        }
+
+        @Test
+        void testSuccess() {
+            assertDoesNotThrow(() -> {
+                doCallRealMethod().when(taskService).callEngineRpc(engineId, resultClz, className, method);
+
+                try (MockedStatic<InstanceFactory> mockStatic = mockStatic(InstanceFactory.class)) {
+                    EngineMessageExecutionService executionService = mock(EngineMessageExecutionService.class);
+                    doAnswer(invocation -> {
+                        BiConsumer<Object, Throwable> consumer = invocation.getArgument(1);
+                        consumer.accept(true, null);
+                        return null;
+                    }).when(executionService).call(any(), any());
+                    mockStatic.when(() -> InstanceFactory.instance(EngineMessageExecutionService.class, true)).thenReturn(executionService);
+                    Assertions.assertTrue(taskService.callEngineRpc(engineId, resultClz, className, method));
+                }
+            });
+        }
+
+        @Test
+        void testException() {
+            assertDoesNotThrow(() -> {
+                doCallRealMethod().when(taskService).callEngineRpc(engineId, resultClz, className, method);
+
+                try (MockedStatic<InstanceFactory> mockStatic = mockStatic(InstanceFactory.class)) {
+                    EngineMessageExecutionService executionService = mock(EngineMessageExecutionService.class);
+                    doAnswer(invocation -> {
+                        BiConsumer<Object, Throwable> consumer = invocation.getArgument(1);
+                        consumer.accept(null, new Exception("test"));
+                        return null;
+                    }).when(executionService).call(any(), any());
+                    mockStatic.when(() -> InstanceFactory.instance(EngineMessageExecutionService.class, true)).thenReturn(executionService);
+                    try {
+                        taskService.callEngineRpc(engineId, resultClz, className, method);
+                        Assertions.fail("expect is throws exception");
+                    } catch (Throwable e) {
+                        Assertions.assertEquals("test", e.getMessage());
+                    }
+                }
+            });
         }
     }
 }
