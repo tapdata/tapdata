@@ -25,8 +25,6 @@ import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
@@ -1765,8 +1763,8 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	@DisplayName("GetJetJobStatus method test")
-	class GetJetJobStatusTest {
+	@DisplayName("GetJetJobStatusEnum method test")
+	class GetJetJobStatusEnumTest {
 		@Test
 		@DisplayName("Main process test")
 		void testGetJetJobStatus() {
