@@ -15,6 +15,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -170,8 +171,11 @@ public class PartitionConcurrentProcessor {
 					break;
 				} catch (Throwable throwable) {
 					currentRunning.compareAndSet(true, false);
-					if (!(throwable instanceof TapCodeException)) {
+					Throwable matched = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+					if (null != matched) {
 						errorHandler.accept(throwable, "target write record(s) failed");
+					} else {
+						errorHandler.accept(throwable, throwable.getMessage());
 					}
 				}
 			}
