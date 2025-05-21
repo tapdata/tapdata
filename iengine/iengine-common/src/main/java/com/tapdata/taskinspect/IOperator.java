@@ -40,4 +40,10 @@ public interface IOperator {
         return params;
     }
 
+    default void recoverResult(String taskId, LinkedHashMap<String, Object> reportData) {
+    }
+
+    default void reportResult(String taskId, LinkedHashMap<String, Object> reportData) {
+    }
+
 }
