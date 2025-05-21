@@ -611,7 +611,12 @@ public class DataSourceController extends BaseController {
     public ResponseMessage<ConnectionStats> stats() {
 
         return success(dataSourceService.stats(getLoginUser()));
+    }
 
+    @Operation(summary = "Get database types and PDK hashes")
+    @GetMapping("/databaseTypes")
+    public ResponseMessage<List<Map<String, String>>> getDatabaseTypes() {
+        return success(dataSourceService.getDatabaseTypes(getLoginUser()));
     }
 
     @Operation(summary = "加载部分表")
