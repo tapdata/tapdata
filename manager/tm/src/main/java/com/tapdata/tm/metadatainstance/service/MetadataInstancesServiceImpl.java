@@ -1111,6 +1111,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
                 beforeSave(metadataInstancesDto, userDetail);
                 Update update = repository.buildUpdateSet(metadataInstance, userDetail);
+                removeSetIdIfMetadataExists(metadataInstance, update);
                 Query where = Query.query(Criteria.where(QUALIFIED_NAME).is(metadataInstance.getQualifiedName()));
                 repository.applyUserDetail(where, userDetail);
                 repository.beforeUpsert(update, userDetail);
@@ -1206,6 +1207,18 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             return result.getModifiedCount();
         } else {
             return 0;
+        }
+    }
+
+    protected void removeSetIdIfMetadataExists(MetadataInstancesEntity metadataInstance, Update update) {
+        Query query = new Query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
+        List<MetadataInstancesEntity> existedMetadataInstancesEntities = repository.findAll(query);
+        if (existedMetadataInstancesEntities.isEmpty() || null == update.getUpdateObject()) {
+            return;
+        }
+        Object set = update.getUpdateObject().get("$set");
+        if (set instanceof Document) {
+            ( (Document) set).remove("id");
         }
     }
 
