@@ -756,9 +756,10 @@ class PartitionConcurrentProcessorTest {
 
         @Test
         void partitionConsumerTestWithException() throws InterruptedException {
-            doThrow(new RuntimeException("test")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            RuntimeException throwable = new RuntimeException("test");
+            doThrow(throwable).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
             processor.partitionConsumer(finalPartition, linkedBlockingQueue);
-            verify(errorHandler, new Times(1)).accept(any(Throwable.class), anyString());
+            verify(errorHandler, new Times(1)).accept(throwable, "target write record(s) failed");
         }
     }
 }
