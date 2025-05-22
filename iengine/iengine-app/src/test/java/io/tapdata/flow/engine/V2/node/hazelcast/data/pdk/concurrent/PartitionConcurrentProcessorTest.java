@@ -751,12 +751,12 @@ class PartitionConcurrentProcessorTest {
         void partitionConsumerTestWithTapCodeException() throws InterruptedException {
             doThrow(new TapCodeException("postgres")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
             processor.partitionConsumer(finalPartition, linkedBlockingQueue);
-            verify(errorHandler, never()).accept(any(Throwable.class), anyString());
+            verify(errorHandler, new Times(1)).accept(any(Throwable.class), anyString());
         }
 
         @Test
         void partitionConsumerTestWithException() throws InterruptedException {
-            doThrow(new RuntimeException()).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            doThrow(new RuntimeException("test")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
             processor.partitionConsumer(finalPartition, linkedBlockingQueue);
             verify(errorHandler, new Times(1)).accept(any(Throwable.class), anyString());
         }
