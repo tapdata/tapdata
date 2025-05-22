@@ -1212,6 +1212,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
 
     protected void removeSetIdIfMetadataExists(MetadataInstancesEntity metadataInstance, Update update) {
         Query query = new Query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
+        query.fields().include("_id","qualified_name");
         List<MetadataInstancesEntity> existedMetadataInstancesEntities = repository.findAll(query);
         if (existedMetadataInstancesEntities.isEmpty() || null == update.getUpdateObject()) {
             return;
