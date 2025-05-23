@@ -3815,7 +3815,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public List<TaskDto> findAllTasksByIds(List<String> list) {
-        List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
+        List<ObjectId> ids = list.stream().filter(Objects::nonNull).map(ObjectId::new).collect(Collectors.toList());
         Query query = new Query(Criteria.where("_id").in(ids));
         List<TaskEntity> entityList = findAllEntity(query);
         return CglibUtil.copyList(entityList, TaskDto::new);
