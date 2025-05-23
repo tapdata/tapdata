@@ -146,6 +146,7 @@ public class SchemaUtils {
     }
 
     protected static void cloneSchemaInfo(Schema inputSchema, Schema targetSchema) {
+        targetSchema.setAncestorsName(inputSchema.getAncestorsName());
         targetSchema.setPartitionInfo(inputSchema.getPartitionInfo());
         targetSchema.setPartitionMasterTableId(inputSchema.getPartitionMasterTableId());
     }
