@@ -7,9 +7,9 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.*;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.cluster.service.RawServerStateService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.worker.service.WorkerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -35,6 +35,7 @@ import java.util.Map;
 public class ClusterStateController extends BaseController {
 
     private ClusterStateService clusterStateService;
+    private RawServerStateService rawServerStateService;
 
     @Autowired
     private PermissionService permissionService;
@@ -321,4 +322,17 @@ public class ClusterStateController extends BaseController {
         return success(clusterStateService.findAccessNodeInfo(getLoginUser()));
     }
 
+    @Operation(summary = "Find all raw server info")
+    @GetMapping("/findRawServerInfo")
+    public ResponseMessage<Page<RawServerStateDto>> findRawServerInfo(
+            @Parameter(in = ParameterIn.QUERY,
+                    description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
+            )
+            @RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        if (filter == null) {
+            filter = new Filter();
+        }
+        return success(rawServerStateService.getAllLatest(filter));
+    }
 }
