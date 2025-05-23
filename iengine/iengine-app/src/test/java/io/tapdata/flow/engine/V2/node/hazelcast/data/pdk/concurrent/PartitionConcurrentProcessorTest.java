@@ -749,7 +749,7 @@ class PartitionConcurrentProcessorTest {
         }
         @Test
         void partitionConsumerTestWithTapCodeException() throws InterruptedException {
-            doThrow(new TapCodeException("postgres")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            doThrow(new TapCodeException("postgres","test permission")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
             processor.partitionConsumer(finalPartition, linkedBlockingQueue);
             verify(errorHandler, new Times(1)).accept(any(Throwable.class), anyString());
         }
