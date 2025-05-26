@@ -30,6 +30,8 @@ public class TaskInspectHelper {
         String taskId = Optional.ofNullable(task.getId()).map(ObjectId::toHexString).orElse(null);
         if (null == taskId) {
             return null;
+        } else if (isIgnoreTaskSyncType(task.getSyncType())) {
+            return null;
         }
 
         synchronized (INSTANCES) {
@@ -93,6 +95,16 @@ public class TaskInspectHelper {
             return null;
         }
         return INSTANCES.remove(taskId);
+    }
+
+    protected static boolean isIgnoreTaskSyncType(String taskSyncType) {
+        if (null != taskSyncType) {
+            return switch (taskSyncType) {
+                case TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC -> false;
+                default -> true;
+            };
+        }
+        return true;
     }
 
     protected static void closeWithExists(String taskId) {
