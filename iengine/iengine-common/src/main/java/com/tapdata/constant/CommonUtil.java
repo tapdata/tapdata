@@ -4,6 +4,7 @@ import com.tapdata.entity.values.BooleanNotExist;
 import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
 public class CommonUtil {
@@ -69,6 +70,12 @@ public class CommonUtil {
 				if(obj1 instanceof BooleanNotExist){
 					obj1 = null;
 				}
+			}
+			if(obj1 instanceof byte[]){
+				obj1 = new String((byte[]) obj1, StandardCharsets.UTF_8);
+			}
+			if(obj2 instanceof byte[]){
+				obj2 = new String((byte[]) obj2, StandardCharsets.UTF_8);
 			}
 			if (obj1 == null && obj2 == null) {
 				continue; // Both are null, compare the next element
