@@ -220,7 +220,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         }
     }
 
-    private void shutdownExecutor() {
+    protected void shutdownExecutor() {
         if (EXECUTOR != null && !EXECUTOR.isShutdown()) {
             EXECUTOR.shutdown();
             try {
