@@ -4,6 +4,8 @@ import com.tapdata.entity.values.BooleanNotExist;
 import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 
 public class CommonUtil {
@@ -87,9 +89,19 @@ public class CommonUtil {
 					obj1 = obj1.toString().trim();
 					obj2 = obj2.toString().trim();
 				}
-				if(ignoreTimePrecision){
-					obj1 = try2IgnoreTimePrecision(obj1);
-					obj2 = try2IgnoreTimePrecision(obj2);
+				if (ignoreTimePrecision) {
+					if (obj1 instanceof DateTime dateTime) {
+						obj1 = dateTime.toInstant();
+					}
+					if (obj2 instanceof DateTime dateTime) {
+						obj2 = dateTime.toInstant();
+					}
+					if (obj1 instanceof Instant && obj2 instanceof Instant) {
+						if (!compareInstant((Instant) obj1, (Instant) obj2, ignoreTimePrecision)) {
+							continue;
+						}
+
+					}
 				}
 				int result = ((Comparable<Object>) obj1).compareTo(obj2);
 				if (result != 0) {
@@ -107,6 +119,61 @@ public class CommonUtil {
 		}
 
 		return 0; // Both arrays are equal
+	}
+
+	public static boolean compareInstant(Instant val1, Instant val2, boolean ignoreTimePrecision) {
+		Instant instant1 = val1;
+		Instant instant2 = val2;
+
+		if (ignoreTimePrecision) {
+			int precision1 = CommonUtil.getValPrecision(instant1);
+			int precision2 = CommonUtil.getValPrecision(instant2);
+
+			int minPrecision = Math.min(precision1, precision2);
+
+			Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision);
+			Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision);
+
+			if (norm1.equals(norm2)) {
+				return false;
+			}
+
+			long diffMillis = Math.abs(Duration.between(norm1, norm2).toMillis());
+			return diffMillis > 3;
+		}
+
+		return !instant1.equals(instant2);
+	}
+
+	public static int getValPrecision(Instant val1) {
+		int valPrecision = 9;
+		String nanosStr = String.format("%09d", val1.getNano());
+		while (nanosStr.endsWith("0")) {
+			nanosStr = nanosStr.substring(0, nanosStr.length() - 1);
+			valPrecision--;
+		}
+		return valPrecision;
+	}
+
+	public static Instant normalizePrecision(Instant high, int targetPrecision) {
+		long seconds = high.getEpochSecond();
+		int nanos = high.getNano(); // 纳秒：0~999_999_999
+
+		// 保留小数点后 targetPrecision 位纳秒（最多9位）
+		BigDecimal nanoDecimal = BigDecimal.valueOf(nanos)
+				.divide(BigDecimal.valueOf(1_000_000_000), 9, RoundingMode.HALF_UP);
+
+		BigDecimal roundedDecimal = nanoDecimal.setScale(targetPrecision, RoundingMode.HALF_UP);
+
+		BigDecimal newNano = roundedDecimal.multiply(BigDecimal.valueOf(1_000_000_000));
+		int newNanoInt = newNano.intValue();
+
+		// 判断是否进位到下一秒
+		if (newNanoInt >= 1_000_000_000) {
+			return Instant.ofEpochSecond(seconds + 1, 0);
+		} else {
+			return Instant.ofEpochSecond(seconds, newNanoInt);
+		}
 	}
 
 	/**

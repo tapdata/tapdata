@@ -204,15 +204,30 @@ public class CommonUtilTest {
             assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
             assertNotEquals(0,CommonUtil.compareObjects(val1,val2,false));
         }
-
-        @DisplayName("test val2 and val1 is illegalDate ignoreTimePrecision")
+        @DisplayName("test val2 and val1 is datetime ignoreTimePrecision,Since only 3 precision bits can be saved,diff less than 3")
         @Test
         void test3(){
             Object[] val1 = new Object[10];
             Object[] val2 = new Object[10];
-            val1[0] = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
-            val2[0] = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            val1[0] = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.121", formatter)).toInstant();
+            val2[0] =new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.120", formatter2)).toInstant();
             assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
+            assertNotEquals(0,CommonUtil.compareObjects(val1,val2,false));
         }
+        @DisplayName("test val2 and val1 is datetime ignoreTimePrecision,Since only 3 precision bits can be saved,but diff value bigger than 3")
+        @Test
+        void test4(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            val1[0] = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.125", formatter)).toInstant();
+            val2[0] =new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.120", formatter2)).toInstant();
+            assertEquals(true, 0!=CommonUtil.compareObjects(val1,val2,true));
+            assertEquals(true,0!=CommonUtil.compareObjects(val1,val2,false));
+        }
+
     }
 }
