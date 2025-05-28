@@ -26,12 +26,12 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>2.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>script-engine-module</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>2.1-SNAPSHOT</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.tapdata</groupId>
@@ -170,13 +170,13 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>class-supervisor</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>2.1-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>pdk-error-code</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>2.1-SNAPSHOT</version>
         </dependency>
     </dependencies>
 
