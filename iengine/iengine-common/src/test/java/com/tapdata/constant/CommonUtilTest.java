@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -167,6 +168,17 @@ public class CommonUtilTest {
             Object[] val2 = new Object[10];
             val1[0] = "1";
             val2[0] = true;
+            int result = CommonUtil.compareObjects(val1, val2,false);
+            assertEquals(0, result);
+        }
+
+        @DisplayName("test val1,val2 is byte")
+        @Test
+        void test5(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = "test".getBytes(StandardCharsets.UTF_8);
+            val2[0] = "test".getBytes(StandardCharsets.UTF_8);
             int result = CommonUtil.compareObjects(val1, val2,false);
             assertEquals(0, result);
         }
