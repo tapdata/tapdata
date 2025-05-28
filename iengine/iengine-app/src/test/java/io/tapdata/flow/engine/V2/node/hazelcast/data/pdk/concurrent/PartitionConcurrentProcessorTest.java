@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -723,5 +724,42 @@ class PartitionConcurrentProcessorTest {
 
         assertFalse(processor.isRunning());
         assertEquals(tapdataEvents.size(), syncList.size());
+    }
+
+    @Nested
+    class partitionConsumerTest {
+        int finalPartition = 4;
+        LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = new LinkedBlockingQueue<>();
+
+        PartitionConcurrentProcessor processor;
+        @BeforeEach
+        void beforeEach() {
+            processor = spy(new PartitionConcurrentProcessor(2, 500, partitioner, keySelector, eventProcessor, flushOffset, errorHandler, nodeRunning, taskDto));
+            linkedBlockingQueue.add(mock(NormalEvent.class));
+            AtomicBoolean currentRunning = new AtomicBoolean(true);
+            Supplier<Boolean> nodeRunning = new Supplier<Boolean>() {
+                @Override
+                public Boolean get() {
+                    return true;
+                }
+            };
+            PartitionConcurrentProcessor.ErrorHandler<Throwable, String> errorHandler = mock(PartitionConcurrentProcessor.ErrorHandler.class);
+            ReflectionTestUtils.setField(processor, "currentRunning", currentRunning);
+            ReflectionTestUtils.setField(processor, "nodeRunning", nodeRunning);
+        }
+        @Test
+        void partitionConsumerTestWithTapCodeException() throws InterruptedException {
+            doThrow(new TapCodeException("postgres","test permission")).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+            verify(errorHandler, new Times(1)).accept(any(Throwable.class), anyString());
+        }
+
+        @Test
+        void partitionConsumerTestWithException() throws InterruptedException {
+            RuntimeException throwable = new RuntimeException("test");
+            doThrow(throwable).when(processor).processPartitionEvents(anyInt(), anyList(), anyList());
+            processor.partitionConsumer(finalPartition, linkedBlockingQueue);
+            verify(errorHandler, new Times(1)).accept(throwable, "target write record(s) failed");
+        }
     }
 }

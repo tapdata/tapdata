@@ -124,6 +124,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract void flushDatabaseMetadataInstanceLastUpdate(String loadFieldsStatus,String connectionId,Long lastUpdate,UserDetail user);
 
+    public abstract List<Map<String, String>> getDatabaseTypes(UserDetail user);
+
     @Data
     public static class Part {
         private String _id;

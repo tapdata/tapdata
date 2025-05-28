@@ -55,7 +55,6 @@ public class AES256Util {
 			byte[] decoded = cipher.doFinal(toByte(content));
 			result = new String(decoded, CHARSET);
 		} catch (Exception e) {
-			e.printStackTrace();
 			result = content;
 		}
 		return result;

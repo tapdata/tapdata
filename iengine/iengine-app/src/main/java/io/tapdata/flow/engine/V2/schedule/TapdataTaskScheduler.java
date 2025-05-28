@@ -215,7 +215,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Stop task {} failed because of task lock, will retry later", taskId);
 						Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
-								.ifPresent(log -> log.warn("Start task failed because of task lock, will ignored"));
+								.ifPresent(log -> log.warn("Stop task failed because of task lock, will ignored"));
 					}
 				}
 				logger.info("Handled task operation: {}", taskOperation);
@@ -359,7 +359,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
 			} else {
 				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+				CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class)).join();
 			}
 			if (ObsLoggerFactory.getInstance().getObsLogger(taskDto) != null) {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
@@ -605,16 +605,19 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
 			try {
 				logger.info("Call {} api to modify task [{}] status", resource, taskName);
-				TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
-				if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
-					return false;
-				}
-				return true;
+				AtomicBoolean success = new AtomicBoolean(true);
+				CompletableFuture.runAsync(() -> {
+					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+					if (CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())) {
+						success.set(false);
+					}
+				}).join();
+				return success.get();
 			} catch (Exception e) {
 				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 					// 违反TM状态机，不再进行修改任务状态的重试
 					logger.warn("Call api to stop task status to {} failed, will set task to error, message: {}", resource, e.getMessage(), e);
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
+					CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class)).join();
 					return true;
 				} else {
 					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]", resource, taskName, taskId, e);

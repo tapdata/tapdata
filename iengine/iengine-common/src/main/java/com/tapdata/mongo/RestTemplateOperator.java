@@ -18,21 +18,16 @@ import io.tapdata.utils.UnitTestUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.hc.client5.http.classic.HttpClient;
 
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.GzipCompressingEntity;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 
 import org.apache.hc.core5.http.HttpEntityContainer;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
-import org.apache.hc.core5.http.HttpResponseInterceptor;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
-import org.apache.hc.core5.util.Timeout;
 import org.apache.http.client.config.CookieSpecs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,7 +52,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -161,7 +155,7 @@ public class RestTemplateOperator {
 		CloseableHttpClient httpClient = HttpClientBuilder.create()
 				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
 				.disableAutomaticRetries()
-				.addRequestInterceptorFirst((HttpRequestInterceptor) (request,entityDetails, context) -> {
+				.addRequestInterceptorFirst((request, entityDetails, context) -> {
 					if(request instanceof HttpEntityContainer entityContainer && entityDetails != null){
                         if (entityDetails instanceof ByteArrayEntity byteArrayEntity) {
                             long contentLength = byteArrayEntity.getContentLength();
@@ -173,7 +167,6 @@ public class RestTemplateOperator {
 					}
 
 				})
-				.addResponseInterceptorFirst((HttpResponseInterceptor) (response,entityDetails ,context) -> {})
 				.setConnectionManager(poolingHttpClientConnectionManager)
 				.build();
 		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
@@ -307,14 +300,12 @@ public class RestTemplateOperator {
 		return retryWrap(retryInfo -> {
 			String url = retryInfo.getURL(resource);
 			ResponseEntity<ResponseBody> responseEntity;
-			if (StringUtils.isEmpty(cookies)) {
-				responseEntity = restTemplate.postForEntity(url, obj, ResponseBody.class);
-			} else {
-				HttpHeaders headers = new HttpHeaders();
+			HttpHeaders headers = new HttpHeaders();
+			if (StringUtils.isNotBlank(cookies)) {
 				headers.add("Cookie", cookies);
-				HttpEntity<Object> httpEntity = new HttpEntity<>(obj, headers);
-				responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, ResponseBody.class);
 			}
+			HttpEntity<Object> httpEntity = new HttpEntity<>(obj, headers);
+			responseEntity = restTemplate.exchange(url, HttpMethod.POST, httpEntity, ResponseBody.class);
 
 			if (successResp(responseEntity)) {
 				ResponseBody responseBody = responseEntity.getBody();
@@ -733,6 +724,7 @@ public class RestTemplateOperator {
 			} catch (RestDoNotRetryException e) {
 				throw e;
 			} catch (HttpMessageConversionException | InterruptedException | CancellationException ignored  ) {
+				ignored.printStackTrace();
 				break;
 			} catch (Exception e) {
 				boolean changeURL = true;

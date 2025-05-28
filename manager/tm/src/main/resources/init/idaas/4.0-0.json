@@ -1,0 +1,16 @@
+[
+  {
+    "insert": "Settings_Alarm",
+    "documents": [
+      {
+        "type": "TASK",
+        "open": true,
+        "key": "TASK_INSPECT_DIFFERENCE",
+        "sort": 1,
+        "notify": ["SYSTEM"],
+        "interval": 300,
+        "unit": "SECOND"
+      }
+    ]
+  }
+]
