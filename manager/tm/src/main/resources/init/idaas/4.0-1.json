@@ -1,0 +1,128 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {
+          "key": "TASK_STATUS_ERROR"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification:Task error】{taskName}\";",
+            "emailAlarmContent": "Hello There is TapData<br/>   An error occurred in your task. <br/>    Task name: 【{taskName}】<br/>    Error time：{errorTime} <br/>    Error Log: {errorLog}<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "TASK_FULL_COMPLETE"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification:Initial sync complete】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   Your task initial sync has been completed. <br/>    Task name: 【{taskName}】<br/>    Completion time:{completionTime}<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "TASK_INCREMENT_START"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【Tapdata Notification:Start CDC】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   Your task Start CDC.     Task name: 【{taskName}】<br/>    CDC time: {cdcTime}<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "TASK_INCREMENT_DELAY"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification: CDC delay】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   Your task CDC delay. <br/>  Task name: 【{taskName}】<br/>    Delay times: {delayTime}ms<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "TASK_STATUS_STOP"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification:Task stopped】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   Your task has been stopped. <br/>   Task name: 【{taskName}】<br/>    Stop time: {stopTime}<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+
+      {
+        "q": {
+          "key": "DATANODE_AVERAGE_HANDLE_CONSUME"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification: Average processing time exceeds threshold】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   The node current average processing time exceeds threshold.<br/>    Task name: 【{taskName}】<br/>    Node name: {nodeName}<br/>    Current: {currentValue}ms    Threshold: {threshold}ms</br>    Occurred Time: {occurredTime}<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification: Average processing time exceeds threshold】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   The node current average processing time exceeds threshold.<br/>    Task name: 【{taskName}】<br/>    Node name: {nodeName}<br/>    Current: {currentValue}ms    Threshold: {threshold}ms</br>    Occurred Time: {occurredTime}<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "INSPECT_TASK_ERROR"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification:Data verification task error】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   Your verification task [{taskName}] has encountered an error and stopped at {errorTime}. Please pay attention.<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "INSPECT_COUNT_ERROR"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "TapData Notification:The verification results are inconsistent】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   The quick count verification result of your verification task [{taskName}] is inconsistent. The current number of differing rows is: {count}. Please pay attention.<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
+          "key": "INSPECT_VALUE_ERROR"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification:The verification results are inconsistent】{taskName}",
+            "emailAlarmContent": "Hello There is TapData<br/>   The associated field value verification result of your verification task [{taskName}] is inconsistent. The current difference in table data is: {count}. Please pay attention.<br/>This mail was sent by TapData."
+          }
+        },
+        "upsert": true
+      }
+    ]
+  }
+]

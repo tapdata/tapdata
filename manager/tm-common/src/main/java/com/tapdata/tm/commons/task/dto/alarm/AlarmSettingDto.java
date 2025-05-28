@@ -30,4 +30,6 @@ public class AlarmSettingDto extends BaseDto implements Serializable {
     private List<NotifyEnum> notify;
     private int interval;
     private DateUnit unit;
+    private String emailAlarmTitle;
+    private String emailAlarmContent;
 }
