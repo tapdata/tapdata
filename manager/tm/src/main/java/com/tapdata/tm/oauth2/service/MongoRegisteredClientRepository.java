@@ -36,12 +36,15 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
     private static ObjectMapper objectMapper = new ObjectMapper();
 
     private final MongoOperations mongoOperations;
+    private final PasswordEncoder passwordEncoder;
     private String collectionName;
 
-    public MongoRegisteredClientRepository(MongoOperations mongoOperations) {
+    public MongoRegisteredClientRepository(MongoOperations mongoOperations, PasswordEncoder passwordEncoder) {
 
         Assert.notNull(mongoOperations, "MongoOperations can't be empty.");
+        Assert.notNull(passwordEncoder, "PasswordEncoder can't be empty.");
         this.mongoOperations = mongoOperations;
+        this.passwordEncoder = passwordEncoder;
         this.collectionName = "Application";
 
         ClassLoader classLoader = MongoRegisteredClientRepository.class.getClassLoader();
@@ -55,8 +58,8 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
         RegisteredClient registeredClient = RegisteredClient.withId("5c0e750b7a5cd42464a5099d")
                 .clientId("5c0e750b7a5cd42464a5099d")
                 .clientName("Data Explorer")
-                //.clientSecret(passwordEncoder.encode("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))
-                .clientSecret("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
+                // 使用 {noop} 前缀表示不编码的密码，适用于开发环境
+                .clientSecret("{noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
@@ -66,7 +69,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .authorizationGrantType(AuthorizationGrantType.PASSWORD)
                 .redirectUri("http://127.0.0.1")
                 .scope("admin")
-                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(false).build())
                 .tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofDays(14)).
                         refreshTokenTimeToLive(Duration.ofDays(14)).
                         reuseRefreshTokens(true).
