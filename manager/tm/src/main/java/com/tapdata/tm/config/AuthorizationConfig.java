@@ -110,18 +110,24 @@ public class AuthorizationConfig {
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         http.setSharedObject(OAuth2TokenCustomizer.class, new CustomOAuth2TokenCustomizer());
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
+                new OAuth2AuthorizationServerConfigurer();
+        RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
         http
                 //.requestMatcher(endpointsMatcher)
+                .csrf(crsf -> {crsf.ignoringRequestMatchers(endpointsMatcher);})
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         // 暂时只对 /oauth/ path 启用认证
                         .requestMatchers("/oauth/**").authenticated()
                         .anyRequest().permitAll())
-                .formLogin(Customizer.withDefaults())
+                .with(authorizationServerConfigurer, (configurer) -> {})
+                .formLogin(AbstractHttpConfigurer::disable)
                 .headers(headers -> {
                     headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
                 })
                 .csrf(AbstractHttpConfigurer::disable);
+
         return http.build();
     }
 
