@@ -180,7 +180,7 @@ public class CommonUtilTest {
             Object[] val2 = new Object[10];
             val1[0] = "test".getBytes(StandardCharsets.UTF_8);
             val2[0] = "test".getBytes(StandardCharsets.UTF_8);
-            int result = CommonUtil.compareObjects(val1, val2,false);
+            int result = CommonUtil.compareObjects(val1, val2,false,null);
             assertEquals(0, result);
         }
     }
