@@ -328,15 +328,6 @@ public class HazelcastTaskServiceTest {
             assertEquals(HazelcastJavaScriptProcessorNode.class, actual.getClass());
         }
 
-        @Test
-        @SneakyThrows
-        @DisplayName("test createNode method for python processor")
-        void testCreateNode10() {
-            when(node.getType()).thenReturn("python_processor");
-            when(taskDto.getType()).thenReturn("initial_sync");
-            HazelcastBaseNode actual = HazelcastTaskService.createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig);
-            assertEquals(HazelcastPythonProcessNode.class, actual.getClass());
-        }
 
         @Test
         @SneakyThrows

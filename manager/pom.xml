@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.5.2</version>
+		<version>3.4.5</version>
 		<relativePath/>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
@@ -22,20 +22,25 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<java.version>1.8</java.version>
+		<java.version>17</java.version>
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
-		<mongo.version>4.7.0</mongo.version>
-		<tapdata-api.version>1.4.5-SNAPSHOT</tapdata-api.version>
-		<modules-api.version>1.4-SNAPSHOT</modules-api.version>
+		<mongo.version>5.2.1</mongo.version>
+		<tapdata-api.version>2.0.0-SNAPSHOT</tapdata-api.version>
+		<modules-api.version>2.0-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
+		<tapdata-pdk-runner.version>2.0-SNAPSHOT</tapdata-pdk-runner.version>
+		<commons-net.version>3.11.1</commons-net.version>
+		<gson.version>2.12.1</gson.version>
+		<netty.version>4.1.119.Final</netty.version>
+		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
 	</properties>
 
 	<modules>
@@ -45,6 +50,7 @@
 		<module>code-gen</module>
 		<module>tm-sdk</module>
 		<module>tm</module>
+		<module>mcp-tap-server</module>
 	</modules>
 
 	<profiles>
@@ -62,16 +68,16 @@
 				<tm.oss.module>../../tapdata-enterprise/tm-enterprise</tm.oss.module>
 			</properties>
 		</profile>
-		<profile>
-			<id>cloud</id>
-			<properties>
-				<tcm.artifactId>tcm</tcm.artifactId>
-				<tcm.module>../../tapdata-cloud/drs/tcm</tcm.module>
-			</properties>
-			<modules>
-				<module>${tcm.module}</module>
-			</modules>
-		</profile>
+<!--		<profile>-->
+<!--			<id>cloud</id>-->
+<!--			<properties>-->
+<!--				<tcm.artifactId>tcm</tcm.artifactId>-->
+<!--				<tcm.module>../../tapdata-cloud/drs/tcm</tcm.module>-->
+<!--			</properties>-->
+<!--			<modules>-->
+<!--				<module>${tcm.module}</module>-->
+<!--			</modules>-->
+<!--		</profile>-->
 	</profiles>
 
 	<dependencyManagement>
@@ -131,6 +137,16 @@
 				<artifactId>mongodb-storage-module</artifactId>
 				<version>${mongodb-storage-module.version}</version>
 			</dependency>
+			<dependency>
+				<groupId>commons-net</groupId>
+				<artifactId>commons-net</artifactId>
+				<version>${commons-net.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-collections4</artifactId>
+				<version>${commons-collections4.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<repositories>
@@ -164,9 +180,62 @@
 		<pluginManagement>
 			<plugins>
 				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>
+					<version>3.0.0</version>
+					<configuration>
+						<testFailureIgnore>true</testFailureIgnore>
+						<argLine>
+							--add-opens=java.base/java.lang=ALL-UNNAMED
+							--add-opens=java.base/java.util=ALL-UNNAMED
+							--add-opens=java.base/java.security=ALL-UNNAMED
+							--add-opens=java.base/sun.security.rsa=ALL-UNNAMED
+							--add-opens=java.base/sun.security.x509=ALL-UNNAMED
+							--add-opens=java.base/sun.security.util=ALL-UNNAMED
+							--add-opens=java.xml/com.sun.org.apache.xerces.internal.jaxp.datatype=ALL-UNNAMED
+							-XX:+UnlockExperimentalVMOptions --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED
+							--add-exports=java.base/sun.nio.ch=ALL-UNNAMED
+							--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED
+							--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
+							--add-opens=jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
+							--add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+							--add-opens=java.base/java.io=ALL-UNNAMED
+							--add-opens=java.base/java.util=ALL-UNNAMED
+							--add-modules=java.se
+							--add-opens=java.management/sun.management=ALL-UNNAMED
+							--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+							--add-opens=java.base/jdk.internal.loader=ALL-UNNAMED
+							${surefireArgLine}
+						</argLine>
+					</configuration>
+				</plugin>
+				<plugin>
 					<groupId>org.jacoco</groupId>
 					<artifactId>jacoco-maven-plugin</artifactId>
-					<version>0.8.6</version>
+					<version>0.8.12</version>
+					<executions>
+						<!--first execution : for preparing JaCoCo runtime agent-->
+						<execution>
+							<id>prepare-agent</id>
+							<goals>
+								<goal>prepare-agent</goal>
+							</goals>
+							<configuration>
+								<propertyName>surefireArgLine</propertyName>
+							</configuration>
+						</execution>
+						<!--second execution : for creating code coverage reports-->
+						<execution>
+							<id>report</id>
+							<phase>test</phase>
+							<goals>
+								<goal>report</goal>
+							</goals>
+							<configuration>
+								<formats>XML</formats>
+							</configuration>
+						</execution>
+					</executions>
 				</plugin>
 			</plugins>
 		</pluginManagement>

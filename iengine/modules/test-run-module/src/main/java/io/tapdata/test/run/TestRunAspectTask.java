@@ -24,8 +24,8 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.simplify.pretty.ClassHandlersV2;
 import io.tapdata.exception.ExceptionUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

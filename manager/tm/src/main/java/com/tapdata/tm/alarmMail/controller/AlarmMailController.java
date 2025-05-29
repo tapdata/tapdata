@@ -9,7 +9,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.config.security.UserDetail;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;

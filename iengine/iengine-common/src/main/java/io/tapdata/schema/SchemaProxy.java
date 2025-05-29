@@ -8,7 +8,7 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.mongo.ClientMongoOperator;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;

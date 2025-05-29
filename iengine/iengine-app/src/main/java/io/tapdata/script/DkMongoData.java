@@ -1,15 +1,16 @@
 package io.tapdata.script;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.client.MongoClient;
+import com.mongodb.ConnectionString;
 import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.InsertOneModel;
 import com.mongodb.client.model.WriteModel;
 import com.tapdata.constant.JSONUtil;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -129,11 +130,11 @@ public class DkMongoData {
 	private static boolean insertDataByList() {
 		if (CollectionUtils.isNotEmpty(list)) {
 
-			MongoClientURI uri = new MongoClientURI(mongoUri);
+			ConnectionString uri = new ConnectionString(mongoUri);
 			String database = uri.getDatabase();
 
 			try (
-					MongoClient mongoClient = new MongoClient(uri)
+					MongoClient mongoClient = MongoClients.create(uri)
 			) {
 				int index = 0;
 				for (Map<String, Object> collectionMap : list) {

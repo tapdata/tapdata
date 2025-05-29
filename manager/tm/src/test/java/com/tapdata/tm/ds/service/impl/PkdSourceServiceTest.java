@@ -13,7 +13,7 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.MessageUtil;
 import lombok.SneakyThrows;
-import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload2.core.FileItem;
 import org.apache.commons.io.FileUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -26,9 +26,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.multipart.commons.CommonsMultipartFile;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.io.File;
 import java.io.InputStream;
 import java.util.*;
@@ -55,8 +56,8 @@ public class PkdSourceServiceTest {
         @Test
         @SneakyThrows
         void testUploadPdk(){
-            CommonsMultipartFile[] files = new CommonsMultipartFile[1];
-            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            MultipartFile[] files = new MultipartFile[1];
+            MultipartFile file = mock(MultipartFile.class);
             files[0] = file;
             List<PdkSourceDto > pdkSourceDtos = new ArrayList<>();
             PdkSourceDto pdkSourceDto = mock(PdkSourceDto.class);
@@ -66,7 +67,6 @@ public class PkdSourceServiceTest {
             FileItem item = mock(FileItem.class);
             when(pdkSourceDto.getVersion()).thenReturn("1.0-SNAPSHOT");
             when(file.getOriginalFilename()).thenReturn("a.jar");
-            when(file.getFileItem()).thenReturn(item);
             when(file.getName()).thenReturn("a.jar");
             InputStream ins = mock(InputStream.class);
             when(file.getInputStream()).thenReturn(ins);
@@ -149,7 +149,7 @@ public class PkdSourceServiceTest {
 
     @Nested
     class UploadDocsTest {
-        Map<String, CommonsMultipartFile> docMap;
+        Map<String, MultipartFile> docMap;
         LinkedHashMap<String, Object> messages;
         Map<String, Object> fileInfo;
         Map<String, Object> oemConfig;
@@ -167,7 +167,7 @@ public class PkdSourceServiceTest {
             String filePath = "docs/test_en_US.md";
 
             // mock data
-            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            MultipartFile file = mock(MultipartFile.class);
             docMap.put(filePath, file);
             messages.put("zh_CN", null);
             messages.put("en_US", new HashMap<String, String>() {{
@@ -193,7 +193,7 @@ public class PkdSourceServiceTest {
             String filePath = "docs/test_en_US.md";
 
             // mock data
-            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            MultipartFile file = mock(MultipartFile.class);
             when(file.getOriginalFilename()).thenReturn(filePath);
             docMap.put(filePath, file);
             messages.put("default", "en_US");
@@ -212,7 +212,7 @@ public class PkdSourceServiceTest {
             String filePath = "docs/test_en_US.md";
 
             // mock data
-            CommonsMultipartFile file = mock(CommonsMultipartFile.class);
+            MultipartFile file = mock(MultipartFile.class);
             when(file.getOriginalFilename()).thenReturn(filePath);
             docMap.put(filePath, file);
             messages = new LinkedHashMap<String, Object>(){{

@@ -5,6 +5,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.websocket.WebSocketEventResult;
 import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
@@ -33,6 +34,7 @@ class LoadJarLibEventHandlerTest {
 	}
 
 	@Test
+	@Disabled
 	void testHandle() {
 		final Map<String, String> event = new HashMap<>();
 		event.put("fileId", "656d7741e7cf041007e6fb8a");

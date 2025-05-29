@@ -7,6 +7,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.SpringApplication;
@@ -15,9 +16,6 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;

@@ -1,6 +1,6 @@
 package com.tapdata.constant;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
@@ -11,8 +11,8 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.Mapping;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.mongo.ClientMongoOperator;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,9 +41,9 @@ public class MongodbLookupUtil {
 			throw new IllegalArgumentException(validate);
 		}
 
-		String mongodbUri = MongodbUtil.getSimpleMongodbUri(targetMongoOperator.getMongoClientURI());
+		String mongodbUri = MongodbUtil.getSimpleMongodbUri(targetMongoOperator.getConnectionString());
 		if (StringUtils.isBlank(mongodbUri)) {
-			throw new Exception(String.format("Cannot get mongodb uri from target connection, connection uri: %s", targetMongoOperator.getMongoClientURI()));
+			throw new Exception(String.format("Cannot get mongodb uri from target connection, connection uri: %s", targetMongoOperator.getConnectionString()));
 		}
 
 		// look up oneone delete documents

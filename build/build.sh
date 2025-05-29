@@ -140,6 +140,18 @@ make_docker() {
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh .
   cp -r $TAPDATA_DIR/build/image/bin .
   cp -r $TAPDATA_DIR/build/image/supervisor .
+  
+  # download and prepare async-profiler 
+  mkdir -p ./components/
+  if [[ $PLATFORM == "x86_64" ]]; then
+    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-x64.tar.gz ./async-profiler.tar.gz
+  else
+    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-arm64.tar.gz ./async-profiler.tar.gz
+  fi
+  tar -xzf async-profiler.tar.gz -C ./components/
+  mv ./components/async-profiler-* ./components/async-profiler
+  rm -f ./async-profiler.tar.gz
+  
   # docker build -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME .
   docker buildx create --use --name multi-platform --platform linux/amd64,linux/arm64
   docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
@@ -152,9 +164,9 @@ make_tar() {
   rsync -a $TAPDATA_DIR/build/image/supervisor ./
   # download async-profile
   if [[ $PLATFORM == "x86_64" ]]; then
-    wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-x64.tar.gz -O async-profiler.tar.gz
+    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-x64.tar.gz ./async-profiler.tar.gz
   else
-    wget https://github.com/async-profiler/async-profiler/releases/download/v3.0/async-profiler-3.0-linux-arm64.tar.gz -O async-profiler.tar.gz
+    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@192.168.1.184:873/data/enterprise-artifact/tools/async-profiler-3.0-linux-arm64.tar.gz ./async-profiler.tar.gz
   fi
   tar -xzf async-profiler.tar.gz -C ./components/
   mv ./components/async-profiler-* ./components/async-profiler

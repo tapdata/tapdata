@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -34,7 +35,7 @@ import java.util.*;
 public class ClusterOperationService extends BaseService<ClusterOperationDto, ClusterOperationEntity, ObjectId, ClusterOperationRepository> {
 /*    @Autowired
     WorkerService workerService;*/
-
+    @Lazy
     @Autowired
     WebSocketClusterServer webSocketClusterServer;
 

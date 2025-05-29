@@ -162,6 +162,7 @@ import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 
 import io.tapdata.entity.utils.InstanceFactory;
@@ -198,9 +199,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.AsyncContext;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.text.MessageFormat;
@@ -299,6 +300,7 @@ public class TaskServiceImpl extends TaskService{
     public static final String COLUMN = "column";
     public static final String STOPED_DATE = "stopedDate";
     public static final String TARGET = "target";
+    public static final String ENCODE_PREFIX = "_tap_encode_";
 
     @NotNull
     private static String getTableName() {
@@ -729,7 +731,10 @@ public class TaskServiceImpl extends TaskService{
                 throw new BizException("Task.nodeRefresh", e);
             }
             String batchOffset = (String) resultMap.get("batchOffset");
-            byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset);
+            if (batchOffset.startsWith(ENCODE_PREFIX)) {
+                batchOffset = StringUtils.removeStart(batchOffset, ENCODE_PREFIX);
+            }
+            byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
             Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
             Set<String> tables = tablesMap.keySet();
             LinkedList<DatabaseNode> newSourceNode = newDag.getSourceNode();
@@ -3046,6 +3051,36 @@ public class TaskServiceImpl extends TaskService{
         return Base64.getDecoder().decode(map.get("content").toString());
     }
 
+    public <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable {
+        String callId = UUID.randomUUID().toString().replace("-", "");
+        ServiceCaller serviceCaller = ServiceCaller.create(callId).className(className).method(method);
+        Optional.ofNullable(engineId).ifPresent(id -> serviceCaller.subscribeIds("processId_" + id));
+        Optional.ofNullable(args).ifPresent(serviceCaller::args);
+        Optional.ofNullable(returnClz).ifPresent(clz -> serviceCaller.setReturnClass(clz.getName()));
+
+        long beginTime = System.currentTimeMillis();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<T> result = new AtomicReference<>(null);
+        AtomicReference<Throwable> error = new AtomicReference<>(null);
+        EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class, true);
+        if (null == engineMessageExecutionService) {
+            throw new RuntimeException("not found engine execution service instance");
+        }
+        engineMessageExecutionService.call(serviceCaller, (data, ex) -> {
+            result.set((T) data);
+            error.set(ex);
+            latch.countDown();
+        });
+        if (!latch.await(30, TimeUnit.SECONDS)) {
+            throw new TimeoutException("call " + className + "." + method + " over " + (System.currentTimeMillis() - beginTime) + "ms");
+        }
+
+        if (null == error.get()) {
+            return result.get();
+        }
+        throw error.get();
+    }
+
 
     public ResponseEntity<InputStreamResource> analyzeTask(HttpServletRequest request, HttpServletResponse response, String taskId, UserDetail user) throws IOException {
         String tarFileName = "analyze-" + taskId + "-" + System.currentTimeMillis() + ".tar";
@@ -3780,8 +3815,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public List<TaskDto> findAllTasksByIds(List<String> list) {
-        List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
-
+        List<ObjectId> ids = list.stream().filter(Objects::nonNull).map(ObjectId::new).collect(Collectors.toList());
         Query query = new Query(Criteria.where("_id").in(ids));
         List<TaskEntity> entityList = findAllEntity(query);
         return CglibUtil.copyList(entityList, TaskDto::new);
@@ -4138,7 +4172,10 @@ public class TaskServiceImpl extends TaskService{
                 }
                 String batchOffset = (String) resultMap.get("batchOffset");
                 if (StringUtils.isBlank(batchOffset)) return;
-                byte[] bytes = org.apache.commons.net.util.Base64.decodeBase64(batchOffset);
+                if (batchOffset.startsWith(ENCODE_PREFIX)) {
+                    batchOffset = StringUtils.removeStart(batchOffset, ENCODE_PREFIX);
+                }
+                byte[] bytes = java.util.Base64.getDecoder().decode(batchOffset.replace("\r\n", ""));
                 Map<String, HashMap> tablesMap = (Map) InstanceFactory.instance(ObjectSerializable.class).toObject(bytes);
                 Iterator<Map.Entry<String, HashMap>> iterator = tablesMap.entrySet().iterator();
                 while (iterator.hasNext()) {
@@ -4791,6 +4828,7 @@ public class TaskServiceImpl extends TaskService{
         criteria.and(DAG_NODES_CONNECTION_ID).is(connectionId).and(IS_DELETED).ne(true);
         if (StringUtils.isNotBlank(tableName)) {
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.tableNames").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName)
             );
         }

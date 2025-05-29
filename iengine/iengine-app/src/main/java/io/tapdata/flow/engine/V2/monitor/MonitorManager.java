@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.monitor;
 
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.Closeable;
 import java.io.IOException;

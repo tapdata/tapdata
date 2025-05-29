@@ -6,15 +6,15 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.foreignKeyConstraint.dto.ForeignKeyConstraintDto;
 import com.tapdata.tm.foreignKeyConstraint.entity.ForeignKeyConstraintEntity;
 import com.tapdata.tm.foreignKeyConstraint.repository.ForeignKeyConstraintRepository;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-import javax.servlet.http.HttpServletResponse;
 import java.io.OutputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;

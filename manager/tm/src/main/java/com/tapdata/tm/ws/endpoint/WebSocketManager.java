@@ -106,7 +106,7 @@ public class WebSocketManager {
 	public static void removeSession(String id){
 		if (StringUtils.isNotBlank(id)){
 			wsCache.remove(id);
-			LogsHandler.removeSession(id);
+//			LogsHandler.removeSession(id);
 			WatchHandler.removeSession(id);
 			NotificationHandler.removeSession(id);
 			//DataFlowInsightHandler.removeSession(id);

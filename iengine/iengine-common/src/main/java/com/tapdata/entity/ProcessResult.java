@@ -2,7 +2,7 @@ package com.tapdata.entity;
 
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.WriteModel;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;

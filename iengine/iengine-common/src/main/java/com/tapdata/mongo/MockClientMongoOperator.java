@@ -1,7 +1,7 @@
 package com.tapdata.mongo;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.client.MongoClient;
+import com.mongodb.ConnectionString;
 import com.mongodb.client.gridfs.GridFSBucket;
 import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.IndexModel;
@@ -37,7 +37,7 @@ public class MockClientMongoOperator extends ClientMongoOperator {
 		super(template, mongoClient);
 	}
 
-	public MockClientMongoOperator(MongoTemplate mongoTemplate, MongoClient mongoClient, MongoClientURI mongoClientURI) {
+	public MockClientMongoOperator(MongoTemplate mongoTemplate, MongoClient mongoClient, ConnectionString mongoClientURI) {
 		super(mongoTemplate, mongoClient, mongoClientURI);
 	}
 
@@ -206,7 +206,7 @@ public class MockClientMongoOperator extends ClientMongoOperator {
 	}
 
 	@Override
-	public MongoClientURI getMongoClientURI() {
+	public ConnectionString getConnectionString() {
 		throw new UnsupportedOperationException();
 	}
 

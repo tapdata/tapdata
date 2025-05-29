@@ -4,11 +4,9 @@ import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.PdkSourceDto;
 import com.tapdata.tm.ds.dto.PdkVersionCheckDto;
@@ -21,7 +19,6 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,9 +27,9 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.commons.CommonsMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -57,20 +54,20 @@ public class PkdSourceService {
 	private PdkSourceRepository repository;
 
 	@SuppressWarnings(value = "unchecked")
-	public void uploadPdk(CommonsMultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
-		Map<String, CommonsMultipartFile> iconMap = new HashMap<>();
-		Map<String, CommonsMultipartFile> docMap = new HashMap<>();
-		CommonsMultipartFile jarFile = null;
-		for (CommonsMultipartFile multipartFile : files) {
+	public void uploadPdk(MultipartFile[] files, List<PdkSourceDto> pdkSourceDtos, boolean latest, UserDetail user) {
+		Map<String, MultipartFile> iconMap = new HashMap<>();
+		Map<String, MultipartFile> docMap = new HashMap<>();
+		MultipartFile jarFile = null;
+		for (MultipartFile multipartFile : files) {
 			if (log.isDebugEnabled()) {
 				log.debug("multipartFile name: {}, file size: {}", multipartFile.getOriginalFilename(), multipartFile.getSize());
 			}
 			if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().endsWith(".jar")) {
 				jarFile = multipartFile;
 			} else if (multipartFile.getOriginalFilename() != null && multipartFile.getOriginalFilename().endsWith(".md")) {
-				docMap.put(multipartFile.getFileItem().getName(), multipartFile);
+				docMap.put(multipartFile.getOriginalFilename(), multipartFile);
 			} else {
-				iconMap.put(multipartFile.getFileItem().getName(), multipartFile);
+				iconMap.put(multipartFile.getOriginalFilename(), multipartFile);
 			}
 		}
 
@@ -152,7 +149,7 @@ public class PkdSourceService {
 				jarObjectId = fileService.storeFile(jarFile.getInputStream(), jarFile.getOriginalFilename(), null, fileInfo);
 
 				// 2. upload the associated icon
-				CommonsMultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
+				MultipartFile icon = iconMap.getOrDefault(pdkSourceDto.getIcon(), null);
 				if (icon != null) {
 					iconObjectId = fileService.storeFile(icon.getInputStream(), icon.getOriginalFilename(), null, fileInfo);
 				}
@@ -303,7 +300,7 @@ public class PkdSourceService {
 		fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
 	}
 
-    protected void uploadDocs(Map<String, CommonsMultipartFile> docMap, LinkedHashMap<String, Object> messages, Map<String, Object> fileInfo, Map<String, Object> oemConfig) throws IOException {
+    protected void uploadDocs(Map<String, MultipartFile> docMap, LinkedHashMap<String, Object> messages, Map<String, Object> fileInfo, Map<String, Object> oemConfig) throws IOException {
         if (docMap == null || docMap.isEmpty() || null == messages) return;
 
         Map<String, ObjectId> deduplicatioMap = new HashMap<>();
@@ -321,7 +318,7 @@ public class PkdSourceService {
                     langEntry.setValue(deduplicatioMap.get(path));
                     continue;
                 }
-                CommonsMultipartFile doc = docMap.getOrDefault(path, null);
+				MultipartFile doc = docMap.getOrDefault(path, null);
 
                 ObjectId docId = fileService.storeFile(
                     OEMReplaceUtil.replace(doc.getInputStream(), oemConfig),
@@ -393,7 +390,7 @@ public class PkdSourceService {
 
 			String finalTcmReleaseTemp = tcmReleaseTemp;
 			list.forEach(info -> {
-				PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).build();
+				PdkVersionCheckDto checkDto = PdkVersionCheckDto.builder().pdkId(info.getPdkId()).pdkVersion(info.getPdkAPIVersion()).pdkHash(info.getPdkHash()).isLatest(info.isLatest()).build();
 
 				Date buildDate;
 				Map<String, String> manifest = info.getManifest();

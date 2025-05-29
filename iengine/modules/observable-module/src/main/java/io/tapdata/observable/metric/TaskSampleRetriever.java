@@ -3,6 +3,8 @@ package io.tapdata.observable.metric;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.RestTemplateOperator;
 import lombok.Data;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Map;
 public class TaskSampleRetriever {
 	private static final int MAX_RETRIEVE_ATTEMPT = 3;
 	private static final TaskSampleRetriever INSTANCE = new TaskSampleRetriever();
+	private final Logger logger = LogManager.getLogger(TaskSampleRetriever.class);
 
 	public static TaskSampleRetriever getInstance() {
 		return INSTANCE;
@@ -51,7 +54,12 @@ public class TaskSampleRetriever {
 	}
 
 	public Map<String, Number> retrieve(long startTime, Map<String, String> tags, List<String> fields) {
-		SampleResponse response = retrieveRaw(startTime, tags, fields);
+		SampleResponse response = null;
+		try {
+			response = retrieveRaw(startTime, tags, fields);
+		} catch (Exception e) {
+			logger.warn("Failed to retrieve old metric data with tags {} and fields {} with error {}", tags, fields, e.getMessage());
+		}
 
 		Map<String, Number> samples = new HashMap<>();
 		if (response != null && response.getSamples() != null) {
@@ -59,7 +67,12 @@ public class TaskSampleRetriever {
 				for (Map.Entry<String, Object> entry : item.entrySet()) {
 					String key = entry.getKey();
 					if (!key.equals("tags")) {
-						samples.put(key, (Number) entry.getValue());
+						if(entry.getValue() instanceof String && ((String) entry.getValue()).equals("NaN")){
+							samples.put(key, 0.0);
+						}else{
+							samples.put(key, (Number) entry.getValue());
+						}
+
 					}
 				}
 			}

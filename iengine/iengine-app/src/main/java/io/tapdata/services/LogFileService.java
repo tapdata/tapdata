@@ -1,7 +1,5 @@
 package io.tapdata.services;
 
-import cn.hutool.core.util.ZipUtil;
-import cn.hutool.extra.compress.CompressUtil;
 import io.tapdata.modules.api.net.data.FileMeta;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.metric.py.ZipUtils;

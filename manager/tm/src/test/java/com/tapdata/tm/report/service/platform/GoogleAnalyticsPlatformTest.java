@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
@@ -57,9 +59,9 @@ public class GoogleAnalyticsPlatformTest {
             Logger logger = mock(Logger.class);
             Field log = GoogleAnalyticsPlatform.class.getDeclaredField("log");
             log.setAccessible(true);
-            Field modifiers = Field.class.getDeclaredField("modifiers");
-            modifiers.setAccessible(true);
-            modifiers.setInt(log, log.getModifiers() & ~Modifier.FINAL);
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(Field.class, MethodHandles.lookup());
+            VarHandle modifiersVarHandle = lookup.findVarHandle(Field.class, "modifiers", int.class);
+            modifiersVarHandle.set(log, log.getModifiers() & ~Modifier.FINAL);
             log.set(platform, logger);
             when(client.execute(any(HttpPost.class))).thenThrow(IOException.class);
             platform.sendRequest("test_event","{\"test_param\":\"111\"}");

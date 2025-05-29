@@ -3,7 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.RandomUtils;
 
 import java.util.ArrayList;

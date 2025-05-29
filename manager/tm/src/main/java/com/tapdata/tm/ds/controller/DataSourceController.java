@@ -45,7 +45,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -162,7 +162,7 @@ public class DataSourceController extends BaseController {
 
         UserDetail userDetail;
         if (filter.getWhere().containsKey("_id") && filter.getWhere().get("_id") instanceof String) {
-            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(filter.getWhere().get("_id").toString()));
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(filter.getWhere().get("_id").toString()), "userId");
             Assert.notNull(connectionDto, "connection is null");
             userDetail = userService.loadUserById(MongoUtils.toObjectId(connectionDto.getUserId()));
         } else {
@@ -611,7 +611,12 @@ public class DataSourceController extends BaseController {
     public ResponseMessage<ConnectionStats> stats() {
 
         return success(dataSourceService.stats(getLoginUser()));
+    }
 
+    @Operation(summary = "Get database types and PDK hashes")
+    @GetMapping("/databaseTypes")
+    public ResponseMessage<List<Map<String, String>>> getDatabaseTypes() {
+        return success(dataSourceService.getDatabaseTypes(getLoginUser()));
     }
 
     @Operation(summary = "加载部分表")

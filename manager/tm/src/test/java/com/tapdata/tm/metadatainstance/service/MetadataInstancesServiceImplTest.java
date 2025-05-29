@@ -1192,7 +1192,7 @@ public class MetadataInstancesServiceImplTest {
 		void test1() {
 			sourceId = "111";
 			tableNames = new ArrayList<>();
-			fields = null;
+			fields = "test";
 			metadataInstancesService.findSourceSchemaBySourceId(sourceId, tableNames, userDetail, fields);
 			verify(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 		}
@@ -1486,6 +1486,84 @@ public class MetadataInstancesServiceImplTest {
 			metadataInstancesDtos.add(meta);
 			doReturn(metadataInstancesDtos).when(metadataInstancesService).findAllDto(any(Query.class), any(UserDetail.class));
 			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(), any(UserDetail.class), anyString());
+		}
+
+		@Test
+		@DisplayName("test bulkSave method need to remove set id when metadata instance already exists and set is null")
+		void test5() {
+			uuid = "111";
+			taskId = "222";
+			saveHistory = true;
+			insertMetaDataDtos = new ArrayList<>();
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName_222");
+			metadataInstancesDto.setLastUpdate(1713846744L);
+			metadataInstancesDto.setSource(mock(SourceDto.class));
+			insertMetaDataDtos.add(metadataInstancesDto);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setId(mock(ObjectId.class));
+			meta.setTransformUuid("333");
+			Update update = mock(Update.class);
+			doReturn(update).when(metadataInstancesRepository).buildUpdateSet(any(MetadataInstancesEntity.class), any(UserDetail.class));
+			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
+			doReturn(Arrays.asList(meta)).when(metadataInstancesRepository).findAll(any(Query.class));
+			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(update, new Times(2)).getUpdateObject();
+			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(), any(UserDetail.class), anyString());
+		}
+
+		@Test
+		@DisplayName("test bulkSave method need to remove set id when metadata instance already exists and set is not null")
+		void test6() {
+			uuid = "111";
+			taskId = "222";
+			saveHistory = true;
+			insertMetaDataDtos = new ArrayList<>();
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName_222");
+			metadataInstancesDto.setLastUpdate(1713846744L);
+			metadataInstancesDto.setSource(mock(SourceDto.class));
+			insertMetaDataDtos.add(metadataInstancesDto);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setId(mock(ObjectId.class));
+			meta.setTransformUuid("333");
+			Update update = mock(Update.class);
+			doReturn(update).when(metadataInstancesRepository).buildUpdateSet(any(MetadataInstancesEntity.class), any(UserDetail.class));
+			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
+
+			doReturn(Arrays.asList(meta)).when(metadataInstancesRepository).findAll(any(Query.class));
+			Document set = mock(Document.class);
+			when(update.getUpdateObject()).thenReturn(set);
+			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(set, new Times(2)).get("$set");
+			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(), any(UserDetail.class), anyString());
+		}
+
+		@Test
+		@DisplayName("test bulkSave method need to remove set id when metadata instance not exists")
+		void test7() {
+			uuid = "111";
+			taskId = "222";
+			saveHistory = true;
+			insertMetaDataDtos = new ArrayList<>();
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setQualifiedName("qualifiedName_222");
+			metadataInstancesDto.setLastUpdate(1713846744L);
+			metadataInstancesDto.setSource(mock(SourceDto.class));
+			insertMetaDataDtos.add(metadataInstancesDto);
+			MetadataInstancesDto meta = new MetadataInstancesDto();
+			meta.setId(mock(ObjectId.class));
+			meta.setTransformUuid("333");
+			Update update = mock(Update.class);
+			doReturn(update).when(metadataInstancesRepository).buildUpdateSet(any(MetadataInstancesEntity.class), any(UserDetail.class));
+			doReturn(meta).when(metadataInstancesService).findOne(any(Query.class));
+			Document set = mock(Document.class);
+
+			doReturn(new ArrayList()).when(metadataInstancesRepository).findAll(any(Query.class));
+			when(update.getUpdateObject()).thenReturn(set);
+			metadataInstancesService.bulkSave(insertMetaDataDtos, updateMetaMap, userDetail, saveHistory, taskId, uuid);
+			verify(set, new Times(0)).get("$set");
 			verify(metadataInstancesService).qualifiedNameLinkLogic(anyList(), any(UserDetail.class), anyString());
 		}
 	}
@@ -3062,7 +3140,7 @@ public class MetadataInstancesServiceImplTest {
 					DAG dag = getDag();
 
 
-					Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is("65ae2d427f580c320ec3bc65");
+					Criteria criteria = Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is("65ae2d427f580c320ec3bc65").and("is_deleted").ne(true);
 					Query queryHeartBeat = new Query(criteria);
 					queryHeartBeat.fields().include("_id", "dag");
 					heartbeatTaskDto.setDag(dag);

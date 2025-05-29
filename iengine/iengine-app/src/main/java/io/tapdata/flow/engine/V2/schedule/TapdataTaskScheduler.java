@@ -29,12 +29,14 @@ import io.tapdata.flow.engine.V2.util.SingleLockWithKey;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -42,9 +44,11 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -78,6 +82,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private TaskService<TaskDto> hazelcastTaskService;
 	@Autowired
 	private MessageDao messageDao;
+	@Qualifier("taskControlScheduler")
 	@Autowired
 	private TaskScheduler taskScheduler;
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
@@ -92,6 +97,11 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final Map<String, Long> taskRetryTimeMap = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
+
+	@Bean(name = "taskControlScheduler")
+	public TaskScheduler taskControlScheduler() {
+		return new ThreadPoolTaskScheduler();
+	}
 
 	@PostConstruct
 	public void init() {
@@ -205,7 +215,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					if (!taskLock.tryRun(taskId, () -> stopTask(taskId), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Stop task {} failed because of task lock, will retry later", taskId);
 						Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
-								.ifPresent(log -> log.warn("Start task failed because of task lock, will ignored"));
+								.ifPresent(log -> log.warn("Stop task failed because of task lock, will ignored"));
 					}
 				}
 				logger.info("Handled task operation: {}", taskOperation);
@@ -349,7 +359,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				logger.warn("Start task {} failed because TM unavailable: {}", taskDto.getName(), e.getMessage());
 			} else {
 				logger.error("Start task {} failed {}", taskDto.getName(), e.getMessage(), e);
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+				CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class)).join();
 			}
 			if (ObsLoggerFactory.getInstance().getObsLogger(taskDto) != null) {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
@@ -595,16 +605,19 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			String resource = ConnectorConstant.TASK_COLLECTION + "/" + stopTaskResource.getResource();
 			try {
 				logger.info("Call {} api to modify task [{}] status", resource, taskName);
-				TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
-				if(CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())){
-					return false;
-				}
-				return true;
+				AtomicBoolean success = new AtomicBoolean(true);
+				CompletableFuture.runAsync(() -> {
+					TaskOpRespDto taskOpRespDto = clientMongoOperator.updateById(new Update(), resource, taskId, TaskOpRespDto.class);
+					if (CollectionUtils.isEmpty(taskOpRespDto.getSuccessIds())) {
+						success.set(false);
+					}
+				}).join();
+				return success.get();
 			} catch (Exception e) {
 				if (StringUtils.isNotBlank(e.getMessage()) && e.getMessage().contains("Transition.Not.Supported")) {
 					// 违反TM状态机，不再进行修改任务状态的重试
 					logger.warn("Call api to stop task status to {} failed, will set task to error, message: {}", resource, e.getMessage(), e);
-					clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class);
+					CompletableFuture.runAsync(() -> clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/" + StopTaskResource.RUN_ERROR.getResource(), taskId, TaskDto.class)).join();
 					return true;
 				} else {
 					logger.warn("Call stop task api failed, api uri: {}, task: {}[{}]", resource, taskName, taskId, e);

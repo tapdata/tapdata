@@ -3,7 +3,7 @@ package com.tapdata.cache;
 import com.tapdata.constant.DataFlowStageUtil;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;

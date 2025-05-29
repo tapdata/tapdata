@@ -293,10 +293,17 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			} else {
 				connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_LOG_ON_NON_EXISTS);
 			}
+			DmlPolicyEnum deletePolicy = null == dmlPolicy.getDeletePolicy() ? DmlPolicyEnum.ignore_on_nonexists : dmlPolicy.getDeletePolicy();
+			if (deletePolicy == DmlPolicyEnum.ignore_on_nonexists) {
+				connectorCapabilities.alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
+			} else {
+				connectorCapabilities.alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_LOG_ON_NON_EXISTS);
+			}
 		} else {
 			// Default
 			connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
 			connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			connectorCapabilities.alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
 		}
 	}
 
@@ -403,7 +410,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (tapEvent instanceof TapRecordEvent) {
 			transformToTapValueResult = TransformToTapValueResult.create();
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
-			String tableName = ShareCdcUtil.getTapRecordEventTableName(tapRecordEvent);
+			String tableName = ShareCdcUtil.getTapRecordEventTableNameV2(tapRecordEvent,processorBaseContext.getTaskDto().getSyncType());
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			transformToTapValueResult.afterTransformedToTapValueFieldNames(toTapValue(after, tableName, codecsFilterManager));
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);

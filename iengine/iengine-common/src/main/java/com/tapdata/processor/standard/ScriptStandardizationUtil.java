@@ -15,7 +15,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.utils.AppType;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 
@@ -150,7 +150,7 @@ public class ScriptStandardizationUtil {
         }
         buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
         buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-        buildInMethod.append("var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
+        buildInMethod.append("var httpUtil = Java.type(\"com.tapdata.http.HttpUtil\");\n");
         buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
         buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
 

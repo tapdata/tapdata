@@ -6,8 +6,10 @@ package com.tapdata.tm.commons.util;
  */
 public enum NoPrimaryKeyTableSelectType {
 	HasKeys, // 有主键
-	NoKeys, // 无主键
+	NoKeys, // 无主键无索引
 	All, // 全部
+	OnlyPrimaryKey, // 仅包含主键
+	OnlyUniqueIndex // 仅包含唯一索引
 	;
 
 	public boolean equals(String value) {
@@ -19,6 +21,10 @@ public enum NoPrimaryKeyTableSelectType {
 			return HasKeys;
 		} else if (NoKeys.name().equals(value)) {
 			return NoKeys;
+		} else if (OnlyPrimaryKey.name().equals(value)) {
+			return OnlyPrimaryKey;
+		} else if (OnlyUniqueIndex.name().equals(value)) {
+			return OnlyUniqueIndex;
 		}
 		return All;
 	}

@@ -3,13 +3,14 @@ package com.tapdata.tm.base.dto;
 import com.tapdata.manager.common.utils.StringUtils;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Min;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 import org.springdoc.core.converters.models.DefaultPageable;
 
-import javax.validation.constraints.Min;
+
 import java.util.ArrayList;
 import java.util.List;
 

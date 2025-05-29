@@ -13,9 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.commons.CommonsMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +36,7 @@ public class PdkController extends BaseController {
     private PkdSourceService pkdSourceService;
 
     @PostMapping(path = "upload/source", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseMessage<Void> uploadJar(@RequestParam("file") CommonsMultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest) {
+    public ResponseMessage<Void> uploadJar(@RequestPart(value = "file") MultipartFile[] file, @RequestParam("source") List<String> sourceJsons, @RequestParam("latest") boolean latest) {
 
         log.debug("Process upload pdk source, file size: {}, source size: {}, latest: {}", file.length, sourceJsons.size(), latest);
         List<PdkSourceDto> pdkSourceDtos = new ArrayList<>();

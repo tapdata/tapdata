@@ -15,8 +15,8 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
   </properties>
 
   <dependencyManagement>
@@ -24,22 +24,22 @@
       <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-core</artifactId>
-        <version>5.3.22</version>
+        <version>6.2.2</version>
       </dependency>
       <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-beans</artifactId>
-        <version>5.3.22</version>
+        <version>6.2.2</version>
       </dependency>
       <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-context</artifactId>
-        <version>5.3.22</version>
+        <version>6.2.2</version>
       </dependency>
       <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-expression</artifactId>
-        <version>5.3.22</version>
+        <version>6.2.2</version>
       </dependency>
 
       <!-- com.tapdata:common -->
@@ -56,34 +56,19 @@
       <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-core</artifactId>
-        <version>1.2.9</version>
+        <version>1.5.17</version>
         <scope>compile</scope>
       </dependency>
       <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
-        <version>1.2.9</version>
+        <version>1.5.17</version>
         <scope>compile</scope>
       </dependency>
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>
         <artifactId>httpclient</artifactId>
         <version>4.5.13</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-databind</artifactId>
-        <version>2.12.6.1</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-core</artifactId>
-        <version>2.12.6</version>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson.datatype</groupId>
-        <artifactId>jackson-datatype-jsr310</artifactId>
-        <version>2.12.6</version>
       </dependency>
 
       <dependency>
@@ -94,7 +79,7 @@
       <dependency>
         <groupId>com.google.guava</groupId>
         <artifactId>guava</artifactId>
-        <version>31.1-jre</version>
+        <version>33.4.0-jre</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -104,6 +89,24 @@
       <groupId>com.tapdata</groupId>
       <artifactId>common</artifactId>
       <version>2.2.2</version>
+      <exclusions>
+        <exclusion>
+          <groupId>ch.qos.logback</groupId>
+          <artifactId>logback-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>ch.qos.logback</groupId>
+          <artifactId>logback-classic</artifactId>
+        </exclusion>
+        <exclusion>
+          <artifactId>jackson-databind</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>httpclient</artifactId>
+          <groupId>org.apache.httpcomponents</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.tapdata</groupId>
@@ -117,12 +120,7 @@
     <dependency>
       <groupId>io.github.openlg</groupId>
       <artifactId>graphlib</artifactId>
-      <version>1.0.1</version>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.datatype</groupId>
-      <artifactId>jackson-datatype-jsr310</artifactId>
-      <version>2.12.6</version>
+      <version>1.1.0</version>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
@@ -131,29 +129,26 @@
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-web</artifactId>
-      <version>5.3.8</version>
+      <version>6.2.2</version>
       <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <version>4.13.1</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-collections4</artifactId>
-      <version>4.3</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
         <groupId>io.tapdata</groupId>
         <artifactId>tapdata-pdk-runner</artifactId>
-      <version>1.13-SNAPSHOT</version>
+      <version>${tapdata-pdk-runner.version}</version>
       <exclusions>
         <exclusion>
           <artifactId>commons-lang3</artifactId>
           <groupId>org.apache.commons</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>jackson-databind</artifactId>
+          <groupId>com.fasterxml.jackson.core</groupId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -164,8 +159,23 @@
     </dependency>
     <dependency>
       <groupId>cn.hutool</groupId>
-      <artifactId>hutool-all</artifactId>
-      <version>5.5.2</version>
+      <artifactId>hutool-core</artifactId>
+      <version>5.8.36</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-crypto</artifactId>
+      <version>5.8.36</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-json</artifactId>
+      <version>5.8.36</version>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-extra</artifactId>
+      <version>5.8.36</version>
     </dependency>
 
     <dependency>
@@ -176,7 +186,7 @@
     <dependency>
       <groupId>org.springframework.data</groupId>
       <artifactId>spring-data-mongodb</artifactId>
-      <version>3.2.2</version>
+      <version>4.4.2</version>
       <exclusions>
         <exclusion>
           <groupId>org.mongodb</groupId>
@@ -184,6 +194,27 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.18.3</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>2.18.3</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+      <version>2.18.3</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpclient</artifactId>
+      <version>4.5.14</version>
+    </dependency>
+
 
     <!-- Test Dependencies -->
     <dependency>
@@ -195,26 +226,8 @@
           <artifactId>junit-vintage-engine</artifactId>
         </exclusion>
       </exclusions>
-      <version>2.0.0.RELEASE</version>
+      <version>3.4.2</version>
       <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>5.8.1</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-      <scope>test</scope>
-      <version>5.8.1</version>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.vintage</groupId>
-      <artifactId>junit-vintage-engine</artifactId>
-      <scope>test</scope>
-      <version>5.8.1</version>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
@@ -250,7 +263,20 @@
           <version>1.4</version>
           <scope>test</scope>
       </dependency>
-      <!-- Test Dependencies -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <version>1.18.36</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.13</version>
+    </dependency>
+
+
+    <!-- Test Dependencies -->
   </dependencies>
 
   <distributionManagement>
@@ -275,12 +301,13 @@
           <version>3.0.2</version>
         </plugin>
         <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.0</version>
-        </plugin>
-        <plugin>
-          <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.1</version>
+          <version>3.11.0</version>
+          <configuration>
+            <source>${maven.compiler.source}</source> <!-- 匹配你的 Java 版本 -->
+            <target>${maven.compiler.target}</target> <!-- 匹配你的 Java 版本 -->
+          </configuration>
         </plugin>
         <plugin>
           <artifactId>maven-jar-plugin</artifactId>
@@ -321,24 +348,10 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-        <version>0.8.6</version>
-        <executions>
-          <!--first execution : for preparing JaCoCo runtime agent-->
-          <execution>
-            <id>prepare-agent</id>
-            <goals>
-              <goal>prepare-agent</goal>
-            </goals>
-          </execution>
-          <!--second execution : for creating code coverage reports-->
-          <execution>
-            <id>report</id>
-            <phase>test</phase>
-            <goals>
-              <goal>report</goal>
-            </goals>
-          </execution>
-        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
       </plugin>
       <plugin>
         <artifactId>maven-source-plugin</artifactId>

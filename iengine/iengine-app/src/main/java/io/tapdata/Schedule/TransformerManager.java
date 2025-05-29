@@ -22,7 +22,7 @@ import io.tapdata.common.WarningEmailEventExecutor;
 import io.tapdata.common.WarningMaker;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.exception.TmUnavailableException;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
@@ -39,7 +39,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;

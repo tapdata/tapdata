@@ -15,8 +15,6 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.dag.*;
-import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
-import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -26,8 +24,6 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.bean.ResponseBody;
-import com.tapdata.tm.commons.schema.bean.ValidateDetail;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
@@ -71,7 +67,6 @@ import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.permissions.service.DataPermissionService;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.schedule.service.ScheduleService;
-import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
@@ -100,6 +95,7 @@ import io.tapdata.common.sample.request.Sample;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.pdk.core.api.impl.serialize.ObjectSerializableImplV2;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
@@ -124,8 +120,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -133,8 +129,10 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -4657,6 +4655,7 @@ class TaskServiceImplTest {
             Criteria criteria = new Criteria();
             criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.tableNames").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName));
             Query query = Query.query(criteria);
             verify(taskService).findAllDto(query,user);
@@ -5433,6 +5432,32 @@ class TaskServiceImplTest {
                 taskService.cleanRemoveTableBatchOffset(taskDto,tables);
                 verify(taskService, times(0)).update(any(Query.class), any(Update.class));
             }
+
+
+        }
+        @DisplayName("test cleanRemoveTableBatchOffsetV2 when have remove table")
+        @Test
+        void test3() throws JsonProcessingException {
+            try (MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)) {
+                ObjectSerializableImplV2 objectSerializableImplV21 = new ObjectSerializableImplV2();
+                instanceFactoryMockedStatic.when(()->{InstanceFactory.instance(ObjectSerializable.class);}).thenReturn(objectSerializableImplV21);
+                Map<String, Object> attrs = new HashMap<>();
+                LinkedHashMap<String, String> syncProgress = new LinkedHashMap<>();
+                attrs.put("syncProgress", syncProgress);
+                Map<String, Object> syncProgressMap = new HashMap<>();
+
+                Map<String, HashMap> tablesMap = getTablesMap();
+                ObjectSerializableImplV2 objectSerializableImplV2 = new ObjectSerializableImplV2();
+                byte[] offsetBytes = objectSerializableImplV2.fromObject(tablesMap);
+                syncProgressMap.put("batchOffset", "_tap_encode_" + org.apache.commons.net.util.Base64.encodeBase64String(offsetBytes));
+                syncProgress.put("[\"388fe2c5-c426-4c79-a331-1f2a9d91a90c\",\"a11c115c-8eac-48fd-b4d4-1ae4626d2876\"]", objectMapper.writeValueAsString(syncProgressMap));
+                when(taskDto.getAttrs()).thenReturn(attrs);
+                List<String> tables = new ArrayList<>();
+                tables.add("test1");
+                doCallRealMethod().when(taskService).cleanRemoveTableBatchOffset(taskDto,tables);
+                taskService.cleanRemoveTableBatchOffset(taskDto,tables);
+                verify(taskService, times(1)).update(any(Query.class), any(Update.class));
+            }
         }
 
         private Map<String, HashMap> getTablesMap() {
@@ -5491,6 +5516,97 @@ class TaskServiceImplTest {
             when(taskDto.getAttrs()).thenReturn(attrs);
             doCallRealMethod().when(taskService).buildLdpNewTablesFromBatchOffset(taskDto, dag);
             assertThrows(BizException.class, ()->taskService.buildLdpNewTablesFromBatchOffset(taskDto, dag));
+        }
+
+        @Test
+        void testBuildLdpNewTablesFromBatchOffsetV2() {
+            taskDto = spy(TaskDto.class);
+            DAG dag = mock(DAG.class);
+            LinkedList<DatabaseNode> newSourceNode = new LinkedList<>();
+            DatabaseNode node = mock(DatabaseNode.class);
+            ArrayList<String> tableNames = new ArrayList<>();
+            tableNames.add("table_20K_7");
+            tableNames.add("table_20K_8");
+            tableNames.add("table_20K_9");
+            tableNames.add("00_table2");
+            tableNames.add("table1");
+            when(node.getTableNames()).thenReturn(tableNames);
+            newSourceNode.add(node);
+            when(dag.getSourceNode()).thenReturn(newSourceNode);
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, String> syncProgress = new LinkedHashMap<>();
+            String syncProgressKey = "[\"54ab607b-a7db-4364-91f3-ed63380a8b78\",\"c7f3cc78-df84-4e15-96c9-e76342e783ff\"]";
+            String syncProgressString = "{\"offset\":null,\"eventTime\":1733900522843,\"eventSerialNo\":768,\"sourceTime\":1733900522843,\"syncStage\":\"CDC\",\"batchOffset\":\"_tap_encode_gAFkABFqYXZhLnV0aWwuSGFzaE1hcAEUAAt0YWJsZV8yMEtfOQFkABFqYXZhLnV0aWwuSGFzaE1h\\r\\ncAEUABtiYXRjaF9yZWFkX2Nvbm5lY3Rvcl9zdGF0dXMBFAAET1ZFUqgBFAALdGFibGVfMjBLXzgB\\r\\nZAARamF2YS51dGlsLkhhc2hNYXABFAAbYmF0Y2hfcmVhZF9jb25uZWN0b3Jfc3RhdHVzARQABE9W\\r\\nRVKoARQAC3RhYmxlXzIwS183AWQAEWphdmEudXRpbC5IYXNoTWFwARQAG2JhdGNoX3JlYWRfY29u\\r\\nbmVjdG9yX3N0YXR1cwEUAARPVkVSqAEUAAkwMF90YWJsZTIBZAARamF2YS51dGlsLkhhc2hNYXAB\\r\\nFAAbYmF0Y2hfcmVhZF9jb25uZWN0b3Jfc3RhdHVzARQABE9WRVKoqA==\\r\\n\",\"streamOffset\":\"_tap_zip_\\u001F\u008B\\b\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000\\u0000-\u0090Ér£0\\u0010\u0086ïTñ.,fª|\u0098C³Ã acb$ÝXb³\\tg\\u0006l@O\\u001F%\u0093>tWýÕËÿõ\\u001D<û_ª\u0081Mð\\u000E.þ¨vK£Ä\\u001E(ÉÚ\u0084ãWÅ\u00AD\u0091\u009AÙ«î¬å\u009Dà\u00ADr¬±\u009A²\u008F&\\u001C\u009E9\\u0019E]ly\\u0013Æ#-ô\u0093ª0Î\\u0004#Y÷ØMR\\\"\\u0003·÷\\b`XÁ\\u000E¬¶*®òL\u008CJî\\u001Bôr\u009CiaM\u0089\u008Eµ\u009A\u008FO&\\u0016\\u0004À^?ó\\u001AÀ\\u0011©ÊO§Þ\\u0004ã\u009Chz[»Ë¡\\u000EÏ\\u0010»Ã\u008E\\\\$Ò|ì\u0093\\\"Ú°¨\\u0017ì\\u000E+¾è\\u001D\\u0015ô\u0090ämÇ\\\\6¦\\u0005ÕX\\u000F\\u001B\u0092lª\\u0002¶ÿ\u0097\\u0012Ö&ÓU+\u008Bõy\\t|Qzr+¼\u0085Æ\\u001Cº>w3XÁÉîð§\\n\u008E-óXûM>\\fà\u0090ìQó«(\u0083ãÌÂvU\u0095\u0093ôø?|Óù®ÑW²\\u001B\u0080í}\u008F%El0\\u0012ui\\u0017Y¨\\u0007\u0081Ä`Ñ]ïP^\u009BI~¶\u0090û¶P\u008E\u008CÔÑ\\u000EªBùÙ`ùÈq@W\u0094{Ý\u008D\u009Cá\\u0014Î]\\u0013â[m\\\\û¨\u007FHÊ/bXq\\u001Eí\u0089\\u0013ó²ØF©wTþOú\u009D\u0092\\u001EVäz\u0086ª`'\u009A£É~Õ{ôKN\u0098RÕ¥\\u0007óFî¿Uå\\u0013}\\u0000®¨ò\\u0001\\u0000\\u0000\",\"type\":\"NORMAL\"}";
+            syncProgress.put(syncProgressKey, syncProgressString);
+            attrs.put("syncProgress", syncProgress);
+            when(taskDto.getAttrs()).thenReturn(attrs);
+            doCallRealMethod().when(taskService).buildLdpNewTablesFromBatchOffset(taskDto, dag);
+            taskService.buildLdpNewTablesFromBatchOffset(taskDto, dag);
+            assertEquals(1, taskDto.getLdpNewTables().size());
+        }
+    }
+
+    @Nested
+    class CallEngineRpcTest {
+        String engineId = "test-engine-id";
+        Class<Boolean> resultClz = Boolean.class;
+        String className = "test";
+        String method = "test";
+
+        @Test
+        void testNotfoundExecutionService() {
+            assertDoesNotThrow(() -> {
+                doCallRealMethod().when(taskService).callEngineRpc(engineId, resultClz, className, method);
+
+                try (MockedStatic<InstanceFactory> mockStatic = mockStatic(InstanceFactory.class)) {
+                    mockStatic.when(() -> InstanceFactory.instance(EngineMessageExecutionService.class, true)).thenReturn(null);
+                    taskService.callEngineRpc(engineId, resultClz, className, method);
+                    Assertions.fail("expect is throws exception");
+                } catch (Exception e) {
+                    Assertions.assertEquals("not found engine execution service instance", e.getMessage());
+                }
+            });
+        }
+
+        @Test
+        void testSuccess() {
+            assertDoesNotThrow(() -> {
+                doCallRealMethod().when(taskService).callEngineRpc(engineId, resultClz, className, method);
+
+                try (MockedStatic<InstanceFactory> mockStatic = mockStatic(InstanceFactory.class)) {
+                    EngineMessageExecutionService executionService = mock(EngineMessageExecutionService.class);
+                    doAnswer(invocation -> {
+                        BiConsumer<Object, Throwable> consumer = invocation.getArgument(1);
+                        consumer.accept(true, null);
+                        return null;
+                    }).when(executionService).call(any(), any());
+                    mockStatic.when(() -> InstanceFactory.instance(EngineMessageExecutionService.class, true)).thenReturn(executionService);
+                    Assertions.assertTrue(taskService.callEngineRpc(engineId, resultClz, className, method));
+                }
+            });
+        }
+
+        @Test
+        void testException() {
+            assertDoesNotThrow(() -> {
+                doCallRealMethod().when(taskService).callEngineRpc(engineId, resultClz, className, method);
+
+                try (MockedStatic<InstanceFactory> mockStatic = mockStatic(InstanceFactory.class)) {
+                    EngineMessageExecutionService executionService = mock(EngineMessageExecutionService.class);
+                    doAnswer(invocation -> {
+                        BiConsumer<Object, Throwable> consumer = invocation.getArgument(1);
+                        consumer.accept(null, new Exception("test"));
+                        return null;
+                    }).when(executionService).call(any(), any());
+                    mockStatic.when(() -> InstanceFactory.instance(EngineMessageExecutionService.class, true)).thenReturn(executionService);
+                    try {
+                        taskService.callEngineRpc(engineId, resultClz, className, method);
+                        Assertions.fail("expect is throws exception");
+                    } catch (Throwable e) {
+                        Assertions.assertEquals("test", e.getMessage());
+                    }
+                }
+            });
         }
     }
 }

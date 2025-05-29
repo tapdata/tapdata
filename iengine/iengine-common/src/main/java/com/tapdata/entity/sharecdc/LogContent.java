@@ -3,7 +3,7 @@ package com.tapdata.entity.sharecdc;
 import io.tapdata.annotation.Ignore;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 

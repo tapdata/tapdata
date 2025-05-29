@@ -33,7 +33,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.schema.SchemaProxy;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;

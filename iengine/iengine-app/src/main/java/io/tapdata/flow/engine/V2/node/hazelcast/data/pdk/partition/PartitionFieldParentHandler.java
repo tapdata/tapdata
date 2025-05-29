@@ -21,7 +21,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePartitionReadDataNode;
 import io.tapdata.pdk.core.utils.LoggerUtils;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

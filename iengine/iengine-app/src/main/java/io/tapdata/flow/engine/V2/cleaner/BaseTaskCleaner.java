@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.cleaner;
 
 import com.tapdata.tm.commons.dag.Node;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;

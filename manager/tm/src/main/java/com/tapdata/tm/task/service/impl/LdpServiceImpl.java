@@ -65,9 +65,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -928,7 +929,8 @@ public class LdpServiceImpl implements LdpService {
 
 	@Override
 	public List<LdpFuzzySearchVo> fuzzySearch(String key, List<String> connectType, UserDetail user) {
-		Criteria criteria = Criteria.where("original_name").regex(key).and("sourceType").is(SourceTypeEnum.SOURCE.name());
+		Pattern pattern = Pattern.compile(key, Pattern.CASE_INSENSITIVE);
+		Criteria criteria = Criteria.where("original_name").regex(pattern).and("sourceType").is(SourceTypeEnum.SOURCE.name());
 		if (CollectionUtils.isNotEmpty(connectType)) {
 			criteria.and("source.connection_type").in(connectType);
 		}
@@ -937,7 +939,7 @@ public class LdpServiceImpl implements LdpService {
     }
 
     @NotNull
-    private List<LdpFuzzySearchVo> getLdpFuzzySearchVos(UserDetail user, Criteria criteria) {
+    protected List<LdpFuzzySearchVo> getLdpFuzzySearchVos(UserDetail user, Criteria criteria) {
         Query query = new Query(criteria);
         /*query.fields().include("qualified_name", "meta_type", "is_deleted", "original_name", "ancestorsName", "dev_version", "databaseId",
                 "schemaVersion", "version", "comment", "name", )*/

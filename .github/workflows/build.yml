@@ -52,85 +52,18 @@ jobs:
           echo "::set-output name=TAG_NAME::${TAG_NAME}"
 
   Sync-Code-to-Internal-Repo:
-    runs-on: ubuntu-latest
-    needs:
-      - Set-Branch
-    steps:
-      - name: Checkout Tapdata Code
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/tapdata'
-          ref: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata
-          fetch-depth: 0
-      - name: Checkout Tapdata Connectors Code
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/tapdata-connectors'
-          ref: ${{ inputs.connectors_branch }}
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-connectors
-          fetch-depth: 0
-      - name: Checkout Tapdata Enterprise Web Code
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/tapdata-enterprise-web'
-          ref: ${{ inputs.frontend_branch }}
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-enterprise-web
-          fetch-depth: 0
-      - name: Checkout Tapdata Application
-        uses: actions/checkout@v2
-        with:
-          repository: 'tapdata/tapdata-application'
-          ref: main
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: tapdata-application
-          fetch-depth: 0
-      - name: Checkout Docs
-        uses: actions/checkout@v3
-        with:
-          repository: 'tapdata/docs'
-          ref: community-data-sources-docs
-          token: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
-          path: docs
-          fetch-depth: 0
-      - name: Push Tapdata to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata --gogs-project-name=tapdata
-      - name: Push Tapdata Connectors to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-connectors --gogs-project-name=tapdata-connectors
-      - name: Push Tapdata Enterprise Web to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-enterprise-web --gogs-project-name=tapdata-enterprise-web
-      - name: Push Tapdata Application to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=tapdata-application --gogs-project-name=tapdata-application
-      - name: Push Tapdata Docs to Gogs
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: |
-            bash tapdata-application/build/upgrade.sh --upgrade-code=true --upgrade-code-path=docs --gogs-project-name=docs
+    uses: ./.github/workflows/sync-code.yml
+    needs: Set-Branch
+    with:
+      tapdata: ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }}
+      tapdata-connectors: ${{ inputs.connectors_branch }}
+      tapdata-enterprise-web: ${{ inputs.frontend_branch }}
+      tapdata-application: 'main'
+      docs: 'community-data-sources-docs'
+    secrets:
+      TAPDATA_ENT_CICD_TOKEN: ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}
+      GITEE_SSH_KEY: ${{ secrets.GITEE_SSH_KEY }}
+      GITEE_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
 
   Build-Tapdata:
     runs-on: office-scan
@@ -139,6 +72,12 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Patch Maven Dependens
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
@@ -146,8 +85,7 @@ jobs:
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Get Tapdata Version
         run: |
@@ -158,7 +96,12 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile opensource tapdata
         run: |
-          cd tapdata && bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
+          cd tapdata 
+          update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
+          export JAVA_HOME=/usr/java/jdk-17.0.12
+          bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
+          update-alternatives --set java /usr/java/jdk1.8.0_202/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_202
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p tapdata
@@ -175,11 +118,16 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Patch Maven Dependens
         run: |
@@ -188,8 +136,7 @@ jobs:
       - name: Checkout Connectors Code
         run: |
           rm -rf tapdata-connectors
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ inputs.connectors_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-connectors.git
+          git clone -b ${{ inputs.connectors_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-connectors.git
           cd tapdata-connectors && git fetch --tags
       - name: Get Connectors Version
         run: |
@@ -200,7 +147,12 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: compile tapdata connectors
         run: |
-          cd tapdata && bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
+          cd tapdata
+          update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
+          export JAVA_HOME=/usr/java/jdk-17.0.12
+          bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
+          update-alternatives --set java /usr/java/jdk1.8.0_202/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_202
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p connectors
@@ -217,24 +169,29 @@ jobs:
       - Set-Branch
       - Sync-Code-to-Internal-Repo
     steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Checkout Docs Repo
         run: |
           rm -rf docs
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b community-data-sources-docs --single-branch ssh://git@192.168.1.170:10022/tapdata/docs.git
+          git clone -b community-data-sources-docs --single-branch git@gitee.com:tapdata_1/docs.git
           cd docs && git fetch --tags
       - name: Checkout Frontend Code
         run: |
-          rm -rf tapdata-enterprise-web
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ inputs.frontend_branch }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata-enterprise-web.git
-          cd tapdata-enterprise-web && git fetch --tags
+          rm -rf tapdata-enterprise-web tapdata-web
+          git clone -b ${{ inputs.frontend_branch }} --single-branch git@gitee.com:tapdata_1/tapdata-web.git
+          cd tapdata-web && git fetch --tags && cd ..
+          mkdir -p tapdata-enterprise-web
+          rsync -av tapdata-web/ tapdata-enterprise-web/
       - name: Get Frontend Version
         run: |
           cd tapdata-enterprise-web && tapdata_enterprise_web_version=$(git rev-parse --short HEAD) && cd ..
@@ -244,6 +201,7 @@ jobs:
           rsync -r --password-file=/tmp/rsync.passwd version/* rsync://root@192.168.1.184:873/data/version/
       - name: Build Frontend
         run: |
+          export PATH="/root/.nvm/versions/node/v20.12.2/bin:$PATH"
           pnpm config set registry https://registry.npmmirror.com
           cd tapdata && bash build/build.sh -c frontend -t ${{ needs.Set-Branch.outputs.TAG_NAME }}
       - name: Build Docs
@@ -272,11 +230,16 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Image
         run: |
@@ -295,8 +258,7 @@ jobs:
       - name: Checkout Tapdata Application
         run: |
           rm -rf tapdata-application
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b version --single-branch ${{ secrets.INTERNAL_REPO }}/tapdata/tapdata-application.git
+          git clone -b version --single-branch git@gitee.com:tapdata_1/tapdata-application.git
       - name: Add Commit ID and Version Map
         run: |
           echo "${{ secrets.RSYNC_PASSWORD }}" > /tmp/rsync.passwd && chmod 600 /tmp/rsync.passwd
@@ -325,11 +287,16 @@ jobs:
       - name: Clean Directory
         run: |
           rm -rf ./*
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "Host gitee.com" > ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
       - name: Checkout Tapdata Repo
         run: |
           rm -rf tapdata
-          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch ssh://git@192.168.1.170:10022/tapdata/tapdata.git
+          git clone -b ${{ needs.Set-Branch.outputs.TAPDATA_BRANCH }} --single-branch git@gitee.com:tapdata_1/tapdata.git
           cd tapdata && git fetch --tags
       - name: Package and Push Tar File
         run: |

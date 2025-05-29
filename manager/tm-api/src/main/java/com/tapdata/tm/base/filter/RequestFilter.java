@@ -1,6 +1,6 @@
 package com.tapdata.tm.base.filter;
 
-import cn.hutool.extra.servlet.ServletUtil;
+import cn.hutool.extra.servlet.JakartaServletUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.util.ThrowableUtils;
@@ -11,9 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import javax.servlet.*;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -37,12 +37,15 @@ public class RequestFilter implements Filter {
 	@Override
 	public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws ServletException, IOException {
 		long startTime = System.currentTimeMillis();
-
+		if(org.apache.commons.lang3.StringUtils.isNotBlank(servletRequest.getContentType()) && servletRequest.getContentType().contains("multipart/form-data")){
+			filterChain.doFilter(servletRequest, servletResponse);
+			return;
+		}
 		HttpServletRequest httpServletRequest = new HttpServletRequestWrapper((HttpServletRequest) servletRequest);
 		HttpServletResponse httpServletResponse = new HttpServletResponseWrapper((HttpServletResponse) servletResponse);
 
 		String requestURI = httpServletRequest.getRequestURI();
-		if (Lists.of("/api/pdk/jar", "/api/pdk/icon", "/api/pdk/doc").contains(requestURI)) {
+		if (Lists.of("/api/pdk/jar", "/api/pdk/icon", "/api/pdk/doc", "/api/pdk/upload/source").contains(requestURI)) {
 			filterChain.doFilter(servletRequest, servletResponse);
 			return;
 		}
@@ -58,7 +61,7 @@ public class RequestFilter implements Filter {
 		} else {
 			reqId = ResponseMessage.generatorReqId();
 		}
-		String ip = ServletUtil.getClientIP(httpServletRequest);
+		String ip = JakartaServletUtil.getClientIP(httpServletRequest);
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
 

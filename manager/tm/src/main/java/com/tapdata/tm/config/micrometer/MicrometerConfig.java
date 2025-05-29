@@ -5,12 +5,15 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.config.MeterFilter;
 import io.micrometer.core.instrument.distribution.DistributionStatisticConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.autoconfigure.metrics.MeterRegistryCustomizer;
-import org.springframework.boot.actuate.metrics.web.servlet.WebMvcTagsProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.server.observation.ServerRequestObservationConvention;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Collections;
 
 /**
  * @author Dexter
@@ -20,8 +23,10 @@ import java.time.Duration;
 public class MicrometerConfig {
 
     @Bean
-    public WebMvcTagsProvider webMvcTagsProvider() {
-        return new CustomWebMvcTagsProvider();
+    public ServerRequestObservationConvention serverRequestObservationConvention(
+            @Autowired(required = false) List<CustomServerRequestObservationConvention.CustomTagsContributor> contributors) {
+        return new CustomServerRequestObservationConvention(false,
+                contributors != null ? contributors : Collections.emptyList());
     }
 
     @Bean

@@ -3,7 +3,6 @@ package io.tapdata.cache;
 import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.modules.api.storage.TapKVStorage;
 import io.tapdata.modules.api.storage.TapStorageFactory;
-import joptsimple.internal.Strings;
 
 import java.io.File;
 
@@ -20,7 +19,7 @@ public class KVStorageService {
 			synchronized (KVStorageService.class) {
 				if (null == storageFactory) {
 					storageFactory = ClassFactory.create(TapStorageFactory.class);
-					String storeDir = Strings.join(new String[]{".", DIST_CACHE_PATH}, File.separator);
+					String storeDir = String.join(File.separator, ".",DIST_CACHE_PATH);
 					storageFactory.init(TapStorageFactory.StorageOptions.create().rootPath(storeDir));
 				}
 			}

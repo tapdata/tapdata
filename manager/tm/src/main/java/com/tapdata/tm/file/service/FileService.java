@@ -32,8 +32,8 @@ import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;

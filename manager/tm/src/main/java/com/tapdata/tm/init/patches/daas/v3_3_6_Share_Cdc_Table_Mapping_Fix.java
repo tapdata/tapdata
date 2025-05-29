@@ -11,7 +11,7 @@ import com.tapdata.tm.shareCdcTableMapping.ShareCdcTableMappingDto;
 import com.tapdata.tm.shareCdcTableMapping.repository.ShareCdcTableMappingRepository;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.utils.SpringContextHelper;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;

@@ -182,16 +182,15 @@ public abstract class Node<S> extends Element{
         }
 
         List<S> inputSchemas = getInputSchema();
+        List<S> clonedInputSchemas = new ArrayList<>();
         log.info("input schema = {}", inputSchemas == null ? null: inputSchemas.size());
         // 防止子类直接修改原始模型，这里需要对输入模型（inputSchema）、当前节点原始模型（schema）进行复制
-        boolean mergedSchema = false;   // 输入模型为null，不进行merge操作，不需要执行保存更新
         if (inputSchemas != null && !inputSchemas.isEmpty()) {
-            inputSchemas = inputSchemas.stream().map(this::cloneSchema).collect(Collectors.toList());
-
+            clonedInputSchemas = inputSchemas.stream().map(this::cloneSchema).collect(Collectors.toList());
 
             //这一步将下一个节点设置 「前置节点的字段名，字段类型」
             List<Field> fields = new ArrayList<>();
-            for (S inputSchema : inputSchemas) {
+            for (S inputSchema : clonedInputSchemas) {
                 if (inputSchema instanceof  List) {
                     for (Object o : ((List<?>) inputSchema)) {
                         Schema s = (Schema) o;
@@ -241,9 +240,8 @@ public abstract class Node<S> extends Element{
                     schema1.getFields().removeAll(deleteF);
                 }
             }
-            outputSchema = mergeSchema(inputSchemas, cloneSchema(schema), options);
+            outputSchema = mergeSchema(clonedInputSchemas, cloneSchema(schema), options);
             log.info("merge schema complete");
-            mergedSchema = true;  // 进行merge操作，需要执行保存/更新
         } else {
             this.outputSchema = cloneSchema(schema);
         }
@@ -282,7 +280,7 @@ public abstract class Node<S> extends Element{
 
             if (listener != null){
                 try {
-                    listener.onTransfer(inputSchemas, schema, outputSchema, nodeId);
+                    listener.onTransfer(clonedInputSchemas, schema, outputSchema, nodeId);
                 } catch (Exception e) {
                     log.error("Call transfer listener failed in node {}", nodeId, e);
                 }
@@ -384,7 +382,6 @@ public abstract class Node<S> extends Element{
      */
     @JsonIgnore
     public List<S> getInputSchema() {
-
         Graph<? extends Element, ? extends Element> graph = getGraph();
         return graph.predecessors(getId()).stream().map(predecessorId -> {
             Element predecessor = graph.getNode(predecessorId);

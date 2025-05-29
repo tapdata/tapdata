@@ -1,8 +1,11 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.values.BooleanNotExist;
+import io.tapdata.entity.schema.value.DateTime;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 public class CommonUtil {
 
@@ -32,7 +35,7 @@ public class CommonUtil {
 		return diff;
 	}
 
-	public static int compareObjects(Object[] val1, Object[] val2) {
+	public static int compareObjects(Object[] val1, Object[] val2,boolean ignoreTimePrecision) {
 		// First, check if both arrays are null
 		if (val1 == null && val2 == null) {
 			return 0; // Both are null, considered equal
@@ -68,6 +71,12 @@ public class CommonUtil {
 					obj1 = null;
 				}
 			}
+			if(obj1 instanceof byte[]){
+				obj1 = new String((byte[]) obj1, StandardCharsets.UTF_8);
+			}
+			if(obj2 instanceof byte[]){
+				obj2 = new String((byte[]) obj2, StandardCharsets.UTF_8);
+			}
 			if (obj1 == null && obj2 == null) {
 				continue; // Both are null, compare the next element
 			} else if (obj1 == null) {
@@ -78,17 +87,22 @@ public class CommonUtil {
 
 			// Compare non-null elements using the compareTo method, assuming they implement the Comparable interface
 			if (obj1 instanceof Comparable<?> && obj2 instanceof Comparable<?>) {
-				if (obj1 instanceof Number) {
+				if (obj1 instanceof Number || obj2 instanceof Number) {
 					obj1 = new BigDecimal(obj1.toString());
-				}
-				if (obj2 instanceof Number) {
 					obj2 = new BigDecimal(obj2.toString());
+				}else if(obj1 instanceof String || obj2 instanceof String){
+					obj1 = obj1.toString().trim();
+					obj2 = obj2.toString().trim();
+				}
+				if(ignoreTimePrecision){
+					obj1 = try2IgnoreTimePrecision(obj1);
+					obj2 = try2IgnoreTimePrecision(obj2);
 				}
 				int result = ((Comparable<Object>) obj1).compareTo(obj2);
 				if (result != 0) {
 					return result; // If the comparison result is not 0, return the result
 				}
-			} else {
+			}else {
 				// If elements are not comparable, you can consider other comparison strategies
 				// Here, you can customize based on the specific scenario
 				// For example, you can compare string representations using the toString method
@@ -157,5 +171,18 @@ public class CommonUtil {
 			}
 		}
 		return new BooleanNotExist();
+	}
+
+	private static Object try2IgnoreTimePrecision(Object val){
+		if(val instanceof DateTime dateTime){
+            if(dateTime.isContainsIllegal()){
+				return dateTime.getIllegalDate().split("\\.")[0];
+			}else{
+				return dateTime.toInstant().toString().split("\\.")[0];
+			}
+		}else if (val instanceof Instant dateTime){
+			return dateTime.toString().split("\\.")[0];
+		}
+		return val;
 	}
 }

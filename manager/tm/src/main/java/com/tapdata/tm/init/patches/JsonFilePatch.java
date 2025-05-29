@@ -187,7 +187,7 @@ public class JsonFilePatch extends AbsPatch {
                     //查询索引是否存在，不存在不能删除
                     MongoIndex mongoIndex1 = existIndexMap.get(mongoIndex.getName());
                     if (!mongoIndex.equals(mongoIndex1)) {
-                        if (mongoIndex1 != null && mongoIndex.getName().equals(mongoIndex1.getName())) {
+                        if (mongoIndex1 != null && mongoIndex.getName().equals(mongoIndex1.getName()) && !"_id_".equals(mongoIndex.getName())) {
                             Document drop = new Document();
                             drop.put("dropIndexes", collectionName);
                             drop.put("index", mongoIndex.getName());
