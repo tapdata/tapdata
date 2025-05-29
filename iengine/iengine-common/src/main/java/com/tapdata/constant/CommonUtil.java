@@ -2,6 +2,7 @@ package com.tapdata.constant;
 
 import com.tapdata.entity.values.BooleanNotExist;
 import io.tapdata.entity.schema.value.DateTime;
+import org.apache.commons.lang3.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -36,7 +37,7 @@ public class CommonUtil {
 		return diff;
 	}
 
-	public static int compareObjects(Object[] val1, Object[] val2,boolean ignoreTimePrecision) {
+	public static int compareObjects(Object[] val1, Object[] val2,boolean ignoreTimePrecision,String roundingMode) {
 		// First, check if both arrays are null
 		if (val1 == null && val2 == null) {
 			return 0; // Both are null, considered equal
@@ -97,7 +98,7 @@ public class CommonUtil {
 						obj2 = dateTime.toInstant();
 					}
 					if (obj1 instanceof Instant && obj2 instanceof Instant) {
-						if (!compareInstant((Instant) obj1, (Instant) obj2, ignoreTimePrecision)) {
+						if (!compareInstant((Instant) obj1, (Instant) obj2, ignoreTimePrecision,roundingMode)) {
 							continue;
 						}
 
@@ -121,27 +122,25 @@ public class CommonUtil {
 		return 0; // Both arrays are equal
 	}
 
-	public static boolean compareInstant(Instant val1, Instant val2, boolean ignoreTimePrecision) {
+	public static boolean compareInstant(Instant val1, Instant val2, boolean ignoreTimePrecision, String roundingMode) {
 		Instant instant1 = val1;
 		Instant instant2 = val2;
 
 		if (ignoreTimePrecision) {
 			int precision1 = CommonUtil.getValPrecision(instant1);
 			int precision2 = CommonUtil.getValPrecision(instant2);
-
-			int minPrecision = Math.min(precision1, precision2);
-
-			Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision);
-			Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision);
-
-			if (norm1.equals(norm2)) {
-				return false;
+			if (precision1 != precision2) {
+				int minPrecision = Math.min(precision1, precision2);
+				Instant norm1 = CommonUtil.normalizePrecision(instant1, minPrecision, roundingMode);
+				Instant norm2 = CommonUtil.normalizePrecision(instant2, minPrecision, roundingMode);
+				if (norm1.equals(norm2)) {
+					return false;
+				}
+			} else {
+				long diffMillis = Math.abs(Duration.between(val1, val2).toMillis());
+				return diffMillis > 3;
 			}
-
-			long diffMillis = Math.abs(Duration.between(norm1, norm2).toMillis());
-			return diffMillis > 3;
 		}
-
 		return !instant1.equals(instant2);
 	}
 
@@ -155,15 +154,15 @@ public class CommonUtil {
 		return valPrecision;
 	}
 
-	public static Instant normalizePrecision(Instant high, int targetPrecision) {
+	public static Instant normalizePrecision(Instant high, int targetPrecision,String roundingModeString) {
 		long seconds = high.getEpochSecond();
 		int nanos = high.getNano(); // 纳秒：0~999_999_999
 
 		// 保留小数点后 targetPrecision 位纳秒（最多9位）
 		BigDecimal nanoDecimal = BigDecimal.valueOf(nanos)
 				.divide(BigDecimal.valueOf(1_000_000_000), 9, RoundingMode.HALF_UP);
-
-		BigDecimal roundedDecimal = nanoDecimal.setScale(targetPrecision, RoundingMode.HALF_UP);
+		RoundingMode roundingMode = StringUtils.isBlank(roundingModeString) ? RoundingMode.HALF_UP : RoundingMode.valueOf(roundingModeString);
+		BigDecimal roundedDecimal = nanoDecimal.setScale(targetPrecision, roundingMode);
 
 		BigDecimal newNano = roundedDecimal.multiply(BigDecimal.valueOf(1_000_000_000));
 		int newNanoInt = newNano.intValue();
