@@ -28,6 +28,18 @@
       },
       {
         "q": {
+          "key": "TASK_INSPECT_DIFFERENCE"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "Tapdata Notification: Task data differences changes】{taskName}",
+            "emailAlarmContent": "Your task data differences. \\n\" +\n        \"    Task name: 【{taskName}】\\n\" +\n        \"    Time range: {diffFirstTs} to {diffToTs}\\n\" +\n        \"    Totals: {diffToTotals}\\"
+          }
+        },
+        "upsert": true
+      },
+      {
+        "q": {
           "key": "TASK_INCREMENT_START"
         },
         "u": {
