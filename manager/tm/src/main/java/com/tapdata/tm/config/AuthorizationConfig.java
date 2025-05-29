@@ -121,7 +121,6 @@ public class AuthorizationConfig {
                         // 暂时只对 /oauth/ path 启用认证
                         .requestMatchers("/oauth/**").authenticated()
                         .anyRequest().permitAll())
-                .formLogin(AbstractHttpConfigurer::disable)
                 .headers(headers -> {
                     headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
                 })
