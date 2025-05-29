@@ -1,0 +1,49 @@
+### OpenAPI Generator API Test File
+### Use IntelliJ IDEA or VS Code REST Client plugin to run these tests
+
+### 1. Health Check
+GET http://localhost:3000/api/openapi/generator/health
+Accept: application/json
+
+### 2. Get Supported Languages List
+GET http://localhost:3000/api/openapi/generator/languages
+Accept: application/json
+
+### 3. Generate Java SDK JAR using GET method (using Swagger Petstore example)
+GET http://localhost:3000/api/openapi/generator/generate?oas=https://petstore3.swagger.io/api/v3/openapi.json&lan=java
+Accept: application/octet-stream
+
+### 4. Generate Java SDK JAR using POST method
+POST http://localhost:3000/api/openapi/generator/generate
+Content-Type: application/json
+Accept: application/octet-stream
+
+{
+  "oas1": "https://petstore3.swagger.io/api/v3/openapi.json",
+  "oas": "http://192.168.1.184:3080/openapi.json",
+  "lan": "java",
+  "packageName": "io.tapdata.sdk",
+  "artifactId": "tapdata-sdk",
+  "groupId": "io.tapdata",
+  "version": "1.0.0"
+}
+
+### 5. Test Error Case - Invalid OpenAPI URL
+POST http://localhost:3000/api/openapi/generator/generate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "oas": "https://invalid-url.example.com/openapi.json",
+  "lan": "java"
+}
+
+### 6. Test Error Case - Unsupported Language (Python)
+POST http://localhost:3000/api/openapi/generator/generate
+Content-Type: application/json
+Accept: application/json
+
+{
+  "oas": "https://petstore3.swagger.io/api/v3/openapi.json",
+  "lan": "python"
+}
