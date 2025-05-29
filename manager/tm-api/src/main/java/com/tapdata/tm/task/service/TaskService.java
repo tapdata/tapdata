@@ -23,6 +23,8 @@ import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskStatsDto;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -35,8 +37,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
@@ -126,7 +127,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
                                           HttpServletResponse response);
 
     public abstract List<MutiResponseMessage> batchRenew(List<ObjectId> taskIds, UserDetail user,
-                                         HttpServletRequest request, HttpServletResponse response);
+                                                         HttpServletRequest request, HttpServletResponse response);
 
     public abstract Page<TaskDto> scanTask(Filter filter, UserDetail userDetail);
 
@@ -294,6 +295,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void updateDelayTime(ObjectId taskId, long delayTime);
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
+    public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;
 
     @Data
     @AllArgsConstructor

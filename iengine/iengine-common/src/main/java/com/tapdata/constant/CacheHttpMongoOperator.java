@@ -3,13 +3,13 @@ package com.tapdata.constant;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
 import com.tapdata.entity.Job;
+import com.mongodb.client.MongoClient;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.mongo.RestTemplateOperator;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,7 +34,7 @@ public class CacheHttpMongoOperator extends HttpClientMongoOperator {
 
 	private ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
 
-	public CacheHttpMongoOperator(MongoTemplate template, MongoClient mongoClient, RestTemplateOperator restTemplateOperator, ConfigurationCenter configCenter, MongoClientURI mongoClientURI) {
+	public CacheHttpMongoOperator(MongoTemplate template, MongoClient mongoClient, RestTemplateOperator restTemplateOperator, ConfigurationCenter configCenter, ConnectionString mongoClientURI) {
 		super(template, mongoClient, restTemplateOperator, configCenter);
 
 		this.cache = CacheBuilder.newBuilder()

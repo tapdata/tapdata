@@ -1,7 +1,6 @@
 package com.tapdata.tm.modules.service;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.deepoove.poi.XWPFTemplate;
@@ -14,7 +13,6 @@ import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
@@ -58,22 +56,19 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -432,7 +427,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return apiDefinitionVo;
 	}
 
-	private void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {
+	public void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {
 		LinkedList<LinkedHashMap> linkedList = new LinkedList<>();
 		linkedList.offer((LinkedHashMap) connection.get("properties"));
 		while (!linkedList.isEmpty()) {
@@ -493,8 +488,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			String key2 = k.substring(i + 1);
 			return getValue(key2, config1);
 
-		} else {
+		} else if (null != config) {
 			return config.get(k);
+		} else {
+			return null;
 		}
 	}
 

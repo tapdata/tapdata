@@ -1,8 +1,9 @@
 package com.tapdata.processor.dataflow.aggregation;
 
-import org.apache.commons.collections.map.LRUMap;
+import org.apache.commons.collections4.map.LRUMap;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -44,10 +45,8 @@ public class PersistentLRUMap extends LRUMap {
 
 	@Override
 	public void clear() {
-		HashEntry[] data = this.data;
-		for (int i = data.length - 1; i >= 0; i--) {
-			onRemoveLRU.accept(data[i]);
-		}
+		Set<Entry> data = this.entrySet();
+		data.forEach(entry -> onRemoveLRU.accept(entry));
 		super.clear();
 	}
 

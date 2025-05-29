@@ -1111,6 +1111,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
                 beforeSave(metadataInstancesDto, userDetail);
                 Update update = repository.buildUpdateSet(metadataInstance, userDetail);
+                removeSetIdIfMetadataExists(metadataInstance, update);
                 Query where = Query.query(Criteria.where(QUALIFIED_NAME).is(metadataInstance.getQualifiedName()));
                 repository.applyUserDetail(where, userDetail);
                 repository.beforeUpsert(update, userDetail);
@@ -1206,6 +1207,19 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             return result.getModifiedCount();
         } else {
             return 0;
+        }
+    }
+
+    protected void removeSetIdIfMetadataExists(MetadataInstancesEntity metadataInstance, Update update) {
+        Query query = new Query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
+        query.fields().include("_id","qualified_name");
+        List<MetadataInstancesEntity> existedMetadataInstancesEntities = repository.findAll(query);
+        if (existedMetadataInstancesEntities.isEmpty() || null == update.getUpdateObject()) {
+            return;
+        }
+        Object set = update.getUpdateObject().get("$set");
+        if (set instanceof Document) {
+            ( (Document) set).remove("id");
         }
     }
 
@@ -1593,7 +1607,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
             return taskService.findOne(query, user);
         }).map(task -> task.getId().toHexString()).map(tid -> {
             // get heartbeat task dag of the connection node
-            Query query = new Query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid));
+            Query query = new Query(Criteria.where(ConnHeartbeatUtils.TASK_RELATION_FIELD).is(tid).and(IS_DELETED).ne(true));
             query.fields().include("_id", "dag");
             return taskService.findOne(query, user);
         }).map(taskDto -> {
@@ -1800,13 +1814,17 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof MigrateProcessorNode) {
-                    Criteria criteria = Criteria.where(NODE_ID).is(nodeId).and(IS_DELETED).ne(true);
+                    criteriaNode.and(NODE_ID).is(nodeId)
+                            .and(IS_DELETED).ne(true);
+
                     if (StringUtils.isNotBlank(tableFilter)) {
                         Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
-                        criteria.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
+                        criteriaNode.and(LOWER_CAME_ORIGINAL_NAME).regex(pattern);
                     }
-                    Query nodeQuery = new Query(criteria);
-                    List<MetadataInstancesDto> all = findAll(nodeQuery);
+
+                    queryMetadata.addCriteria(criteriaNode);
+
+                    List<MetadataInstancesDto> all = findAll(queryMetadata);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                                     , s->s, (m1, m2) -> m1));
@@ -1832,6 +1850,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                         }
                     }
                     metadatas.addAll(all);
+                    totals = count(new Query(criteriaNode), user);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
                     queryMetadata.addCriteria(criteriaNode);
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);

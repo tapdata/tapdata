@@ -22,6 +22,7 @@ import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 /**
  * @Author:
@@ -62,8 +63,8 @@ public class LogServiceMongo extends BaseService<LogDto, LogEntity, ObjectId, Lo
         query.allowSecondaryReads();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         AtomicInteger count = new AtomicInteger(0);
-        CloseableIterator<LogEntity> it = repository.getMongoOperations().stream(query, LogEntity.class);
-        it.forEachRemaining(log -> {
+        Stream<LogEntity> it = repository.getMongoOperations().stream(query, LogEntity.class);
+        it.forEach(log -> {
             StringBuffer sb = new StringBuffer();
 
             sb.append("[").append(log.getLevel()).append("]");
@@ -87,7 +88,6 @@ public class LogServiceMongo extends BaseService<LogDto, LogEntity, ObjectId, Lo
                 throw new BizException("Export.IOError", e);
             }
         });
-        IOUtils.closeQuietly(it);
 
         if (count.get() == 0) {
             try {

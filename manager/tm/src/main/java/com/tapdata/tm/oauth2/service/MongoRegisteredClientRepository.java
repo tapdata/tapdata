@@ -16,10 +16,12 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
+import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,16 +33,14 @@ import java.util.stream.Collectors;
 @Service
 public class MongoRegisteredClientRepository implements RegisteredClientRepository {
 
-    private final PasswordEncoder passwordEncoder;
     private static ObjectMapper objectMapper = new ObjectMapper();
 
     private final MongoOperations mongoOperations;
     private String collectionName;
 
-    public MongoRegisteredClientRepository(MongoOperations mongoOperations, PasswordEncoder passwordEncoder) {
+    public MongoRegisteredClientRepository(MongoOperations mongoOperations) {
 
         Assert.notNull(mongoOperations, "MongoOperations can't be empty.");
-        this.passwordEncoder = passwordEncoder;
         this.mongoOperations = mongoOperations;
         this.collectionName = "Application";
 
@@ -58,27 +58,19 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 //.clientSecret(passwordEncoder.encode("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))
                 .clientSecret("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.BASIC)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .authorizationGrantType(AuthorizationGrantType.JWT_BEARER)
-                .authorizationGrantType(AuthorizationGrantType.IMPLICIT)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .authorizationGrantType(AuthorizationGrantType.PASSWORD)
                 .redirectUri("http://127.0.0.1")
                 .scope("admin")
-                .clientSettings(clientSettings -> {
-                    // 是否需要用户确认一下客户端需要获取用户的哪些权限
-                    // 比如：客户端需要获取用户的 用户信息、用户照片 但是此处用户可以控制只给客户端授权获取 用户信息。
-                    clientSettings.requireUserConsent(true);
-                })
-                .tokenSettings(tokenSettings -> {
-                    tokenSettings.accessTokenTimeToLive(Duration.ofDays(14));
-                    tokenSettings.refreshTokenTimeToLive(Duration.ofDays(14));
-                    tokenSettings.reuseRefreshTokens(true);
-                })
+                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofDays(14)).
+                        refreshTokenTimeToLive(Duration.ofDays(14)).
+                        reuseRefreshTokens(true).
+                        build())
                 .build();
         if (findByClientId(registeredClient.getClientId()) == null) {
             save(registeredClient);
@@ -115,8 +107,8 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .stream().map(AuthorizationGrantType::getValue).collect(Collectors.toSet()));
         registeredClientEntity.setRedirectUris(registeredClient.getRedirectUris());
         registeredClientEntity.setScopes(registeredClient.getScopes());
-        registeredClientEntity.setClientSettings(writeMap(registeredClient.getClientSettings().settings()));
-        registeredClientEntity.setTokenSettings(writeMap(registeredClient.getTokenSettings().settings()));
+        registeredClientEntity.setClientSettings(writeMap(registeredClient.getClientSettings().getSettings()));
+        registeredClientEntity.setTokenSettings(writeMap(registeredClient.getTokenSettings().getSettings()));
         return registeredClientEntity;
     }
 
@@ -124,16 +116,15 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
         if (registeredClientEntity == null)
             return null;
         return RegisteredClient.withId(registeredClientEntity.getId().toHexString())
-                .clientSettings(clientSettings -> {
-                    if (StringUtils.isNotBlank(registeredClientEntity.getClientSettings())) {
-                        clientSettings.settings().putAll(parseMap(registeredClientEntity.getClientSettings()));
-                    }
-                })
-                .tokenSettings(tokenSettings -> {
-                    if (StringUtils.isNotBlank(registeredClientEntity.getTokenSettings())) {
-                        tokenSettings.settings().putAll(parseMap(registeredClientEntity.getTokenSettings()));
-                    }
-                })
+                .clientSettings(
+                        StringUtils.isNotBlank(registeredClientEntity.getClientSettings()) ?
+                                ClientSettings.builder().settings(stringObjectMap -> {stringObjectMap.putAll(parseMap(registeredClientEntity.getClientSettings()));}).build() :
+                                ClientSettings.builder().build())
+                .tokenSettings(
+                        StringUtils.isNotBlank(registeredClientEntity.getTokenSettings()) ?
+                                TokenSettings.builder().settings(stringObjectMap -> {stringObjectMap.putAll(parseMap(registeredClientEntity.getTokenSettings()));}).build() :
+                                TokenSettings.builder().build()
+                )
                 .clientId(registeredClientEntity.getClientId())
                 .clientIdIssuedAt(registeredClientEntity.getClientIdIssuedAt())
                 .clientSecret(registeredClientEntity.getClientSecret())

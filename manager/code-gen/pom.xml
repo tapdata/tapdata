@@ -16,11 +16,11 @@
     <url>http://www.example.com</url>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <version.jackson.annotations>2.12.6</version.jackson.annotations>
-        <version.jackson.core>2.12.6</version.jackson.core>
-        <version.jackson.databind>2.12.6.1</version.jackson.databind>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <version.jackson.annotations>2.18.3</version.jackson.annotations>
+        <version.jackson.core>2.18.3</version.jackson.core>
+        <version.jackson.databind>2.18.3</version.jackson.databind>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -79,24 +79,6 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.6</version>
-                <executions>
-                    <!--first execution : for preparing JaCoCo runtime agent-->
-                    <execution>
-                        <id>prepare-agent</id>
-                        <goals>
-                            <goal>prepare-agent</goal>
-                        </goals>
-                    </execution>
-                    <!--second execution : for creating code coverage reports-->
-                    <execution>
-                        <id>report</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>report</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

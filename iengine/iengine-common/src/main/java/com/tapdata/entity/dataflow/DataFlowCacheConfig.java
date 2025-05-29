@@ -3,7 +3,7 @@ package com.tapdata.entity.dataflow;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tapdata.entity.Connections;
 import com.tapdata.tm.commons.dag.Node;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.Serializable;
 import java.util.Collections;

@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
+import static lombok.Lombok.sneakyThrow;
 
 public class HazelcastVirtualTargetNode extends HazelcastDataBaseNode {
 

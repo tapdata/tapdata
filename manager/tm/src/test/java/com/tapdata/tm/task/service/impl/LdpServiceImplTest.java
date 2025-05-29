@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
@@ -26,10 +27,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.internal.verification.Times;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -349,5 +353,17 @@ class LdpServiceImplTest {
             doCallRealMethod().when(ldpService).afterLdpTask(taskId, user);
             ldpService.afterLdpTask(taskId, user);
         }
+    }
+
+    @Test
+    void fuzzySearchTest() {
+        String key = "TEST";
+        List<String> connectType = new ArrayList<>();
+        UserDetail user = mock(UserDetail.class);
+        Pattern pattern = Pattern.compile(key, Pattern.CASE_INSENSITIVE);
+        Criteria criteria = Criteria.where("original_name").regex(pattern).and("sourceType").is(SourceTypeEnum.SOURCE.name());
+        doCallRealMethod().when(ldpService).fuzzySearch(key, connectType, user);
+        ldpService.fuzzySearch(key, connectType, user);
+        verify(ldpService, new Times(1)).getLdpFuzzySearchVos(user, criteria);
     }
 }

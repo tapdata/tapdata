@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.aspect.TableInitFuncAspect;
+import io.tapdata.aspect.TruncateTableFuncAspect;
 import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -25,6 +26,7 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskTargetProcessorExCode_15;
@@ -126,7 +128,54 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 			assertEquals(TaskTargetProcessorExCode_15.WRITE_RECORD_GET_TARGET_TABLE_NAME_FAILED,tapCodeException.getCode());
 
 		}
-		
+		@Nested
+		class testExecuteTruncateFunction{
+			ConnectorNode connectorNode;
+
+			@BeforeEach
+			void init() {
+				connectorNode = mock(ConnectorNode.class);
+				when(hazelcastTargetPdkDataNode.getConnectorNode()).thenReturn(connectorNode);
+				ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+				ClearTableFunction clearTableFunction = new ClearTableFunction() {
+					@Override
+					public void clearTable(TapConnectorContext connectorContext, TapClearTableEvent clearTableEvent) throws Throwable {
+
+					}
+				};
+				connectorFunctions.supportClearTable(clearTableFunction);
+				when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			}
+			@DisplayName("test TruncateFunction failed")
+			@Test
+			void test1() {
+				TapClearTableEvent tapClearTableEvent = TapSimplify.clearTableEvent("test1");
+				when(hazelcastTargetPdkDataNode.executeDataFuncAspect(any(), any(), any())).thenThrow(new TapCodeException(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED));
+				when(hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent)).thenCallRealMethod();
+				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(), any());
+				TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
+					hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent);
+				});
+				assertEquals(TaskTargetProcessorExCode_15.CLEAR_TABLE_FAILED,tapCodeException.getCode());
+			}
+			@DisplayName("test TruncateFunction success")
+			@Test
+			void test2(){
+				TapClearTableEvent tapClearTableEvent = TapSimplify.clearTableEvent("test1");
+				when(hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent)).thenCallRealMethod();
+				doAnswer(invocationOnMock -> {
+					Callable argument = invocationOnMock.getArgument(1);
+					argument.call();
+					CommonUtils.AnyErrorConsumer argument1 = invocationOnMock.getArgument(2);
+					argument1.accept(new TruncateTableFuncAspect());
+					return null;
+				}).when(hazelcastTargetPdkDataNode).executeDataFuncAspect(any(),any(),any());
+				boolean result = hazelcastTargetPdkDataNode.executeTruncateFunction(tapClearTableEvent);
+				verify(hazelcastTargetPdkDataNode,times(1)).executeTruncateFunction(tapClearTableEvent);
+				assertEquals(true,result);
+			}
+		}
+
 		@Nested
 		class testProcessExactlyOnceWriteCache{
 			@BeforeEach

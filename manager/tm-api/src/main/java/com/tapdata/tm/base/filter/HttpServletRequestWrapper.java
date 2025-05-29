@@ -1,13 +1,12 @@
 package com.tapdata.tm.base.filter;
 
 import com.tapdata.tm.utils.GZIPUtil;
-import org.apache.http.client.entity.GzipDecompressingEntity;
 import org.springframework.util.Assert;
 import org.springframework.util.StreamUtils;
 
-import javax.servlet.ReadListener;
-import javax.servlet.ServletInputStream;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.*;
 
 /**
@@ -15,7 +14,7 @@ import java.io.*;
  * @date 2021/9/15 下午9:28
  * @description
  */
-public class HttpServletRequestWrapper extends javax.servlet.http.HttpServletRequestWrapper {
+public class HttpServletRequestWrapper extends jakarta.servlet.http.HttpServletRequestWrapper {
     private byte[] content;
     private String characterEncoding = "UTF-8";
     private String contentEncoding = null;

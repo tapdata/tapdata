@@ -4,7 +4,7 @@ import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheStore;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.HashSet;
 import java.util.List;

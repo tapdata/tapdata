@@ -56,6 +56,8 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
+import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
 import com.tapdata.tm.report.dto.ConfigureSourceBatch;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
@@ -123,8 +125,10 @@ public class DataSourceServiceImpl extends DataSourceService{
     @Autowired
     private SettingsService settingsService;
     private final Object checkCloudLock = new Object();
+    @Lazy
     @Autowired
     private ClassificationService classificationService;
+    @Lazy
     @Autowired
     private MetadataInstancesService metadataInstancesService;
     @Autowired
@@ -535,6 +539,11 @@ public class DataSourceServiceImpl extends DataSourceService{
                 item.setDefinitionScope(definitionDto.getScope());
                 item.setDefinitionBuildNumber(String.valueOf(definitionDto.getBuildNumber()));
                 item.setDefinitionTags(definitionDto.getTags());
+                LinkedHashMap<String, Object> properties = definitionDto.getProperties();
+                Object connection = properties.get("connection");
+                if (connection instanceof LinkedHashMap<?,?>) {
+                    modulesService.analyzeApiServerKey(item, (LinkedHashMap) connection, null);
+                }
             }}
 	}
 
@@ -2145,6 +2154,44 @@ public class DataSourceServiceImpl extends DataSourceService{
             metadataInstancesService.update(query, Update.update(DataSourceConnectionDto.FIELD_LAST_UPDATE, lastUpdate), userDetail);
         }
 
+    }
+
+    @Override
+    public List<Map<String, String>> getDatabaseTypes(UserDetail user) {
+        return DataPermissionMenuEnums.Connections.checkAndSetFilter(user, DataPermissionActionEnums.View, () -> {
+            Query query = new Query();
+            query = repository.applyUserDetail(query, user);
+            
+            Document queryObject = query.getQueryObject();
+            
+            Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(Criteria.matchingDocumentStructure(new org.springframework.data.mongodb.core.schema.MongoJsonSchema() {
+                    @Override
+                    public Document schemaDocument() {
+                        return queryObject;
+                    }
+                    @Override
+                    public Document toDocument() {
+                        return queryObject;
+                    }
+                })),
+                Aggregation.group("database_type")
+                    .first("database_type").as("databaseType")
+                    .first("pdkHash").as("pdkHash")
+            );
+
+            AggregationResults<Document> results = repository.aggregate(aggregation, Document.class);
+            List<Map<String, String>> databaseTypes = new ArrayList<>();
+            
+            for (Document doc : results) {
+                Map<String, String> result = new HashMap<>();
+                result.put("databaseType", doc.getString("databaseType"));
+                result.put("pdkHash", doc.getString("pdkHash"));
+                databaseTypes.add(result);
+            }
+            
+            return databaseTypes;
+        });
     }
 
 }

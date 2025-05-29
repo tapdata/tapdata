@@ -1,6 +1,6 @@
 package com.tapdata.processor;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UpdateOptions;
@@ -9,7 +9,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -198,7 +198,7 @@ public class MongoDBScriptConnection implements ScriptConnection {
 		Map<String, Object> filter = executeObject.getFilter();
 		Document filterDocument = filter == null ? new Document() : new Document(filter);
 
-		return mongoClient.getDatabase(database).getCollection(collection).count(filterDocument);
+		return mongoClient.getDatabase(database).getCollection(collection).countDocuments(filterDocument);
 	}
 
 	@Override

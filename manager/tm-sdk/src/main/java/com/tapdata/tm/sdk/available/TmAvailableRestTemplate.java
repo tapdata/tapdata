@@ -1,11 +1,7 @@
 package com.tapdata.tm.sdk.available;
 
 import com.tapdata.tm.sdk.util.JacksonUtil;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.AbstractClientHttpResponse;
+import org.springframework.http.*;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
@@ -44,7 +40,7 @@ public class TmAvailableRestTemplate extends RestTemplate {
 
 			try (ClientHttpResponse response = request.execute()) {
 				//long ttl = System.currentTimeMillis() - start;
-				HttpStatus statusCode = response.getStatusCode();
+				HttpStatusCode statusCode = response.getStatusCode();
 				if (statusCode.is5xxServerError()) {
 					if (TmStatusService.isAvailable()) {
 						logger.warn("TM unavailable, status code is " + response.getStatusText());
@@ -78,42 +74,45 @@ public class TmAvailableRestTemplate extends RestTemplate {
 		}
 	}
 
-  private static AbstractClientHttpResponse getDefaultResponse() {
-    return new AbstractClientHttpResponse() {
 
-      @Override
-      public int getRawStatusCode() throws IOException {
-        return 200;
-      }
+  private AbstractClientHttpResponse getDefaultResponse() {
+    return new AbstractClientHttpResponse();
+  }
+  class AbstractClientHttpResponse implements ClientHttpResponse {
 
-      @Override
-      public String getStatusText() throws IOException {
-        return "ok";
-      }
 
-      @Override
-      public void close() {
+	  @Override
+	  public HttpStatusCode getStatusCode() throws IOException {
+		  return HttpStatus.OK;
+	  }
 
-      }
+	  @Override
+	  public String getStatusText() throws IOException {
+		  return "ok";
+	  }
 
-      @Override
-      public InputStream getBody() throws IOException {
-        Map<String, Object> responseBody = new HashMap<String, Object>() {{
-          put("code", "503");
-          put("msg", "503 Service Unavailable");
-        }};
-        String obj2Json = JacksonUtil.toJson(responseBody);
-        byte[] bytes = obj2Json.getBytes(StandardCharsets.UTF_8);
-        return new ByteArrayInputStream(bytes);
-      }
+	  @Override
+	  public void close() {
 
-      @Override
-      public HttpHeaders getHeaders() {
-        HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-        return httpHeaders;
-      }
-    };
+	  }
+
+	  @Override
+	  public InputStream getBody() throws IOException {
+		  Map<String, Object> responseBody = new HashMap<String, Object>() {{
+			  put("code", "503");
+			  put("msg", "503 Service Unavailable");
+		  }};
+		  String obj2Json = JacksonUtil.toJson(responseBody);
+		  byte[] bytes = obj2Json.getBytes(StandardCharsets.UTF_8);
+		  return new ByteArrayInputStream(bytes);
+	  }
+
+	  @Override
+	  public HttpHeaders getHeaders() {
+		  HttpHeaders httpHeaders = new HttpHeaders();
+		  httpHeaders.setContentType(MediaType.APPLICATION_JSON);
+		  return httpHeaders;
+	  }
   }
 
 }

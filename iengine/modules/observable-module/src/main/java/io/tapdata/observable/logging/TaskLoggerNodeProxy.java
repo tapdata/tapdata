@@ -1,7 +1,7 @@
 package io.tapdata.observable.logging;
 
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.jetbrains.annotations.NotNull;
 import java.util.Date;
 import java.util.List;

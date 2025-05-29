@@ -6,7 +6,7 @@ import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.dataflow.pb.DynamicProtoUtil;
 import com.tapdata.processor.dataflow.pb.PbConfiguration;
 import com.tapdata.processor.dataflow.pb.PbModel;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;

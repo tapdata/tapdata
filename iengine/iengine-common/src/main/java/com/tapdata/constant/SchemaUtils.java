@@ -2,7 +2,7 @@ package com.tapdata.constant;
 
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.RelateDatabaseField;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 /**
  * @author samuel

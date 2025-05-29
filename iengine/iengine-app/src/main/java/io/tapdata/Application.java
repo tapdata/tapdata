@@ -47,6 +47,7 @@ import org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfigurat
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -127,7 +128,7 @@ public class Application {
 			logger.info("Starting application, code version {}", formatVersion);
 			AgentRuntime.version = (configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString();
 			initTimeZoneInfo();
-			SpringApplication springApplication = new SpringApplication(Application.class);
+			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).build();
 			springApplication.setWebApplicationType(WebApplicationType.NONE);
 			ConfigurableApplicationContext run = springApplication.run(args);
 

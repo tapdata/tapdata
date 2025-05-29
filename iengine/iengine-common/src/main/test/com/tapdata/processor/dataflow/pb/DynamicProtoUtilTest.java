@@ -6,7 +6,7 @@ import com.google.protobuf.DynamicMessage;
 import com.huawei.shade.com.alibaba.fastjson.JSON;
 import com.tapdata.constant.MapUtilV2;
 import com.tapdata.constant.UUIDGenerator;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.compress.utils.Lists;
 import org.junit.Ignore;
 import org.junit.Test;

@@ -5,6 +5,7 @@ import io.tapdata.entity.script.ScriptFactory;
 import lombok.SneakyThrows;
 import org.junit.jupiter.api.*;
 import org.springframework.test.util.ReflectionTestUtils;
+import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -69,12 +70,16 @@ public class TaskResourceSupervisorManagerTest {
             assertEquals(Boolean.TRUE,taskNodeInfo.isHasLaked());
         }
         private void reflectField(String threshold) throws NoSuchFieldException, IllegalAccessException {
-            Field scriptFactory = TaskResourceSupervisorManager.class.getDeclaredField("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD");
-            scriptFactory.setAccessible(true);
-            Field modifiers = Field.class.getDeclaredField("modifiers");
-            modifiers.setAccessible(true);
-            modifiers.setInt(scriptFactory, scriptFactory.getModifiers() & ~Modifier.FINAL);
-            scriptFactory.set(taskResourceSupervisorManager, "0");
+            Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafe.setAccessible(true);
+            Unsafe unsafe = (Unsafe) theUnsafe.get(null);
+
+            Field field = TaskResourceSupervisorManager.class.getDeclaredField("CLEAN_LEAKED_THREAD_GROUP_THRESHOLD");
+
+            Object fieldBase = unsafe.staticFieldBase(field);
+            long fieldOffset = unsafe.staticFieldOffset(field);
+
+            unsafe.putObject(fieldBase, fieldOffset, "0");
         }
     }
     @Nested

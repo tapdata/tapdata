@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.web.multipart.commons.CommonsMultipartFile;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.InputStream;
@@ -18,8 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class PdkSourceUtilsTest {
     @Nested
@@ -27,14 +27,14 @@ public class PdkSourceUtilsTest {
     class GetFileMD5Test{
         @Test
         @SneakyThrows
-        @DisplayName("getFileMD5 method test when parameter class is CommonsMultipartFile")
-        void testGetFileMD5WithCommonsMultipartFile(){
+        @DisplayName("getFileMD5 method test when parameter class is MultipartFile")
+        void testGetFileMD5WithMultipartFile(){
             File existFile = new File("a.jar");
             existFile.createNewFile();
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            CommonsMultipartFile originFile = new CommonsMultipartFile(fileItem);
-            String md5 = PdkSourceUtils.getFileMD5(originFile);
+            MockMultipartFile mp = new MockMultipartFile("a.jar",fileItem.getInputStream());
+            String md5 = PdkSourceUtils.getFileMD5(mp);
             existFile.delete();
             assertNotEquals(null,md5);
         }
@@ -54,14 +54,14 @@ public class PdkSourceUtilsTest {
     class CalcFileMD5Test{
         @Test
         @SneakyThrows
-        @DisplayName("calcFileMD5 method test when parameter class is CommonsMultipartFile")
-        void testCalcFileMD5WithCommonsMultipartFile(){
+        @DisplayName("calcFileMD5 method test when parameter class is MultipartFile")
+        void testCalcFileMD5WithMultipartFile(){
             File existFile = new File("a.jar");
             existFile.createNewFile();
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            CommonsMultipartFile originFile = new CommonsMultipartFile(fileItem);
-            String md5 = PdkSourceUtils.calcFileMD5(originFile);
+            MockMultipartFile mp = new MockMultipartFile("a.jar",fileItem.getInputStream());
+            String md5 = PdkSourceUtils.calcFileMD5(mp);
             existFile.delete();
             assertNotEquals(null,md5);
         }
@@ -130,7 +130,7 @@ public class PdkSourceUtilsTest {
             AtomicBoolean needDeleteFile = new AtomicBoolean(false);
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            CommonsMultipartFile originFile = new CommonsMultipartFile(fileItem);
+            MockMultipartFile originFile = new MockMultipartFile("a.jar",fileItem.getInputStream());
             PdkSourceUtils.transformToFile(originFile, (k, v)->{
                 file.set((File) k);
                 needDeleteFile.set((Boolean) v);
@@ -147,7 +147,7 @@ public class PdkSourceUtilsTest {
             AtomicBoolean needDeleteFile = new AtomicBoolean(false);
             FileItem fileItem = mock(FileItem.class);
             when(fileItem.getFieldName()).thenReturn("a.jar");
-            CommonsMultipartFile originFile = new CommonsMultipartFile(fileItem);
+            MockMultipartFile originFile = new MockMultipartFile("a.jar",fileItem.getInputStream());
             PdkSourceUtils.transformToFile(originFile, (k, v)->{
                 file.set((File) k);
                 needDeleteFile.set((Boolean) v);

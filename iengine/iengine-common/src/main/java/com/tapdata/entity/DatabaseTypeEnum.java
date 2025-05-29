@@ -4,10 +4,7 @@ import io.tapdata.pdk.apis.entity.Capability;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -233,6 +230,7 @@ public enum DatabaseTypeEnum {
 		private String pdkId;
 		private String pdkHash;
 		private List<Capability> capabilities;
+		private LinkedHashMap<String, Object> properties;
 
 		public DatabaseType() {
 		}
@@ -384,6 +382,14 @@ public enum DatabaseTypeEnum {
 
 		public void setPdkHash(String pdkHash) {
 			this.pdkHash = pdkHash;
+		}
+
+		public LinkedHashMap<String, Object> getProperties() {
+			return properties;
+		}
+
+		public void setProperties(LinkedHashMap<String, Object> properties) {
+			this.properties = properties;
 		}
 
 		@Override

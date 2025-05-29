@@ -18,6 +18,10 @@ import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.taskinspect.ITaskInspect;
+import com.tapdata.taskinspect.TaskInspectHelper;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.cdcdelay.CdcDelay;
 import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
@@ -60,11 +64,13 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.TapDDLUnknownEvent;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
@@ -111,7 +117,7 @@ import io.tapdata.supervisor.TaskNodeInfo;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.threadgroup.ConnectorOnTaskThreadGroup;
 import lombok.SneakyThrows;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -224,11 +230,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected final NoPrimaryKeyVirtualField noPrimaryKeyVirtualField = new NoPrimaryKeyVirtualField();
 	protected List<String> loggedTables = new ArrayList<>();
 	private List<Node<?>> targetDataNodes;
+    private final ITaskInspect taskInspect;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.tapEventFilter = TargetTableDataEventFilter.create();
 		this.sourceRunnerLock = new ReentrantLock(true);
+        String taskId = Optional.ofNullable(dataProcessorContext)
+            .map(ProcessorBaseContext::getTaskDto)
+            .map(BaseDto::getId)
+            .map(ObjectId::toHexString)
+            .orElse(null);
+        this.taskInspect = TaskInspectHelper.get(taskId);
 	}
 
 	private boolean needCdcDelay() {
@@ -368,7 +381,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapEvent e = event.getTapEvent();
 				try {
 					if (e instanceof TapRecordEvent) {
-						String tableId = ShareCdcUtil.getTapRecordEventTableName((TapRecordEvent) e);
+						String tableId = ShareCdcUtil.getTapRecordEventTableNameV2((TapRecordEvent) e, taskDto.getSyncType());
 						TapTable tapTable = null;
 						try {
 							tapTable = tapTableMap.get(tableId);
@@ -971,10 +984,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						switch (type) {
 							case HasKeys:
 								// filter no hove primary key tables
-								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) && Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
 							case NoKeys:
 								// filter has primary key tables
-								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true);
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+							case OnlyPrimaryKey:
+								return (Function<TapTable, Boolean>) tapTable -> Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || !Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
+							case OnlyUniqueIndex:
+								return (Function<TapTable, Boolean>) tapTable -> !Optional.ofNullable(tapTable.primaryKeys()).map(Collection::isEmpty).orElse(true) || Optional.ofNullable(tapTable.getIndexList()).orElse(new ArrayList<>()).stream().filter(TapIndex::getUnique).collect(Collectors.toList()).isEmpty();
 							default:
 								break;
 						}
@@ -1238,6 +1255,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	protected TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
 		TapdataEvent tapdataEvent = null;
+		fillConnectorPropertiesIntoEvent(tapEvent);
 		switch (sourceMode) {
 			case NORMAL:
 				tapdataEvent = new TapdataEvent();
@@ -1332,6 +1350,19 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return tapdataEvent;
 	}
 
+	protected void fillConnectorPropertiesIntoEvent(TapEvent tapEvent) {
+		Connections connections = dataProcessorContext.getConnections();
+		if (null != databaseType) {
+			tapEvent.setPdkId(databaseType.getPdkId());
+			tapEvent.setPdkGroup(databaseType.getGroup());
+			tapEvent.setPdkVersion(databaseType.getVersion());
+		}
+		if (null != connections) {
+			tapEvent.database(connections.getDatabase_name());
+			tapEvent.schema(connections.getDatabase_owner());
+		}
+	}
+
 	protected void setPartitionMasterTableId(TapTable tapTable, List<TapEvent> events) {
 		if (null == syncSourcePartitionTableEnable
 				|| !syncSourcePartitionTableEnable
@@ -1384,6 +1415,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		// Modify schema by ddl event
 		if (tapEvent instanceof TapCreateTableEvent) {
 			tapTable = ((TapCreateTableEvent) tapEvent).getTable();
+		} else if (tapEvent instanceof TapClearTableEvent) {
+			return;
 		} else {
 			try {
 				tapTable = processorBaseContext.getTapTableMap().get(tableId);
@@ -1517,6 +1550,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TapdataEvent event = tapdataEvent;
 				if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
 					event = this.tapEventFilter.handle(tapdataEvent);
+                    if (null != taskInspect) {
+                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
+                    }
 				}
 				if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
 					break;

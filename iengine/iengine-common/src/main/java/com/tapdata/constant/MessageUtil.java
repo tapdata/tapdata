@@ -5,7 +5,7 @@ import com.tapdata.entity.Mapping;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.ProcessResult;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -111,7 +111,7 @@ public class MessageUtil {
 			if (targetBefore.containsKey("_id")) {
 				MapUtil.removeValueByKey(targetBefore, DataQualityTag.SUB_COLUMN_NAME);
 				Update update = processResult.getUpdate();
-				if (update != null && org.apache.commons.collections.MapUtils.isNotEmpty(targetBefore)) {
+				if (update != null && org.apache.commons.collections4.MapUtils.isNotEmpty(targetBefore)) {
 					update.set(DataQualityTag.SUB_COLUMN_NAME + ".before", targetBefore);
 				}
 			}

@@ -2,7 +2,7 @@ package com.tapdata.tm.user.dto;
 
 import lombok.Data;
 
-import javax.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotEmpty;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;

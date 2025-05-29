@@ -2,6 +2,7 @@ package com.tapdata.tm.mp.service;
 
 import com.tapdata.tm.mp.entity.MpAccessToken;
 import com.tapdata.tm.utils.SendStatus;
+import jakarta.annotation.PreDestroy;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -9,7 +10,6 @@ import lombok.Setter;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import javax.annotation.PreDestroy;
 import java.util.Date;
 import java.util.Map;
 

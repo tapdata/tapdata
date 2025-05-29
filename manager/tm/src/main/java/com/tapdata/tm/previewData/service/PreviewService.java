@@ -10,7 +10,7 @@ import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.previewData.param.PreviewParam;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;

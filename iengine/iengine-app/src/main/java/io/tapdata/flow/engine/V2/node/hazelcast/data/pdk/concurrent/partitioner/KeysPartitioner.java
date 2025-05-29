@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner;
 
 import com.tapdata.entity.TapdataEvent;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.List;
 import java.util.Objects;

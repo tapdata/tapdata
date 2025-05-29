@@ -20,14 +20,18 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.slf4j.Logger;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import javax.mail.*;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
+import jakarta.mail.*;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -39,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class MailUtilsTest {
     @Mock
     BlacklistService blacklistService;
@@ -406,9 +411,9 @@ class MailUtilsTest {
     public void mockSlf4jLog(Object mockTo, Logger log) {
         try {
             Field logF = mockTo.getClass().getDeclaredField("log");
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
-            modifiersField.setAccessible(true);
-            modifiersField.setInt(logF, logF.getModifiers() & ~Modifier.FINAL);
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(Field.class, MethodHandles.lookup());
+            VarHandle modifiersVarHandle = lookup.findVarHandle(Field.class, "modifiers", int.class);
+            modifiersVarHandle.set(logF, logF.getModifiers() & ~Modifier.FINAL);
             logF.setAccessible(true);
             logF.set(mockTo, log);
         } catch (Exception e) {

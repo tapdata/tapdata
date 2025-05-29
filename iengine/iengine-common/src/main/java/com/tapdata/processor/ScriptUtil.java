@@ -24,8 +24,8 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.js.connector.base.JsUtil;
 import io.tapdata.utils.AppType;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
@@ -360,7 +360,7 @@ public class ScriptUtil {
 		}
 		buildInMethod.append("var networkUtil = Java.type(\"com.tapdata.constant.NetworkUtil\");\n");
 		buildInMethod.append("var rest = Java.type(\"com.tapdata.processor.util.CustomRest\");\n");
-		buildInMethod.append("var httpUtil = Java.type(\"cn.hutool.http.HttpUtil\");\n");
+		buildInMethod.append("var httpUtil = Java.type(\"com.tapdata.http.HttpUtil\");\n");
 		buildInMethod.append("var tcp = Java.type(\"com.tapdata.processor.util.CustomTcp\");\n");
 		buildInMethod.append("var mongo = Java.type(\"com.tapdata.processor.util.CustomMongodb\");\n");
 
@@ -376,32 +376,36 @@ public class ScriptUtil {
 					if (javaScriptFunction.isJar() && AppType.currentType().isDaas()) {
 						//定义类加载器
 						String fileId = javaScriptFunction.getFileId();
-						final Path filePath = Paths.get(System.getenv("TAPDATA_WORK_DIR"), "lib", fileId);
-						if (Files.notExists(filePath)) {
-							if (clientMongoOperator instanceof HttpClientMongoOperator) {
-								File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
-								if (null == file) {
-									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("file not found，fileId:%s,filePath:%s",fileId,filePath));
-								}
-							} else {
-								GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
-								try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
-									if (Files.notExists(filePath.getParent())) {
-										Files.createDirectories(filePath.getParent());
+						String workingDir = System.getenv("TAPDATA_WORK_DIR");
+						if(StringUtils.isNotBlank(workingDir)){
+							final Path filePath = Paths.get(workingDir, "lib", fileId);
+							if (Files.notExists(filePath)) {
+								if (clientMongoOperator instanceof HttpClientMongoOperator) {
+									File file = ((HttpClientMongoOperator) clientMongoOperator).downloadFile(null, "file/" + fileId, filePath.toString(), true);
+									if (null == file) {
+										throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("file not found，fileId:%s,filePath:%s",fileId,filePath));
 									}
-									Files.createFile(filePath);
-									Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-								} catch (Exception e) {
-									throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
+								} else {
+									GridFSBucket gridFSBucket = clientMongoOperator.getGridFSBucket();
+									try (GridFSDownloadStream gridFSDownloadStream = gridFSBucket.openDownloadStream(new ObjectId(javaScriptFunction.getFileId()))) {
+										if (Files.notExists(filePath.getParent())) {
+											Files.createDirectories(filePath.getParent());
+										}
+										Files.createFile(filePath);
+										Files.copy(gridFSDownloadStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+									} catch (Exception e) {
+										throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath),e);
+									}
 								}
 							}
+							try {
+								URL url = filePath.toUri().toURL();
+								urlList.add(url);
+							} catch (Exception e) {
+								throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath), e);
+							}
 						}
-						try {
-							URL url = filePath.toUri().toURL();
-							urlList.add(url);
-						} catch (Exception e) {
-							throw new TapCodeException(ScriptProcessorExCode_30.INIT_STANDARDIZATION_METHOD_FAILED,String.format("create function jar file %s", filePath), e);
-						}
+
                     }
 				}
 			}
@@ -567,7 +571,7 @@ public class ScriptUtil {
 				"import com.tapdata.constant.MapUtil as MapUtils\n" +
 				"import com.tapdata.constant.NetworkUtil as networkUtil\n" +
 				"import com.tapdata.processor.util.CustomRest as rest\n" +
-				"import cn.hutool.http.HttpUtil as httpUtil\n" +
+				"import com.tapdata.http.HttpUtil as httpUtil\n" +
 				"import com.tapdata.processor.util.CustomTcp as tcp\n" +
 				"import com.tapdata.processor.util.CustomMongodb as mongo\n" +
 

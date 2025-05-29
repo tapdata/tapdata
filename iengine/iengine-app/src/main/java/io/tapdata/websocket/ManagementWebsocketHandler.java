@@ -16,7 +16,10 @@ import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.websocket.handler.PongHandler;
-import org.apache.commons.collections.CollectionUtils;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import jakarta.websocket.CloseReason;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,9 +37,7 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.websocket.CloseReason;
+
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;

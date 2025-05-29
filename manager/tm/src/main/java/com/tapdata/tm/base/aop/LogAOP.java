@@ -12,9 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -59,7 +59,7 @@ public class LogAOP {
 			//Class[] parameterTypes = methodSignature.getParameterTypes();
 			Object[] args = joinPoint.getArgs();
 
-			for (int i = 0; i < args.length && i < parameterNames.length; i++) {
+			for (int i = 0; i < args.length && null != parameterNames && i < parameterNames.length; i++) {
 				Object obj = args[i];
 				if( !(obj instanceof ServletRequest || obj instanceof ServletResponse || obj instanceof HttpSession) ){
 					params.put(parameterNames[i], obj);

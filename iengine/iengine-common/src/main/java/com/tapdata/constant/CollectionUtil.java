@@ -1,8 +1,8 @@
 package com.tapdata.constant;
 
 import io.tapdata.entity.schema.value.TapMapValue;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 
 import java.util.*;
 import java.util.function.Function;
@@ -12,7 +12,7 @@ import java.util.function.Function;
  * @Description
  * @create 2020-12-10 15:03
  **/
-public class CollectionUtil extends CollectionUtils {
+public class CollectionUtil  {
 
 	public static List getValueByKey(List list, String key) {
 		TapList retList = new TapList();

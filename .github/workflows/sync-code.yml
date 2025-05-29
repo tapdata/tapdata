@@ -1,0 +1,358 @@
+name: Sync Code to Gitee
+
+on:
+  workflow_call:
+    inputs:
+      tapdata:
+        description: 'Sync tapdata'
+        required: false
+        type: string
+        default: ''
+      tapdata-connectors:
+        description: 'Sync tapdata-connectors'
+        required: false
+        type: string
+        default: ''
+      tapdata-enterprise-web:
+        description: 'Sync tapdata-enterprise-web'
+        required: false
+        type: string
+        default: ''
+      tapdata-application:
+        description: 'Sync tapdata-application'
+        required: false
+        type: string
+        default: 'main'
+      docs:
+        description: 'Sync docs'
+        required: false
+        type: string
+        default: 'community-data-sources-docs'
+    secrets:
+      TAPDATA_ENT_CICD_TOKEN:
+        description: 'Tapdata Enterprise CICD Token'
+        required: true
+      GITEE_SSH_KEY:
+        description: 'Gitee SSH private key for repository access'
+        required: true
+      GITEE_KNOWN_HOSTS:
+        description: 'Gitee known hosts configuration'
+        required: true
+  workflow_dispatch:
+    inputs:
+      tapdata:
+        description: 'Sync tapdata'
+        required: false
+        type: string
+        default: ''
+      tapdata-connectors:
+        description: 'Sync tapdata-connectors'
+        required: false
+        type: string
+        default: ''
+      tapdata-enterprise-web:
+        description: 'Sync tapdata-enterprise-web'
+        required: false
+        type: string
+        default: ''
+      tapdata-application:
+        description: 'Sync tapdata-application'
+        required: false
+        type: string
+        default: 'main'
+      docs:
+        description: 'Sync docs'
+        required: false
+        type: string
+        default: 'community-data-sources-docs'
+
+jobs:
+  sync-tapdata-code:
+    if: inputs.tapdata != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure DNS servers
+        run: |
+          sudo cp /etc/resolv.conf /etc/resolv.conf.backup || true # Backup original resolv.conf, ignore errors if it doesn't exist
+          echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf
+          echo "nameserver 223.5.5.5" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 119.29.29.29" | sudo tee -a /etc/resolv.conf # Add DNSPod DNS
+          if [ -f /etc/resolv.conf.backup ]; then
+            cat /etc/resolv.conf.backup | sudo tee -a /etc/resolv.conf # Append original servers
+          fi
+      - name: Test DNS Resolution
+        run: |
+          echo "--- Current /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- Testing DNS resolution for gitee.com ---"
+          dig gitee.com
+      - id: sync
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata.git"
+      - name: Clean workspace before retry 1
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 1
+        if: steps.sync.outcome == 'failure'
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata.git"
+      - name: Clean workspace before retry 2
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 2
+        if: steps.sync.outcome == 'failure'
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata.git"
+
+  sync-tapdata-docs-code:
+    if: inputs.docs != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure DNS servers
+        run: |
+          sudo cp /etc/resolv.conf /etc/resolv.conf.backup || true # Backup original resolv.conf, ignore errors if it doesn't exist
+          echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf
+          echo "nameserver 223.5.5.5" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 119.29.29.29" | sudo tee -a /etc/resolv.conf # Add DNSPod DNS
+          if [ -f /etc/resolv.conf.backup ]; then
+            cat /etc/resolv.conf.backup | sudo tee -a /etc/resolv.conf # Append original servers
+          fi
+      - name: Test DNS Resolution
+        run: |
+          echo "--- Current /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- Testing DNS resolution for gitee.com ---"
+          dig gitee.com
+      - id: sync
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/docs.git"
+          destination-repo: "git@gitee.com:tapdata_1/docs.git"
+      - name: Clean workspace before retry 1
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 1
+        if: steps.sync.outcome == 'failure'
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/docs.git"
+          destination-repo: "git@gitee.com:tapdata_1/docs.git"
+      - name: Clean workspace before retry 2
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 2
+        if: steps.sync.outcome == 'failure'
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/docs.git"
+          destination-repo: "git@gitee.com:tapdata_1/docs.git"
+
+  sync-tapdata-connectors-code:
+    if: inputs.tapdata-connectors != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure DNS servers
+        run: |
+          sudo cp /etc/resolv.conf /etc/resolv.conf.backup || true # Backup original resolv.conf, ignore errors if it doesn't exist
+          echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf
+          echo "nameserver 223.5.5.5" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 119.29.29.29" | sudo tee -a /etc/resolv.conf # Add DNSPod DNS
+          if [ -f /etc/resolv.conf.backup ]; then
+            cat /etc/resolv.conf.backup | sudo tee -a /etc/resolv.conf # Append original servers
+          fi
+      - name: Test DNS Resolution
+        run: |
+          echo "--- Current /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- Testing DNS resolution for gitee.com ---"
+          dig gitee.com
+      - id: sync
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-connectors.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-connectors.git"
+      - name: Clean workspace before retry 1
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 1
+        if: steps.sync.outcome == 'failure'
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-connectors.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-connectors.git"
+      - name: Clean workspace before retry 2
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 2
+        if: steps.sync.outcome == 'failure'
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-connectors.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-connectors.git"
+
+  sync-tapdata-enterprise-web-code:
+    if: inputs.tapdata-enterprise-web != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure DNS servers
+        run: |
+          sudo cp /etc/resolv.conf /etc/resolv.conf.backup || true # Backup original resolv.conf, ignore errors if it doesn't exist
+          echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf
+          echo "nameserver 223.5.5.5" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 119.29.29.29" | sudo tee -a /etc/resolv.conf # Add DNSPod DNS
+          if [ -f /etc/resolv.conf.backup ]; then
+            cat /etc/resolv.conf.backup | sudo tee -a /etc/resolv.conf # Append original servers
+          fi
+      - name: Test DNS Resolution
+        run: |
+          echo "--- Current /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- Testing DNS resolution for gitee.com ---"
+          dig gitee.com
+      - id: sync
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-enterprise-web.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-web.git"
+      - name: Clean workspace before retry 1
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 1
+        if: steps.sync.outcome == 'failure'
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-enterprise-web.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-web.git"
+      - name: Clean workspace before retry 2
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 2
+        if: steps.sync.outcome == 'failure'
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-enterprise-web.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-web.git"
+
+  sync-tapdata-application-code:
+    if: inputs.tapdata-application != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure DNS servers
+        run: |
+          sudo cp /etc/resolv.conf /etc/resolv.conf.backup || true # Backup original resolv.conf, ignore errors if it doesn't exist
+          echo "nameserver 114.114.114.114" | sudo tee /etc/resolv.conf
+          echo "nameserver 223.5.5.5" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 119.29.29.29" | sudo tee -a /etc/resolv.conf # Add DNSPod DNS
+          if [ -f /etc/resolv.conf.backup ]; then
+            cat /etc/resolv.conf.backup | sudo tee -a /etc/resolv.conf # Append original servers
+          fi
+      - name: Test DNS Resolution
+        run: |
+          echo "--- Current /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- Testing DNS resolution for gitee.com ---"
+          dig gitee.com
+      - id: sync
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-application.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-application.git"
+      - name: Clean workspace before retry 1
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 1
+        if: steps.sync.outcome == 'failure'
+        continue-on-error: true
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-application.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-application.git"
+      - name: Clean workspace before retry 2
+        if: steps.sync.outcome == 'failure'
+        run: |
+          sudo chmod -R 777 . || true
+          sudo rm -rf *
+      - name: Retry 2
+        if: steps.sync.outcome == 'failure'
+        uses: wearerequired/git-mirror-action@v1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GITEE_KNOWN_HOSTS }}
+        with:
+          source-repo: "git@github.com:tapdata/tapdata-application.git"
+          destination-repo: "git@gitee.com:tapdata_1/tapdata-application.git" 

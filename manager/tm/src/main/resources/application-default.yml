@@ -6,6 +6,11 @@ application:
   build: '@maven.build.timestamp@'
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+      enabled: true
   application:
     name: TCMApplication
 
@@ -26,8 +31,12 @@ spring:
 
   mvc:
     static-path-pattern: /**
+    path match:
+      matching-strategy: ant_path_matcher
     format:
       date-time: yyyyMM-dd HH:mm:ss
+    async:
+      request-timeout: 1000
   jackson:
     default-property-inclusion: non_null
 

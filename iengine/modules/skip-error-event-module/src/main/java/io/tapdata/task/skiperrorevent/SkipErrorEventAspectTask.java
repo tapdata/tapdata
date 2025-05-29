@@ -32,7 +32,7 @@ import java.util.function.Function;
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false)
 public class SkipErrorEventAspectTask extends AbstractAspectTask {
     // Set a maximum of 10 threads to report status, if delay please check the net work and DB stress
-    private final static ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(10);
+    private final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(1);
 
     private static final String METRICS_SYNC = "sync";
     private static final String METRICS_SKIP = "skip";
@@ -211,10 +211,28 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     public void onStop(TaskStopAspect stopAspect) {
         try {
             stopStoreFuture();
+            shutdownExecutor();
         } finally {
             try {
                 this.logger.close();
             } catch (Exception ignore) {
+            }
+        }
+    }
+
+    protected void shutdownExecutor() {
+        if (EXECUTOR != null && !EXECUTOR.isShutdown()) {
+            EXECUTOR.shutdown();
+            try {
+                if (!EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
+                    EXECUTOR.shutdownNow();
+                    if (!EXECUTOR.awaitTermination(5, TimeUnit.SECONDS)) {
+                        logger.error("shutdown executor failed");
+                    }
+                }
+            } catch (InterruptedException e) {
+                EXECUTOR.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
     }

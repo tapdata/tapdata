@@ -10,13 +10,13 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import org.elasticsearch.common.collect.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 
@@ -58,7 +58,7 @@ public class TaskDagServiceImplTest {
 
             when(taskDto.getDag()).thenReturn(dag);
             when(dag.getSourceNode()).thenReturn(sourceNodes);
-            when(sourceNode.getTableNames()).thenReturn(List.of("table1", "table2"));
+            when(sourceNode.getTableNames()).thenReturn(Arrays.asList("table1", "table2"));
             when(dag.getNodes()).thenReturn(dagNodes);
         }
 
@@ -81,7 +81,7 @@ public class TaskDagServiceImplTest {
             LinkedList<DatabaseNode> targetNodes = new LinkedList<>();
             DatabaseNode targetNode = mock(DatabaseNode.class);
             when(dag.getTargetNode()).thenReturn(targetNodes);
-            when(targetNode.getSyncObjects()).thenReturn(List.of(mock(SyncObjects.class)));
+            when(targetNode.getSyncObjects()).thenReturn(Arrays.asList(mock(SyncObjects.class)));
             targetNodes.add(targetNode);
 
             int hash = taskDagServiceImpl.calculationDagHash(taskDto);

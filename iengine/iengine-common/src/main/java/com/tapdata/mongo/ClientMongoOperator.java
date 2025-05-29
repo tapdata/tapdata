@@ -1,17 +1,18 @@
 package com.tapdata.mongo;
 
 import com.mongodb.MongoBulkWriteException;
-import com.mongodb.MongoClient;
 import com.mongodb.MongoClientException;
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
 import com.mongodb.MongoException;
 import com.mongodb.MongoInterruptedException;
 import com.mongodb.MongoNodeIsRecoveringException;
 import com.mongodb.MongoNotPrimaryException;
 import com.mongodb.MongoSocketException;
 import com.mongodb.bulk.BulkWriteError;
+import com.mongodb.bulk.BulkWriteInsert;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.bulk.BulkWriteUpsert;
+import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.gridfs.GridFSBucket;
@@ -25,8 +26,8 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Job;
 import com.tapdata.entity.TapLog;
 import com.tapdata.mongo.error.BulkWriteErrorHandler;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,7 +60,7 @@ public class ClientMongoOperator implements Serializable {
 
 	private MongoClient mongoClient;
 
-	private MongoClientURI mongoClientURI;
+	private ConnectionString mongoClientURI;
 
 	private static final String MONGODB_DUPLICATE_ERROR_STRING = "E11000 duplicate key error";
 
@@ -73,7 +74,7 @@ public class ClientMongoOperator implements Serializable {
 		this.mongoClient = mongoClient;
 	}
 
-	public ClientMongoOperator(MongoTemplate mongoTemplate, MongoClient mongoClient, MongoClientURI mongoClientURI) {
+	public ClientMongoOperator(MongoTemplate mongoTemplate, MongoClient mongoClient, ConnectionString mongoClientURI) {
 		this.mongoTemplate = mongoTemplate;
 		this.mongoClient = mongoClient;
 		this.mongoClientURI = mongoClientURI;
@@ -210,7 +211,7 @@ public class ClientMongoOperator implements Serializable {
 		MongoCollection<Document> collection = mongoTemplate.getCollection(collectionName);
 
 		com.tapdata.entity.BulkWriteResult result = new com.tapdata.entity.BulkWriteResult();
-		BulkWriteResult bulkWriteResult = BulkWriteResult.acknowledged(0, 0, 0, 0, new ArrayList<>());
+		BulkWriteResult bulkWriteResult = BulkWriteResult.acknowledged(0, 0, 0, 0, new ArrayList<>(), new ArrayList<>());
 		int retry = 0;
 		while (CollectionUtils.isNotEmpty(value)) {
 			try {
@@ -268,7 +269,11 @@ public class ClientMongoOperator implements Serializable {
 			if (CollectionUtils.isNotEmpty(writeResult.getUpserts())) {
 				bulkWriteUpserts.addAll(writeResult.getUpserts());
 			}
-			totalWriteResult = BulkWriteResult.acknowledged(insertedCount, matchedCount, deletedCount, modifiedCount, bulkWriteUpserts);
+			List<BulkWriteInsert> bulkWriteInserts = totalWriteResult.getUpserts() == null ? new ArrayList<>() : totalWriteResult.getInserts();
+			if (CollectionUtils.isNotEmpty(writeResult.getInserts())) {
+				bulkWriteInserts.addAll(writeResult.getInserts());
+			}
+			totalWriteResult = BulkWriteResult.acknowledged(insertedCount, matchedCount, deletedCount, modifiedCount, bulkWriteUpserts,bulkWriteInserts);
 		}
 		return totalWriteResult;
 	}
@@ -447,7 +452,7 @@ public class ClientMongoOperator implements Serializable {
 		return update;
 	}
 
-	public MongoClientURI getMongoClientURI() {
+	public ConnectionString getConnectionString() {
 		return mongoClientURI;
 	}
 

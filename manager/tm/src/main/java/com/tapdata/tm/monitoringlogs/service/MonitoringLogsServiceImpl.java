@@ -52,6 +52,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 /**
@@ -226,7 +227,7 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         MatchOperation match = Aggregation.match(criteria);
         GroupOperation group = Aggregation.group("nodeId", "level").count().as("count");
         Aggregation aggregation = Aggregation.newAggregation(match, group);
-        mongoOperations.aggregateStream(aggregation, "monitoringLogs", Map.class).forEachRemaining(item -> {
+        mongoOperations.aggregateStream(aggregation, "monitoringLogs", Map.class).forEach(item -> {
             MonitoringLogCountVo vo = new MonitoringLogCountVo();
             Map<String, String> _id = (Map<String, String>) item.get("_id");
             String nodeId = _id.get("nodeId");
@@ -264,9 +265,9 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         Query query = new Query(criteria);
         query.with(Sort.by("timestamp").ascending());
 
-        CloseableIterator<MonitoringLogsEntity> iter = mongoOperations.stream(query, MonitoringLogsEntity.class);
+        Stream<MonitoringLogsEntity> iter = mongoOperations.stream(query, MonitoringLogsEntity.class);
         AtomicLong count = new AtomicLong();
-        iter.forEachRemaining(logEntity -> {
+        iter.forEach(logEntity -> {
             try {
                 MonitoringLogsDto logDto = convertToDto(logEntity, MonitoringLogsDto.class);
                 count.addAndGet(1);
@@ -276,7 +277,6 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
                 throw new BizException("Export.IOError", e);
             }
         });
-        IOUtils.closeQuietly(iter);
         if (count.get() == 0) {
             try {
                 stream.write(("Can't find any logs by query " + param).getBytes());
