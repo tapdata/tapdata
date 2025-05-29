@@ -114,7 +114,7 @@ public class InspectController extends BaseController {
 
     @Operation(summary = "校验任务导入")
     @PostMapping(path = "/batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file, @RequestParam(value = "taskId") String taskId) {
+    public ResponseMessage<Void> importTask(@RequestParam(value = "file") MultipartFile file, @RequestParam(value = "taskId") String taskId) {
         inspectService.importTask(file,taskId,getLoginUser());
         return success();
     }
