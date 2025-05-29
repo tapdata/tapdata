@@ -29,6 +29,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -37,6 +38,8 @@ import org.springframework.security.oauth2.server.authorization.token.JwtEncodin
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,17 +65,16 @@ public class AuthorizationConfig {
     /**
      * 个性化 JWT token
      */
-    public static class CustomOAuth2TokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
-
-        @Override
-        public void customize(JwtEncodingContext context) {
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer(){
+        return context -> {
             RegisteredClient registeredClient = context.getRegisteredClient();
             Authentication oAuth2ClientAuthenticationToken = context.getPrincipal();
             MongoOperations mongoOperations = SpringContextHelper.getBean(MongoOperations.class);
-            Set<ObjectId> scopes = context.getAuthorizedScopes().stream().map(ObjectIdDeserialize::toObjectId).collect(Collectors.toSet());
+            Set<ObjectId> scopes = registeredClient.getScopes().stream().map(ObjectIdDeserialize::toObjectId).collect(Collectors.toSet());
             Criteria criteria = Criteria.where("_id").in(scopes);
-            List<RoleEntity> roleEntities = mongoOperations.find(Query.query(criteria),RoleEntity.class);
-            List<String> roleNames = roleEntities.stream().map(RoleEntity::getName).collect(Collectors.toList());
+            List<RoleEntity> roleEntities = mongoOperations.find(Query.query(criteria), RoleEntity.class);
+            List<String> roleNames = roleEntities.stream().map(RoleEntity::getName).toList();
             List<String> roles = new ArrayList<>();
             roles.add("$everyone");
             roles.addAll(roleNames);
@@ -100,22 +102,36 @@ public class AuthorizationConfig {
                 context.getClaims().claim("user_id", userDetail.getUserId())
                         .claim("email", userDetail.getEmail());
             }
-        }
+        };
     }
 
     /**
-     * 定义 Spring Security 的拦截器链
+     * OAuth2 授权服务器安全过滤器链
      */
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.setSharedObject(OAuth2TokenCustomizer.class, new CustomOAuth2TokenCustomizer());
-        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class);
-        http
-                //.requestMatcher(endpointsMatcher)
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = OAuth2AuthorizationServerConfigurer.authorizationServer();
+        RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
+        http.securityMatcher(endpointsMatcher)
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
-                        // 暂时只对 /oauth/ path 启用认证
-                        .requestMatchers("/oauth/**").authenticated()
+                        .anyRequest().authenticated())
+                .with(authorizationServerConfigurer, Customizer.withDefaults())
+                .headers(headers -> {
+                    headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+                })
+                .csrf(AbstractHttpConfigurer::disable);
+        return http.build();
+    }
+
+    /**
+     * 默认安全过滤器链
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .anyRequest().permitAll())
                 .formLogin(Customizer.withDefaults())
                 .headers(headers -> {
@@ -206,6 +222,15 @@ public class AuthorizationConfig {
                 .tokenIntrospectionEndpoint("/oauth/introspect")
                 .issuer("http://127.0.0.1:3000")
                 .build();
+    }
+
+    /**
+     * 密码编码器 - 用于 OAuth2 客户端密码
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        // 对于演示目的使用 NoOpPasswordEncoder，生产环境建议使用 BCryptPasswordEncoder
+        return NoOpPasswordEncoder.getInstance();
     }
     /*@PostConstruct
     public void oAuth2ClientAuthenticationProvider() {
