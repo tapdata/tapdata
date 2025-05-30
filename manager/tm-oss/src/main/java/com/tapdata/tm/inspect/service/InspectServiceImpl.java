@@ -19,6 +19,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -144,6 +145,11 @@ public class InspectServiceImpl extends InspectService {
 
     @Override
     public List<InspectDto> findAllByIds(List<String> inspectIds) {
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+    }
+
+    @Override
+    public void importTask(MultipartFile file, String taskId, UserDetail userDetail) {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
