@@ -35,12 +35,15 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
     private static ObjectMapper objectMapper = new ObjectMapper();
 
     private final MongoOperations mongoOperations;
+    private final PasswordEncoder passwordEncoder;
     private String collectionName;
 
-    public MongoRegisteredClientRepository(MongoOperations mongoOperations) {
+    public MongoRegisteredClientRepository(MongoOperations mongoOperations, PasswordEncoder passwordEncoder) {
 
         Assert.notNull(mongoOperations, "MongoOperations can't be empty.");
+        Assert.notNull(passwordEncoder, "PasswordEncoder can't be empty.");
         this.mongoOperations = mongoOperations;
+        this.passwordEncoder = passwordEncoder;
         this.collectionName = "Application";
 
         ClassLoader classLoader = MongoRegisteredClientRepository.class.getClassLoader();
