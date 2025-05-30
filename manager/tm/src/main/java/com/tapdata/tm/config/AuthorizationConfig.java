@@ -64,16 +64,15 @@ public class AuthorizationConfig {
     /**
      * 个性化 JWT token
      */
-    public static class CustomOAuth2TokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
-
-        @Override
-        public void customize(JwtEncodingContext context) {
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer(){
+        return context -> {
             RegisteredClient registeredClient = context.getRegisteredClient();
             Authentication oAuth2ClientAuthenticationToken = context.getPrincipal();
             MongoOperations mongoOperations = SpringContextHelper.getBean(MongoOperations.class);
             Set<ObjectId> scopes = context.getAuthorizedScopes().stream().map(ObjectIdDeserialize::toObjectId).collect(Collectors.toSet());
             Criteria criteria = Criteria.where("_id").in(scopes);
-            List<RoleEntity> roleEntities = mongoOperations.find(Query.query(criteria),RoleEntity.class);
+            List<RoleEntity> roleEntities = mongoOperations.find(Query.query(criteria), RoleEntity.class);
             List<String> roleNames = roleEntities.stream().map(RoleEntity::getName).collect(Collectors.toList());
             List<String> roles = new ArrayList<>();
             roles.add("$everyone");
@@ -102,7 +101,7 @@ public class AuthorizationConfig {
                 context.getClaims().claim("user_id", userDetail.getUserId())
                         .claim("email", userDetail.getEmail());
             }
-        }
+        };
     }
 
     /**
@@ -111,15 +110,9 @@ public class AuthorizationConfig {
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
-                new OAuth2AuthorizationServerConfigurer();
-        RequestMatcher endpointsMatcher = authorizationServerConfigurer
-                .getEndpointsMatcher();
-
-        http.setSharedObject(OAuth2TokenCustomizer.class, new CustomOAuth2TokenCustomizer());
-
-        http
-                .securityMatcher(endpointsMatcher)
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = OAuth2AuthorizationServerConfigurer.authorizationServer();
+        RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
+        http.securityMatcher(endpointsMatcher)
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .anyRequest().authenticated())
                 .with(authorizationServerConfigurer, Customizer.withDefaults())
