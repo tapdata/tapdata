@@ -183,6 +183,61 @@ public class CommonUtilTest {
             int result = CommonUtil.compareObjects(val1, val2,false,null);
             assertEquals(0, result);
         }
+
+        @DisplayName("test val1,val2 is byte")
+        @Test
+        void test5(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = "test".getBytes(StandardCharsets.UTF_8);
+            val2[0] = "test".getBytes(StandardCharsets.UTF_8);
+            int result = CommonUtil.compareObjects(val1, val2,false);
+            assertEquals(0, result);
+        }
+    }
+
+    @Nested
+    class compareDateTimeTest{
+        @DisplayName("test val2 and val1 is datetime not ignoreTimePrecision")
+        @Test
+        void test1(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
+            val1[0] = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.123456789", formatter));
+            val2[0] =new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12346", formatter2));
+            assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
+            assertNotEquals(0,CommonUtil.compareObjects(val1,val2,false));
+            formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            val1[0] = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25", formatter2));
+            val2[0] =new DateTime(LocalDateTime.parse("2023-05-15 14:30:25", formatter2));
+            assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
+            assertEquals(0,CommonUtil.compareObjects(val1,val2,false));
+        }
+
+        @DisplayName("test val2 and val1 is datetime ignoreTimePrecision")
+        @Test
+        void test2(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
+            val1[0] = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.123456789", formatter)).toInstant();
+            val2[0] =new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12346", formatter2)).toInstant();
+            assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
+            assertNotEquals(0,CommonUtil.compareObjects(val1,val2,false));
+        }
+
+        @DisplayName("test val2 and val1 is illegalDate ignoreTimePrecision")
+        @Test
+        void test3(){
+            Object[] val1 = new Object[10];
+            Object[] val2 = new Object[10];
+            val1[0] = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+            val2[0] = new DateTime("0000-00-00 00:00:00", DateTime.DATETIME_TYPE);
+            assertEquals(0, CommonUtil.compareObjects(val1,val2,true));
+        }
     }
 
     @Nested

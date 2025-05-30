@@ -39,7 +39,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
     private final PasswordEncoder passwordEncoder;
     private String collectionName;
 
-    public MongoRegisteredClientRepository(MongoOperations mongoOperations, PasswordEncoder passwordEncoder) {
+    public MongoRegisteredClientRepository(MongoOperations mongoOperations) {
 
         Assert.notNull(mongoOperations, "MongoOperations can't be empty.");
         Assert.notNull(passwordEncoder, "PasswordEncoder can't be empty.");
