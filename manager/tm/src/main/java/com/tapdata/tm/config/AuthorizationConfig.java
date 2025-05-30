@@ -29,6 +29,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -70,10 +71,10 @@ public class AuthorizationConfig {
             RegisteredClient registeredClient = context.getRegisteredClient();
             Authentication oAuth2ClientAuthenticationToken = context.getPrincipal();
             MongoOperations mongoOperations = SpringContextHelper.getBean(MongoOperations.class);
-            Set<ObjectId> scopes = context.getAuthorizedScopes().stream().map(ObjectIdDeserialize::toObjectId).collect(Collectors.toSet());
+            Set<ObjectId> scopes = registeredClient.getScopes().stream().map(ObjectIdDeserialize::toObjectId).collect(Collectors.toSet());
             Criteria criteria = Criteria.where("_id").in(scopes);
             List<RoleEntity> roleEntities = mongoOperations.find(Query.query(criteria), RoleEntity.class);
-            List<String> roleNames = roleEntities.stream().map(RoleEntity::getName).collect(Collectors.toList());
+            List<String> roleNames = roleEntities.stream().map(RoleEntity::getName).toList();
             List<String> roles = new ArrayList<>();
             roles.add("$everyone");
             roles.addAll(roleNames);
