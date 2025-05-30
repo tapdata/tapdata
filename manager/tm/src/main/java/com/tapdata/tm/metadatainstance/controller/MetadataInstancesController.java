@@ -736,7 +736,6 @@ public class MetadataInstancesController extends BaseController {
         try {
             outputStream = response.getOutputStream();
             outputStream.write(GZIPUtil.gzip(downloadContent.getBytes(StandardCharsets.UTF_8)));
-
         } catch (IOException ioe) {
             log.error("下载出错", ioe);
         } finally {

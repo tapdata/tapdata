@@ -6,6 +6,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
@@ -296,6 +297,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
     public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;
+    public abstract Node getSourceNode(TaskDto taskDto);
+    public abstract Node getTargetNode(TaskDto taskDto);
 
     @Data
     @AllArgsConstructor

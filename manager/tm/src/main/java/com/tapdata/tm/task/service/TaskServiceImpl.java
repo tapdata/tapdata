@@ -1889,7 +1889,7 @@ public class TaskServiceImpl extends TaskService{
         return taskDtoPage;
     }
 
-    protected Node getSourceNode(TaskDto taskDto) {
+    public Node getSourceNode(TaskDto taskDto) {
         DAG dag = taskDto.getDag();
         if (dag == null) {
             return null;
@@ -1910,7 +1910,7 @@ public class TaskServiceImpl extends TaskService{
         return null;
     }
 
-    protected Node getTargetNode(TaskDto taskDto) {
+    public Node getTargetNode(TaskDto taskDto) {
         List<Edge> edges = taskDto.getDag().getEdges();
         if (CollectionUtils.isNotEmpty(edges)) {
             Edge edge = edges.get(0);
