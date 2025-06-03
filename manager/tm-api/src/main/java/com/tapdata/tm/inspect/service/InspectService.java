@@ -19,6 +19,7 @@ import com.tapdata.tm.webhook.enums.ConstVariable;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -88,4 +89,7 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
     public InspectRecoveryStartVerifyVo recoveryStart(InspectDto inspectDto, UserDetail userDetail) {
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
+
+
+    public abstract void importTask(MultipartFile file, String taskId,UserDetail userDetail);
 }

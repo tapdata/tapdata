@@ -30,4 +30,6 @@ public class AlarmSetting extends BaseEntity {
     private List<NotifyEnum> notify;
     private int interval;
     private DateUnit unit;
+    private String emailAlarmTitle;
+    private String emailAlarmContent;
 }

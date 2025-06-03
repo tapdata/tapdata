@@ -9,7 +9,6 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -55,8 +54,8 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
         RegisteredClient registeredClient = RegisteredClient.withId("5c0e750b7a5cd42464a5099d")
                 .clientId("5c0e750b7a5cd42464a5099d")
                 .clientName("Data Explorer")
-                //.clientSecret(passwordEncoder.encode("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"))
-                .clientSecret("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
+                // 使用 {noop} 前缀表示不编码的密码，适用于开发环境
+                .clientSecret("{noop}eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
@@ -66,7 +65,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
                 .authorizationGrantType(AuthorizationGrantType.PASSWORD)
                 .redirectUri("http://127.0.0.1")
                 .scope("admin")
-                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(false).build())
                 .tokenSettings(TokenSettings.builder().accessTokenTimeToLive(Duration.ofDays(14)).
                         refreshTokenTimeToLive(Duration.ofDays(14)).
                         reuseRefreshTokens(true).
