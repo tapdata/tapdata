@@ -17,5 +17,14 @@ public class InspectServiceImplTest {
        }
    }
 
+    @Test
+    void testGetConnectionDatabaseType(){
+        InspectServiceImpl inspectService = new InspectServiceImpl();
+        try {
+            inspectService.getConnectionDatabaseType("");
+        }catch (Exception e) {
+            Assertions.assertTrue(e instanceof TapOssNonsupportFunctionException);
+        }
+    }
 
 }
