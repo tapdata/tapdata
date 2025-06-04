@@ -76,6 +76,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
                 if (checkOpen) {
                     param.put("taskName", taskName);
                     param.put("alarmDate", alarmDate);
+                    param.put("errorEvent",taskDto.getErrorEvents());
                     AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
                             .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
                             .name(data.getTaskName()).summary("TASK_STATUS_STOP_ERROR").metric(AlarmKeyEnum.TASK_STATUS_ERROR)

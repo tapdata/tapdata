@@ -38,9 +38,11 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +109,13 @@ public class InspectController extends BaseController {
                 supplier,
                 () -> dataPermissionUnAuth(actionEnums, need)
         );
+    }
+
+    @Operation(summary = "校验任务导入")
+    @PostMapping(path = "/batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseMessage<Void> importTask(@RequestParam(value = "file") MultipartFile file, @RequestParam(value = "taskId") String taskId) {
+        inspectService.importTask(file,taskId,getLoginUser());
+        return success();
     }
 
     @GetMapping("/{currentId}/parent-task-sign")
