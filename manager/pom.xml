@@ -29,6 +29,8 @@
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>5.2.1</mongo.version>
 		<tapdata-api.version>2.0.1-SNAPSHOT</tapdata-api.version>
+		<tapdata-pdk-api.version>2.0.1-SNAPSHOT</tapdata-pdk-api.version>
+		<tapdata-common.version>2.1-SNAPSHOT</tapdata-common.version>
 		<modules-api.version>2.1-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
@@ -93,6 +95,11 @@
 				<version>1.0.0-SNAPSHOT</version>
 			</dependency>
 			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-common</artifactId>
+				<version>${tapdata-common.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>org.mongodb</groupId>
 				<artifactId>mongodb-driver-sync</artifactId>
 				<version>${mongo.version}</version>
@@ -111,6 +118,11 @@
 				<groupId>io.tapdata</groupId>
 				<artifactId>tapdata-api</artifactId>
 				<version>${tapdata-api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-pdk-api</artifactId>
+				<version>${tapdata-pdk-api.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>io.tapdata</groupId>
