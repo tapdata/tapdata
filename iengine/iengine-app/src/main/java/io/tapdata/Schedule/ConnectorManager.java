@@ -1253,17 +1253,17 @@ public class ConnectorManager {
 					isExit = true;
 				}
 				break;
-			case DAAS:
-				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
-				if (null != resultDto && !resultDto.getResult()){
-					isExit = true;
-					if (StringUtils.isNotBlank(resultDto.getProcessId())){
-						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
-					}else {
-						exitInfo = resultDto.getFailedReason();
-					}
-				}
-				break;
+//			case DAAS:
+//				CheckEngineValidResultDto resultDto = checkLicenseEngineLimit();
+//				if (null != resultDto && !resultDto.getResult()){
+//					isExit = true;
+//					if (StringUtils.isNotBlank(resultDto.getProcessId())){
+//						exitInfo = String.format(resultDto.getFailedReason() + ", engine [%s] will be stopped and unbound", resultDto.getProcessId());
+//					}else {
+//						exitInfo = resultDto.getFailedReason();
+//					}
+//				}
+//				break;
 		}
 		if(StringUtils.isNotBlank(exitInfo)){
 			logger.info(exitInfo);
