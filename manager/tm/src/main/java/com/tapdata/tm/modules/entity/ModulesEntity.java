@@ -89,4 +89,7 @@ public class ModulesEntity extends BaseEntity {
     private String description;
     /** 访问路径方式  默认值 default  自定义 customize*/
     private String pathAccessMethod;
+
+    /** 限制条数 */
+    private Integer limit;
 }

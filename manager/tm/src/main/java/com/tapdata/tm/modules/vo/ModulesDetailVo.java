@@ -75,4 +75,7 @@ public class ModulesDetailVo extends BaseVo {
 
     private DataSourceConnectionDto source;
 
+    /** 限制条数 */
+    private Integer limit;
+
 }
