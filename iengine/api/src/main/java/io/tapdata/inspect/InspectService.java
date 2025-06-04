@@ -4,7 +4,6 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.inspect.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.SettingService;
-import io.tapdata.error.EngineExCode_33;
 import io.tapdata.exception.TapOssNonsupportFunctionException;
 
 import java.util.List;
@@ -31,5 +30,7 @@ public interface InspectService {
     Inspect getInspectById(String id);
 
     void handleDiffInspect(Inspect inspect,long syncTaskDelay,InspectResult inspectResult);
+
+    String getConnectionDatabaseType(String connectionId);
 
 }
