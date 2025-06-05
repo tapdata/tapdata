@@ -43,7 +43,6 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -403,7 +402,28 @@ public class InspectController extends BaseController {
         }
 
         UserDetail userDetail = getLoginUser();
-        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.recoveryStart(inspectDto, userDetail);
+        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.recoveryStart(inspectDto, userDetail,null);
+        return success(startVerifyVo);
+    }
+
+    @Operation(summary = "导出修复事件SQL")
+    @PutMapping("/{id}/exportRecoverySql")
+    public ResponseMessage<InspectRecoveryStartVerifyVo> exportRecoverySql(HttpServletRequest request, @PathVariable String id,@RequestParam String inspectResultId) {
+        InspectDto inspectDto = dataPermissionCheckOfId(
+                request,
+                getLoginUser(),
+                MongoUtils.toObjectId(id),
+                DataPermissionActionEnums.Start,
+                Lists.newArrayList(DataPermissionActionEnums.Start),
+                () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
+        );
+
+        if (null == inspectDto) {
+            throw new BizException("Inspect.NotFound");
+        }
+
+        UserDetail userDetail = getLoginUser();
+        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.exportRecoveryEventSql(inspectDto, userDetail,inspectResultId);
         return success(startVerifyVo);
     }
 

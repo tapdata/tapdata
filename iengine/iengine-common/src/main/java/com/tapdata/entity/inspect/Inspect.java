@@ -59,6 +59,8 @@ public class Inspect extends BaseEntity implements Serializable {
 	private Boolean ignoreTimePrecision = false;
 	private String roundingMode;
 
+	private Boolean isExportSql = false;
+
 
 	private Integer checkTableThreadNum;
 

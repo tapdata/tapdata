@@ -27,6 +27,14 @@ public class TapdataRecoveryEvent extends TapdataEvent {
     private String rowId;
     private String recoveryType;
 
+    private String recoverySql;
+
+    private Boolean isExport = false;
+
+    private String inspectResultId;
+
+    private String inspectId;
+
     public TapdataRecoveryEvent() {
         super.syncStage = SyncStage.CDC;
     }
@@ -46,8 +54,11 @@ public class TapdataRecoveryEvent extends TapdataEvent {
         return new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_BEGIN);
     }
 
-    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String tableId, Map<String, Object> after) {
+    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String tableId, Map<String, Object> after,Boolean isExport,String inspectResultId,String inspectId) {
         TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
+        tapdataEvent.setInspectResultId(inspectResultId);
+        tapdataEvent.setInspectId(inspectId);
+        tapdataEvent.setIsExport(isExport);
         TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
         insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
         tapdataEvent.setTapEvent(insertRecordEvent);
