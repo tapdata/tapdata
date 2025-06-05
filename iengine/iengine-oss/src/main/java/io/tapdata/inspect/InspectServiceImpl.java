@@ -79,4 +79,9 @@ public class InspectServiceImpl implements InspectService{
     public void handleDiffInspect(Inspect inspect, long syncTaskDelay,InspectResult inspectResult) {
         throw new TapOssNonsupportFunctionException();
     }
+
+    @Override
+    public String getConnectionDatabaseType(String connectionId) {
+        throw new TapOssNonsupportFunctionException();
+    }
 }
