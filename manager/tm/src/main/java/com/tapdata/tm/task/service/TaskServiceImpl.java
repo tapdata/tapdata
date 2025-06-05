@@ -1384,8 +1384,6 @@ public class TaskServiceImpl extends TaskService{
                 log.warn("Modify renew success failed, task name = {}", taskDto.getName());
             }
         }
-        //重置任务后触发一次推演，防止重置任务后节点模型错误
-        transformSchemaAsyncService.transformSchema(taskDto.getDag(), user, taskDto.getId());
 
 
 
