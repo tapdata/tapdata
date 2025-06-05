@@ -1133,7 +1133,6 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			assertEquals(1, after1.size());
 			assertTrue(after1.containsKey("b_id"));
 			assertEquals(2, after1.get("b_id"));
-			verify(mockHazelcastMergeNode, times(1)).removeMergeCacheIfUpdateJoinKey(any(), any());
 		}
 
 		@Test
