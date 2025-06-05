@@ -1471,6 +1471,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
                 }
                 if (null != syncProgress.getStreamOffsetObj()) {
+					obsLogger.info("streamOffset value is {}", syncProgress.getStreamOffsetObj());
                     if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
                             && !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
                         syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
