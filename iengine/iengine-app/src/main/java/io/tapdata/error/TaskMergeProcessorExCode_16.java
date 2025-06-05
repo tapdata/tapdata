@@ -519,4 +519,14 @@ public interface TaskMergeProcessorExCode_16 {
 			solutionCN = "关闭关联条件变更功能后重新启动任务"
 	)
 	String GET_AND_UPDATE_JOIN_KEY_CACHE_FAILED_SOURCE_MUST_SUPPORT_HAVA_BEFORE_CAPABILITY = "16063";
+
+	@TapExCode(
+			describeCN = "更新事件不存在更新前数据，同时无法获取关联条件缓存数据，可能是因为源端数据源没有正确标记是否包含更新前数据，导致未初始化缓存空间",
+			describe = "Update event does not exist before data, and the join condition cache data cannot be obtained, which may be because the source data source does not correctly mark whether it contains before data, resulting in the cache space not being initialized",
+			dynamicDescription = "Pre node: {}[{}], connection name: {}, update after data: {}",
+			dynamicDescriptionCN = "前置节点：{}[{}]，连接名：{}，更新后的数据：{}",
+			solutionCN = "请检查源端数据源是否正确标记了事件中是否包含更新前数据，如果没有正确标记，则需要联系数据源厂商进行处理",
+			solution = "Please check whether the source data source correctly marked whether the event contains before data. If not, you need to contact the data source vendor for processing"
+	)
+	String UPDATE_JOIN_KEY_CANNOT_GET_CACHE = "16064";
 }
