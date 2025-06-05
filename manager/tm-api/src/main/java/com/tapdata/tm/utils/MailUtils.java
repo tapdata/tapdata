@@ -548,23 +548,38 @@ public class MailUtils {
         String cloud = "";
         if(isCloud){
             cloud = "Cloud";
+            return "<!DOCTYPE html>\n" +
+                    "<html>\n" +
+                    "<head>\n" +
+                    "<meta charset=\"utf-8\" />\n" +
+                    "</head>\n" +
+                    "<body>\n" +
+                    "Hello there,<br />\n" +
+                    "<br />\n" +
+                    message +
+                    "</p>\n" +
+                    "<br />" +
+                    "<br />" +
+                    "This mail was sent by Tapdata "+
+                    cloud+"."+
+                    "</body>\n" +
+                    "</html>";
+        }else{
+            return "<!DOCTYPE html>\n" +
+                    "<html>\n" +
+                    "<head>\n" +
+                    "<meta charset=\"utf-8\" />\n" +
+                    "</head>\n" +
+                    "<body>\n" +
+                    "<br />\n" +
+                    message +
+                    "</p>\n" +
+                    "<br />" +
+                    "<br />" +
+                    "</body>\n" +
+                    "</html>";
         }
-        return "<!DOCTYPE html>\n" +
-                "<html>\n" +
-                "<head>\n" +
-                "<meta charset=\"utf-8\" />\n" +
-                "</head>\n" +
-                "<body>\n" +
-                "Hello there,<br />\n" +
-                "<br />\n" +
-                message +
-                "</p>\n" +
-                "<br />" +
-                "<br />" +
-                "This mail was sent by Tapdata "+
-                cloud+"."+
-                "</body>\n" +
-                "</html>";
+
     }
 
     protected List<String> checkNotInBlacklistAddress(List<String> toList,SendStatus sendStatus){
