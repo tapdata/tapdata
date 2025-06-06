@@ -3846,7 +3846,6 @@ public class TaskServiceImpl extends TaskService{
                 .set("scheduleTime", null)
                 .set("messages", null)
                 .set("errorEvents", null)
-                .set("transformed",false)
                 .unset(SHARE_CDC_STOP)
                 .unset(SHARE_CDC_STOP_MESSAGE);
 
