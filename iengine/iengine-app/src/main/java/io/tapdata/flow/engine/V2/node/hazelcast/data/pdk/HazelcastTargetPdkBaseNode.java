@@ -33,6 +33,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -225,6 +226,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				syncProgressMap.put(entry.getKey(), entry.getValue());
 			}
 		}
+	}
+
+	@Override
+	protected void readBatchOffset(SyncProgress syncProgress) {
+		try {
+			callSuperReadBatchOffset(syncProgress);
+		} catch (CoreException e) {
+			if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+				obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+				syncProgress.setBatchOffsetObj(new HashMap<>());
+			} else {
+				throw new TapCodeException(e.getMessage(), e);
+			}
+		}
+	}
+
+	protected void callSuperReadBatchOffset(SyncProgress syncProgress) {
+		super.readBatchOffset(syncProgress);
 	}
 
 	protected void initCodecsFilterManager() {
