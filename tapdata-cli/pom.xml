@@ -20,18 +20,22 @@
         <graalvm.py.group0>org</graalvm.py.group0>
         <graalvm.py.group1>python</graalvm.py.group1>
         <graalvm.py.version>2.7.2</graalvm.py.version>
+        <tapdata.pdk.runner.version>2.1-SNAPSHOT</tapdata.pdk.runner.version>
+        <script.engine.module.version>2.1-SNAPSHOT</script.engine.module.version>
+        <class.supervisor.version>2.1-SNAPSHOT</class.supervisor.version>
+        <pdk.error.code.version>2.1-SNAPSHOT</pdk.error.code.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>${tapdata.pdk.runner.version}</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>script-engine-module</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>${script.engine.module.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.tapdata</groupId>
@@ -170,13 +174,13 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>class-supervisor</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>${class.supervisor.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>pdk-error-code</artifactId>
-            <version>2.0-SNAPSHOT</version>
+            <version>${pdk.error.code.version}</version>
         </dependency>
     </dependencies>
 
