@@ -86,7 +86,11 @@ public abstract class InspectService extends BaseService<InspectDto, InspectEnti
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 
-    public InspectRecoveryStartVerifyVo recoveryStart(InspectDto inspectDto, UserDetail userDetail) {
+    public InspectRecoveryStartVerifyVo recoveryStart(InspectDto inspectDto, UserDetail userDetail,String inspectResultId) {
+        throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
+    }
+
+    public InspectRecoveryStartVerifyVo exportRecoveryEventSql(InspectDto inspectDto, UserDetail user,String inspectResultId){
         throw new BizException(ConstVariable.TA_OSS_NON_SUPPORT_FUNCTION_EXCEPTION);
     }
 

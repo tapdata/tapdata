@@ -22,6 +22,9 @@ public class InspectResultDto extends BaseDto {
 
     public static String RESULT_PASSED = "passed";
     public static String RESULT_FAILED = "failed";
+
+    public static String RESULT_EXPORTING = "exporting";
+    public static String RESULT_EXPORTED = "exported";
     /**  */
     private String status;
     /**  */

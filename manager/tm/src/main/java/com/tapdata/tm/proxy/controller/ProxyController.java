@@ -9,8 +9,11 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.component.ProductComponent;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.proxy.service.impl.ProxyService;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.WebUtils;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -52,6 +55,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.*;
 
@@ -93,6 +98,9 @@ public class ProxyController extends BaseController {
 
 	@Bean
 	private MessageEntityService messageEntityService;
+
+	@Autowired
+	private InspectService inspectService;
 
 
 	/**
@@ -886,6 +894,25 @@ public class ProxyController extends BaseController {
 		serviceCaller.setClassName("LogFileService");
 		serviceCaller.setMethod("downloadFile");
 		serviceCaller.setArgs(new Object[]{WebUtils.urlDecode(filename)});
+		serviceCaller.setSubscribeIds(new HashSet<>());
+		serviceCaller.getSubscribeIds().add(agentId);
+		call(serviceCaller, request, response);
+	}
+
+	@GetMapping("/exportRecoverySql")
+	public void exportRecoverySqlFile(@RequestParam String inspectId,@RequestParam String inspectResultId,
+							 HttpServletRequest request, HttpServletResponse response) {
+		Query query = Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(inspectId)));
+		query.fields().include("agentId");
+		InspectDto inspectDto = inspectService.findOne(query);
+        String agentId = inspectDto.getAgentId();
+		if (!agentId.startsWith("processId_")) {
+			agentId = "processId_" + agentId;
+		}
+		ServiceCaller serviceCaller = new ServiceCaller();
+		serviceCaller.setClassName("ExportEventSqlService");
+		serviceCaller.setMethod("downloadEventSql");
+		serviceCaller.setArgs(new Object[]{inspectId,inspectResultId});
 		serviceCaller.setSubscribeIds(new HashSet<>());
 		serviceCaller.getSubscribeIds().add(agentId);
 		call(serviceCaller, request, response);

@@ -15,6 +15,8 @@ public enum InspectStatus {
 	DONE("done"),
 	WAITING("waiting"),
 	STOPPING("stopping"),
+	EXPORTING("exporting"),
+	EXPORTED("exported")
 	;
 
 	private final String code;
