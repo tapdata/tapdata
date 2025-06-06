@@ -29,6 +29,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -2242,6 +2243,54 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(dataCacheFactory, times(1)).getDataCache(any());
 		}
 
+	}
+
+	@Nested
+	class readBatchOffsetTest {
+		private SyncProgress syncProgress = mock(SyncProgress.class);
+		@Test
+		public void testReadBatchOffset_Success() {
+			doNothing().when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
+
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
+			hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress);
+
+			verify(syncProgress, never()).setBatchOffsetObj(any());
+		}
+
+		@Test
+		public void testReadBatchOffset_ClassNotFoundException() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+
+			CoreException exception = new CoreException("ClassNotFoundException: io.tapdata.dummy.po.DummyOffset");
+			doThrow(exception).when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
+
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
+			hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress);
+
+			verify(syncProgress).setBatchOffsetObj(new HashMap<>());
+		}
+
+		@Test
+		public void testReadBatchOffset_OtherException() {
+			CoreException exception = new CoreException("Other error");
+			doThrow(exception).when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
+
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress));
+			verify(syncProgress, never()).setBatchOffsetObj(any());
+		}
+
+		@Test
+		public void testReadBatchOffset_RuntimeException() {
+			Exception exception = new RuntimeException("error");
+			doThrow(exception).when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
+
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
+			assertThrows(RuntimeException.class, () -> hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress));
+			verify(syncProgress, never()).setBatchOffsetObj(any());
+		}
 	}
 
 }
