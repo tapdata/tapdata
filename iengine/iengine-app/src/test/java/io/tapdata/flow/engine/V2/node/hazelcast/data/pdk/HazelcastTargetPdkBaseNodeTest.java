@@ -2246,50 +2246,40 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	}
 
 	@Nested
-	class readBatchOffsetTest {
-		private SyncProgress syncProgress = mock(SyncProgress.class);
+	class errorHandleTest {
+		SyncProgress syncProgress;
+		CoreException e;
 		@Test
-		public void testReadBatchOffset_Success() {
-			doNothing().when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
-
-			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
-			hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress);
-
-			verify(syncProgress, never()).setBatchOffsetObj(any());
-		}
-
-		@Test
-		public void testReadBatchOffset_ClassNotFoundException() {
+		void testForClassNotFoundException() {
 			ObsLogger obsLogger = mock(ObsLogger.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
-
-			CoreException exception = new CoreException("ClassNotFoundException: io.tapdata.dummy.po.DummyOffset");
-			doThrow(exception).when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
-
-			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
-			hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress);
-
-			verify(syncProgress).setBatchOffsetObj(new HashMap<>());
+			syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj("test batch offset");
+			e = new CoreException("java.lang.ClassNotFoundException: io.tapdata.dummy.po.DummyOffset");
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e);
+			assertNotEquals("test batch offset", syncProgress.getBatchOffsetObj());
+			assertEquals(new HashMap<>(), syncProgress.getBatchOffsetObj());
 		}
 
 		@Test
-		public void testReadBatchOffset_OtherException() {
-			CoreException exception = new CoreException("Other error");
-			doThrow(exception).when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
-
-			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
-			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress));
-			verify(syncProgress, never()).setBatchOffsetObj(any());
+		void testForExceptionMsgIsNull() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+			syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj("test batch offset");
+			e = new CoreException();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+			assertEquals("test batch offset", syncProgress.getBatchOffsetObj());
 		}
 
 		@Test
-		public void testReadBatchOffset_RuntimeException() {
-			Exception exception = new RuntimeException("error");
-			doThrow(exception).when(hazelcastTargetPdkBaseNode).callSuperReadBatchOffset(syncProgress);
-
-			doCallRealMethod().when(hazelcastTargetPdkBaseNode).readBatchOffset(syncProgress);
-			assertThrows(RuntimeException.class, () -> hazelcastTargetPdkBaseNode.readBatchOffset(syncProgress));
-			verify(syncProgress, never()).setBatchOffsetObj(any());
+		void testForOtherException() {
+			syncProgress = new SyncProgress();
+			e = new CoreException("test exception");
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
 		}
 	}
 
