@@ -246,19 +246,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	protected void readBatchOffset(SyncProgress syncProgress) {
 		try {
-			callSuperReadBatchOffset(syncProgress);
+			super.readBatchOffset(syncProgress);
 		} catch (CoreException e) {
-			if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
-				obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
-				syncProgress.setBatchOffsetObj(new HashMap<>());
-			} else {
-				throw new TapCodeException(e.getMessage(), e);
-			}
+			errorHandle(syncProgress, e);
 		}
 	}
 
-	protected void callSuperReadBatchOffset(SyncProgress syncProgress) {
-		super.readBatchOffset(syncProgress);
+	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
+		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+		} else {
+			throw new TapCodeException(e.getMessage(), e);
+		}
 	}
 
 	protected void initCodecsFilterManager() {
