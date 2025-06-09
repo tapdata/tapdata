@@ -25,6 +25,7 @@ public class TableSampleHandler extends AbstractHandler {
     private final Map<String, Number> retrievedTableValues;
     private CounterSampler snapshotInsertRowCounter;
     private TaskSampleHandler taskSampleHandler = null;
+    private Boolean isSnapshotDone;
 
     public TableSampleHandler(TaskDto task, String table, @NonNull Long snapshotRowTotal,
                               @NonNull Map<String, Number> retrievedTableValues, BigDecimal snapshotSyncRate) {
@@ -33,6 +34,7 @@ public class TableSampleHandler extends AbstractHandler {
         this.snapshotRowTotal = snapshotRowTotal;
         this.retrievedTableValues = retrievedTableValues;
         this.snapshotSyncRate = snapshotRowTotal == 0 ? BigDecimal.ONE : snapshotSyncRate;
+        this.isSnapshotDone  = snapshotRowTotal == 0;
     }
 
     @Override
@@ -70,8 +72,10 @@ public class TableSampleHandler extends AbstractHandler {
                     Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowCounter.value())) {
                 BigDecimal decimal = BigDecimal.valueOf(snapshotInsertRowCounter.value().longValue())
                         .divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
-                if (decimal.compareTo(BigDecimal.ONE) >= 0) {
+                if (decimal.compareTo(BigDecimal.ONE) >= 0 && isSnapshotDone) {
                     snapshotSyncRate = BigDecimal.ONE;
+                } else if(decimal.compareTo(BigDecimal.ONE) >= 0) {
+                    snapshotSyncRate = new BigDecimal("0.99");
                 } else {
                     snapshotSyncRate = decimal;
                 }
@@ -89,6 +93,10 @@ public class TableSampleHandler extends AbstractHandler {
 
     public void incrTableSnapshotInsertTotal(long value) {
         snapshotInsertRowCounter.inc(value);
+    }
+
+    public void setSnapshotDone() {
+        isSnapshotDone = true;
     }
 
     public static Map<String, Map<String, Number>> retrieveAllTables(TaskDto task) {
