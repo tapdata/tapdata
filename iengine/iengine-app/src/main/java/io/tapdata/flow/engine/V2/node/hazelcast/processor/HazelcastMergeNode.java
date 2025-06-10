@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
@@ -1956,10 +1957,26 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			return;
 		}
 		if (MapUtils.isEmpty(before)) {
-			before = getAndUpdateJoinKeyCache(tapdataEvent);
+			if (checkJoinKeyUpdateCacheMap.containsKey(preNodeId)) {
+				before = getAndUpdateJoinKeyCache(tapdataEvent);
+				before.remove("_ts");
+			} else {
+				Connections srcConnections = sourceConnectionMap.get(preNodeId);
+				Node<?> preNode = getPreNode(preNodeId);
+				String afterJson = null;
+				try {
+					afterJson = JSONUtil.map2Json(after);
+				} catch (JsonProcessingException e) {
+					// ignore
+				}
+				throw new TapCodeException(TaskMergeProcessorExCode_16.UPDATE_JOIN_KEY_CANNOT_GET_CACHE)
+						.dynamicDescriptionParameters(
+								preNode.getName(), preNodeId,
+								null != srcConnections ? srcConnections.getName() : "Unknown",
+								null != afterJson ? afterJson : after
+						);
+			}
 		}
-		before.remove("_ts");
-
 		removeMergeCacheIfUpdateJoinKey(tapdataEvent, before);
 
 		if (enableUpdateJoinKey.isEnableParent()) {
@@ -1984,8 +2001,24 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		if (null == lookupCache) {
 			return;
 		}
-		String beforeJoinValueKeyBySource = getJoinValueKeyBySource(before, mergeTableProperties, lookupCache);
-		String afterJoinValueKeyBySource = getJoinValueKeyBySource(after, mergeTableProperties, lookupCache);
+		String beforeJoinValueKeyBySource = "";
+		try {
+			beforeJoinValueKeyBySource = getJoinValueKeyBySource(before, mergeTableProperties, lookupCache);
+		} catch (TapCodeException e) {
+			// ignore TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS, and keep beforeJoinValueKeyBySource as empty string
+			if (!e.getCode().equals(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS)) {
+				throw e;
+			}
+		}
+		String afterJoinValueKeyBySource = "";
+		try {
+			afterJoinValueKeyBySource = getJoinValueKeyBySource(after, mergeTableProperties, lookupCache);
+		} catch (TapCodeException e) {
+			// ignore TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS, and keep afterJoinValueKeyBySource as empty string
+			if (!e.getCode().equals(TaskMergeProcessorExCode_16.JOIN_KEY_VALUE_NOT_EXISTS)) {
+				throw e;
+			}
+		}
 		if (beforeJoinValueKeyBySource.equals(afterJoinValueKeyBySource)) {
 			return;
 		}
