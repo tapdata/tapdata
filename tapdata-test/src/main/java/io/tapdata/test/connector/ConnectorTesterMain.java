@@ -117,7 +117,7 @@ public class ConnectorTesterMain {
         System.out.println("  test-batch-read <connector-id> <table> [batch-size] [max-records] - Test batch read");
         System.out.println("  test-stream-read <connector-id> <table> [duration-ms] - Test stream read");
         System.out.println("  test-write <connector-id> <table> [record-count] - Test write performance");
-        System.out.println("  test-transform <source-conn> <target-conn> <columnType with comma> - Transform column type (TargetTypesGenerator)");
+        System.out.println("  test-transform <source-conn> <target-conn> <columnType with |> - Transform column type (TargetTypesGenerator)");
         System.out.println("  compare-schemas <conn1> <conn2>                - Compare connector schemas");
         System.out.println("  compare-transformation <conn1> <conn2>        - Compare transformation capabilities");
         System.out.println("  benchmark <connector-id> <table>              - Run comprehensive benchmark");
@@ -361,24 +361,27 @@ public class ConnectorTesterMain {
 
     private static void handleTransformTableCommand(String[] parts) {
         if (parts.length < 4) {
-            System.out.println("Usage: transform-table <source-connector-id> <target-connector-id> <column dataType with comma>");
-            System.out.println("Example: transform-table mysql-conn postgres-conn int, tinyint, varchar(20)");
+            System.out.println("Usage: transform-table <source-connector-id> <target-connector-id> <column dataType with |>");
+            System.out.println("Example: transform-table mysql-conn postgres-conn int|tinyint(1)|varchar(20)");
             return;
         }
+        String sourceConnectorId = parts[1];
         String targetConnectorId = parts[2];
         StringBuilder stringBuilder = new StringBuilder();
         for (int i = 3; i < parts.length; i++) {
             stringBuilder.append(parts[i]).append(' ');
         }
         TapTable sourceTable = new TapTable("test");
-        for (String s : stringBuilder.toString().split(",")) {
-            sourceTable.add(new TapField("test", s.trim()));
+        int index = 0;
+        for (String s : stringBuilder.toString().split("\\|")) {
+            sourceTable.add(new TapField("test" + index, s.trim()));
+            index++;
         }
 
         try {
-            TapTable targetTable = tester.testTableTransformation(sourceTable, targetConnectorId);
+            TapTable targetTable = tester.testTableTransformation(sourceTable, sourceConnectorId, targetConnectorId);
             StringBuilder result = new StringBuilder();
-            targetTable.getNameFieldMap().forEach((k, v) -> result.append(v.getDataType()).append(", "));
+            targetTable.getNameFieldMap().forEach((k, v) -> result.append(v.getDataType()).append("|"));
             System.out.println("transform result: " + result);
         } catch (Exception e) {
             System.err.println("Table transformation failed: " + e.getMessage());

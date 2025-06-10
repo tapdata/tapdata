@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.encryptor.JarEncryptor;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -245,7 +246,11 @@ public class HotLoadConnectorTester {
      */
     public ConnectorInfo loadConnector(String connectorId, String jarPath, DataMap connectionConfig) throws Throwable {
         if (jarPath.contains("postgres")) {
-            JarEncryptor.decryptJar(jarPath);
+            try {
+                JarEncryptor.decryptJar(jarPath);
+            } catch (Exception e) {
+                logger.info("decryptJar failed: {}", e.getMessage());
+            }
         }
         File jarFile = new File(jarPath);
         if (!jarFile.exists()) {
@@ -989,11 +994,18 @@ public class HotLoadConnectorTester {
                 .add(field("Type_YEAR", "Year").tapType(tapYear()));
     }
 
+    public void transformSourceTable(TapTable originTable, String sourceConnectorId) throws Exception {
+        ConnectorInfo sourceConnectorInfo = getConnectorInfo(sourceConnectorId);
+        DefaultExpressionMatchingMap sourceMatchingMap = getTargetMatchingMap(sourceConnectorInfo);
+        TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+        tableFieldTypesGenerator.autoFill(originTable.getNameFieldMap(), sourceMatchingMap);
+    }
+
     /**
      * 根据目标连接器的JSON描述模型，将源TapTable推演到新的TapTable
      * 使用tapdata-common-lib的TargetTypesGenerator进行模型转换
      */
-    public TapTable transformTable(TapTable sourceTable, String targetConnectorId) throws Exception {
+    public TapTable transformTargetTable(TapTable sourceTable, String targetConnectorId) throws Exception {
         ConnectorInfo targetConnectorInfo = getConnectorInfo(targetConnectorId);
 
         // 获取目标连接器的规范和编解码器
@@ -1152,71 +1164,13 @@ public class HotLoadConnectorTester {
      * 测试表结构转换性能
      * 使用tapdata-common-lib的TargetTypesGenerator进行转换
      */
-    public TapTable testTableTransformation(TapTable sourceTable, String targetConnectorId) {
+    public TapTable testTableTransformation(TapTable sourceTable, String sourceConnectorId, String targetConnectorId) {
         try {
-            return transformTable(sourceTable, targetConnectorId);
+            transformSourceTable(sourceTable, sourceConnectorId);
+            return transformTargetTable(sourceTable, targetConnectorId);
         } catch (Exception e) {
             logger.error("Table transformation failed: {}", e.getMessage());
         }
         return null;
-    }
-
-    /**
-     * 比较两个连接器的类型转换能力
-     */
-    public PerformanceResult compareConnectorTransformation(String connector1Id, String connector2Id) {
-        PerformanceResult result = new PerformanceResult("ConnectorTransformationComparison");
-
-        try {
-            long startTime = System.currentTimeMillis();
-
-            // 获取基础测试表
-            TapTable baseTable = getTable();
-            baseTable.setId("comparison_test_table");
-
-            // 转换到两个不同的连接器
-            TapTable table1 = transformTable(baseTable, connector1Id);
-            TapTable table2 = transformTable(baseTable, connector2Id);
-
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-
-            // 分析转换结果
-            int baseFields = baseTable.getNameFieldMap().size();
-            int fields1 = table1.getNameFieldMap().size();
-            int fields2 = table2.getNameFieldMap().size();
-
-            // 计算兼容性
-            int compatibleFields = 0;
-            for (String fieldName : baseTable.getNameFieldMap().keySet()) {
-                if (table1.getNameFieldMap().containsKey(fieldName) &&
-                        table2.getNameFieldMap().containsKey(fieldName)) {
-                    compatibleFields++;
-                }
-            }
-
-            double compatibilityRate = baseFields > 0 ? (compatibleFields * 100.0 / baseFields) : 0;
-
-            result.setDuration(duration);
-            result.setRecordCount(compatibleFields);
-            result.setThroughput(duration > 0 ? (compatibleFields * 1000.0 / duration) : 0);
-            result.addMetadata("connector1", connector1Id);
-            result.addMetadata("connector2", connector2Id);
-            result.addMetadata("baseFields", baseFields);
-            result.addMetadata("connector1Fields", fields1);
-            result.addMetadata("connector2Fields", fields2);
-            result.addMetadata("compatibleFields", compatibleFields);
-            result.addMetadata("compatibilityRate", String.format("%.1f%%", compatibilityRate));
-
-            logger.info("Compared transformation capabilities: {} vs {} - {}/{} compatible fields ({}%)",
-                    connector1Id, connector2Id, compatibleFields, baseFields,
-                    String.format("%.1f", compatibilityRate));
-
-        } catch (Exception e) {
-            result.setErrorMessage(e.getMessage());
-            logger.error("Connector transformation comparison failed: {}", e.getMessage());
-        }
-
-        return result;
     }
 }
