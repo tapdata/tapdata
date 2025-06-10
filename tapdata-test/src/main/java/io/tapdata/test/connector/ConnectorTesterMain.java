@@ -3,6 +3,8 @@ package io.tapdata.test.connector;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLog;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -23,17 +25,9 @@ public class ConnectorTesterMain {
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
 
     public static void main(String[] args) throws Throwable {
-        // 设置日志级别（如果没有通过logback配置）
-        System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
 
         System.out.println("=== TapData Connector Performance Tester ===");
         System.out.println("Type 'help' for available commands");
-
-        // 检查是否启用了详细日志
-        String logConfig = System.getProperty("logback.configurationFile", "");
-        if (logConfig.contains("simple")) {
-            System.out.println("Note: Simple logging mode enabled. Use --verbose for detailed logs.");
-        }
 
         // 添加关闭钩子
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -86,6 +80,9 @@ public class ConnectorTesterMain {
                     case "test-write":
                         handleTestWriteCommand(parts);
                         break;
+                    case "test-transform":
+                        handleTransformTableCommand(parts);
+                        break;
                     case "benchmark":
                         handleBenchmarkCommand(parts);
                         break;
@@ -120,6 +117,9 @@ public class ConnectorTesterMain {
         System.out.println("  test-batch-read <connector-id> <table> [batch-size] [max-records] - Test batch read");
         System.out.println("  test-stream-read <connector-id> <table> [duration-ms] - Test stream read");
         System.out.println("  test-write <connector-id> <table> [record-count] - Test write performance");
+        System.out.println("  test-transform <source-conn> <target-conn> <columnType with comma> - Transform column type (TargetTypesGenerator)");
+        System.out.println("  compare-schemas <conn1> <conn2>                - Compare connector schemas");
+        System.out.println("  compare-transformation <conn1> <conn2>        - Compare transformation capabilities");
         System.out.println("  benchmark <connector-id> <table>              - Run comprehensive benchmark");
         System.out.println("  monitor <connector-id> [interval-seconds]     - Monitor connector performance");
         System.out.println("  help                                          - Show this help");
@@ -173,7 +173,7 @@ public class ConnectorTesterMain {
         System.out.println("Result: " + result);
     }
 
-    private static void handleTestBatchReadCommand(String[] parts) throws Exception {
+    private static void handleTestBatchReadCommand(String[] parts) {
         if (parts.length < 3) {
             System.out.println("Usage: test-batch-read <connector-id> <table> [batch-size] [max-records]");
             return;
@@ -191,7 +191,7 @@ public class ConnectorTesterMain {
         System.out.println("Result: " + result);
     }
 
-    private static void handleTestStreamReadCommand(String[] parts) throws Exception {
+    private static void handleTestStreamReadCommand(String[] parts) {
         if (parts.length < 3) {
             System.out.println("Usage: test-stream-read <connector-id> <table> [duration-ms]");
             return;
@@ -204,7 +204,7 @@ public class ConnectorTesterMain {
         System.out.println("Testing stream read for: " + connectorId + "." + tableName);
         System.out.println("Duration: " + duration + " ms");
 
-        HotLoadConnectorTester.PerformanceResult result = tester.testStreamRead(connectorId, Arrays.asList(tableName), duration);
+        HotLoadConnectorTester.PerformanceResult result = tester.testStreamRead(connectorId, Collections.singletonList(tableName), duration);
         System.out.println("Result: " + result);
     }
 
@@ -227,7 +227,7 @@ public class ConnectorTesterMain {
         }
     }
 
-    private static void handleInvokeCommand(String[] parts) throws Exception {
+    private static void handleInvokeCommand(String[] parts) {
         if (parts.length < 3) {
             System.out.println("Usage: invoke <connector-id> <method> [args...]");
             System.out.println("Examples:");
@@ -270,10 +270,6 @@ public class ConnectorTesterMain {
         }
     }
 
-    private static List<Map<String, Object>> generateTestRecords(int recordCount) {
-        return null;
-    }
-
     private static void handleBenchmarkCommand(String[] parts) throws Throwable {
         if (parts.length < 3) {
             System.out.println("Usage: benchmark <connector-id> <table>");
@@ -300,7 +296,7 @@ public class ConnectorTesterMain {
         System.out.println("  " + batchLarge);
 
         System.out.println("\n4. Testing stream read...");
-        HotLoadConnectorTester.PerformanceResult stream = tester.testStreamRead(connectorId, Arrays.asList(tableName), 10000);
+        HotLoadConnectorTester.PerformanceResult stream = tester.testStreamRead(connectorId, Collections.singletonList(tableName), 10000);
         System.out.println("  " + stream);
 
         System.out.println("\nBenchmark completed!");
@@ -343,7 +339,7 @@ public class ConnectorTesterMain {
         return config;
     }
 
-    private static void handleTestWriteCommand(String[] parts) throws Exception {
+    private static void handleTestWriteCommand(String[] parts) {
         if (parts.length < 3) {
             System.out.println("Usage: test-write <connector-id> <table> [record-count]");
             return;
@@ -361,5 +357,32 @@ public class ConnectorTesterMain {
 
         HotLoadConnectorTester.PerformanceResult result = tester.testWriteRecord(connectorId, tableName, events);
         System.out.println("Result: " + result);
+    }
+
+    private static void handleTransformTableCommand(String[] parts) {
+        if (parts.length < 4) {
+            System.out.println("Usage: transform-table <source-connector-id> <target-connector-id> <column dataType with comma>");
+            System.out.println("Example: transform-table mysql-conn postgres-conn int, tinyint, varchar(20)");
+            return;
+        }
+        String targetConnectorId = parts[2];
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 3; i < parts.length; i++) {
+            stringBuilder.append(parts[i]).append(' ');
+        }
+        TapTable sourceTable = new TapTable("test");
+        for (String s : stringBuilder.toString().split(",")) {
+            sourceTable.add(new TapField("test", s.trim()));
+        }
+
+        try {
+            TapTable targetTable = tester.testTableTransformation(sourceTable, targetConnectorId);
+            StringBuilder result = new StringBuilder();
+            targetTable.getNameFieldMap().forEach((k, v) -> result.append(v.getDataType()).append(", "));
+            System.out.println("transform result: " + result);
+        } catch (Exception e) {
+            System.err.println("Table transformation failed: " + e.getMessage());
+            logger.error("Table transformation error", e);
+        }
     }
 }

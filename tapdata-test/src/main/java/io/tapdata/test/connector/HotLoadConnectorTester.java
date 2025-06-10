@@ -1,13 +1,22 @@
 package io.tapdata.test.connector;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.tapdata.encryptor.JarEncryptor;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLog;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.result.TapResult;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -15,6 +24,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -22,6 +32,7 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
@@ -29,6 +40,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+
+import static io.tapdata.entity.simplify.TapSimplify.*;
+import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 /**
  * 热加载数据源连接器测试器
@@ -230,6 +244,9 @@ public class HotLoadConnectorTester {
      * 热加载连接器
      */
     public ConnectorInfo loadConnector(String connectorId, String jarPath, DataMap connectionConfig) throws Throwable {
+        if (jarPath.contains("postgres")) {
+            JarEncryptor.decryptJar(jarPath);
+        }
         File jarFile = new File(jarPath);
         if (!jarFile.exists()) {
             throw new IllegalArgumentException("Connector JAR file not found: " + jarPath);
@@ -489,63 +506,60 @@ public class HotLoadConnectorTester {
         try {
             ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
 
-            // 在连接器的类加载器上下文中执行批量读取
-            executeWithClassLoader(connectorInfo, () -> {
-                ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
+            ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
 
-                BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
-                if (batchReadFunction == null) {
-                    result.setErrorMessage("Connector does not support batch read");
-                    return null;
-                }
-
-                AtomicLong recordCount = new AtomicLong(0);
-                long startTime = System.currentTimeMillis();
-
-                // 创建表对象
-                TapTable tapTable = new TapTable(tableName);
-
-                // 创建连接器上下文
-                TapConnectorContext connectorContext = new TapConnectorContext(
-                        null, connectorInfo.getConnectionConfig(), null, new TapLog()
-                );
-
-                // 执行批量读取
-                try {
-                    batchReadFunction.batchRead(
-                            connectorContext,
-                            tapTable,
-                            null, // offset
-                            batchSize,
-                            (events, offset) -> {
-                                recordCount.addAndGet(events.size());
-                                // 隐藏debug日志，只在需要时输出
-                                if (recordCount.get() % 10000 == 0) {
-                                    logger.info("Read batch progress: {} records", recordCount.get());
-                                }
-
-                                // 检查是否达到最大记录数
-                                if (recordCount.get() >= maxRecords) {
-                                    // 这里应该有停止机制，但简化实现
-                                }
-                            }
-                    );
-                } catch (Throwable e) {
-                    logger.error("Error batch reading {}: {}", connectorId, e.getMessage());
-                }
-
-                long endTime = System.currentTimeMillis();
-                long duration = endTime - startTime;
-
-                result.setDuration(duration);
-                result.setRecordCount(recordCount.get());
-                result.setThroughput(duration > 0 ? (recordCount.get() * 1000.0 / duration) : 0);
-                result.addMetadata("tableName", tableName);
-                result.addMetadata("batchSize", batchSize);
-                result.addMetadata("actualRecords", recordCount.get());
-
+            BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
+            if (batchReadFunction == null) {
+                result.setErrorMessage("Connector does not support batch read");
                 return null;
-            });
+            }
+
+            AtomicLong recordCount = new AtomicLong(0);
+            long startTime = System.currentTimeMillis();
+
+            // 创建表对象
+            TapTable tapTable = new TapTable(tableName);
+
+            // 创建连接器上下文
+            TapConnectorContext connectorContext = new TapConnectorContext(
+                    null, connectorInfo.getConnectionConfig(), null, new TapLog()
+            );
+
+            // 执行批量读取
+            try {
+                batchReadFunction.batchRead(
+                        connectorContext,
+                        tapTable,
+                        null, // offset
+                        batchSize,
+                        (events, offset) -> {
+                            recordCount.addAndGet(events.size());
+                            // 隐藏debug日志，只在需要时输出
+                            if (recordCount.get() % 10000 == 0) {
+                                logger.info("Read batch progress: {} records", recordCount.get());
+                            }
+
+                            // 检查是否达到最大记录数
+                            if (recordCount.get() >= maxRecords) {
+                                // 这里应该有停止机制，但简化实现
+                            }
+                        }
+                );
+            } catch (Throwable e) {
+                logger.error("Error batch reading {}: {}", connectorId, e.getMessage());
+            }
+
+            long endTime = System.currentTimeMillis();
+            long duration = endTime - startTime;
+
+            result.setDuration(duration);
+            result.setRecordCount(recordCount.get());
+            result.setThroughput(duration > 0 ? (recordCount.get() * 1000.0 / duration) : 0);
+            result.addMetadata("tableName", tableName);
+            result.addMetadata("batchSize", batchSize);
+            result.addMetadata("actualRecords", recordCount.get());
+
+            return null;
 
         } catch (Throwable e) {
             result.setErrorMessage(e.getMessage());
@@ -599,63 +613,60 @@ public class HotLoadConnectorTester {
         try {
             ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
 
-            // 在连接器的类加载器上下文中执行写入
-            executeWithClassLoader(connectorInfo, () -> {
-                ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
+            ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
 
-                WriteRecordFunction writeRecordFunction = functions.getWriteRecordFunction();
-                if (writeRecordFunction == null) {
-                    result.setErrorMessage("Connector does not support write record");
-                    return null;
-                }
-
-                long startTime = System.currentTimeMillis();
-
-                // 创建表对象
-                TapTable tapTable = new TapTable(tableName);
-
-                // 创建连接器上下文
-                TapConnectorContext connectorContext = new TapConnectorContext(
-                        null, connectorInfo.getConnectionConfig(), null, new TapLog()
-                );
-
-                AtomicLong successCount = new AtomicLong(0);
-
-                // 执行写入
-                try {
-                    writeRecordFunction.writeRecord(
-                            connectorContext,
-                            events,
-                            tapTable,
-                            writeListResult -> {
-                                // 处理写入结果
-                                if (writeListResult.getInsertedCount() != 0) {
-                                    successCount.addAndGet(writeListResult.getInsertedCount());
-                                }
-                                if (writeListResult.getModifiedCount() != 0) {
-                                    successCount.addAndGet(writeListResult.getModifiedCount());
-                                }
-                                if (writeListResult.getRemovedCount() != 0) {
-                                    successCount.addAndGet(writeListResult.getRemovedCount());
-                                }
-                            }
-                    );
-                } catch (Throwable e) {
-                    logger.error("Error writing record {}: {}", connectorId, e.getMessage());
-                }
-
-                long endTime = System.currentTimeMillis();
-                long duration = endTime - startTime;
-
-                result.setDuration(duration);
-                result.setRecordCount(successCount.get());
-                result.setThroughput(duration > 0 ? (successCount.get() * 1000.0 / duration) : 0);
-                result.addMetadata("tableName", tableName);
-                result.addMetadata("inputEvents", events.size());
-                result.addMetadata("successCount", successCount.get());
-
+            WriteRecordFunction writeRecordFunction = functions.getWriteRecordFunction();
+            if (writeRecordFunction == null) {
+                result.setErrorMessage("Connector does not support write record");
                 return null;
-            });
+            }
+
+            long startTime = System.currentTimeMillis();
+
+            // 创建表对象
+            TapTable tapTable = new TapTable(tableName);
+
+            // 创建连接器上下文
+            TapConnectorContext connectorContext = new TapConnectorContext(
+                    null, connectorInfo.getConnectionConfig(), null, new TapLog()
+            );
+
+            AtomicLong successCount = new AtomicLong(0);
+
+            // 执行写入
+            try {
+                writeRecordFunction.writeRecord(
+                        connectorContext,
+                        events,
+                        tapTable,
+                        writeListResult -> {
+                            // 处理写入结果
+                            if (writeListResult.getInsertedCount() != 0) {
+                                successCount.addAndGet(writeListResult.getInsertedCount());
+                            }
+                            if (writeListResult.getModifiedCount() != 0) {
+                                successCount.addAndGet(writeListResult.getModifiedCount());
+                            }
+                            if (writeListResult.getRemovedCount() != 0) {
+                                successCount.addAndGet(writeListResult.getRemovedCount());
+                            }
+                        }
+                );
+            } catch (Throwable e) {
+                logger.error("Error writing record {}: {}", connectorId, e.getMessage());
+            }
+
+            long endTime = System.currentTimeMillis();
+            long duration = endTime - startTime;
+
+            result.setDuration(duration);
+            result.setRecordCount(successCount.get());
+            result.setThroughput(duration > 0 ? (successCount.get() * 1000.0 / duration) : 0);
+            result.addMetadata("tableName", tableName);
+            result.addMetadata("inputEvents", events.size());
+            result.addMetadata("successCount", successCount.get());
+
+            return null;
 
         } catch (Throwable e) {
             result.setErrorMessage(e.getMessage());
@@ -950,31 +961,262 @@ public class HotLoadConnectorTester {
     }
 
     /**
-     * 在指定的类加载器上下文中执行操作
-     */
-    private <T> T executeWithClassLoader(ConnectorInfo connectorInfo, ClassLoaderCallable<T> callable) throws Exception {
-        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
-        try {
-            Thread.currentThread().setContextClassLoader(connectorInfo.getClassLoader());
-            return callable.call();
-        } finally {
-            Thread.currentThread().setContextClassLoader(originalClassLoader);
-        }
-    }
-
-    /**
-     * 类加载器上下文回调接口
-     */
-    @FunctionalInterface
-    private interface ClassLoaderCallable<T> {
-        T call() throws Exception;
-    }
-
-    /**
      * 关闭测试器
      */
     public void shutdown() {
         logger.info("Shutting down connector tester...");
         new ArrayList<>(connectorCache.keySet()).forEach(this::unloadConnector);
+    }
+
+    TapTable getTable() {
+        return table(UUID.randomUUID().toString())
+                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_ARRAY", JAVA_Array).tapType(tapArray()))
+                .add(field("Type_BINARY", JAVA_Binary).tapType(tapBinary().bytes(100L)))
+                .add(field("Type_BOOLEAN", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("Type_DATE", JAVA_Date).tapType(tapDate()))
+                .add(field("Type_DATETIME", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("Type_MAP", JAVA_Map).tapType(tapMap()))
+                .add(field("Type_NUMBER_Long", JAVA_Long).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_NUMBER_INTEGER", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("Type_NUMBER_BigDecimal", JAVA_BigDecimal).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(100).fixed(true)))
+                .add(field("Type_NUMBER_Float", JAVA_Float).tapType(tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38)))
+                .add(field("Type_NUMBER_Double", JAVA_Double).tapType(tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false)))
+                .add(field("Type_STRING_1", "STRING(100)").tapType(tapString().bytes(100L)))
+                .add(field("Type_STRING_2", "STRING(100)").tapType(tapString().bytes(100L)))
+                .add(field("Type_INT64", "INT64").tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("Type_TIME", "Time").tapType(tapTime()))
+                .add(field("Type_YEAR", "Year").tapType(tapYear()));
+    }
+
+    /**
+     * 根据目标连接器的JSON描述模型，将源TapTable推演到新的TapTable
+     * 使用tapdata-common-lib的TargetTypesGenerator进行模型转换
+     */
+    public TapTable transformTable(TapTable sourceTable, String targetConnectorId) throws Exception {
+        ConnectorInfo targetConnectorInfo = getConnectorInfo(targetConnectorId);
+
+        // 获取目标连接器的规范和编解码器
+        DefaultExpressionMatchingMap targetMatchingMap = getTargetMatchingMap(targetConnectorInfo);
+        TapCodecsFilterManager targetCodecFilterManager = getTargetCodecFilterManager(targetConnectorInfo);
+
+        // 使用官方的TargetTypesGenerator进行类型转换
+        TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
+        TapResult<LinkedHashMap<String, TapField>> result = targetTypesGenerator.convert(
+                sourceTable.getNameFieldMap(),
+                targetMatchingMap,
+                targetCodecFilterManager
+        );
+
+        if (result == null || result.getData() == null) {
+            throw new RuntimeException("Failed to convert table schema using TargetTypesGenerator");
+        }
+
+        // 创建新的目标表
+        TapTable targetTable = table(sourceTable.getId() + "_transformed");
+        targetTable.setComment("Transformed from " + sourceTable.getId() + " for " + targetConnectorId + " using TargetTypesGenerator");
+
+        // 添加转换后的字段
+        LinkedHashMap<String, TapField> convertedFields = result.getData();
+        convertedFields.forEach((fieldName, convertedField) -> {
+            targetTable.add(convertedField);
+
+            TapField sourceField = sourceTable.getNameFieldMap().get(fieldName);
+            logger.debug("Transformed field '{}': {} -> {} (TapType: {} -> {})",
+                    fieldName,
+                    sourceField != null ? sourceField.getDataType() : "unknown",
+                    convertedField.getDataType(),
+                    sourceField != null && sourceField.getTapType() != null ? sourceField.getTapType().getClass().getSimpleName() : "unknown",
+                    convertedField.getTapType() != null ? convertedField.getTapType().getClass().getSimpleName() : "unknown");
+        });
+
+        // 转换索引
+        if (sourceTable.getIndexList() != null) {
+            sourceTable.getIndexList().forEach(sourceIndex -> {
+                try {
+                    TapIndex targetIndex = transformIndex(sourceIndex, targetTable);
+                    if (targetIndex != null) {
+                        targetTable.add(targetIndex);
+                    }
+                } catch (Exception e) {
+                    logger.error("Failed to transform index {}: {}", sourceIndex.getName(), e.getMessage());
+                }
+            });
+        }
+
+        // 记录转换结果
+        if (result.getResultItems() != null && !result.getResultItems().isEmpty()) {
+            logger.info("Transformation result items:");
+            result.getResultItems().forEach(item -> {
+                logger.info("  - {}: {}", item.getItem(), item.getInformation());
+            });
+        }
+
+        logger.info("Transformed table '{}' with {} fields for connector: {} (source: {}, target: {})",
+                targetTable.getId(), targetTable.getNameFieldMap().size(), targetConnectorId,
+                sourceTable.getNameFieldMap().size(), convertedFields.size());
+
+        return targetTable;
+    }
+
+    /**
+     * 获取目标连接器的类型映射规范
+     */
+    private DefaultExpressionMatchingMap getTargetMatchingMap(ConnectorInfo connectorInfo) throws Exception {
+        // 获取连接器的规范信息
+        ConnectorFunctions connectorFunctions = connectorInfo.getConnectorFunctions();
+        if (connectorFunctions == null) {
+            throw new RuntimeException("Connector functions not available for " + connectorInfo.getConnectorId());
+        }
+
+        // 从连接器上下文获取规范
+        TapConnectorContext connectorContext = new TapConnectorContext(
+                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+        );
+
+        // 获取连接器的数据类型映射规范
+        // 这里需要从连接器的规范中获取dataTypesMap
+        Class<? extends TapConnector> connectorClass = connectorInfo.getConnectorClass();
+        TapConnectorClass tapConnectorClass = connectorClass.getAnnotation(TapConnectorClass.class);
+
+        if (tapConnectorClass == null) {
+            throw new RuntimeException("Connector class has no @TapConnectorClass annotation");
+        }
+
+        String jsonResourcePath = tapConnectorClass.value();
+
+        // 读取JSON文件内容
+        String jsonContent = IOUtils.toString(
+                connectorClass.getClassLoader().getResource(jsonResourcePath).openStream(),
+                "UTF-8"
+        );
+
+        // 解析JSON并构建DefaultExpressionMatchingMap
+        JsonNode rootNode = objectMapper.readTree(jsonContent);
+        JsonNode dataTypesNode = rootNode.get("dataTypes");
+
+
+        return DefaultExpressionMatchingMap.map(dataTypesNode.toString());
+    }
+
+    /**
+     * 获取目标连接器的编解码器过滤管理器
+     */
+    private TapCodecsFilterManager getTargetCodecFilterManager(ConnectorInfo connectorInfo) throws Exception {
+        // 获取连接器的编解码器注册表
+        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
+
+        // 重新注册连接器的编解码器
+        TapConnector connectorInstance = connectorInfo.getConnectorInstance();
+        if (connectorInstance != null) {
+            connectorInstance.registerCapabilities(connectorInfo.getConnectorFunctions(), codecsRegistry);
+        }
+
+        // 创建编解码器过滤管理器
+        TapCodecsFilterManager filterManager = TapCodecsFilterManager.create(codecsRegistry);
+
+        logger.debug("Created codec filter manager for connector: {}", connectorInfo.getConnectorId());
+
+        return filterManager;
+    }
+
+
+    /**
+     * 转换索引
+     */
+    private TapIndex transformIndex(TapIndex sourceIndex, TapTable targetTable) {
+        try {
+            TapIndex targetIndex = index(sourceIndex.getName());
+            targetIndex.setPrimary(sourceIndex.isPrimary());
+            targetIndex.setUnique(sourceIndex.isUnique());
+
+            // 转换索引字段
+            if (sourceIndex.getIndexFields() != null) {
+                sourceIndex.getIndexFields().forEach(sourceIndexField -> {
+                    String fieldName = sourceIndexField.getName();
+                    if (targetTable.getNameFieldMap().containsKey(fieldName)) {
+                        targetIndex.indexField(indexField(fieldName).fieldAsc(sourceIndexField.getFieldAsc()));
+                    }
+                });
+            }
+
+            return targetIndex.getIndexFields() != null && !targetIndex.getIndexFields().isEmpty() ? targetIndex : null;
+
+        } catch (Exception e) {
+            logger.warn("Failed to transform index '{}': {}", sourceIndex.getName(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 测试表结构转换性能
+     * 使用tapdata-common-lib的TargetTypesGenerator进行转换
+     */
+    public TapTable testTableTransformation(TapTable sourceTable, String targetConnectorId) {
+        try {
+            return transformTable(sourceTable, targetConnectorId);
+        } catch (Exception e) {
+            logger.error("Table transformation failed: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 比较两个连接器的类型转换能力
+     */
+    public PerformanceResult compareConnectorTransformation(String connector1Id, String connector2Id) {
+        PerformanceResult result = new PerformanceResult("ConnectorTransformationComparison");
+
+        try {
+            long startTime = System.currentTimeMillis();
+
+            // 获取基础测试表
+            TapTable baseTable = getTable();
+            baseTable.setId("comparison_test_table");
+
+            // 转换到两个不同的连接器
+            TapTable table1 = transformTable(baseTable, connector1Id);
+            TapTable table2 = transformTable(baseTable, connector2Id);
+
+            long endTime = System.currentTimeMillis();
+            long duration = endTime - startTime;
+
+            // 分析转换结果
+            int baseFields = baseTable.getNameFieldMap().size();
+            int fields1 = table1.getNameFieldMap().size();
+            int fields2 = table2.getNameFieldMap().size();
+
+            // 计算兼容性
+            int compatibleFields = 0;
+            for (String fieldName : baseTable.getNameFieldMap().keySet()) {
+                if (table1.getNameFieldMap().containsKey(fieldName) &&
+                        table2.getNameFieldMap().containsKey(fieldName)) {
+                    compatibleFields++;
+                }
+            }
+
+            double compatibilityRate = baseFields > 0 ? (compatibleFields * 100.0 / baseFields) : 0;
+
+            result.setDuration(duration);
+            result.setRecordCount(compatibleFields);
+            result.setThroughput(duration > 0 ? (compatibleFields * 1000.0 / duration) : 0);
+            result.addMetadata("connector1", connector1Id);
+            result.addMetadata("connector2", connector2Id);
+            result.addMetadata("baseFields", baseFields);
+            result.addMetadata("connector1Fields", fields1);
+            result.addMetadata("connector2Fields", fields2);
+            result.addMetadata("compatibleFields", compatibleFields);
+            result.addMetadata("compatibilityRate", String.format("%.1f%%", compatibilityRate));
+
+            logger.info("Compared transformation capabilities: {} vs {} - {}/{} compatible fields ({}%)",
+                    connector1Id, connector2Id, compatibleFields, baseFields,
+                    String.format("%.1f", compatibilityRate));
+
+        } catch (Exception e) {
+            result.setErrorMessage(e.getMessage());
+            logger.error("Connector transformation comparison failed: {}", e.getMessage());
+        }
+
+        return result;
     }
 }
