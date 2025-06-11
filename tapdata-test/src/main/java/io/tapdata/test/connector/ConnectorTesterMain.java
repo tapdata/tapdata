@@ -199,12 +199,13 @@ public class ConnectorTesterMain {
 
         String connectorId = parts[1];
         String tableName = parts[2];
-        int duration = parts.length > 3 ? Integer.parseInt(parts[3]) : 30000; // 30秒
+        long count = Long.parseLong(parts[3]);
+        int duration = parts.length > 4 ? Integer.parseInt(parts[4]) : 30000; // 30秒
 
         System.out.println("Testing stream read for: " + connectorId + "." + tableName);
         System.out.println("Duration: " + duration + " ms");
 
-        HotLoadConnectorTester.PerformanceResult result = tester.testStreamRead(connectorId, Collections.singletonList(tableName), duration);
+        HotLoadConnectorTester.PerformanceResult result = tester.testStreamRead(connectorId, Collections.singletonList(tableName), count, duration);
         System.out.println("Result: " + result);
     }
 
@@ -296,7 +297,7 @@ public class ConnectorTesterMain {
         System.out.println("  " + batchLarge);
 
         System.out.println("\n4. Testing stream read...");
-        HotLoadConnectorTester.PerformanceResult stream = tester.testStreamRead(connectorId, Collections.singletonList(tableName), 10000);
+        HotLoadConnectorTester.PerformanceResult stream = tester.testStreamRead(connectorId, Collections.singletonList(tableName), 10000, 10000);
         System.out.println("  " + stream);
 
         System.out.println("\nBenchmark completed!");

@@ -18,16 +18,22 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.Entry;
+import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import org.apache.commons.io.IOUtils;
@@ -591,28 +597,104 @@ public class HotLoadConnectorTester {
     /**
      * 测试流式读取性能
      */
-    public PerformanceResult testStreamRead(String connectorId, List<String> tableNames, int durationMs) {
+    public PerformanceResult testStreamRead(String connectorId, List<String> tableNames, long count, int durationMs) {
         PerformanceResult result = new PerformanceResult("StreamRead");
         ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
         TapConnectorContext connectorContext = new TapConnectorContext(
                 null, connectorInfo.getConnectionConfig(), null, new TapLog()
         );
         connectorContext.setStateMap(stateMap);
-        connectorContext.setTableMap(tapTableCache::get);
-        try {
-            connectorInfo.getConnectorInstance().init(connectorContext);
-            AtomicLong recordCount = new AtomicLong(0);
-            long startTime = System.currentTimeMillis();
-            long endTime = startTime + durationMs;
-
-            // 模拟流式读取
-            while (System.currentTimeMillis() < endTime) {
-                // 模拟接收数据
-                Thread.sleep(100);
-                recordCount.addAndGet(10); // 模拟每100ms接收10条记录
+        connectorContext.setTableMap(new KVReadOnlyMap<>() {
+            @Override
+            public TapTable get(String key) {
+                return tapTableCache.get(key);
             }
 
-            long actualDuration = System.currentTimeMillis() - startTime;
+            @Override
+            public Iterator<Entry<TapTable>> iterator() {
+                java.util.Iterator<String> iterator = tapTableCache.keySet().iterator();
+                return new Iterator<>() {
+
+                    @Override
+                    public boolean hasNext() {
+                        return iterator.hasNext();
+                    }
+
+                    @Override
+                    public io.tapdata.entity.utils.cache.Entry<TapTable> next() {
+                        String tableName = iterator.next();
+                        TapTable tapTable = tapTableCache.get(tableName);
+                        return new io.tapdata.entity.utils.cache.Entry<>() {
+                            @Override
+                            public String getKey() {
+                                return tableName;
+                            }
+
+                            @Override
+                            public TapTable getValue() {
+                                return tapTable;
+                            }
+                        };
+                    }
+                };
+            }
+        });
+        ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
+        try {
+            connectorInfo.getConnectorInstance().init(connectorContext);
+            Object streamOffset = null;
+            TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = functions.getTimestampToStreamOffsetFunction();
+            if (timestampToStreamOffsetFunction == null) {
+                logger.warn("Connector does not support timestamp to stream offset");
+            } else {
+                try {
+                    streamOffset = timestampToStreamOffsetFunction.timestampToStreamOffset(connectorContext, null);
+                } catch (Throwable e) {
+                    logger.error("Error getting stream offset: {}", e.getMessage());
+                }
+            }
+            StreamReadFunction streamReadFunction = functions.getStreamReadFunction();
+            if (streamReadFunction == null) {
+                logger.error("Connector does not support stream read");
+                return null;
+            }
+            Object finalStreamOffset = streamOffset;
+            AtomicLong recordCount = new AtomicLong(0);
+            AtomicLong startTime = new AtomicLong(0);
+            StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offset) -> {
+                if (startTime.get() == 0) {
+                    startTime.set(System.currentTimeMillis());
+                }
+                recordCount.addAndGet(events.size());
+                // 隐藏debug日志，只在需要时输出
+                if (recordCount.get() % 100000 == 0) {
+                    logger.info("Stream read progress: {} records", recordCount.get());
+                }
+            });
+            new Thread(() -> {
+                try {
+                    streamReadFunction.streamRead(connectorContext, tableNames, finalStreamOffset, 100, streamReadConsumer);
+                } catch (Throwable e) {
+                    logger.error("Error streaming read: {}", e.getMessage());
+                }
+            }).start();
+            while ((startTime.get() == 0 || (startTime.get() > 0 && System.currentTimeMillis() - startTime.get() < durationMs)) && recordCount.get() < count) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    logger.error("Error sleeping: {}", e.getMessage());
+                }
+            }
+            long actualDuration = System.currentTimeMillis() - startTime.get();
+            try {
+                ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
+                if (releaseExternalFunction != null) {
+                    releaseExternalFunction.release(connectorContext);
+                }
+                connectorInfo.getConnectorInstance().stop(connectorContext);
+            } catch (Throwable e) {
+                logger.error("Error stopping connector instance: {}", e.getMessage());
+            }
 
             result.setDuration(actualDuration);
             result.setRecordCount(recordCount.get());
@@ -623,6 +705,14 @@ public class HotLoadConnectorTester {
         } catch (Throwable e) {
             result.setErrorMessage(e.getMessage());
         } finally {
+            try {
+                ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
+                if (releaseExternalFunction != null) {
+                    releaseExternalFunction.release(connectorContext);
+                }
+            } catch (Throwable e) {
+                logger.error("Error release external: {}", e.getMessage());
+            }
             try {
                 connectorInfo.getConnectorInstance().stop(connectorContext);
             } catch (Throwable e) {
