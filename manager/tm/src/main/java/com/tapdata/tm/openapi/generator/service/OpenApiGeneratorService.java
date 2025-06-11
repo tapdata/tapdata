@@ -1,9 +1,12 @@
 package com.tapdata.tm.openapi.generator.service;
 
+import com.tapdata.tm.application.dto.ApplicationDto;
+import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.openapi.generator.config.OpenApiGeneratorProperties;
 import com.tapdata.tm.openapi.generator.dto.CodeGenerationRequest;
 import com.tapdata.tm.openapi.generator.exception.CodeGenerationException;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -38,13 +41,15 @@ public class OpenApiGeneratorService {
 
 	public static final String DEFAULT_JAVA_TEMPLATE_LIBRARY = "okhttp-gson";
 	private final OpenApiGeneratorProperties properties;
+	private final ApplicationService applicationService;
 
 	// Cached paths resolved during initialization
 	private String resolvedJarPath;
 	private String resolvedTemplatePath;
 
-	public OpenApiGeneratorService(OpenApiGeneratorProperties properties) {
+	public OpenApiGeneratorService(OpenApiGeneratorProperties properties, ApplicationService applicationService) {
 		this.properties = properties;
+		this.applicationService = applicationService;
 	}
 
 	@PostConstruct
@@ -85,6 +90,8 @@ public class OpenApiGeneratorService {
 		// Validate Java runtime version - requires Java 17+
 		validateJavaVersion();
 
+		validateOas(request);
+
 		// Create temporary directory
 		String sessionId = UUID.randomUUID().toString();
 		Path outputDir = Paths.get(properties.getTemp().getDir(), "openapi-generator", sessionId);
@@ -105,6 +112,14 @@ public class OpenApiGeneratorService {
 		}
 	}
 
+	private static void validateOas(CodeGenerationRequest request) {
+		String oas = request.getOas();
+		if(!oas.endsWith("openapi.json")){
+			oas = oas + "/openapi.json";
+			request.setOas(oas);
+		}
+	}
+
 	/**
 	 * Generate response based on Maven availability - JAR if Maven available, ZIP otherwise
 	 */
@@ -120,7 +135,7 @@ public class OpenApiGeneratorService {
 		Path zipFile = createZipFile(request, outputDir);
 
 		// Prepare response
-		String fileName = String.format("%s-%s-v%s-%s.zip", request.getArtifactId(), request.getLan(), request.getVersion(), DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()));
+		String fileName = String.format("%s-%s-%s-%s.zip", request.getArtifactId(), request.getLan(), request.getVersion(), DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()));
 		InputStreamResource resource = new InputStreamResource(Files.newInputStream(zipFile));
 
 		HttpHeaders headers = new HttpHeaders();
@@ -139,7 +154,7 @@ public class OpenApiGeneratorService {
 	 * Create ZIP file containing the generated source code
 	 */
 	private Path createZipFile(CodeGenerationRequest request, Path outputDir) throws IOException {
-		String fileName = String.format("%s-%s-v%s-%s.zip", request.getArtifactId(), request.getLan(), request.getVersion(), DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()));
+		String fileName = String.format("%s-%s-%s-%s.zip", request.getArtifactId(), request.getLan(), request.getVersion(), DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()));
 		Path zipFilePath = outputDir.getParent().resolve(fileName);
 
 		log.info("Creating ZIP file: {}", zipFilePath);
@@ -340,7 +355,7 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
-	 * Execute OpenAPI Generator
+	 * Execute OpenAPI Generator with enhanced YAML parsing configuration
 	 */
 	private void executeGenerator(CodeGenerationRequest request, String outputDir) throws Exception {
 		// Use cached JAR path (resolved during initialization)
@@ -371,11 +386,12 @@ public class OpenApiGeneratorService {
 
 		// Add additional properties to ensure JAR generation with Java 17
 		command.add("--additional-properties");
-		var javaVersion = properties.getJava().getVersion();
-		var additionalProps = String.format(
+		int javaVersion = properties.getJava().getVersion();
+		ApplicationDto applicationDto = applicationService.findById(new ObjectId(request.getClientId()));
+		String additionalProps = String.format(
 				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d," +
-						"artifactVersion=%s",
-				javaVersion, request.getVersion()
+						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s",
+				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret()
 		);
 		command.add(additionalProps);
 
@@ -437,6 +453,10 @@ public class OpenApiGeneratorService {
 
 		// Verify that our custom template was used
 		verifyCustomTemplate(outputDir);
+	}
+
+	private ApplicationDto application(CodeGenerationRequest request) throws Exception {
+		return applicationService.findById(new ObjectId(request.getClientId()));
 	}
 
 	/**

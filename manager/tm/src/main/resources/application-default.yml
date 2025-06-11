@@ -106,7 +106,7 @@ server:
     min-spare-threads: 100 #最小工作线程数量
     max-connections: 1000 #一瞬间最大支持的并发的连接数
     accept-count: 20 #等待队列长度
-  max-http-header-size: 2MB
+  max-http-request-header-size: 2MB
 
 mail:
   host: smtp.exmail.qq.com
@@ -125,8 +125,6 @@ management:
   metrics:
     tags:
       application: 'TMApplication'
-
-
 
 access:
   token:

@@ -33,4 +33,12 @@ public class CodeGenerationRequest {
 
     @Schema(description = "Version", example = "1.0.0", defaultValue = "1.0.0")
     private String version = "1.0.0";
+
+    @NotBlank(message = "Api Server Client Id cannot be empty")
+    @Schema(description = "Api Server Client Id")
+    private String clientId;
+
+    @NotBlank(message = "Request address cannot be empty")
+    @Schema(description = "Request address", example = "http://127.0.0.1:3030")
+    private String requestAddress;
 }

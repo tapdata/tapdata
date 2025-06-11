@@ -31,6 +31,19 @@ public class RetryingOAuth extends OAuth implements Interceptor {
 
     private TokenRequestBuilder tokenRequestBuilder;
 
+    private static String tokenUrl="{{{tapTokenUrl}}}";
+    private static String clientId="{{{tapClientId}}}";
+    private static String clientSecret="{{{tapClientSecret}}}";
+
+    public static RetryingOAuth create() {
+        OkHttpClient okHttpClient = new OkHttpClient();
+        TokenRequestBuilder trb = new TokenRequestBuilder(tokenUrl)
+            .setClientId(clientId)
+            .setClientSecret(clientSecret)
+            .setGrantType(GrantType.CLIENT_CREDENTIALS);
+        return new RetryingOAuth(okHttpClient, trb);
+    }
+
     /**
      * @param client An OkHttp client
      * @param tokenRequestBuilder A token request builder

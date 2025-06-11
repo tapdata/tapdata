@@ -346,6 +346,31 @@
 			<version>1.8.0</version>
 		</dependency>
 
+		<!-- Swagger Parser for OpenAPI Generator -->
+		<dependency>
+			<groupId>io.swagger.parser.v3</groupId>
+			<artifactId>swagger-parser</artifactId>
+			<version>2.1.16</version>
+		</dependency>
+		<dependency>
+			<groupId>io.swagger.core.v3</groupId>
+			<artifactId>swagger-core</artifactId>
+			<version>2.2.15</version>
+		</dependency>
+
+		<!-- SnakeYAML with enhanced configuration -->
+		<dependency>
+			<groupId>org.yaml</groupId>
+			<artifactId>snakeyaml</artifactId>
+			<version>2.0</version>
+		</dependency>
+
+		<!-- Jackson YAML for enhanced YAML parsing -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.dataformat</groupId>
+			<artifactId>jackson-dataformat-yaml</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>net.javacrumbs.shedlock</groupId>
 			<artifactId>shedlock-spring</artifactId>
