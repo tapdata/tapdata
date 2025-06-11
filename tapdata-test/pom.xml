@@ -25,6 +25,7 @@
         <commons.cli.version>1.5.0</commons.cli.version>
         <tapdata.pdk.runner.version>2.1-SNAPSHOT</tapdata.pdk.runner.version>
         <tapdata.pdk.api.version>2.0.1-SNAPSHOT</tapdata.pdk.api.version>
+        <version.kafka>3.7.2</version.kafka>
     </properties>
 
     <dependencies>
@@ -46,6 +47,11 @@
             <artifactId>tapdata-pdk-runner</artifactId>
             <version>${tapdata.pdk.runner.version}</version>
             <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>connect-runtime</artifactId>
+            <version>${version.kafka}</version>
         </dependency>
 
         <!-- JSON处理 -->

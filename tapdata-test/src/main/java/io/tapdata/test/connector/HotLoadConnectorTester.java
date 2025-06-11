@@ -663,7 +663,9 @@ public class HotLoadConnectorTester {
             AtomicLong startTime = new AtomicLong(0);
             StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offset) -> {
                 if (startTime.get() == 0) {
-                    startTime.set(System.currentTimeMillis());
+                    if (events.stream().anyMatch(v -> v instanceof TapRecordEvent)) {
+                        startTime.set(System.currentTimeMillis());
+                    }
                 }
                 recordCount.addAndGet(events.size());
                 // 隐藏debug日志，只在需要时输出
@@ -747,7 +749,9 @@ public class HotLoadConnectorTester {
             if (createTableV2Function == null) {
                 logger.warn("Connector does not support createTableV2Function");
             } else {
-                createTableV2Function.createTable(connectorContext, new TapCreateTableEvent().table(tapTable));
+                TapCreateTableEvent createTableEvent = new TapCreateTableEvent().table(tapTable);
+                createTableEvent.setTableId(tapTable.getId());
+                createTableV2Function.createTable(connectorContext, createTableEvent);
             }
             WriteRecordFunction writeRecordFunction = functions.getWriteRecordFunction();
             if (writeRecordFunction == null) {
