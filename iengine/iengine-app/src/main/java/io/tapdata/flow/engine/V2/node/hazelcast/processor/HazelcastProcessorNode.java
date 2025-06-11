@@ -63,7 +63,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
-		initDataFlowProcessor();
 		if (getNode() instanceof FieldRenameProcessorNode) {
 			fieldRenameProcessorNode = (FieldRenameProcessorNode) getNode();
 			String fieldsNameTransform = fieldRenameProcessorNode.getFieldsNameTransform();
@@ -72,6 +71,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				this.fieldsNameTransformMap = new HashMap<>();
 			}
 		}
+		initDataFlowProcessor();
 	}
 
 	@Override
@@ -261,6 +261,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				if (null != operations) {
 					for (FieldProcessorNode.Operation operation : operations) {
 						FieldProcess fieldProcess = new FieldProcess();
+						if (null != capitalized) {
+							operation.setField(Capitalized.convert(operation.getField(), capitalized));
+						}
 						fieldProcess.setField(operation.getField());
 						fieldProcess.setOp(operation.getOp());
 						fieldProcess.setOperand(StringUtils.isNotBlank(operation.getOperand()) ? operation.getOperand() : operation.getField());
