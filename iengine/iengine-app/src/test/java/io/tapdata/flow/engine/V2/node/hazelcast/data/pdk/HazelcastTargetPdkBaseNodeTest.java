@@ -29,6 +29,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -2341,6 +2342,44 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(dataCacheFactory, times(1)).getDataCache(any());
 		}
 
+	}
+
+	@Nested
+	class errorHandleTest {
+		SyncProgress syncProgress;
+		CoreException e;
+		@Test
+		void testForClassNotFoundException() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+			syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj("test batch offset");
+			e = new CoreException("java.lang.ClassNotFoundException: io.tapdata.dummy.po.DummyOffset");
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e);
+			assertNotEquals("test batch offset", syncProgress.getBatchOffsetObj());
+			assertEquals(new HashMap<>(), syncProgress.getBatchOffsetObj());
+		}
+
+		@Test
+		void testForExceptionMsgIsNull() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+			syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj("test batch offset");
+			e = new CoreException();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+			assertEquals("test batch offset", syncProgress.getBatchOffsetObj());
+		}
+
+		@Test
+		void testForOtherException() {
+			syncProgress = new SyncProgress();
+			e = new CoreException("test exception");
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+		}
 	}
 
 }
