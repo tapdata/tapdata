@@ -3,13 +3,17 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import base.BaseTaskTest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.hazelcast.jet.core.Processor;
+import com.tapdata.entity.FieldProcess;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.dataflow.Capitalized;
+import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import io.tapdata.MockTaskUtil;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import lombok.SneakyThrows;
@@ -216,6 +220,40 @@ class HazelcastProcessorNodeTest extends BaseTaskTest {
 
 			assertEquals(expect, tapdataEvent.getTransformToTapValueResult().getBeforeTransformedToTapValueFieldNames());
 			assertEquals(expect, tapdataEvent.getTransformToTapValueResult().getAfterTransformedToTapValueFieldNames());
+		}
+	}
+
+	@Nested
+	class createDataFlowProcessorTest {
+		private ProcessorBaseContext processorBaseContext;
+		private Node node;
+		private Stage stage;
+		@BeforeEach
+		void beforeEach() {
+			processorBaseContext = mock(ProcessorBaseContext.class);
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "processorBaseContext", processorBaseContext);
+			node = mock(ProcessorNode.class);
+			stage = spy(Stage.class);
+		}
+		@Test
+		@DisplayName("test for node type is FIELD_RENAME_PROCESSOR")
+		void test1() {
+			Capitalized capitalized = Capitalized.UPPER;
+			ReflectionTestUtils.setField(hazelcastProcessorNode, "capitalized", capitalized);
+			node = mock(FieldRenameProcessorNode.class);
+			when(node.getType()).thenReturn("field_rename_processor");
+			FieldProcessorNode fieldProcessor = (FieldProcessorNode) node;
+			List<FieldProcessorNode.Operation> operations = new ArrayList<>();
+			FieldProcessorNode.Operation operation = new FieldProcessorNode.Operation();
+			operation.setField("test");
+			operation.setOp("RENAME");
+			operation.setOperand("test1");
+			operations.add(operation);
+			when(fieldProcessor.getOperations()).thenReturn(operations);
+			doCallRealMethod().when(hazelcastProcessorNode).createDataFlowProcessor(node, stage);
+			hazelcastProcessorNode.createDataFlowProcessor(node, stage);
+			List<FieldProcess> actualOperations = stage.getOperations();
+			assertEquals("TEST", actualOperations.get(0).getField());
 		}
 	}
 }
