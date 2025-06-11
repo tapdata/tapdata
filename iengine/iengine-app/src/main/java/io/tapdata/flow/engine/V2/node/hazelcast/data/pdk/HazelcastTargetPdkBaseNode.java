@@ -1207,6 +1207,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
         flushSyncProgressMap(tapdataEvent);
         saveToSnapshot();
+		executeAspect(new SnapshotWriteFinishAspect().dataProcessorContext(dataProcessorContext));
     }
 
     protected void handleTapdataCompleteSnapshotEvent() {
