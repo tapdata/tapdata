@@ -3,7 +3,7 @@
   "port": 5432,
   "database": "postgres",
   "schema": "public",
-  "username": "postgres",
+  "user": "postgres",
   "password": "gj0628",
   "additionalString": "",
   "timezone": "+08:00",

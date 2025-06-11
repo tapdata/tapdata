@@ -7,7 +7,7 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.conversion.TargetTypesGenerator;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.logger.TapLog;
@@ -18,12 +18,17 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableV2Function;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import org.apache.commons.io.IOUtils;
 
@@ -38,6 +43,9 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -55,8 +63,47 @@ public class HotLoadConnectorTester {
 
     private static final Log logger = new TapLog();
 
+    private static final Map<String, Object> data = new HashMap<>();
+    private static final KVMap<Object> stateMap = new KVMap<Object>() {
+        @Override
+        public void init(String mapKey, Class<Object> valueClass) {
+
+        }
+
+        @Override
+        public void put(String key, Object o) {
+
+        }
+
+        @Override
+        public Object putIfAbsent(String key, Object o) {
+            return null;
+        }
+
+        @Override
+        public Object remove(String key) {
+            return null;
+        }
+
+        @Override
+        public void clear() {
+
+        }
+
+        @Override
+        public void reset() {
+
+        }
+
+        @Override
+        public Object get(String key) {
+            return null;
+        }
+    };
+
     // 连接器缓存
     private final Map<String, ConnectorInfo> connectorCache = new ConcurrentHashMap<>();
+    private final Map<String, TapTable> tapTableCache = new ConcurrentHashMap<>();
 
     // JSON处理器
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -236,8 +283,8 @@ public class HotLoadConnectorTester {
             if (errorMessage != null) {
                 return String.format("%s: ERROR - %s", operation, errorMessage);
             }
-            return String.format("%s: %d records in %d ms (%.2f records/sec)",
-                    operation, recordCount, duration, throughput);
+            return String.format("%s: %d records in %d ms (%.2f records/sec), tableName: %s",
+                    operation, recordCount, duration, throughput, metadata.get("tableName"));
         }
     }
 
@@ -282,13 +329,6 @@ public class HotLoadConnectorTester {
 
         // 创建连接器实例
         TapConnector connectorInstance = createConnectorInstance(connectorClass, connectionConfig);
-        //获取connector类的注解
-        TapConnectorClass tapConnectorClass = connectorClass.getAnnotation(TapConnectorClass.class);
-        if (tapConnectorClass != null) {
-            logger.info("Connector class annotation: {}", tapConnectorClass.value());
-        } else {
-            logger.info("Connector class has no annotation");
-        }
 
         // 创建连接上下文
         TapConnectionContext connectionContext = new TapConnectionContext(null, connectionConfig, null, new TapLog());
@@ -299,9 +339,6 @@ public class HotLoadConnectorTester {
 
         // 注册连接器功能
         connectorInstance.registerCapabilities(connectorFunctions, codecRegistry);
-
-        // 初始化连接器
-        connectorInstance.init(connectionContext);
 
         // 创建连接器信息
         ConnectorInfo connectorInfo = new ConnectorInfo();
@@ -362,26 +399,6 @@ public class HotLoadConnectorTester {
     }
 
     /**
-     * 检查类是否有连接器方法
-     */
-    private boolean hasConnectorMethods(Class<?> clazz) {
-        Method[] methods = clazz.getDeclaredMethods();
-        Set<String> methodNames = new HashSet<>();
-
-        for (Method method : methods) {
-            methodNames.add(method.getName().toLowerCase());
-        }
-
-        // 检查是否有常见的连接器方法
-        return methodNames.contains("batchread") ||
-                methodNames.contains("streamread") ||
-                methodNames.contains("writerecord") ||
-                methodNames.contains("connect") ||
-                methodNames.contains("init") ||
-                methodNames.contains("test");
-    }
-
-    /**
      * 创建连接器实例
      */
     private TapConnector createConnectorInstance(Class<? extends TapConnector> connectorClass, DataMap config) throws Exception {
@@ -395,35 +412,6 @@ public class HotLoadConnectorTester {
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to create connector instance: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 初始化连接器
-     */
-    private void initializeConnector(ConnectorInfo connectorInfo) {
-        try {
-            Object instance = connectorInfo.getConnectorInstance();
-            Class<?> clazz = connectorInfo.getConnectorClass();
-
-            // 尝试调用初始化方法
-            String[] initMethods = {"init", "initialize", "start", "connect"};
-
-            for (String methodName : initMethods) {
-                try {
-                    Method method = clazz.getMethod(methodName);
-                    method.invoke(instance);
-                    logger.info("Called initialization method: {}", methodName);
-                    break;
-                } catch (NoSuchMethodException e) {
-                    // 继续尝试下一个方法
-                } catch (Exception e) {
-                    logger.warn("Failed to call {}: {}", methodName, e.getMessage());
-                }
-            }
-
-        } catch (Exception e) {
-            logger.warn("Failed to initialize connector: {}", e.getMessage());
         }
     }
 
@@ -456,6 +444,7 @@ public class HotLoadConnectorTester {
         ConnectorInfo connectorInfo = connectorCache.remove(connectorId);
         if (connectorInfo != null) {
             try {
+
                 // 关闭类加载器
                 if (connectorInfo.getClassLoader() != null) {
                     connectorInfo.getClassLoader().close();
@@ -480,7 +469,12 @@ public class HotLoadConnectorTester {
             long startTime = System.currentTimeMillis();
 
             connectorInfo.getConnectorInstance().connectionTest(connectorInfo.getConnectionContext(), testItem -> {
-                logger.info("Test item: {}", testItem);
+                String res = switch (testItem.getResult()) {
+                    case 1 -> "success";
+                    case 2 -> "warning";
+                    default -> "fail";
+                };
+                logger.info("Test item: {}, message: {}, result: {}", testItem.getItem(), testItem.getInformation(), res);
             });
 
             long endTime = System.currentTimeMillis();
@@ -507,12 +501,15 @@ public class HotLoadConnectorTester {
      */
     public PerformanceResult testBatchRead(String connectorId, String tableName, int batchSize, int maxRecords) {
         PerformanceResult result = new PerformanceResult("BatchRead");
-
+        ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
+        // 创建连接器上下文
+        TapConnectorContext connectorContext = new TapConnectorContext(
+                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+        );
+        connectorContext.setStateMap(stateMap);
         try {
-            ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
-
             ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
-
+            connectorInfo.getConnectorInstance().init(connectorContext);
             BatchReadFunction batchReadFunction = functions.getBatchReadFunction();
             if (batchReadFunction == null) {
                 result.setErrorMessage("Connector does not support batch read");
@@ -523,12 +520,11 @@ public class HotLoadConnectorTester {
             long startTime = System.currentTimeMillis();
 
             // 创建表对象
-            TapTable tapTable = new TapTable(tableName);
-
-            // 创建连接器上下文
-            TapConnectorContext connectorContext = new TapConnectorContext(
-                    null, connectorInfo.getConnectionConfig(), null, new TapLog()
-            );
+            TapTable tapTable = tapTableCache.get(connectorId + "." + tableName);
+            if (tapTable == null) {
+                logger.info("Batch read table {} not found", tableName);
+                return null;
+            }
 
             // 执行批量读取
             try {
@@ -540,18 +536,30 @@ public class HotLoadConnectorTester {
                         (events, offset) -> {
                             recordCount.addAndGet(events.size());
                             // 隐藏debug日志，只在需要时输出
-                            if (recordCount.get() % 10000 == 0) {
+                            if (recordCount.get() % 100000 == 0) {
                                 logger.info("Read batch progress: {} records", recordCount.get());
                             }
 
                             // 检查是否达到最大记录数
                             if (recordCount.get() >= maxRecords) {
-                                // 这里应该有停止机制，但简化实现
+                                try {
+                                    connectorInfo.getConnectorInstance().stop(connectorContext);
+                                } catch (Throwable e) {
+                                    logger.error("Error stopping connector instance: {}", e.getMessage());
+                                }
                             }
                         }
                 );
             } catch (Throwable e) {
                 logger.error("Error batch reading {}: {}", connectorId, e.getMessage());
+            } finally {
+                try {
+                    if (recordCount.get() < maxRecords) {
+                        connectorInfo.getConnectorInstance().stop(connectorContext);
+                    }
+                } catch (Throwable e) {
+                    logger.error("Error stopping connector instance: {}", e.getMessage());
+                }
             }
 
             long endTime = System.currentTimeMillis();
@@ -564,11 +572,17 @@ public class HotLoadConnectorTester {
             result.addMetadata("batchSize", batchSize);
             result.addMetadata("actualRecords", recordCount.get());
 
-            return null;
+            return result;
 
         } catch (Throwable e) {
             result.setErrorMessage(e.getMessage());
             logger.error("Batch read test failed: {}", e.getMessage());
+        } finally {
+            try {
+                connectorInfo.getConnectorInstance().stop(connectorContext);
+            } catch (Throwable e) {
+                logger.error("Error stopping connector instance: {}", e.getMessage());
+            }
         }
 
         return result;
@@ -579,10 +593,14 @@ public class HotLoadConnectorTester {
      */
     public PerformanceResult testStreamRead(String connectorId, List<String> tableNames, int durationMs) {
         PerformanceResult result = new PerformanceResult("StreamRead");
-
+        ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
+        TapConnectorContext connectorContext = new TapConnectorContext(
+                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+        );
+        connectorContext.setStateMap(stateMap);
+        connectorContext.setTableMap(tapTableCache::get);
         try {
-            ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
-
+            connectorInfo.getConnectorInstance().init(connectorContext);
             AtomicLong recordCount = new AtomicLong(0);
             long startTime = System.currentTimeMillis();
             long endTime = startTime + durationMs;
@@ -602,8 +620,14 @@ public class HotLoadConnectorTester {
             result.addMetadata("tableNames", tableNames);
             result.addMetadata("requestedDuration", durationMs);
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             result.setErrorMessage(e.getMessage());
+        } finally {
+            try {
+                connectorInfo.getConnectorInstance().stop(connectorContext);
+            } catch (Throwable e) {
+                logger.error("Error stopping connector instance: {}", e.getMessage());
+            }
         }
 
         return result;
@@ -612,14 +636,29 @@ public class HotLoadConnectorTester {
     /**
      * 测试写入记录性能
      */
-    public PerformanceResult testWriteRecord(String connectorId, String tableName, List<TapRecordEvent> events) {
+    public PerformanceResult testWriteRecord(String connectorId, String tableName, long count, int batchSize, int threadSize) {
         PerformanceResult result = new PerformanceResult("WriteRecord");
-
+        ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
+        TapConnectorContext connectorContext = new TapConnectorContext(
+                null, connectorInfo.getConnectionConfig(), null, new TapLog()
+        );
+        connectorContext.setStateMap(stateMap);
         try {
-            ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
-
+            TapTable tapTable = transformTargetTable(getPerformanceTable(tableName), connectorId);
+            tapTableCache.put(connectorId + "." + tapTable.getId(), tapTable);
             ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
-
+            connectorInfo.getConnectorInstance().init(connectorContext);
+            ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
+            connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
+            connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+            connectorCapabilities.alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
+            connectorContext.setConnectorCapabilities(connectorCapabilities);
+            CreateTableV2Function createTableV2Function = functions.getCreateTableV2Function();
+            if (createTableV2Function == null) {
+                logger.warn("Connector does not support createTableV2Function");
+            } else {
+                createTableV2Function.createTable(connectorContext, new TapCreateTableEvent().table(tapTable));
+            }
             WriteRecordFunction writeRecordFunction = functions.getWriteRecordFunction();
             if (writeRecordFunction == null) {
                 result.setErrorMessage("Connector does not support write record");
@@ -628,37 +667,52 @@ public class HotLoadConnectorTester {
 
             long startTime = System.currentTimeMillis();
 
-            // 创建表对象
-            TapTable tapTable = new TapTable(tableName);
-
-            // 创建连接器上下文
-            TapConnectorContext connectorContext = new TapConnectorContext(
-                    null, connectorInfo.getConnectionConfig(), null, new TapLog()
-            );
-
             AtomicLong successCount = new AtomicLong(0);
 
-            // 执行写入
-            try {
-                writeRecordFunction.writeRecord(
-                        connectorContext,
-                        events,
-                        tapTable,
-                        writeListResult -> {
-                            // 处理写入结果
-                            if (writeListResult.getInsertedCount() != 0) {
-                                successCount.addAndGet(writeListResult.getInsertedCount());
-                            }
-                            if (writeListResult.getModifiedCount() != 0) {
-                                successCount.addAndGet(writeListResult.getModifiedCount());
-                            }
-                            if (writeListResult.getRemovedCount() != 0) {
-                                successCount.addAndGet(writeListResult.getRemovedCount());
-                            }
+            long batch = count / batchSize;
+            AtomicLong batchCount = new AtomicLong(-1);
+            CountDownLatch countDownLatch = new CountDownLatch(threadSize);
+            ExecutorService executorService = Executors.newFixedThreadPool(threadSize);
+            for (int i = 0; i < threadSize; i++) {
+                executorService.submit(() -> {
+                    while (true) {
+                        long currentBatch = batchCount.incrementAndGet();
+                        if (currentBatch >= batch) {
+                            break;
                         }
-                );
-            } catch (Throwable e) {
+                        // 执行写入
+                        try {
+                            writeRecordFunction.writeRecord(
+                                    connectorContext,
+                                    getPerformanceEvents(tapTable.getId(), currentBatch, batchSize),
+                                    tapTable,
+                                    writeListResult -> {
+                                        // 处理写入结果
+                                        if (writeListResult.getInsertedCount() != 0) {
+                                            successCount.addAndGet(writeListResult.getInsertedCount());
+                                        }
+                                        if (writeListResult.getModifiedCount() != 0) {
+                                            successCount.addAndGet(writeListResult.getModifiedCount());
+                                        }
+                                        if (writeListResult.getRemovedCount() != 0) {
+                                            successCount.addAndGet(writeListResult.getRemovedCount());
+                                        }
+                                    }
+                            );
+                        } catch (Throwable e) {
+                            logger.error("Error writing record {}: {}", connectorId, e.getMessage());
+                            break;
+                        }
+                    }
+                    countDownLatch.countDown();
+                });
+            }
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
                 logger.error("Error writing record {}: {}", connectorId, e.getMessage());
+            } finally {
+                executorService.shutdown();
             }
 
             long endTime = System.currentTimeMillis();
@@ -667,45 +721,32 @@ public class HotLoadConnectorTester {
             result.setDuration(duration);
             result.setRecordCount(successCount.get());
             result.setThroughput(duration > 0 ? (successCount.get() * 1000.0 / duration) : 0);
-            result.addMetadata("tableName", tableName);
-            result.addMetadata("inputEvents", events.size());
+            result.addMetadata("tableName", tapTable.getId());
+            result.addMetadata("batchSize", batchSize);
+            result.addMetadata("threadSize", threadSize);
+            result.addMetadata("inputEvents", count);
             result.addMetadata("successCount", successCount.get());
 
-            return null;
+            return result;
 
         } catch (Throwable e) {
             result.setErrorMessage(e.getMessage());
             logger.error("Write record test failed: {}", e.getMessage());
+        } finally {
+            try {
+                connectorInfo.getConnectorInstance().stop(connectorContext);
+            } catch (Throwable e) {
+                logger.error("Error stopping connector instance: {}", e.getMessage());
+            }
         }
 
         return result;
     }
 
     /**
-     * 生成测试事件
-     */
-    public List<TapRecordEvent> generateTestEvents(int count) {
-        List<TapRecordEvent> events = new ArrayList<>();
-
-        for (int i = 0; i < count; i++) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("id", i);
-            data.put("name", "test_record_" + i);
-            data.put("value", Math.random() * 1000);
-            data.put("timestamp", System.currentTimeMillis());
-            data.put("description", "Test record for performance testing");
-
-            TapInsertRecordEvent event = TapInsertRecordEvent.create().after(data);
-            events.add(event);
-        }
-
-        return events;
-    }
-
-    /**
      * 获取连接器信息
      */
-    private ConnectorInfo getConnectorInfo(String connectorId) throws Exception {
+    private ConnectorInfo getConnectorInfo(String connectorId) {
         ConnectorInfo connectorInfo = connectorCache.get(connectorId);
         if (connectorInfo == null) {
             throw new IllegalArgumentException("Connector not loaded: " + connectorId);
@@ -883,94 +924,48 @@ public class HotLoadConnectorTester {
     }
 
     /**
-     * 测试批量读取 - 使用反射调用
-     */
-    public PerformanceResult testBatchReadReflection(String connectorId, String tableName, int batchSize, int maxRecords) {
-        PerformanceResult result = new PerformanceResult("BatchRead-Reflection");
-
-        try {
-            ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
-
-            AtomicLong recordCount = new AtomicLong(0);
-            long startTime = System.currentTimeMillis();
-
-            // 尝试调用batchRead方法
-            try {
-                Object batchResult = invokeConnectorMethod(connectorId, "batchRead", tableName, batchSize, maxRecords);
-                if (batchResult instanceof Number) {
-                    recordCount.set(((Number) batchResult).longValue());
-                } else {
-                    recordCount.set(maxRecords); // 假设成功读取了所有记录
-                }
-            } catch (NoSuchMethodException e) {
-                // 如果没有batchRead方法，尝试其他方法
-                logger.warn("batchRead method not found, trying alternative methods");
-                recordCount.set(maxRecords); // 模拟数据
-            }
-
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-
-            result.setDuration(duration);
-            result.setRecordCount(recordCount.get());
-            result.setThroughput(duration > 0 ? (recordCount.get() * 1000.0 / duration) : 0);
-            result.addMetadata("tableName", tableName);
-            result.addMetadata("batchSize", batchSize);
-            result.addMetadata("method", "reflection");
-
-        } catch (Exception e) {
-            result.setErrorMessage(e.getMessage());
-        }
-
-        return result;
-    }
-
-    /**
-     * 测试写入记录 - 使用反射调用
-     */
-    public PerformanceResult testWriteRecordReflection(String connectorId, String tableName, List<Map<String, Object>> records) {
-        PerformanceResult result = new PerformanceResult("WriteRecord-Reflection");
-
-        try {
-            ConnectorInfo connectorInfo = getConnectorInfo(connectorId);
-
-            long startTime = System.currentTimeMillis();
-
-            // 尝试调用writeRecord方法
-            try {
-                Object writeResult = invokeConnectorMethod(connectorId, "writeRecord", tableName, records);
-                logger.info("Write result: {}", writeResult);
-            } catch (NoSuchMethodException e) {
-                // 尝试其他写入方法
-                try {
-                    invokeConnectorMethod(connectorId, "write", records);
-                } catch (NoSuchMethodException e2) {
-                    logger.warn("No write methods found, simulating write operation");
-                }
-            }
-
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-
-            result.setDuration(duration);
-            result.setRecordCount(records.size());
-            result.setThroughput(duration > 0 ? (records.size() * 1000.0 / duration) : 0);
-            result.addMetadata("tableName", tableName);
-            result.addMetadata("method", "reflection");
-
-        } catch (Exception e) {
-            result.setErrorMessage(e.getMessage());
-        }
-
-        return result;
-    }
-
-    /**
      * 关闭测试器
      */
     public void shutdown() {
         logger.info("Shutting down connector tester...");
         new ArrayList<>(connectorCache.keySet()).forEach(this::unloadConnector);
+    }
+
+    TapTable getPerformanceTable(String tableName) {
+        TapTable table = table(tableName == null ? "_tap_test_" + UUID.randomUUID().toString().substring(10) : tableName)
+                .add(field("id", JAVA_Long).isPrimaryKey(true).primaryKeyPos(1).tapType(tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE))))
+                .add(field("col_bool", JAVA_Boolean).tapType(tapBoolean()))
+                .add(field("col_date", JAVA_Date).tapType(tapDate()))
+                .add(field("col_datetime", "Date_Time").tapType(tapDateTime().fraction(3)))
+                .add(field("col_int_1", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))))
+                .add(field("col_int_2", JAVA_Integer).tapType(tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
+        for (int i = 1; i < 45; i++) {
+            table.add(field("col_str_" + i, "STRING(30)").tapType(tapString().bytes(30L)));
+        }
+        return table;
+    }
+
+    static {
+        data.put("col_bool", true);
+        data.put("col_date", new java.sql.Date(new Date().getTime()));
+        data.put("col_datetime", new java.sql.Timestamp(new Date().getTime()));
+        data.put("col_int_1", 1);
+        data.put("col_int_2", 2);
+        for (int i = 1; i < 45; i++) {
+            data.put("col_str_" + i, UUID.randomUUID().toString().substring(0, 20));
+        }
+    }
+
+    List<TapRecordEvent> getPerformanceEvents(String table, long batch, int batchSize) {
+
+        List<TapRecordEvent> events = new ArrayList<>();
+        for (int i = 0; i < batchSize; i++) {
+            //深度拷贝data
+            Map<String, Object> dataCopy = new HashMap<>(data);
+            dataCopy.put("id", batchSize * batch + i);
+            events.add(insertRecordEvent(dataCopy, table));
+        }
+        return events;
     }
 
     TapTable getTable() {
@@ -1025,8 +1020,7 @@ public class HotLoadConnectorTester {
         }
 
         // 创建新的目标表
-        TapTable targetTable = table(sourceTable.getId() + "_transformed");
-        targetTable.setComment("Transformed from " + sourceTable.getId() + " for " + targetConnectorId + " using TargetTypesGenerator");
+        TapTable targetTable = table(sourceTable.getId());
 
         // 添加转换后的字段
         LinkedHashMap<String, TapField> convertedFields = result.getData();

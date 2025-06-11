@@ -116,7 +116,7 @@ public class ConnectorTesterMain {
         System.out.println("  test-connection <connector-id>                - Test connector connection");
         System.out.println("  test-batch-read <connector-id> <table> [batch-size] [max-records] - Test batch read");
         System.out.println("  test-stream-read <connector-id> <table> [duration-ms] - Test stream read");
-        System.out.println("  test-write <connector-id> <table> [record-count] - Test write performance");
+        System.out.println("  test-write <connector-id> <table> <count> <batch-size> <thread-size> - Test write performance");
         System.out.println("  test-transform <source-conn> <target-conn> <columnType with |> - Transform column type (TargetTypesGenerator)");
         System.out.println("  compare-schemas <conn1> <conn2>                - Compare connector schemas");
         System.out.println("  compare-transformation <conn1> <conn2>        - Compare transformation capabilities");
@@ -340,22 +340,17 @@ public class ConnectorTesterMain {
     }
 
     private static void handleTestWriteCommand(String[] parts) {
-        if (parts.length < 3) {
-            System.out.println("Usage: test-write <connector-id> <table> [record-count]");
+        if(parts.length < 4) {
+            System.out.println("Usage: test-write <connector-id> <table-name> <count> <batch-size> <thread-size>");
             return;
         }
-
         String connectorId = parts[1];
         String tableName = parts[2];
-        int recordCount = parts.length > 3 ? Integer.parseInt(parts[3]) : 1000;
+        long count = Long.parseLong(parts[3]);
+        int batchSize = Integer.parseInt(parts[4]);
+        int threadSize = Integer.parseInt(parts[5]);
 
-        System.out.println("Testing write for: " + connectorId + "." + tableName);
-        System.out.println("Record count: " + recordCount);
-
-        // 生成测试数据
-        List<TapRecordEvent> events = tester.generateTestEvents(recordCount);
-
-        HotLoadConnectorTester.PerformanceResult result = tester.testWriteRecord(connectorId, tableName, events);
+        HotLoadConnectorTester.PerformanceResult result = tester.testWriteRecord(connectorId, tableName, count, batchSize, threadSize);
         System.out.println("Result: " + result);
     }
 
