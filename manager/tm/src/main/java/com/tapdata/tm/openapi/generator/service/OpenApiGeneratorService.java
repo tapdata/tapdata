@@ -139,7 +139,7 @@ public class OpenApiGeneratorService {
 	 * Create ZIP file containing the generated source code
 	 */
 	private Path createZipFile(CodeGenerationRequest request, Path outputDir) throws IOException {
-		String fileName = String.format("%s-%s.zip", request.getArtifactId(), request.getLan());
+		String fileName = String.format("%s-%s-v%s-%s.zip", request.getArtifactId(), request.getLan(), request.getVersion(), DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()));
 		Path zipFilePath = outputDir.getParent().resolve(fileName);
 
 		log.info("Creating ZIP file: {}", zipFilePath);
