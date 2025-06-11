@@ -208,9 +208,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         Node<?> node = dataProcessorContext.getNode();
         List<? extends Node<?>> predecessors = node.predecessors();
         if (null == predecessors || predecessors.isEmpty()) {
-            if (node instanceof TableNode) {
+            if (node instanceof TableNode && !node.disabledNode()) {
                 snapshotTableCounts.addAndGet(1);
-            } else if (node instanceof DatabaseNode) {
+            } else if (node instanceof DatabaseNode && !node.disabledNode()) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 snapshotTableCounts.addAndGet(databaseNode.tableSize());
             }
