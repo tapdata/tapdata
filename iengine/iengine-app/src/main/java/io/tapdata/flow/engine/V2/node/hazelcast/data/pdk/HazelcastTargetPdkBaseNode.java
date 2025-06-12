@@ -91,6 +91,7 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -938,7 +939,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
 				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
 			} else {
-				handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				if(isExportRecoveryEvent(tapdataEvent)){
+					handleExportRecoveryEvent((TapdataRecoveryEvent) tapdataEvent);
+				}else{
+					handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				}
 				if (tapdataEvent instanceof TapdataRecoveryEvent) {
 					AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
 				}
@@ -1466,6 +1471,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
                 }
                 if (null != syncProgress.getStreamOffsetObj()) {
+					obsLogger.info("streamOffset value is {}", syncProgress.getStreamOffsetObj());
                     if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
                             && !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
                         syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
@@ -1870,5 +1876,39 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+	}
+
+	protected Boolean isExportRecoveryEvent(TapdataEvent tapdataEvent) {
+		if(tapdataEvent instanceof TapdataRecoveryEvent event){
+			return event.getIsExport();
+		}
+		return false;
+	}
+
+	protected void handleExportRecoveryEvent(TapdataRecoveryEvent tapdataEvent) {
+		String TableName = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+		TapTable tapTable = dataProcessorContext.getTapTableMap().get(TableName);
+		ConnectorNode connectorNode = getConnectorNode();
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		ExportEventSqlFunction exportEventSqlFunction = connectorFunctions.getExportEventSqlFunction();
+		if(exportEventSqlFunction != null){
+			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.EXPORT_EVENT_SQL,
+					pdkMethodInvoker.runnable(() -> {
+								try {
+									String sql = exportEventSqlFunction.exportEventSql(
+											connectorNode.getConnectorContext(),
+											tapdataEvent.getTapEvent(),
+											tapTable);
+									if(StringUtils.isNotBlank(sql)){
+										tapdataEvent.setRecoverySql(sql);
+									}
+								} catch (Exception e) {
+									obsLogger.warn("Exporting Recovery event sql failed: {}", e.getMessage());
+								}
+							}
+					));
+			AutoRecovery.exportRecoverySql(getNode().getTaskId(), tapdataEvent);
+		}
 	}
 }

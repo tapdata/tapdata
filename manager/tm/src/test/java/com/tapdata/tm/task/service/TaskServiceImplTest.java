@@ -1329,6 +1329,7 @@ class TaskServiceImplTest {
     class AfterRenewTest{
         private TaskAutoInspectResultsService taskAutoInspectResultsService;
         private StateMachineService stateMachineService;
+
         @BeforeEach
         void setUp(){
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
