@@ -641,85 +641,90 @@ public class HotLoadConnectorTester {
         });
         ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
         try {
-            connectorInfo.getConnectorInstance().init(connectorContext);
-            Object streamOffset = null;
-            TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = functions.getTimestampToStreamOffsetFunction();
-            if (timestampToStreamOffsetFunction == null) {
-                logger.warn("Connector does not support timestamp to stream offset");
-            } else {
+            executeWithClassLoader(connectorInfo, () -> {
                 try {
-                    streamOffset = timestampToStreamOffsetFunction.timestampToStreamOffset(connectorContext, null);
+                    connectorInfo.getConnectorInstance().init(connectorContext);
+                    Object streamOffset = null;
+                    TimestampToStreamOffsetFunction timestampToStreamOffsetFunction = functions.getTimestampToStreamOffsetFunction();
+                    if (timestampToStreamOffsetFunction == null) {
+                        logger.warn("Connector does not support timestamp to stream offset");
+                    } else {
+                        try {
+                            streamOffset = timestampToStreamOffsetFunction.timestampToStreamOffset(connectorContext, null);
+                        } catch (Throwable e) {
+                            logger.error("Error getting stream offset: {}", e.getMessage());
+                        }
+                    }
+                    StreamReadFunction streamReadFunction = functions.getStreamReadFunction();
+                    if (streamReadFunction == null) {
+                        logger.error("Connector does not support stream read");
+                        return null;
+                    }
+                    Object finalStreamOffset = streamOffset;
+                    AtomicLong recordCount = new AtomicLong(0);
+                    AtomicLong startTime = new AtomicLong(0);
+                    StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offset) -> {
+                        if (startTime.get() == 0) {
+                            if (events.stream().anyMatch(v -> v instanceof TapRecordEvent)) {
+                                startTime.set(System.currentTimeMillis());
+                            }
+                        }
+                        recordCount.addAndGet(events.size());
+                        // 隐藏debug日志，只在需要时输出
+                        logger.info("Stream read progress: {} records", recordCount.get());
+                    });
+                    new Thread(() -> {
+                        try {
+                            streamReadFunction.streamRead(connectorContext, tableNames, finalStreamOffset, 100, streamReadConsumer);
+                        } catch (Throwable e) {
+                            logger.error("Error streaming read: {}", e.getMessage());
+                        }
+                    }).start();
+                    while ((startTime.get() == 0 || (startTime.get() > 0 && System.currentTimeMillis() - startTime.get() < durationMs)) && recordCount.get() < count) {
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            logger.error("Error sleeping: {}", e.getMessage());
+                        }
+                    }
+                    long actualDuration = System.currentTimeMillis() - startTime.get();
+                    try {
+                        ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
+                        if (releaseExternalFunction != null) {
+                            releaseExternalFunction.release(connectorContext);
+                        }
+                        connectorInfo.getConnectorInstance().stop(connectorContext);
+                    } catch (Throwable e) {
+                        logger.error("Error stopping connector instance: {}", e.getMessage());
+                    }
+
+                    result.setDuration(actualDuration);
+                    result.setRecordCount(recordCount.get());
+                    result.setThroughput(actualDuration > 0 ? (recordCount.get() * 1000.0 / actualDuration) : 0);
+                    result.addMetadata("tableNames", tableNames);
+                    result.addMetadata("requestedDuration", durationMs);
+
                 } catch (Throwable e) {
-                    logger.error("Error getting stream offset: {}", e.getMessage());
-                }
-            }
-            StreamReadFunction streamReadFunction = functions.getStreamReadFunction();
-            if (streamReadFunction == null) {
-                logger.error("Connector does not support stream read");
-                return null;
-            }
-            Object finalStreamOffset = streamOffset;
-            AtomicLong recordCount = new AtomicLong(0);
-            AtomicLong startTime = new AtomicLong(0);
-            StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offset) -> {
-                if (startTime.get() == 0) {
-                    if (events.stream().anyMatch(v -> v instanceof TapRecordEvent)) {
-                        startTime.set(System.currentTimeMillis());
+                    result.setErrorMessage(e.getMessage());
+                } finally {
+                    try {
+                        ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
+                        if (releaseExternalFunction != null) {
+                            releaseExternalFunction.release(connectorContext);
+                        }
+                    } catch (Throwable e) {
+                        logger.error("Error release external: {}", e.getMessage());
+                    }
+                    try {
+                        connectorInfo.getConnectorInstance().stop(connectorContext);
+                    } catch (Throwable e) {
+                        logger.error("Error stopping connector instance: {}", e.getMessage());
                     }
                 }
-                recordCount.addAndGet(events.size());
-                // 隐藏debug日志，只在需要时输出
-                if (recordCount.get() % 100000 == 0) {
-                    logger.info("Stream read progress: {} records", recordCount.get());
-                }
+                return null;
             });
-            new Thread(() -> {
-                try {
-                    streamReadFunction.streamRead(connectorContext, tableNames, finalStreamOffset, 100, streamReadConsumer);
-                } catch (Throwable e) {
-                    logger.error("Error streaming read: {}", e.getMessage());
-                }
-            }).start();
-            while ((startTime.get() == 0 || (startTime.get() > 0 && System.currentTimeMillis() - startTime.get() < durationMs)) && recordCount.get() < count) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    logger.error("Error sleeping: {}", e.getMessage());
-                }
-            }
-            long actualDuration = System.currentTimeMillis() - startTime.get();
-            try {
-                ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
-                if (releaseExternalFunction != null) {
-                    releaseExternalFunction.release(connectorContext);
-                }
-                connectorInfo.getConnectorInstance().stop(connectorContext);
-            } catch (Throwable e) {
-                logger.error("Error stopping connector instance: {}", e.getMessage());
-            }
-
-            result.setDuration(actualDuration);
-            result.setRecordCount(recordCount.get());
-            result.setThroughput(actualDuration > 0 ? (recordCount.get() * 1000.0 / actualDuration) : 0);
-            result.addMetadata("tableNames", tableNames);
-            result.addMetadata("requestedDuration", durationMs);
-
-        } catch (Throwable e) {
-            result.setErrorMessage(e.getMessage());
-        } finally {
-            try {
-                ReleaseExternalFunction releaseExternalFunction = functions.getReleaseExternalFunction();
-                if (releaseExternalFunction != null) {
-                    releaseExternalFunction.release(connectorContext);
-                }
-            } catch (Throwable e) {
-                logger.error("Error release external: {}", e.getMessage());
-            }
-            try {
-                connectorInfo.getConnectorInstance().stop(connectorContext);
-            } catch (Throwable e) {
-                logger.error("Error stopping connector instance: {}", e.getMessage());
-            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
         return result;
@@ -1260,5 +1265,26 @@ public class HotLoadConnectorTester {
             logger.error("Table transformation failed: {}", e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * 在指定的类加载器上下文中执行操作
+     */
+    private <T> T executeWithClassLoader(ConnectorInfo connectorInfo, ClassLoaderCallable<T> callable) throws Exception {
+        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(connectorInfo.getClassLoader());
+            return callable.call();
+        } finally {
+            Thread.currentThread().setContextClassLoader(originalClassLoader);
+        }
+    }
+
+    /**
+     * 类加载器上下文回调接口
+     */
+    @FunctionalInterface
+    private interface ClassLoaderCallable<T> {
+        T call() throws Exception;
     }
 }

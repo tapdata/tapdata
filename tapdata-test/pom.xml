@@ -18,14 +18,12 @@
         <!-- 版本管理 -->
         <junit.version>5.9.2</junit.version>
         <mockito.version>5.1.1</mockito.version>
-        <jackson.version>2.15.0-rc1</jackson.version>
-        <slf4j.version>2.0.6</slf4j.version>
+        <jackson.version>2.18.3</jackson.version>
         <logback.version>1.4.5</logback.version>
         <commons.lang3.version>3.12.0</commons.lang3.version>
         <commons.cli.version>1.5.0</commons.cli.version>
         <tapdata.pdk.runner.version>2.1-SNAPSHOT</tapdata.pdk.runner.version>
         <tapdata.pdk.api.version>2.0.1-SNAPSHOT</tapdata.pdk.api.version>
-        <version.kafka>3.7.2</version.kafka>
     </properties>
 
     <dependencies>
@@ -47,11 +45,6 @@
             <artifactId>tapdata-pdk-runner</artifactId>
             <version>${tapdata.pdk.runner.version}</version>
             <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>connect-runtime</artifactId>
-            <version>${version.kafka}</version>
         </dependency>
 
         <!-- JSON处理 -->
