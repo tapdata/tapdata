@@ -1051,6 +1051,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
 		List<Node> nodes = dag.getNodes();
 		List<Node> allSourceDataNodes = nodes.stream().filter(n -> {
+			if (n.disabledNode()) {
+				return false;
+			}
 			if (!(n instanceof TableNode) && !(n instanceof DatabaseNode)) {
 				return false;
 			}

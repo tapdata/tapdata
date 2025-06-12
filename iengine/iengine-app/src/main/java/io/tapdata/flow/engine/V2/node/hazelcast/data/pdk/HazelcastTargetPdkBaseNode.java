@@ -37,6 +37,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -91,6 +92,7 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -239,6 +241,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				readBatchOffset(entry.getValue());
 				syncProgressMap.put(entry.getKey(), entry.getValue());
 			}
+		}
+	}
+
+	@Override
+	protected void readBatchOffset(SyncProgress syncProgress) {
+		try {
+			super.readBatchOffset(syncProgress);
+		} catch (CoreException e) {
+			errorHandle(syncProgress, e);
+		}
+	}
+
+	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
+		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+		} else {
+			throw new TapCodeException(e.getMessage(), e);
 		}
 	}
 
@@ -938,7 +958,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
 				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
 			} else {
-				handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				if(isExportRecoveryEvent(tapdataEvent)){
+					handleExportRecoveryEvent((TapdataRecoveryEvent) tapdataEvent);
+				}else{
+					handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				}
 				if (tapdataEvent instanceof TapdataRecoveryEvent) {
 					AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
 				}
@@ -1183,6 +1207,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
         flushSyncProgressMap(tapdataEvent);
         saveToSnapshot();
+		executeAspect(new SnapshotWriteFinishAspect().dataProcessorContext(dataProcessorContext));
     }
 
     protected void handleTapdataCompleteSnapshotEvent() {
@@ -1870,5 +1895,39 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+	}
+
+	protected Boolean isExportRecoveryEvent(TapdataEvent tapdataEvent) {
+		if(tapdataEvent instanceof TapdataRecoveryEvent event){
+			return event.getIsExport();
+		}
+		return false;
+	}
+
+	protected void handleExportRecoveryEvent(TapdataRecoveryEvent tapdataEvent) {
+		String TableName = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+		TapTable tapTable = dataProcessorContext.getTapTableMap().get(TableName);
+		ConnectorNode connectorNode = getConnectorNode();
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		ExportEventSqlFunction exportEventSqlFunction = connectorFunctions.getExportEventSqlFunction();
+		if(exportEventSqlFunction != null){
+			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.EXPORT_EVENT_SQL,
+					pdkMethodInvoker.runnable(() -> {
+								try {
+									String sql = exportEventSqlFunction.exportEventSql(
+											connectorNode.getConnectorContext(),
+											tapdataEvent.getTapEvent(),
+											tapTable);
+									if(StringUtils.isNotBlank(sql)){
+										tapdataEvent.setRecoverySql(sql);
+									}
+								} catch (Exception e) {
+									obsLogger.warn("Exporting Recovery event sql failed: {}", e.getMessage());
+								}
+							}
+					));
+			AutoRecovery.exportRecoverySql(getNode().getTaskId(), tapdataEvent);
+		}
 	}
 }

@@ -11,6 +11,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
+import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -65,6 +66,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -1534,7 +1536,37 @@ public class HazelcastTaskServiceTest {
         @DisplayName("test main process")
         void test1() {
             TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId("67c7b94b027a1a13bd357f39"));
+            DAG dag = mock(DAG.class);
+            List<Node> nodes = new ArrayList<>();
+            Node source1 = spy(new TableNode());
+            doReturn(true).when(source1).disabledNode();
+            List<Node> successors = new ArrayList<>();
+            MergeTableNode successor = spy(new MergeTableNode());
+            List<Node> mergeSuccessor = new ArrayList<>();
+
+            successors.add(successor);
+            doReturn(successors).when(source1).successors();
+            Node source2 = spy(new TableNode());
+            doReturn(successors).when(source2).successors();
+            Node mergeNode = spy(new MergeTableNode());
+            doReturn(successors).when(mergeNode).successors();
+            Node target = spy(new TableNode());
+            doReturn(new ArrayList<>()).when(target).successors();
+            target.setId("67c7b94b027a1a13bd357f37");
+            mergeSuccessor.add(target);
+            doReturn(mergeSuccessor).when(successor).successors();
+            nodes.add(source1);
+            nodes.add(source2);
+            nodes.add(mergeNode);
+            nodes.add(target);
+            when(dag.getNodes()).thenReturn(nodes);
+            taskDto.setDag(dag);
             taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+            hazelcastTaskService.initSourceInitialCounter(taskDto);
+            Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+            String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, target.getId());
+            assertEquals(1, ((AtomicInteger)taskGlobalVariable.get(key)).get());
 
         }
     }

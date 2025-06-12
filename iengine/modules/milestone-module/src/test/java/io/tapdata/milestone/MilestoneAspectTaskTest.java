@@ -223,6 +223,7 @@ class MilestoneAspectTaskTest {
 					mockCDCReadBeginAspect(classType, typeName, consumer);
 					mockSnapshotWriteBeginAspect(classType, typeName, consumer);
 					mockSnapshotWriteEndAspect(classType, typeName, consumer);
+					mockSnapshotWriteFinishAspect(classType, typeName, consumer);
 					return null;
 				}).when(milestoneAspectTask).nodeRegister(any(Class.class), anyString(), any(BiConsumer.class));
 
@@ -352,6 +353,16 @@ class MilestoneAspectTaskTest {
 				when(m.getEnd()).thenReturn(1L);
 				if (classType.getName().equals(WriteErrorAspect.class.getName())) {
 					consumer.accept("nodeId", writeErrorAspect);
+				}
+			}
+
+			SnapshotWriteFinishAspect snapshotWriteFinishAspect;
+			void mockSnapshotWriteFinishAspect(Class classType, String typeName, BiConsumer consumer) {
+				snapshotWriteFinishAspect = mock();
+				when(milestoneAspectTask.hasSnapshot()).thenReturn(true);
+				if (classType.getName().equals(SnapshotWriteFinishAspect.class.getName())
+						&& MilestoneAspectTask.KPI_SNAPSHOT_WRITE.equals(typeName)) {
+					consumer.accept(snapshotWriteFinishAspect, m);
 				}
 			}
 

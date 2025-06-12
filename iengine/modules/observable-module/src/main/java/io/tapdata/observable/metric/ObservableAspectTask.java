@@ -536,6 +536,7 @@ public class ObservableAspectTask extends AspectTask {
 		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 			handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis())
 		);
+		tableSampleHandlers.get(aspect.getSourceTableName()).setSnapshotDone();
 		taskSampleHandler.handleBatchReadFuncEnd();
 		return null;
 	}
