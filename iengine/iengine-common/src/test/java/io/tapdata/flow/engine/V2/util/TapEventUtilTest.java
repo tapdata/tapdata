@@ -54,13 +54,21 @@ class TapEventUtilTest {
 		List<String> removeFields = TapEventUtil.getRemoveFields(tapUpdateRecordEvent);
 		assertEquals("abc", removeFields.get(0));
 		assertEquals("123", removeFields.get(1));
+		TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+		tapInsertRecordEvent.setRemovedFields(stringList);
+		removeFields = TapEventUtil.getRemoveFields(tapInsertRecordEvent);
+		assertEquals("abc", removeFields.get(0));
+		assertEquals("123", removeFields.get(1));
 	}
 
 	@Test
 	void testGetNullRemoveFields() {
 		TapUpdateRecordEvent tapUpdateRecordEvent = new TapUpdateRecordEvent();
 		List<String> removeFields = TapEventUtil.getRemoveFields(tapUpdateRecordEvent);
-		assertNull(removeFields);
+        assertEquals(0,removeFields.size());
+		TapInsertRecordEvent tapInsertRecordEvent = new TapInsertRecordEvent();
+		removeFields = TapEventUtil.getRemoveFields(tapInsertRecordEvent);
+		assertEquals(0,removeFields.size());
 	}
 
 	@Test
