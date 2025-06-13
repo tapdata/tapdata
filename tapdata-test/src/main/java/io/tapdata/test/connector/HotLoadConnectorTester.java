@@ -46,7 +46,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -124,7 +123,7 @@ public class HotLoadConnectorTester {
         private Class<? extends TapConnector> connectorClass;
         private TapConnectionContext connectionContext;
         private ConnectorFunctions connectorFunctions;
-        private URLClassLoader classLoader;
+        private ClassLoader classLoader;
         private long lastModified;
         private DataMap connectionConfig;
         private Map<String, Object> metadata;
@@ -182,11 +181,11 @@ public class HotLoadConnectorTester {
             this.connectorFunctions = connectorFunctions;
         }
 
-        public URLClassLoader getClassLoader() {
+        public ClassLoader getClassLoader() {
             return classLoader;
         }
 
-        public void setClassLoader(URLClassLoader classLoader) {
+        public void setClassLoader(ClassLoader classLoader) {
             this.classLoader = classLoader;
         }
 
@@ -325,10 +324,8 @@ public class HotLoadConnectorTester {
         logger.info("Loading connector: {} from {}", connectorId, jarPath);
 
         // 创建类加载器
-        URLClassLoader classLoader = new URLClassLoader(
-                new URL[]{jarFile.toURI().toURL()},
-                Thread.currentThread().getContextClassLoader()
-        );
+        DependencyURLClassLoader classLoader = new DependencyURLClassLoader(
+                List.of(new URL[]{jarFile.toURI().toURL()}));
 
         // 发现连接器类
         Class<? extends TapConnector> connectorClass = discoverConnectorClass(jarFile, classLoader);
@@ -373,7 +370,7 @@ public class HotLoadConnectorTester {
      * 发现连接器类
      */
     @SuppressWarnings("unchecked")
-    private Class<? extends TapConnector> discoverConnectorClass(File jarFile, URLClassLoader classLoader) throws Exception {
+    private Class<? extends TapConnector> discoverConnectorClass(File jarFile, ClassLoader classLoader) throws Exception {
         try (JarFile jar = new JarFile(jarFile)) {
             Enumeration<JarEntry> entries = jar.entries();
 
@@ -453,7 +450,7 @@ public class HotLoadConnectorTester {
 
                 // 关闭类加载器
                 if (connectorInfo.getClassLoader() != null) {
-                    connectorInfo.getClassLoader().close();
+                    ((DependencyURLClassLoader) connectorInfo.getClassLoader()).close();
                 }
 
                 logger.info("Connector unloaded: {}", connectorId);
@@ -675,9 +672,16 @@ public class HotLoadConnectorTester {
                     });
                     new Thread(() -> {
                         try {
-                            streamReadFunction.streamRead(connectorContext, tableNames, finalStreamOffset, 100, streamReadConsumer);
-                        } catch (Throwable e) {
-                            logger.error("Error streaming read: {}", e.getMessage());
+                            executeWithClassLoader(connectorInfo, () -> {
+                                try {
+                                    streamReadFunction.streamRead(connectorContext, tableNames, finalStreamOffset, 100, streamReadConsumer);
+                                } catch (Throwable e) {
+                                    logger.error("Error streaming read: {}", e.getMessage());
+                                }
+                                return null;
+                            });
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
                         }
                     }).start();
                     while ((startTime.get() == 0 || (startTime.get() > 0 && System.currentTimeMillis() - startTime.get() < durationMs)) && recordCount.get() < count) {

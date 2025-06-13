@@ -24,7 +24,7 @@
         <maven.compiler.target>17</maven.compiler.target>
 
         <!-- Kafka and it's dependencies MUST reflect what the Kafka version uses -->
-        <version.kafka>3.7.2</version.kafka>
+        <version.kafka>2.7.0</version.kafka>
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
