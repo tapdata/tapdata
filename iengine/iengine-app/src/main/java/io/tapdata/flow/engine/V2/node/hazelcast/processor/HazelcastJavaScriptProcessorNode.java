@@ -248,6 +248,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 		contextMap.put("info", tapEvent.getInfo());
 		contextMap.put("global", this.globalTaskContent);
         contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
+		contextMap.put("removedFields", TapEventUtil.getRemoveFields(tapEvent));
 		Map<String, Object> context = this.processContextThreadLocal.get();
 		context.putAll(contextMap);
 

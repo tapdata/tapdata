@@ -31,6 +31,7 @@
 		<tapdata-api.version>2.0.1-SNAPSHOT</tapdata-api.version>
 		<tapdata-pdk-api.version>2.0.1-SNAPSHOT</tapdata-pdk-api.version>
 		<tapdata-common.version>2.1-SNAPSHOT</tapdata-common.version>
+		<tapdata-common.version>2.1-SNAPSHOT</tapdata-common.version>
 		<modules-api.version>2.1-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
