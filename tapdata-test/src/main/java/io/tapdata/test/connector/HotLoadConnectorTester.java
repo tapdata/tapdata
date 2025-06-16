@@ -666,6 +666,7 @@ public class HotLoadConnectorTester {
                                 startTime.set(System.currentTimeMillis());
                             }
                         }
+                        events.forEach(event -> logger.debug(event.toString()));
                         recordCount.addAndGet(events.size());
                         // 隐藏debug日志，只在需要时输出
                         logger.info("Stream read progress: {} records", recordCount.get());
