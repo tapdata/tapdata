@@ -1,0 +1,13 @@
+{
+  "host": "47.106.223.115",
+  "port": 1521,
+  "sid": "orcl",
+  "schema": "C##JARAD",
+  "user": "C##JARAD",
+  "password": "gj0628",
+  "timezone": "",
+  "extParams": "",
+  "logPluginName": "bridge",
+  "rawLogServerHost": "47.106.223.115",
+  "rawLogServerPort": 8190
+}

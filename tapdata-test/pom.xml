@@ -58,7 +58,11 @@
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-common</artifactId>
+            <version>0.2.23-SNAPSHOT</version>
+        </dependency>
         <!-- 测试框架 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

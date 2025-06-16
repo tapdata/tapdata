@@ -16,6 +16,7 @@ import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.Entry;
@@ -68,7 +69,7 @@ public class HotLoadConnectorTester {
 
     private static final Log logger = new TapLog();
 
-    private static final Map<String, Object> data = new HashMap<>();
+    private static final Map<String, TapValue> data = new HashMap<>();
     private static final KVMap<Object> stateMap = new KVMap<Object>() {
         @Override
         public void init(String mapKey, Class<Object> valueClass) {
@@ -127,6 +128,7 @@ public class HotLoadConnectorTester {
         private long lastModified;
         private DataMap connectionConfig;
         private Map<String, Object> metadata;
+        private TapCodecsRegistry codecsRegistry;
 
         public ConnectorInfo() {
             this.metadata = new HashMap<>();
@@ -215,6 +217,14 @@ public class HotLoadConnectorTester {
 
         public void addMetadata(String key, Object value) {
             this.metadata.put(key, value);
+        }
+
+        public TapCodecsRegistry getCodecsRegistry() {
+            return codecsRegistry;
+        }
+
+        public void setCodecsRegistry(TapCodecsRegistry codecsRegistry) {
+            this.codecsRegistry = codecsRegistry;
         }
     }
 
@@ -354,6 +364,7 @@ public class HotLoadConnectorTester {
         connectorInfo.setClassLoader(classLoader);
         connectorInfo.setLastModified(jarFile.lastModified());
         connectorInfo.setConnectionConfig(connectionConfig);
+        connectorInfo.setCodecsRegistry(codecRegistry);
 
         // 添加元数据
         connectorInfo.addMetadata("className", connectorClass.getName());
@@ -378,18 +389,20 @@ public class HotLoadConnectorTester {
                 JarEntry entry = entries.nextElement();
                 String name = entry.getName();
 
-                if (name.endsWith(".class") && !name.contains("$")) {
+                if (name.endsWith(".class") && !name.contains("$") && !name.startsWith("META-INF")) {
                     String className = name.replace('/', '.').substring(0, name.length() - 6);
 
                     try {
-                        Class<?> clazz = classLoader.loadClass(className);
-
-                        // 检查是否实现了TapConnector接口
-                        if (TapConnector.class.isAssignableFrom(clazz) && !clazz.isInterface()) {
-                            logger.info("Found TapConnector implementation: {}", className);
-                            return (Class<? extends TapConnector>) clazz;
+                        try {
+                            Class<?> clazz = classLoader.loadClass(className);
+                            // 检查是否实现了TapConnector接口
+                            if (TapConnector.class.isAssignableFrom(clazz) && !clazz.isInterface() && clazz.getAnnotation(TapConnectorClass.class) != null) {
+                                logger.info("Found TapConnector implementation: {}", className);
+                                return (Class<? extends TapConnector>) clazz;
+                            }
+                        } catch (NoClassDefFoundError e) {
+                            logger.info("Failed to load class {}: {}", className, e.getMessage());
                         }
-
                     } catch (Exception e) {
                         // 隐藏debug日志，避免过多输出
                         // logger.debug("Failed to load class {}: {}", className, e.getMessage());
@@ -677,7 +690,7 @@ public class HotLoadConnectorTester {
                                 try {
                                     streamReadFunction.streamRead(connectorContext, tableNames, finalStreamOffset, 100, streamReadConsumer);
                                 } catch (Throwable e) {
-                                    logger.error("Error streaming read: {}", e.getMessage());
+                                    logger.error("Error streaming read: {}", e);
                                 }
                                 return null;
                             });
@@ -751,9 +764,6 @@ public class HotLoadConnectorTester {
             ConnectorFunctions functions = connectorInfo.getConnectorFunctions();
             connectorInfo.getConnectorInstance().init(connectorContext);
             ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
-            connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
-            connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
-            connectorCapabilities.alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
             connectorContext.setConnectorCapabilities(connectorCapabilities);
             CreateTableV2Function createTableV2Function = functions.getCreateTableV2Function();
             if (createTableV2Function == null) {
@@ -779,6 +789,9 @@ public class HotLoadConnectorTester {
             ExecutorService executorService = Executors.newFixedThreadPool(threadSize);
             for (int i = 0; i < threadSize; i++) {
                 executorService.submit(() -> {
+                    connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_JUST_INSERT);
+                    connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+                    connectorCapabilities.alternative(ConnectionOptions.DML_DELETE_POLICY, ConnectionOptions.DML_DELETE_POLICY_IGNORE_ON_NON_EXISTS);
                     while (true) {
                         long currentBatch = batchCount.incrementAndGet();
                         if (currentBatch >= batch) {
@@ -788,7 +801,7 @@ public class HotLoadConnectorTester {
                         try {
                             writeRecordFunction.writeRecord(
                                     connectorContext,
-                                    getPerformanceEvents(tapTable.getId(), currentBatch, batchSize),
+                                    getPerformanceEvents(connectorId, tapTable, currentBatch, batchSize),
                                     tapTable,
                                     writeListResult -> {
                                         // 处理写入结果
@@ -1050,24 +1063,25 @@ public class HotLoadConnectorTester {
     }
 
     static {
-        data.put("col_bool", true);
-        data.put("col_date", new java.sql.Date(new Date().getTime()));
-        data.put("col_datetime", new java.sql.Timestamp(new Date().getTime()));
-        data.put("col_int_1", 1);
-        data.put("col_int_2", 2);
+        data.put("col_bool", new TapBooleanValue(true));
+        data.put("col_date", new TapDateValue(new DateTime(new Date())));
+        data.put("col_datetime", new TapDateTimeValue(new DateTime(new Date())));
+        data.put("col_int_1", new TapNumberValue(1.0));
+        data.put("col_int_2", new TapNumberValue(2.0));
         for (int i = 1; i < 45; i++) {
-            data.put("col_str_" + i, UUID.randomUUID().toString().substring(0, 20));
+            data.put("col_str_" + i, new TapStringValue(UUID.randomUUID().toString().substring(0, 20)));
         }
     }
 
-    List<TapRecordEvent> getPerformanceEvents(String table, long batch, int batchSize) {
-
+    List<TapRecordEvent> getPerformanceEvents(String connectorId, TapTable tapTable, long batch, int batchSize) {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(connectorCache.get(connectorId).getCodecsRegistry());
         List<TapRecordEvent> events = new ArrayList<>();
         for (int i = 0; i < batchSize; i++) {
             //深度拷贝data
             Map<String, Object> dataCopy = new HashMap<>(data);
             dataCopy.put("id", batchSize * batch + i);
-            events.add(insertRecordEvent(dataCopy, table));
+            codecsFilterManager.transformFromTapValueMap(dataCopy, getPerformanceTable(tapTable.getId()).getNameFieldMap());
+            events.add(insertRecordEvent(dataCopy, tapTable.getId()));
         }
         return events;
     }
@@ -1212,18 +1226,10 @@ public class HotLoadConnectorTester {
     /**
      * 获取目标连接器的编解码器过滤管理器
      */
-    private TapCodecsFilterManager getTargetCodecFilterManager(ConnectorInfo connectorInfo) throws Exception {
-        // 获取连接器的编解码器注册表
-        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
-
-        // 重新注册连接器的编解码器
-        TapConnector connectorInstance = connectorInfo.getConnectorInstance();
-        if (connectorInstance != null) {
-            connectorInstance.registerCapabilities(connectorInfo.getConnectorFunctions(), codecsRegistry);
-        }
+    private TapCodecsFilterManager getTargetCodecFilterManager(ConnectorInfo connectorInfo) {
 
         // 创建编解码器过滤管理器
-        TapCodecsFilterManager filterManager = TapCodecsFilterManager.create(codecsRegistry);
+        TapCodecsFilterManager filterManager = TapCodecsFilterManager.create(connectorInfo.getCodecsRegistry());
 
         logger.debug("Created codec filter manager for connector: {}", connectorInfo.getConnectorId());
 
