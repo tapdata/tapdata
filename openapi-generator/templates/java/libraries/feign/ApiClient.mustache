@@ -68,7 +68,7 @@ public class ApiClient {
   public ApiClient() {
     apiAuthorizations = new LinkedHashMap<String, RequestInterceptor>();
     {{#jackson}}
-    objectMapper = createObjectMapper();
+    objectMapper = JacksonFactory.getInstance();
     feignBuilder = Feign.builder()
                 .encoder(new FormEncoder(new JacksonEncoder(objectMapper)))
                 .decoder(new ApiResponseDecoder(objectMapper))
@@ -88,56 +88,11 @@ public class ApiClient {
         {{/hasOAuthMethods}}
         .logger(new Slf4jLogger());
     {{/gson}}
-  }
-
-  public ApiClient(String[] authNames) {
-    this();
-    for(String authName : authNames) {
-      log.log(Level.FINE, "Creating authentication {0}", authName);
-      {{#hasAuthMethods}}
-      RequestInterceptor auth = null;
-      {{#authMethods}}if ("{{name}}".equals(authName)) {
-      {{#isBasicBasic}}
-        auth = new HttpBasicAuth();
-      {{/isBasicBasic}}
-      {{#isBasicBearer}}
-        auth = new HttpBearerAuth("{{scheme}}");
-      {{/isBasicBearer}}
-      {{#isApiKey}}
-        auth = new ApiKeyAuth({{#isKeyInHeader}}"header"{{/isKeyInHeader}}{{#isKeyInQuery}}"query"{{/isKeyInQuery}}{{#isKeyInCookie}}"cookie"{{/isKeyInCookie}}, "{{keyParamName}}");
-      {{/isApiKey}}
-      {{#isOAuth}}
-        auth = buildOauthRequestInterceptor(OAuthFlow.{{#lambda.uppercase}}{{#lambda.snakecase}}{{flow}}{{/lambda.snakecase}}{{/lambda.uppercase}}, "{{{authorizationUrl}}}", "{{{tokenUrl}}}", "{{#scopes}}{{scope}}{{^-last}}, {{/-last}}{{/scopes}}");
-      {{/isOAuth}}
-      } else {{/authMethods}}{
-        throw new RuntimeException("auth name \"" + authName + "\" not found in available auth names");
-      }
-      if (auth != null) {
-        addAuthorization(authName, auth);
-      }
-      {{/hasAuthMethods}}
-      {{^hasAuthMethods}}
-      throw new RuntimeException("auth name \"" + authName + "\" not found in available auth names");
-      {{/hasAuthMethods}}
+    RequestInterceptor auth = buildOauthRequestInterceptor(OAuthFlow.APPLICATION, "{{{authorizationUrl}}}", "{{{tapTokenUrl}}}", "");
+    if (auth != null) {
+        addAuthorization("oauth_client_credentials", auth);
     }
-  }
-
-  /**
-   * Basic constructor for single auth name
-   * @param authName
-   */
-  public ApiClient(String authName) {
-    this(new String[]{authName});
-  }
-
-  /**
-   * Helper constructor for single api key
-   * @param authName
-   * @param apiKey
-   */
-  public ApiClient(String authName, String apiKey) {
-    this(authName);
-    this.setApiKey(apiKey);
+    setClientCredentials("{{{tapClientId}}}", "{{{tapClientSecret}}}");
   }
 
   public String getBasePath() {
@@ -165,33 +120,6 @@ public class ApiClient {
     this.feignBuilder = feignBuilder;
     return this;
   }
-
-  {{#jackson}}
-  private ObjectMapper createObjectMapper() {
-    ObjectMapper objectMapper = new ObjectMapper();
-    objectMapper.enable(SerializationFeature.WRITE_ENUMS_USING_TO_STRING);
-    objectMapper.enable(DeserializationFeature.READ_ENUMS_USING_TO_STRING);
-    {{#failOnUnknownProperties}}
-    objectMapper.enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    {{/failOnUnknownProperties}}
-    {{^failOnUnknownProperties}}
-    objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-    {{/failOnUnknownProperties}}
-    objectMapper.disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE);
-    objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    objectMapper.setDateFormat(new RFC3339DateFormat());
-    {{#joda}}
-    objectMapper.registerModule(new JodaModule());
-    {{/joda}}
-    objectMapper.registerModule(new JavaTimeModule());
-    objectMapper.registerModule(new RFC3339JavaTimeModule());
-    {{#openApiNullable}}
-    JsonNullableModule jnm = new JsonNullableModule();
-    objectMapper.registerModule(jnm);
-    {{/openApiNullable}}
-    return objectMapper;
-  }
-  {{/jackson}}
 
   {{#hasOAuthMethods}}
   private RequestInterceptor buildOauthRequestInterceptor(OAuthFlow flow, String authorizationUrl, String tokenUrl, String scopes) {

@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -39,7 +40,7 @@ import java.util.zip.ZipOutputStream;
 @Slf4j
 public class OpenApiGeneratorService {
 
-	public static final String DEFAULT_JAVA_TEMPLATE_LIBRARY = "okhttp-gson";
+	public static final String DEFAULT_JAVA_TEMPLATE_LIBRARY = "feign";
 	private final OpenApiGeneratorProperties properties;
 	private final ApplicationService applicationService;
 
@@ -390,8 +391,10 @@ public class OpenApiGeneratorService {
 		ApplicationDto applicationDto = applicationService.findById(new ObjectId(request.getClientId()));
 		String additionalProps = String.format(
 				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d," +
-						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s",
-				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret()
+						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s," +
+						"developerName=%s,developerEmail=%s,developerOrganization=%s,developerOrganizationUrl=%s",
+				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret(),
+				"tapdata", "tapdata@tapdata.io", "Tapdata", "https://tapdata.net/"
 		);
 		command.add(additionalProps);
 
@@ -419,6 +422,14 @@ public class OpenApiGeneratorService {
 			command.add("--library");
 			command.add(DEFAULT_JAVA_TEMPLATE_LIBRARY);
 			log.info("Using custom template path: {}, library: {}", languageTemplatePath, DEFAULT_JAVA_TEMPLATE_LIBRARY);
+
+			// Check for and use configuration file if it exists
+			Path configPath = Paths.get(this.resolvedTemplatePath).getParent().resolve("config").resolve("feign-config.yaml");
+			if (Files.exists(configPath)) {
+				command.add("-c");
+				command.add(configPath.toString());
+				log.info("Using configuration file: {}", configPath);
+			}
 		} else {
 			log.warn("Template path does not exist, using default templates: {}", languageTemplatePath);
 		}
@@ -453,6 +464,9 @@ public class OpenApiGeneratorService {
 
 		// Verify that our custom template was used
 		verifyCustomTemplate(outputDir);
+
+		// Verify that JacksonFactory was generated and move it to correct location
+		verifyAndMoveJacksonFactory(outputDir, request.getPackageName());
 	}
 
 	private ApplicationDto application(CodeGenerationRequest request) throws Exception {
@@ -535,6 +549,101 @@ public class OpenApiGeneratorService {
 		for (int i = 0; i < Math.min(15, lines.length); i++) {
 			log.info("  {}: {}", i + 1, lines[i]);
 		}
+	}
+
+	/**
+	 * Verify that JacksonFactory.java was generated and move it to correct location
+	 */
+	private void verifyAndMoveJacksonFactory(String outputDir, String packageName) throws IOException {
+		Path outputPath = Paths.get(outputDir);
+		Path srcMainJava = outputPath.resolve("src/main/java");
+
+		log.info("Verifying JacksonFactory generation and moving to correct location...");
+
+		// First, look for JacksonFactory.java in the root directory
+		Path rootJacksonFactory = outputPath.resolve("JacksonFactory.java");
+		if (Files.exists(rootJacksonFactory)) {
+			log.info("Found JacksonFactory.java in root directory, moving to correct package location");
+
+			// Create target package directory
+			String packagePath = packageName.replace(".", "/");
+			Path targetDir = srcMainJava.resolve(packagePath);
+			Files.createDirectories(targetDir);
+
+			// Move file to correct location
+			Path targetFile = targetDir.resolve("JacksonFactory.java");
+
+			// Read the file content and fix the package name
+			String content = Files.readString(rootJacksonFactory);
+			content = fixPackageName(content, packageName);
+
+			// Write the corrected content to the target location
+			Files.writeString(targetFile, content);
+
+			// Remove the original file
+			Files.delete(rootJacksonFactory);
+
+			log.info("✓ JacksonFactory.java moved and package name corrected: {}", targetFile);
+			return;
+		}
+
+		// Search for JacksonFactory.java in all subdirectories
+		try (var pathStream = Files.walk(outputPath)) {
+			Optional<Path> jacksonFactoryPath = pathStream
+					.filter(path -> path.toString().endsWith("JacksonFactory.java"))
+					.findFirst();
+
+			if (jacksonFactoryPath.isPresent()) {
+				Path foundFile = jacksonFactoryPath.get();
+				log.info("Found JacksonFactory.java at: {}", foundFile);
+
+				// Check if it's already in the correct location
+				String expectedPath = "src/main/java/" + packageName.replace(".", "/") + "/JacksonFactory.java";
+				if (foundFile.toString().contains(expectedPath.replace("/", File.separator))) {
+					log.info("✓ JacksonFactory.java is already in the correct location");
+				} else {
+					// Move to correct location
+					String packagePath = packageName.replace(".", "/");
+					Path targetDir = srcMainJava.resolve(packagePath);
+					Files.createDirectories(targetDir);
+
+					Path targetFile = targetDir.resolve("JacksonFactory.java");
+
+					// Read the file content and fix the package name
+					String content = Files.readString(foundFile);
+					content = fixPackageName(content, packageName);
+
+					// Write the corrected content to the target location
+					Files.writeString(targetFile, content);
+
+					// Remove the original file
+					Files.delete(foundFile);
+
+					log.info("✓ JacksonFactory.java moved and package name corrected: {}", targetFile);
+				}
+			} else {
+				log.warn("✗ JacksonFactory.java was NOT generated - this indicates the template was not processed");
+
+				// List all generated Java files for debugging
+				log.info("Generated Java files:");
+				try (var debugStream = Files.walk(srcMainJava)) {
+					debugStream
+							.filter(path -> path.toString().endsWith(".java"))
+							.forEach(path -> log.info("  - {}", path));
+				}
+			}
+		}
+	}
+
+	/**
+	 * Fix package name in JacksonFactory.java content
+	 */
+	private String fixPackageName(String content, String packageName) {
+		// Replace the package declaration
+		content = content.replaceFirst("package [^;]+;", "package " + packageName + ";");
+
+		log.debug("Fixed package name to: {}", packageName);
+		return content;
 	}
 
 	/**
