@@ -1637,7 +1637,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::errorHandle,
 				this::isRunning,
 				dataProcessorContext
-		).setInitDmlPolicy(this::initDmlPolicy);
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
@@ -1665,7 +1665,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::errorHandle,
 				this::isRunning,
 				dataProcessorContext
-		).setInitDmlPolicy(this::initDmlPolicy);
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
     @Override

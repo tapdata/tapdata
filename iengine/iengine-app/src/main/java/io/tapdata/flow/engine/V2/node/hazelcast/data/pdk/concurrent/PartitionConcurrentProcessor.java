@@ -192,8 +192,8 @@ public class PartitionConcurrentProcessor {
 	protected void partitionConsumer(int finalPartition, LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue) {
 		try {
 			Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
-			if (null != initDmlPolicy && null != dataProcessorContext) {
-				initDmlPolicy.accept(dataProcessorContext.getNode(), ConnectorCapabilities.create());
+			if (null != connectorCapabilities && null != initDmlPolicy && null != dataProcessorContext) {
+				initDmlPolicy.accept(dataProcessorContext.getNode(), connectorCapabilities);
 			}
 			List<TapdataEvent> processEvents = new ArrayList<>();
 			while (isRunning()) {
@@ -524,6 +524,13 @@ public class PartitionConcurrentProcessor {
 				after.accept(t, m);
 			};
 		}
+	}
+
+	private ConnectorCapabilities connectorCapabilities;
+
+	public PartitionConcurrentProcessor setConnectorCapabilities(ConnectorCapabilities connectorCapabilities) {
+		this.connectorCapabilities = connectorCapabilities;
+		return this;
 	}
 
 	private BiConsumer<Node, ConnectorCapabilities> initDmlPolicy;
