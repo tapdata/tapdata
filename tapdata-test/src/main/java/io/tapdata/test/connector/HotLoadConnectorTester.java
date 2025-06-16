@@ -816,6 +816,7 @@ public class HotLoadConnectorTester {
                                         }
                                     }
                             );
+                            logger.info("Write batch progress: {} records", successCount.get());
                         } catch (Throwable e) {
                             logger.error("Error writing record {}: {}", connectorId, e.getMessage());
                             break;
