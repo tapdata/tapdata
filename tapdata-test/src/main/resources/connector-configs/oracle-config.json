@@ -1,13 +1,13 @@
 {
-  "host": "47.106.223.115",
+  "host": "121.40.81.171",
   "port": 1521,
   "sid": "orcl",
-  "schema": "C##JARAD",
-  "user": "C##JARAD",
-  "password": "gj0628",
+  "schema": "C##TAPDATA",
+  "user": "C##TAPDATA",
+  "password": "Gotapd8",
   "timezone": "",
   "extParams": "",
   "logPluginName": "bridge",
-  "rawLogServerHost": "47.106.223.115",
+  "rawLogServerHost": "121.40.81.171",
   "rawLogServerPort": 8190
 }

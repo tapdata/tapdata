@@ -617,7 +617,7 @@ public class HotLoadConnectorTester {
         connectorContext.setTableMap(new KVReadOnlyMap<>() {
             @Override
             public TapTable get(String key) {
-                return tapTableCache.get(key);
+                return tapTableCache.get(connectorId + "." + key);
             }
 
             @Override
@@ -633,7 +633,7 @@ public class HotLoadConnectorTester {
                     @Override
                     public io.tapdata.entity.utils.cache.Entry<TapTable> next() {
                         String tableName = iterator.next();
-                        TapTable tapTable = tapTableCache.get(tableName);
+                        TapTable tapTable = tapTableCache.get(connectorId + "." + tableName);
                         return new io.tapdata.entity.utils.cache.Entry<>() {
                             @Override
                             public String getKey() {
