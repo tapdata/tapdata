@@ -150,7 +150,7 @@ public class PdkUtil {
 			}
 			byte[] bytes = Base64.decodeBase64(offset);
 			return InstanceFactory.instance(ObjectSerializable.class)
-					.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(connectorNode.getConnectorClassLoader()));
+					.toObject(bytes, new ObjectSerializable.ToObjectOptions().classLoader(connectorNode.getConnectorClassLoader()),true);
 		}
 		return null;
 	}

@@ -329,7 +329,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <version>1.13-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
