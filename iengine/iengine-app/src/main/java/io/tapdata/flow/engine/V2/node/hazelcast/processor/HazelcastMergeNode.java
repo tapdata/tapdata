@@ -1969,7 +1969,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				} catch (JsonProcessingException e) {
 					// ignore
 				}
-				throw new TapCodeException(TaskMergeProcessorExCode_16.UPDATE_JOIN_KEY_CANNOT_GET_CACHE)
+				throw new TapCodeException(TaskMergeProcessorExCode_16.UPDATE_JOIN_KEY_CANNOT_GET_CACHE, "Cannot get before data from cache")
 						.dynamicDescriptionParameters(
 								preNode.getName(), preNodeId,
 								null != srcConnections ? srcConnections.getName() : "Unknown",
