@@ -215,18 +215,18 @@ public class SchemaUtils {
         }
     }
 
-    public static List<Schema> removeSubFieldsWhichFromFreeSchema(DataSourceConnectionDto dataSource, List<Schema> schemas) {
+    public static List<Schema> removeSubFieldsForFreeSchemaDatasource(DataSourceConnectionDto dataSource, List<Schema> schemas) {
         if (SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
             return schemas;
         }
-        schemas.stream().filter(Objects::nonNull).forEach(SchemaUtils::removeSubFieldsWhichFromFreeSchema);
+        schemas.stream().filter(Objects::nonNull).forEach(SchemaUtils::removeSubFieldsForFreeSchemaDatasource);
         return schemas;
     }
-    public static Schema removeSubFieldsWhichFromFreeSchema(DataSourceConnectionDto dataSource, Schema schema) {
+    public static Schema removeSubFieldsForFreeSchemaDatasource(DataSourceConnectionDto dataSource, Schema schema) {
         if (SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
             return schema;
         }
-        SchemaUtils.removeSubFieldsWhichFromFreeSchema(schema);
+        SchemaUtils.removeSubFieldsForFreeSchemaDatasource(schema);
         return schema;
     }
 
@@ -235,7 +235,7 @@ public class SchemaUtils {
         return CollUtil.isNotEmpty(definitionTags) && definitionTags.contains(SCHEMA_FREE);
     }
 
-    public static void removeSubFieldsWhichFromFreeSchema(Schema schema) {
+    public static void removeSubFieldsForFreeSchemaDatasource(Schema schema) {
         List<Field> fields = schema.getFields();
         if (CollUtil.isEmpty(fields)) {
             return;
