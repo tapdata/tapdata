@@ -215,7 +215,7 @@ public class SchemaUtils {
     }
 
     public static List<Schema> removeSubFieldsWhichFromFreeSchema(DataSourceConnectionDto dataSource, List<Schema> schemas) {
-        if (!SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
+        if (SchemaUtils.dataBaseIsFreeSchema(dataSource)) {
             return schemas;
         }
         schemas.stream().filter(Objects::nonNull).forEach(SchemaUtils::removeSubFieldsWhichFromFreeSchema);
