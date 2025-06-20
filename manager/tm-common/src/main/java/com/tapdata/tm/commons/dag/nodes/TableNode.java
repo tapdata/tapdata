@@ -255,7 +255,7 @@ public class TableNode extends DataNode {
         if (dataSource.getDatabase_type().contains(MONGODB)){
             SchemaUtils.addFieldObjectIdIfMongoDatabase(outputSchema, dataSource.getDatabase_type());
         }
-        return SchemaUtils.removeSubFieldsWhichFromFreeSchema(service.getDataSource(connectionId), outputSchema);
+        return SchemaUtils.removeSubFieldsForFreeSchemaDatasource(service.getDataSource(connectionId), outputSchema);
     }
 
     @Override
