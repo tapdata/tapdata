@@ -465,7 +465,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (getNode() instanceof DataParentNode) {
 			this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
 			this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
-		}
+		} else if (getNode() instanceof LogCollectorNode) {
+            this.increaseReadSize = Optional.ofNullable(((LogCollectorNode) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
+        }
 		this.drainSize = Math.max(1, readBatchSize / 2);
 		obsLogger.trace("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
 	}

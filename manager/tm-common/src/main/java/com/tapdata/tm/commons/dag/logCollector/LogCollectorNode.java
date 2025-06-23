@@ -53,6 +53,9 @@ public class LogCollectorNode extends Node<List<Schema>> {
     private Map<String, Object> nodeConfig;
 
     @EqField
+    private Integer increaseReadSize = 1;
+
+    @EqField
     /**
      *  allTables - 所有表
      *  reservationTable - 保留表
