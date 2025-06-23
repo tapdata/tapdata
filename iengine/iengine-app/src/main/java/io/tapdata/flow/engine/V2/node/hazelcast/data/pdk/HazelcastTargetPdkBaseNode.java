@@ -1627,17 +1627,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected PartitionConcurrentProcessor initCDCConcurrentProcessor(int concurrentWriteNum, Function<TapEvent, List<String>> partitionKeyFunction) {
         int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-        return new PartitionConcurrentProcessor(
-                concurrentWriteNum,
-                batchSize,
-                new KeysPartitioner(),
-                new TapEventPartitionKeySelector(partitionKeyFunction),
-                this::handleTapdataEvents,
-                this::flushSyncProgressMap,
-                this::errorHandle,
-                this::isRunning,
-                dataProcessorContext.getTaskDto()
-        );
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				new KeysPartitioner(),
+				new TapEventPartitionKeySelector(partitionKeyFunction),
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
@@ -1645,28 +1645,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             Partitioner<TapdataEvent, List<Object>> partitioner
     ) {
         int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-        PartitionConcurrentProcessor partitionConcurrentProcessor = new PartitionConcurrentProcessor(
-                concurrentWriteNum,
-                batchSize,
-                partitioner,
-                new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
-                    @Override
-                    public List<Object> select(TapEvent event, Map<String, Object> row) {
-                        return Collections.emptyList();
-                    }
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				partitioner,
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.emptyList();
+					}
 
-                    @Override
-                    public List<Object> convert2OriginValue(List<Object> values) {
-                        return Collections.emptyList();
-                    }
-                },
-                this::handleTapdataEvents,
-                this::flushSyncProgressMap,
-                this::errorHandle,
-                this::isRunning,
-                dataProcessorContext.getTaskDto()
-        );
-        return partitionConcurrentProcessor;
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return Collections.emptyList();
+					}
+				},
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
     @Override
