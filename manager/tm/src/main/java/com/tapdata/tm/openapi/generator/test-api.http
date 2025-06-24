@@ -20,12 +20,15 @@ Accept: application/octet-stream
 
 {
   "oas1": "https://petstore3.swagger.io/api/v3/openapi.json",
-  "oas": "http://192.168.1.184:3080/openapi.json",
-  "lan": "java",
+  "oas": "http://127.0.0.1:3080/openapi.json",
+  "lan": "spring",
   "packageName": "io.tapdata.sdk",
   "artifactId": "tapdata-sdk",
   "groupId": "io.tapdata",
-  "version": "1.0.0"
+  "version": "1.0.1",
+  "templateLibrary": "spring-cloud",
+  "requestAddress": "http://127.0.0.1:5173",
+  "clientId": "5c0e750b7a5cd42464a5099d"
 }
 
 ### 5. Test Error Case - Invalid OpenAPI URL

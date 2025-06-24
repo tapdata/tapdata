@@ -41,4 +41,7 @@ public class CodeGenerationRequest {
     @NotBlank(message = "Request address cannot be empty")
     @Schema(description = "Request address", example = "http://127.0.0.1:3030")
     private String requestAddress;
+
+    @Schema(description = "Template library", example = "spring-cloud")
+    private String templateLibrary = "spring-cloud";
 }

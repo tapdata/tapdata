@@ -2,6 +2,7 @@ package com.tapdata.tm.openapi.generator.service;
 
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
+import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.openapi.generator.config.OpenApiGeneratorProperties;
 import com.tapdata.tm.openapi.generator.dto.CodeGenerationRequest;
 import com.tapdata.tm.openapi.generator.exception.CodeGenerationException;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.PostConstruct;
 import java.io.*;
@@ -22,10 +24,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -40,13 +40,17 @@ import java.util.zip.ZipOutputStream;
 @Slf4j
 public class OpenApiGeneratorService {
 
-	public static final String DEFAULT_JAVA_TEMPLATE_LIBRARY = "feign";
+	private static final String[] SUPPORTED_LANGUAGES = {"java", "spring"};
 	private final OpenApiGeneratorProperties properties;
 	private final ApplicationService applicationService;
 
 	// Cached paths resolved during initialization
 	private String resolvedJarPath;
 	private String resolvedTemplatePath;
+
+	// Cached RestTemplate for HTTP requests
+	private RestTemplate restTemplate;
+
 
 	public OpenApiGeneratorService(OpenApiGeneratorProperties properties, ApplicationService applicationService) {
 		this.properties = properties;
@@ -68,6 +72,10 @@ public class OpenApiGeneratorService {
 			this.resolvedTemplatePath = resolveTemplatePath();
 			log.info("✓ Template path resolved and cached: {}", this.resolvedTemplatePath);
 
+			// Initialize and cache RestTemplate for HTTP requests
+			this.restTemplate = createRestTemplate();
+			log.info("✓ RestTemplate initialized and cached");
+
 			log.info("OpenAPI Generator Service initialization completed successfully");
 		} catch (IOException e) {
 			log.error("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
@@ -82,7 +90,7 @@ public class OpenApiGeneratorService {
 		log.info("Starting code generation with request parameters: {}", request);
 
 		// Validate language support - only Java is supported
-		if (!"java".equalsIgnoreCase(request.getLan())) {
+		if (Arrays.stream(SUPPORTED_LANGUAGES).noneMatch(lang -> lang.equalsIgnoreCase(request.getLan()))) {
 			throw new CodeGenerationException(
 					String.format("Unsupported language: %s. Currently only 'java' language is supported.", request.getLan())
 			);
@@ -113,9 +121,34 @@ public class OpenApiGeneratorService {
 		}
 	}
 
+	/**
+	 * Create and configure RestTemplate for HTTP requests
+	 *
+	 * @return Configured RestTemplate instance
+	 */
+	private RestTemplate createRestTemplate() {
+		RestTemplate template = new RestTemplate();
+
+		// Configure timeouts for better performance and reliability
+		// Note: You can add timeout configuration here if needed:
+		// SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+		// factory.setConnectTimeout(10000); // 10 seconds
+		// factory.setReadTimeout(30000);    // 30 seconds
+		// template.setRequestFactory(factory);
+
+		// You can add more configuration here if needed:
+		// - Custom message converters for different content types
+		// - Interceptors for logging/authentication/retry logic
+		// - Error handlers for custom error processing
+		// - Connection pooling configuration for high-throughput scenarios
+
+		log.debug("RestTemplate created and configured for OpenAPI JSON downloads");
+		return template;
+	}
+
 	private static void validateOas(CodeGenerationRequest request) {
 		String oas = request.getOas();
-		if(!oas.endsWith("openapi.json")){
+		if (!oas.endsWith("openapi.json")) {
 			oas = oas + "/openapi.json";
 			request.setOas(oas);
 		}
@@ -359,6 +392,41 @@ public class OpenApiGeneratorService {
 	 * Execute OpenAPI Generator with enhanced YAML parsing configuration
 	 */
 	private void executeGenerator(CodeGenerationRequest request, String outputDir) throws Exception {
+		// Handle OpenAPI JSON: download from URL and save to temporary file
+		Path tempOpenapiFile = null;
+		String originalOas = request.getOas();
+
+		try {
+			// Step 1: Process OpenAPI JSON from URL
+			tempOpenapiFile = handleOpenapiJson(request);
+
+			// Step 2: Update request to use local temporary file instead of URL
+			request.setOas(tempOpenapiFile.toString());
+			log.info("Updated OAS from URL '{}' to local file '{}'", originalOas, tempOpenapiFile);
+
+			// Step 3: Execute OpenAPI Generator with processed local file
+			executeOpenapiGenerator(request, outputDir);
+
+		} finally {
+			// Clean up temporary OpenAPI file
+			if (tempOpenapiFile != null && Files.exists(tempOpenapiFile)) {
+				try {
+					Files.delete(tempOpenapiFile);
+					log.debug("Cleaned up temporary OpenAPI file: {}", tempOpenapiFile);
+				} catch (IOException e) {
+					log.warn("Failed to clean up temporary OpenAPI file: {}", tempOpenapiFile, e);
+				}
+			}
+
+			// Restore original OAS URL in request (in case it's used elsewhere)
+			request.setOas(originalOas);
+		}
+	}
+
+	/**
+	 * Execute OpenAPI Generator CLI with the provided request and output directory
+	 */
+	private void executeOpenapiGenerator(CodeGenerationRequest request, String outputDir) throws Exception {
 		// Use cached JAR path (resolved during initialization)
 		log.debug("Using cached JAR path: {}", this.resolvedJarPath);
 
@@ -390,12 +458,17 @@ public class OpenApiGeneratorService {
 		int javaVersion = properties.getJava().getVersion();
 		ApplicationDto applicationDto = applicationService.findById(new ObjectId(request.getClientId()));
 		String additionalProps = String.format(
-				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d," +
+				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d,disallowAdditionalPropertiesIfNotPresent=true," +
 						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s," +
 						"developerName=%s,developerEmail=%s,developerOrganization=%s,developerOrganizationUrl=%s",
 				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret(),
 				"tapdata", "tapdata@tapdata.io", "Tapdata", "https://tapdata.net/"
 		);
+		if (request.getTemplateLibrary().equals("spring-cloud")) {
+			String artifactId = request.getArtifactId();
+			String className = artifactId.replace(" ", "").replace("-", "").replace("_", "");
+			additionalProps += String.format(",useFeignClientContextId=false,classname=%s,classVarName=%s", className, className);
+		}
 		command.add(additionalProps);
 
 		// Add template parameters if available
@@ -420,8 +493,8 @@ public class OpenApiGeneratorService {
 			command.add("-t");
 			command.add(languageTemplatePath);
 			command.add("--library");
-			command.add(DEFAULT_JAVA_TEMPLATE_LIBRARY);
-			log.info("Using custom template path: {}, library: {}", languageTemplatePath, DEFAULT_JAVA_TEMPLATE_LIBRARY);
+			command.add(request.getTemplateLibrary());
+			log.info("Using custom template path: {}, library: {}", languageTemplatePath, request.getTemplateLibrary());
 
 			// Check for and use configuration file if it exists
 			Path configPath = Paths.get(this.resolvedTemplatePath).getParent().resolve("config").resolve("feign-config.yaml");
@@ -464,9 +537,6 @@ public class OpenApiGeneratorService {
 
 		// Verify that our custom template was used
 		verifyCustomTemplate(outputDir);
-
-		// Verify that JacksonFactory was generated and move it to correct location
-		verifyAndMoveJacksonFactory(outputDir, request.getPackageName());
 	}
 
 	/**
@@ -808,6 +878,191 @@ public class OpenApiGeneratorService {
 			}
 		} catch (IOException e) {
 			log.warn("Failed to clean up temporary directory: {}", tempDir, e);
+		}
+	}
+
+	/**
+	 * Handle OpenAPI JSON by downloading from URL and saving to temporary file
+	 *
+	 * @param request CodeGenerationRequest containing the OAS URL
+	 * @return Path to the temporary file containing the OpenAPI JSON
+	 * @throws CodeGenerationException if download or file operations fail
+	 */
+	private Path handleOpenapiJson(CodeGenerationRequest request) throws CodeGenerationException {
+		String oasUrl = request.getOas();
+		log.info("Starting to handle OpenAPI JSON from URL: {}", oasUrl);
+
+		try {
+			// Step 1: Download OpenAPI JSON content from URL
+			String jsonContent = downloadOpenapiJson(oasUrl);
+
+			// Step 2: Parse JSON into Map
+			Map<String, Object> openapiMap = parseJsonToMap(jsonContent, oasUrl);
+
+			// Step 3: Process the OpenAPI Map (custom processing logic)
+			Map<String, Object> processedMap = processOpenapiMap(openapiMap);
+
+			// Step 4: Write processed Map to temporary file
+			Path tempFile = writeMapToTempFile(processedMap);
+
+			log.info("Successfully handled OpenAPI JSON and created temporary file: {}", tempFile);
+			return tempFile;
+
+		} catch (Exception e) {
+			if (e instanceof CodeGenerationException) {
+				throw e;
+			}
+			log.error("Unexpected error while handling OpenAPI JSON from URL: {}", oasUrl, e);
+			throw new CodeGenerationException("Failed to download or process OpenAPI JSON from URL: " + oasUrl + ". Error: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Download OpenAPI JSON content from the specified URL
+	 *
+	 * @param oasUrl The URL to download OpenAPI JSON from
+	 * @return The JSON content as string
+	 * @throws CodeGenerationException if download fails
+	 */
+	private String downloadOpenapiJson(String oasUrl) throws CodeGenerationException {
+		log.debug("Making HTTP GET request to: {}", oasUrl);
+
+		try {
+			// Use cached RestTemplate instance instead of creating new one
+			String jsonResponse = this.restTemplate.getForObject(oasUrl, String.class);
+
+			if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
+				throw new CodeGenerationException("Received empty response from OpenAPI URL: " + oasUrl);
+			}
+
+			log.info("Successfully downloaded OpenAPI JSON, content length: {} characters", jsonResponse.length());
+			return jsonResponse;
+
+		} catch (Exception e) {
+			if (e instanceof CodeGenerationException) {
+				throw e;
+			}
+			log.error("Failed to download OpenAPI JSON from URL: {}", oasUrl, e);
+			throw new CodeGenerationException("Failed to download OpenAPI JSON from URL: " + oasUrl + ". Error: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Parse JSON string into Map object
+	 *
+	 * @param jsonContent The JSON content to parse
+	 * @param oasUrl      The original URL (for error reporting)
+	 * @return Parsed Map object
+	 * @throws CodeGenerationException if parsing fails
+	 */
+	private Map<String, Object> parseJsonToMap(String jsonContent, String oasUrl) throws CodeGenerationException {
+		try {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> parsedMap = JsonUtil.parseJsonUseJackson(jsonContent, Map.class);
+
+			if (parsedMap == null || parsedMap.isEmpty()) {
+				throw new CodeGenerationException("Failed to parse OpenAPI JSON or received empty content from: " + oasUrl);
+			}
+
+			log.info("Successfully parsed OpenAPI JSON into Map with {} top-level keys", parsedMap.size());
+			log.debug("OpenAPI Map keys: {}", parsedMap.keySet());
+
+			return parsedMap;
+
+		} catch (Exception e) {
+			if (e instanceof CodeGenerationException) {
+				throw e;
+			}
+			log.error("Failed to parse JSON response from URL: {}", oasUrl, e);
+			throw new CodeGenerationException("Invalid JSON format received from OpenAPI URL: " + oasUrl + ". Error: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Process the OpenAPI Map with custom logic
+	 * This method can be extended to add custom processing logic for the OpenAPI specification
+	 *
+	 * @param openapiMap The OpenAPI Map to process
+	 * @return A new processed Map (currently returns a copy of the original map)
+	 */
+	private Map<String, Object> processOpenapiMap(Map<String, Object> openapiMap) {
+		// Empty implementation - can be extended for custom processing
+		log.debug("Processing OpenAPI Map with {} keys (custom processing not implemented)", openapiMap.size());
+
+		// Create a new map as a copy of the original
+		Map<String, Object> processedMap = new HashMap<>();
+
+		for (String key : openapiMap.keySet()) {
+			Object value = openapiMap.get(key);
+			if (key.equals("paths")) {
+				value = processPaths(value);
+			}
+			processedMap.put(key, value);
+		}
+
+		log.debug("Processed OpenAPI Map, returning new map with {} keys", processedMap.size());
+		return processedMap;
+	}
+
+	private Object processPaths(Object value) {
+		if (value instanceof Map<?, ?>) {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> pathsMap = (Map<String, Object>) value;
+			Map<String, Object> newMap = new HashMap<>();
+			for (String key : pathsMap.keySet()) {
+				Object pathValue = pathsMap.get(key);
+
+				if (pathValue instanceof Map<?, ?>) {
+					@SuppressWarnings("unchecked")
+					Map<String, Object> pathValueMap = (Map<String, Object>) pathValue;
+					if (pathValueMap.containsKey("get")) {
+						@SuppressWarnings("unchecked")
+						Map<String, Object> get = (Map<String, Object>) pathValueMap.get("get");
+						if (get.containsKey("parameters")) {
+							@SuppressWarnings("unchecked")
+							List<Map<String, Object>> parametersList = (List<Map<String, Object>>) get.get("parameters");
+							parametersList = parametersList.stream().filter(p -> !p.get("name").equals("filename"))
+									.collect(Collectors.toCollection(ArrayList::new));
+							get.put("parameters", parametersList);
+						}
+					}
+				}
+				newMap.put(key, pathValue);
+			}
+			return newMap;
+		}
+		return value;
+	}
+
+	/**
+	 * Write the OpenAPI Map to a temporary file
+	 *
+	 * @param openapiMap The OpenAPI Map to write
+	 * @return Path to the created temporary file
+	 * @throws CodeGenerationException if file operations fail
+	 */
+	private Path writeMapToTempFile(Map<String, Object> openapiMap) throws CodeGenerationException {
+		try {
+			// Serialize Map to JSON
+			String serializedJson = JsonUtil.toJsonUseJackson(openapiMap);
+			log.debug("Successfully serialized Map back to JSON, length: {} characters", serializedJson.length());
+
+			// Create temporary file
+			String tempFileName = "openapi-" + UUID.randomUUID().toString() + ".json";
+			Path tempDir = Paths.get(properties.getTemp().getDir(), "openapi-json");
+			Files.createDirectories(tempDir);
+			Path tempFile = tempDir.resolve(tempFileName);
+
+			// Write JSON content to temporary file
+			Files.writeString(tempFile, serializedJson);
+			log.info("Successfully wrote OpenAPI JSON to temporary file: {}", tempFile);
+			log.debug("Temporary file size: {} bytes", Files.size(tempFile));
+
+			return tempFile;
+
+		} catch (Exception e) {
+			log.error("Failed to write OpenAPI Map to temporary file", e);
+			throw new CodeGenerationException("Failed to write OpenAPI data to temporary file: " + e.getMessage(), e);
 		}
 	}
 }

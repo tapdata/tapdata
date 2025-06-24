@@ -1,0 +1,12 @@
+# templateDir will be set by the command line -t parameter
+# additionalProperties are set via command line --additional-properties to avoid conflicts
+# Only specify properties that are unique to this configuration
+
+library: spring-cloud
+files:
+  libraries/spring-cloud/JacksonFactory.mustache:
+    templateType: SupportingFiles
+    destinationFilename: JacksonFactory.java
+  JacksonFactory.mustache:
+    templateType: SupportingFiles
+    destinationFilename: JacksonFactory.java
