@@ -75,7 +75,10 @@ public class ApplicationController extends BaseController {
         }
 
         ApplicationDto dto = applicationService.save(applicationDto, getLoginUser());
-        dto.setClientId(dto.getId().toHexString());
+        // 只有当 clientId 为空时，才设置为 id 的十六进制字符串
+        if (StringUtils.isBlank(dto.getClientId())) {
+            dto.setClientId(dto.getId().toHexString());
+        }
         applicationService.updateById(dto, getLoginUser());
         return success(dto);
     }
