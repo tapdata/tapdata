@@ -1,0 +1,13 @@
+{
+  "host": "121.40.81.171",
+  "port": 1521,
+  "sid": "orcl",
+  "schema": "C##TAPDATA",
+  "user": "C##TAPDATA",
+  "password": "Gotapd8",
+  "timezone": "",
+  "extParams": "",
+  "logPluginName": "bridge",
+  "rawLogServerHost": "121.40.81.171",
+  "rawLogServerPort": 8190
+}

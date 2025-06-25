@@ -10,6 +10,7 @@
     <modules>
         <module>manager</module>
         <module>iengine</module>
+        <module>tapdata-test</module>
         <module>tapdata-cli</module>
     </modules>
 
