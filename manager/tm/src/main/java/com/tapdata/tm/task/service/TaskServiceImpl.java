@@ -138,6 +138,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.TaskOperationRateLimitService;
 import com.tapdata.tm.task.service.batchin.ParseRelMig;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
@@ -376,6 +377,7 @@ public class TaskServiceImpl extends TaskService{
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
     private ILicenseService iLicenseService;
+    private TaskOperationRateLimitService taskOperationRateLimitService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -3895,8 +3897,16 @@ public class TaskServiceImpl extends TaskService{
     }
 
     protected void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+        String taskId = taskDto.getId().toHexString();
+
+        // 检查操作限流
+        if (!taskOperationRateLimitService.canExecuteOperation(taskId, "reset")) {
+            log.warn("Task reset operation rate limited, taskId: {}, agentId: {}", taskId, taskDto.getAgentId());
+            return;
+        }
+
         DataSyncMq mq = new DataSyncMq();
-        mq.setTaskId(taskDto.getId().toHexString());
+        mq.setTaskId(taskId);
         mq.setOpType(opType);
         mq.setType(MessageType.DATA_SYNC.getType());
         Map<String, Object> data;
@@ -3907,9 +3917,13 @@ public class TaskServiceImpl extends TaskService{
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
+        log.debug("build reset task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
+        // 记录操作执行
+        taskOperationRateLimitService.recordOperation(taskId, "reset");
+        // 记录首次下发完成时间
+        taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
     }
 
     @NotNull
@@ -4375,6 +4389,12 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
+        // 检查操作限流
+        if (!taskOperationRateLimitService.canExecuteOperation(taskId, "stop")) {
+            log.warn("Task stop operation rate limited, taskId: {}, agentId: {}", taskId, agentId);
+            return;
+        }
+
         DataSyncMq dataSyncMq = new DataSyncMq();
         dataSyncMq.setTaskId(taskId);
         dataSyncMq.setForce(force);
@@ -4391,6 +4411,11 @@ public class TaskServiceImpl extends TaskService{
 
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
+
+        // 记录操作执行
+        taskOperationRateLimitService.recordOperation(taskId, "stop");
+        // 记录首次下发完成时间
+        taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
     }
 
 

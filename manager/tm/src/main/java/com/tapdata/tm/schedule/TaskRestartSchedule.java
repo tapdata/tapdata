@@ -12,6 +12,7 @@ import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
+import com.tapdata.tm.task.service.TaskOperationRateLimitService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
@@ -57,12 +58,13 @@ public class TaskRestartSchedule {
     private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
+    private TaskOperationRateLimitService taskOperationRateLimitService;
 
     /**
-     * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
+     * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每120秒启动一次
      */
-    @Scheduled(fixedDelay = 60 * 1000)
-    @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void restartTask() {
         Thread.currentThread().setName("taskSchedule-restartTask");
         //查询到所有需要重启的任务
@@ -82,8 +84,8 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 120 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
         //云版不需要这个重新调度的逻辑
@@ -164,8 +166,8 @@ public class TaskRestartSchedule {
     /**
      * 对于少量因为tm线程终止导致的任务一直启动中（页面的直观显示），也就是调度中状态。做一些定时任务补救措施
      */
-    @Scheduled(fixedDelay = 30 * 1000)
-    @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void overTimeTask() {
         Thread.currentThread().setName("taskSchedule-schedulingTask");
         FunctionUtils.ignoreAnyError(this::stoppingTask);
@@ -202,9 +204,15 @@ public class TaskRestartSchedule {
                 });
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             } else {
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
-                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
-                taskService.updateById(taskDto.getId(), update, userDetail);
+                String taskId = taskDto.getId().toHexString();
+                // 检查重试冷却期
+                if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                    taskService.sendStoppingMsg(taskId, taskDto.getAgentId(), userDetail, false);
+                    Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
+                    taskService.updateById(taskDto.getId(), update, userDetail);
+                } else {
+                    log.debug("Task stop retry in cooldown period, taskId: {}", taskId);
+                }
             }
         }
     }
@@ -259,7 +267,13 @@ public class TaskRestartSchedule {
                     }
                 }
             } else {
-                taskScheduleService.scheduling(taskDto, user);
+                String taskId = taskDto.getId().toHexString();
+                // 检查重试冷却期
+                if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                    taskScheduleService.scheduling(taskDto, user);
+                } else {
+                    log.debug("Task scheduling retry in cooldown period, taskId: {}", taskId);
+                }
             }
         }
     }
@@ -295,7 +309,13 @@ public class TaskRestartSchedule {
                         monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
                     });
 
-                    taskScheduleService.scheduling(taskDto, user);
+                    String taskId = taskDto.getId().toHexString();
+                    // 检查重试冷却期
+                    if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                        taskScheduleService.scheduling(taskDto, user);
+                    } else {
+                        log.debug("Task wait run retry in cooldown period, taskId: {}", taskId);
+                    }
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
                     throw e;

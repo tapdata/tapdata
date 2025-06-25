@@ -21,6 +21,7 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
+import com.tapdata.tm.task.service.TaskOperationRateLimitService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
@@ -63,6 +64,7 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private StateMachineService stateMachineService;
     private UserService userService;
     private AgentGroupService agentGroupService;
+    private TaskOperationRateLimitService taskOperationRateLimitService;
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
@@ -108,6 +110,12 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     }
 
     public void sendStartMsg(String taskId, String agentId, UserDetail user) {
+        // 检查操作限流
+        if (!taskOperationRateLimitService.canExecuteOperation(taskId, "start")) {
+            log.warn("Task start operation rate limited, taskId: {}, agentId: {}", taskId, agentId);
+            return;
+        }
+
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
         dataSyncMq.setTaskId(taskId);
@@ -124,6 +132,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
+
+        // 记录操作执行
+        taskOperationRateLimitService.recordOperation(taskId, "start");
+        // 记录首次下发完成时间
+        taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
     }
 
     /**
