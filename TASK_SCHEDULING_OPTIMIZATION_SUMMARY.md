@@ -38,6 +38,8 @@
 - `manager/tm/src/main/java/com/tapdata/tm/base/exception/TaskScheduleRateLimitException.java`
 - `iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/schedule/EngineTaskStartRateLimitService.java`
 - `ENGINE_BYPASS_RATE_LIMIT_FIX.md`
+- `ENGINE_TASK_QUEUE_BOTTLENECK_FIX.md`
+- `DYNAMIC_TASK_TIMEOUT_IMPLEMENTATION.md`
 
 #### 修改的文件：
 - `manager/tm/src/main/java/com/tapdata/tm/task/service/impl/TaskScheduleServiceImpl.java`
@@ -60,6 +62,8 @@
 - **按引擎限流**：管理端改为按引擎分别限流，每个引擎独立5秒间隔，不同引擎之间不相互影响
 - **仅管理端限流**：移除引擎端限流，只在管理端进行统一的限流控制
 - **修复绕过限流**：修复引擎端定时调度和启动恢复绕过限流的问题，添加引擎端10秒限流机制
+- **修复队列瓶颈**：解决引擎任务操作队列容量不足导致的任务接管停止问题
+- **动态超时机制**：根据启动中任务数量动态调整超时时间，100个任务时超时时间为3000秒
 
 ### 按引擎限流机制详解
 

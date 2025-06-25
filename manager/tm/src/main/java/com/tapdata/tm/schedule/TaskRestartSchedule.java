@@ -13,6 +13,7 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskOperationRateLimitService;
+import com.tapdata.tm.task.service.TaskStartQueueService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
@@ -59,6 +60,7 @@ public class TaskRestartSchedule {
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
     private TaskOperationRateLimitService taskOperationRateLimitService;
+    private TaskStartQueueService taskStartQueueService;
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每120秒启动一次
@@ -140,14 +142,13 @@ public class TaskRestartSchedule {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
 
                 String taskId = taskDto.getId().toHexString();
-                // 检查调度限流（按引擎限流）
-                if (taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
-                    taskScheduleService.scheduling(taskDto, user);
-                    // 记录调度操作（按引擎记录）
-                    taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
-                    taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
+                // 使用任务启动队列服务进行调度，支持排队等待
+                boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+                if (scheduledImmediately) {
+                    log.debug("Task engine restart schedule request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
                 } else {
-                    log.warn("Task engine restart scheduling operation rate limited, taskId: {}, agentId: {}", taskId, taskDto.getAgentId());
+                    log.info("Task engine restart schedule request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
                 }
             }
         }
@@ -319,18 +320,18 @@ public class TaskRestartSchedule {
                 }
             } else {
                 String taskId = taskDto.getId().toHexString();
-                // 检查重试冷却期和操作限流（按引擎限流）
-                if (taskOperationRateLimitService.canRetryOperation(taskId) &&
-                    taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
-                    taskScheduleService.scheduling(taskDto, user);
-                    // 记录调度操作（按引擎记录）
-                    taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
-                    taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
+                // 检查重试冷却期
+                if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                    // 使用任务启动队列服务进行调度，支持排队等待
+                    boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+                    if (scheduledImmediately) {
+                        log.debug("Task scheduling retry request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                    } else {
+                        log.info("Task scheduling retry request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                    }
                 } else {
-                    log.debug("Task scheduling retry blocked - cooldown: {}, rate limit: {}, taskId: {}, agentId: {}",
-                            !taskOperationRateLimitService.canRetryOperation(taskId),
-                            !taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule"),
-                            taskId, taskDto.getAgentId());
+                    log.debug("Task scheduling retry blocked by cooldown: taskId={}, agentId={}", taskId, taskDto.getAgentId());
                 }
             }
         }
@@ -368,18 +369,18 @@ public class TaskRestartSchedule {
                     });
 
                     String taskId = taskDto.getId().toHexString();
-                    // 检查重试冷却期和操作限流（按引擎限流）
-                    if (taskOperationRateLimitService.canRetryOperation(taskId) &&
-                        taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
-                        taskScheduleService.scheduling(taskDto, user);
-                        // 记录调度操作（按引擎记录）
-                        taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
-                        taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
+                    // 检查重试冷却期
+                    if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                        // 使用任务启动队列服务进行调度，支持排队等待
+                        boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+                        if (scheduledImmediately) {
+                            log.debug("Task wait run retry request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                        } else {
+                            log.info("Task wait run retry request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                        }
                     } else {
-                        log.debug("Task wait run retry blocked - cooldown: {}, rate limit: {}, taskId: {}, agentId: {}",
-                                !taskOperationRateLimitService.canRetryOperation(taskId),
-                                !taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule"),
-                                taskId, taskDto.getAgentId());
+                        log.debug("Task wait run retry blocked by cooldown: taskId={}, agentId={}", taskId, taskDto.getAgentId());
                     }
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
