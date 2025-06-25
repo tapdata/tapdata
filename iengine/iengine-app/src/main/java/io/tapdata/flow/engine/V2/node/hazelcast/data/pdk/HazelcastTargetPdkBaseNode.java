@@ -10,16 +10,11 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.taskinspect.ITaskInspect;
-import com.tapdata.taskinspect.TaskInspectHelper;
 import com.tapdata.tm.autoinspect.utils.GZIPUtil;
-import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -81,6 +76,7 @@ import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
@@ -180,6 +176,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
     private final ITaskInspect taskInspect;
+	private Set<ConnectorNode> sourceConnectorNode = new HashSet<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -954,6 +951,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
                 handleTapdataStartCdcEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
+				String sourceNodeAssociateId = ((TapdataStartedCdcEvent) tapdataEvent).getSourceNodeAssociateId();
+				if (null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
+					ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
+					sourceConnectorNode.add(connectorNode);
+				}
                 flushShareCdcTableMetrics(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
                 throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
@@ -1510,6 +1512,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                             String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
                             syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
                         }
+						sourceConnectorNode.forEach(node -> {
+							FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
+							if (null != flushOffsetFunction) {
+								flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
+							}
+						});
                     }
                 }
 				try {
@@ -1723,7 +1731,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 }
             }), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
-            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+//            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
             CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
         } finally {
             super.doClose();

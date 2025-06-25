@@ -9,6 +9,15 @@ import org.jetbrains.annotations.NotNull;
  **/
 public class TapdataStartedCdcEvent extends TapdataEvent {
 	private Long cdcStartTime;
+	private String sourceNodeAssociateId;
+
+	public String getSourceNodeAssociateId() {
+		return sourceNodeAssociateId;
+	}
+
+	public void setSourceNodeAssociateId(String sourceNodeAssociateId) {
+		this.sourceNodeAssociateId = sourceNodeAssociateId;
+	}
 
 	protected TapdataStartedCdcEvent() {
 	}
