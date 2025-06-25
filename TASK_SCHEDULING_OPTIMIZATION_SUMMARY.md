@@ -37,9 +37,16 @@
 - `manager/tm/src/main/java/com/tapdata/tm/schedule/TaskOperationRateLimitCleanupSchedule.java`
 - `manager/tm/src/main/java/com/tapdata/tm/base/exception/TaskScheduleRateLimitException.java`
 - `iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/schedule/EngineTaskStartRateLimitService.java`
+- `manager/tm/src/main/java/com/tapdata/tm/task/service/TaskStartQueueService.java`
+- `manager/tm/src/main/java/com/tapdata/tm/schedule/TaskStartQueueSchedule.java`
+- `manager/tm/src/main/java/com/tapdata/tm/schedule/TaskStartCompensationSchedule.java`
+- `manager/tm/src/main/java/com/tapdata/tm/schedule/TaskCompensationMonitorSchedule.java`
 - `ENGINE_BYPASS_RATE_LIMIT_FIX.md`
 - `ENGINE_TASK_QUEUE_BOTTLENECK_FIX.md`
 - `DYNAMIC_TASK_TIMEOUT_IMPLEMENTATION.md`
+- `TASK_START_QUEUE_IMPLEMENTATION.md`
+- `RATE_LIMIT_FREQUENCY_AND_THRESHOLD_UPDATE.md`
+- `TASK_START_COMPENSATION_IMPLEMENTATION.md`
 
 #### 修改的文件：
 - `manager/tm/src/main/java/com/tapdata/tm/task/service/impl/TaskScheduleServiceImpl.java`
@@ -64,6 +71,9 @@
 - **修复绕过限流**：修复引擎端定时调度和启动恢复绕过限流的问题，添加引擎端10秒限流机制
 - **修复队列瓶颈**：解决引擎任务操作队列容量不足导致的任务接管停止问题
 - **动态超时机制**：根据启动中任务数量动态调整超时时间，100个任务时超时时间为3000秒
+- **任务启动队列**：管理端被限流任务排队等待，而不是退回到等待启动状态
+- **智能限流优化**：只对启动操作限流，任务数<10时不限流，停止和重置操作不受限制
+- **补偿轮询机制**：管理端补偿轮询，查询启动中但未下发的任务，动态间隔10-300秒
 
 ### 按引擎限流机制详解
 
