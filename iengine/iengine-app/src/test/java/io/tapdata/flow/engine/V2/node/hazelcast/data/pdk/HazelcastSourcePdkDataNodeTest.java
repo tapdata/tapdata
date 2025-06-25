@@ -2000,4 +2000,14 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 
 	}
 
+	@Nested
+	class sendCdcStartedEventTest {
+		@Test
+		public void testSendCdcStartedEventSimple() {
+			doNothing().when(hazelcastSourcePdkDataNode).enqueue(any(TapdataEvent.class));
+			hazelcastSourcePdkDataNode.sendCdcStartedEvent();
+			verify(hazelcastSourcePdkDataNode, times(1)).enqueue(any(TapdataEvent.class));
+		}
+	}
+
 }
