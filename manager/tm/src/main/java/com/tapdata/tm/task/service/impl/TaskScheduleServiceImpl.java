@@ -110,8 +110,8 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     }
 
     public void sendStartMsg(String taskId, String agentId, UserDetail user) {
-        // 检查操作限流
-        if (!taskOperationRateLimitService.canExecuteOperation(taskId, "start")) {
+        // 检查操作限流（按引擎限流）
+        if (!taskOperationRateLimitService.canExecuteOperation(taskId, agentId, "start")) {
             log.warn("Task start operation rate limited, taskId: {}, agentId: {}", taskId, agentId);
             return;
         }
@@ -133,8 +133,8 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
         log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        // 记录操作执行
-        taskOperationRateLimitService.recordOperation(taskId, "start");
+        // 记录操作执行（按引擎记录）
+        taskOperationRateLimitService.recordOperation(taskId, agentId, "start");
         // 记录首次下发完成时间
         taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
     }

@@ -17,18 +17,18 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TaskOperationRateLimitService {
     
     /**
-     * 操作间隔时间：10秒
+     * 操作间隔时间：5秒
      */
-    private static final long OPERATION_INTERVAL_MS = 10 * 1000L;
-    
+    private static final long OPERATION_INTERVAL_MS = 5 * 1000L;
+
     /**
      * 重试冷却时间：10分钟
      */
     private static final long RETRY_COOLDOWN_MS = 10 * 60 * 1000L;
     
     /**
-     * 存储每个任务的最后操作时间
-     * Key: taskId, Value: 最后操作时间戳
+     * 存储每个引擎的最后操作时间
+     * Key: agentId + ":" + operationType, Value: 最后操作时间戳
      */
     private final ConcurrentHashMap<String, AtomicLong> lastOperationTimes = new ConcurrentHashMap<>();
     
@@ -42,37 +42,65 @@ public class TaskOperationRateLimitService {
      * 检查是否可以执行任务操作
      *
      * @param taskId 任务ID
+     * @param agentId 引擎ID
      * @param operationType 操作类型（start/stop/reset/schedule）
      * @return true 如果可以执行操作，false 如果需要限流
      */
-    public boolean canExecuteOperation(String taskId, String operationType) {
+    public boolean canExecuteOperation(String taskId, String agentId, String operationType) {
         long currentTime = System.currentTimeMillis();
-        
-        AtomicLong lastOperationTime = lastOperationTimes.computeIfAbsent(taskId, k -> new AtomicLong(0));
+
+        String key = agentId + ":" + operationType;
+        AtomicLong lastOperationTime = lastOperationTimes.computeIfAbsent(key, k -> new AtomicLong(0));
         long lastTime = lastOperationTime.get();
-        
+
         // 检查操作间隔限制
         if (lastTime > 0 && (currentTime - lastTime) < OPERATION_INTERVAL_MS) {
-            log.warn("Task operation rate limited: taskId={}, operationType={}, lastOperationTime={}, currentTime={}, intervalMs={}", 
-                    taskId, operationType, lastTime, currentTime, currentTime - lastTime);
+            log.warn("Task operation rate limited: taskId={}, agentId={}, operationType={}, lastOperationTime={}, currentTime={}, intervalMs={}",
+                    taskId, agentId, operationType, lastTime, currentTime, currentTime - lastTime);
             return false;
         }
-        
+
         return true;
     }
     
     /**
+     * 检查是否可以执行任务操作（兼容方法，使用任务的agentId）
+     *
+     * @param taskId 任务ID
+     * @param operationType 操作类型（start/stop/reset/schedule）
+     * @return true 如果可以执行操作，false 如果需要限流
+     */
+    public boolean canExecuteOperation(String taskId, String operationType) {
+        // 这个方法需要在调用时提供agentId，暂时返回true保持兼容性
+        log.warn("Using deprecated canExecuteOperation method without agentId for taskId: {}", taskId);
+        return true;
+    }
+
+    /**
      * 记录操作执行
-     * 
+     *
+     * @param taskId 任务ID
+     * @param agentId 引擎ID
+     * @param operationType 操作类型
+     */
+    public void recordOperation(String taskId, String agentId, String operationType) {
+        long currentTime = System.currentTimeMillis();
+        String key = agentId + ":" + operationType;
+        lastOperationTimes.computeIfAbsent(key, k -> new AtomicLong(0)).set(currentTime);
+
+        log.debug("Task operation recorded: taskId={}, agentId={}, operationType={}, timestamp={}",
+                taskId, agentId, operationType, currentTime);
+    }
+
+    /**
+     * 记录操作执行（兼容方法）
+     *
      * @param taskId 任务ID
      * @param operationType 操作类型
      */
     public void recordOperation(String taskId, String operationType) {
-        long currentTime = System.currentTimeMillis();
-        lastOperationTimes.computeIfAbsent(taskId, k -> new AtomicLong(0)).set(currentTime);
-        
-        log.debug("Task operation recorded: taskId={}, operationType={}, timestamp={}", 
-                taskId, operationType, currentTime);
+        log.warn("Using deprecated recordOperation method without agentId for taskId: {}", taskId);
+        // 兼容方法，不做实际记录
     }
     
     /**
@@ -113,26 +141,49 @@ public class TaskOperationRateLimitService {
     }
     
     /**
-     * 清理任务的限流记录
-     * 
+     * 清理引擎的限流记录
+     *
+     * @param agentId 引擎ID
+     */
+    public void clearAgentRecords(String agentId) {
+        lastOperationTimes.entrySet().removeIf(entry -> entry.getKey().startsWith(agentId + ":"));
+
+        log.debug("Agent rate limit records cleared: agentId={}", agentId);
+    }
+
+    /**
+     * 清理任务的限流记录（兼容方法）
+     *
      * @param taskId 任务ID
      */
     public void clearTaskRecords(String taskId) {
-        lastOperationTimes.remove(taskId);
         firstDeliveryCompleteTimes.remove(taskId);
-        
+
         log.debug("Task rate limit records cleared: taskId={}", taskId);
     }
     
     /**
-     * 获取任务的最后操作时间
-     * 
+     * 获取引擎的最后操作时间
+     *
+     * @param agentId 引擎ID
+     * @param operationType 操作类型
+     * @return 最后操作时间戳，如果没有记录则返回0
+     */
+    public long getLastOperationTime(String agentId, String operationType) {
+        String key = agentId + ":" + operationType;
+        AtomicLong lastTime = lastOperationTimes.get(key);
+        return lastTime != null ? lastTime.get() : 0;
+    }
+
+    /**
+     * 获取任务的最后操作时间（兼容方法）
+     *
      * @param taskId 任务ID
      * @return 最后操作时间戳，如果没有记录则返回0
      */
     public long getLastOperationTime(String taskId) {
-        AtomicLong lastTime = lastOperationTimes.get(taskId);
-        return lastTime != null ? lastTime.get() : 0;
+        log.warn("Using deprecated getLastOperationTime method without agentId for taskId: {}", taskId);
+        return 0;
     }
     
     /**

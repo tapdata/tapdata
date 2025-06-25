@@ -86,7 +86,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@Autowired
 	private TaskScheduler taskScheduler;
 	@Autowired
-	private TaskStartRateLimitService taskStartRateLimitService;
+	private EngineTaskStartRateLimitService engineTaskStartRateLimitService;
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
@@ -205,7 +205,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					TaskDto taskDto = startTaskOperation.getTaskDto();
-					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto, false, false), 1L, TimeUnit.SECONDS)) {
+					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
 						ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
 						ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
@@ -283,25 +283,61 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	public void scheduledTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.START_TASK_THREAD, instanceNo));
 		try {
-			Query query = new Query(
-					new Criteria("agentId").is(instanceNo)
-							.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
-			);
-			query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
-			query.fields().include("_id").include("name");
-			List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-			for (TaskDto waitRunTask : allWaitRunTasks) {
-				logger.info("Staring task from http query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
-				query = new Query(Criteria.where("id").is(waitRunTask.getId()));
-				Update update = new Update();
-				update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
-				addAgentIdUpdate(update);
+			// 持续尝试启动所有等待的任务，直到没有任务需要启动
+			while (true) {
+				Query query = new Query(
+						new Criteria("agentId").is(instanceNo)
+								.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
+				);
+				query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
+				query.fields().include("_id").include("name");
+				List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 
-				TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
-				if (taskDto != null) {
-					sendStartTask(taskDto);
+				if (allWaitRunTasks.isEmpty()) {
+					// 没有等待启动的任务，退出循环
+					break;
+				}
+
+				boolean taskStarted = false;
+				for (TaskDto waitRunTask : allWaitRunTasks) {
+					logger.info("Found wait run task from scheduled query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
+
+					String taskId = waitRunTask.getId().toHexString();
+					String taskName = waitRunTask.getName();
+
+					// 检查引擎端启动限流
+					if (!engineTaskStartRateLimitService.canStartTask(taskId, taskName)) {
+						logger.debug("Engine task start rate limited, will retry: {}[{}]", taskName, taskId);
+						continue;
+					}
+
+					// 直接启动任务，但受限流控制
+					Query updateQuery = new Query(Criteria.where("id").is(waitRunTask.getId()));
+					Update update = new Update();
+					update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
+					addAgentIdUpdate(update);
+
+					TaskDto taskDto = clientMongoOperator.findAndModify(updateQuery, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
+					if (taskDto != null) {
+						// 记录启动时间
+						engineTaskStartRateLimitService.recordTaskStart(taskId, taskName);
+						sendStartTask(taskDto);
+						taskStarted = true;
+						logger.info("Started task with rate limit: {}[{}]", taskName, taskId);
+						// 限流生效，一次只启动一个任务
+						break;
+					}
+				}
+
+				if (!taskStarted) {
+					// 如果没有任务启动（都被限流了），等待10秒后重试
+					logger.debug("All tasks are rate limited, waiting 10 seconds before retry");
+					Thread.sleep(10000);
 				}
 			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.warn("Scheduled task interrupted");
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);
 		}
@@ -313,36 +349,60 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
 		if (!AppType.currentType().isCloud()) return;
-		Query query = new Query(
-				new Criteria("agentId").is(instanceNo)
-						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
-		);
-		List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		if (CollectionUtils.isNotEmpty(tasks)) {
-			logger.info("Found task(s) already running before engine start, will run these task(s) immediately\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
-			tasks.forEach(this::sendStartTask);
+
+		try {
+			// 持续尝试启动所有需要恢复的任务，直到没有任务需要启动
+			while (true) {
+				Query query = new Query(
+						new Criteria("agentId").is(instanceNo)
+								.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
+				);
+				List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+
+				if (CollectionUtils.isEmpty(tasks)) {
+					// 没有需要恢复的任务，退出循环
+					break;
+				}
+
+				logger.info("Found task(s) already running before engine start, will restart with rate limit\n  {}",
+						tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
+
+				boolean taskStarted = false;
+				for (TaskDto task : tasks) {
+					String taskId = task.getId().toHexString();
+					String taskName = task.getName();
+
+					// 检查引擎端启动限流
+					if (!engineTaskStartRateLimitService.canStartTask(taskId, taskName)) {
+						logger.debug("Engine task start rate limited, will retry: {}[{}]", taskName, taskId);
+						continue;
+					}
+
+					// 记录启动时间并直接启动
+					engineTaskStartRateLimitService.recordTaskStart(taskId, taskName);
+					sendStartTask(task);
+					taskStarted = true;
+					logger.info("Engine restart task with rate limit: {}[{}]", taskName, taskId);
+
+					// 限流生效，一次只启动一个任务
+					break;
+				}
+
+				if (!taskStarted) {
+					// 如果没有任务启动（都被限流了），等待10秒后重试
+					logger.debug("All engine restart tasks are rate limited, waiting 10 seconds before retry");
+					Thread.sleep(10000);
+				}
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.warn("Engine restart task interrupted");
+		} catch (Exception e) {
+			logger.error("Engine restart task failed {}", e.getMessage(), e);
 		}
 	}
 
 	protected void startTask(TaskDto taskDto) {
-		startTask(taskDto, false, false);
-	}
-
-	/**
-	 * 启动重试任务，不受限流影响
-	 */
-	protected void startRetryTask(TaskDto taskDto) {
-		startTask(taskDto, true, false);
-	}
-
-	/**
-	 * 启动排队任务，跳过限流检查
-	 */
-	protected void startQueuedTask(TaskDto taskDto) {
-		startTask(taskDto, false, true);
-	}
-
-	protected void startTask(TaskDto taskDto, boolean isRetry, boolean skipRateLimit) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		AtomicBoolean isReturn = new AtomicBoolean(false);
@@ -369,19 +429,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		try {
-			// 检查是否需要进行限流
-			if (!skipRateLimit && !taskStartRateLimitService.requestStartTask(taskDto, isRetry)) {
-				logger.info("Task start queued due to rate limit: taskId={}, taskName={}, isRetry={}", taskId, taskDto.getName(), isRetry);
-				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
-						.ifPresent(log -> log.info("Task start queued due to rate limit, will start when available"));
-				return;
-			}
-
-			// 如果跳过限流检查，需要记录启动时间
-			if (skipRateLimit) {
-				taskStartRateLimitService.recordQueuedTaskStart(taskId, taskDto.getName());
-			}
-
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
@@ -442,30 +489,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	/**
-	 * 处理排队等待的任务
-	 */
-	@Scheduled(fixedDelay = 1000L)
-	public void processPendingTasks() {
-		Thread.currentThread().setName(String.format(ConnectorConstant.PROCESS_PENDING_TASK_THREAD, instanceNo));
-		try {
-			TaskDto nextTask = taskStartRateLimitService.getNextPendingTask();
-			if (nextTask != null) {
-				String taskId = nextTask.getId().toHexString();
-				logger.info("Starting pending task: {}[{}]", nextTask.getName(), taskId);
-
-				// 直接启动任务，跳过限流检查避免重复排队
-				if (!taskLock.tryRun(taskId, () -> startQueuedTask(nextTask), 1L, TimeUnit.SECONDS)) {
-					logger.warn("Start pending task {} failed because of task lock, will retry later", nextTask.getName());
-					// 如果获取锁失败，重新放回队列
-					taskStartRateLimitService.requeueTask(nextTask);
-				}
-			}
-		} catch (Exception e) {
-			logger.error("Process pending tasks failed: {}", e.getMessage(), e);
-		}
-	}
-
-	/**
 	 * 检查出错的编排任务，执行强制停止
 	 */
 	@Scheduled(fixedDelay = 5000L)
@@ -505,10 +528,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 
-										// 重试任务不受限流影响，立即启动
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
-										startRetryTask(taskDto);
+										sendStartTask(taskDto);
 										taskRetryTimeMap.put(taskId, retryStartTime);
 									}
 								} else {

@@ -140,14 +140,14 @@ public class TaskRestartSchedule {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
 
                 String taskId = taskDto.getId().toHexString();
-                // 检查调度限流
-                if (taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
+                // 检查调度限流（按引擎限流）
+                if (taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
                     taskScheduleService.scheduling(taskDto, user);
-                    // 记录调度操作
-                    taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                    // 记录调度操作（按引擎记录）
+                    taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
                     taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
                 } else {
-                    log.warn("Task engine restart scheduling operation rate limited, taskId: {}", taskId);
+                    log.warn("Task engine restart scheduling operation rate limited, taskId: {}, agentId: {}", taskId, taskDto.getAgentId());
                 }
             }
         }
@@ -278,18 +278,18 @@ public class TaskRestartSchedule {
                 }
             } else {
                 String taskId = taskDto.getId().toHexString();
-                // 检查重试冷却期和操作限流
+                // 检查重试冷却期和操作限流（按引擎限流）
                 if (taskOperationRateLimitService.canRetryOperation(taskId) &&
-                    taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
+                    taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
                     taskScheduleService.scheduling(taskDto, user);
-                    // 记录调度操作
-                    taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                    // 记录调度操作（按引擎记录）
+                    taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
                     taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
                 } else {
-                    log.debug("Task scheduling retry blocked - cooldown: {}, rate limit: {}, taskId: {}",
+                    log.debug("Task scheduling retry blocked - cooldown: {}, rate limit: {}, taskId: {}, agentId: {}",
                             !taskOperationRateLimitService.canRetryOperation(taskId),
-                            !taskOperationRateLimitService.canExecuteOperation(taskId, "schedule"),
-                            taskId);
+                            !taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule"),
+                            taskId, taskDto.getAgentId());
                 }
             }
         }
@@ -327,18 +327,18 @@ public class TaskRestartSchedule {
                     });
 
                     String taskId = taskDto.getId().toHexString();
-                    // 检查重试冷却期和操作限流
+                    // 检查重试冷却期和操作限流（按引擎限流）
                     if (taskOperationRateLimitService.canRetryOperation(taskId) &&
-                        taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
+                        taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
                         taskScheduleService.scheduling(taskDto, user);
-                        // 记录调度操作
-                        taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                        // 记录调度操作（按引擎记录）
+                        taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
                         taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
                     } else {
-                        log.debug("Task wait run retry blocked - cooldown: {}, rate limit: {}, taskId: {}",
+                        log.debug("Task wait run retry blocked - cooldown: {}, rate limit: {}, taskId: {}, agentId: {}",
                                 !taskOperationRateLimitService.canRetryOperation(taskId),
-                                !taskOperationRateLimitService.canExecuteOperation(taskId, "schedule"),
-                                taskId);
+                                !taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule"),
+                                taskId, taskDto.getAgentId());
                     }
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);

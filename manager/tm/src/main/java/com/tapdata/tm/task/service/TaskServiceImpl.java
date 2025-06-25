@@ -3900,8 +3900,8 @@ public class TaskServiceImpl extends TaskService{
     protected void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
         String taskId = taskDto.getId().toHexString();
 
-        // 检查操作限流
-        if (!taskOperationRateLimitService.canExecuteOperation(taskId, "reset")) {
+        // 检查操作限流（按引擎限流）
+        if (!taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "reset")) {
             log.warn("Task reset operation rate limited, taskId: {}, agentId: {}", taskId, taskDto.getAgentId());
             return;
         }
@@ -3922,7 +3922,7 @@ public class TaskServiceImpl extends TaskService{
         messageQueueService.sendMessage(queueDto);
 
         // 记录操作执行
-        taskOperationRateLimitService.recordOperation(taskId, "reset");
+        taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "reset");
         // 记录首次下发完成时间
         taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
     }
@@ -4251,15 +4251,15 @@ public class TaskServiceImpl extends TaskService{
                     .set(RESTART_FLAG, false)
                     .set(STOP_RETRY_TIMES, 0);
             update(query, set, user);
-            // 检查调度限流
+            // 检查调度限流（按引擎限流）
             String taskId = taskDto.getId().toHexString();
-            if (taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
+            if (taskOperationRateLimitService.canExecuteOperation(taskId, taskDto.getAgentId(), "schedule")) {
                 taskScheduleService.scheduling(taskDto, user);
-                // 记录调度操作
-                taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                // 记录调度操作（按引擎记录）
+                taskOperationRateLimitService.recordOperation(taskId, taskDto.getAgentId(), "schedule");
                 taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
             } else {
-                log.warn("Task scheduling operation rate limited, taskId: {}", taskId);
+                log.warn("Task scheduling operation rate limited, taskId: {}, agentId: {}", taskId, taskDto.getAgentId());
                 // 调度被限流，将任务状态回退到等待启动状态
                 StateMachineResult rollbackResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
                 if (rollbackResult.isOk()) {
@@ -4404,8 +4404,8 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
-        // 检查操作限流
-        if (!taskOperationRateLimitService.canExecuteOperation(taskId, "stop")) {
+        // 检查操作限流（按引擎限流）
+        if (!taskOperationRateLimitService.canExecuteOperation(taskId, agentId, "stop")) {
             log.warn("Task stop operation rate limited, taskId: {}, agentId: {}", taskId, agentId);
             return;
         }
@@ -4427,8 +4427,8 @@ public class TaskServiceImpl extends TaskService{
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        // 记录操作执行
-        taskOperationRateLimitService.recordOperation(taskId, "stop");
+        // 记录操作执行（按引擎记录）
+        taskOperationRateLimitService.recordOperation(taskId, agentId, "stop");
         // 记录首次下发完成时间
         taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
     }
