@@ -39,11 +39,13 @@
 - `iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/schedule/EngineTaskStartRateLimitService.java`
 - `manager/tm/src/main/java/com/tapdata/tm/task/service/TaskStartQueueService.java`
 - `manager/tm/src/main/java/com/tapdata/tm/schedule/TaskStartQueueSchedule.java`
+- `iengine/iengine-app/src/main/java/io/tapdata/flow/engine/V2/schedule/TaskTakeoverCompensationService.java`
 - `ENGINE_BYPASS_RATE_LIMIT_FIX.md`
 - `ENGINE_TASK_QUEUE_BOTTLENECK_FIX.md`
 - `DYNAMIC_TASK_TIMEOUT_IMPLEMENTATION.md`
 - `TASK_START_QUEUE_IMPLEMENTATION.md`
 - `RATE_LIMIT_FREQUENCY_AND_THRESHOLD_UPDATE.md`
+- `ENGINE_TASK_TAKEOVER_COMPENSATION_IMPLEMENTATION.md`
 
 #### 修改的文件：
 - `manager/tm/src/main/java/com/tapdata/tm/task/service/impl/TaskScheduleServiceImpl.java`
@@ -70,6 +72,7 @@
 - **动态超时机制**：根据启动中任务数量动态调整超时时间，100个任务时超时时间为3000秒
 - **任务启动队列**：管理端被限流任务排队等待，而不是退回到等待启动状态
 - **智能限流优化**：只对启动操作限流，任务数<10时不限流，停止和重置操作不受限制
+- **引擎端补偿机制**：引擎启动10分钟后，超过1分钟没有接管新任务时，主动补偿接管启动中的任务
 
 ### 按引擎限流机制详解
 

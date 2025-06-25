@@ -87,6 +87,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private TaskScheduler taskScheduler;
 	@Autowired
 	private EngineTaskStartRateLimitService engineTaskStartRateLimitService;
+	private TaskTakeoverCompensationService taskTakeoverCompensationService;
 	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(1000);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
@@ -158,6 +159,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
 		// 添加队列监控
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::monitorTaskOperationQueue, 30L, 30L, TimeUnit.SECONDS);
+		// 初始化补偿服务
+		initTaskTakeoverCompensationService();
+		// 添加补偿机制调度
+		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::performTaskTakeoverCompensation, 10L, 10L, TimeUnit.SECONDS);
 		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
 
@@ -334,6 +339,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					if (taskDto != null) {
 						// 记录启动时间
 						engineTaskStartRateLimitService.recordTaskStart(taskId, taskName);
+						// 记录任务接管时间
+						if (taskTakeoverCompensationService != null) {
+							taskTakeoverCompensationService.recordTaskTakeover();
+						}
 						sendStartTask(taskDto);
 						taskStarted = true;
 						logger.info("Started task with rate limit: {}[{}]", taskName, taskId);
@@ -393,6 +402,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 					// 记录启动时间并直接启动
 					engineTaskStartRateLimitService.recordTaskStart(taskId, taskName);
+					// 记录任务接管时间
+					if (taskTakeoverCompensationService != null) {
+						taskTakeoverCompensationService.recordTaskTakeover();
+					}
 					sendStartTask(task);
 					taskStarted = true;
 					logger.info("Engine restart task with rate limit: {}[{}]", taskName, taskId);
@@ -617,6 +630,29 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 		if (queueSize > 800) {
 			logger.error("Task operation queue size is critically high: {}, system may be overloaded", queueSize);
+		}
+	}
+
+	/**
+	 * 初始化任务接管补偿服务
+	 */
+	private void initTaskTakeoverCompensationService() {
+		if (taskTakeoverCompensationService == null) {
+			taskTakeoverCompensationService = new TaskTakeoverCompensationService(
+					clientMongoOperator, this, instanceNo);
+		}
+	}
+
+	/**
+	 * 执行任务接管补偿
+	 */
+	private void performTaskTakeoverCompensation() {
+		try {
+			if (taskTakeoverCompensationService != null && taskTakeoverCompensationService.shouldCompensate()) {
+				taskTakeoverCompensationService.performCompensation();
+			}
+		} catch (Exception e) {
+			logger.error("Error performing task takeover compensation", e);
 		}
 	}
 
