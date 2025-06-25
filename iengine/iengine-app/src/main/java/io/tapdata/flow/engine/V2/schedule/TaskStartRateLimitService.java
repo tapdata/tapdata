@@ -110,14 +110,37 @@ public class TaskStartRateLimitService {
         TaskStartRequest request = pendingTasks.poll();
         if (request != null) {
             TaskDto taskDto = request.getTaskDto();
-            recordTaskStart(taskDto.getId().toHexString(), taskDto.getName());
-            logger.info("Task start from queue: taskId={}, taskName={}, waitTime={}ms, queueSize={}",
+            // 不在这里记录启动时间，让实际启动时记录
+            logger.info("Task dequeued for start: taskId={}, taskName={}, waitTime={}ms, queueSize={}",
                     taskDto.getId().toHexString(), taskDto.getName(),
                     currentTime - request.getRequestTime(), pendingTasks.size());
             return taskDto;
         }
 
         return null;
+    }
+
+    /**
+     * 记录排队任务的启动（公开方法）
+     *
+     * @param taskId 任务ID
+     * @param taskName 任务名称
+     */
+    public void recordQueuedTaskStart(String taskId, String taskName) {
+        recordTaskStart(taskId, taskName);
+        logger.info("Queued task start recorded: taskId={}, taskName={}", taskId, taskName);
+    }
+
+    /**
+     * 重新将任务放入队列
+     *
+     * @param taskDto 需要重新排队的任务
+     */
+    public void requeueTask(TaskDto taskDto) {
+        TaskStartRequest request = new TaskStartRequest(taskDto, false);
+        pendingTasks.offer(request);
+        logger.info("Task requeued: taskId={}, taskName={}, queueSize={}",
+                taskDto.getId().toHexString(), taskDto.getName(), pendingTasks.size());
     }
 
     /**

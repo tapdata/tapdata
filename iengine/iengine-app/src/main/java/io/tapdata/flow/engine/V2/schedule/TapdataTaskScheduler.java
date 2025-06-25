@@ -205,7 +205,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 					Thread.currentThread().setName(String.format("Start-Task-Operation-Handler-%s[%s]", startTaskOperation.getTaskDto().getName(), startTaskOperation.getTaskDto().getId()));
 					taskId = startTaskOperation.getTaskDto().getId().toHexString();
 					TaskDto taskDto = startTaskOperation.getTaskDto();
-					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto, false), 1L, TimeUnit.SECONDS)) {
+					if (!taskLock.tryRun(taskId, ()-> startTask(taskDto, false, false), 1L, TimeUnit.SECONDS)) {
 						logger.warn("Start task {} failed because of task lock, will ignored", taskDto.getName());
 						ObsLoggerFactory.getInstance().getObsLogger(taskDto).warn("Start task failed because of task lock, will ignored");
 						ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
@@ -325,17 +325,24 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	protected void startTask(TaskDto taskDto) {
-		startTask(taskDto, false);
+		startTask(taskDto, false, false);
 	}
 
 	/**
 	 * 启动重试任务，不受限流影响
 	 */
 	protected void startRetryTask(TaskDto taskDto) {
-		startTask(taskDto, true);
+		startTask(taskDto, true, false);
 	}
 
-	protected void startTask(TaskDto taskDto, boolean isRetry) {
+	/**
+	 * 启动排队任务，跳过限流检查
+	 */
+	protected void startQueuedTask(TaskDto taskDto) {
+		startTask(taskDto, false, true);
+	}
+
+	protected void startTask(TaskDto taskDto, boolean isRetry, boolean skipRateLimit) {
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		AtomicBoolean isReturn = new AtomicBoolean(false);
@@ -362,12 +369,17 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			return;
 		}
 		try {
-			// 请求启动任务
-			if (!taskStartRateLimitService.requestStartTask(taskDto, isRetry)) {
+			// 检查是否需要进行限流
+			if (!skipRateLimit && !taskStartRateLimitService.requestStartTask(taskDto, isRetry)) {
 				logger.info("Task start queued due to rate limit: taskId={}, taskName={}, isRetry={}", taskId, taskDto.getName(), isRetry);
 				Optional.ofNullable(ObsLoggerFactory.getInstance().getObsLogger(taskId))
 						.ifPresent(log -> log.info("Task start queued due to rate limit, will start when available"));
 				return;
+			}
+
+			// 如果跳过限流检查，需要记录启动时间
+			if (skipRateLimit) {
+				taskStartRateLimitService.recordQueuedTaskStart(taskId, taskDto.getName());
 			}
 
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
@@ -438,8 +450,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		try {
 			TaskDto nextTask = taskStartRateLimitService.getNextPendingTask();
 			if (nextTask != null) {
-				logger.info("Starting pending task: {}[{}]", nextTask.getName(), nextTask.getId().toHexString());
-				sendStartTask(nextTask);
+				String taskId = nextTask.getId().toHexString();
+				logger.info("Starting pending task: {}[{}]", nextTask.getName(), taskId);
+
+				// 直接启动任务，跳过限流检查避免重复排队
+				if (!taskLock.tryRun(taskId, () -> startQueuedTask(nextTask), 1L, TimeUnit.SECONDS)) {
+					logger.warn("Start pending task {} failed because of task lock, will retry later", nextTask.getName());
+					// 如果获取锁失败，重新放回队列
+					taskStartRateLimitService.requeueTask(nextTask);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Process pending tasks failed: {}", e.getMessage(), e);
