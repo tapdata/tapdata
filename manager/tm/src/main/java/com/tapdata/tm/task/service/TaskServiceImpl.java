@@ -38,6 +38,7 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.exception.TaskScheduleRateLimitException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
@@ -4250,7 +4251,21 @@ public class TaskServiceImpl extends TaskService{
                     .set(RESTART_FLAG, false)
                     .set(STOP_RETRY_TIMES, 0);
             update(query, set, user);
-            taskScheduleService.scheduling(taskDto, user);
+            // 检查调度限流
+            String taskId = taskDto.getId().toHexString();
+            if (taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
+                taskScheduleService.scheduling(taskDto, user);
+                // 记录调度操作
+                taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
+            } else {
+                log.warn("Task scheduling operation rate limited, taskId: {}", taskId);
+                // 调度被限流，将任务状态回退到等待启动状态
+                StateMachineResult rollbackResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, user);
+                if (rollbackResult.isOk()) {
+                    throw new TaskScheduleRateLimitException(taskId);
+                }
+            }
         } finally {
             lock.unlock();
             if (!lock.isLocked()) {

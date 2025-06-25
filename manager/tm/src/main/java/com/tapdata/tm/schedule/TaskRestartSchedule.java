@@ -138,7 +138,17 @@ public class TaskRestartSchedule {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user);
+
+                String taskId = taskDto.getId().toHexString();
+                // 检查调度限流
+                if (taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
+                    taskScheduleService.scheduling(taskDto, user);
+                    // 记录调度操作
+                    taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                    taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
+                } else {
+                    log.warn("Task engine restart scheduling operation rate limited, taskId: {}", taskId);
+                }
             }
         }
     }
@@ -268,11 +278,18 @@ public class TaskRestartSchedule {
                 }
             } else {
                 String taskId = taskDto.getId().toHexString();
-                // 检查重试冷却期
-                if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                // 检查重试冷却期和操作限流
+                if (taskOperationRateLimitService.canRetryOperation(taskId) &&
+                    taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
                     taskScheduleService.scheduling(taskDto, user);
+                    // 记录调度操作
+                    taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                    taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
                 } else {
-                    log.debug("Task scheduling retry in cooldown period, taskId: {}", taskId);
+                    log.debug("Task scheduling retry blocked - cooldown: {}, rate limit: {}, taskId: {}",
+                            !taskOperationRateLimitService.canRetryOperation(taskId),
+                            !taskOperationRateLimitService.canExecuteOperation(taskId, "schedule"),
+                            taskId);
                 }
             }
         }
@@ -310,11 +327,18 @@ public class TaskRestartSchedule {
                     });
 
                     String taskId = taskDto.getId().toHexString();
-                    // 检查重试冷却期
-                    if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                    // 检查重试冷却期和操作限流
+                    if (taskOperationRateLimitService.canRetryOperation(taskId) &&
+                        taskOperationRateLimitService.canExecuteOperation(taskId, "schedule")) {
                         taskScheduleService.scheduling(taskDto, user);
+                        // 记录调度操作
+                        taskOperationRateLimitService.recordOperation(taskId, "schedule");
+                        taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
                     } else {
-                        log.debug("Task wait run retry in cooldown period, taskId: {}", taskId);
+                        log.debug("Task wait run retry blocked - cooldown: {}, rate limit: {}, taskId: {}",
+                                !taskOperationRateLimitService.canRetryOperation(taskId),
+                                !taskOperationRateLimitService.canExecuteOperation(taskId, "schedule"),
+                                taskId);
                     }
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);

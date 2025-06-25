@@ -40,9 +40,9 @@ public class TaskOperationRateLimitService {
     
     /**
      * 检查是否可以执行任务操作
-     * 
+     *
      * @param taskId 任务ID
-     * @param operationType 操作类型（start/stop/reset）
+     * @param operationType 操作类型（start/stop/reset/schedule）
      * @return true 如果可以执行操作，false 如果需要限流
      */
     public boolean canExecuteOperation(String taskId, String operationType) {
