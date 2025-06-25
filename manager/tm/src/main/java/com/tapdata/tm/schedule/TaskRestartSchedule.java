@@ -171,6 +171,44 @@ public class TaskRestartSchedule {
         return heartExpire;
     }
 
+    /**
+     * 根据启动中的任务数量动态计算超时时间
+     * 如果有100个启动中的任务，超时时间为3000秒
+     *
+     * @return 动态调整后的超时时间
+     */
+    private long getDynamicHeartExpire() {
+        // 获取基础超时时间
+        long baseHeartExpire = getHeartExpire();
+
+        // 查询当前启动中的任务数量
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING);
+        long schedulingTaskCount = taskService.count(Query.query(criteria));
+
+        // 动态调整超时时间
+        // 基础公式：每100个任务增加10倍超时时间
+        // 100个任务 -> 3000秒 (10倍)
+        // 50个任务 -> 1650秒 (5.5倍)
+        // 10个任务 -> 600秒 (2倍)
+        long dynamicHeartExpire;
+        if (schedulingTaskCount >= 100) {
+            // 100个或以上任务，使用3000秒
+            dynamicHeartExpire = 3000000L; // 3000秒
+        } else if (schedulingTaskCount > 0) {
+            // 根据任务数量线性调整：300秒 + (任务数量 / 100) * 2700秒
+            double multiplier = 1.0 + (schedulingTaskCount / 100.0) * 9.0; // 1倍到10倍之间
+            dynamicHeartExpire = (long) (baseHeartExpire * multiplier);
+        } else {
+            // 没有启动中的任务，使用基础超时时间
+            dynamicHeartExpire = baseHeartExpire;
+        }
+
+        log.debug("Dynamic heart expire calculated: schedulingTaskCount={}, baseHeartExpire={}ms, dynamicHeartExpire={}ms",
+                schedulingTaskCount, baseHeartExpire, dynamicHeartExpire);
+
+        return dynamicHeartExpire;
+    }
+
 
 
     /**
@@ -251,14 +289,17 @@ public class TaskRestartSchedule {
             }
 
 
-            long heartExpire = getHeartExpire();
+            long heartExpire = getDynamicHeartExpire();
+            long schedulingElapsed = System.currentTimeMillis() - taskDto.getSchedulingTime().getTime();
 
             transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-            if (Objects.nonNull(taskDto.getSchedulingTime()) && (
-                    System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
+            if (Objects.nonNull(taskDto.getSchedulingTime()) && schedulingElapsed > heartExpire) {
+
+                log.warn("Task scheduling timeout detected: taskId={}, agentId={}, schedulingElapsed={}ms, dynamicTimeout={}ms",
+                        taskDto.getId().toHexString(), taskDto.getAgentId(), schedulingElapsed, heartExpire);
 
                 CompletableFuture.runAsync(() -> {
-                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
+                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms (dynamic timeout based on scheduling queue).";
                     String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
                     monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
                 });

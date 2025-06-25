@@ -87,7 +87,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private TaskScheduler taskScheduler;
 	@Autowired
 	private EngineTaskStartRateLimitService engineTaskStartRateLimitService;
-	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
+	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(1000);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 	private final Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
@@ -156,6 +156,8 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		});
 		initScheduleTask();
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
+		// 添加队列监控
+		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::monitorTaskOperationQueue, 30L, 30L, TimeUnit.SECONDS);
 		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
 
@@ -237,12 +239,22 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
+		int queueSizeBefore = taskOperationsQueue.size();
 		taskOpEnqueue(StartTaskOperation.create().taskDto(taskDto));
+		int queueSizeAfter = taskOperationsQueue.size();
+
 		if (logger.isDebugEnabled()) {
 			List<String> stackTraces = Arrays.stream(Thread.currentThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
-			logger.debug("Send start task operation: {}[{}]\n{}", taskDto.getName(), taskDto.getId().toHexString(), String.join("\n", stackTraces));
+			logger.debug("Send start task operation: {}[{}], queue size: {} -> {}\n{}",
+					taskDto.getName(), taskDto.getId().toHexString(), queueSizeBefore, queueSizeAfter, String.join("\n", stackTraces));
 		} else if (logger.isInfoEnabled()) {
-			logger.info("Send start task operation: {}[{}]", taskDto.getName(), taskDto.getId().toHexString());
+			logger.info("Send start task operation: {}[{}], queue size: {} -> {}",
+					taskDto.getName(), taskDto.getId().toHexString(), queueSizeBefore, queueSizeAfter);
+		}
+
+		// 队列大小警告
+		if (queueSizeAfter > 500) {
+			logger.warn("Task operation queue size is high: {}, may indicate processing bottleneck", queueSizeAfter);
 		}
 	}
 
@@ -258,14 +270,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	private void taskOpEnqueue(TaskOperation taskOperation) {
 		if (null == taskOperation) return;
-		while (true) {
-			try {
-				if (taskOperationsQueue.offer(taskOperation)) {
-					break;
-				}
-			} catch (Exception e) {
-				break;
-			}
+		try {
+			// 使用阻塞方式入队，确保任务不会丢失
+			taskOperationsQueue.put(taskOperation);
+			logger.debug("Task operation enqueued successfully, queue size: {}", taskOperationsQueue.size());
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.warn("Task operation enqueue interrupted: {}", taskOperation);
+		} catch (Exception e) {
+			logger.error("Task operation enqueue failed: {}", taskOperation, e);
 		}
 	}
 
@@ -330,9 +343,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 
 				if (!taskStarted) {
-					// 如果没有任务启动（都被限流了），等待10秒后重试
-					logger.debug("All tasks are rate limited, waiting 10 seconds before retry");
-					Thread.sleep(10000);
+					// 如果没有任务启动（都被限流了），等待5秒后重试
+					logger.debug("All tasks are rate limited, waiting 5 seconds before retry");
+					Thread.sleep(5000);
 				}
 			}
 		} catch (InterruptedException e) {
@@ -389,9 +402,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				}
 
 				if (!taskStarted) {
-					// 如果没有任务启动（都被限流了），等待10秒后重试
-					logger.debug("All engine restart tasks are rate limited, waiting 10 seconds before retry");
-					Thread.sleep(10000);
+					// 如果没有任务启动（都被限流了），等待5秒后重试
+					logger.debug("All engine restart tasks are rate limited, waiting 5 seconds before retry");
+					Thread.sleep(5000);
 				}
 			}
 		} catch (InterruptedException e) {
@@ -586,6 +599,25 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static void clearTaskRetryCache(String taskId) {
 		TaskRetryFactory.getInstance().removeTaskRetryService(taskId);
 		taskRetryTimeMap.remove(taskId);
+	}
+
+	/**
+	 * 监控任务操作队列状态
+	 */
+	private void monitorTaskOperationQueue() {
+		int queueSize = taskOperationsQueue.size();
+		int runningTasks = taskClientMap.size();
+
+		logger.info("Task operation queue status: queueSize={}, runningTasks={}, remainingCapacity={}",
+				queueSize, runningTasks, taskOperationsQueue.remainingCapacity());
+
+		if (queueSize > 100) {
+			logger.warn("Task operation queue size is high: {}, may indicate processing bottleneck", queueSize);
+		}
+
+		if (queueSize > 800) {
+			logger.error("Task operation queue size is critically high: {}, system may be overloaded", queueSize);
+		}
 	}
 
 	protected void resetTaskRetryServiceIfNeed() {

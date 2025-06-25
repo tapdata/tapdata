@@ -18,9 +18,9 @@ public class EngineTaskStartRateLimitService {
     private static final Logger logger = LogManager.getLogger(EngineTaskStartRateLimitService.class);
     
     /**
-     * 任务启动间隔时间：10秒
+     * 任务启动间隔时间：5秒
      */
-    private static final long START_INTERVAL_MS = 10 * 1000L;
+    private static final long START_INTERVAL_MS = 5 * 1000L;
     
     /**
      * 最后一次任务启动时间
