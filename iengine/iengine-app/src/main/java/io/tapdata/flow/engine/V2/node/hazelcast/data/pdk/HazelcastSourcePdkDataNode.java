@@ -1006,6 +1006,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		TapdataStartedCdcEvent tapdataStartedCdcEvent = TapdataStartedCdcEvent.create();
 		tapdataStartedCdcEvent.setCdcStartTime(System.currentTimeMillis());
 		tapdataStartedCdcEvent.setSyncStage(SyncStage.CDC);
+		tapdataStartedCdcEvent.setSourceNodeAssociateId(associateId);
 		Node<?> node = getNode();
 		if (node.isLogCollectorNode()) {
 			List<Connections> connections = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
@@ -1023,6 +1024,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								TapdataStartedCdcEvent startedCdcEvent = TapdataStartedCdcEvent.create();
 								startedCdcEvent.setCdcStartTime(System.currentTimeMillis());
 								startedCdcEvent.setSyncStage(SyncStage.CDC);
+								tapdataStartedCdcEvent.setSourceNodeAssociateId(associateId);
 								startedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
 								startedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
 								startedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames());
