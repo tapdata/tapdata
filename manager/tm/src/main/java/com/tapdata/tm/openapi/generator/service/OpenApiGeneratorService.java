@@ -457,19 +457,7 @@ public class OpenApiGeneratorService {
 		command.add("--additional-properties");
 		int javaVersion = properties.getJava().getVersion();
 		ApplicationDto applicationDto = applicationService.findById(new ObjectId(request.getClientId()));
-		String additionalProps = String.format(
-				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d," +
-						"disallowAdditionalPropertiesIfNotPresent=true,useSpringfox=false," +
-						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s," +
-						"developerName=%s,developerEmail=%s,developerOrganization=%s,developerOrganizationUrl=%s",
-				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret(),
-				"tapdata", "tapdata@tapdata.io", "Tapdata", "https://tapdata.net/"
-		);
-		if (request.getTemplateLibrary().equals("spring-cloud")) {
-			String artifactId = request.getArtifactId();
-			String className = artifactId.replace(" ", "").replace("-", "").replace("_", "");
-			additionalProps += String.format(",useFeignClientContextId=false,classname=%s,classVarName=%s", className, className);
-		}
+		String additionalProps = getAdditionalProps(request, javaVersion, applicationDto);
 		command.add(additionalProps);
 
 		// Add template parameters if available
@@ -538,6 +526,23 @@ public class OpenApiGeneratorService {
 
 		// Verify that our custom template was used
 		verifyCustomTemplate(outputDir);
+	}
+
+	private String getAdditionalProps(CodeGenerationRequest request, int javaVersion, ApplicationDto applicationDto) {
+		String additionalProps = String.format(
+				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d," +
+						"disallowAdditionalPropertiesIfNotPresent=true," +
+						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s," +
+						"developerName=%s,developerEmail=%s,developerOrganization=%s,developerOrganizationUrl=%s",
+				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret(),
+				"tapdata", "tapdata@tapdata.io", "Tapdata", "https://tapdata.net/"
+		);
+		if (request.getTemplateLibrary().equals("spring-cloud")) {
+			String artifactId = request.getArtifactId();
+			String className = artifactId.replace(" ", "").replace("-", "").replace("_", "");
+			additionalProps += String.format(",useFeignClientContextId=false,classname=%s,classVarName=%s", className, className);
+		}
+		return additionalProps;
 	}
 
 	/**
@@ -997,7 +1002,7 @@ public class OpenApiGeneratorService {
 			if (key.equals("paths")) {
 				value = processPaths(value);
 			}
-			if(key.equals("components")){
+			if (key.equals("components")) {
 				value = processComponents(value);
 			}
 			processedMap.put(key, value);

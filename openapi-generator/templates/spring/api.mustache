@@ -9,17 +9,9 @@ package {{package}};
 {{/imports}}
 {{#swagger2AnnotationLibrary}}
 import io.swagger.v3.oas.annotations.ExternalDocumentation;
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Parameters;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 {{/swagger2AnnotationLibrary}}
 {{#swagger1AnnotationLibrary}}
 import io.swagger.annotations.*;
@@ -93,12 +85,6 @@ import {{javaxPackage}}.annotation.Generated;
 @RestController
 {{/useResponseEntity}}
 {{/useSpringController}}
-{{#swagger2AnnotationLibrary}}
-@Tag(name = "{{{tagName}}}", description = {{#tagDescription}}"{{{.}}}"{{/tagDescription}}{{^tagDescription}}"the {{{tagName}}} API"{{/tagDescription}})
-{{/swagger2AnnotationLibrary}}
-{{#swagger1AnnotationLibrary}}
-@Api(value = "{{{tagName}}}", description = {{#tagDescription}}"{{{.}}}"{{/tagDescription}}{{^tagDescription}}"the {{{tagName}}} API"{{/tagDescription}})
-{{/swagger1AnnotationLibrary}}
 {{#operations}}
 {{#virtualService}}
 @VirtualService
@@ -152,80 +138,6 @@ public interface {{classname}} {
     {{#virtualService}}
     @ApiVirtual
     {{/virtualService}}
-    {{#swagger2AnnotationLibrary}}
-    @Operation(
-        operationId = "{{{operationId}}}",
-        {{#summary}}
-        summary = "{{{.}}}",
-        {{/summary}}
-        {{#notes}}
-        description = "{{{.}}}",
-        {{/notes}}
-        {{#isDeprecated}}
-        deprecated = true,
-        {{/isDeprecated}}
-        {{#vendorExtensions.x-tags.size}}
-        tags = { {{#vendorExtensions.x-tags}}"{{tag}}"{{^-last}}, {{/-last}}{{/vendorExtensions.x-tags}} },
-        {{/vendorExtensions.x-tags.size}}
-        responses = {
-            {{#responses}}
-            @ApiResponse(responseCode = {{#isDefault}}"default"{{/isDefault}}{{^isDefault}}"{{{code}}}"{{/isDefault}}, description = "{{{message}}}"{{#baseType}}, content = {
-                {{#produces}}
-                @Content(mediaType = "{{{mediaType}}}", {{#isArray}}array = @ArraySchema({{/isArray}}schema = @Schema(implementation = {{{baseType}}}.class){{#isArray}}){{/isArray}}{{^isJson}}){{^-last}},{{/-last}}{{/isJson}}{{#isJson}}{{^examples.0}}){{^-last}},{{/-last}}{{/examples.0}}{{#examples.0}}, examples = {
-                {{#examples}}
-                    @ExampleObject(
-                        name = "{{{exampleName}}}",
-                        value = "{{{exampleValue}}}"
-                    ){{^-last}},{{/-last}}
-                {{/examples}}
-                {{#-last}}
-                })
-                {{/-last}}
-                {{^-last}}
-                }),
-                {{/-last}}{{/examples.0}}{{/isJson}}
-                {{/produces}}
-            }{{/baseType}}){{^-last}},{{/-last}}
-            {{/responses}}
-        }{{#hasAuthMethods}},
-        security = {
-            {{#authMethods}}
-            @SecurityRequirement(name = "{{name}}"{{#scopes.0}}, scopes={ {{#scopes}}"{{scope}}"{{^-last}}, {{/-last}}{{/scopes}} }{{/scopes.0}}){{^-last}},{{/-last}}
-            {{/authMethods}}
-        }{{/hasAuthMethods}}{{#externalDocs}},
-        externalDocs = @ExternalDocumentation(description = "{{externalDocs.description}}", url = "{{externalDocs.url}}"){{/externalDocs}}
-    )
-    {{/swagger2AnnotationLibrary}}
-    {{#swagger1AnnotationLibrary}}
-    @ApiOperation(
-        {{#vendorExtensions.x-tags.size}}
-        tags = { {{#vendorExtensions.x-tags}}"{{tag}}"{{^-last}}, {{/-last}}{{/vendorExtensions.x-tags}} },
-        {{/vendorExtensions.x-tags.size}}
-        value = "{{{summary}}}",
-        nickname = "{{{operationId}}}",
-        notes = "{{{notes}}}"{{#returnBaseType}},
-        response = {{{.}}}.class{{/returnBaseType}}{{#returnContainer}},
-        responseContainer = "{{{.}}}"{{/returnContainer}}{{#hasAuthMethods}},
-        authorizations = {
-        {{#authMethods}}
-        {{#scopes.0}}
-            @Authorization(value = "{{name}}", scopes = {
-            {{#scopes}}
-                @AuthorizationScope(scope = "{{scope}}", description = "{{description}}"){{^-last}},{{/-last}}
-            {{/scopes}}
-            }){{^-last}},{{/-last}}
-        {{/scopes.0}}
-        {{^scopes.0}}
-            @Authorization(value = "{{name}}"){{^-last}},{{/-last}}
-        {{/scopes.0}}
-        {{/authMethods}} }{{/hasAuthMethods}}
-    )
-    @ApiResponses({
-        {{#responses}}
-        @ApiResponse(code = {{{code}}}, message = "{{{message}}}"{{#baseType}}, response = {{{.}}}.class{{/baseType}}{{#containerType}}, responseContainer = "{{{.}}}"{{/containerType}}){{^-last}},{{/-last}}
-        {{/responses}}
-    })
-    {{/swagger1AnnotationLibrary}}
     {{#implicitHeadersParams.0}}
     {{#swagger2AnnotationLibrary}}
     @Parameters({
