@@ -458,7 +458,8 @@ public class OpenApiGeneratorService {
 		int javaVersion = properties.getJava().getVersion();
 		ApplicationDto applicationDto = applicationService.findById(new ObjectId(request.getClientId()));
 		String additionalProps = String.format(
-				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d,disallowAdditionalPropertiesIfNotPresent=true," +
+				"generatePom=true,generateApiTests=false,generateModelTests=false,java8=false,dateLibrary=java8,sourceFolder=src/main/java,javaVersion=%d," +
+						"disallowAdditionalPropertiesIfNotPresent=true,useSpringfox=false," +
 						"artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s," +
 						"developerName=%s,developerEmail=%s,developerOrganization=%s,developerOrganizationUrl=%s",
 				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret(),
@@ -986,7 +987,6 @@ public class OpenApiGeneratorService {
 	 * @return A new processed Map (currently returns a copy of the original map)
 	 */
 	private Map<String, Object> processOpenapiMap(Map<String, Object> openapiMap) {
-		// Empty implementation - can be extended for custom processing
 		log.debug("Processing OpenAPI Map with {} keys (custom processing not implemented)", openapiMap.size());
 
 		// Create a new map as a copy of the original
@@ -997,11 +997,30 @@ public class OpenApiGeneratorService {
 			if (key.equals("paths")) {
 				value = processPaths(value);
 			}
+			if(key.equals("components")){
+				value = processComponents(value);
+			}
 			processedMap.put(key, value);
 		}
 
 		log.debug("Processed OpenAPI Map, returning new map with {} keys", processedMap.size());
 		return processedMap;
+	}
+
+	private Object processComponents(Object value) {
+		if (value instanceof Map<?, ?>) {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> componentsMap = (Map<String, Object>) value;
+			@SuppressWarnings("unchecked")
+			Map<String, Object> securitySchemes = (Map<String, Object>) componentsMap.get("securitySchemes");
+			@SuppressWarnings("unchecked")
+			Map<String, Object> oAuth2 = (Map<String, Object>) securitySchemes.get("OAuth2");
+			@SuppressWarnings("unchecked")
+			Map<String, Object> flows = (Map<String, Object>) oAuth2.get("flows");
+			flows.remove("implicit");
+			return componentsMap;
+		}
+		return value;
 	}
 
 	private Object processPaths(Object value) {
@@ -1022,6 +1041,11 @@ public class OpenApiGeneratorService {
 							@SuppressWarnings("unchecked")
 							List<Map<String, Object>> parametersList = (List<Map<String, Object>>) get.get("parameters");
 							parametersList = parametersList.stream().filter(p -> !p.get("name").equals("filename"))
+									.peek(p -> {
+										if (org.apache.commons.lang3.StringUtils.equalsAny(p.get("name").toString(), "page", "limit")) {
+											((Map<String, Object>) p.get("schema")).put("type", "int");
+										}
+									})
 									.collect(Collectors.toCollection(ArrayList::new));
 							get.put("parameters", parametersList);
 						}

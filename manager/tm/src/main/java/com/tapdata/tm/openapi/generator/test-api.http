@@ -25,7 +25,7 @@ Accept: application/octet-stream
   "packageName": "io.tapdata.sdk",
   "artifactId": "tapdata-sdk",
   "groupId": "io.tapdata",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "templateLibrary": "spring-cloud",
   "requestAddress": "http://127.0.0.1:5173",
   "clientId": "5c0e750b7a5cd42464a5099d"
