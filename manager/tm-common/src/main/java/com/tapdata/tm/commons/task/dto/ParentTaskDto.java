@@ -73,6 +73,15 @@ public class ParentTaskDto extends SchedulableDto {
     /** 增量读取条数 */
     @EqField
     private Integer increaseReadSize;
+
+    /** 是否开启增量并发写入*/
+    @EqField
+    private Boolean cdcConcurrent;
+
+    /** 增量写入线程数*/
+    @EqField
+    private Integer cdcConcurrentWriteNum;
+
     /** 全量一批读取条数 */
     @EqField
     private Integer readBatchSize;
