@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -537,28 +538,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-            Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
-                private final Set<String> warnTag = new HashSet<>();
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+				private final Set<String> warnTag = new HashSet<>();
 
-                @Override
-                public List<String> apply(TapEvent tapEvent) {
-                    final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
-                    if (null != concurrentWritePartitionMap) {
-                        List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
-                        if (null != fields && !fields.isEmpty()) {
-                            return new ArrayList<>(fields);
-                        }
-                        if (!warnTag.contains(tgtTableName)) {
-                            warnTag.add(tgtTableName);
-                            obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
-                        }
-                    }
-                    TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-                    handleTapTablePrimaryKeys(tapTable);
-                    return new ArrayList<>(tapTable.primaryKeys(true));
-                }
-            };
-
+				@Override
+				public List<String> apply(TapEvent tapEvent) {
+					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+					if (null != concurrentWritePartitionMap) {
+						List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
+						if (null != fields && !fields.isEmpty()) {
+							return new ArrayList<>(fields);
+						}
+						if (!warnTag.contains(tgtTableName)) {
+							warnTag.add(tgtTableName);
+							obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
+						}
+					}
+					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+					handleTapTablePrimaryKeys(tapTable);
+					return new ArrayList<>(tapTable.primaryKeys(true));
+				}
+			};
             if (initialConcurrentInConfig != null) {
                 this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
                 this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
@@ -586,7 +586,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     this.cdcPartitionConcurrentProcessor.start();
                 }
             }
-        }
+		} else if (getNode() instanceof HazelCastImdgNode) {
+			HazelCastImdgNode hazelCastImdgNode = (HazelCastImdgNode) getNode();
+			this.concurrentWritePartitionMap = hazelCastImdgNode.getConcurrentWritePartitionMap();
+			final Boolean cdcConcurrentInConfig = hazelCastImdgNode.getCdcConcurrent();
+			if (cdcConcurrentInConfig != null) {
+				this.cdcConcurrentWriteNum = hazelCastImdgNode.getCdcConcurrentWriteNum() != null ? hazelCastImdgNode.getCdcConcurrentWriteNum() : 4;
+				this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
+				if (this.cdcConcurrent) {
+					this.cdcPartitionConcurrentProcessor = initShareCDCConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor.start();
+				}
+			}
+		}
     }
 
     protected boolean isCDCConcurrent(Boolean cdcConcurrent) {
@@ -1639,6 +1651,31 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				dataProcessorContext
 		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
+
+	protected PartitionConcurrentProcessor initShareCDCConcurrentProcessor(int concurrentWriteNum) {
+		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				new KeysPartitioner(),
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.singletonList(TapEventUtil.getTableId(event));
+					}
+
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return values;
+					}
+				},
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+	}
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
             int concurrentWriteNum,

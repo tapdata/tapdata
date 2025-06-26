@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -25,6 +26,12 @@ import java.util.List;
 public class HazelCastImdgNode extends Node<Object> {
 
     private String externaltype;
+    /** 是否开启增量并发写入*/
+    private Boolean cdcConcurrent;
+    /** 增量写入线程数*/
+    private Integer cdcConcurrentWriteNum;
+    /** 并发写入的分区字段配置，格式: {"tableName":["fieldName"]} */
+    private Map<String, List<String>> concurrentWritePartitionMap;
     public HazelCastImdgNode() {
         super("hazelcastIMDG");
     }
