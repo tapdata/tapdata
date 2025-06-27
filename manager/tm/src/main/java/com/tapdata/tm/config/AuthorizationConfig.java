@@ -7,6 +7,7 @@ import com.nimbusds.jose.proc.SecurityContext;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.oauth2.filter.OAuth2JsonSupportFilter;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,9 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.ProviderSettings;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.RequestMatcher;
-
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.KeyFactory;
