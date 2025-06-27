@@ -89,10 +89,11 @@
             manager/tm-api/src/main/java/com/tapdata/tm/inspect/bean/*,
             manager/tm/src/main/java/com/tapdata/tm/TMApplication.java,
             manager/tm-common/src/main/java/com/tapdata/tm/commons/util/PdkSchemaConvert.java,
-            manager/tm-api/src/main/java/com/tapdata/tm/permissions/constants/DataPermissionEnumsName.java
+            manager/tm-api/src/main/java/com/tapdata/tm/permissions/constants/DataPermissionEnumsName.java,
             **/vo/*.java,
             **/cons/*.java,
-            manager/tm-oss/src/main/java/com/tapdata/tm/inspect/service/InspectServiceImpl.java
+            manager/tm-oss/src/main/java/com/tapdata/tm/inspect/service/InspectServiceImpl.java,
+            tapdata-test/**.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
