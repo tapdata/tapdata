@@ -102,11 +102,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			return HazelcastStatusMappingEnum.fromJobStatus(job.getStatus());
 		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
 			logger.warn("Job with id {} not found in Hazelcast cluster when getting status. Task: {}[{}]",
-					job != null ? job.getId() : "null", taskDto.getName(), taskDto.getId().toHexString());
-			return HazelcastStatusMappingEnum.fromJobStatus(JobStatus.FAILED);
-		} catch (Exception e) {
-			logger.error("Error getting job status for task {}[{}]: {}",
-					taskDto.getName(), taskDto.getId().toHexString(), e.getMessage(), e);
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
 			return HazelcastStatusMappingEnum.fromJobStatus(JobStatus.FAILED);
 		}
 	}
@@ -116,11 +112,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			return job.getStatus();
 		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
 			logger.warn("Job with id {} not found in Hazelcast cluster when getting jet status. Task: {}[{}]",
-					job != null ? job.getId() : "null", taskDto.getName(), taskDto.getId().toHexString());
-			return JobStatus.FAILED;
-		} catch (Exception e) {
-			logger.error("Error getting jet job status for task {}[{}]: {}",
-					taskDto.getName(), taskDto.getId().toHexString(), e.getMessage(), e);
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
 			return JobStatus.FAILED;
 		}
 	}
@@ -195,11 +187,6 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
 			logger.warn("Job with id {} not found in Hazelcast cluster when stopping. Task: {}[{}]. Considering task as stopped.",
 					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
-			close();
-			return true;
-		} catch (Exception e) {
-			logger.error("Error stopping job for task {}[{}]: {}",
-					taskDto.getName(), taskDto.getId().toHexString(), e.getMessage(), e);
 			close();
 			return true;
 		}
@@ -288,11 +275,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 			return b;
 		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
 			logger.warn("Job with id {} not found in Hazelcast cluster, task is considered not running. Task: {}[{}]",
-					job != null ? job.getId() : "null", taskDto.getName(), taskDto.getId().toHexString());
-			return false;
-		} catch (Exception e) {
-			logger.error("Error checking job status for task {}[{}]: {}",
-					taskDto.getName(), taskDto.getId().toHexString(), e.getMessage(), e);
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
 			return false;
 		}
 	}
