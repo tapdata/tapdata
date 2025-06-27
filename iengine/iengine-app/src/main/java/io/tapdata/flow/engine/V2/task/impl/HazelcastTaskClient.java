@@ -94,11 +94,23 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public String getStatus() {
-		return HazelcastStatusMappingEnum.fromJobStatus(job.getStatus());
+		try {
+			return HazelcastStatusMappingEnum.fromJobStatus(job.getStatus());
+		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
+			logger.warn("Job with id {} not found in Hazelcast cluster when getting status. Task: {}[{}]",
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
+			return HazelcastStatusMappingEnum.fromJobStatus(JobStatus.FAILED);
+		}
 	}
 
 	public JobStatus getJetStatus() {
-		return job.getStatus();
+		try {
+			return job.getStatus();
+		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
+			logger.warn("Job with id {} not found in Hazelcast cluster when getting jet status. Task: {}[{}]",
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
+			return JobStatus.FAILED;
+		}
 	}
 
 	@Override
@@ -144,29 +156,36 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 		if(null == job) {
 			return false;
 		}
-		for (int i = 0; i < WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME; i++) {
-			if (getJetStatus() == JobStatus.STARTING) {
-				try {
-					TimeUnit.SECONDS.sleep(1L);
-				} catch (InterruptedException e) {
+		try {
+			for (int i = 0; i < WAIT_JET_JOB_RUNNING_WHEN_STARTING_STATUS_TIME; i++) {
+				if (getJetStatus() == JobStatus.STARTING) {
+					try {
+						TimeUnit.SECONDS.sleep(1L);
+					} catch (InterruptedException e) {
+						break;
+					}
+				} else {
 					break;
 				}
-			} else {
-				break;
 			}
-		}
-		if (job.getStatus() == JobStatus.RUNNING) {
-			job.suspend();
-		}
-		if (job.getStatus() == JobStatus.SUSPENDED) {
-			job.cancel();
-		}
+			if (job.getStatus() == JobStatus.RUNNING) {
+				job.suspend();
+			}
+			if (job.getStatus() == JobStatus.SUSPENDED) {
+				job.cancel();
+			}
 
-		if (job.getStatus().isTerminal()) {
+			if (job.getStatus().isTerminal()) {
+				close();
+				return true;
+			}
+			return false;
+		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
+			logger.warn("Job with id {} not found in Hazelcast cluster when stopping. Task: {}[{}]. Considering task as stopped.",
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
 			close();
 			return true;
 		}
-		return false;
 	}
 
 	@Override
@@ -234,12 +253,18 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	@Override
 	public boolean isRunning() {
-		JobStatus status = job.getStatus();
-		boolean b = status == JobStatus.STARTING || status == JobStatus.RUNNING;
-		if (!b) {
-			logger.warn("The task is not running, status:  {} {}", status, Arrays.asList(Thread.currentThread().getStackTrace()));
+		try {
+			JobStatus status = job.getStatus();
+			boolean b = status == JobStatus.STARTING || status == JobStatus.RUNNING;
+			if (!b) {
+				logger.warn("The task is not running, status:  {} {}", status, Arrays.asList(Thread.currentThread().getStackTrace()));
+			}
+			return b;
+		} catch (com.hazelcast.jet.core.JobNotFoundException e) {
+			logger.warn("Job with id {} not found in Hazelcast cluster, task is considered not running. Task: {}[{}]",
+					job.getId(), taskDto.getName(), taskDto.getId().toHexString());
+			return false;
 		}
-		return b;
 	}
 
 	@Override
