@@ -93,7 +93,7 @@
             **/vo/*.java,
             **/cons/*.java,
             manager/tm-oss/src/main/java/com/tapdata/tm/inspect/service/InspectServiceImpl.java,
-            tapdata-test/**.java
+            tapdata-test/*.java
         </sonar.exclusions>
         <sonar.test.exclusions>
             **/src/test/**
