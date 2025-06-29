@@ -139,8 +139,7 @@ public class HazelcastTaskClientTest {
                     null
             );
 
-            boolean isRunning = taskClient.isRunning();
-            assertFalse(isRunning, "Task should not be considered running when occur exception");
+            assertThrows(RuntimeException.class, () -> taskClient.isRunning());
         }
     }
 
