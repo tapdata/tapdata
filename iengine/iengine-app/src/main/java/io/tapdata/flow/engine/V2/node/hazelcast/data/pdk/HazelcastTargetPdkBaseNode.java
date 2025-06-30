@@ -1630,8 +1630,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::flushSyncProgressMap,
 				this::errorHandle,
 				this::isRunning,
-				dataProcessorContext
-		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+				dataProcessorContext.getTaskDto());
 	}
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
