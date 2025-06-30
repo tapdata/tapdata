@@ -78,8 +78,7 @@ public class OpenApiGeneratorService {
 
 			log.info("OpenAPI Generator Service initialization completed successfully");
 		} catch (IOException e) {
-			log.error("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
-			throw new RuntimeException("OpenAPI Generator Service initialization failed", e);
+			log.warn("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
 		}
 	}
 
