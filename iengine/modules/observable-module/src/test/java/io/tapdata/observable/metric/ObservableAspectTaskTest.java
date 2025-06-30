@@ -15,6 +15,7 @@ import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.aspect.*;
+import io.tapdata.entity.CountResult;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -399,7 +400,7 @@ public class ObservableAspectTaskTest {
             sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
 
             Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
-            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", new CountResult(2L,false), new HashMap<>(), BigDecimal.ONE);
             tableSampleHandler.init();
             tableSampleHandlers.put("test", tableSampleHandler);
             TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);
@@ -478,7 +479,7 @@ public class ObservableAspectTaskTest {
             sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
 
             Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
-            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", new CountResult(2L,false), new HashMap<>(), BigDecimal.ONE);
             tableSampleHandler.init();
             tableSampleHandlers.put("test_1", tableSampleHandler);
             TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);

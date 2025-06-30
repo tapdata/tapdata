@@ -1496,7 +1496,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 
 						if (null != tableCountFuncAspect) {
-							AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+							AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(counts.get(),table.getName()));
 						}
 					} catch (Throwable e) {
 						throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
