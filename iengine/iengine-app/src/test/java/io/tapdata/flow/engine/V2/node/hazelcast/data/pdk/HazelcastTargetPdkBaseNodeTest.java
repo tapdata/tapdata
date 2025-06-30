@@ -29,6 +29,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.WriteErrorAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -56,6 +57,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
+import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.metric.collector.SyncMetricCollector;
 import io.tapdata.observable.logging.ObsLogger;
@@ -72,8 +74,10 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import io.tapdata.utils.UnitTestUtils;
 import lombok.SneakyThrows;
@@ -87,6 +91,7 @@ import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -1141,6 +1146,9 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 	class HandleTapdataEventsTest {
 		List<TapdataEvent> tapdataEvents;
 		JetJobStatusMonitor jobStatusMonitor = mock(JetJobStatusMonitor.class);
+		DataProcessorContext dataProcessorContext = mock(DataProcessorContext.class);
+		ObsLogger obsLogger = mock(ObsLogger.class);
+
 
 		@BeforeEach
 		void setUp() {
@@ -1152,6 +1160,8 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			UnitTestUtils.injectField(HazelcastBaseNode.class, hazelcastTargetPdkBaseNode, "jetJobStatusMonitor", jobStatusMonitor);
 			UnitTestUtils.injectField(HazelcastTargetPdkBaseNode.class, hazelcastTargetPdkBaseNode, "firstStreamEvent", new AtomicBoolean(false));
 			UnitTestUtils.injectField(HazelcastTargetPdkBaseNode.class, hazelcastTargetPdkBaseNode, "exactlyOnceWriteNeedLookupTables", new ConcurrentHashMap<>());
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"dataProcessorContext",dataProcessorContext);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode,"obsLogger",obsLogger);
 			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(mock(ConnectorNode.class));
 		}
 
@@ -1234,7 +1244,97 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 			assertDoesNotThrow(() -> hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents));
 		}
+
+		@Test
+		void testExportRecoveryEvent() throws Throwable {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(List.class), any(List.class), any(AtomicReference.class), any(AtomicBoolean.class), any(List.class), any(TapdataEvent.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isExportRecoveryEvent(any(TapdataEvent.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleExportRecoveryEvent(any(TapdataRecoveryEvent.class));
+			TapdataRecoveryEvent tapdataRecoveryEvent = TapdataRecoveryEvent.createInsert("inspectTaskId", "tableId", new HashMap<>(), true, "inspectResultId", "inspectId");
+			tapdataEvents.add(tapdataRecoveryEvent);
+			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(any(TapEvent.class))).thenReturn("test");
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			TapTable tapTable = mock(TapTable.class);
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(tapTableMap.get(anyString())).thenReturn(tapTable);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			ExportEventSqlFunction exportEventSqlFunction = mock(ExportEventSqlFunction.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(connectorFunctions.getExportEventSqlFunction()).thenReturn(exportEventSqlFunction);
+			when(exportEventSqlFunction.exportEventSql(any(), any(), any())).thenReturn("upsert sql");
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			DatabaseNode databaseNode = mock(DatabaseNode.class);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)databaseNode);
+			when(databaseNode.getTaskId()).thenReturn("taskId");
+			PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+			doCallRealMethod().when(pdkMethodInvoker).runnable(any());
+			doCallRealMethod().when(pdkMethodInvoker).getRunnable();
+			when(hazelcastTargetPdkBaseNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
+			try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);
+				MockedStatic<AutoRecovery> autoRecoveryMockedStatic = mockStatic(AutoRecovery.class)){
+				pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
+					PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
+					CommonUtils.AnyError runnable = argument.getRunnable();
+					runnable.run();
+					return null;
+				}));
+				autoRecoveryMockedStatic.when(()->{AutoRecovery.exportRecoverySql(any(),any());}).thenAnswer((invocationOnMock -> {
+					return null;
+				}));
+				hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents);
+				assertEquals("upsert sql", tapdataRecoveryEvent.getRecoverySql());
+			}
+
+		}
+
+		@Test
+		void testExportRecoveryEvent_Error() throws Throwable {
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleTapdataEvent(any(List.class), any(List.class), any(AtomicReference.class), any(AtomicBoolean.class), any(List.class), any(TapdataEvent.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).isExportRecoveryEvent(any(TapdataEvent.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).handleExportRecoveryEvent(any(TapdataRecoveryEvent.class));
+			TapdataRecoveryEvent tapdataRecoveryEvent = TapdataRecoveryEvent.createInsert("inspectTaskId", "tableId", new HashMap<>(), true, "inspectResultId", "inspectId");
+			tapdataEvents.add(tapdataRecoveryEvent);
+			when(hazelcastTargetPdkBaseNode.getTgtTableNameFromTapEvent(any(TapEvent.class))).thenReturn("test");
+			when(hazelcastTargetPdkBaseNode.isRunning()).thenReturn(true);
+			TapTable tapTable = mock(TapTable.class);
+			TapTableMap<String, TapTable> tapTableMap = mock(TapTableMap.class);
+			when(tapTableMap.get(anyString())).thenReturn(tapTable);
+			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			ConnectorFunctions connectorFunctions = mock(ConnectorFunctions.class);
+			ExportEventSqlFunction exportEventSqlFunction = mock(ExportEventSqlFunction.class);
+			when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
+			when(connectorFunctions.getExportEventSqlFunction()).thenReturn(exportEventSqlFunction);
+			when(exportEventSqlFunction.exportEventSql(any(), any(), any())).thenThrow(new SQLException("error"));
+			when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+			DatabaseNode databaseNode = mock(DatabaseNode.class);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node)databaseNode);
+			when(databaseNode.getTaskId()).thenReturn("taskId");
+			PDKMethodInvoker pdkMethodInvoker = mock(PDKMethodInvoker.class);
+			doCallRealMethod().when(pdkMethodInvoker).runnable(any());
+			doCallRealMethod().when(pdkMethodInvoker).getRunnable();
+			when(hazelcastTargetPdkBaseNode.createPdkMethodInvoker()).thenReturn(pdkMethodInvoker);
+			try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class);
+				MockedStatic<AutoRecovery> autoRecoveryMockedStatic = mockStatic(AutoRecovery.class)){
+				pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
+					PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
+					CommonUtils.AnyError runnable = argument.getRunnable();
+					runnable.run();
+					return null;
+				}));
+				autoRecoveryMockedStatic.when(()->{AutoRecovery.exportRecoverySql(any(),any());}).thenAnswer((invocationOnMock -> {
+					return null;
+				}));
+				hazelcastTargetPdkBaseNode.handleTapdataEvents(tapdataEvents);
+				verify(obsLogger, times(1)).warn(any(),any());
+			}
+
+		}
 	}
+
+
 
 	@Nested
 	class HandleTapdataEventTest {
@@ -2242,6 +2342,44 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(dataCacheFactory, times(1)).getDataCache(any());
 		}
 
+	}
+
+	@Nested
+	class errorHandleTest {
+		SyncProgress syncProgress;
+		CoreException e;
+		@Test
+		void testForClassNotFoundException() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+			syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj("test batch offset");
+			e = new CoreException("java.lang.ClassNotFoundException: io.tapdata.dummy.po.DummyOffset");
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e);
+			assertNotEquals("test batch offset", syncProgress.getBatchOffsetObj());
+			assertEquals(new HashMap<>(), syncProgress.getBatchOffsetObj());
+		}
+
+		@Test
+		void testForExceptionMsgIsNull() {
+			ObsLogger obsLogger = mock(ObsLogger.class);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "obsLogger", obsLogger);
+			syncProgress = new SyncProgress();
+			syncProgress.setBatchOffsetObj("test batch offset");
+			e = new CoreException();
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+			assertEquals("test batch offset", syncProgress.getBatchOffsetObj());
+		}
+
+		@Test
+		void testForOtherException() {
+			syncProgress = new SyncProgress();
+			e = new CoreException("test exception");
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
+			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+		}
 	}
 
 }

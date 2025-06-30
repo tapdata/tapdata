@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -37,6 +38,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -91,6 +93,7 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -239,6 +242,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				readBatchOffset(entry.getValue());
 				syncProgressMap.put(entry.getKey(), entry.getValue());
 			}
+		}
+	}
+
+	@Override
+	protected void readBatchOffset(SyncProgress syncProgress) {
+		try {
+			super.readBatchOffset(syncProgress);
+		} catch (CoreException e) {
+			errorHandle(syncProgress, e);
+		}
+	}
+
+	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
+		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+		} else {
+			throw new TapCodeException(e.getMessage(), e);
 		}
 	}
 
@@ -517,28 +538,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-            Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
-                private final Set<String> warnTag = new HashSet<>();
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+				private final Set<String> warnTag = new HashSet<>();
 
-                @Override
-                public List<String> apply(TapEvent tapEvent) {
-                    final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
-                    if (null != concurrentWritePartitionMap) {
-                        List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
-                        if (null != fields && !fields.isEmpty()) {
-                            return new ArrayList<>(fields);
-                        }
-                        if (!warnTag.contains(tgtTableName)) {
-                            warnTag.add(tgtTableName);
-                            obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
-                        }
-                    }
-                    TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-                    handleTapTablePrimaryKeys(tapTable);
-                    return new ArrayList<>(tapTable.primaryKeys(true));
-                }
-            };
-
+				@Override
+				public List<String> apply(TapEvent tapEvent) {
+					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+					if (null != concurrentWritePartitionMap) {
+						List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
+						if (null != fields && !fields.isEmpty()) {
+							return new ArrayList<>(fields);
+						}
+						if (!warnTag.contains(tgtTableName)) {
+							warnTag.add(tgtTableName);
+							obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
+						}
+					}
+					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+					handleTapTablePrimaryKeys(tapTable);
+					return new ArrayList<>(tapTable.primaryKeys(true));
+				}
+			};
             if (initialConcurrentInConfig != null) {
                 this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
                 this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
@@ -566,7 +586,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     this.cdcPartitionConcurrentProcessor.start();
                 }
             }
-        }
+		} else if (getNode() instanceof HazelCastImdgNode) {
+			HazelCastImdgNode hazelCastImdgNode = (HazelCastImdgNode) getNode();
+			this.concurrentWritePartitionMap = hazelCastImdgNode.getConcurrentWritePartitionMap();
+			final Boolean cdcConcurrentInConfig = hazelCastImdgNode.getCdcConcurrent();
+			if (cdcConcurrentInConfig != null) {
+				this.cdcConcurrentWriteNum = hazelCastImdgNode.getCdcConcurrentWriteNum() != null ? hazelCastImdgNode.getCdcConcurrentWriteNum() : 4;
+				this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
+				if (this.cdcConcurrent) {
+					this.cdcPartitionConcurrentProcessor = initShareCDCConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor.start();
+				}
+			}
+		}
     }
 
     protected boolean isCDCConcurrent(Boolean cdcConcurrent) {
@@ -938,7 +970,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
 				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
 			} else {
-				handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				if(isExportRecoveryEvent(tapdataEvent)){
+					handleExportRecoveryEvent((TapdataRecoveryEvent) tapdataEvent);
+				}else{
+					handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+				}
 				if (tapdataEvent instanceof TapdataRecoveryEvent) {
 					AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
 				}
@@ -1183,6 +1219,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
         flushSyncProgressMap(tapdataEvent);
         saveToSnapshot();
+		executeAspect(new SnapshotWriteFinishAspect().dataProcessorContext(dataProcessorContext));
     }
 
     protected void handleTapdataCompleteSnapshotEvent() {
@@ -1602,46 +1639,70 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected PartitionConcurrentProcessor initCDCConcurrentProcessor(int concurrentWriteNum, Function<TapEvent, List<String>> partitionKeyFunction) {
         int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-        return new PartitionConcurrentProcessor(
-                concurrentWriteNum,
-                batchSize,
-                new KeysPartitioner(),
-                new TapEventPartitionKeySelector(partitionKeyFunction),
-                this::handleTapdataEvents,
-                this::flushSyncProgressMap,
-                this::errorHandle,
-                this::isRunning,
-                dataProcessorContext.getTaskDto()
-        );
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				new KeysPartitioner(),
+				new TapEventPartitionKeySelector(partitionKeyFunction),
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
+
+	protected PartitionConcurrentProcessor initShareCDCConcurrentProcessor(int concurrentWriteNum) {
+		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				new KeysPartitioner(),
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.singletonList(TapEventUtil.getTableId(event));
+					}
+
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return values;
+					}
+				},
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+	}
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
             int concurrentWriteNum,
             Partitioner<TapdataEvent, List<Object>> partitioner
     ) {
         int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-        PartitionConcurrentProcessor partitionConcurrentProcessor = new PartitionConcurrentProcessor(
-                concurrentWriteNum,
-                batchSize,
-                partitioner,
-                new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
-                    @Override
-                    public List<Object> select(TapEvent event, Map<String, Object> row) {
-                        return Collections.emptyList();
-                    }
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				partitioner,
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.emptyList();
+					}
 
-                    @Override
-                    public List<Object> convert2OriginValue(List<Object> values) {
-                        return Collections.emptyList();
-                    }
-                },
-                this::handleTapdataEvents,
-                this::flushSyncProgressMap,
-                this::errorHandle,
-                this::isRunning,
-                dataProcessorContext.getTaskDto()
-        );
-        return partitionConcurrentProcessor;
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return Collections.emptyList();
+					}
+				},
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
     @Override
@@ -1870,5 +1931,39 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void processConnectorAfterSnapshot(TapTable tapTable) {
+	}
+
+	protected Boolean isExportRecoveryEvent(TapdataEvent tapdataEvent) {
+		if(tapdataEvent instanceof TapdataRecoveryEvent event){
+			return event.getIsExport();
+		}
+		return false;
+	}
+
+	protected void handleExportRecoveryEvent(TapdataRecoveryEvent tapdataEvent) {
+		String TableName = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+		TapTable tapTable = dataProcessorContext.getTapTableMap().get(TableName);
+		ConnectorNode connectorNode = getConnectorNode();
+		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+		ExportEventSqlFunction exportEventSqlFunction = connectorFunctions.getExportEventSqlFunction();
+		if(exportEventSqlFunction != null){
+			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.EXPORT_EVENT_SQL,
+					pdkMethodInvoker.runnable(() -> {
+								try {
+									String sql = exportEventSqlFunction.exportEventSql(
+											connectorNode.getConnectorContext(),
+											tapdataEvent.getTapEvent(),
+											tapTable);
+									if(StringUtils.isNotBlank(sql)){
+										tapdataEvent.setRecoverySql(sql);
+									}
+								} catch (Exception e) {
+									obsLogger.warn("Exporting Recovery event sql failed: {}", e.getMessage());
+								}
+							}
+					));
+			AutoRecovery.exportRecoverySql(getNode().getTaskId(), tapdataEvent);
+		}
 	}
 }
