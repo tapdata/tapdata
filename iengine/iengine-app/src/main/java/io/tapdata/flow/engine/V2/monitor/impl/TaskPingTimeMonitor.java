@@ -32,7 +32,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-03-08 18:53
  **/
 public class TaskPingTimeMonitor extends TaskMonitor<Object> {
-	private final static long PING_INTERVAL_MS = 5000L;
+	private final static long PING_INTERVAL_MS = 30000L;
 	public static final String TAG = TaskPingTimeMonitor.class.getSimpleName();
 
 	private Logger logger = LogManager.getLogger(TaskPingTimeMonitor.class);

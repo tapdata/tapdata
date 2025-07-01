@@ -115,6 +115,18 @@
 				<artifactId>mongodb-driver-core</artifactId>
 				<version>${mongo.version}</version>
 			</dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.14.0</version> <!-- 使用最新稳定版本 -->
+            </dependency>
+
+            <!-- Google Gson -->
+            <dependency>
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>2.11.0</version> <!-- 使用最新稳定版本 -->
+            </dependency>
 			<dependency>
 				<groupId>io.tapdata</groupId>
 				<artifactId>tapdata-api</artifactId>

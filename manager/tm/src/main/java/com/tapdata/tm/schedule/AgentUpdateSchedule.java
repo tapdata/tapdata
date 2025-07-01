@@ -23,10 +23,10 @@ public class AgentUpdateSchedule {
     private SettingsService settingsService;
 
     /**
-     * @desc 执行扫描，每10S执行一次
+     * @desc 执行扫描，每120S执行一次
      */
-    @Scheduled(cron = "0/10 * * * * ?")
-    @SchedulerLock(name = "AgentUpdateSchedule", lockAtMostFor = "10s", lockAtLeastFor = "5s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name = "AgentUpdateSchedule", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void execute() {
 			Thread.currentThread().setName(getClass().getSimpleName() + "-execute");
         log.debug("清理 clusterOperation");
