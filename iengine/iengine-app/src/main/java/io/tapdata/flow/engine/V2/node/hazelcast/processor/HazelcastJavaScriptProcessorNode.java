@@ -379,17 +379,80 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 	@Override
 	protected void doClose() throws TapCodeException {
 		try {
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.sourceMap).ifPresent(s-> s.values().forEach(ScriptExecutorsManager.ScriptExecutor::close)), TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.targetMap).ifPresent(t-> t.values().forEach(ScriptExecutorsManager.ScriptExecutor::close)), TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.scriptExecutorsManager).ifPresent(ScriptExecutorsManager::close), TAG);
-			CommonUtils.ignoreAnyError(() -> this.engineMap.values().forEach(e -> {
-				if (e instanceof GraalJSScriptEngine) {
-					((GraalJSScriptEngine) e).close();
+			// Close and clear source executors
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.sourceMap != null) {
+					this.sourceMap.values().forEach(executor -> {
+						if (executor != null) {
+							executor.close();
+						}
+					});
+					this.sourceMap.clear();
 				}
-			}), TAG);
-			if (null != processContextThreadLocal) {
-				processContextThreadLocal.remove();
+			}, TAG);
+
+			// Close and clear target executors
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.targetMap != null) {
+					this.targetMap.values().forEach(executor -> {
+						if (executor != null) {
+							executor.close();
+						}
+					});
+					this.targetMap.clear();
+				}
+			}, TAG);
+
+			// Close script executors manager
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.scriptExecutorsManager != null) {
+					this.scriptExecutorsManager.close();
+					this.scriptExecutorsManager = null;
+				}
+			}, TAG);
+
+			// Close and clear script engines
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.engineMap != null) {
+					this.engineMap.values().forEach(engine -> {
+						if (engine instanceof GraalJSScriptEngine) {
+							try {
+								((GraalJSScriptEngine) engine).close();
+							} catch (Exception e) {
+								logger.warn("Error closing GraalJS engine: {}", e.getMessage());
+							}
+						}
+					});
+					this.engineMap.clear();
+				}
+			}, TAG);
+
+			// Clean up ThreadLocal to prevent memory leaks
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.processContextThreadLocal != null) {
+					// Clear the current thread's value first
+					Map<String, Object> context = this.processContextThreadLocal.get();
+					if (context != null) {
+						context.clear();
+					}
+					// Remove the ThreadLocal reference
+					this.processContextThreadLocal.remove();
+					this.processContextThreadLocal = null;
+				}
+			}, TAG);
+
+			// Clear global task content
+			CommonUtils.ignoreAnyError(() -> {
+				if (this.globalTaskContent != null) {
+					this.globalTaskContent.clear();
+					this.globalTaskContent = null;
+				}
+			}, TAG);
+
+			if (logger.isDebugEnabled()) {
+				logger.debug("JavaScript processor node resources cleaned up successfully");
 			}
+
 		} finally {
 			super.doClose();
 		}
