@@ -11,6 +11,7 @@ public enum JobTypeEnum {
     CDC,
     RECOVER,
     CHECKER,
+    MANUAL_CHECK,
     ;
 
     public static JobTypeEnum fromString(String type) {

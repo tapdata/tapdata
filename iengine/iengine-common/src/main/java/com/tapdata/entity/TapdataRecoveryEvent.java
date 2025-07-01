@@ -35,6 +35,8 @@ public class TapdataRecoveryEvent extends TapdataEvent {
 
     private String inspectId;
 
+    private Boolean isManual = false; // 是否手动校验
+
     public TapdataRecoveryEvent() {
         super.syncStage = SyncStage.CDC;
     }
@@ -65,10 +67,11 @@ public class TapdataRecoveryEvent extends TapdataEvent {
         return tapdataEvent;
     }
 
-    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String rowId, String tableId, Map<String, Object> after) {
+    public static TapdataRecoveryEvent createInsert(String inspectTaskId, boolean isManual, String rowId, String tableId, Map<String, Object> after) {
         TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
         TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
         insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
+        tapdataEvent.setIsManual(isManual);
         tapdataEvent.setRowId(rowId);
         tapdataEvent.setTapEvent(insertRecordEvent);
         return tapdataEvent;
