@@ -1285,10 +1285,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			case TapType.TYPE_DATE:
 				LocalDate localDate;
 				String dateFormat = "yyyy-MM-dd";
+				String datePart = defaultValue.split(" ")[0];
 				try {
-					localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
+					localDate = LocalDate.parse(datePart, DateTimeFormatter.ofPattern(dateFormat));
 				} catch (Exception e) {
-					throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
+					throw new RuntimeException("Convert polling cdc condition value [" + datePart + "] to LocalDate failed, format: " + dateFormat);
 				}
 				ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
 				convertValue = new DateTime(gmtZonedDate);
