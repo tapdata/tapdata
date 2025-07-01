@@ -390,7 +390,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							obsLogger.warn("Can not get table from TapTableMap, table name is: {}, error message: {}", tableId, exception.getMessage());
 							return event;
 						}
-						FilterUtil.filterEventData(tapTable, e);
+						String targetNodePKVirtualFieldName = NoPrimaryKeyVirtualField.getTargetNodePKVirtualFieldName(getNode().getGraph());
+						FilterUtil.filterEventData(tapTable, e,targetNodePKVirtualFieldName);
 					}
 				} catch (Exception exception) {
 					throw new CoreException("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
