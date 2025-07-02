@@ -34,6 +34,7 @@ import java.util.function.Function;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false)
 public class SkipErrorEventAspectTask extends AbstractAspectTask {
+    public static final String SKIP_ERROR_EVENT_DATA = "Skip error event data:{}";
     // Set a maximum of 10 threads to report status, if delay please check the net work and DB stress
     private final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(1);
 
@@ -69,13 +70,13 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
             String skipInfo = JSON.toJSONString(syncAndSkipMap);
             log.warn("Skip error event counts:{}", skipInfo);
             if (ex instanceof TapPdkViolateUniqueEx && ((TapPdkViolateUniqueEx) ex).getData() != null) {
-                log.warn("Skip error event data:{}", ((TapPdkViolateUniqueEx) ex).getData());
+                log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkViolateUniqueEx) ex).getData());
             }
             if (ex instanceof TapPdkWriteTypeEx && ((TapPdkWriteTypeEx) ex).getData() != null) {
-                log.warn("Skip error event data:{}", ((TapPdkWriteTypeEx) ex).getData());
+                log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkWriteTypeEx) ex).getData());
             }
             if (ex instanceof TapPdkWriteLengthEx && ((TapPdkWriteLengthEx) ex).getData() != null) {
-                log.warn("Skip error event data:{}", ((TapPdkWriteLengthEx) ex).getData());
+                log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkWriteLengthEx) ex).getData());
             }
             nextPrintTimes = now + 30 * 1000;
         }
