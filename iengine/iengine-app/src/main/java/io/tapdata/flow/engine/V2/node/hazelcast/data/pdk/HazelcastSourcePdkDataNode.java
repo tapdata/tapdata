@@ -1272,13 +1272,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					try {
 						convertValue = Double.valueOf(defaultValue);
 					} catch (NumberFormatException e) {
-						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
+						throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED,  "Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
 					}
 				} else {
 					try {
 						convertValue = Long.valueOf(defaultValue);
 					} catch (NumberFormatException e) {
-						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
+						throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
 					}
 				}
 				break;
@@ -1289,7 +1289,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				try {
 					localDate = LocalDate.parse(datePart, DateTimeFormatter.ofPattern(dateFormat));
 				} catch (Exception e) {
-					throw new RuntimeException("Convert polling cdc condition value [" + datePart + "] to LocalDate failed, format: " + dateFormat);
+					throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "Convert polling cdc condition value [" + datePart + "] to LocalDate failed, format: " + dateFormat);
 				}
 				ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
 				convertValue = new DateTime(gmtZonedDate);
@@ -1300,7 +1300,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				try {
 					localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
 				} catch (Exception e) {
-					throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
+					throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
 				}
 				ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
 				convertValue = new DateTime(gmtZonedDateTime);
