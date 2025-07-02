@@ -3,16 +3,16 @@ package com.tapdata.tm.openapi.generator.service;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.commons.util.JsonUtil;
+import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.openapi.generator.config.OpenApiGeneratorProperties;
 import com.tapdata.tm.openapi.generator.dto.CodeGenerationRequest;
 import com.tapdata.tm.openapi.generator.exception.CodeGenerationException;
+import com.tapdata.tm.openapi.generator.util.GridFSUploadUtil;
+import com.tapdata.tm.openapi.generator.util.MavenPackagingUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
@@ -43,6 +43,7 @@ public class OpenApiGeneratorService {
 	private static final String[] SUPPORTED_LANGUAGES = {"java", "spring"};
 	private final OpenApiGeneratorProperties properties;
 	private final ApplicationService applicationService;
+	private final FileService fileService;
 
 	// Cached paths resolved during initialization
 	private String resolvedJarPath;
@@ -52,9 +53,10 @@ public class OpenApiGeneratorService {
 	private RestTemplate restTemplate;
 
 
-	public OpenApiGeneratorService(OpenApiGeneratorProperties properties, ApplicationService applicationService) {
+	public OpenApiGeneratorService(OpenApiGeneratorProperties properties, ApplicationService applicationService, FileService fileService) {
 		this.properties = properties;
 		this.applicationService = applicationService;
+		this.fileService = fileService;
 	}
 
 	@PostConstruct
@@ -83,44 +85,6 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
-	 * Generate code and return JAR or ZIP file (only supports Java language)
-	 */
-	public ResponseEntity<InputStreamResource> generateCode(CodeGenerationRequest request) throws Exception {
-		log.info("Starting code generation with request parameters: {}", request);
-
-		// Validate language support - only Java is supported
-		if (Arrays.stream(SUPPORTED_LANGUAGES).noneMatch(lang -> lang.equalsIgnoreCase(request.getLan()))) {
-			throw new CodeGenerationException(
-					String.format("Unsupported language: %s. Currently only 'java' language is supported.", request.getLan())
-			);
-		}
-
-		// Validate Java runtime version - requires Java 17+
-		validateJavaVersion();
-
-		validateOas(request);
-
-		// Create temporary directory
-		String sessionId = UUID.randomUUID().toString();
-		Path outputDir = Paths.get(properties.getTemp().getDir(), "openapi-generator", sessionId);
-		Files.createDirectories(outputDir);
-
-		try {
-			// Execute code generation
-			log.info("Generator parameters: {}, output dir: {}", request, outputDir);
-			executeGenerator(request, outputDir.toString());
-
-			// Check Maven availability and generate appropriate response
-			return generateResponse(request, outputDir);
-
-		} finally {
-			// Clean up temporary files - temporarily disabled for debugging
-			log.info("Temporary files preserved for debugging at: {}", outputDir);
-			cleanupTempDirectory(outputDir);
-		}
-	}
-
-	/**
 	 * Create and configure RestTemplate for HTTP requests
 	 *
 	 * @return Configured RestTemplate instance
@@ -145,42 +109,12 @@ public class OpenApiGeneratorService {
 		return template;
 	}
 
-	private static void validateOas(CodeGenerationRequest request) {
+	private void validateOas(CodeGenerationRequest request) {
 		String oas = request.getOas();
 		if (!oas.endsWith("openapi.json")) {
 			oas = oas + "/openapi.json";
 			request.setOas(oas);
 		}
-	}
-
-	/**
-	 * Generate response based on Maven availability - JAR if Maven available, ZIP otherwise
-	 */
-	private ResponseEntity<InputStreamResource> generateResponse(CodeGenerationRequest request, Path outputDir) throws Exception {
-		return generateZipResponse(request, outputDir);
-	}
-
-	/**
-	 * Generate ZIP response for Java language
-	 */
-	private ResponseEntity<InputStreamResource> generateZipResponse(CodeGenerationRequest request, Path outputDir) throws Exception {
-		// Create ZIP file containing the generated source code
-		Path zipFile = createZipFile(request, outputDir);
-
-		// Prepare response
-		String fileName = String.format("%s-%s-%s-%s.zip", request.getArtifactId(), request.getLan(), request.getVersion(), DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()));
-		InputStreamResource resource = new InputStreamResource(Files.newInputStream(zipFile));
-
-		HttpHeaders headers = new HttpHeaders();
-		headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
-		headers.add(HttpHeaders.CONTENT_TYPE, "application/zip");
-		headers.add(HttpHeaders.CONTENT_LENGTH, String.valueOf(Files.size(zipFile)));
-
-		log.info("Code generation completed, ZIP file size: {} bytes", Files.size(zipFile));
-
-		return ResponseEntity.ok()
-				.headers(headers)
-				.body(resource);
 	}
 
 	/**
@@ -623,101 +557,6 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
-	 * Verify that JacksonFactory.java was generated and move it to correct location
-	 */
-	private void verifyAndMoveJacksonFactory(String outputDir, String packageName) throws IOException {
-		Path outputPath = Paths.get(outputDir);
-		Path srcMainJava = outputPath.resolve("src/main/java");
-
-		log.info("Verifying JacksonFactory generation and moving to correct location...");
-
-		// First, look for JacksonFactory.java in the root directory
-		Path rootJacksonFactory = outputPath.resolve("JacksonFactory.java");
-		if (Files.exists(rootJacksonFactory)) {
-			log.info("Found JacksonFactory.java in root directory, moving to correct package location");
-
-			// Create target package directory
-			String packagePath = packageName.replace(".", "/");
-			Path targetDir = srcMainJava.resolve(packagePath);
-			Files.createDirectories(targetDir);
-
-			// Move file to correct location
-			Path targetFile = targetDir.resolve("JacksonFactory.java");
-
-			// Read the file content and fix the package name
-			String content = Files.readString(rootJacksonFactory);
-			content = fixPackageName(content, packageName);
-
-			// Write the corrected content to the target location
-			Files.writeString(targetFile, content);
-
-			// Remove the original file
-			Files.delete(rootJacksonFactory);
-
-			log.info("✓ JacksonFactory.java moved and package name corrected: {}", targetFile);
-			return;
-		}
-
-		// Search for JacksonFactory.java in all subdirectories
-		try (var pathStream = Files.walk(outputPath)) {
-			Optional<Path> jacksonFactoryPath = pathStream
-					.filter(path -> path.toString().endsWith("JacksonFactory.java"))
-					.findFirst();
-
-			if (jacksonFactoryPath.isPresent()) {
-				Path foundFile = jacksonFactoryPath.get();
-				log.info("Found JacksonFactory.java at: {}", foundFile);
-
-				// Check if it's already in the correct location
-				String expectedPath = "src/main/java/" + packageName.replace(".", "/") + "/JacksonFactory.java";
-				if (foundFile.toString().contains(expectedPath.replace("/", File.separator))) {
-					log.info("✓ JacksonFactory.java is already in the correct location");
-				} else {
-					// Move to correct location
-					String packagePath = packageName.replace(".", "/");
-					Path targetDir = srcMainJava.resolve(packagePath);
-					Files.createDirectories(targetDir);
-
-					Path targetFile = targetDir.resolve("JacksonFactory.java");
-
-					// Read the file content and fix the package name
-					String content = Files.readString(foundFile);
-					content = fixPackageName(content, packageName);
-
-					// Write the corrected content to the target location
-					Files.writeString(targetFile, content);
-
-					// Remove the original file
-					Files.delete(foundFile);
-
-					log.info("✓ JacksonFactory.java moved and package name corrected: {}", targetFile);
-				}
-			} else {
-				log.warn("✗ JacksonFactory.java was NOT generated - this indicates the template was not processed");
-
-				// List all generated Java files for debugging
-				log.info("Generated Java files:");
-				try (var debugStream = Files.walk(srcMainJava)) {
-					debugStream
-							.filter(path -> path.toString().endsWith(".java"))
-							.forEach(path -> log.info("  - {}", path));
-				}
-			}
-		}
-	}
-
-	/**
-	 * Fix package name in JacksonFactory.java content
-	 */
-	private String fixPackageName(String content, String packageName) {
-		// Replace the package declaration
-		content = content.replaceFirst("package [^;]+;", "package " + packageName + ";");
-
-		log.debug("Fixed package name to: {}", packageName);
-		return content;
-	}
-
-	/**
 	 * Validate Java runtime version - requires Java 11+
 	 * Checks both runtime version and command line java version
 	 */
@@ -1091,6 +930,159 @@ public class OpenApiGeneratorService {
 		} catch (Exception e) {
 			log.error("Failed to write OpenAPI Map to temporary file", e);
 			throw new CodeGenerationException("Failed to write OpenAPI data to temporary file: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Enhanced code generation with ZIP and JAR creation and GridFS upload
+	 * This method is used by the async service for complete SDK generation
+	 */
+	public EnhancedGenerationResult generateCodeEnhanced(CodeGenerationRequest request) {
+		log.info("Starting enhanced code generation with request parameters: {}", request);
+
+		String sessionId = UUID.randomUUID().toString();
+		Path outputDir = Paths.get(properties.getTemp().getDir(), "openapi-generator", sessionId);
+
+		try {
+			// Validate language support - only Java is supported
+			if (Arrays.stream(SUPPORTED_LANGUAGES).noneMatch(lang -> lang.equalsIgnoreCase(request.getLan()))) {
+				throw new CodeGenerationException(
+						String.format("Unsupported language: %s. Currently only 'java' language is supported.", request.getLan())
+				);
+			}
+
+			// Validate Java runtime version - requires Java 11+
+			validateJavaVersion();
+			validateOas(request);
+
+			// Create temporary directory
+			Files.createDirectories(outputDir);
+
+			// Execute code generation
+			log.info("Generator parameters: {}, output dir: {}", request, outputDir);
+			executeGenerator(request, outputDir.toString());
+
+			// Create ZIP file from generated sources
+			Path zipFile = createZipFile(request, outputDir);
+			log.info("Created ZIP file: {}", zipFile);
+
+			// Upload ZIP to GridFS
+			GridFSUploadUtil.UploadResult zipUploadResult = GridFSUploadUtil.uploadZipFile(
+					fileService, zipFile, request.getArtifactId(), request.getVersion());
+
+			if (!zipUploadResult.isSuccess()) {
+				log.error("Failed to upload ZIP file to GridFS: {}", zipUploadResult.getErrorMessage());
+				return EnhancedGenerationResult.failure("Failed to upload ZIP file: " + zipUploadResult.getErrorMessage());
+			}
+
+			log.info("Successfully uploaded ZIP file to GridFS with ID: {}", zipUploadResult.getGridfsId());
+
+			// Attempt to create JAR file using Maven
+			String jarError = null;
+			GridFSUploadUtil.UploadResult jarUploadResult = null;
+
+			try {
+				MavenPackagingUtil.PackagingResult packagingResult = MavenPackagingUtil.packageToJar(outputDir);
+
+				if (packagingResult.isSuccess()) {
+					log.info("Successfully created JAR file: {}", packagingResult.getJarPath());
+
+					// Upload JAR to GridFS
+					jarUploadResult = GridFSUploadUtil.uploadJarFile(
+							fileService, packagingResult.getJarPath(), request.getArtifactId(), request.getVersion());
+
+					if (!jarUploadResult.isSuccess()) {
+						jarError = "Failed to upload JAR file to GridFS: " + jarUploadResult.getErrorMessage();
+						log.error(jarError);
+					} else {
+						log.info("Successfully uploaded JAR file to GridFS with ID: {}", jarUploadResult.getGridfsId());
+					}
+				} else {
+					jarError = "Maven packaging failed: " + packagingResult.getErrorMessage();
+					log.warn(jarError);
+				}
+			} catch (Exception e) {
+				jarError = "Exception during JAR creation: " + e.getMessage();
+				log.warn("JAR creation failed but continuing with ZIP", e);
+			}
+
+			// Return success result with ZIP and optional JAR information
+			return EnhancedGenerationResult.success(
+					zipUploadResult.getGridfsId().toString(),
+					zipUploadResult.getFileSize(),
+					jarUploadResult != null && jarUploadResult.isSuccess() ? jarUploadResult.getGridfsId().toString() : null,
+					jarUploadResult != null && jarUploadResult.isSuccess() ? jarUploadResult.getFileSize() : null,
+					jarError
+			);
+
+		} catch (Exception e) {
+			log.error("Enhanced code generation failed", e);
+			return EnhancedGenerationResult.failure("Code generation failed: " + e.getMessage());
+		} finally {
+			// Clean up temporary files
+			cleanupTempDirectory(outputDir);
+		}
+	}
+
+	/**
+	 * Result of enhanced code generation including GridFS IDs and file information
+	 */
+	public static class EnhancedGenerationResult {
+		private final boolean success;
+		private final String zipGridfsId;
+		private final Long zipSize;
+		private final String jarGridfsId;
+		private final Long jarSize;
+		private final String jarError;
+		private final String errorMessage;
+
+		private EnhancedGenerationResult(boolean success, String zipGridfsId, Long zipSize,
+										 String jarGridfsId, Long jarSize, String jarError, String errorMessage) {
+			this.success = success;
+			this.zipGridfsId = zipGridfsId;
+			this.zipSize = zipSize;
+			this.jarGridfsId = jarGridfsId;
+			this.jarSize = jarSize;
+			this.jarError = jarError;
+			this.errorMessage = errorMessage;
+		}
+
+		public static EnhancedGenerationResult success(String zipGridfsId, Long zipSize,
+													   String jarGridfsId, Long jarSize, String jarError) {
+			return new EnhancedGenerationResult(true, zipGridfsId, zipSize, jarGridfsId, jarSize, jarError, null);
+		}
+
+		public static EnhancedGenerationResult failure(String errorMessage) {
+			return new EnhancedGenerationResult(false, null, null, null, null, null, errorMessage);
+		}
+
+		// Getters
+		public boolean isSuccess() {
+			return success;
+		}
+
+		public String getZipGridfsId() {
+			return zipGridfsId;
+		}
+
+		public Long getZipSize() {
+			return zipSize;
+		}
+
+		public String getJarGridfsId() {
+			return jarGridfsId;
+		}
+
+		public Long getJarSize() {
+			return jarSize;
+		}
+
+		public String getJarError() {
+			return jarError;
+		}
+
+		public String getErrorMessage() {
+			return errorMessage;
 		}
 	}
 }

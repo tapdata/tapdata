@@ -1,9 +1,10 @@
 package com.tapdata.tm.openapi.generator.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
-import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
 /**
  * OpenAPI code generation request DTO
@@ -16,14 +17,14 @@ import jakarta.validation.constraints.NotBlank;
 public class CodeGenerationRequest {
 
     @NotBlank(message = "OpenAPI specification URL cannot be empty")
-    @Schema(description = "URL of the OpenAPI specification file", example = "https://example.com/api/openapi.json", required = true)
+    @Schema(description = "URL of the OpenAPI specification file", example = "https://example.com/api/openapi.json", requiredMode = Schema.RequiredMode.REQUIRED)
     private String oas;
 
     @Schema(description = "Programming language for code generation (only 'java' is supported)", example = "java", defaultValue = "java")
     private String lan = "java";
 
-    @Schema(description = "Package name for generated code", example = "io.tapdata.sdk", defaultValue = "io.tapdata.sdk")
-    private String packageName = "io.tapdata.sdk";
+    @Schema(description = "Package name for generated code", example = "io.tapdata", defaultValue = "io.tapdata")
+    private String packageName = "io.tapdata";
 
     @Schema(description = "Artifact ID", example = "tapdata-sdk", defaultValue = "tapdata-sdk")
     private String artifactId = "tapdata-sdk";
@@ -44,4 +45,7 @@ public class CodeGenerationRequest {
 
     @Schema(description = "Template library", example = "spring-cloud")
     private String templateLibrary = "spring-cloud";
+
+    @Schema(description = "Module ids")
+    private List<String> moduleIds;
 }
