@@ -1,15 +1,12 @@
 package io.tapdata.Runnable;
 
+import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.UUIDGenerator;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.LoadSchemaProgress;
-import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Schema;
+import com.tapdata.entity.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import io.tapdata.TapInterface;
@@ -24,10 +21,13 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.exception.ConvertException;
+import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
+import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -43,7 +43,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -58,6 +63,7 @@ public class LoadSchemaRunner implements Runnable {
 	private final static String TAG = LoadSchemaRunner.class.getSimpleName();
 	private final static String THREAD_NAME = "LOAD-SCHEMA-FIELDS-[%s]";
 	private final static int BATCH_SIZE = 20;
+	private final static String MONITOR_API = "monitorAPI";
 	private final static String LOAD_SCHEMA_PROGRESS_WEBSOCKET_TYPE = "load_schema_progress";
 
 	private Logger logger = LogManager.getLogger(LoadSchemaRunner.class);
@@ -231,19 +237,25 @@ public class LoadSchemaRunner implements Runnable {
 				}
 			}
 			tableConsumer.accept(null);
+
 		} catch (Throwable throwable) {
 			throw new Exception("Load pdk schema failed, message: " + throwable.getMessage(), throwable);
 		}
 	}
 
-	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
-		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
-		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-				() -> {
-					connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
-							tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
-				}, TAG);
-	}
+    public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
+        DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
+        JSONObject monitorApi = (JSONObject) connectionNode.getConnectionContext().getSpecification().getConfigOptions().get(MONITOR_API);
+        PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
+                () -> {
+                    connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
+                            tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
+					//利用反射去访问连接器的具体方法
+					if (monitorApi != null) {
+						executeMonitorAPIs(connectionNode, monitorApi.clone());
+					}
+                }, TAG);
+    }
 
 	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
 		DefaultExpressionMatchingMap dataTypesMap = connectorNode.getConnectorContext().getSpecification().getDataTypesMap();
@@ -449,4 +461,63 @@ public class LoadSchemaRunner implements Runnable {
 			return true;
 		}
 	}
+
+    private static void executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
+        Map<String, Object> result = new ConcurrentHashMap<>();
+        AtomicReference<Throwable> throwable = new AtomicReference<>();
+        CountDownLatch countDownLatch = new CountDownLatch(5);
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
+        try {
+            for (int i = 0; i < 5; i++) {
+                executorService.submit(() -> {
+                    try {
+                        Map.Entry<String, String> api;
+                        while ((api = takeoutMonitorApi(monitorApi)) != null) {
+                            if (api.getValue().startsWith("io.tapdata")) {
+                                result.put(api.getKey(), String.valueOf(ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), api.getValue().substring(api.getValue().lastIndexOf("#") + 1), null)));
+                            } else {
+                                ExecuteCommandFunction executeCommandFunction = connectionNode.getConnectionFunctions().getExecuteCommandFunction();
+                                String key = api.getKey();
+								String value = api.getValue();
+								Map<String, Object> params = new HashMap<>();
+								params.put("sql", value.substring(value.indexOf("|") + 1));
+                                PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
+                                    executeCommandFunction.execute(connectionNode.getConnectionContext(), TapExecuteCommand.create().command(value.substring(0, value.indexOf("|"))).params(params), executeResult -> {
+                                        if (executeResult.getError() != null) {
+                                            throw new RuntimeException(executeResult.getError());
+                                        }
+                                        result.put(key, String.valueOf(executeResult.getResult()));
+                                    });
+                                }, TAG);
+                            }
+                        }
+                    } catch (Exception e) {
+                        throwable.set(e);
+                    } finally {
+                        countDownLatch.countDown();
+                    }
+                });
+            }
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            if (throwable.get() != null) {
+                throw new RuntimeException(throwable.get());
+            }
+        } finally {
+            executorService.shutdown();
+        }
+    }
+
+    private static synchronized Map.Entry<String, String> takeoutMonitorApi(JSONObject monitorApi) {
+        Iterator<Map.Entry<String, Object>> iterator = monitorApi.entrySet().iterator();
+        if (iterator.hasNext()) {
+            Map.Entry<String, Object> next = iterator.next();
+            iterator.remove();
+            return Map.entry(next.getKey(), String.valueOf(next.getValue()));
+        }
+        return null;
+    }
 }
