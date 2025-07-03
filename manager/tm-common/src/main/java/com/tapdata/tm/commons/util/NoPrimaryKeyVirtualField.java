@@ -23,6 +23,7 @@ import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,6 +32,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * 无主键虚拟列
@@ -80,7 +82,7 @@ public class NoPrimaryKeyVirtualField {
                 // 添加 hash 列到数据上
                 String tableName = table.getName();
                 List<String> keys = new ArrayList<>(table.getNameFieldMap().keySet());
-                noPkTables.put(tableName, new HashValueAppender(tableName, keys));
+                noPkTables.put(tableName, new HashValueAppender(tableName, keys, getTargetNodePKVirtualFieldName(graph)));
             };
             this.addHashValue = event -> {
                 HashValueAppender handle = noPkTables.get(event.getTableId());
@@ -157,6 +159,24 @@ public class NoPrimaryKeyVirtualField {
         }
         return false;
     }
+    public static String getTargetNodePKVirtualFieldName(Graph<? extends Element, ? extends Element> graph){
+        for (String id : graph.getNodes()) {
+            // 存在表合并，不启用
+            Element graphNode = graph.getNode(id);
+            if (graphNode instanceof MergeTableNode) return null;
+            // 存在表关联，不启用
+            if (graphNode instanceof JoinProcessorNode) return null;
+            // 过滤：追加写入模式
+            if (graphNode instanceof DataParentNode) {
+                // 没有前置节点，跳过
+                DataParentNode<?> dataParentNode = (DataParentNode<?>) graphNode;
+                if (!dataParentNode.predecessors().isEmpty() && NoPrimaryKeySyncMode.ADD_HASH == dataParentNode.getNoPrimaryKeySyncMode()) {
+                    return getNoPKVirtualFieldName(((DataParentNode<?>) graphNode).getNoPKVirtualFieldName());
+                }
+            }
+        }
+        return null;
+    }
 
     // ---------- 以下为内部函数 ----------
 
@@ -176,25 +196,41 @@ public class NoPrimaryKeyVirtualField {
     protected static boolean isNeed2AddField(Schema schema, Node<?> node) {
         // 过滤：主键，唯一索引
         if (hasPrimaryOrUniqueOrKeys(schema)) return false;
-
+        List<String> schemaField = schema.getFields().stream().map(Field::getFieldName).toList();
         // 过滤：指定关联字段
         if (node instanceof TableNode) {
             TableNode tableNode = (TableNode) node;
             List<String> conditionFields = tableNode.getUpdateConditionFields();
-            return hasVirtualField(conditionFields);
+            String noPKVirtualFieldName = getNoPKVirtualFieldName(tableNode.getNoPKVirtualFieldName());
+            filterConditionFieldNotInSchemaAndNoPKField(conditionFields, schemaField, noPKVirtualFieldName);
+            return hasVirtualField(conditionFields, noPKVirtualFieldName);
         } else if (node instanceof DatabaseNode) {
             DatabaseNode databaseNode = (DatabaseNode) node;
             Map<String, List<String>> conditionFieldMap = databaseNode.getUpdateConditionFieldMap();
+            String noPKVirtualFieldName = getNoPKVirtualFieldName(databaseNode.getNoPKVirtualFieldName());
             List<String> conditionFields = null == conditionFieldMap ? null : conditionFieldMap.get(schema.getName());
-            return hasVirtualField(conditionFields);
+            filterConditionFieldNotInSchemaAndNoPKField(conditionFields, schemaField, noPKVirtualFieldName);
+            return hasVirtualField(conditionFields,noPKVirtualFieldName);
         }
         return false;
     }
 
-    protected static boolean hasVirtualField(List<String> conditionFields) {
+    private static void filterConditionFieldNotInSchemaAndNoPKField(List<String> conditionFields, List<String> schemaField, String noPKVirtualFieldName) {
+        if (null != conditionFields && !conditionFields.isEmpty()) {
+            Iterator<String> conditionFieldsIterator = conditionFields.iterator();
+            while (conditionFieldsIterator.hasNext()) {
+                String conditionField = conditionFieldsIterator.next();
+                if (!schemaField.contains(conditionField)&&!noPKVirtualFieldName.equalsIgnoreCase(conditionField)) {
+                    conditionFieldsIterator.remove();
+                }
+            }
+        }
+    }
+
+    protected static boolean hasVirtualField(List<String> conditionFields,String noPKVirtualFieldName) {
         if (null != conditionFields && !conditionFields.isEmpty()) {
             for (String field : conditionFields) {
-                if (FIELD_NAME.equalsIgnoreCase(field)) return true;
+                if (noPKVirtualFieldName.equalsIgnoreCase(field)) return true;
             }
             return false;
         }
@@ -203,20 +239,50 @@ public class NoPrimaryKeyVirtualField {
 
     protected static void addVirtualField2Schema(Schema schema, Node<?> node) {
         List<Field> fields = schema.getFields();
+        String noPKVirtualFieldName = getNoPKVirtualFieldName(node);
         // 字段已存在，不添加
         for (Field field : fields) {
-            if (FIELD_NAME.equalsIgnoreCase(field.getFieldName())) return;
+            if (noPKVirtualFieldName.equalsIgnoreCase(field.getFieldName())) return;
         }
         // 字段不存在，添加
         Field field = createVirtualField(schema, node);
         fields.add(field);
     }
 
+    public static String getNoPKVirtualFieldName(Node node) {
+        if (node instanceof DatabaseNode) {
+            DatabaseNode databaseNode = (DatabaseNode) node;
+            if (StringUtils.isBlank(databaseNode.getNoPKVirtualFieldName())) {
+                return FIELD_NAME;
+            } else {
+                return databaseNode.getNoPKVirtualFieldName();
+            }
+        } else if (node instanceof TableNode) {
+            TableNode tableNode = (TableNode) node;
+            if (StringUtils.isBlank(tableNode.getNoPKVirtualFieldName())) {
+                return FIELD_NAME;
+            } else {
+                return tableNode.getNoPKVirtualFieldName();
+            }
+        } else {
+            return null;
+        }
+    }
+
+    public static String getNoPKVirtualFieldName(String noPKVirtualFieldName) {
+        if (StringUtils.isBlank(noPKVirtualFieldName)) {
+            return FIELD_NAME;
+        } else {
+            return noPKVirtualFieldName;
+        }
+    }
+
     protected static Field createVirtualField(Schema schema, Node<?> node) {
         Field field = new Field();
         field.setTableName(schema.getName());
-        field.setFieldName(FIELD_NAME);
-        field.setOriginalFieldName(FIELD_NAME);
+        String noPKVirtualFieldName = getNoPKVirtualFieldName(node);
+        field.setFieldName(noPKVirtualFieldName);
+        field.setOriginalFieldName(noPKVirtualFieldName);
         field.setSource(Field.SOURCE_VIRTUAL_HASH);
         field.setCreateSource(Field.SOURCE_VIRTUAL_HASH);
         field.setColumnSize(FIELD_LENGTH);
@@ -248,29 +314,31 @@ public class NoPrimaryKeyVirtualField {
 
         final String table;
         final List<String> keys;
+        private String noPKVirtualFieldName;
         private Predicate<TapInsertRecordEvent> insertRecordEventPredicate;
         private Predicate<TapUpdateRecordEvent> updateRecordEventPredicate;
         private Predicate<TapDeleteRecordEvent> deleteRecordEventPredicate;
 
-        HashValueAppender(String table, List<String> keys) {
+        HashValueAppender(String table, List<String> keys,String noPKVirtualFieldName) {
             this.table = table;
             this.keys = keys;
-            keys.removeIf(key -> key.equalsIgnoreCase(FIELD_NAME));
+            this.noPKVirtualFieldName = noPKVirtualFieldName;
+            keys.removeIf(key -> key.equalsIgnoreCase(this.noPKVirtualFieldName));
             insertRecordEventPredicate = event -> {
                 Optional.ofNullable(event.getAfter())
-                    .ifPresent(data -> data.put(FIELD_NAME, toHash(keys, data, false)));
+                    .ifPresent(data -> data.put(this.noPKVirtualFieldName, toHash(keys, data, false)));
                 return true;
             };
             updateRecordEventPredicate = event -> {
                 Map<String, Object> data = event.getBefore();
-                data.put(FIELD_NAME, toHash(keys, data, true));
+                data.put(this.noPKVirtualFieldName, toHash(keys, data, true));
                 data = event.getAfter();
-                data.put(FIELD_NAME, toHash(keys, data, true));
+                data.put(this.noPKVirtualFieldName, toHash(keys, data, true));
                 return true;
             };
             deleteRecordEventPredicate = event -> {
                 Map<String, Object> data = event.getBefore();
-                data.put(FIELD_NAME, toHash(keys, data, true));
+                data.put(this.noPKVirtualFieldName, toHash(keys, data, true));
                 return true;
             };
         }
