@@ -100,6 +100,7 @@ import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
+import io.tapdata.pdk.apis.functions.connector.source.GetStreamOffsetFunction;
 import io.tapdata.pdk.apis.functions.connector.source.QueryPartitionTablesByParentName;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -343,41 +344,42 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         this.defaultCodecsFilterManager = TapCodecsFilterManager.create(this.defaultCodecsRegistry);
     }
 
-    private void initTapEventFilter() {
-        if (null == processorBaseContext) {
-            throw new CoreException("ProcessorBaseContext can not be empty");
-        }
-        TaskDto taskDto = processorBaseContext.getTaskDto();
-        if (null == taskDto) {
-            throw new CoreException("TaskDto can not be empty");
-        }
-        if (Boolean.TRUE.equals(processorBaseContext.getTaskDto().getNeedFilterEventData())) {
-            TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
-            if (null == tapTableMap) {
-                throw new CoreException("TapTableMap can not be empty");
-            }
-            tapEventFilter.addHandler(event -> {
-                TapEvent e = event.getTapEvent();
-                try {
-                    if (e instanceof TapRecordEvent) {
-                        String tableId = ShareCdcUtil.getTapRecordEventTableNameV2((TapRecordEvent) e, taskDto.getSyncType());
-                        TapTable tapTable = null;
-                        try {
-                            tapTable = tapTableMap.get(tableId);
-                        } catch (Exception exception) {
-                            obsLogger.warn("Can not get table from TapTableMap, table name is: {}, error message: {}", tableId, exception.getMessage());
-                            return event;
-                        }
-                        FilterUtil.filterEventData(tapTable, e);
-                    }
-                } catch (Exception exception) {
-                    throw new CoreException("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
-                }
-                return event;
-            });
-            obsLogger.trace("Before the event is output to the target from source, it will automatically block field changes");
-        }
-    }
+	private void initTapEventFilter() {
+		if (null == processorBaseContext) {
+			throw new CoreException("ProcessorBaseContext can not be empty");
+		}
+		TaskDto taskDto = processorBaseContext.getTaskDto();
+		if (null == taskDto) {
+			throw new CoreException("TaskDto can not be empty");
+		}
+		if (Boolean.TRUE.equals(processorBaseContext.getTaskDto().getNeedFilterEventData())) {
+			TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
+			if (null == tapTableMap) {
+				throw new CoreException("TapTableMap can not be empty");
+			}
+			tapEventFilter.addHandler(event -> {
+				TapEvent e = event.getTapEvent();
+				try {
+					if (e instanceof TapRecordEvent) {
+						String tableId = ShareCdcUtil.getTapRecordEventTableNameV2((TapRecordEvent) e, taskDto.getSyncType());
+						TapTable tapTable = null;
+						try {
+							tapTable = tapTableMap.get(tableId);
+						} catch (Exception exception) {
+							obsLogger.warn("Can not get table from TapTableMap, table name is: {}, error message: {}", tableId, exception.getMessage());
+							return event;
+						}
+						String targetNodePKVirtualFieldName = NoPrimaryKeyVirtualField.getTargetNodePKVirtualFieldName(getNode().getGraph());
+						FilterUtil.filterEventData(tapTable, e,targetNodePKVirtualFieldName);
+					}
+				} catch (Exception exception) {
+					throw new CoreException("Fail to automatically block new fields, message: {}", exception.getMessage(), exception.getCause());
+				}
+				return event;
+			});
+			obsLogger.trace("Before the event is output to the target from source, it will automatically block field changes");
+		}
+	}
 
     @Override
     protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
