@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
+import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
@@ -54,6 +55,7 @@ import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
@@ -1979,6 +1981,11 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		Node node = new DatabaseNode();
 		((DatabaseNode)node).setSyncSourcePartitionTableEnable(true);
+
+		Graph<Element, Element> graph = new Graph<>();
+		node.setGraph(graph);
+		graph.setNode(node.getId(), node);
+
 		when(context.getNode()).thenReturn(node);
 
 
