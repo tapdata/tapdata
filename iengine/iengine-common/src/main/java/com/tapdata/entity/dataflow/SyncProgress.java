@@ -7,6 +7,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	private static final long serialVersionUID = 5599838762323297718L;
@@ -36,7 +37,7 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 		this.eventSerialNo = 1L;
 		this.eventTime = System.currentTimeMillis();
 		this.sourceTime = System.currentTimeMillis();
-		this.batchOffsetObj = new HashMap<>();
+		this.batchOffsetObj = new ConcurrentHashMap<>();
 	}
 
 	@Deprecated
