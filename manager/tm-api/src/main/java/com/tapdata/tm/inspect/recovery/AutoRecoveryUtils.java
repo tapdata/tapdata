@@ -24,7 +24,7 @@ public class AutoRecoveryUtils {
         )) {
             errorCodes.add("Inspect.Recovery.NotFieldMethod");
         }
-        if (!InspectStatusEnum.DONE.getValue().equals(inspectDto.getStatus())) {
+        if (!InspectStatusEnum.DONE.getValue().equals(inspectDto.getStatus()) && !InspectStatusEnum.WAITING.getValue().equals(inspectDto.getStatus())) {
             errorCodes.add("Inspect.Recovery.StatusNotDone");
         }
         if (!InspectResultEnum.FAILED.getValue().equals(inspectDto.getResult())) {
