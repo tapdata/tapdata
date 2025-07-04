@@ -124,7 +124,7 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
 
         // 4. Convert to ModulePermissionVo and return
         return modules.stream()
-                .map(module -> new ModulePermissionVo(module.getId().toHexString(), module.getName()))
+                .map(module -> new ModulePermissionVo(module.getId().toHexString(), module.getName(), module.getListtags()))
                 .collect(Collectors.toList());
     }
 
