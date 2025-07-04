@@ -24,10 +24,9 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.exception.ConvertException;
-import io.tapdata.pdk.apis.entity.TapExecuteCommand;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.ExecuteCommandV2Function;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
-import io.tapdata.pdk.apis.functions.connector.source.ExecuteCommandFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -474,19 +473,16 @@ public class LoadSchemaRunner implements Runnable {
                         Map.Entry<String, String> api;
                         while ((api = takeoutMonitorApi(monitorApi)) != null) {
                             if (api.getValue().startsWith("io.tapdata")) {
-                                result.put(api.getKey(), String.valueOf(ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), api.getValue().substring(api.getValue().lastIndexOf("#") + 1), null)));
+                                result.put(api.getKey(), ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), api.getValue().substring(api.getValue().lastIndexOf("#") + 1), null));
                             } else {
-                                ExecuteCommandFunction executeCommandFunction = connectionNode.getConnectionFunctions().getExecuteCommandFunction();
+                                ExecuteCommandV2Function executeCommandV2Function = connectionNode.getConnectionFunctions().getExecuteCommandV2Function();
                                 String key = api.getKey();
-								String value = api.getValue();
-								Map<String, Object> params = new HashMap<>();
-								params.put("sql", value.substring(value.indexOf("|") + 1));
+                                String value = api.getValue();
                                 PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
-                                    executeCommandFunction.execute(connectionNode.getConnectionContext(), TapExecuteCommand.create().command(value.substring(0, value.indexOf("|"))).params(params), executeResult -> {
-                                        if (executeResult.getError() != null) {
-                                            throw new RuntimeException(executeResult.getError());
+                                    executeCommandV2Function.execute(connectionNode.getConnectionContext(), value, executeResult -> {
+                                        if (CollectionUtils.isNotEmpty(executeResult)) {
+                                            result.put(key, executeResult);
                                         }
-                                        result.put(key, String.valueOf(executeResult.getResult()));
                                     });
                                 }, TAG);
                             }
