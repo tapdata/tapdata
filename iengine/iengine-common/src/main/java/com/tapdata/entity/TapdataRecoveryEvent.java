@@ -1,6 +1,7 @@
 package com.tapdata.entity;
 
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import lombok.Getter;
 import lombok.Setter;
@@ -74,6 +75,26 @@ public class TapdataRecoveryEvent extends TapdataEvent {
         tapdataEvent.setIsManual(isManual);
         tapdataEvent.setRowId(rowId);
         tapdataEvent.setTapEvent(insertRecordEvent);
+        return tapdataEvent;
+    }
+
+    public static TapdataRecoveryEvent createDelete(String inspectTaskId, String tableId, Map<String, Object> before,Boolean isExport,String inspectResultId,String inspectId) {
+        TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
+        tapdataEvent.setInspectResultId(inspectResultId);
+        tapdataEvent.setInspectId(inspectId);
+        tapdataEvent.setIsExport(isExport);
+        TapDeleteRecordEvent deleteRecordEvent = TapDeleteRecordEvent.create().before(before).table(tableId);
+        deleteRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
+        tapdataEvent.setTapEvent(deleteRecordEvent);
+        return tapdataEvent;
+    }
+
+    public static TapdataRecoveryEvent createDelete(String inspectTaskId, String rowId, String tableId, Map<String, Object> before) {
+        TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
+        TapDeleteRecordEvent deleteRecordEvent = TapDeleteRecordEvent.create().before(before).table(tableId);
+        deleteRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
+        tapdataEvent.setRowId(rowId);
+        tapdataEvent.setTapEvent(deleteRecordEvent);
         return tapdataEvent;
     }
 
