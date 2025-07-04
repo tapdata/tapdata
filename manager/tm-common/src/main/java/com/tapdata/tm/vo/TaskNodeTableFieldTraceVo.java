@@ -23,7 +23,7 @@ public class TaskNodeTableFieldTraceVo {
     private LinkedHashMap<String, String> fieldMap;
     private List<String> targetFields;
 
-    public static TaskNodeTableFieldTraceVo ofTargetTable(TapTable targetTable, Set<String> sourceFields) {
+    public static TaskNodeTableFieldTraceVo ofTargetTable(TapTable targetTable, Set<String> sourceFields, String targetDatabaseType) {
         TaskNodeTableFieldTraceVo ins = new TaskNodeTableFieldTraceVo();
         ins.setSourceTable(targetTable.getAncestorsName());
         ins.setTargetTable(targetTable.getName());
@@ -33,6 +33,8 @@ public class TaskNodeTableFieldTraceVo {
         LinkedHashMap<String, TapField> fieldMap = targetTable.getNameFieldMap();
         if (null != fieldMap) {
             for (TapField field : fieldMap.values()) {
+                if(("Sybase".equalsIgnoreCase(targetDatabaseType) && "timestamp".equalsIgnoreCase(field.getDataType()))
+                        || 	("SQL Server".equalsIgnoreCase(targetDatabaseType) && "timestamp".equalsIgnoreCase(field.getDataType())))continue;
                 String sourceFieldName = field.getOriginalFieldName();
                 if (sourceFields.contains(sourceFieldName)) {
                     ins.getSourceFields().add(sourceFieldName);

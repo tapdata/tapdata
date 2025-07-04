@@ -1,12 +1,15 @@
 package com.tapdata.tm.taskinspect.vo;
 
 import com.tapdata.tm.taskinspect.cons.DiffTypeEnum;
+import io.tapdata.entity.schema.value.DateTime;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 差异上报结构
@@ -50,7 +53,7 @@ public class ResultsReportVo implements Serializable {
     }
 
     public ResultsReportVo source(LinkedHashMap<String, Object> source) {
-        this.source = source;
+        this.source = formatValue(source);
         return this;
     }
 
@@ -65,7 +68,7 @@ public class ResultsReportVo implements Serializable {
     }
 
     public ResultsReportVo target(LinkedHashMap<String, Object> target) {
-        this.target = target;
+        this.target = formatValue(target);
         return this;
     }
 
@@ -87,4 +90,16 @@ public class ResultsReportVo implements Serializable {
     public static ResultsReportVo create(DiffTypeEnum diffType, String rowId) {
         return new ResultsReportVo().diffType(diffType).table(rowId);
     }
+
+    protected LinkedHashMap<String, Object> formatValue(LinkedHashMap<String, Object> valueMap) {
+        for (Map.Entry<String, Object> en : valueMap.entrySet()) {
+            if (en.getValue() instanceof DateTime) {
+                en.setValue(((DateTime) en.getValue()).toInstant().toString());
+            } else if (en.getValue() instanceof byte[]) {
+                en.setValue(new String((byte[]) en.getValue(), StandardCharsets.UTF_8));
+            }
+        }
+        return valueMap;
+    }
+
 }

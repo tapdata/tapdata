@@ -1,14 +1,23 @@
 package com.tapdata.constant;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.tapdata.entity.MysqlJson;
 import com.tapdata.entity.values.BooleanNotExist;
 import io.tapdata.entity.schema.value.DateTime;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Map;
 
 public class CommonUtil {
 
@@ -237,6 +246,189 @@ public class CommonUtil {
 			}
 		}
 		return new BooleanNotExist();
+	}
+
+	public static boolean compare(Object val1, Object val2, boolean ignoreTimePrecision, String roundingMode) {
+		try {
+			if (val1 == null && val2 == null) return false;
+			if (val1 == null || val2 == null) return true;
+
+			if (val1 instanceof MysqlJson) return compare((MysqlJson) val1, val2, ignoreTimePrecision, roundingMode);
+			if (val2 instanceof MysqlJson) return compare((MysqlJson) val2, val1, ignoreTimePrecision, roundingMode);
+			if (val1 instanceof Map) return compare((Map) val1, val2, ignoreTimePrecision, roundingMode);
+			if (val2 instanceof Map) return compare((Map) val2, val1, ignoreTimePrecision, roundingMode);
+			if (val1 instanceof Collection) return compare((Collection) val1, val2, ignoreTimePrecision, roundingMode);
+			if (val2 instanceof Collection) return compare((Collection) val2, val1, ignoreTimePrecision, roundingMode);
+			if (val1 instanceof Boolean) return !compareBoolean((Boolean)val1,val2);
+			if (val2 instanceof Boolean) return !compareBoolean((Boolean)val2,val1);
+			if (ignoreTimePrecision) {
+				if (val1 instanceof DateTime) {
+					if (((DateTime) val1).isContainsIllegal()) {
+						val1 = ((DateTime) val1).getIllegalDate();
+					} else {
+						val1 = ((DateTime) val1).toInstant();
+					}
+				}
+				if (val2 instanceof DateTime) {
+					if (((DateTime) val2).isContainsIllegal()) {
+						val2 = ((DateTime) val2).getIllegalDate();
+					} else {
+						val2 = ((DateTime) val2).toInstant();
+					}
+				}
+				if (val1 instanceof Instant && val2 instanceof Instant) {
+					return CommonUtil.compareInstant((Instant) val1, (Instant) val2, ignoreTimePrecision, roundingMode);
+				}
+			}
+
+			val1 = try2String(val1,ignoreTimePrecision);
+			val2 = try2String(val2,ignoreTimePrecision);
+
+			if (val1 instanceof String || val2 instanceof String) {
+				val1 = val1.toString().trim();
+				val2 = val2.toString().trim();
+			} else if (val1 instanceof Byte || val2 instanceof Byte
+					|| val1 instanceof Short || val2 instanceof Short
+					|| val1 instanceof Integer || val2 instanceof Integer
+					|| val1 instanceof Long || val2 instanceof Long) {
+				val1 = new BigDecimal(val1.toString()).longValue();
+				val2 = new BigDecimal(val2.toString()).longValue();
+			} else if (val1 instanceof Float || val2 instanceof Float
+					|| val1 instanceof Double || val2 instanceof Double
+					|| val1 instanceof BigDecimal || val2 instanceof BigDecimal) {
+				val1 = new BigDecimal(val1.toString()).doubleValue();
+				val2 = new BigDecimal(val2.toString()).doubleValue();
+			}
+
+			return !val1.equals(val2);
+		} catch (Throwable e) {
+			e.printStackTrace();
+		}
+		return true;
+	}
+
+
+
+	private static boolean compare(Map val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+		if (obj instanceof Map) {
+			if (val.size() != ((Map) obj).size()) return true;
+			Map objVal = (Map) obj;
+			Object v1, v2;
+			for (Object k : val.keySet()) {
+				v1 = val.get(k);
+				v2 = objVal.get(k);
+				if (compare(v1, v2, ignoreTimePrecision, roundingMode)) return true;
+			}
+			return false;
+		} else if (obj instanceof String) {
+			return obj2JsonCompare(val, obj, ignoreTimePrecision, roundingMode);
+		}
+		return true;
+	}
+
+	private static boolean compare(Collection val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+		Object v1, v2;
+		if (obj instanceof Collection) {
+			if (val.size() != ((Collection) obj).size()) return true;
+			Iterator i1 = val.iterator(), i2 = ((Collection) obj).iterator();
+			for (int i = 0, len = val.size(); i < len; i++) {
+				v1 = i1.next();
+				v2 = i2.next();
+				if (compare(v1, v2, ignoreTimePrecision, roundingMode)) return true;
+			}
+			return false;
+		} else if (obj instanceof Array) {
+			if (val.size() != Array.getLength(obj)) return true;
+			Iterator i1 = val.iterator();
+			for (int i = 0, len = val.size(); i < len; i++) {
+				v1 = i1.next();
+				v2 = Array.get(obj, i);
+				if (compare(v1, v2, ignoreTimePrecision, roundingMode)) return true;
+			}
+			return false;
+		} else if (obj instanceof String) {
+			return obj2JsonCompare(val, obj, ignoreTimePrecision, roundingMode);
+		}
+		return true;
+	}
+
+	private static boolean compareArray(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+		int len = Array.getLength(val);
+		Object v1, v2;
+		if (obj instanceof Collection) {
+			if (len != ((Collection) obj).size()) return true;
+			Iterator i2 = ((Collection) obj).iterator();
+			for (int i = 0; i < len; i++) {
+				v1 = Array.get(val, i);
+				v2 = i2.next();
+				if (compare(v1, v2, ignoreTimePrecision, roundingMode)) return true;
+			}
+			return false;
+		} else if (obj instanceof Array) {
+			if (len != Array.getLength(obj)) return true;
+			for (int i = 0; i < len; i++) {
+				v1 = Array.get(val, i);
+				v2 = Array.get(obj, i);
+				if (compare(v1, v2, ignoreTimePrecision, roundingMode)) return true;
+			}
+			return false;
+		} else if (obj instanceof String) {
+			return obj2JsonCompare(val, obj, ignoreTimePrecision, roundingMode);
+		}
+		return true;
+	}
+
+	private static boolean compare(MysqlJson val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+		try {
+			if (obj instanceof Map) {
+				return compare((Map) obj, val.toObject(), ignoreTimePrecision, roundingMode);
+			} else if (obj instanceof Collection) {
+				return compare((Collection) obj, val.toObject(), ignoreTimePrecision, roundingMode);
+			} else if (obj instanceof Array) {
+				return compareArray(obj, val.toObject(), ignoreTimePrecision, roundingMode);
+			}
+			return !val.getData().equals(obj.toString());
+		} catch (Exception e) {
+			return true;
+		}
+	}
+
+	private static boolean obj2JsonCompare(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+		try {
+			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+			return !JSONUtil.obj2Json(val).equals(obj.toString());
+		} catch (JsonProcessingException e) {
+			return true;
+		} finally {
+			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+		}
+	}
+
+	private static Object try2String(Object val, boolean ignoreTimePrecision) {
+		if (val instanceof ObjectId) {
+			return ((ObjectId) val).toHexString();
+		} else if (val instanceof byte[]) {
+			return new String((byte[]) val, StandardCharsets.UTF_8);
+		} else if (val instanceof Date) {
+			return ((Date) val).toInstant().toString();
+		} else if (val instanceof Instant) {
+			return try2IgnoreTimePrecision(((Instant) val).toString(),ignoreTimePrecision);
+		} else if (val instanceof DateTime) {
+			DateTime dateTime = (DateTime) val;
+			if(dateTime.isContainsIllegal()){
+				return try2IgnoreTimePrecision(dateTime.getIllegalDate(),ignoreTimePrecision);
+			}else{
+				return try2IgnoreTimePrecision(dateTime.toInstant().toString(),ignoreTimePrecision);
+			}
+		}
+		return val;
+	}
+
+	private static Object try2IgnoreTimePrecision(String value, boolean ignoreTimePrecision){
+		if(ignoreTimePrecision){
+			return value.split("\\.")[0];
+		}
+		return value;
 	}
 
 	private static Object try2IgnoreTimePrecision(Object val){
