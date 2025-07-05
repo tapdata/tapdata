@@ -83,7 +83,7 @@ public class AsyncCodeGenerationService {
 				// Success: Update both SDK and version status to GENERATED with GridFS IDs
 				updateSdkGenerationStatusWithFiles(sdkDto.getId().toString(), GenerateStatus.GENERATED, null,
 						result.getZipGridfsId(), result.getZipSize(),
-						result.getJarGridfsId(), result.getJarSize(), result.getJarError(), userDetail);
+						result.getJarGridfsId(), result.getJarSize(), result.getJarError(), versionDto, userDetail);
 				updateSdkVersionGenerationStatusWithFiles(versionDto.getId().toString(), GenerateStatus.GENERATED, null,
 						result.getZipGridfsId(), result.getZipSize(),
 						result.getJarGridfsId(), result.getJarSize(), result.getJarError(), userDetail);
@@ -92,7 +92,7 @@ public class AsyncCodeGenerationService {
 			} else {
 				// Failure: Update both SDK and version status to FAILED
 				String errorMessage = "Enhanced code generation failed: " + result.getErrorMessage();
-				updateSdkGenerationStatus(sdkDto.getId().toString(), GenerateStatus.FAILED, errorMessage, userDetail);
+				updateSdkGenerationStatus(sdkDto.getId().toString(), GenerateStatus.FAILED, errorMessage, versionDto, userDetail);
 				updateSdkVersionGenerationStatus(versionDto.getId().toString(), GenerateStatus.FAILED, errorMessage, userDetail);
 				log.error("Async enhanced code generation failed for artifactId: {}, version: {}, error: {}",
 						request.getArtifactId(), request.getVersion(), result.getErrorMessage());
@@ -104,7 +104,7 @@ public class AsyncCodeGenerationService {
 			// Update both SDK and version status to FAILED with error message
 			try {
 				// Update status using the passed parameters (more reliable)
-				updateSdkGenerationStatus(sdkDto.getId().toString(), GenerateStatus.FAILED, e.getMessage(), userDetail);
+				updateSdkGenerationStatus(sdkDto.getId().toString(), GenerateStatus.FAILED, e.getMessage(), versionDto, userDetail);
 				updateSdkVersionGenerationStatus(versionDto.getId().toString(), GenerateStatus.FAILED, e.getMessage(), userDetail);
 			} catch (Exception updateException) {
 				log.error("Failed to update SDK and version status to FAILED", updateException);
@@ -373,14 +373,14 @@ public class AsyncCodeGenerationService {
 	/**
 	 * Update SDK generation status
 	 */
-	private void updateSdkGenerationStatus(String sdkId, GenerateStatus generateStatus, String errorMessage, UserDetail userDetail) {
+	private void updateSdkGenerationStatus(String sdkId, GenerateStatus generateStatus, String errorMessage, SdkVersionDto versionDto, UserDetail userDetail) {
 		try {
 			SDKDto sdkDto = sdkService.findById(new ObjectId(sdkId), userDetail);
 			if (sdkDto != null) {
 				sdkDto.setLastGenerateStatus(generateStatus);
 				sdkDto.setLastGenerationTime(new Date());
 				if (GenerateStatus.GENERATED.equals(generateStatus)) {
-					sdkDto.setLastGeneratedVersion(sdkDto.getVersion());
+					sdkDto.setLastGeneratedVersion(versionDto.getVersion());
 					sdkDto.setGenerationErrorMessage(null);
 				} else if (GenerateStatus.FAILED.equals(generateStatus)) {
 					sdkDto.setGenerationErrorMessage(errorMessage);
@@ -410,7 +410,7 @@ public class AsyncCodeGenerationService {
 				} else {
 					// Clear any previous error message on success
 					sdkDto.setGenerationErrorMessage(null);
-					sdkDto.setLastGeneratedVersion(sdkDto.getVersion());
+					sdkDto.setLastGeneratedVersion(versionDto.getVersion());
 				}
 
 				// Set ZIP file information
