@@ -118,13 +118,19 @@ public class ApplicationService extends BaseService<ApplicationDto, ApplicationE
                         .and("status").is("active")
                         .and("paths.acl").in(roleNames)
         );
-        moduleQuery.fields().include("_id", "name");
+        moduleQuery.fields().include("_id", "name", "listtags", "apiVersion", "prefix", "basePath");
 
         List<ModulesEntity> modules = modulesRepository.findAll(moduleQuery);
 
         // 4. Convert to ModulePermissionVo and return
         return modules.stream()
-                .map(module -> new ModulePermissionVo(module.getId().toHexString(), module.getName(), module.getListtags()))
+                .map(module -> {
+                    ModulePermissionVo vo = new ModulePermissionVo(module.getId().toHexString(), module.getName(), module.getListtags());
+                    vo.setApiVersion(module.getApiVersion());
+                    vo.setPrefix(module.getPrefix());
+                    vo.setBasePath(module.getBasePath());
+                    return vo;
+                })
                 .collect(Collectors.toList());
     }
 

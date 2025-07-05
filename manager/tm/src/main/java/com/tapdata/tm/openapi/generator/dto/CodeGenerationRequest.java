@@ -20,8 +20,8 @@ public class CodeGenerationRequest {
     @Schema(description = "URL of the OpenAPI specification file", example = "https://example.com/api/openapi.json", requiredMode = Schema.RequiredMode.REQUIRED)
     private String oas;
 
-    @Schema(description = "Programming language for code generation (only 'java' is supported)", example = "java", defaultValue = "java")
-    private String lan = "java";
+    @Schema(description = "Programming language for code generation (only 'spring' is supported)", example = "spring", defaultValue = "spring")
+    private String lan = "spring";
 
     @Schema(description = "Package name for generated code", example = "io.tapdata", defaultValue = "io.tapdata")
     private String packageName = "io.tapdata";
