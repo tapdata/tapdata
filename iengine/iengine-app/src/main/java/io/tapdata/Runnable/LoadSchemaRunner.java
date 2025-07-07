@@ -1,6 +1,5 @@
 package io.tapdata.Runnable;
 
-import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
@@ -21,11 +20,9 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.exception.ConvertException;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connection.ExecuteCommandV2Function;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -42,12 +39,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -62,7 +54,6 @@ public class LoadSchemaRunner implements Runnable {
 	private final static String TAG = LoadSchemaRunner.class.getSimpleName();
 	private final static String THREAD_NAME = "LOAD-SCHEMA-FIELDS-[%s]";
 	private final static int BATCH_SIZE = 20;
-	private final static String MONITOR_API = "monitorAPI";
 	private final static String LOAD_SCHEMA_PROGRESS_WEBSOCKET_TYPE = "load_schema_progress";
 
 	private Logger logger = LogManager.getLogger(LoadSchemaRunner.class);
@@ -175,11 +166,6 @@ public class LoadSchemaRunner implements Runnable {
 							connections.setLoadSchemaField(true);
 							loadPdkSchema(connections, connectionNode, this::tableConsumer);
 						}
-                        JSONObject monitorApi = (JSONObject) connectionNode.getConnectionContext().getSpecification().getConfigOptions().get(MONITOR_API);
-                        //利用反射去访问连接器的具体方法
-                        if (monitorApi != null) {
-                            executeMonitorAPIs(connectionNode, monitorApi.clone());
-                        }
 					} catch (Throwable throwable) {
 						TapLogger.error(TAG, "Load schema failed: {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 						throw throwable;
@@ -460,68 +446,4 @@ public class LoadSchemaRunner implements Runnable {
 			return true;
 		}
 	}
-
-    private void executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
-        Map<String, Object> result = new ConcurrentHashMap<>();
-        AtomicReference<Throwable> throwable = new AtomicReference<>();
-        CountDownLatch countDownLatch = new CountDownLatch(5);
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
-        try {
-            for (int i = 0; i < 5; i++) {
-                executorService.submit(() -> {
-                    try {
-                        Map.Entry<String, String> api;
-                        while ((api = takeoutMonitorApi(monitorApi)) != null) {
-                            if (api.getValue().startsWith("io.tapdata")) {
-                                Object obj = ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), api.getValue().substring(api.getValue().lastIndexOf("#") + 1), null);
-                                result.put(api.getKey(), obj == null ? "" : String.valueOf(obj));
-                            } else {
-                                ExecuteCommandV2Function executeCommandV2Function = connectionNode.getConnectionFunctions().getExecuteCommandV2Function();
-                                if (executeCommandV2Function == null) {
-                                    continue;
-                                }
-                                String key = api.getKey();
-                                String value = api.getValue();
-                                PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
-                                    executeCommandV2Function.execute(connectionNode.getConnectionContext(), value, executeResult -> {
-                                        if (CollectionUtils.isNotEmpty(executeResult)) {
-                                            DataMap dataMap = executeResult.get(0);
-                                            dataMap.entrySet().stream().findFirst().ifPresent(entry -> result.put(key, String.valueOf(entry.getValue())));
-                                        }
-                                    });
-                                }, TAG);
-                            }
-                        }
-                    } catch (Exception e) {
-                        throwable.set(e);
-                    } finally {
-                        countDownLatch.countDown();
-                    }
-                });
-            }
-            try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            if (throwable.get() != null) {
-                throw new RuntimeException(throwable.get());
-            }
-        } finally {
-            executorService.shutdown();
-        }
-        Update update = new Update();
-        update.set("monitorAPI", result);
-        updateConnections(update);
-    }
-
-    private static synchronized Map.Entry<String, String> takeoutMonitorApi(JSONObject monitorApi) {
-        Iterator<Map.Entry<String, Object>> iterator = monitorApi.entrySet().iterator();
-        if (iterator.hasNext()) {
-            Map.Entry<String, Object> next = iterator.next();
-            iterator.remove();
-            return Map.entry(next.getKey(), String.valueOf(next.getValue()));
-        }
-        return null;
-    }
 }
