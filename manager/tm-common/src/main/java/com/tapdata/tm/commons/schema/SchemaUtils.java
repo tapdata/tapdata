@@ -301,7 +301,9 @@ public class SchemaUtils {
         if(!primaryKey.get()){
             field.setPrimaryKey(true);
             field.setPrimaryKeyPosition(1);
-        };
+        }else {
+            field.setPrimaryKey(false);
+        }
         schema.getFields().add(field);
     }
 }
