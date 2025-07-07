@@ -398,7 +398,7 @@ public class AsyncCodeGenerationService {
 	 */
 	private void updateSdkGenerationStatusWithFiles(String sdkId, GenerateStatus generateStatus, String errorMessage,
 													String zipGridfsId, Long zipSize, String jarGridfsId, Long jarSize,
-													String jarError, UserDetail userDetail) {
+													String jarError, SdkVersionDto versionDto, UserDetail userDetail) {
 		try {
 			SDKDto sdkDto = sdkService.findById(new ObjectId(sdkId), userDetail);
 			if (sdkDto != null) {
