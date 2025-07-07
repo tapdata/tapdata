@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.List;
+
 
 /**
  * sdkVersion
@@ -40,4 +42,7 @@ public class SdkVersionDto extends BaseDto {
 
 	@Schema(description = "JAR generation error message")
 	private String jarGenerationErrorMessage;
+
+	private List<String> moduleIds;
+	private String clientId;
 }

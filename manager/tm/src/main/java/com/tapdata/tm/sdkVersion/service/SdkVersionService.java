@@ -6,15 +6,21 @@ import com.tapdata.tm.sdkVersion.entity.SdkVersionEntity;
 import com.tapdata.tm.sdkVersion.repository.SdkVersionRepository;
 import com.tapdata.tm.sdkModule.service.SdkModuleService;
 import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.sdk.dto.SDKDto;
+import com.tapdata.tm.sdk.service.SDKService;
 import com.tapdata.tm.config.security.UserDetail;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * @Author:
@@ -30,6 +36,10 @@ public class SdkVersionService extends BaseService<SdkVersionDto, SdkVersionEnti
 
     @Autowired
     private FileService fileService;
+
+    @Autowired
+    @Lazy
+    private SDKService sdkService;
 
     public SdkVersionService(@NonNull SdkVersionRepository repository) {
         super(repository, SdkVersionDto.class, SdkVersionEntity.class);
@@ -69,6 +79,9 @@ public class SdkVersionService extends BaseService<SdkVersionDto, SdkVersionEnti
 
             if (deleted) {
                 log.info("Successfully completed cascade deletion for SDK version with ID: {}", id);
+
+                // 5. Update SDK's last fields after successful deletion
+                updateSdkLastFields(sdkVersion.getSdkId(), userDetail);
             } else {
                 log.error("Failed to delete SDK version record with ID: {}", id);
             }
@@ -134,5 +147,89 @@ public class SdkVersionService extends BaseService<SdkVersionDto, SdkVersionEnti
                 // Continue with deletion process even if file deletion fails
             }
         }
+    }
+
+    /**
+     * Update SDK's last fields based on the latest remaining version after deletion
+     *
+     * @param sdkId SDK ID
+     * @param userDetail user detail
+     */
+    private void updateSdkLastFields(String sdkId, UserDetail userDetail) {
+        log.info("Updating SDK last fields for SDK ID: {}", sdkId);
+
+        try {
+            // Find the latest remaining version for this SDK (sorted by creation time descending)
+            Query query = new Query(Criteria.where("sdkId").is(sdkId))
+                    .with(Sort.by(Sort.Direction.DESC, "createAt"))
+                    .limit(1);
+
+            List<SdkVersionDto> remainingVersions = findAllDto(query, userDetail);
+
+            // Get the SDK record
+            SDKDto sdk = sdkService.findById(new ObjectId(sdkId), userDetail);
+            if (sdk == null) {
+                log.warn("SDK with ID {} not found when updating last fields", sdkId);
+                return;
+            }
+
+            if (remainingVersions.isEmpty()) {
+                // No versions remain, clear all last fields
+                clearSdkLastFields(sdk, userDetail);
+                log.info("Cleared all last fields for SDK ID: {} (no versions remaining)", sdkId);
+            } else {
+                // Update last fields with the latest remaining version
+                SdkVersionDto latestVersion = remainingVersions.get(0);
+                updateSdkLastFieldsFromVersion(sdk, latestVersion, userDetail);
+                log.info("Updated last fields for SDK ID: {} with latest version: {}", sdkId, latestVersion.getVersion());
+            }
+
+        } catch (Exception e) {
+            log.error("Error updating SDK last fields for SDK ID: {}", sdkId, e);
+            // Don't throw exception to avoid affecting the deletion process
+        }
+    }
+
+    /**
+     * Clear all last fields in SDK when no versions remain
+     *
+     * @param sdk SDK DTO
+     * @param userDetail user detail
+     */
+    private void clearSdkLastFields(SDKDto sdk, UserDetail userDetail) {
+        sdk.setLastGeneratedVersion(null);
+        sdk.setLastGenerationTime(null);
+        sdk.setLastGenerateStatus(null);
+        sdk.setLastZipGridfsId(null);
+        sdk.setLastZipSizeOfByte(null);
+        sdk.setLastJarGridfsId(null);
+        sdk.setLastJarSizeOfByte(null);
+        sdk.setLastJarGenerationErrorMessage(null);
+        sdk.setGenerationErrorMessage(null);
+        sdk.setLastModuleIds(null);
+
+        sdkService.save(sdk, userDetail);
+    }
+
+    /**
+     * Update SDK's last fields from the latest version
+     *
+     * @param sdk SDK DTO
+     * @param latestVersion latest version DTO
+     * @param userDetail user detail
+     */
+    private void updateSdkLastFieldsFromVersion(SDKDto sdk, SdkVersionDto latestVersion, UserDetail userDetail) {
+        sdk.setLastGeneratedVersion(latestVersion.getVersion());
+        sdk.setLastGenerationTime(latestVersion.getCreateAt());
+        sdk.setLastGenerateStatus(latestVersion.getGenerateStatus());
+        sdk.setLastZipGridfsId(latestVersion.getZipGridfsId());
+        sdk.setLastZipSizeOfByte(latestVersion.getZipSizeOfByte());
+        sdk.setLastJarGridfsId(latestVersion.getJarGridfsId());
+        sdk.setLastJarSizeOfByte(latestVersion.getJarSizeOfByte());
+        sdk.setLastJarGenerationErrorMessage(latestVersion.getJarGenerationErrorMessage());
+        sdk.setGenerationErrorMessage(latestVersion.getGenerationErrorMessage());
+        sdk.setLastModuleIds(latestVersion.getModuleIds());
+
+        sdkService.save(sdk, userDetail);
     }
 }

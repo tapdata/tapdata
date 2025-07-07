@@ -10,9 +10,11 @@ import com.tapdata.tm.openapi.generator.exception.CodeGenerationException;
 import com.tapdata.tm.openapi.generator.util.GridFSUploadUtil;
 import com.tapdata.tm.openapi.generator.util.MavenPackagingUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.MapUtils;
 import org.bson.types.ObjectId;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
@@ -94,16 +96,10 @@ public class OpenApiGeneratorService {
 
 		// Configure timeouts for better performance and reliability
 		// Note: You can add timeout configuration here if needed:
-		// SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-		// factory.setConnectTimeout(10000); // 10 seconds
-		// factory.setReadTimeout(30000);    // 30 seconds
-		// template.setRequestFactory(factory);
-
-		// You can add more configuration here if needed:
-		// - Custom message converters for different content types
-		// - Interceptors for logging/authentication/retry logic
-		// - Error handlers for custom error processing
-		// - Connection pooling configuration for high-throughput scenarios
+		SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+		factory.setConnectTimeout(10000); // 10 seconds
+		factory.setReadTimeout(30000);    // 30 seconds
+		template.setRequestFactory(factory);
 
 		log.debug("RestTemplate created and configured for OpenAPI JSON downloads");
 		return template;
@@ -744,7 +740,7 @@ public class OpenApiGeneratorService {
 			Map<String, Object> openapiMap = parseJsonToMap(jsonContent, oasUrl);
 
 			// Step 3: Process the OpenAPI Map (custom processing logic)
-			Map<String, Object> processedMap = processOpenapiMap(openapiMap);
+			Map<String, Object> processedMap = processOpenapiMap(openapiMap, request);
 
 			// Step 4: Write processed Map to temporary file
 			Path tempFile = writeMapToTempFile(processedMap);
@@ -829,7 +825,7 @@ public class OpenApiGeneratorService {
 	 * @param openapiMap The OpenAPI Map to process
 	 * @return A new processed Map (currently returns a copy of the original map)
 	 */
-	private Map<String, Object> processOpenapiMap(Map<String, Object> openapiMap) {
+	private Map<String, Object> processOpenapiMap(Map<String, Object> openapiMap, CodeGenerationRequest request) {
 		log.debug("Processing OpenAPI Map with {} keys (custom processing not implemented)", openapiMap.size());
 
 		// Create a new map as a copy of the original
@@ -838,7 +834,7 @@ public class OpenApiGeneratorService {
 		for (String key : openapiMap.keySet()) {
 			Object value = openapiMap.get(key);
 			if (key.equals("paths")) {
-				value = processPaths(value);
+				value = processPaths(value, request);
 			}
 			if (key.equals("components")) {
 				value = processComponents(value);
@@ -866,7 +862,7 @@ public class OpenApiGeneratorService {
 		return value;
 	}
 
-	private Object processPaths(Object value) {
+	private Object processPaths(Object value, CodeGenerationRequest request) {
 		if (value instanceof Map<?, ?>) {
 			@SuppressWarnings("unchecked")
 			Map<String, Object> pathsMap = (Map<String, Object>) value;
@@ -877,24 +873,39 @@ public class OpenApiGeneratorService {
 				if (pathValue instanceof Map<?, ?>) {
 					@SuppressWarnings("unchecked")
 					Map<String, Object> pathValueMap = (Map<String, Object>) pathValue;
-					if (pathValueMap.containsKey("get")) {
-						@SuppressWarnings("unchecked")
-						Map<String, Object> get = (Map<String, Object>) pathValueMap.get("get");
-						if (get.containsKey("parameters")) {
+					Map<String, Object> newPathValueMap = new HashMap<>();
+					for (Map.Entry<String, Object> entry : pathValueMap.entrySet()) {
+						String method = entry.getKey();
+						Object methodValue = entry.getValue();
+						if (methodValue instanceof Map<?, ?>) {
 							@SuppressWarnings("unchecked")
-							List<Map<String, Object>> parametersList = (List<Map<String, Object>>) get.get("parameters");
-							parametersList = parametersList.stream().filter(p -> !p.get("name").equals("filename"))
-									.peek(p -> {
-										if (org.apache.commons.lang3.StringUtils.equalsAny(p.get("name").toString(), "page", "limit")) {
-											((Map<String, Object>) p.get("schema")).put("type", "int");
-										}
-									})
-									.collect(Collectors.toCollection(ArrayList::new));
-							get.put("parameters", parametersList);
+							Map<String, Object> methodValueMap = (Map<String, Object>) methodValue;
+							if (!methodValueMap.containsKey("x-api-id")) {
+								continue;
+							}
+							Object apiId = methodValueMap.get("x-api-id");
+							if (!(apiId instanceof String) || !request.getModuleIds().contains((String) apiId)) {
+								continue;
+							}
+							if (method.equals("get") && methodValueMap.containsKey("parameters")) {
+								@SuppressWarnings("unchecked")
+								List<Map<String, Object>> parametersList = (List<Map<String, Object>>) methodValueMap.get("parameters");
+								parametersList = parametersList.stream().filter(p -> !p.get("name").equals("filename"))
+										.peek(p -> {
+											if (org.apache.commons.lang3.StringUtils.equalsAny(p.get("name").toString(), "page", "limit")) {
+												((Map<String, Object>) p.get("schema")).put("type", "int");
+											}
+										})
+										.collect(Collectors.toCollection(ArrayList::new));
+								methodValueMap.put("parameters", parametersList);
+							}
 						}
+						newPathValueMap.put(method, methodValue);
+					}
+					if (MapUtils.isNotEmpty(newPathValueMap)) {
+						newMap.put(key, newPathValueMap);
 					}
 				}
-				newMap.put(key, pathValue);
 			}
 			return newMap;
 		}

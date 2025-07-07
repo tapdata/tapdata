@@ -7,6 +7,8 @@ import lombok.EqualsAndHashCode;
 import com.tapdata.tm.base.entity.BaseEntity;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
+
 
 /**
  * sdkVersion
@@ -41,4 +43,7 @@ public class SdkVersionEntity extends BaseEntity {
 
     @Schema(description = "JAR generation error message")
     private String jarGenerationErrorMessage;
+
+    private List<String> moduleIds;
+    private String clientId;
 }

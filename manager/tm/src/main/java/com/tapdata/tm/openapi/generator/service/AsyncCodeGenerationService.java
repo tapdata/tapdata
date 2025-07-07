@@ -60,8 +60,7 @@ public class AsyncCodeGenerationService {
 				request.getArtifactId(), request.getVersion());
 		beforeGenerate(request, userDetail);
 		SDKDto sdkDto = createOrUpdateSdkRecords(request, userDetail);
-		// Get the version record for status updates
-		SdkVersionDto versionDto = getVersionRecord(sdkDto.getId().toString(), request.getVersion(), userDetail);
+		SdkVersionDto versionDto = createSdkVersion(request, userDetail, sdkDto);
 
 		// Use Spring proxy to call async method to ensure @Async annotation works
 		AsyncCodeGenerationService self = applicationContext.getBean(AsyncCodeGenerationService.class);
@@ -72,43 +71,30 @@ public class AsyncCodeGenerationService {
 
 	@Async
 	public void generateCodeAsync(CodeGenerationRequest request, UserDetail userDetail, SDKDto sdkDto, SdkVersionDto versionDto) {
+		GenerationContext context = new GenerationContext(request, userDetail, sdkDto, versionDto);
+
 		try {
+			log.info("Starting async code generation for artifactId: {}, version: {}",
+					context.getArtifactId(), context.getVersion());
+
 			// Create module records
-			createModuleRecords(sdkDto.getId().toString(), versionDto.getId().toString(), request.getModuleIds(), userDetail);
+			executeWithErrorHandling(() -> createModuleRecords(
+							context.getSdkId(), context.getVersionId(),
+							request.getModuleIds(), userDetail),
+					"Failed to create module records", context);
 
 			// Use enhanced code generation with ZIP and JAR creation
-			OpenApiGeneratorService.EnhancedGenerationResult result = openApiGeneratorService.generateCodeEnhanced(request);
+			OpenApiGeneratorService.EnhancedGenerationResult result = executeWithErrorHandling(
+					() -> openApiGeneratorService.generateCodeEnhanced(request),
+					"Failed to generate enhanced code", context);
 
-			if (result.isSuccess()) {
-				// Success: Update both SDK and version status to GENERATED with GridFS IDs
-				updateSdkGenerationStatusWithFiles(sdkDto.getId().toString(), GenerateStatus.GENERATED, null,
-						result.getZipGridfsId(), result.getZipSize(),
-						result.getJarGridfsId(), result.getJarSize(), result.getJarError(), versionDto, userDetail);
-				updateSdkVersionGenerationStatusWithFiles(versionDto.getId().toString(), GenerateStatus.GENERATED, null,
-						result.getZipGridfsId(), result.getZipSize(),
-						result.getJarGridfsId(), result.getJarSize(), result.getJarError(), userDetail);
-				log.info("Async enhanced code generation completed successfully for artifactId: {}, version: {}, ZIP ID: {}, JAR ID: {}",
-						request.getArtifactId(), request.getVersion(), result.getZipGridfsId(), result.getJarGridfsId());
-			} else {
-				// Failure: Update both SDK and version status to FAILED
-				String errorMessage = "Enhanced code generation failed: " + result.getErrorMessage();
-				updateSdkGenerationStatus(sdkDto.getId().toString(), GenerateStatus.FAILED, errorMessage, versionDto, userDetail);
-				updateSdkVersionGenerationStatus(versionDto.getId().toString(), GenerateStatus.FAILED, errorMessage, userDetail);
-				log.error("Async enhanced code generation failed for artifactId: {}, version: {}, error: {}",
-						request.getArtifactId(), request.getVersion(), result.getErrorMessage());
-			}
+			// Handle generation result
+			handleGenerationResult(result, context);
 
+		} catch (GenerationException e) {
+			handleGenerationFailure(e, context);
 		} catch (Exception e) {
-			log.error("Async code generation failed for artifactId: {}, version: {}", request.getArtifactId(), request.getVersion(), e);
-
-			// Update both SDK and version status to FAILED with error message
-			try {
-				// Update status using the passed parameters (more reliable)
-				updateSdkGenerationStatus(sdkDto.getId().toString(), GenerateStatus.FAILED, e.getMessage(), versionDto, userDetail);
-				updateSdkVersionGenerationStatus(versionDto.getId().toString(), GenerateStatus.FAILED, e.getMessage(), userDetail);
-			} catch (Exception updateException) {
-				log.error("Failed to update SDK and version status to FAILED", updateException);
-			}
+			handleUnexpectedFailure(e, context);
 		}
 	}
 
@@ -231,11 +217,14 @@ public class AsyncCodeGenerationService {
 			log.info("Updated existing SDK record with ID: {}", sdkDto.getId());
 		}
 
-		// Create version record
-		SdkVersionDto versionDto = createVersionRecord(sdkDto.getId().toString(), request.getVersion(), userDetail);
-		log.info("Created version record with ID: {}", versionDto.getId());
-
 		return sdkDto;
+	}
+
+	private SdkVersionDto createSdkVersion(CodeGenerationRequest request, UserDetail userDetail, SDKDto sdkDto) {
+		// Create version record
+		SdkVersionDto versionDto = createVersionRecord(request, sdkDto, userDetail);
+		log.info("Created version record with ID: {}", versionDto.getId());
+		return versionDto;
 	}
 
 	/**
@@ -248,12 +237,13 @@ public class AsyncCodeGenerationService {
 		sdkDto.setPackageName(request.getPackageName());
 		sdkDto.setArtifactId(request.getArtifactId());
 		sdkDto.setGroupId(request.getGroupId());
-		sdkDto.setVersion(request.getVersion());
-		sdkDto.setClientId(request.getClientId());
+		sdkDto.setLastGeneratedVersion(request.getVersion());
+		sdkDto.setLastClientId(request.getClientId());
 		sdkDto.setRequestAddress(request.getRequestAddress());
 		sdkDto.setTemplateLibrary(request.getTemplateLibrary());
 		sdkDto.setLastGenerateStatus(GenerateStatus.GENERATING);
 		sdkDto.setLastGenerationTime(new Date());
+		sdkDto.setLastModuleIds(request.getModuleIds());
 
 		return sdkService.save(sdkDto, userDetail);
 	}
@@ -267,12 +257,13 @@ public class AsyncCodeGenerationService {
 		existingSdk.setLan(request.getLan());
 		existingSdk.setPackageName(request.getPackageName());
 		existingSdk.setGroupId(request.getGroupId());
-		existingSdk.setVersion(request.getVersion());
-		existingSdk.setClientId(request.getClientId());
+		existingSdk.setLastGeneratedVersion(request.getVersion());
+		existingSdk.setLastClientId(request.getClientId());
 		existingSdk.setRequestAddress(request.getRequestAddress());
 		existingSdk.setTemplateLibrary(request.getTemplateLibrary());
 		existingSdk.setLastGenerateStatus(GenerateStatus.GENERATING);
 		existingSdk.setLastGenerationTime(new Date());
+		existingSdk.setLastModuleIds(request.getModuleIds());
 
 		return sdkService.save(existingSdk, userDetail);
 	}
@@ -280,17 +271,19 @@ public class AsyncCodeGenerationService {
 	/**
 	 * Create version record with existence check
 	 */
-	private SdkVersionDto createVersionRecord(String sdkId, String version, UserDetail userDetail) {
-		log.info("Creating version record for SDK ID: {}, version: {}", sdkId, version);
+	private SdkVersionDto createVersionRecord(CodeGenerationRequest request, SDKDto sdkDto, UserDetail userDetail) {
+		log.info("Creating version record for SDK ID: {}, version: {}", sdkDto.getId().toString(), request.getVersion());
 
 		// Create new version record
 		SdkVersionDto versionDto = new SdkVersionDto();
-		versionDto.setVersion(version);
-		versionDto.setSdkId(sdkId);
+		versionDto.setVersion(request.getVersion());
+		versionDto.setSdkId(sdkDto.getId().toString());
+		versionDto.setModuleIds(request.getModuleIds());
+		versionDto.setClientId(request.getClientId());
 		versionDto.setGenerateStatus(GenerateStatus.GENERATING);
 
 		SdkVersionDto savedVersion = sdkVersionService.save(versionDto, userDetail);
-		log.info("Created new version record with ID: {} for version: {}", savedVersion.getId(), version);
+		log.info("Created new version record with ID: {} for version: {}", savedVersion.getId(), request.getVersion());
 		return savedVersion;
 	}
 
@@ -398,7 +391,7 @@ public class AsyncCodeGenerationService {
 	 */
 	private void updateSdkGenerationStatusWithFiles(String sdkId, GenerateStatus generateStatus, String errorMessage,
 													String zipGridfsId, Long zipSize, String jarGridfsId, Long jarSize,
-													String jarError, UserDetail userDetail) {
+													String jarError, SdkVersionDto versionDto, UserDetail userDetail) {
 		try {
 			SDKDto sdkDto = sdkService.findById(new ObjectId(sdkId), userDetail);
 			if (sdkDto != null) {
@@ -503,12 +496,254 @@ public class AsyncCodeGenerationService {
 	}
 
 	/**
-	 * Get version record by SDK ID and version
+	 * Execute operation with error handling wrapper
 	 */
-	private SdkVersionDto getVersionRecord(String sdkId, String version, UserDetail userDetail) {
-		Query query = new Query(Criteria.where("sdkId").is(sdkId).and("version").is(version));
-		return sdkVersionService.findOne(query, userDetail);
+	private <T> T executeWithErrorHandling(ThrowingSupplier<T> operation, String errorPhase, GenerationContext context) {
+		try {
+			return operation.get();
+		} catch (Exception e) {
+			String errorMessage = formatErrorMessage(errorPhase, e);
+			log.error("{} for artifactId: {}, version: {}", errorMessage, context.getArtifactId(), context.getVersion(), e);
+			throw new GenerationException(errorPhase, errorMessage, e);
+		}
 	}
 
+	/**
+	 * Execute operation with error handling wrapper (no return value)
+	 */
+	private void executeWithErrorHandling(ThrowingRunnable operation, String errorPhase, GenerationContext context) {
+		try {
+			operation.run();
+		} catch (Exception e) {
+			String errorMessage = formatErrorMessage(errorPhase, e);
+			log.error("{} for artifactId: {}, version: {}", errorMessage, context.getArtifactId(), context.getVersion(), e);
+			throw new GenerationException(errorPhase, errorMessage, e);
+		}
+	}
+
+	/**
+	 * Handle generation result (success or failure)
+	 */
+	private void handleGenerationResult(OpenApiGeneratorService.EnhancedGenerationResult result, GenerationContext context) {
+		if (result.isSuccess()) {
+			handleGenerationSuccess(result, context);
+		} else {
+			handleGenerationFailure(result, context);
+		}
+	}
+
+	/**
+	 * Handle successful generation
+	 */
+	private void handleGenerationSuccess(OpenApiGeneratorService.EnhancedGenerationResult result, GenerationContext context) {
+		try {
+			// Update both SDK and version status to GENERATED with GridFS IDs
+			updateStatusWithRetry(() -> updateSdkGenerationStatusWithFiles(
+							context.getSdkId(), GenerateStatus.GENERATED, null,
+							result.getZipGridfsId(), result.getZipSize(),
+							result.getJarGridfsId(), result.getJarSize(), result.getJarError(),
+							context.getVersionDto(), context.getUserDetail()),
+					"SDK status update", context);
+
+			updateStatusWithRetry(() -> updateSdkVersionGenerationStatusWithFiles(
+							context.getVersionId(), GenerateStatus.GENERATED, null,
+							result.getZipGridfsId(), result.getZipSize(),
+							result.getJarGridfsId(), result.getJarSize(), result.getJarError(),
+							context.getUserDetail()),
+					"SDK version status update", context);
+
+			log.info("Async enhanced code generation completed successfully for artifactId: {}, version: {}, ZIP ID: {}, JAR ID: {}",
+					context.getArtifactId(), context.getVersion(), result.getZipGridfsId(), result.getJarGridfsId());
+		} catch (Exception e) {
+			log.error("Failed to update status after successful generation for artifactId: {}, version: {}",
+					context.getArtifactId(), context.getVersion(), e);
+			// Even if status update fails, the generation was successful, so we don't re-throw
+		}
+	}
+
+	/**
+	 * Handle generation failure from result
+	 */
+	private void handleGenerationFailure(OpenApiGeneratorService.EnhancedGenerationResult result, GenerationContext context) {
+		String errorMessage = formatErrorMessage("Enhanced code generation failed", result.getErrorMessage());
+		log.error("Async enhanced code generation failed for artifactId: {}, version: {}, error: {}",
+				context.getArtifactId(), context.getVersion(), result.getErrorMessage());
+
+		updateFailureStatus(errorMessage, context);
+	}
+
+	/**
+	 * Handle generation exception
+	 */
+	private void handleGenerationFailure(GenerationException e, GenerationContext context) {
+		log.error("Generation failed in phase '{}' for artifactId: {}, version: {}",
+				e.getPhase(), context.getArtifactId(), context.getVersion(), e);
+
+		updateFailureStatus(e.getMessage(), context);
+	}
+
+	/**
+	 * Handle unexpected exceptions
+	 */
+	private void handleUnexpectedFailure(Exception e, GenerationContext context) {
+		String errorMessage = formatErrorMessage("Unexpected error during code generation", e);
+		log.error("Unexpected failure during async code generation for artifactId: {}, version: {}",
+				context.getArtifactId(), context.getVersion(), e);
+
+		updateFailureStatus(errorMessage, context);
+	}
+
+	/**
+	 * Update status to FAILED with error message
+	 */
+	private void updateFailureStatus(String errorMessage, GenerationContext context) {
+		try {
+			updateStatusWithRetry(() -> updateSdkGenerationStatus(
+							context.getSdkId(), GenerateStatus.FAILED, errorMessage,
+							context.getVersionDto(), context.getUserDetail()),
+					"SDK failure status update", context);
+
+			updateStatusWithRetry(() -> updateSdkVersionGenerationStatus(
+							context.getVersionId(), GenerateStatus.FAILED, errorMessage,
+							context.getUserDetail()),
+					"SDK version failure status update", context);
+		} catch (Exception updateException) {
+			log.error("Critical: Failed to update failure status for artifactId: {}, version: {}",
+					context.getArtifactId(), context.getVersion(), updateException);
+		}
+	}
+
+	/**
+	 * Execute status update with retry mechanism
+	 */
+	private void updateStatusWithRetry(ThrowingRunnable operation, String operationName, GenerationContext context) {
+		int maxRetries = 3;
+		int retryDelay = 1000; // 1 second
+
+		for (int attempt = 1; attempt <= maxRetries; attempt++) {
+			try {
+				operation.run();
+				if (attempt > 1) {
+					log.info("Status update succeeded on attempt {} for {}", attempt, operationName);
+				}
+				return;
+			} catch (Exception e) {
+				if (attempt == maxRetries) {
+					log.error("Failed to execute {} after {} attempts for artifactId: {}, version: {}",
+							operationName, maxRetries, context.getArtifactId(), context.getVersion(), e);
+					throw new RuntimeException("Status update failed after retries", e);
+				} else {
+					log.warn("Attempt {} failed for {}, retrying in {}ms: {}",
+							attempt, operationName, retryDelay, e.getMessage());
+					try {
+						Thread.sleep(retryDelay);
+					} catch (InterruptedException ie) {
+						Thread.currentThread().interrupt();
+						throw new RuntimeException("Interrupted during retry delay", ie);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Format error message consistently
+	 */
+	private String formatErrorMessage(String phase, String errorMessage) {
+		return String.format("%s: %s", phase, errorMessage != null ? errorMessage : "Unknown error");
+	}
+
+	/**
+	 * Format error message from exception
+	 */
+	private String formatErrorMessage(String phase, Exception e) {
+		String message = e.getMessage();
+		if (message == null || message.trim().isEmpty()) {
+			message = e.getClass().getSimpleName();
+		}
+		return formatErrorMessage(phase, message);
+	}
+
+	/**
+	 * Context class to hold generation-related information
+	 */
+	private static class GenerationContext {
+		private final CodeGenerationRequest request;
+		private final UserDetail userDetail;
+		private final SDKDto sdkDto;
+		private final SdkVersionDto versionDto;
+
+		public GenerationContext(CodeGenerationRequest request, UserDetail userDetail,
+								 SDKDto sdkDto, SdkVersionDto versionDto) {
+			this.request = request;
+			this.userDetail = userDetail;
+			this.sdkDto = sdkDto;
+			this.versionDto = versionDto;
+		}
+
+		public String getArtifactId() {
+			return request.getArtifactId();
+		}
+
+		public String getVersion() {
+			return request.getVersion();
+		}
+
+		public String getSdkId() {
+			return sdkDto.getId().toString();
+		}
+
+		public String getVersionId() {
+			return versionDto.getId().toString();
+		}
+
+		public CodeGenerationRequest getRequest() {
+			return request;
+		}
+
+		public UserDetail getUserDetail() {
+			return userDetail;
+		}
+
+		public SDKDto getSdkDto() {
+			return sdkDto;
+		}
+
+		public SdkVersionDto getVersionDto() {
+			return versionDto;
+		}
+	}
+
+	/**
+	 * Custom exception for generation failures
+	 */
+	private static class GenerationException extends RuntimeException {
+		private final String phase;
+
+		public GenerationException(String phase, String message, Throwable cause) {
+			super(message, cause);
+			this.phase = phase;
+		}
+
+		public String getPhase() {
+			return phase;
+		}
+	}
+
+	/**
+	 * Functional interface for operations that can throw exceptions
+	 */
+	@FunctionalInterface
+	private interface ThrowingSupplier<T> {
+		T get() throws Exception;
+	}
+
+	/**
+	 * Functional interface for operations that don't return values
+	 */
+	@FunctionalInterface
+	private interface ThrowingRunnable {
+		void run() throws Exception;
+	}
 
 }

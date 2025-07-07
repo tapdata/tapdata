@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.List;
 
 
 /**
@@ -28,12 +29,7 @@ public class SDKDto extends BaseDto {
     @Schema(description = "Group ID", example = "io.tapdata", defaultValue = "io.tapdata")
     private String groupId = "io.tapdata";
 
-    @Schema(description = "Version", example = "1.0.0", defaultValue = "1.0.0")
-    private String version = "1.0.0";
-
-    @NotBlank(message = "Api Server Client Id cannot be empty")
-    @Schema(description = "Api Server Client Id")
-    private String clientId;
+    private String lastClientId;
 
     @Schema(description = "OpenAPI specification URL", example = "https://example.com/api/openapi.json")
     private String oas;
@@ -53,9 +49,6 @@ public class SDKDto extends BaseDto {
     @Schema(description = "Generation error message")
     private String generationErrorMessage;
 
-    @Schema(description = "Last version")
-    private String lastVersion;
-
     @Schema(description = "Last generate status")
     private GenerateStatus lastGenerateStatus;
 
@@ -73,4 +66,6 @@ public class SDKDto extends BaseDto {
 
     @Schema(description = "Last JAR generation error message")
     private String lastJarGenerationErrorMessage;
+
+    private List<String> lastModuleIds;
 }

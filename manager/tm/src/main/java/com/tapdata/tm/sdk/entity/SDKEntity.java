@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
+import java.util.List;
 
 
 /**
@@ -34,9 +35,7 @@ public class SDKEntity extends BaseEntity {
 	@Schema(description = "Group ID", example = "io.tapdata", defaultValue = "io.tapdata")
 	private String groupId = "io.tapdata";
 
-	@NotBlank(message = "Api Server Client Id cannot be empty")
-	@Schema(description = "Api Server Client Id")
-	private String clientId;
+	private String lastClientId;
 
 	@NotBlank(message = "Request address cannot be empty")
 	@Schema(description = "Request address", example = "http://127.0.0.1:3030")
@@ -71,4 +70,6 @@ public class SDKEntity extends BaseEntity {
 
 	@Schema(description = "Last JAR generation error message")
 	private String lastJarGenerationErrorMessage;
+
+	private List<String> lastModuleIds;
 }
