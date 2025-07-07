@@ -106,6 +106,9 @@ public class AsyncCodeGenerationService {
 		if (existingVersion != null) {
 			throw new BizException("openapi.generator.version.exists");
 		}
+		if(CollectionUtils.isEmpty(request.getModuleIds())){
+			throw new BizException("openapi.generator.module.empty");
+		}
 		// Validate package name format
 		validatePackageName(request.getPackageName());
 		request.setGroupId(request.getPackageName());
@@ -264,6 +267,10 @@ public class AsyncCodeGenerationService {
 		existingSdk.setLastGenerateStatus(GenerateStatus.GENERATING);
 		existingSdk.setLastGenerationTime(new Date());
 		existingSdk.setLastModuleIds(request.getModuleIds());
+		existingSdk.setLastZipGridfsId("");
+		existingSdk.setLastJarGridfsId("");
+		existingSdk.setLastZipSizeOfByte(0L);
+		existingSdk.setLastJarSizeOfByte(0L);
 
 		return sdkService.save(existingSdk, userDetail);
 	}

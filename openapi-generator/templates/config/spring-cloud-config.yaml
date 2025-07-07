@@ -1,0 +1,17 @@
+files:
+    jackson/JacksonConfig.mustache:
+        templateType: SupportingFiles
+        destinationFilename: JacksonConfig.java
+        folder: src/main/java/org/openapitools/configuration
+    jackson/OffsetDateTimeDeserializer.mustache:
+        templateType: SupportingFiles
+        destinationFilename: OffsetDateTimeDeserializer.java
+        folder: src/main/java/org/openapitools/configuration
+    jackson/MongoDecimalDeserializer.mustache:
+        templateType: SupportingFiles
+        destinationFilename: MongoDecimalDeserializer.java
+        folder: src/main/java/org/openapitools/configuration
+    jackson/FeignConfig.mustache:
+        templateType: SupportingFiles
+        destinationFilename: FeignConfig.java
+        folder: src/main/java/org/openapitools/configuration

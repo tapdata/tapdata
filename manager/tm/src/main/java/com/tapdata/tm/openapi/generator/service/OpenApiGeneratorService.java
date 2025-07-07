@@ -415,7 +415,7 @@ public class OpenApiGeneratorService {
 			log.info("Using custom template path: {}, library: {}", languageTemplatePath, request.getTemplateLibrary());
 
 			// Check for and use configuration file if it exists
-			Path configPath = Paths.get(this.resolvedTemplatePath).getParent().resolve("config").resolve("feign-config.yaml");
+			Path configPath = Paths.get(this.resolvedTemplatePath).resolve("config").resolve(request.getTemplateLibrary() + "-config.yaml");
 			if (Files.exists(configPath)) {
 				command.add("-c");
 				command.add(configPath.toString());
@@ -893,7 +893,8 @@ public class OpenApiGeneratorService {
 								parametersList = parametersList.stream().filter(p -> !p.get("name").equals("filename"))
 										.peek(p -> {
 											if (org.apache.commons.lang3.StringUtils.equalsAny(p.get("name").toString(), "page", "limit")) {
-												((Map<String, Object>) p.get("schema")).put("type", "int");
+												((Map<String, Object>) p.get("schema")).put("type", "integer");
+												((Map<String, Object>) p.get("schema")).put("format", "int32");
 											}
 										})
 										.collect(Collectors.toCollection(ArrayList::new));
