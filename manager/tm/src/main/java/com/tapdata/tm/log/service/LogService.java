@@ -85,10 +85,11 @@ public class LogService {
         // Process date field to ensure proper type
         processLogDto(logDto);
 
+        // 不写入这个数据了, 没啥用, 而且会存在很大量的情况, 还不知道原因
         if (useElastic()) {
-            elastic.save(logDto);
+            // elastic.save(logDto);
         } else {
-            mongo.save(logDto);
+            // mongo.save(logDto);
         }
     }
 
