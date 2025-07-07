@@ -175,6 +175,11 @@ public class LoadSchemaRunner implements Runnable {
 							connections.setLoadSchemaField(true);
 							loadPdkSchema(connections, connectionNode, this::tableConsumer);
 						}
+                        JSONObject monitorApi = (JSONObject) connectionNode.getConnectionContext().getSpecification().getConfigOptions().get(MONITOR_API);
+                        //利用反射去访问连接器的具体方法
+                        if (monitorApi != null) {
+                            executeMonitorAPIs(connectionNode, monitorApi.clone());
+                        }
 					} catch (Throwable throwable) {
 						TapLogger.error(TAG, "Load schema failed: {}", InstanceFactory.instance(TapUtils.class).getStackTrace(throwable));
 						throw throwable;
@@ -244,15 +249,10 @@ public class LoadSchemaRunner implements Runnable {
 
     public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
         DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
-        JSONObject monitorApi = (JSONObject) connectionNode.getConnectionContext().getSpecification().getConfigOptions().get(MONITOR_API);
         PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
                 () -> {
                     connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
                             tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
-					//利用反射去访问连接器的具体方法
-					if (monitorApi != null) {
-						executeMonitorAPIs(connectionNode, monitorApi.clone());
-					}
                 }, TAG);
     }
 
@@ -461,7 +461,7 @@ public class LoadSchemaRunner implements Runnable {
 		}
 	}
 
-    private static void executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
+    private void executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
         Map<String, Object> result = new ConcurrentHashMap<>();
         AtomicReference<Throwable> throwable = new AtomicReference<>();
         CountDownLatch countDownLatch = new CountDownLatch(5);
@@ -473,15 +473,20 @@ public class LoadSchemaRunner implements Runnable {
                         Map.Entry<String, String> api;
                         while ((api = takeoutMonitorApi(monitorApi)) != null) {
                             if (api.getValue().startsWith("io.tapdata")) {
-                                result.put(api.getKey(), ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), api.getValue().substring(api.getValue().lastIndexOf("#") + 1), null));
+                                Object obj = ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), api.getValue().substring(api.getValue().lastIndexOf("#") + 1), null);
+                                result.put(api.getKey(), obj == null ? "" : String.valueOf(obj));
                             } else {
                                 ExecuteCommandV2Function executeCommandV2Function = connectionNode.getConnectionFunctions().getExecuteCommandV2Function();
+                                if (executeCommandV2Function == null) {
+                                    continue;
+                                }
                                 String key = api.getKey();
                                 String value = api.getValue();
                                 PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
                                     executeCommandV2Function.execute(connectionNode.getConnectionContext(), value, executeResult -> {
                                         if (CollectionUtils.isNotEmpty(executeResult)) {
-                                            result.put(key, executeResult);
+                                            DataMap dataMap = executeResult.get(0);
+                                            dataMap.entrySet().stream().findFirst().ifPresent(entry -> result.put(key, String.valueOf(entry.getValue())));
                                         }
                                     });
                                 }, TAG);
@@ -505,6 +510,9 @@ public class LoadSchemaRunner implements Runnable {
         } finally {
             executorService.shutdown();
         }
+        Update update = new Update();
+        update.set("monitorAPI", result);
+        updateConnections(update);
     }
 
     private static synchronized Map.Entry<String, String> takeoutMonitorApi(JSONObject monitorApi) {
