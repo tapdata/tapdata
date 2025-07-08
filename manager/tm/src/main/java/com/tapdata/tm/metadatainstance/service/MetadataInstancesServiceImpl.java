@@ -268,7 +268,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     timeStampFieldMap.put(metadataInstancesDto.getOriginalName(), timestampFieldName);
                 }
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
-                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
+                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(field -> field.getPrimaryKey() != null && field.getPrimaryKey()).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
 
                 if (CollectionUtils.isNotEmpty(primaryKeys)) {
                     metadataInstancesVo.setSortColumns(primaryKeys);
