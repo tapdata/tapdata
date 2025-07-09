@@ -1,6 +1,7 @@
 package com.tapdata.tm.taskinspect.vo;
 
 import com.tapdata.tm.taskinspect.cons.DiffTypeEnum;
+import com.tapdata.tm.utils.MD5Utils;
 import io.tapdata.entity.schema.value.DateTime;
 import lombok.Getter;
 import lombok.Setter;
@@ -96,7 +97,7 @@ public class ResultsReportVo implements Serializable {
             if (en.getValue() instanceof DateTime) {
                 en.setValue(((DateTime) en.getValue()).toInstant().toString());
             } else if (en.getValue() instanceof byte[]) {
-                en.setValue(new String((byte[]) en.getValue(), StandardCharsets.UTF_8));
+                en.setValue(MD5Utils.toLowerHex((byte[]) en.getValue()));
             }
         }
         return valueMap;
