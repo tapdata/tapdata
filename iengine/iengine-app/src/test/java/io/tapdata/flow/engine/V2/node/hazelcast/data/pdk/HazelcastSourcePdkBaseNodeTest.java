@@ -887,7 +887,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(instance, never()).initStreamOffsetInitial();
 			verify(instance, never()).initStreamOffsetCDC(any(TaskDto.class), anyLong());
 			assertNotNull(actualSyncProgress.getBatchOffsetObj());
-			assertInstanceOf(HashMap.class, actualSyncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, actualSyncProgress.getBatchOffsetObj());
 			assertTrue(((Map) actualSyncProgress.getBatchOffsetObj()).isEmpty());
 			assertNotNull(actualSyncProgress.getStreamOffsetObj());
 			assertInstanceOf(HashMap.class, actualSyncProgress.getStreamOffsetObj());
@@ -907,7 +907,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			verify(instance, times(1)).initStreamOffsetInitial();
 			verify(instance, never()).initStreamOffsetCDC(any(TaskDto.class), anyLong());
 			assertNotNull(actualSyncProgress.getBatchOffsetObj());
-			assertInstanceOf(HashMap.class, actualSyncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, actualSyncProgress.getBatchOffsetObj());
 			assertTrue(((Map) actualSyncProgress.getBatchOffsetObj()).isEmpty());
 			assertNull(actualSyncProgress.getStreamOffsetObj());
 			assertEquals(SyncStage.INITIAL_SYNC.name(), actualSyncProgress.getSyncStage());
