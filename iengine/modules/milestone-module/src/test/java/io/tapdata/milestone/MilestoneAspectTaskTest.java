@@ -2,6 +2,7 @@ package io.tapdata.milestone;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -1361,30 +1363,250 @@ class MilestoneAspectTaskTest {
 		}
 	}
 
-	@Test
-	void testHandleRetry() {
+	@Nested
+	class HandleRetryTest {
 
-		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+		private MilestoneAspectTask milestoneAspectTask;
+		private RetryLifeCycleAspect aspect;
+		private Map<String, MilestoneEntity> milestones;
+		private Map<String, Object> retryMetadata;
 
-		RetryLifeCycleAspect aspect = new RetryLifeCycleAspect();
-		Assertions.assertDoesNotThrow(() -> {
+		@BeforeEach
+		void setUp() {
+			milestoneAspectTask = mock(MilestoneAspectTask.class);
+			doCallRealMethod().when(milestoneAspectTask).handleRetry(any(RetryLifeCycleAspect.class));
+			doNothing().when(milestoneAspectTask).taskRetryAlarm(anyLong());
+
+			aspect = new RetryLifeCycleAspect();
+			milestones = new HashMap<>();
+			ReflectionTestUtils.setField(milestoneAspectTask, "milestones", milestones);
+
+			retryMetadata = new HashMap<>();
+			retryMetadata.put("errorType", "CONNECTION_ERROR");
+			retryMetadata.put("tableName", "test_table");
+		}
+
+		@Test
+		void testHandleRetryWithNoMilestones() {
+			aspect.setRetrying(true);
+			aspect.setRetryTimes(5L);
+
+			Assertions.assertDoesNotThrow(() -> {
+				milestoneAspectTask.handleRetry(aspect);
+			});
+
+			verify(milestoneAspectTask, times(1)).taskRetryAlarm(5L);
+		}
+
+		@Test
+		void testHandleRetryWithRunningMilestone() {
+			MilestoneEntity runningEntity = new MilestoneEntity();
+			runningEntity.setStatus(MilestoneStatus.RUNNING);
+			milestones.put("test_running", runningEntity);
+
+			MilestoneEntity finishedEntity = new MilestoneEntity();
+			finishedEntity.setStatus(MilestoneStatus.FINISH);
+			milestones.put("test_finished", finishedEntity);
+
+			aspect.setRetrying(true);
+			aspect.setRetryTimes(3L);
+			aspect.setStartRetryTs(1000L);
+			aspect.setEndRetryTs(2000L);
+			aspect.setNextRetryTs(3000L);
+			aspect.setTotalRetries(10L);
+			aspect.setRetryOp("WRITE");
+			aspect.setSuccess(false);
+			aspect.setRetryMetadata(retryMetadata);
+
 			milestoneAspectTask.handleRetry(aspect);
-		});
 
-		Map<String, MilestoneEntity> milestones = (Map<String, MilestoneEntity>) ReflectionTestUtils.getField(milestoneAspectTask, "milestones");
-		MilestoneEntity entity = new MilestoneEntity();
-		entity.setStatus(MilestoneStatus.RUNNING);
-		milestones.put("test", entity);
-		entity = new MilestoneEntity();
-		entity.setStatus(MilestoneStatus.FINISH);
-		milestones.put("test1", entity);
+			MilestoneEntity updatedEntity = milestones.get("test_running");
+			Assertions.assertTrue(updatedEntity.getRetrying());
+			Assertions.assertEquals(3L, updatedEntity.getRetryTimes());
+			Assertions.assertEquals(1000L, updatedEntity.getStartRetryTs());
+			Assertions.assertEquals(2000L, updatedEntity.getEndRetryTs());
+			Assertions.assertEquals(3000L, updatedEntity.getNextRetryTs());
+			Assertions.assertEquals(10L, updatedEntity.getTotalOfRetries());
+			Assertions.assertEquals("WRITE", updatedEntity.getRetryOp());
+			Assertions.assertFalse(updatedEntity.getRetrySuccess());
+			Assertions.assertEquals(retryMetadata, updatedEntity.getRetryMetadata());
 
-		aspect.setRetrying(true);
+			MilestoneEntity finishedMilestone = milestones.get("test_finished");
+			Assertions.assertNull(finishedMilestone.getRetrying());
 
-		milestoneAspectTask.handleRetry(aspect);
+			verify(milestoneAspectTask, times(1)).taskRetryAlarm(3L);
+		}
 
-		Assertions.assertTrue(milestones.get("test").getRetrying());
-		Assertions.assertNull(milestones.get("test1").getRetrying());
+
+		@Test
+		void testHandleRetryWithZeroRetryTimes() {
+			MilestoneEntity runningEntity = new MilestoneEntity();
+			runningEntity.setStatus(MilestoneStatus.RUNNING);
+			milestones.put("test_running", runningEntity);
+
+			aspect.setRetrying(false);
+			aspect.setRetryTimes(0L);
+			aspect.setRetryOp("WRITE");
+
+			milestoneAspectTask.handleRetry(aspect);
+
+			MilestoneEntity updatedEntity = milestones.get("test_running");
+			Assertions.assertFalse(updatedEntity.getRetrying());
+			Assertions.assertEquals(0L, updatedEntity.getRetryTimes());
+			Assertions.assertEquals("WRITE", updatedEntity.getRetryOp());
+
+			verify(milestoneAspectTask, times(0)).taskRetryAlarm(anyLong());
+		}
+
+		@Test
+		void testHandleRetryWithMultipleMilestonesPreferRunning() {
+			MilestoneEntity runningEntity = new MilestoneEntity();
+			runningEntity.setStatus(MilestoneStatus.RUNNING);
+			milestones.put("running_milestone", runningEntity);
+
+			MilestoneEntity cdcEntity = new MilestoneEntity();
+			cdcEntity.setStatus(MilestoneStatus.FINISH);
+			milestones.put(MilestoneAspectTask.KPI_CDC, cdcEntity);
+
+			MilestoneEntity errorEntity = new MilestoneEntity();
+			errorEntity.setStatus(MilestoneStatus.ERROR);
+			milestones.put("error_milestone", errorEntity);
+
+			aspect.setRetrying(true);
+			aspect.setRetryTimes(2L);
+
+			milestoneAspectTask.handleRetry(aspect);
+
+			Assertions.assertTrue(milestones.get("running_milestone").getRetrying());
+			Assertions.assertEquals(2L, milestones.get("running_milestone").getRetryTimes());
+
+			Assertions.assertNull(milestones.get(MilestoneAspectTask.KPI_CDC).getRetrying());
+			Assertions.assertNull(milestones.get("error_milestone").getRetrying());
+
+			verify(milestoneAspectTask, times(1)).taskRetryAlarm(2L);
+		}
+
+		@Test
+		void testHandleRetryWithNullValues() {
+			MilestoneEntity runningEntity = new MilestoneEntity();
+			runningEntity.setStatus(MilestoneStatus.RUNNING);
+			milestones.put("test_running", runningEntity);
+
+			aspect.setRetrying(false);
+			aspect.setRetryTimes(1L);
+			aspect.setStartRetryTs(null);
+			aspect.setEndRetryTs(null);
+			aspect.setNextRetryTs(null);
+			aspect.setTotalRetries(null);
+			aspect.setRetryOp(null);
+			aspect.setSuccess(null);
+			aspect.setRetryMetadata(null);
+
+			Assertions.assertDoesNotThrow(() -> {
+				milestoneAspectTask.handleRetry(aspect);
+			});
+
+			MilestoneEntity updatedEntity = milestones.get("test_running");
+			Assertions.assertTrue(!updatedEntity.getRetrying());
+			Assertions.assertEquals(1L, updatedEntity.getRetryTimes());
+			Assertions.assertNull(updatedEntity.getStartRetryTs());
+			Assertions.assertNull(updatedEntity.getEndRetryTs());
+			Assertions.assertNull(updatedEntity.getNextRetryTs());
+			Assertions.assertNull(updatedEntity.getTotalOfRetries());
+			Assertions.assertNull(updatedEntity.getRetryOp());
+			Assertions.assertNull(updatedEntity.getRetrySuccess());
+			Assertions.assertNull(updatedEntity.getRetryMetadata());
+
+			verify(milestoneAspectTask, times(1)).taskRetryAlarm(1L);
+		}
+	}
+
+	@Nested
+	class TaskRetryAlarmTest {
+
+		private MilestoneAspectTask milestoneAspectTask;
+		private ClientMongoOperator clientMongoOperator;
+		private TaskDto task;
+
+		@BeforeEach
+		void setUp() {
+			milestoneAspectTask = mock(MilestoneAspectTask.class);
+			doCallRealMethod().when(milestoneAspectTask).taskRetryAlarm(anyLong());
+
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(milestoneAspectTask, "clientMongoOperator", clientMongoOperator);
+
+			task = new TaskDto();
+			task.setId(new ObjectId("507f1f77bcf86cd799439011"));
+			ReflectionTestUtils.setField(milestoneAspectTask, "task", task);
+			ReflectionTestUtils.setField(milestoneAspectTask, "log", mock(Log.class));
+		}
+
+		@Test
+		void testTaskRetryAlarmSuccess() {
+			Long retryTimes = 5L;
+			UpdateResult updateResult = mock(UpdateResult.class);
+			when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString()))
+					.thenReturn(updateResult);
+
+			Assertions.assertDoesNotThrow(() -> {
+				milestoneAspectTask.taskRetryAlarm(retryTimes);
+			});
+
+			verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+		}
+
+		@Test
+		void testTaskRetryAlarmWithException() {
+			Long retryTimes = 3L;
+			RuntimeException exception = new RuntimeException("Database connection failed");
+			when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString()))
+					.thenThrow(exception);
+
+			try (MockedStatic<TmUnavailableException> mockedStatic = mockStatic(TmUnavailableException.class)) {
+				mockedStatic.when(() -> TmUnavailableException.notInstance(exception)).thenReturn(true);
+
+				Assertions.assertDoesNotThrow(() -> {
+					milestoneAspectTask.taskRetryAlarm(retryTimes);
+				});
+
+				verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+				mockedStatic.verify(() -> TmUnavailableException.notInstance(exception), times(1));
+			}
+		}
+
+		@Test
+		void testTaskRetryAlarmWithTmUnavailableException() {
+			Long retryTimes = 2L;
+			TmUnavailableException tmException = new TmUnavailableException("tm-url", "POST", null, new ResponseBody());
+			when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString()))
+					.thenThrow(tmException);
+
+			try (MockedStatic<TmUnavailableException> mockedStatic = mockStatic(TmUnavailableException.class)) {
+				mockedStatic.when(() -> TmUnavailableException.notInstance(tmException)).thenReturn(false);
+
+				Assertions.assertDoesNotThrow(() -> {
+					milestoneAspectTask.taskRetryAlarm(retryTimes);
+				});
+
+				verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+				mockedStatic.verify(() -> TmUnavailableException.notInstance(tmException), times(1));
+			}
+		}
+
+		@Test
+		void testTaskRetryAlarmWithZeroRetryTimes() {
+			Long retryTimes = 0L;
+			UpdateResult updateResult = mock(UpdateResult.class);
+			when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString()))
+					.thenReturn(updateResult);
+
+			Assertions.assertDoesNotThrow(() -> {
+				milestoneAspectTask.taskRetryAlarm(retryTimes);
+			});
+			
+			verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
+		}
 
 	}
 

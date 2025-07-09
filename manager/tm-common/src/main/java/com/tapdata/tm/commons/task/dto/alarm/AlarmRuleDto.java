@@ -25,4 +25,6 @@ public class AlarmRuleDto extends BaseDto implements Serializable {
     private int equalsFlag;
     //毫秒
     private int ms;
+    //连续次数
+    private int times;
 }
