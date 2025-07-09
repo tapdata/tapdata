@@ -23,7 +23,6 @@ public class TaskInspectConfig implements IConfig<TaskInspectConfig> {
     private Custom custom;                   // 自定义校验配置
     private Integer queueCapacity;           // 队列最大容量
     private Long cdcTimeout;                 // 增量校验在队列中超时，不作延迟等待
-    private Integer cdcMaxUpdateTimes;       // 增量最大更新次数，超过时长进入高优校验队列
     private Boolean checkNoPkTable;          // 校验无主键表
     private TimeCheckModeEnum timeCheckMode; // 时间校验模式
 
@@ -35,7 +34,6 @@ public class TaskInspectConfig implements IConfig<TaskInspectConfig> {
         setIntelligent(init(getIntelligent(), depth, Intelligent.class));
         setQueueCapacity(init(getQueueCapacity(), 1000));
         setCdcTimeout(init(getCdcTimeout(), 60 * 1000L));
-        setCdcMaxUpdateTimes(init(getCdcMaxUpdateTimes(), 10));
         setCheckNoPkTable(init(getCheckNoPkTable(), false));
         setTimeCheckMode(init(getTimeCheckMode(), TimeCheckModeEnum.NORMAL));
         return this;
