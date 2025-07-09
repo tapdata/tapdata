@@ -833,7 +833,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertDoesNotThrow(() -> instance.readBatchOffset(syncProgress));
 
 			assertNotNull(syncProgress.getBatchOffsetObj());
-			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertTrue(((Map) syncProgress.getBatchOffsetObj()).isEmpty());
 		}
 
@@ -845,7 +845,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			fakeBatchOffset.put("test", 1);
 			syncProgress.setBatchOffset(PdkUtil.encodeOffset(fakeBatchOffset));
 			instance.readBatchOffset(syncProgress);
-			assertInstanceOf(HashMap.class, syncProgress.getBatchOffsetObj());
+			assertInstanceOf(ConcurrentHashMap.class, syncProgress.getBatchOffsetObj());
 			assertTrue(((Map<?, ?>) syncProgress.getBatchOffsetObj()).isEmpty());
 		}
 	}
