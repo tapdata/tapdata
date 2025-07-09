@@ -248,7 +248,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	protected void createForeignKeyConstraints(TapTableMap<String, TapTable> tapTableMap, Set<String> tableIds) {
 		if (!checkSyncForeignKeyOpen()) return;
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || !taskDto.isNormalTask()) {
+		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC) || !taskDto.isNormalTask()) {
 			return;
 		}
 		Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> Optional.ofNullable(connectorNode.getConnectorFunctions()).ifPresent(connectorFunctions -> {
@@ -616,7 +616,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	protected boolean checkSyncForeignKeyOpen(){
 		Node node = getNode();
-		if (node instanceof DatabaseNode) {
+		if (node instanceof DatabaseNode || node instanceof TableNode) {
 			DataParentNode dataParentNode = (DataParentNode) node;
 			if (Boolean.TRUE.equals(dataParentNode.getSyncForeignKeyEnable())) {
 				return true;
