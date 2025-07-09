@@ -297,58 +297,60 @@ public class ConnectionValidator {
 		return connectionValidateResult;
 	}
 
-    private static Map<String, Object> executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
-        Map<String, Object> result = new ConcurrentHashMap<>();
-        AtomicReference<Throwable> throwable = new AtomicReference<>();
-        CountDownLatch countDownLatch = new CountDownLatch(5);
-        ExecutorService executorService = Executors.newFixedThreadPool(5);
-        try {
-            for (int i = 0; i < 5; i++) {
-                executorService.submit(() -> {
-                    try {
-                        Map.Entry<String, JSONObject> api;
-                        while ((api = takeoutMonitorApi(monitorApi)) != null) {
-                            if (api.getValue().getString("method") != null) {
-                                String command = api.getValue().getString("method");
-                                Object obj = ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), command.substring(command.lastIndexOf("#") + 1), null);
-                                result.put(api.getKey(), obj == null ? "" : String.valueOf(obj));
-                            } else if (api.getValue().getString("command") != null) {
-                                ExecuteCommandV2Function executeCommandV2Function = connectionNode.getConnectionFunctions().getExecuteCommandV2Function();
-                                if (executeCommandV2Function == null) {
-                                    continue;
-                                }
-                                String key = api.getKey();
-                                String value = api.getValue().getString("command");
-                                PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
-                                    executeCommandV2Function.execute(connectionNode.getConnectionContext(), value, executeResult -> {
-                                        if (CollectionUtils.isNotEmpty(executeResult)) {
-                                            DataMap dataMap = executeResult.get(0);
-                                            dataMap.entrySet().stream().findFirst().ifPresent(entry -> result.put(key, String.valueOf(entry.getValue())));
-                                        }
-                                    });
-                                }, TAG);
-                            }
-                        }
-                    } catch (Exception e) {
-                        throwable.set(e);
-                    } finally {
-                        countDownLatch.countDown();
-                    }
-                });
-            }
-            try {
-                countDownLatch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            if (throwable.get() != null) {
-                throw new RuntimeException(throwable.get());
-            }
-        } finally {
-            executorService.shutdown();
-        }
-        return result;
-    }
+	private static Map<String, Object> executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
+		Map<String, Object> result = new ConcurrentHashMap<>();
+		AtomicReference<Throwable> throwable = new AtomicReference<>();
+		CountDownLatch countDownLatch = new CountDownLatch(5);
+		ExecutorService executorService = Executors.newFixedThreadPool(5);
+		try {
+			for (int i = 0; i < 5; i++) {
+				executorService.submit(() -> {
+					try {
+						Map.Entry<String, JSONObject> api;
+						while ((api = takeoutMonitorApi(monitorApi)) != null) {
+							if (api.getValue().getString("className") != null) {
+							} else if (api.getValue().getString("method") != null) {
+								String command = api.getValue().getString("method");
+								Object obj = ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), command.substring(command.lastIndexOf("#") + 1), null);
+								result.put(api.getKey(), obj == null ? "" : String.valueOf(obj));
+							} else if (api.getValue().getString("sqlType") != null) {
+								ExecuteCommandV2Function executeCommandV2Function = connectionNode.getConnectionFunctions().getExecuteCommandV2Function();
+								if (executeCommandV2Function == null) {
+									continue;
+								}
+								String key = api.getKey();
+								String value = api.getValue().getString("sql");
+								String type = api.getValue().getString("sqlType");
+								PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
+									executeCommandV2Function.execute(connectionNode.getConnectionContext(), type, value, executeResult -> {
+										if (CollectionUtils.isNotEmpty(executeResult)) {
+											DataMap dataMap = executeResult.get(0);
+											dataMap.entrySet().stream().findFirst().ifPresent(entry -> result.put(key, String.valueOf(entry.getValue())));
+										}
+									});
+								}, TAG);
+							}
+						}
+					} catch (Exception e) {
+						throwable.set(e);
+					} finally {
+						countDownLatch.countDown();
+					}
+				});
+			}
+			try {
+				countDownLatch.await();
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+			if (throwable.get() != null) {
+				throw new RuntimeException(throwable.get());
+			}
+		} finally {
+			executorService.shutdown();
+		}
+		return result;
+	}
 
     private static synchronized Map.Entry<String, JSONObject> takeoutMonitorApi(JSONObject monitorApi) {
         Iterator<Map.Entry<String, Object>> iterator = monitorApi.entrySet().iterator();
