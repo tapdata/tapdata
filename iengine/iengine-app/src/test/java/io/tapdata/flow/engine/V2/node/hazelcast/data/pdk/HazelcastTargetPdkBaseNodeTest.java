@@ -59,6 +59,7 @@ import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.util.TargetTapEventFilter;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.metric.collector.SyncMetricCollector;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.debug.DataCache;
 import io.tapdata.observable.logging.debug.DataCacheFactory;
@@ -2280,6 +2281,48 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			e = new CoreException("test exception");
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
 			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+		}
+	}
+
+	@Nested
+	class buildSourceConnectorNodeMapTest {
+		@BeforeEach
+		void before() {
+			Map<String, ConnectorNode> sourceConnectorNodeMap = new HashMap<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "sourceConnectorNodeMap", sourceConnectorNodeMap);
+		}
+		@Test
+		void testNormal() {
+			ConnectorNodeService connectorNodeService = mock(ConnectorNodeService.class);
+			try (MockedStatic<ConnectorNodeService> mb = Mockito
+					.mockStatic(ConnectorNodeService.class)) {
+				mb.when(ConnectorNodeService::getInstance).thenReturn(connectorNodeService);
+				when(connectorNodeService.getConnectorNode(anyString())).thenReturn(mock(ConnectorNode.class)).thenReturn(mock(ConnectorNode.class));
+				TapdataStartedCdcEvent tapdataEvent = mock(TapdataStartedCdcEvent.class);
+				when(tapdataEvent.getSourceNodeId()).thenReturn("test");
+				when(tapdataEvent.getSourceNodeAssociateId()).thenReturn("test");
+				doCallRealMethod().when(hazelcastTargetPdkBaseNode).buildSourceConnectorNodeMap(tapdataEvent);
+				hazelcastTargetPdkBaseNode.buildSourceConnectorNodeMap(tapdataEvent);
+				assertFalse(hazelcastTargetPdkBaseNode.sourceConnectorNodeMap.isEmpty());
+			}
+		}
+		@Test
+		void testWhenNodeIdIsNull() {
+			TapdataStartedCdcEvent tapdataEvent = mock(TapdataStartedCdcEvent.class);
+			when(tapdataEvent.getSourceNodeId()).thenReturn(null);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).buildSourceConnectorNodeMap(tapdataEvent);
+			hazelcastTargetPdkBaseNode.buildSourceConnectorNodeMap(tapdataEvent);
+			assertTrue(hazelcastTargetPdkBaseNode.sourceConnectorNodeMap.isEmpty());
+		}
+
+		@Test
+		void testWhenSourceNodeAssociateId() {
+			TapdataStartedCdcEvent tapdataEvent = mock(TapdataStartedCdcEvent.class);
+			when(tapdataEvent.getSourceNodeId()).thenReturn("test");
+			when(tapdataEvent.getSourceNodeAssociateId()).thenReturn(null);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).buildSourceConnectorNodeMap(tapdataEvent);
+			hazelcastTargetPdkBaseNode.buildSourceConnectorNodeMap(tapdataEvent);
+			assertTrue(hazelcastTargetPdkBaseNode.sourceConnectorNodeMap.isEmpty());
 		}
 	}
 
