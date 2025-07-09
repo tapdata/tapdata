@@ -15,6 +15,9 @@ import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.TapCodeException;
+import io.tapdata.exception.TapPdkViolateUniqueEx;
+import io.tapdata.exception.TapPdkWriteLengthEx;
+import io.tapdata.exception.TapPdkWriteTypeEx;
 import org.apache.logging.log4j.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -31,6 +34,7 @@ import java.util.function.Function;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false)
 public class SkipErrorEventAspectTask extends AbstractAspectTask {
+    public static final String SKIP_ERROR_EVENT_DATA = "Skip error event data:{}";
     // Set a maximum of 10 threads to report status, if delay please check the net work and DB stress
     private final ScheduledExecutorService EXECUTOR = Executors.newScheduledThreadPool(1);
 
@@ -57,7 +61,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         clientMongoOperator.update(Query.query(Criteria.where("_id").is(taskId)), update, ConnectorConstant.TASK_COLLECTION);
     }
 
-    private synchronized void logSkipEvent(TapRecordEvent tapRecordEvent, Throwable ex) {
+    protected synchronized void logSkipEvent(TapRecordEvent tapRecordEvent, Throwable ex) {
         logger.info("task-{} skip event: {}", taskId, tapRecordEvent);
         logger.info("task-{} skip exception: {}", taskId, ex.getMessage(), ex.getCause());
 
@@ -65,6 +69,15 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
         if (now > nextPrintTimes) {
             String skipInfo = JSON.toJSONString(syncAndSkipMap);
             log.warn("Skip error event counts:{}", skipInfo);
+            if (ex instanceof TapPdkViolateUniqueEx && ((TapPdkViolateUniqueEx) ex).getData() != null) {
+                log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkViolateUniqueEx) ex).getData());
+            }
+            if (ex instanceof TapPdkWriteTypeEx && ((TapPdkWriteTypeEx) ex).getData() != null) {
+                log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkWriteTypeEx) ex).getData());
+            }
+            if (ex instanceof TapPdkWriteLengthEx && ((TapPdkWriteLengthEx) ex).getData() != null) {
+                log.warn(SKIP_ERROR_EVENT_DATA, ((TapPdkWriteLengthEx) ex).getData());
+            }
             nextPrintTimes = now + 30 * 1000;
         }
         lastSkipTimes = now;

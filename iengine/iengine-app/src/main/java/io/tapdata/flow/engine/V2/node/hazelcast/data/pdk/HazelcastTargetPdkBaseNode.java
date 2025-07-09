@@ -103,6 +103,7 @@ import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -181,7 +182,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
     private final ITaskInspect taskInspect;
-	private Set<ConnectorNode> sourceConnectorNode = new HashSet<>();
+	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -956,12 +957,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
                 handleTapdataStartCdcEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
-				String sourceNodeAssociateId = ((TapdataStartedCdcEvent) tapdataEvent).getSourceNodeAssociateId();
-				if (null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
-					ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
-					sourceConnectorNode.add(connectorNode);
-				}
-                flushShareCdcTableMetrics(tapdataEvent);
+				buildSourceConnectorNodeMap((TapdataStartedCdcEvent) tapdataEvent);
+				flushShareCdcTableMetrics(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
                 throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
             } else if (tapdataEvent instanceof TapdataShareLogEvent) {
@@ -995,7 +992,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
+	protected void buildSourceConnectorNodeMap(TapdataStartedCdcEvent tapdataEvent) {
+		String sourceNodeId = tapdataEvent.getSourceNodeId();
+		String sourceNodeAssociateId = tapdataEvent.getSourceNodeAssociateId();
+		if (null != sourceNodeId && null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
+			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
+			sourceConnectorNodeMap.putIfAbsent(sourceNodeId, connectorNode);
+		}
+	}
+
+	protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
@@ -1502,6 +1508,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (!flushOffset.get()) return true;
             if (MapUtils.isEmpty(syncProgressMap)) return true;
             Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			AtomicBoolean needSave = new AtomicBoolean(true);
             for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
                 String key = entry.getKey();
                 SyncProgress syncProgress = entry.getValue();
@@ -1517,10 +1524,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                             String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
                             syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
                         }
-						sourceConnectorNode.forEach(node -> {
-							FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
-							if (null != flushOffsetFunction) {
-								flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
+						sourceConnectorNodeMap.forEach((nodeId, node) -> {
+							if (list.contains(nodeId)) {
+								FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
+								if (null == flushOffsetFunction) {
+									return;
+								}
+								try {
+									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
+								} catch (ConnectException e) {
+									needSave.set(false);
+								}
 							}
 						});
                     }
@@ -1534,7 +1548,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 			try {
-				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+				if (needSave.get()){
+					clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
 				return false;
@@ -1736,7 +1752,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 }
             }), TAG);
             CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.flushOffsetExecutor).ifPresent(ExecutorService::shutdownNow), TAG);
-//            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
+            CommonUtils.ignoreAnyError(this::saveToSnapshot, TAG);
             CommonUtils.ignoreAnyError(() -> syncMetricCollector.close(obsLogger), TAG);
         } finally {
             super.doClose();
