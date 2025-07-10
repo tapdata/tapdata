@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -39,19 +40,68 @@ public class LogService {
         return logWareHouse != null && logWareHouse.equals("elasticsearch") && elastic != null;
     }
 
+    /**
+     * Process logDto to ensure date field is properly formatted
+     * Convert long timestamp to Date object if needed
+     */
+    private void processLogDto(LogDto logDto) {
+        if (logDto != null && logDto.getDate() != null) {
+            Object dateObj = logDto.getDate();
+
+            // If date is a Number (long, int, etc.), convert to Date
+            if (dateObj instanceof Number) {
+                long timestamp = ((Number) dateObj).longValue();
+                Date convertedDate = new Date(timestamp);
+                logDto.setDate(convertedDate);
+                log.debug("Converted date from timestamp {} to Date {}", timestamp, convertedDate);
+            }
+            // If date is a String that looks like a timestamp, try to convert
+            else if (dateObj instanceof String) {
+                String dateStr = (String) dateObj;
+                try {
+                    // Check if it's a numeric string (timestamp)
+                    if (dateStr.matches("\\d+")) {
+                        long timestamp = Long.parseLong(dateStr);
+                        Date convertedDate = new Date(timestamp);
+                        logDto.setDate(convertedDate);
+                        log.debug("Converted date from string timestamp {} to Date {}", timestamp, convertedDate);
+                    }
+                } catch (NumberFormatException e) {
+                    log.warn("Failed to parse date string as timestamp: {}", dateStr);
+                }
+            }
+            // If it's already a Date object, no conversion needed
+            else if (dateObj instanceof Date) {
+                log.debug("Date field is already a Date object: {}", dateObj);
+            }
+            // For other types, log a warning
+            else {
+                log.warn("Unexpected date field type: {} with value: {}", dateObj.getClass().getSimpleName(), dateObj);
+            }
+        }
+    }
+
     public void save(LogDto logDto) {
+        // Process date field to ensure proper type
+        processLogDto(logDto);
+
+        // 不写入这个数据了, 没啥用, 而且会存在很大量的情况, 还不知道原因
         if (useElastic()) {
-            elastic.save(logDto);
+            // elastic.save(logDto);
         } else {
-            mongo.save(logDto);
+            // mongo.save(logDto);
         }
     }
 
     public LogDto save(LogDto logDto, UserDetail userDetail) {
+        // Process date field to ensure proper type
+        processLogDto(logDto);
+
+        // 不写入这个数据了, 没啥用, 而且会存在很大量的情况, 还不知道原因
         if (useElastic()) {
-            return elastic.save(logDto, userDetail);
+            //return elastic.save(logDto, userDetail);
         } else {
-            mongo.save(logDto, userDetail);
+            //mongo.save(logDto, userDetail);
         }
         return logDto;
     }
