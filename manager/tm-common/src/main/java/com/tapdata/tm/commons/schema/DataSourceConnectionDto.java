@@ -87,7 +87,7 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         private Long tableCount;
         /** 检测时间 */
         private Long testTime;
-
+        private Map<String, Object> monitorAPI;
         private String database_host;
         private String database_username;
         private Integer database_port;

@@ -921,6 +921,49 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 	}
 
 	@Nested
+	class CheckSyncForeignKeyOpenTest{
+		private Node node;
+		private DataParentNode dataParentNode;
+		@BeforeEach
+		void beforeEach(){
+			node = mock(DatabaseNode.class);
+			dataParentNode = (DataParentNode) node;
+			doCallRealMethod().when(hazelcastTargetPdkDataNode).checkSyncForeignKeyOpen();
+		}
+		@Test
+		@DisplayName("test checkSyncForeignKeyOpen method when switch is on")
+		void testCheckSyncForeignKeyOpen1(){
+			when(dataParentNode.getSyncForeignKeyEnable()).thenReturn(true);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			boolean actual = hazelcastTargetPdkDataNode.checkSyncForeignKeyOpen();
+			assertEquals(true, actual);
+		}
+		@Test
+		@DisplayName("test checkSyncForeignKeyOpen method when switch is off")
+		void testCheckSyncForeignKeyOpen2(){
+			when(dataParentNode.getSyncForeignKeyEnable()).thenReturn(false);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node);
+			boolean actual = hazelcastTargetPdkDataNode.checkSyncForeignKeyOpen();
+			assertEquals(false, actual);
+		}
+		@Test
+		@DisplayName("test checkSyncForeignKeyOpen method when node is null")
+		void testCheckSyncForeignKeyOpen3(){
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(null);
+			boolean actual = hazelcastTargetPdkDataNode.checkSyncForeignKeyOpen();
+			assertEquals(false, actual);
+		}
+		@Test
+		@DisplayName("test checkSyncForeignKeyOpen method when node is not database node or table node")
+		void testCheckSyncForeignKeyOpen4(){
+			Node node1 = mock(Node.class);
+			when(hazelcastTargetPdkDataNode.getNode()).thenReturn(node1);
+			boolean actual = hazelcastTargetPdkDataNode.checkSyncForeignKeyOpen();
+			assertEquals(false, actual);
+		}
+	}
+
+	@Nested
 	class executeCreateIndexFunctionTest {
 
 		private TapTableMap<String, TapTable> tapTableMap;

@@ -329,6 +329,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             milestoneEntity.setRetrySuccess(aspect.getSuccess());
             milestoneEntity.setRetryMetadata(aspect.getRetryMetadata());
         });
+        if (aspect.getRetryTimes() > 0) {
+            taskRetryAlarm(aspect.getRetryTimes());
+        }
         return null;
     }
 
@@ -409,6 +412,20 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         } catch (Exception e) {
             if (TmUnavailableException.notInstance(e)) {
                 log.warn("Save milestone failed: {}", e.getMessage(), e);
+            }
+        }
+    }
+
+    protected void taskRetryAlarm(Long retryTimes){
+        try {
+            clientMongoOperator.update(
+                    Query.query(Criteria.where("taskId").is(task.getId().toHexString()))
+                    , Update.update("retryTimes", retryTimes)
+                    , ConnectorConstant.TASK_ALARM
+            );
+        } catch (Exception e) {
+            if (TmUnavailableException.notInstance(e)) {
+                log.warn("Save taskRetryAlarm failed: {}", e.getMessage(), e);
             }
         }
     }
