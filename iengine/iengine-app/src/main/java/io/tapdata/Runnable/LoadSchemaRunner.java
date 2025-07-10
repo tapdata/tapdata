@@ -5,11 +5,7 @@ import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.UUIDGenerator;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.LoadSchemaProgress;
-import com.tapdata.entity.RelateDataBaseTable;
-import com.tapdata.entity.Schema;
+import com.tapdata.entity.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import io.tapdata.TapInterface;
@@ -231,19 +227,20 @@ public class LoadSchemaRunner implements Runnable {
 				}
 			}
 			tableConsumer.accept(null);
+
 		} catch (Throwable throwable) {
 			throw new Exception("Load pdk schema failed, message: " + throwable.getMessage(), throwable);
 		}
 	}
 
-	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
-		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
-		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-				() -> {
-					connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
-							tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
-				}, TAG);
-	}
+    public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
+        DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
+        PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
+                () -> {
+                    connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
+                            tables -> consumeTapTable(tableConsumer, dataTypesMap, tables));
+                }, TAG);
+    }
 
 	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
 		DefaultExpressionMatchingMap dataTypesMap = connectorNode.getConnectorContext().getSpecification().getDataTypesMap();

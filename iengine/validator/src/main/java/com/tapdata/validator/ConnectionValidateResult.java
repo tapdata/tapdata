@@ -4,6 +4,7 @@ import com.tapdata.entity.Schema;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 
 import java.util.List;
+import java.util.Map;
 
 public class ConnectionValidateResult {
 
@@ -21,6 +22,8 @@ public class ConnectionValidateResult {
 
 	private String dbFullVersion;
 	private ConnectionOptions connectionOptions;
+
+	private Map<String, Object> monitorResult;
 
 	public ConnectionValidateResult() {
 	}
@@ -91,5 +94,13 @@ public class ConnectionValidateResult {
 
 	public void setConnectionOptions(ConnectionOptions connectionOptions) {
 		this.connectionOptions = connectionOptions;
+	}
+
+	public Map<String, Object> getMonitorResult() {
+		return monitorResult;
+	}
+
+	public void setMonitorResult(Map<String, Object> monitorResult) {
+		this.monitorResult = monitorResult;
 	}
 }

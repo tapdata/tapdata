@@ -15,7 +15,6 @@ import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -93,6 +92,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     private Long tableCount;
     /** 检测时间 */
     private Long testTime;
+    private Map<String, Object> monitorAPI;
     private Integer testCount;
 
     private String database_host;
