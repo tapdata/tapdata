@@ -1002,11 +1002,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	private void sendCdcStartedEvent() {
+	protected void sendCdcStartedEvent() {
 		TapdataStartedCdcEvent tapdataStartedCdcEvent = TapdataStartedCdcEvent.create();
 		tapdataStartedCdcEvent.setCdcStartTime(System.currentTimeMillis());
 		tapdataStartedCdcEvent.setSyncStage(SyncStage.CDC);
 		Node<?> node = getNode();
+		tapdataStartedCdcEvent.setSourceNodeId(node.getId());
+		tapdataStartedCdcEvent.setSourceNodeAssociateId(associateId);
 		if (node.isLogCollectorNode()) {
 			List<Connections> connections = ShareCdcUtil.getConnectionIds(getNode(), ids -> {
 				Query connectionQuery = new Query(where("_id").in(ids));
@@ -1023,6 +1025,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								TapdataStartedCdcEvent startedCdcEvent = TapdataStartedCdcEvent.create();
 								startedCdcEvent.setCdcStartTime(System.currentTimeMillis());
 								startedCdcEvent.setSyncStage(SyncStage.CDC);
+								tapdataStartedCdcEvent.setSourceNodeId(node.getId());
+								tapdataStartedCdcEvent.setSourceNodeAssociateId(associateId);
 								startedCdcEvent.setType(SyncProgress.Type.LOG_COLLECTOR);
 								startedCdcEvent.addInfo(TapdataEvent.CONNECTION_ID_INFO_KEY, connection.getId());
 								startedCdcEvent.addInfo(TapdataEvent.TABLE_NAMES_INFO_KEY, logCollectorNode.getLogCollectorConnConfigs().get(connection.getId()).getTableNames());
@@ -1272,23 +1276,24 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					try {
 						convertValue = Double.valueOf(defaultValue);
 					} catch (NumberFormatException e) {
-						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
+						throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED,  "Convert polling cdc condition value [" + defaultValue + "] to Double failed", e);
 					}
 				} else {
 					try {
 						convertValue = Long.valueOf(defaultValue);
 					} catch (NumberFormatException e) {
-						throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
+						throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "Convert polling cdc condition value [" + defaultValue + "] to Long failed", e);
 					}
 				}
 				break;
 			case TapType.TYPE_DATE:
 				LocalDate localDate;
 				String dateFormat = "yyyy-MM-dd";
+				String datePart = defaultValue.split(" ")[0];
 				try {
-					localDate = LocalDate.parse(defaultValue, DateTimeFormatter.ofPattern(dateFormat));
+					localDate = LocalDate.parse(datePart, DateTimeFormatter.ofPattern(dateFormat));
 				} catch (Exception e) {
-					throw new RuntimeException("Convert polling cdc condition value [" + defaultValue + "] to LocalDate failed, format: " + dateFormat);
+					throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "Convert polling cdc condition value [" + datePart + "] to LocalDate failed, format: " + dateFormat);
 				}
 				ZonedDateTime gmtZonedDate = localDate.atStartOfDay(ZoneId.of("GMT"));
 				convertValue = new DateTime(gmtZonedDate);
@@ -1299,7 +1304,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				try {
 					localDateTime = LocalDateTime.parse(defaultValue, DateTimeFormatter.ofPattern(datetimeFormat));
 				} catch (Exception e) {
-					throw new RuntimeException("The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
+					throw new TapCodeException(TaskProcessorExCode_11.DATA_COVERT_FAILED, "The input string format is incorrect, expected format: " + datetimeFormat + ", actual value: " + defaultValue);
 				}
 				ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
 				convertValue = new DateTime(gmtZonedDateTime);

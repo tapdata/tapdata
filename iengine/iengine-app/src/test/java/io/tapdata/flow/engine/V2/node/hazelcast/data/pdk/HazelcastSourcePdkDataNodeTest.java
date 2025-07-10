@@ -36,6 +36,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.partition.TapPartition;
 import io.tapdata.entity.schema.partition.TapSubPartitionTableInfo;
+import io.tapdata.entity.schema.type.TapDate;
 import io.tapdata.entity.schema.type.TapDateTime;
 import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.value.DateTime;
@@ -1559,6 +1560,11 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			queryOperator.setOperator(5);
 
 			conditions.add(queryOperator);
+			QueryOperator queryOperator1 = new QueryOperator();
+			queryOperator1.setKey("created");
+			queryOperator1.setValue("2025-07-01 00:00:00");
+			queryOperator1.setOperator(1);
+			conditions.add(queryOperator1);
 			testTableTemp.setConditions(conditions);
 			when(dataProcessorContext.getNode()).thenReturn((Node) testTableTemp);
 			HazelcastSourcePdkBaseNode spyInstance = Mockito.spy(hazelcastSourcePdkDataNode);
@@ -1572,6 +1578,9 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			TapField tapField = new TapField();
 			tapField.setTapType(new TapString());
 			nameFieldMap.put("id",tapField);
+			TapField tapField1 = new TapField();
+			tapField1.setTapType(new TapDate());
+			nameFieldMap.put("created",tapField1);
 			testTable.setNameFieldMap(nameFieldMap);
 			TapTableMap<String, TapTable> tapTableMap = TapTableMap.create("testTable", testTable);
 			when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
@@ -1989,6 +1998,16 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		Assertions.assertNotNull(sourceDataNode.partitionTableSubMasterMap);
 		Assertions.assertEquals(8, sourceDataNode.partitionTableSubMasterMap.keySet().size());
 
+	}
+
+	@Nested
+	class sendCdcStartedEventTest {
+		@Test
+		public void testSendCdcStartedEventSimple() {
+			doNothing().when(hazelcastSourcePdkDataNode).enqueue(any(TapdataEvent.class));
+			hazelcastSourcePdkDataNode.sendCdcStartedEvent();
+			verify(hazelcastSourcePdkDataNode, times(1)).enqueue(any(TapdataEvent.class));
+		}
 	}
 
 }
