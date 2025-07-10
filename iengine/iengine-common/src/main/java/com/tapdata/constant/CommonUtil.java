@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.tapdata.entity.MysqlJson;
 import com.tapdata.entity.values.BooleanNotExist;
+import com.tapdata.exception.CompareException;
 import io.tapdata.entity.schema.value.DateTime;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
@@ -248,7 +249,7 @@ public class CommonUtil {
 		return new BooleanNotExist();
 	}
 
-	public static boolean compare(Object val1, Object val2, boolean ignoreTimePrecision, String roundingMode) {
+	public static boolean compare(Object val1, Object val2, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		try {
 			if (val1 == null && val2 == null) return false;
 			if (val1 == null || val2 == null) return true;
@@ -302,14 +303,13 @@ public class CommonUtil {
 
 			return !val1.equals(val2);
 		} catch (Throwable e) {
-			e.printStackTrace();
+			throw new CompareException(e).sourceValue(val1).targetValue(val2);
 		}
-		return true;
 	}
 
 
 
-	private static boolean compare(Map val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+	private static boolean compare(Map val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		if (obj instanceof Map) {
 			if (val.size() != ((Map) obj).size()) return true;
 			Map objVal = (Map) obj;
@@ -326,7 +326,7 @@ public class CommonUtil {
 		return true;
 	}
 
-	private static boolean compare(Collection val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+	private static boolean compare(Collection val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		Object v1, v2;
 		if (obj instanceof Collection) {
 			if (val.size() != ((Collection) obj).size()) return true;
@@ -352,7 +352,7 @@ public class CommonUtil {
 		return true;
 	}
 
-	private static boolean compareArray(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+	private static boolean compareArray(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		int len = Array.getLength(val);
 		Object v1, v2;
 		if (obj instanceof Collection) {
@@ -378,7 +378,7 @@ public class CommonUtil {
 		return true;
 	}
 
-	private static boolean compare(MysqlJson val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+	private static boolean compare(MysqlJson val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		try {
 			if (obj instanceof Map) {
 				return compare((Map) obj, val.toObject(), ignoreTimePrecision, roundingMode);
@@ -389,16 +389,16 @@ public class CommonUtil {
 			}
 			return !val.getData().equals(obj.toString());
 		} catch (Exception e) {
-			return true;
+			throw new CompareException(e).sourceValue(val).targetValue(obj);
 		}
 	}
 
-	private static boolean obj2JsonCompare(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) {
+	private static boolean obj2JsonCompare(Object val, Object obj, boolean ignoreTimePrecision, String roundingMode) throws CompareException {
 		try {
 			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 			return !JSONUtil.obj2Json(val).equals(obj.toString());
 		} catch (JsonProcessingException e) {
-			return true;
+			throw new CompareException(e).sourceValue(val).targetValue(obj);
 		} finally {
 			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 		}
