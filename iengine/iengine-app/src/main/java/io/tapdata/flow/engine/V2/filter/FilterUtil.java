@@ -1,8 +1,6 @@
 package io.tapdata.flow.engine.V2.filter;
 
-import com.tapdata.constant.StringUtil;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
-import io.micrometer.common.util.StringUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -16,21 +14,20 @@ public class FilterUtil {
      * 源端发生新增字段任务会报错，希望能够按照字段编辑节点自动屏蔽新字段，不要影响任务运行
      * tip: 自动屏蔽新字段
      * */
-    public static Map<String, Object> processTableFields(Map<String, Object> data, Set<String> fieldNames, String targetNodePKVirtualFieldName) {
+    public static Map<String, Object> processTableFields(Map<String, Object> data, Set<String> fieldNames) {
         if (null == fieldNames || fieldNames.isEmpty()) return data;
         if (null == data) return null;
-        data.entrySet().removeIf(entry -> (StringUtils.isBlank(targetNodePKVirtualFieldName)|| !targetNodePKVirtualFieldName.equalsIgnoreCase(entry.getKey()))
-                && !fieldNames.contains(entry.getKey()));
+        data.entrySet().removeIf(entry -> !NoPrimaryKeyVirtualField.FIELD_NAME.equalsIgnoreCase(entry.getKey()) && !fieldNames.contains(entry.getKey()));
         return data;
     }
 
-    public static void filterEventData(TapTable tapTable, TapEvent e, String targetNodePKVirtualFieldName) {
+    public static void filterEventData(TapTable tapTable, TapEvent e) {
         if (null != tapTable && null != tapTable.getNameFieldMap() && !tapTable.getNameFieldMap().isEmpty()) {
             Set<String> fieldNames = tapTable.getNameFieldMap().keySet();
             Map<String, Object> after = TapEventUtil.getAfter(e);
             Map<String, Object> before = TapEventUtil.getBefore(e);
-            TapEventUtil.setAfter(e, processTableFields(after, fieldNames,targetNodePKVirtualFieldName));
-            TapEventUtil.setBefore(e, processTableFields(before, fieldNames,targetNodePKVirtualFieldName));
+            TapEventUtil.setAfter(e, processTableFields(after, fieldNames));
+            TapEventUtil.setBefore(e, processTableFields(before, fieldNames));
         }
     }
 }

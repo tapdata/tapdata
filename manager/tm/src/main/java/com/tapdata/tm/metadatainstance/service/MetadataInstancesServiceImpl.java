@@ -268,34 +268,21 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                     timeStampFieldMap.put(metadataInstancesDto.getOriginalName(), timestampFieldName);
                 }
                 MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
-                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(field -> field.getPrimaryKey() != null && field.getPrimaryKey()).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getSource).filter(source->!Field.SOURCE_VIRTUAL_HASH.equalsIgnoreCase(source)).collect(Collectors.toList());
+                List<String> primaryKeys = metadataInstancesDto.getFields().stream().filter(Field::getPrimaryKey).sorted(Comparator.comparing(Field::getPrimaryKeyPosition, Comparator.nullsLast(Comparator.naturalOrder()))).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList());
 
                 if (CollectionUtils.isNotEmpty(primaryKeys)) {
                     metadataInstancesVo.setSortColumns(primaryKeys);
                 } else if (CollectionUtils.isNotEmpty(metadataInstancesDto.getIndices()) && metadataInstancesDto.getIndices().stream().anyMatch(TableIndex::isUnique)) {
-                    List<String> indexColumn = metadataInstancesDto.getIndices().stream()
-                            .filter(TableIndex::isUnique)
-                            .findAny()
-                            .map(idx -> idx.getColumns().stream()
-                                    .map(TableIndexColumn::getColumnName)
-                                    .collect(Collectors.toList()))
-                            .orElse(Collections.emptyList());
-                    if (CollectionUtils.isNotEmpty(indexColumn)) {
-                        List<String> sortColumns = metadataInstancesDto.getFields().stream()
-                                .filter(field -> indexColumn.contains(field.getFieldName()))
-                                .filter(field -> Field.SOURCE_VIRTUAL_HASH.equalsIgnoreCase(field.getSource()))
-                                .map(Field::getFieldName)
-                                .collect(Collectors.toList());
-                        metadataInstancesVo.setSortColumns(sortColumns);
-                    }
-                }else {
-                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().filter(v -> Boolean.FALSE.equals(v.getIsNullable())).map(Field::getSource).filter(source->!Field.SOURCE_VIRTUAL_HASH.equalsIgnoreCase(source)).collect(Collectors.toList()));
+                    metadataInstancesDto.getIndices().stream().filter(TableIndex::isUnique).findAny()
+                            .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList())));
+                } else {
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().filter(v -> Boolean.FALSE.equals(v.getIsNullable())).map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList()));
                 }
                 if (CollectionUtils.isEmpty(metadataInstancesVo.getSortColumns())) {
-                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().map(Field::getSource).filter(source->!Field.SOURCE_VIRTUAL_HASH.equalsIgnoreCase(source)).collect(Collectors.toList()));
+                    metadataInstancesVo.setSortColumns(metadataInstancesDto.getFields().stream().map(Field::getFieldName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList()));
                 }
                 List<Field> fields = metadataInstancesDto.getFields().stream().filter(tapField -> {
-                    return StringUtils.isNotBlank(tapField.getSource()) && !Field.SOURCE_VIRTUAL_HASH.equalsIgnoreCase(tapField.getSource());
+                    return StringUtils.isNotBlank(tapField.getFieldName()) && !NO_PDK_HASH.equalsIgnoreCase(tapField.getFieldName());
                 }).collect(Collectors.toList());
                 metadataInstancesVo.setFields(fields);
                 metadataInstancesVoList.add(metadataInstancesVo);

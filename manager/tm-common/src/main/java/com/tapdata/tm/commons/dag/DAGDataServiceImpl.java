@@ -443,10 +443,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
             if (node instanceof DatabaseNode && Objects.nonNull(updateConditionFieldMap) && !updateConditionFieldMap.isEmpty()) {
-                if (CollectionUtils.isNotEmpty(updateConditionFieldMap.get(schema.getOriginalName()))) {
+                if (updateConditionFieldMap.containsKey(schema.getOriginalName())) {
                     metadataInstancesDto.setHasUpdateField(true);
-                } else {
-                    metadataInstancesDto.setHasUpdateField(false);
                 }
             }
 

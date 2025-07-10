@@ -359,28 +359,7 @@ public class NoPrimaryKeyVirtualFieldTest {
             instance = new NoPrimaryKeyVirtualField();
             try (MockedStatic<NoPrimaryKeyVirtualField> mockedStatic = Mockito.mockStatic(NoPrimaryKeyVirtualField.class)) {
                 mockedStatic.when(() -> NoPrimaryKeyVirtualField.isEnable(Mockito.any())).thenReturn(true);
-                // 创建一个包含TableNode的graph用于测试
-                Graph<Element, Element> testGraph = new Graph<>();
-
-                // 创建源节点
-                TableNode sourceNode = new TableNode();
-                sourceNode.setId("source-table-node");
-                testGraph.setNode(sourceNode.getId(), sourceNode);
-
-                // 创建目标节点
-                TableNode targetNode = new TableNode();
-                targetNode.setId("target-table-node");
-                targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ADD_HASH.name());
-                testGraph.setNode(targetNode.getId(), targetNode);
-
-                // 建立连接关系
-                testGraph.setEdge(sourceNode.getId(), targetNode.getId());
-
-                // 设置graph到节点
-                sourceNode.setGraph(testGraph);
-                targetNode.setGraph(testGraph);
-
-                instance.init(testGraph);
+                instance.init(null);
             }
 
             // add primary key table
@@ -642,28 +621,7 @@ public class NoPrimaryKeyVirtualFieldTest {
             instance = new NoPrimaryKeyVirtualField();
             try (MockedStatic<NoPrimaryKeyVirtualField> mockedStatic = Mockito.mockStatic(NoPrimaryKeyVirtualField.class)) {
                 mockedStatic.when(() -> NoPrimaryKeyVirtualField.isEnable(Mockito.any())).thenReturn(true);
-                // 创建一个包含TableNode的graph用于测试
-                Graph<Element, Element> testGraph = new Graph<>();
-
-                // 创建源节点
-                TableNode sourceNode = new TableNode();
-                sourceNode.setId("source-table-node");
-                testGraph.setNode(sourceNode.getId(), sourceNode);
-
-                // 创建目标节点
-                TableNode targetNode = new TableNode();
-                targetNode.setId("target-table-node");
-                targetNode.setNoPkSyncMode(NoPrimaryKeySyncMode.ADD_HASH.name());
-                testGraph.setNode(targetNode.getId(), targetNode);
-
-                // 建立连接关系
-                testGraph.setEdge(sourceNode.getId(), targetNode.getId());
-
-                // 设置graph到节点
-                sourceNode.setGraph(testGraph);
-                targetNode.setGraph(testGraph);
-
-                instance.init(testGraph);
+                instance.init(null);
             }
             instance.add(Optional.of(new Schema()).map(schema -> {
                 schema.setOriginalName(tableName);
