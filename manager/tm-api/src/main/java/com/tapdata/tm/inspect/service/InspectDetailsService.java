@@ -34,7 +34,11 @@ public abstract class InspectDetailsService extends BaseService<InspectDetailsDt
 
     public FailTableAndRowsVo totalFailTableAndRows(String inspectResultId) {
         AggregationResults<FailTableAndRowsVo> results = repository.aggregate(Aggregation.newAggregation(
-            Aggregation.match(Criteria.where("inspectResultId").is(inspectResultId).and("source").exists(true))
+            Aggregation.match(Criteria.where("inspectResultId").is(inspectResultId)
+                .orOperator(
+                    Criteria.where("source").exists(true),
+                    Criteria.where("target").exists(true)
+                ))
             , Aggregation.group("taskId").count().as("rows")
             , Aggregation.group().count().as("tableTotals").sum("rows").as("rowsTotals")
         ), FailTableAndRowsVo.class);
