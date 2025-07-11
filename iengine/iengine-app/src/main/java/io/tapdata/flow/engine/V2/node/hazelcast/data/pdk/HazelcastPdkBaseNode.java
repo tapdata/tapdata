@@ -297,6 +297,12 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			// Default
 			connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
 			connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			if (node instanceof DataParentNode) {
+				DmlPolicy dmlPolicy = new DmlPolicy();
+				dmlPolicy.setInsertPolicy(DmlPolicyEnum.update_on_exists);
+				dmlPolicy.setUpdatePolicy(DmlPolicyEnum.ignore_on_nonexists);
+				((DataParentNode<?>) node).setDmlPolicy(dmlPolicy);
+			}
 		}
 	}
 
