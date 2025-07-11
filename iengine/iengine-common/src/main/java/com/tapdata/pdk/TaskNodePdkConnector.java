@@ -65,6 +65,9 @@ public class TaskNodePdkConnector implements IPdkConnector {
     @Getter
     private final String nodeId;
 
+    @Getter
+    private final String databaseType;
+
     public TaskNodePdkConnector(
         ClientMongoOperator clientMongoOperator
         , String taskId
@@ -78,6 +81,7 @@ public class TaskNodePdkConnector implements IPdkConnector {
         this.taskId = taskId;
         this.nodeId = node.getId();
         this.taskRetryConfig = taskRetryConfig;
+        this.databaseType = databaseType.getName();
         this.connectorNode = PdkUtil.createNode(
             getTaskId(),
             databaseType,
@@ -229,26 +233,15 @@ public class TaskNodePdkConnector implements IPdkConnector {
 
                 if (!fields.isEmpty()) {
                     for (String f : fields) {
-                        newData.put(f, formatValue(result.get(f)));
+                        newData.put(f, result.get(f));
                     }
                 } else {
-                    result.forEach((key, val) -> newData.put(key, formatValue(val)));
+                    newData.putAll(result);
                 }
 
                 data.set(newData);
             }
         }
-    }
-
-    protected Object formatValue(Object o) {
-        if (null == o) return null;
-
-        if (o instanceof DateTime) {
-            return ((DateTime) o).toInstant().toString();
-        } else if (o instanceof byte[]) {
-            return MD5Util.crypt((byte[]) o, false);
-        }
-        return o;
     }
 
     public static TaskNodePdkConnector create(
