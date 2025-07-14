@@ -1532,7 +1532,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								}
 								try {
 									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
-								} catch (ConnectException e) {
+								} catch (Exception e) {
 									needSave.set(false);
 								}
 							}
