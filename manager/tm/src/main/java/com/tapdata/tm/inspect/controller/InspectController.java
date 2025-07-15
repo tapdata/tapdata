@@ -19,6 +19,8 @@ import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.inspect.service.InspectTaskService;
 import com.tapdata.tm.inspect.vo.InspectRecoveryStartVerifyVo;
 import com.tapdata.tm.inspect.vo.InspectTaskVo;
+import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionDataTypeEnums;
@@ -64,6 +66,7 @@ public class InspectController extends BaseController {
     private InspectService inspectService;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
+    private MetadataDefinitionService metadataDefinitionService;
 
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
         throw new BizException("insufficient.permissions",
@@ -445,5 +448,11 @@ public class InspectController extends BaseController {
 
         InspectRecoveryStartVerifyVo startVerifyVo = inspectService.recoveryStartVerity(inspectDto);
         return success(startVerifyVo);
+    }
+
+    @Operation(summary = "批量修改标签")
+    @PatchMapping("batchUpdateListtags")
+    public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
+        return success(metadataDefinitionService.batchUpdateListTags("Inspect", batchUpdateParam, getLoginUser()));
     }
 }
