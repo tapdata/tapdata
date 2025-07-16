@@ -102,6 +102,11 @@
 				<version>${tapdata-common.version}</version>
 			</dependency>
 			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>tapdata-common</artifactId>
+				<version>${tapdata-common.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>org.mongodb</groupId>
 				<artifactId>mongodb-driver-sync</artifactId>
 				<version>${mongo.version}</version>

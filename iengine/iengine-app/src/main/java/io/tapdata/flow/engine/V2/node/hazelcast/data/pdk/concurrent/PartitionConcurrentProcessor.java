@@ -3,6 +3,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -15,6 +17,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -27,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -39,7 +43,7 @@ import java.util.stream.IntStream;
 public class PartitionConcurrentProcessor {
 
 	public static final String PROCESS_QUEUE_IF_FULL_WAITING_FOR_ENQUEUE_MESSAGE = "process queue if full, waiting for enqueue";
-	private final String concurrentProcessThreadNamePrefix;
+	private String concurrentProcessThreadNamePrefix;
 
 	private static final String LOG_PREFIX = "[partition concurrent] ";
 
@@ -47,29 +51,45 @@ public class PartitionConcurrentProcessor {
 
 	private final Logger logger = LogManager.getLogger(PartitionConcurrentProcessor.class);
 
-	protected final ExecutorService executorService;
+	protected ExecutorService executorService;
 
-	protected final List<LinkedBlockingQueue<PartitionEvent<TapdataEvent>>> partitionsQueue;
+	protected List<LinkedBlockingQueue<PartitionEvent<TapdataEvent>>> partitionsQueue;
 
-	private final int partitionSize;
-	private final int batchSize;
+	private int partitionSize;
+	private int batchSize;
 
 	private final AtomicBoolean currentRunning = new AtomicBoolean(false);
 
-	private final Consumer<List<TapdataEvent>> eventProcessor;
+	private Consumer<List<TapdataEvent>> eventProcessor;
 
-	private final Partitioner<TapdataEvent, List<Object>> partitioner;
+	private Partitioner<TapdataEvent, List<Object>> partitioner;
 
-	private final PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector;
+	private PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector;
 
-	private final AtomicLong eventSeq = new AtomicLong(0L);
+	private AtomicLong eventSeq = new AtomicLong(0L);
 
-	private final LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
+	private LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
 
-	private final Consumer<TapdataEvent> flushOffset;
-	private final ErrorHandler<Throwable, String> errorHandler;
-	private final Supplier<Boolean> nodeRunning;
-	private final TaskDto taskDto;
+	private Consumer<TapdataEvent> flushOffset;
+	private ErrorHandler<Throwable, String> errorHandler;
+	private Supplier<Boolean> nodeRunning;
+	private TaskDto taskDto;
+	private DataProcessorContext dataProcessorContext;
+
+	public PartitionConcurrentProcessor(
+			int partitionSize,
+			int batchSize,
+			Partitioner<TapdataEvent, List<Object>> partitioner,
+			PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector,
+			Consumer<List<TapdataEvent>> eventProcessor,
+			Consumer<TapdataEvent> flushOffset,
+			ErrorHandler<Throwable, String> errorHandler,
+			Supplier<Boolean> nodeRunning,
+			TaskDto taskDto
+	) {
+		this.taskDto = taskDto;
+		init(partitionSize, batchSize, partitioner, keySelector, eventProcessor, flushOffset, errorHandler, nodeRunning);
+	}
 
 	public PartitionConcurrentProcessor(
 		int partitionSize,
@@ -80,29 +100,42 @@ public class PartitionConcurrentProcessor {
 		Consumer<TapdataEvent> flushOffset,
 		ErrorHandler<Throwable, String> errorHandler,
 		Supplier<Boolean> nodeRunning,
-		TaskDto taskDto
+		DataProcessorContext dataProcessorContext
 	) {
 
-		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskDto.getId().toHexString() + "-" + taskDto.getName() + "-";
+		this.dataProcessorContext = dataProcessorContext;
+		this.taskDto = dataProcessorContext.getTaskDto();
+		init(partitionSize, batchSize, partitioner, keySelector, eventProcessor, flushOffset, errorHandler, nodeRunning);
+	}
 
-		this.taskDto = taskDto;
+	private void init(
+			int partitionSize,
+			int batchSize,
+			Partitioner<TapdataEvent, List<Object>> partitioner,
+			PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector,
+			Consumer<List<TapdataEvent>> eventProcessor,
+			Consumer<TapdataEvent> flushOffset,
+			ErrorHandler<Throwable, String> errorHandler,
+			Supplier<Boolean> nodeRunning
+	) {
+		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskDto.getId().toHexString() + "-" + taskDto.getName() + "-";
 		this.batchSize = batchSize;
 
 		this.partitionSize = partitionSize;
 
 		this.executorService = new ThreadPoolExecutor(partitionSize + 1, partitionSize + 1,
-			60L, TimeUnit.SECONDS,
-			new LinkedBlockingQueue<>(1)
+				60L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<>(1)
 		);
 		logger.info(LOG_PREFIX + "completed create thread pool, pool size {}", partitionSize + 1);
 
 		this.errorHandler = errorHandler;
 		this.nodeRunning = nodeRunning;
 		this.partitionsQueue = IntStream
-			.range(0, partitionSize)
-			.mapToObj(
-				i -> new LinkedBlockingQueue<PartitionEvent<TapdataEvent>>(batchSize * 2)
-			).collect(Collectors.toList());
+				.range(0, partitionSize)
+				.mapToObj(
+						i -> new LinkedBlockingQueue<PartitionEvent<TapdataEvent>>(batchSize * 2)
+				).collect(Collectors.toList());
 
 		watermarkQueue = new LinkedBlockingQueue<>(batchSize);
 
@@ -159,6 +192,9 @@ public class PartitionConcurrentProcessor {
 	protected void partitionConsumer(int finalPartition, LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue) {
 		try {
 			Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
+			if (null != connectorCapabilities && null != initDmlPolicy && null != dataProcessorContext) {
+				initDmlPolicy.accept(dataProcessorContext.getNode(), connectorCapabilities);
+			}
 			List<TapdataEvent> processEvents = new ArrayList<>();
 			while (isRunning()) {
 				try {
@@ -488,5 +524,19 @@ public class PartitionConcurrentProcessor {
 				after.accept(t, m);
 			};
 		}
+	}
+
+	private ConnectorCapabilities connectorCapabilities;
+
+	public PartitionConcurrentProcessor setConnectorCapabilities(ConnectorCapabilities connectorCapabilities) {
+		this.connectorCapabilities = connectorCapabilities;
+		return this;
+	}
+
+	private BiConsumer<Node, ConnectorCapabilities> initDmlPolicy;
+
+	public PartitionConcurrentProcessor setInitDmlPolicy(BiConsumer<Node, ConnectorCapabilities> initDmlPolicy) {
+		this.initDmlPolicy = initDmlPolicy;
+		return this;
 	}
 }

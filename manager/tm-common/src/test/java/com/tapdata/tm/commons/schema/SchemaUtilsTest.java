@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,7 +50,7 @@ class SchemaUtilsTest {
         @DisplayName("The test target is not a schema free type database")
         @Test
         void testOneSchema() {
-            Schema s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schema);
+            Schema s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schema);
             assertNotNull(s);
             assertEquals(schema, s);
         }
@@ -59,7 +58,7 @@ class SchemaUtilsTest {
         @DisplayName("The test target is not a schema free type database")
         @Test
         void testAllSchema() {
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -69,7 +68,7 @@ class SchemaUtilsTest {
         @Test
         void testDataBaseIsFreeSchemaOne() {
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
-            Schema s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schema);
+            Schema s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schema);
             assertNotNull(s);
             assertEquals(schema, s);
         }
@@ -78,7 +77,7 @@ class SchemaUtilsTest {
         @Test
         void testDataBaseIsFreeSchemaALl() {
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -88,7 +87,7 @@ class SchemaUtilsTest {
         @Test
         void testDataBaseNotFreeSchemaOne() {
             definitionTags.add("database");
-            Schema s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schema);
+            Schema s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schema);
             assertNotNull(s);
             assertEquals(schema, s);
         }
@@ -97,7 +96,7 @@ class SchemaUtilsTest {
         @Test
         void testDataBaseNotFreeSchemaALl() {
             definitionTags.add("database");
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -108,7 +107,7 @@ class SchemaUtilsTest {
         void testSchemaNotAnyFields() {
             fields.clear();
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -121,7 +120,7 @@ class SchemaUtilsTest {
             fields.add(fieldSub);
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
             when(fieldSub.getFieldName()).thenReturn("name.id");
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -132,7 +131,7 @@ class SchemaUtilsTest {
         void testContainsSubFieldsButNotFatherField() {
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
             when(field.getFieldName()).thenReturn("name.id");
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -146,7 +145,7 @@ class SchemaUtilsTest {
             fields.add(fieldSub);
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
             when(fieldSub.getFieldName()).thenReturn("name.id");
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));
@@ -160,7 +159,7 @@ class SchemaUtilsTest {
             fields.add(fieldSub);
             definitionTags.add(SchemaUtils.SCHEMA_FREE);
             when(fieldSub.getFieldName()).thenReturn("name.id");
-            List<Schema> s = SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, schemas);
+            List<Schema> s = SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, schemas);
             assertNotNull(s);
             assertEquals(1, s.size());
             assertEquals(schema, s.get(0));

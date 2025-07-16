@@ -100,6 +100,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private static final String WRITE_THREAD_SIZE = "writeThreadSize";
 	protected TapRecordSkipDetector skipDetector;
 	protected PdkStateMap pdkStateMap;
+	protected ConnectorCapabilities connectorCapabilities;
 
 	protected TapRecordSkipDetector getSkipDetector() {
 		return skipDetector;
@@ -218,7 +219,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		}
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		Node<?> node = dataProcessorContext.getNode();
-		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
+		connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
 		Map<String, Object> nodeConfig = generateNodeConfig(node, taskDto);
 		ConnectorNode connectorNode = PdkUtil.createNode(taskDto.getId().toHexString(),
