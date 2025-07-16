@@ -1,8 +1,8 @@
 package com.tapdata.pdk;
 
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.constant.MD5Util;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -13,7 +13,6 @@ import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.Entry;
@@ -122,30 +121,33 @@ public class TaskNodePdkConnector implements IPdkConnector {
 
     @Override
     public LinkedHashMap<String, Object> findOneByKeys(String tableName, LinkedHashMap<String, Object> keys, List<String> fields) {
-        TapTable tapTable = getTapTable(tableName);
-        TapAdvanceFilter tapAdvanceFilter = createFilter(keys, fields);
-
         final AtomicReference<Throwable> throwable = new AtomicReference<>();
         final AtomicReference<LinkedHashMap<String, Object>> data = new AtomicReference<>();
 
-        PDKInvocationMonitor.invoke(connectorNode
-            , PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER
-            , PDKMethodInvoker.create().runnable(
-                    () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext()
-                        , tapAdvanceFilter
-                        , tapTable
-                        , filterResults -> consumerResults(fields, tapTable, filterResults, throwable, data)
+        try {
+            TapTable tapTable = getTapTable(tableName);
+            LinkedHashMap<String, Object> filterKeys = new LinkedHashMap<>(getCodecsFilterManager()
+                .transformFromTapValueMap(keys, tapTable.getNameFieldMap()));
+            TapAdvanceFilter tapAdvanceFilter = createFilter(filterKeys, fields);
+
+            PDKInvocationMonitor.invoke(connectorNode
+                , PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER
+                , PDKMethodInvoker.create().runnable(
+                        () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext()
+                            , tapAdvanceFilter
+                            , tapTable
+                            , filterResults -> consumerResults(fields, tapTable, filterResults, throwable, data)
+                        )
                     )
-                )
-                .logTag(TAG)
-                .retryPeriodSeconds(taskRetryConfig.getRetryIntervalSecond())
-                .maxRetryTimeMinute(taskRetryConfig.getMaxRetryTime(TimeUnit.MINUTES))
-        );
+                    .logTag(TAG)
+                    .retryPeriodSeconds(taskRetryConfig.getRetryIntervalSecond())
+                    .maxRetryTimeMinute(taskRetryConfig.getMaxRetryTime(TimeUnit.MINUTES))
+            );
+        } catch (Exception e) {
+            throwable.set(e);
+        }
         if (null != throwable.get()) {
-            if (throwable.get() instanceof RuntimeException) {
-                throw (RuntimeException) throwable.get();
-            }
-            throw new RuntimeException(throwable.get());
+            throw new RuntimeException(String.format("table '%s' can't query of keys: %s", tableName, JSONObject.toJSONString(keys)), throwable.get());
         }
         return data.get();
     }
