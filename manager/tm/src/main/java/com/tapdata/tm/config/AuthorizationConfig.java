@@ -117,7 +117,9 @@ public class AuthorizationConfig {
                 .authorizeHttpRequests(authorizeRequests -> authorizeRequests
                         .anyRequest().authenticated())
                 .with(authorizationServerConfigurer, Customizer.withDefaults())
-                .headers(headers -> headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin)))
+                .headers(headers -> {
+                    headers.frameOptions((HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+                })
                 .csrf(AbstractHttpConfigurer::disable);
         return http.build();
     }

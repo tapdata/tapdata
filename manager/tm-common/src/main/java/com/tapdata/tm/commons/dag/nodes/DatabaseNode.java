@@ -174,7 +174,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         if (dataSource.getDatabase_type().contains(MONGODB)) {
             outputSchema.stream().filter(Objects::nonNull).forEach(schema -> SchemaUtils.addFieldObjectIdIfMongoDatabase(schema, dataSource.getDatabase_type()));
         }
-        return SchemaUtils.removeSubFieldsWhichFromFreeSchema(dataSource, outputSchema);
+        return SchemaUtils.removeSubFieldsForFreeSchemaDatasource(dataSource, outputSchema);
     }
 
     private List<TableIndex> updateIndexDelField(List<TableIndex> indices, Map<String, String> filedMapping) {
