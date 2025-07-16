@@ -23,4 +23,6 @@ public class AlarmRuleVO implements Serializable {
     private int equalsFlag;
     //毫秒
     private int ms;
+
+    private int times;
 }

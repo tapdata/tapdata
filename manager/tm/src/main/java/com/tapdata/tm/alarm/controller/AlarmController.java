@@ -9,12 +9,14 @@ import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -88,6 +90,17 @@ public class AlarmController extends BaseController {
     @PostMapping("/updateTaskAlarm")
     public ResponseMessage<Void> updateTaskAlarm(@RequestBody AlarmVO alarm){
         alarmService.updateTaskAlarm(alarm);
+        return success();
+    }
+
+    @Operation(summary = "add Task Retry Message")
+    @PostMapping("update")
+    public ResponseMessage<Void> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+        Document update = Document.parse(reqBody);
+        if(where.containsKey("taskId")){
+            alarmService.taskRetryAlarm((String) where.get("taskId"),(Document)update.get("$set"));
+        }
         return success();
     }
 }

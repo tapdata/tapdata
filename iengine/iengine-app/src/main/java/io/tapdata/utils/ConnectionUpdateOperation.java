@@ -37,6 +37,7 @@ public enum ConnectionUpdateOperation implements IUpdateOperation {
 	EDIT_TEST("editTest"),
 	EXTERNAL_STORAGE_ID("externalStorageId"),
 	IS_EXTERNAL_STORAGE_ID("isExternalStorage"),
+	MONITOR_API("monitorAPI"),
 	;
 
 	private final String key;

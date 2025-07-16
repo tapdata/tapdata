@@ -1,6 +1,7 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.values.BooleanNotExist;
+import com.tapdata.exception.CompareException;
 import io.tapdata.entity.schema.value.DateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -246,14 +247,14 @@ public class CommonUtilTest {
 
         @DisplayName("测试两个null值比较")
         @Test
-        void testBothNull() {
+        void testBothNull() throws CompareException {
             boolean result = CommonUtil.compare(null, null, false, null);
             assertFalse(result, "两个null值应该相等，返回false");
         }
 
         @DisplayName("测试一个null值比较")
         @Test
-        void testOneNull() {
+        void testOneNull() throws CompareException {
             boolean result1 = CommonUtil.compare(null, "test", false, null);
             assertTrue(result1, "null与非null值应该不相等，返回true");
 
@@ -263,21 +264,21 @@ public class CommonUtilTest {
 
         @DisplayName("测试相同字符串比较")
         @Test
-        void testEqualStrings() {
+        void testEqualStrings() throws CompareException {
             boolean result = CommonUtil.compare("hello", "hello", false, null);
             assertFalse(result, "相同字符串应该相等，返回false");
         }
 
         @DisplayName("测试不同字符串比较")
         @Test
-        void testDifferentStrings() {
+        void testDifferentStrings() throws CompareException {
             boolean result = CommonUtil.compare("hello", "world", false, null);
             assertTrue(result, "不同字符串应该不相等，返回true");
         }
 
         @DisplayName("测试相同数字比较")
         @Test
-        void testEqualNumbers() {
+        void testEqualNumbers() throws CompareException {
             boolean result1 = CommonUtil.compare(123, 123, false, null);
             assertFalse(result1, "相同整数应该相等，返回false");
 
@@ -290,7 +291,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试不同数字比较")
         @Test
-        void testDifferentNumbers() {
+        void testDifferentNumbers() throws CompareException {
             boolean result1 = CommonUtil.compare(123, 456, false, null);
             assertTrue(result1, "不同整数应该不相等，返回true");
 
@@ -300,7 +301,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试布尔值比较")
         @Test
-        void testBooleanComparison() {
+        void testBooleanComparison() throws CompareException {
             boolean result1 = CommonUtil.compare(true, true, false, null);
             assertFalse(result1, "相同布尔值应该相等，返回false");
 
@@ -320,7 +321,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试布尔值与不可转换值的比较")
         @Test
-        void testBooleanWithNonConvertible() {
+        void testBooleanWithNonConvertible() throws CompareException {
             boolean result1 = CommonUtil.compare(true, "2", false, null);
             assertTrue(result1, "true与不可转换的字符串应该不相等，返回true");
 
@@ -330,7 +331,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试Map比较")
         @Test
-        void testMapComparison() {
+        void testMapComparison() throws CompareException {
             Map<String, Object> map1 = new HashMap<>();
             map1.put("key1", "value1");
             map1.put("key2", 123);
@@ -358,7 +359,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试Collection比较")
         @Test
-        void testCollectionComparison() {
+        void testCollectionComparison() throws CompareException {
             List<Object> list1 = Arrays.asList("a", "b", "c");
             List<Object> list2 = Arrays.asList("a", "b", "c");
 
@@ -381,7 +382,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试DateTime比较 - 不忽略时间精度")
         @Test
-        void testDateTimeComparisonWithoutIgnorePrecision() {
+        void testDateTimeComparisonWithoutIgnorePrecision() throws CompareException {
             DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
             DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
 
@@ -394,7 +395,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试DateTime比较 - 忽略时间精度，四舍五入模式")
         @Test
-        void testDateTimeComparisonWithIgnorePrecisionRoundUp() {
+        void testDateTimeComparisonWithIgnorePrecisionRoundUp() throws CompareException {
             DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
             DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
 
@@ -407,7 +408,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试DateTime比较 - 忽略时间精度，截断模式")
         @Test
-        void testDateTimeComparisonWithIgnorePrecisionTruncate() {
+        void testDateTimeComparisonWithIgnorePrecisionTruncate() throws CompareException {
             DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
             DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
 
@@ -420,7 +421,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试DateTime比较 - 相同精度")
         @Test
-        void testDateTimeComparisonSamePrecision() {
+        void testDateTimeComparisonSamePrecision() throws CompareException {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
 
             DateTime dateTime1 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12345", formatter));
@@ -435,7 +436,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试Instant比较")
         @Test
-        void testInstantComparison() {
+        void testInstantComparison() throws CompareException {
             Instant instant1 = Instant.parse("2023-05-15T14:30:25.123456789Z");
             Instant instant2 = Instant.parse("2023-05-15T14:30:25.123456789Z");
 
@@ -449,7 +450,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试混合类型比较")
         @Test
-        void testMixedTypeComparison() {
+        void testMixedTypeComparison() throws CompareException {
             // 字符串与数字比较
             boolean result1 = CommonUtil.compare("123", 123, false, null);
             assertFalse(result1, "字符串'123'与数字123应该相等，返回false");
@@ -465,7 +466,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试BigDecimal精度比较")
         @Test
-        void testBigDecimalPrecisionComparison() {
+        void testBigDecimalPrecisionComparison() throws CompareException {
             BigDecimal bd1 = new BigDecimal("123.4500");
             BigDecimal bd2 = new BigDecimal("123.45");
 
@@ -479,7 +480,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试异常情况处理")
         @Test
-        void testExceptionHandling() {
+        void testExceptionHandling() throws CompareException {
             // 测试不可比较的对象
             Object obj1 = new Object();
             Object obj2 = new Object();
@@ -494,7 +495,7 @@ public class CommonUtilTest {
 
         @DisplayName("测试嵌套集合比较")
         @Test
-        void testNestedCollectionComparison() {
+        void testNestedCollectionComparison() throws CompareException {
             List<Object> innerList1 = Arrays.asList("a", "b");
             List<Object> innerList2 = Arrays.asList("a", "b");
             List<Object> outerList1 = Arrays.asList(innerList1, "c");
