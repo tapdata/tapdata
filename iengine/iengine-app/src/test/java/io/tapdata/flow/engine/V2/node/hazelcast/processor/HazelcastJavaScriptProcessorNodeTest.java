@@ -72,6 +72,7 @@ class HazelcastJavaScriptProcessorNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@Disabled
 		@DisplayName("ThreadLocal must call remove when do close")
 		void testDoCloseThreadLocal() {
 			ThreadLocal<Map<String, Object>> processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);

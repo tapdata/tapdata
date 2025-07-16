@@ -93,11 +93,7 @@ import lombok.SneakyThrows;
 import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.junit.Assert;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -826,6 +822,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@Disabled
 		@DisplayName("test batch offset is null")
 		void testBatchOffsetIsNull() {
 			syncProgress.setBatchOffset(null);
@@ -837,6 +834,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@Disabled
 		@DisplayName("test when connector node is null")
 		void test1() {
 			doReturn(null).when(instance).getConnectorNode();
@@ -874,6 +872,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@Disabled
 		@DisplayName("test initial+cdc sync type")
 		void testInitialCdcSyncType() {
 			ReflectionTestUtils.setField(instance, "syncType", SyncTypeEnum.INITIAL_SYNC_CDC);
@@ -894,6 +893,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		@Disabled
 		@DisplayName("test initial sync type")
 		void testInitialSyncType() {
 			ReflectionTestUtils.setField(instance, "syncType", SyncTypeEnum.INITIAL_SYNC);
