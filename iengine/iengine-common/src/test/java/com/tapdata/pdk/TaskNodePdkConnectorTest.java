@@ -343,7 +343,6 @@ class TaskNodePdkConnectorTest {
             doReturn(codecsFilterManager).when(taskNodePdkConnector).getCodecsFilterManager();
             doReturn(defaultCodecsFilterManager).when(taskNodePdkConnector).getDefaultCodecsFilterManager();
             doCallRealMethod().when(taskNodePdkConnector).consumerResults(any(), any(TapTable.class), any(), any(), any());
-            doCallRealMethod().when(taskNodePdkConnector).formatValue(any());
         }
 
         @Test
@@ -455,59 +454,6 @@ class TaskNodePdkConnectorTest {
             // Assert
             assertNull(throwable.get());
             assertNull(data.get());
-        }
-    }
-
-    @Nested
-    class FormatValueTest {
-        @Mock
-        TaskNodePdkConnector taskNodePdkConnector;
-
-        @BeforeEach
-        void setUp() {
-            MockitoAnnotations.openMocks(this);
-            doCallRealMethod().when(taskNodePdkConnector).formatValue(any());
-        }
-
-        @Test
-        void testFormatValue_Null() {
-            Object result = taskNodePdkConnector.formatValue(null);
-
-            // Assert
-            assertNull(result);
-        }
-
-        @Test
-        void testFormatValue_DateTime() {
-            DateTime dateTime = new DateTime(Date.from(Instant.parse("2023-10-01T00:00:00Z")));
-
-            // Act
-            Object result = taskNodePdkConnector.formatValue(dateTime);
-
-            // Assert
-            assertEquals("2023-10-01T00:00:00Z", result);
-        }
-
-        @Test
-        void testFormatValue_ByteArray() {
-            byte[] byteArray = "test".getBytes();
-
-            // Act
-            Object result = taskNodePdkConnector.formatValue(byteArray);
-
-            // Assert
-            assertEquals("098f6bcd4621d373cade4e832627b4f6", result); // MD5 hash of "test"
-        }
-
-        @Test
-        void testFormatValue_OtherType() {
-            String input = "testString";
-
-            // Act
-            Object result = taskNodePdkConnector.formatValue(input);
-
-            // Assert
-            assertEquals("testString", result);
         }
     }
 }

@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DDLConfiguration;
+import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
@@ -54,6 +55,7 @@ import io.tapdata.entity.utils.cache.Entry;
 import io.tapdata.entity.utils.cache.Iterator;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.error.TaskProcessorExCode_11;
+import io.github.openlg.graphlib.Graph;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
@@ -116,6 +118,9 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
+
+import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
+import io.tapdata.entity.CountResult;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -1979,6 +1984,11 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 
 		Node node = new DatabaseNode();
 		((DatabaseNode)node).setSyncSourcePartitionTableEnable(true);
+
+		Graph<Element, Element> graph = new Graph<>();
+		node.setGraph(graph);
+		graph.setNode(node.getId(), node);
+
 		when(context.getNode()).thenReturn(node);
 
 
@@ -3280,5 +3290,125 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			assertNull(tapInsertRecordEvent.getDatabase());
 			assertNull(tapInsertRecordEvent.getSchema());
 		}
+	}
+
+	@Nested
+	@DisplayName("getCountResult method test")
+	class GetCountResultTest {
+
+		@Test
+		@DisplayName("test when syncProgress is null")
+		void testSyncProgressIsNull() {
+			Long count = 100L;
+			String tableId = "test_table";
+			ReflectionTestUtils.setField(mockInstance, "syncProgress", null);
+			doCallRealMethod().when(mockInstance).getCountResult(count, tableId);
+
+			CountResult result = mockInstance.getCountResult(count, tableId);
+
+			assertNotNull(result);
+			assertEquals(count, result.getCount());
+			assertFalse(result.getDone(), "Done should be false when syncProgress is null");
+		}
+
+		@Test
+		@DisplayName("test when syncProgress is not null and batchIsOverOfTable returns true")
+		void testSyncProgressNotNullAndBatchIsOver() {
+			Long count = 200L;
+			String tableId = "test_table";
+			SyncProgress syncProgress = new SyncProgress();
+			ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
+			doCallRealMethod().when(mockInstance).getCountResult(count, tableId);
+
+			try (MockedStatic<BatchOffsetUtil> batchOffsetUtilMock = mockStatic(BatchOffsetUtil.class)) {
+				batchOffsetUtilMock.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId))
+						.thenReturn(true);
+
+				CountResult result = mockInstance.getCountResult(count, tableId);
+
+				assertNotNull(result);
+				assertEquals(count, result.getCount());
+				assertTrue(result.getDone(), "Done should be true when batchIsOverOfTable returns true");
+				batchOffsetUtilMock.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(1));
+			}
+		}
+
+		@Test
+		@DisplayName("test when syncProgress is not null and batchIsOverOfTable returns false")
+		void testSyncProgressNotNullAndBatchIsNotOver() {
+			Long count = 300L;
+			String tableId = "test_table";
+			SyncProgress syncProgress = new SyncProgress();
+			ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
+			doCallRealMethod().when(mockInstance).getCountResult(count, tableId);
+
+			try (MockedStatic<BatchOffsetUtil> batchOffsetUtilMock = mockStatic(BatchOffsetUtil.class)) {
+				batchOffsetUtilMock.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId))
+						.thenReturn(false);
+
+				CountResult result = mockInstance.getCountResult(count, tableId);
+
+				assertNotNull(result);
+				assertEquals(count, result.getCount());
+				assertFalse(result.getDone(), "Done should be false when batchIsOverOfTable returns false");
+				batchOffsetUtilMock.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId), times(1));
+			}
+		}
+
+		@Test
+		@DisplayName("test with null count")
+		void testNullCount() {
+			Long count = null;
+			String tableId = "test_table";
+			SyncProgress syncProgress = new SyncProgress();
+			ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
+			doCallRealMethod().when(mockInstance).getCountResult(count, tableId);
+
+			try (MockedStatic<BatchOffsetUtil> batchOffsetUtilMock = mockStatic(BatchOffsetUtil.class)) {
+				batchOffsetUtilMock.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId))
+						.thenReturn(true);
+
+				CountResult result = mockInstance.getCountResult(count, tableId);
+
+				assertNotNull(result);
+				assertNull(result.getCount(), "Count should be null when input count is null");
+				assertTrue(result.getDone());
+			}
+		}
+
+
+
+		@Test
+		@DisplayName("test with different table IDs")
+		void testDifferentTableIds() {
+			Long count = 500L;
+			String tableId1 = "table_1";
+			String tableId2 = "table_2";
+			SyncProgress syncProgress = new SyncProgress();
+			ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
+			doCallRealMethod().when(mockInstance).getCountResult(any(Long.class), anyString());
+
+			try (MockedStatic<BatchOffsetUtil> batchOffsetUtilMock = mockStatic(BatchOffsetUtil.class)) {
+				batchOffsetUtilMock.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId1))
+						.thenReturn(true);
+				batchOffsetUtilMock.when(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId2))
+						.thenReturn(false);
+
+				CountResult result1 = mockInstance.getCountResult(count, tableId1);
+				CountResult result2 = mockInstance.getCountResult(count, tableId2);
+
+				assertNotNull(result1);
+				assertEquals(count, result1.getCount());
+				assertTrue(result1.getDone(), "Table 1 should be done");
+
+				assertNotNull(result2);
+				assertEquals(count, result2.getCount());
+				assertFalse(result2.getDone(), "Table 2 should not be done");
+
+				batchOffsetUtilMock.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId1), times(1));
+				batchOffsetUtilMock.verify(() -> BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId2), times(1));
+			}
+		}
+
 	}
 }

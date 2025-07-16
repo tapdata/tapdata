@@ -115,10 +115,16 @@ public class TapEventUtil {
 	}
 
 	public static List<String> getRemoveFields(TapEvent tapEvent) {
-		if (tapEvent instanceof TapUpdateRecordEvent) {
-			return ((TapUpdateRecordEvent) tapEvent).getRemovedFields();
-		} else if (tapEvent instanceof TapInsertRecordEvent) {
-			return ((TapInsertRecordEvent) tapEvent).getRemovedFields();
+		if (tapEvent instanceof TapUpdateRecordEvent updateRecordEvent) {
+			if(null == updateRecordEvent.getRemovedFields()){
+				updateRecordEvent.setRemovedFields(new ArrayList<>());
+			}
+			return updateRecordEvent.getRemovedFields();
+		} else if (tapEvent instanceof TapInsertRecordEvent insertRecordEvent) {
+			if(null == insertRecordEvent.getRemovedFields()){
+				insertRecordEvent.setRemovedFields(new ArrayList<>());
+			}
+			return insertRecordEvent.getRemovedFields();
 		}
 		return null;
 	}

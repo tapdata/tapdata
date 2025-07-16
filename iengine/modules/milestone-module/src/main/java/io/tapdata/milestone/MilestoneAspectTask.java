@@ -117,9 +117,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             taskMilestone(KPI_SNAPSHOT, this::setRunning); // fix status
         });
         nodeRegister(CDCReadBeginAspect.class, KPI_OPEN_CDC_READ, (aspect, m) -> {
-            if (hasSnapshot()) {
-                taskMilestone(KPI_SNAPSHOT, this::setFinish); // fix status
-            }
             setRunning(m);
             taskMilestone(KPI_CDC, this::setRunning);
         });
@@ -156,6 +153,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
                         nodeMilestones(nodeId, KPI_CDC_WRITE, m2 -> setError(aspect, m2));
                     }
         }));
+        nodeRegister(SnapshotWriteFinishAspect.class, KPI_SNAPSHOT_WRITE, (aspect, m) -> {
+            if (hasSnapshot()) {
+                taskMilestone(KPI_SNAPSHOT, this::setFinish);
+            }
+        });
     }
 
     @Override
@@ -208,9 +210,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         Node<?> node = dataProcessorContext.getNode();
         List<? extends Node<?>> predecessors = node.predecessors();
         if (null == predecessors || predecessors.isEmpty()) {
-            if (node instanceof TableNode) {
+            if (node instanceof TableNode && !node.disabledNode()) {
                 snapshotTableCounts.addAndGet(1);
-            } else if (node instanceof DatabaseNode) {
+            } else if (node instanceof DatabaseNode && !node.disabledNode()) {
                 DatabaseNode databaseNode = (DatabaseNode) node;
                 snapshotTableCounts.addAndGet(databaseNode.tableSize());
             }

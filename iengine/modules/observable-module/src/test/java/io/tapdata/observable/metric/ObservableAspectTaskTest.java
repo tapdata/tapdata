@@ -12,8 +12,10 @@ import io.tapdata.aspect.DropTableFuncAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.WriteRecordFuncAspect;
+import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.aspect.*;
+import io.tapdata.entity.CountResult;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -398,7 +400,7 @@ public class ObservableAspectTaskTest {
             sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
 
             Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
-            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", new CountResult(2L,false), new HashMap<>(), BigDecimal.ONE);
             tableSampleHandler.init();
             tableSampleHandlers.put("test", tableSampleHandler);
             TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);
@@ -477,7 +479,7 @@ public class ObservableAspectTaskTest {
             sampleHandler.put(node.getId(), new DataNodeSampleHandler(taskDto, node));
 
             Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
-            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", 2L, new HashMap<>(), BigDecimal.ONE);
+            TableSampleHandler tableSampleHandler = new TableSampleHandler(taskDto, "table", new CountResult(2L,false), new HashMap<>(), BigDecimal.ONE);
             tableSampleHandler.init();
             tableSampleHandlers.put("test_1", tableSampleHandler);
             TaskSampleHandler taskSampleHandler = new TaskSampleHandler(taskDto);
@@ -528,6 +530,43 @@ public class ObservableAspectTaskTest {
             Assertions.assertEquals(0, snapshotInsertRowCounter.value().intValue());
         }
 
+
+
+    }
+
+    @Nested
+    class HandleSnapshotWriteTableCompleteFuncTest {
+
+        @Test
+        void testHandleSnapshotWriteTableCompleteFunc_Success() {
+            String sourceNodeId = "source-node-123";
+            String sourceTableName = "test_table";
+
+            SnapshotWriteTableCompleteAspect aspect = new SnapshotWriteTableCompleteAspect()
+                    .sourceNodeId(sourceNodeId)
+                    .sourceTableName(sourceTableName);
+
+            DataNodeSampleHandler mockDataNodeHandler = mock(DataNodeSampleHandler.class);
+            TableSampleHandler mockTableHandler = mock(TableSampleHandler.class);
+            TaskSampleHandler mockTaskHandler = mock(TaskSampleHandler.class);
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put(sourceNodeId, mockDataNodeHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            Map<String, TableSampleHandler> tableSampleHandlers = new HashMap<>();
+            tableSampleHandlers.put(sourceTableName, mockTableHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "tableSampleHandlers", tableSampleHandlers);
+
+            ReflectionTestUtils.setField(observableAspectTask, "taskSampleHandler", mockTaskHandler);
+
+            observableAspectTask.handleSnapshotWriteTableCompleteFunc(aspect);
+
+            verify(mockDataNodeHandler, times(1)).handleBatchReadFuncEnd(anyLong());
+
+            verify(mockTableHandler, times(1)).setSnapshotDone();
+
+            verify(mockTaskHandler, times(1)).handleBatchReadFuncEnd();
+        }
 
 
     }

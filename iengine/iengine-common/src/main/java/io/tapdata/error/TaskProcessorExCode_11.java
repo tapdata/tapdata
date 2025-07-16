@@ -188,4 +188,11 @@ public interface TaskProcessorExCode_11 {
 			solutionCN = "请您参考对应数据源文档，正确填写数据源Offset格式"
 	)
 	String INIT_STREAM_OFFSET_FAILED = "11030";
+
+
+	@TapExCode(
+			describe = "Data convert failed",
+			describeCN = "数据转换失败"
+	)
+	String DATA_COVERT_FAILED = "11030";
 }

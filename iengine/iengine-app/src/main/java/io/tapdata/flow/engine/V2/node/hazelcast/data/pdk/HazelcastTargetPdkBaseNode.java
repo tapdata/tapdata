@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -37,6 +38,7 @@ import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
 import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -79,6 +81,7 @@ import io.tapdata.inspect.AutoRecovery;
 import io.tapdata.metric.collector.ISyncMetricCollector;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.debug.DataCacheFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
@@ -100,6 +103,7 @@ import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -178,6 +182,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
 	protected Connections sourceConnection;
     private final ITaskInspect taskInspect;
+	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -240,6 +245,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				readBatchOffset(entry.getValue());
 				syncProgressMap.put(entry.getKey(), entry.getValue());
 			}
+		}
+	}
+
+	@Override
+	protected void readBatchOffset(SyncProgress syncProgress) {
+		try {
+			super.readBatchOffset(syncProgress);
+		} catch (CoreException e) {
+			errorHandle(syncProgress, e);
+		}
+	}
+
+	protected void errorHandle(SyncProgress syncProgress, CoreException e) {
+		if (null != e.getMessage() && e.getMessage().contains("ClassNotFoundException")) {
+			obsLogger.warn("Decode batch offset failed, as class not found, will ignore, message: {}", e.getMessage());
+			syncProgress.setBatchOffsetObj(new HashMap<>());
+		} else {
+			throw new TapCodeException(e.getMessage(), e);
 		}
 	}
 
@@ -518,28 +541,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-            Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
-                private final Set<String> warnTag = new HashSet<>();
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+				private final Set<String> warnTag = new HashSet<>();
 
-                @Override
-                public List<String> apply(TapEvent tapEvent) {
-                    final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
-                    if (null != concurrentWritePartitionMap) {
-                        List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
-                        if (null != fields && !fields.isEmpty()) {
-                            return new ArrayList<>(fields);
-                        }
-                        if (!warnTag.contains(tgtTableName)) {
-                            warnTag.add(tgtTableName);
-                            obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
-                        }
-                    }
-                    TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
-                    handleTapTablePrimaryKeys(tapTable);
-                    return new ArrayList<>(tapTable.primaryKeys(true));
-                }
-            };
-
+				@Override
+				public List<String> apply(TapEvent tapEvent) {
+					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+					if (null != concurrentWritePartitionMap) {
+						List<String> fields = concurrentWritePartitionMap.get(tgtTableName);
+						if (null != fields && !fields.isEmpty()) {
+							return new ArrayList<>(fields);
+						}
+						if (!warnTag.contains(tgtTableName)) {
+							warnTag.add(tgtTableName);
+							obsLogger.warn("Not found partition fields of table '{}', use logic primary key.", tgtTableName);
+						}
+					}
+					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+					handleTapTablePrimaryKeys(tapTable);
+					return new ArrayList<>(tapTable.primaryKeys(true));
+				}
+			};
             if (initialConcurrentInConfig != null) {
                 this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
                 this.initialConcurrent = initialConcurrentInConfig && initialConcurrentWriteNum > 1;
@@ -567,7 +589,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     this.cdcPartitionConcurrentProcessor.start();
                 }
             }
-        }
+		} else if (getNode() instanceof HazelCastImdgNode) {
+			HazelCastImdgNode hazelCastImdgNode = (HazelCastImdgNode) getNode();
+			this.concurrentWritePartitionMap = hazelCastImdgNode.getConcurrentWritePartitionMap();
+			final Boolean cdcConcurrentInConfig = hazelCastImdgNode.getCdcConcurrent();
+			if (cdcConcurrentInConfig != null) {
+				this.cdcConcurrentWriteNum = hazelCastImdgNode.getCdcConcurrentWriteNum() != null ? hazelCastImdgNode.getCdcConcurrentWriteNum() : 4;
+				this.cdcConcurrent = isCDCConcurrent(cdcConcurrentInConfig);
+				if (this.cdcConcurrent) {
+					this.cdcPartitionConcurrentProcessor = initShareCDCConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor.start();
+				}
+			}
+		}
     }
 
     protected boolean isCDCConcurrent(Boolean cdcConcurrent) {
@@ -923,7 +957,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
                 handleTapdataStartCdcEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
-                flushShareCdcTableMetrics(tapdataEvent);
+				buildSourceConnectorNodeMap((TapdataStartedCdcEvent) tapdataEvent);
+				flushShareCdcTableMetrics(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
                 throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
             } else if (tapdataEvent instanceof TapdataShareLogEvent) {
@@ -957,7 +992,16 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
+	protected void buildSourceConnectorNodeMap(TapdataStartedCdcEvent tapdataEvent) {
+		String sourceNodeId = tapdataEvent.getSourceNodeId();
+		String sourceNodeAssociateId = tapdataEvent.getSourceNodeAssociateId();
+		if (null != sourceNodeId && null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
+			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
+			sourceConnectorNodeMap.putIfAbsent(sourceNodeId, connectorNode);
+		}
+	}
+
+	protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
@@ -1188,6 +1232,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
         flushSyncProgressMap(tapdataEvent);
         saveToSnapshot();
+		executeAspect(new SnapshotWriteFinishAspect().dataProcessorContext(dataProcessorContext));
     }
 
     protected void handleTapdataCompleteSnapshotEvent() {
@@ -1463,6 +1508,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (!flushOffset.get()) return true;
             if (MapUtils.isEmpty(syncProgressMap)) return true;
             Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			AtomicBoolean needSave = new AtomicBoolean(true);
             for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
                 String key = entry.getKey();
                 SyncProgress syncProgress = entry.getValue();
@@ -1478,6 +1524,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                             String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
                             syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
                         }
+						sourceConnectorNodeMap.forEach((nodeId, node) -> {
+							if (list.contains(nodeId)) {
+								FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
+								if (null == flushOffsetFunction) {
+									return;
+								}
+								try {
+									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
+								} catch (ConnectException e) {
+									needSave.set(false);
+								}
+							}
+						});
                     }
                 }
 				try {
@@ -1489,7 +1548,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 			try {
-				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+				if (needSave.get()){
+					clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+				}
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
 				return false;
@@ -1607,46 +1668,70 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected PartitionConcurrentProcessor initCDCConcurrentProcessor(int concurrentWriteNum, Function<TapEvent, List<String>> partitionKeyFunction) {
         int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-        return new PartitionConcurrentProcessor(
-                concurrentWriteNum,
-                batchSize,
-                new KeysPartitioner(),
-                new TapEventPartitionKeySelector(partitionKeyFunction),
-                this::handleTapdataEvents,
-                this::flushSyncProgressMap,
-                this::errorHandle,
-                this::isRunning,
-                dataProcessorContext.getTaskDto()
-        );
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				new KeysPartitioner(),
+				new TapEventPartitionKeySelector(partitionKeyFunction),
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
+
+	protected PartitionConcurrentProcessor initShareCDCConcurrentProcessor(int concurrentWriteNum) {
+		int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				new KeysPartitioner(),
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.singletonList(TapEventUtil.getTableId(event));
+					}
+
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return values;
+					}
+				},
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
+	}
 
     protected PartitionConcurrentProcessor initInitialConcurrentProcessor(
             int concurrentWriteNum,
             Partitioner<TapdataEvent, List<Object>> partitioner
     ) {
         int batchSize = Math.max(this.targetBatch / concurrentWriteNum, DEFAULT_TARGET_BATCH) * 2;
-        PartitionConcurrentProcessor partitionConcurrentProcessor = new PartitionConcurrentProcessor(
-                concurrentWriteNum,
-                batchSize,
-                partitioner,
-                new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
-                    @Override
-                    public List<Object> select(TapEvent event, Map<String, Object> row) {
-                        return Collections.emptyList();
-                    }
+		return new PartitionConcurrentProcessor(
+				concurrentWriteNum,
+				batchSize,
+				partitioner,
+				new PartitionKeySelector<TapEvent, Object, Map<String, Object>>() {
+					@Override
+					public List<Object> select(TapEvent event, Map<String, Object> row) {
+						return Collections.emptyList();
+					}
 
-                    @Override
-                    public List<Object> convert2OriginValue(List<Object> values) {
-                        return Collections.emptyList();
-                    }
-                },
-                this::handleTapdataEvents,
-                this::flushSyncProgressMap,
-                this::errorHandle,
-                this::isRunning,
-                dataProcessorContext.getTaskDto()
-        );
-        return partitionConcurrentProcessor;
+					@Override
+					public List<Object> convert2OriginValue(List<Object> values) {
+						return Collections.emptyList();
+					}
+				},
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				this::isRunning,
+				dataProcessorContext
+		).setConnectorCapabilities(connectorCapabilities).setInitDmlPolicy(this::initDmlPolicy);
     }
 
     @Override

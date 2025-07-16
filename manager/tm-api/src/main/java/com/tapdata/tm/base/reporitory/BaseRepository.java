@@ -209,7 +209,11 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
 			CriteriaDefinition criteriaDefinition = criteria.get(null);
 			if (criteriaDefinition instanceof Criteria) {
 				Criteria c = (Criteria) criteriaDefinition;
-				c.orOperator(values);
+				if(c.getCriteriaObject().containsKey("$or")){
+                    c.andOperator(new Criteria().orOperator(values));
+                }else{
+                    c.orOperator(values);
+                }
 			} else {
 				criteriaDefinition = criteria.get("$or");
 				if (criteriaDefinition instanceof Criteria) {
