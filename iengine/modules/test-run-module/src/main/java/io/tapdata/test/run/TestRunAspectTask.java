@@ -66,6 +66,7 @@ public class TestRunAspectTask extends AspectTask {
     valueHandler.register(Date.class, value -> value.toInstant().toString());
     valueHandler.register(LocalDateTime.class, LocalDateTime::toString);
     valueHandler.register(Instant.class, Instant::toString);
+    valueHandler.register(TapDateTimeValue.class,tapValue -> tapValue.getValue().toInstant().toString());
   }
 
   @Override
