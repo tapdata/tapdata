@@ -279,15 +279,9 @@ public class SchemaUtils {
         if (CollUtil.isEmpty(fields)) {
             return ;
         }
-        AtomicBoolean primaryKey = new AtomicBoolean(false);
         Map<String, Field> fieldMap = fields.stream()
                 .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
         if(fieldMap.containsKey(_ID)) return ;
-        fieldMap.values().forEach(field -> {
-            if(null != field.getPrimaryKey() && field.getPrimaryKey()){
-                primaryKey.set(true);
-            }
-        });
         FieldProcessorNode.Operation fieldOperation = new FieldProcessorNode.Operation();
         fieldOperation.setType(OBJECT_ID);
         fieldOperation.setField(_ID);
@@ -299,12 +293,6 @@ public class SchemaUtils {
         field.setDataType(OBJECT_ID);
         field.setDataTypeTemp(OBJECT_ID);
         field.setSourceDbType(databaseType);
-        if(!primaryKey.get()){
-            field.setPrimaryKey(true);
-            field.setPrimaryKeyPosition(1);
-        }else {
-            field.setPrimaryKey(false);
-        }
         schema.getFields().add(field);
     }
 }
