@@ -120,7 +120,6 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
     private Boolean canRecovery; // 是否可恢复数据（不存库）
     private Integer checkTableThreadNum;
     private Boolean isExportSql;
-    private Integer checkTableThreadNum;
 
 		private List<AlarmSettingVO> alarmSettings;
 		private List<AlarmRuleVO> alarmRules;

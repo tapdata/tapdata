@@ -49,7 +49,6 @@ public class InspectEntity extends SchedulableEntity implements IDataPermissionE
     private String roundingMode;
     private Integer checkTableThreadNum;
 
-    private Integer checkTableThreadNum;
 
 
 
