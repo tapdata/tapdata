@@ -12,7 +12,9 @@ import com.tapdata.tm.taskinspect.TaskInspectUtils;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.Log;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.Entry;
@@ -126,8 +128,7 @@ public class TaskNodePdkConnector implements IPdkConnector {
 
         try {
             TapTable tapTable = getTapTable(tableName);
-            LinkedHashMap<String, Object> filterKeys = new LinkedHashMap<>(getCodecsFilterManager()
-                .transformFromTapValueMap(keys, tapTable.getNameFieldMap()));
+            LinkedHashMap<String, Object> filterKeys = toPdkValueMap(tapTable, keys);
             TapAdvanceFilter tapAdvanceFilter = createFilter(filterKeys, fields);
 
             PDKInvocationMonitor.invoke(connectorNode
@@ -168,6 +169,12 @@ public class TaskNodePdkConnector implements IPdkConnector {
 
     protected TapCodecsFilterManager getCodecsFilterManager() {
         return codecsFilterManager;
+    }
+
+    protected LinkedHashMap<String, Object> toPdkValueMap(TapTable tapTable, LinkedHashMap<String, Object> keys) {
+        LinkedHashMap<String, TapField> fieldMap = tapTable.getNameFieldMap();
+        Map<String, TapValue<?, ?>> valueMap = codecsFilterManager.transformFromTapValueMap(keys, fieldMap);
+        return new LinkedHashMap<>(valueMap);
     }
 
     protected TapCodecsFilterManager getDefaultCodecsFilterManager() {
