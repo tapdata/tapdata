@@ -181,7 +181,7 @@
         <gson.version>2.12.1</gson.version>
         <netty.version>4.1.119.Final</netty.version>
         <httpclient5.version>5.4.4</httpclient5.version>
-        <tomcat.version>10.1.42</tomcat.version>
+        <tomcat.version>10.1.43</tomcat.version>
     </properties>
 
     <modules>
