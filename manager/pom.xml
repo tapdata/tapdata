@@ -44,7 +44,7 @@
 		<netty.version>4.1.119.Final</netty.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
 		<spring-framework.version>6.2.8</spring-framework.version>
-		<tomcat.version>10.1.42</tomcat.version>
+		<tomcat.version>10.1.43</tomcat.version>
 	</properties>
 
 	<modules>
