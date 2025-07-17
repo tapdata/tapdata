@@ -3,6 +3,7 @@ package com.tapdata.pdk;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.exception.FindOneByKeysException;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -39,6 +40,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -238,7 +240,15 @@ class TaskNodePdkConnectorTest {
                     , any()
                     , any()
                 );
-                assertThrows(ExpectException.class, () -> testQueryByAdvanceFilterFunction(pdkConnector, tableName, keys, fields));
+
+                FindOneByKeysException expectedErr = null;
+                try {
+                    testQueryByAdvanceFilterFunction(pdkConnector, tableName, keys, fields);
+                } catch (FindOneByKeysException e) {
+                    expectedErr = e;
+                }
+                assertNotNull(expectedErr);
+                assertTrue(expectedErr.getCause() instanceof ExpectException);
             }
         }
 
