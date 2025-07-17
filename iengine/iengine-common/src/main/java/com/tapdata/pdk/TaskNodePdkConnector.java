@@ -1,11 +1,11 @@
 package com.tapdata.pdk;
 
-import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.exception.FindOneByKeysException;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.taskinspect.TaskInspectUtils;
@@ -14,7 +14,6 @@ import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.Log;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.Entry;
@@ -127,19 +126,19 @@ public class TaskNodePdkConnector implements IPdkConnector {
         final AtomicReference<LinkedHashMap<String, Object>> data = new AtomicReference<>();
 
         try {
-            TapTable tapTable = getTapTable(tableName);
-            LinkedHashMap<String, Object> filterKeys = toPdkValueMap(tapTable, keys);
-            TapAdvanceFilter tapAdvanceFilter = createFilter(filterKeys, fields);
-
             PDKInvocationMonitor.invoke(connectorNode
                 , PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER
-                , PDKMethodInvoker.create().runnable(
-                        () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext()
+                , PDKMethodInvoker.create().runnable(() -> {
+                        TapTable tapTable = getTapTable(tableName);
+                        LinkedHashMap<String, Object> filterKeys = toPdkValueMap(tapTable, keys);
+                        TapAdvanceFilter tapAdvanceFilter = createFilter(filterKeys, fields);
+
+                        queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext()
                             , tapAdvanceFilter
                             , tapTable
                             , filterResults -> consumerResults(fields, tapTable, filterResults, throwable, data)
-                        )
-                    )
+                        );
+                    })
                     .logTag(TAG)
                     .retryPeriodSeconds(taskRetryConfig.getRetryIntervalSecond())
                     .maxRetryTimeMinute(taskRetryConfig.getMaxRetryTime(TimeUnit.MINUTES))
@@ -148,7 +147,7 @@ public class TaskNodePdkConnector implements IPdkConnector {
             throwable.set(e);
         }
         if (null != throwable.get()) {
-            throw new RuntimeException(String.format("table '%s' can't query of keys: %s", tableName, JSONObject.toJSONString(keys)), throwable.get());
+            throw new FindOneByKeysException(throwable.get(), tableName, keys);
         }
         return data.get();
     }
@@ -172,9 +171,10 @@ public class TaskNodePdkConnector implements IPdkConnector {
     }
 
     protected LinkedHashMap<String, Object> toPdkValueMap(TapTable tapTable, LinkedHashMap<String, Object> keys) {
+        LinkedHashMap<String, Object> filter = new LinkedHashMap<>(keys);
         LinkedHashMap<String, TapField> fieldMap = tapTable.getNameFieldMap();
-        Map<String, TapValue<?, ?>> valueMap = codecsFilterManager.transformFromTapValueMap(keys, fieldMap);
-        return new LinkedHashMap<>(valueMap);
+        codecsFilterManager.transformFromTapValueMap(filter, fieldMap);
+        return filter;
     }
 
     protected TapCodecsFilterManager getDefaultCodecsFilterManager() {
