@@ -87,6 +87,7 @@ for COMPONENT in ${COMPONENTS[@]}; do
   elif [[ $COMPONENT == "connectors" ]]; then
     cd $CONNECTOR_DIR && build_java_component
   elif [[ $COMPONENT == "frontend" ]]; then
+    nvm install 20
     cd $FRONTEND_DIR && DAAS_BUILD_NUMBER=$TAG_NAME bash build/build.sh -m $FRONTEND_BUILD_MODE
   fi
 done
