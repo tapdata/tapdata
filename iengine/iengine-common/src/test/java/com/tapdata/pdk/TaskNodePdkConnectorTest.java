@@ -39,6 +39,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -238,7 +239,12 @@ class TaskNodePdkConnectorTest {
                     , any()
                     , any()
                 );
-                assertThrows(ExpectException.class, () -> testQueryByAdvanceFilterFunction(pdkConnector, tableName, keys, fields));
+                try {
+                    testQueryByAdvanceFilterFunction(pdkConnector, tableName, keys, fields);
+                } catch (RuntimeException e) {
+                    assertTrue(Pattern.matches("^table '[^']*' can't query of keys:.*$", e.getMessage()));
+                    assertTrue(e.getCause() instanceof ExpectException);
+                }
             }
         }
 
