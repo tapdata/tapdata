@@ -157,6 +157,51 @@ make_docker() {
   docker buildx build --platform linux/arm64,linux/amd64 -t harbor.internal.tapdata.io/tapdata/tapdata:$TAG_NAME . --push
 }
 
+function make_and_push_docker_image() {
+  info "Start Make and Push Docker Image."
+
+  echo "{\"oem\":\"$FRONTEND_BUILD_MODE\"}" > $OUTPUT_DIR/.config
+  echo "{\"app_version\":\"$TAG_NAME\"}" > $OUTPUT_DIR/.version
+
+  tar cfz $PROJECT_ROOT_DIR/output/connectors/dist.tar.gz -C $PROJECT_ROOT_DIR/output/connectors/ dist/
+  cp $PROJECT_ROOT_DIR/build/image/Dockerfile $PROJECT_ROOT_DIR/output/
+  cp $PROJECT_ROOT_DIR/build/image/docker-entrypoint.sh $PROJECT_ROOT_DIR/output/
+
+  if [[ $REPLACE_FRONTEND_MODE == "true" ]]; then
+    rsync -vzrt --password-file=/tmp/rsync.passwd rsync://root@58.251.34.123:873/data/enterprise-artifact/tools/service_control $PROJECT_ROOT_DIR/output/
+    chmod +x $PROJECT_ROOT_DIR/output/service_control
+    sed -i 's/COPY tapdata \/tapdata\/apps\/tapdata/COPY service_control \/tapdata\/apps\/service_control/' $PROJECT_ROOT_DIR/output/Dockerfile
+
+    mv $PROJECT_ROOT_DIR/output/components/tapdata-agent.jar $PROJECT_ROOT_DIR/output/components/app-agent.jar
+    rm -rf $PROJECT_ROOT_DIR/output/components/webroot/docs
+  fi
+
+  if [[ "$EXCLUDE_APISERVER" == "true" ]]; then
+    rm -rf $PROJECT_ROOT_DIR/output/components/apiserver.tar.gz
+    info "Removed apiserver.tar.gz from docker image (excluded)."
+  fi
+
+  echo 'Gotapd8!' | docker login $DOCKER_REGISTRY --username=cicd --password-stdin
+  docker build $PROJECT_ROOT_DIR/output/ -t $DOCKER_REPOSITORY/tapdata-enterprise:$TAG_NAME
+  if [[ $? -eq 0 ]]; then
+    info "Build Docker Image Success."
+  else
+    error "Build Docker Image Failed."
+  fi
+  # gcloud auth login --cred-file="$PROJECT_ROOT_DIR/build/keyfile.json" -q
+  # gcloud auth configure-docker $DOCKER_REGISTRY -q
+  # docker login -u flow-engine-1702457090174 -p 01b4d845fa04a6ee2ca72e669bac7b121e29ccf6 tapdata-docker.pkg.coding.net
+  echo 'Gotapd8!' | docker login $DOCKER_REGISTRY --username=cicd --password-stdin
+  docker push $DOCKER_REPOSITORY/tapdata-enterprise:$TAG_NAME
+  if [[ $? -eq 0 ]]; then
+    info "Push docker image successfully, tag: $TAG_NAME"
+  else
+    error "Push docker image failed, tag: $TAG_NAME"
+  fi
+  rm -rf $PROJECT_ROOT_DIR/output/connectors/dist.tar.gz
+  rm -rf $PROJECT_ROOT_DIR/output/Dockerfile
+}
+
 make_tar() {
   cd $OUTPUT_DIR/
   cp $TAPDATA_DIR/build/image/docker-entrypoint.sh ./start.sh
@@ -176,7 +221,7 @@ make_tar() {
 
 # make output
 if [[ $OUTPUT_TYPE == "docker" ]]; then
-  make_docker
+  make_and_push_docker_image
 elif [[ $OUTPUT_TYPE == "tar" ]]; then
   make_tar
 fi
