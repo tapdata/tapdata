@@ -3,6 +3,7 @@ package com.tapdata.pdk;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.task.config.TaskRetryConfig;
+import com.tapdata.exception.FindOneByKeysException;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -239,12 +240,15 @@ class TaskNodePdkConnectorTest {
                     , any()
                     , any()
                 );
+
+                FindOneByKeysException expectedErr = null;
                 try {
                     testQueryByAdvanceFilterFunction(pdkConnector, tableName, keys, fields);
-                } catch (RuntimeException e) {
-                    assertTrue(Pattern.matches("^table '[^']*' can't query of keys:.*$", e.getMessage()));
-                    assertTrue(e.getCause() instanceof ExpectException);
+                } catch (FindOneByKeysException e) {
+                    expectedErr = e;
                 }
+                assertNotNull(expectedErr);
+                assertTrue(expectedErr.getCause() instanceof ExpectException);
             }
         }
 
