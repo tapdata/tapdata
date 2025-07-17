@@ -844,7 +844,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         for (Node<?> targetDataNode : targetDataNodes) {
             String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, targetDataNode.getId());
             Object sourceInitialCounter = taskGlobalVariable.get(key);
-            if (((AtomicInteger) sourceInitialCounter).intValue() > 0) {
+            if (null != sourceInitialCounter && ((AtomicInteger) sourceInitialCounter).intValue() > 0) {
                 allTargetNodesFinishInitial = false;
                 break;
             }
