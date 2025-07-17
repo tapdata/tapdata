@@ -1,7 +1,6 @@
 package com.tapdata.tm.metadatadefinition.service;
 
 import com.google.common.collect.Lists;
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Field;
@@ -17,6 +16,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DiscoveryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
+import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.entity.MetadataDefinitionEntity;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
@@ -52,9 +52,21 @@ import java.util.stream.Collectors;
 public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto, MetadataDefinitionEntity, ObjectId, MetadataDefinitionRepository> {
 
     public static final String ITEM_TYPE = "item_type";
+
+    private static final Map<String, Class<?>> ENTITY_MAP = Map.of(
+            "Connections", DataSourceEntity.class,
+            "Task", TaskEntity.class,
+            "Modules", ModulesEntity.class,
+            "Inspect", InspectEntity.class,
+
+            "dataflow", TaskEntity.class,
+            "database", DataSourceEntity.class,
+            "app", ModulesEntity.class,
+            "inspect", InspectEntity.class
+    );
+
     @Autowired
     MongoTemplate mongoTemplate;
-
 
     @Autowired
     MetadataInstancesService metadataInstancesService;
@@ -88,23 +100,20 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
      *
      * @param tableName tableName
      * @param batchUpdateParam batchUpdateParam
+     * @param userDetail 用户信息
      */
-    public List<String> batchUpdateListTags(String tableName, BatchUpdateParam batchUpdateParam,UserDetail userDetail) {
+    public List<String> batchUpdateListTags(String tableName, BatchUpdateParam batchUpdateParam, UserDetail userDetail) {
         List<String> idList = batchUpdateParam.getId();
         List<Tag> listTags = batchUpdateParam.getListtags();
-        //todo updateMulti  如果用表名传入，更新不了多条，只能用for循环更新，应该优化成直接更新多条
-        //todo 改成动态实例来更新数据
-        Update update=new Update().set("listtags",listTags);
-        if ("Connections".equals(tableName)){
-            UpdateResult updateResult = mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, DataSourceEntity.class);
+        Update update = new Update().set("listtags", listTags);
+
+        // 使用映射表查找对应的实体类
+        Class<?> entityClass = ENTITY_MAP.get(tableName);
+        if (entityClass != null) {
+            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, entityClass);
         }
-        else if ("Task".equals(tableName)) {
-            UpdateResult updateResult = mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, TaskEntity.class);
-        }
-        else if ("Modules".equals(tableName)) {
-            UpdateResult updateResult = mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, ModulesEntity.class);
-        }
-        //更新成功后，需要将模型中的也跟着更新了
+
+        // 更新成功后，需要将模型中的也跟着更新了
         Criteria criteria = Criteria.where("source.id").in(idList).and("metaType").is("database").and("isDeleted").is(false);
         Update classifications = Update.update("classifications", listTags);
         metadataInstancesService.update(new Query(criteria), classifications, userDetail);
@@ -122,14 +131,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         List<Tag> listTags = batchUpdateParam.getListtags();
         Update update = new Update().addToSet("listtags").each(listTags.toArray());
 
-        if ("Connections".equals(tableName)){
-            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, DataSourceEntity.class);
-        }
-        else if ("Task".equals(tableName)) {
-            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, TaskEntity.class);
-        }
-        else if ("Modules".equals(tableName)) {
-            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, ModulesEntity.class);
+        Class<?> entityClass = ENTITY_MAP.get(tableName);
+        if (entityClass != null) {
+            mongoTemplate.updateMulti(Query.query(Criteria.where("id").in(idList)), update, entityClass);
         }
 
         return idList;
@@ -205,19 +209,12 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
                 Criteria criteria = Criteria.where("listtags")
                         .elemMatch(Criteria.where("id").is(metadataDefinitionDto.getId().toHexString()));
                 Update update = Update.update("listtags.$.value", metadataDefinitionDto.getValue());
-                if (saveValue.getItemType().contains("dataflow")){
-                    mongoTemplate.updateMulti(new Query(criteria), update, TaskEntity.class);
-                }
+                Class<?> entityClass = ENTITY_MAP.get(saveValue.getItemType().get(0));
 
-                if (saveValue.getItemType().contains("database")){
-                    mongoTemplate.updateMulti(new Query(criteria), update, DataSourceEntity.class);
-                }
-
-                if (saveValue.getItemType().contains("app")){
-                    mongoTemplate.updateMulti(new Query(criteria), update, ModulesEntity.class);
+                if (entityClass != null) {
+                    mongoTemplate.updateMulti(new Query(criteria), update, entityClass);
                 }
             }
-
         }
 
         return saveValue;
