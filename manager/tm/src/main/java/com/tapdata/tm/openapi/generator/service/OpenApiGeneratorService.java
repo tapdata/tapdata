@@ -712,6 +712,69 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
+	 * Create a secure temporary directory with proper permissions and fallback options
+	 *
+	 * @param sessionId Unique session identifier for the directory
+	 * @return Path to the created temporary directory
+	 * @throws CodeGenerationException if directory creation fails
+	 */
+	private Path createSecureTempDirectory(String sessionId) throws CodeGenerationException {
+		String[] tempDirCandidates = {
+				properties.getTemp().getDir(),
+				System.getProperty("java.io.tmpdir"),
+				System.getProperty("user.home") + File.separator + ".tapdata" + File.separator + "temp",
+				"." + File.separator + "temp"
+		};
+
+		for (String tempDirBase : tempDirCandidates) {
+			try {
+				Path baseDir = Paths.get(tempDirBase);
+
+				// Check if base directory is writable
+				if (!Files.exists(baseDir)) {
+					try {
+						Files.createDirectories(baseDir);
+					} catch (IOException e) {
+						log.debug("Cannot create base temp directory: {}, trying next option", baseDir);
+						continue;
+					}
+				}
+
+				if (!Files.isWritable(baseDir)) {
+					log.debug("Base temp directory is not writable: {}, trying next option", baseDir);
+					continue;
+				}
+
+				// Create the specific output directory
+				Path outputDir = baseDir.resolve("openapi-generator").resolve(sessionId);
+
+				try {
+					Files.createDirectories(outputDir);
+
+					// Verify the directory was created and is writable
+					if (Files.exists(outputDir) && Files.isWritable(outputDir)) {
+						log.info("Successfully created temporary directory: {}", outputDir);
+						return outputDir;
+					}
+				} catch (IOException e) {
+					log.debug("Failed to create output directory: {}, error: {}", outputDir, e.getMessage());
+					continue;
+				}
+
+			} catch (Exception e) {
+				log.debug("Error with temp directory candidate: {}, error: {}", tempDirBase, e.getMessage());
+				continue;
+			}
+		}
+
+		// If all candidates failed, throw exception
+		throw new CodeGenerationException(
+				"Failed to create temporary directory. Tried locations: " + String.join(", ", tempDirCandidates) +
+				". Please check directory permissions or configure a writable temporary directory."
+		);
+	}
+
+	/**
 	 * Handle OpenAPI JSON by downloading from URL and saving to temporary file
 	 *
 	 * @param request CodeGenerationRequest containing the OAS URL
@@ -916,10 +979,9 @@ public class OpenApiGeneratorService {
 			String serializedJson = JsonUtil.toJsonUseJackson(openapiMap);
 			log.debug("Successfully serialized Map back to JSON, length: {} characters", serializedJson.length());
 
-			// Create temporary file
+			// Create temporary file using secure directory creation
 			String tempFileName = "openapi-" + UUID.randomUUID().toString() + ".json";
-			Path tempDir = Paths.get(properties.getTemp().getDir(), "openapi-json");
-			Files.createDirectories(tempDir);
+			Path tempDir = createSecureTempDirectoryForJson();
 			Path tempFile = tempDir.resolve(tempFileName);
 
 			// Write JSON content to temporary file
@@ -936,6 +998,68 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
+	 * Create a secure temporary directory specifically for JSON files
+	 *
+	 * @return Path to the created temporary directory
+	 * @throws CodeGenerationException if directory creation fails
+	 */
+	private Path createSecureTempDirectoryForJson() throws CodeGenerationException {
+		String[] tempDirCandidates = {
+				properties.getTemp().getDir(),
+				System.getProperty("java.io.tmpdir"),
+				System.getProperty("user.home") + File.separator + ".tapdata" + File.separator + "temp",
+				"." + File.separator + "temp"
+		};
+
+		for (String tempDirBase : tempDirCandidates) {
+			try {
+				Path baseDir = Paths.get(tempDirBase);
+
+				// Check if base directory is writable
+				if (!Files.exists(baseDir)) {
+					try {
+						Files.createDirectories(baseDir);
+					} catch (IOException e) {
+						log.debug("Cannot create base temp directory: {}, trying next option", baseDir);
+						continue;
+					}
+				}
+
+				if (!Files.isWritable(baseDir)) {
+					log.debug("Base temp directory is not writable: {}, trying next option", baseDir);
+					continue;
+				}
+
+				// Create the specific JSON directory
+				Path jsonDir = baseDir.resolve("openapi-json");
+
+				try {
+					Files.createDirectories(jsonDir);
+
+					// Verify the directory was created and is writable
+					if (Files.exists(jsonDir) && Files.isWritable(jsonDir)) {
+						log.debug("Successfully created JSON temp directory: {}", jsonDir);
+						return jsonDir;
+					}
+				} catch (IOException e) {
+					log.debug("Failed to create JSON directory: {}, error: {}", jsonDir, e.getMessage());
+					continue;
+				}
+
+			} catch (Exception e) {
+				log.debug("Error with temp directory candidate: {}, error: {}", tempDirBase, e.getMessage());
+				continue;
+			}
+		}
+
+		// If all candidates failed, throw exception
+		throw new CodeGenerationException(
+				"Failed to create temporary directory for JSON files. Tried locations: " + String.join(", ", tempDirCandidates) +
+				". Please check directory permissions or configure a writable temporary directory."
+		);
+	}
+
+	/**
 	 * Enhanced code generation with ZIP and JAR creation and GridFS upload
 	 * This method is used by the async service for complete SDK generation
 	 */
@@ -943,7 +1067,7 @@ public class OpenApiGeneratorService {
 		log.info("Starting enhanced code generation with request parameters: {}", request);
 
 		String sessionId = UUID.randomUUID().toString();
-		Path outputDir = Paths.get(properties.getTemp().getDir(), "openapi-generator", sessionId);
+		Path outputDir = createSecureTempDirectory(sessionId);
 
 		try {
 			// Validate language support - only Java is supported
@@ -956,9 +1080,6 @@ public class OpenApiGeneratorService {
 			// Validate Java runtime version - requires Java 11+
 			validateJavaVersion();
 			validateOas(request);
-
-			// Create temporary directory
-			Files.createDirectories(outputDir);
 
 			// Execute code generation
 			log.info("Generator parameters: {}, output dir: {}", request, outputDir);
