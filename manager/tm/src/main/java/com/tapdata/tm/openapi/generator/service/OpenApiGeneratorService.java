@@ -50,6 +50,7 @@ public class OpenApiGeneratorService {
 	// Cached paths resolved during initialization
 	private String resolvedJarPath;
 	private String resolvedTemplatePath;
+	private Path resolvedTempDir;
 
 	// Cached RestTemplate for HTTP requests
 	private RestTemplate restTemplate;
@@ -75,6 +76,10 @@ public class OpenApiGeneratorService {
 			// Resolve and cache template path during initialization
 			this.resolvedTemplatePath = resolveTemplatePath();
 			log.info("✓ Template path resolved and cached: {}", this.resolvedTemplatePath);
+
+			// Initialize and validate temporary directory
+			this.resolvedTempDir = initializeTempDirectory();
+			log.info("✓ Temp directory initialized and cached: {}", this.resolvedTempDir);
 
 			// Initialize and cache RestTemplate for HTTP requests
 			this.restTemplate = createRestTemplate();
@@ -103,6 +108,77 @@ public class OpenApiGeneratorService {
 
 		log.debug("RestTemplate created and configured for OpenAPI JSON downloads");
 		return template;
+	}
+
+	/**
+	 * Initialize and validate temporary directory during service startup
+	 * This method finds the best available temporary directory and creates necessary subdirectories
+	 *
+	 * @return Path to the validated temporary directory base
+	 * @throws IOException if no suitable temporary directory can be created
+	 */
+	private Path initializeTempDirectory() throws IOException {
+		String[] tempDirCandidates = {
+				properties.getTemp().getDir(),
+				System.getProperty("java.io.tmpdir"),
+				System.getProperty("user.home") + File.separator + ".tapdata" + File.separator + "temp",
+				"." + File.separator + "temp"
+		};
+
+		for (String tempDirBase : tempDirCandidates) {
+			try {
+				Path baseDir = Paths.get(tempDirBase);
+
+				// Check if base directory exists or can be created
+				if (!Files.exists(baseDir)) {
+					try {
+						Files.createDirectories(baseDir);
+						log.debug("Created base temp directory: {}", baseDir);
+					} catch (IOException e) {
+						log.debug("Cannot create base temp directory: {}, trying next option", baseDir);
+						continue;
+					}
+				}
+
+				// Verify the directory is writable
+				if (!Files.isWritable(baseDir)) {
+					log.debug("Base temp directory is not writable: {}, trying next option", baseDir);
+					continue;
+				}
+
+				// Pre-create the openapi-generator and openapi-json subdirectories
+				Path openapiGenDir = baseDir.resolve("openapi-generator");
+				Path openapiJsonDir = baseDir.resolve("openapi-json");
+
+				try {
+					Files.createDirectories(openapiGenDir);
+					Files.createDirectories(openapiJsonDir);
+
+					// Verify both subdirectories are writable
+					if (Files.exists(openapiGenDir) && Files.isWritable(openapiGenDir) &&
+						Files.exists(openapiJsonDir) && Files.isWritable(openapiJsonDir)) {
+
+						log.info("Successfully initialized temp directory structure at: {}", baseDir);
+						log.debug("  - OpenAPI Generator dir: {}", openapiGenDir);
+						log.debug("  - OpenAPI JSON dir: {}", openapiJsonDir);
+						return baseDir;
+					}
+				} catch (IOException e) {
+					log.debug("Failed to create subdirectories in: {}, error: {}", baseDir, e.getMessage());
+					continue;
+				}
+
+			} catch (Exception e) {
+				log.debug("Error with temp directory candidate: {}, error: {}", tempDirBase, e.getMessage());
+				continue;
+			}
+		}
+
+		// If all candidates failed, throw exception
+		throw new IOException(
+				"Failed to initialize temporary directory. Tried locations: " + String.join(", ", tempDirCandidates) +
+				". Please check directory permissions or configure a writable temporary directory."
+		);
 	}
 
 	private void validateOas(CodeGenerationRequest request) {
@@ -712,66 +788,35 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
-	 * Create a secure temporary directory with proper permissions and fallback options
+	 * Create a secure temporary directory using the pre-initialized temp directory
 	 *
 	 * @param sessionId Unique session identifier for the directory
 	 * @return Path to the created temporary directory
 	 * @throws CodeGenerationException if directory creation fails
 	 */
 	private Path createSecureTempDirectory(String sessionId) throws CodeGenerationException {
-		String[] tempDirCandidates = {
-				properties.getTemp().getDir(),
-				System.getProperty("java.io.tmpdir"),
-				System.getProperty("user.home") + File.separator + ".tapdata" + File.separator + "temp",
-				"." + File.separator + "temp"
-		};
+		try {
+			// Use the pre-initialized and validated temp directory
+			Path outputDir = resolvedTempDir.resolve("openapi-generator").resolve(sessionId);
 
-		for (String tempDirBase : tempDirCandidates) {
-			try {
-				Path baseDir = Paths.get(tempDirBase);
+			// Create the session-specific directory
+			Files.createDirectories(outputDir);
 
-				// Check if base directory is writable
-				if (!Files.exists(baseDir)) {
-					try {
-						Files.createDirectories(baseDir);
-					} catch (IOException e) {
-						log.debug("Cannot create base temp directory: {}, trying next option", baseDir);
-						continue;
-					}
-				}
-
-				if (!Files.isWritable(baseDir)) {
-					log.debug("Base temp directory is not writable: {}, trying next option", baseDir);
-					continue;
-				}
-
-				// Create the specific output directory
-				Path outputDir = baseDir.resolve("openapi-generator").resolve(sessionId);
-
-				try {
-					Files.createDirectories(outputDir);
-
-					// Verify the directory was created and is writable
-					if (Files.exists(outputDir) && Files.isWritable(outputDir)) {
-						log.info("Successfully created temporary directory: {}", outputDir);
-						return outputDir;
-					}
-				} catch (IOException e) {
-					log.debug("Failed to create output directory: {}, error: {}", outputDir, e.getMessage());
-					continue;
-				}
-
-			} catch (Exception e) {
-				log.debug("Error with temp directory candidate: {}, error: {}", tempDirBase, e.getMessage());
-				continue;
+			// Verify the directory was created and is writable
+			if (Files.exists(outputDir) && Files.isWritable(outputDir)) {
+				log.debug("Successfully created session temp directory: {}", outputDir);
+				return outputDir;
+			} else {
+				throw new CodeGenerationException("Created directory is not writable: " + outputDir);
 			}
-		}
 
-		// If all candidates failed, throw exception
-		throw new CodeGenerationException(
-				"Failed to create temporary directory. Tried locations: " + String.join(", ", tempDirCandidates) +
-				". Please check directory permissions or configure a writable temporary directory."
-		);
+		} catch (IOException e) {
+			log.error("Failed to create session temp directory using resolved path: {}", resolvedTempDir, e);
+			throw new CodeGenerationException(
+					"Failed to create temporary directory for session: " + sessionId +
+					". Base temp directory: " + resolvedTempDir + ". Error: " + e.getMessage(), e
+			);
+		}
 	}
 
 	/**
@@ -998,65 +1043,38 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
-	 * Create a secure temporary directory specifically for JSON files
+	 * Create a secure temporary directory specifically for JSON files using pre-initialized temp directory
 	 *
 	 * @return Path to the created temporary directory
 	 * @throws CodeGenerationException if directory creation fails
 	 */
 	private Path createSecureTempDirectoryForJson() throws CodeGenerationException {
-		String[] tempDirCandidates = {
-				properties.getTemp().getDir(),
-				System.getProperty("java.io.tmpdir"),
-				System.getProperty("user.home") + File.separator + ".tapdata" + File.separator + "temp",
-				"." + File.separator + "temp"
-		};
+		try {
+			// Use the pre-initialized and validated temp directory
+			Path jsonDir = resolvedTempDir.resolve("openapi-json");
 
-		for (String tempDirBase : tempDirCandidates) {
-			try {
-				Path baseDir = Paths.get(tempDirBase);
-
-				// Check if base directory is writable
-				if (!Files.exists(baseDir)) {
-					try {
-						Files.createDirectories(baseDir);
-					} catch (IOException e) {
-						log.debug("Cannot create base temp directory: {}, trying next option", baseDir);
-						continue;
-					}
+			// The directory should already exist from initialization, but verify it's still writable
+			if (Files.exists(jsonDir) && Files.isWritable(jsonDir)) {
+				log.debug("Using pre-initialized JSON temp directory: {}", jsonDir);
+				return jsonDir;
+			} else {
+				// Try to recreate if it doesn't exist or isn't writable
+				Files.createDirectories(jsonDir);
+				if (Files.exists(jsonDir) && Files.isWritable(jsonDir)) {
+					log.debug("Recreated JSON temp directory: {}", jsonDir);
+					return jsonDir;
+				} else {
+					throw new CodeGenerationException("JSON directory is not writable: " + jsonDir);
 				}
-
-				if (!Files.isWritable(baseDir)) {
-					log.debug("Base temp directory is not writable: {}, trying next option", baseDir);
-					continue;
-				}
-
-				// Create the specific JSON directory
-				Path jsonDir = baseDir.resolve("openapi-json");
-
-				try {
-					Files.createDirectories(jsonDir);
-
-					// Verify the directory was created and is writable
-					if (Files.exists(jsonDir) && Files.isWritable(jsonDir)) {
-						log.debug("Successfully created JSON temp directory: {}", jsonDir);
-						return jsonDir;
-					}
-				} catch (IOException e) {
-					log.debug("Failed to create JSON directory: {}, error: {}", jsonDir, e.getMessage());
-					continue;
-				}
-
-			} catch (Exception e) {
-				log.debug("Error with temp directory candidate: {}, error: {}", tempDirBase, e.getMessage());
-				continue;
 			}
-		}
 
-		// If all candidates failed, throw exception
-		throw new CodeGenerationException(
-				"Failed to create temporary directory for JSON files. Tried locations: " + String.join(", ", tempDirCandidates) +
-				". Please check directory permissions or configure a writable temporary directory."
-		);
+		} catch (IOException e) {
+			log.error("Failed to access JSON temp directory using resolved path: {}", resolvedTempDir, e);
+			throw new CodeGenerationException(
+					"Failed to create temporary directory for JSON files. Base temp directory: " + resolvedTempDir +
+					". Error: " + e.getMessage(), e
+			);
+		}
 	}
 
 	/**
