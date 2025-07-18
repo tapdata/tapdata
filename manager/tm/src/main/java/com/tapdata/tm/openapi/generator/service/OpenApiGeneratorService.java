@@ -55,6 +55,64 @@ public class OpenApiGeneratorService {
 	// Cached RestTemplate for HTTP requests
 	private RestTemplate restTemplate;
 
+	/**
+	 * Ensure JAR path is initialized, initialize on demand if null
+	 */
+	private void ensureJarPathInitialized() throws CodeGenerationException {
+		if (resolvedJarPath == null) {
+			log.warn("JAR path not initialized during startup, attempting to initialize now");
+			try {
+				resolvedJarPath = resolveJarPath();
+				log.info("Successfully initialized JAR path on demand: {}", resolvedJarPath);
+			} catch (IOException e) {
+				log.error("Failed to initialize JAR path on demand", e);
+				throw new CodeGenerationException("JAR path initialization failed: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Ensure template path is initialized, initialize on demand if null
+	 */
+	private void ensureTemplatePathInitialized() throws CodeGenerationException {
+		if (resolvedTemplatePath == null) {
+			log.warn("Template path not initialized during startup, attempting to initialize now");
+			try {
+				resolvedTemplatePath = resolveTemplatePath();
+				log.info("Successfully initialized template path on demand: {}", resolvedTemplatePath);
+			} catch (IOException e) {
+				log.error("Failed to initialize template path on demand", e);
+				throw new CodeGenerationException("Template path initialization failed: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Ensure temp directory is initialized, initialize on demand if null
+	 */
+	private void ensureTempDirInitialized() throws CodeGenerationException {
+		if (resolvedTempDir == null) {
+			log.warn("Temp directory not initialized during startup, attempting to initialize now");
+			try {
+				resolvedTempDir = initializeTempDirectory();
+				log.info("Successfully initialized temp directory on demand: {}", resolvedTempDir);
+			} catch (IOException e) {
+				log.error("Failed to initialize temp directory on demand", e);
+				throw new CodeGenerationException("Temp directory initialization failed: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Ensure RestTemplate is initialized, initialize on demand if null
+	 */
+	private void ensureRestTemplateInitialized() {
+		if (restTemplate == null) {
+			log.warn("RestTemplate not initialized during startup, creating new instance");
+			restTemplate = createRestTemplate();
+			log.info("Successfully created RestTemplate on demand");
+		}
+	}
 
 	public OpenApiGeneratorService(OpenApiGeneratorProperties properties, ApplicationService applicationService, FileService fileService) {
 		this.properties = properties;
@@ -87,7 +145,12 @@ public class OpenApiGeneratorService {
 
 			log.info("OpenAPI Generator Service initialization completed successfully");
 		} catch (IOException e) {
-			log.warn("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
+			log.error("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
+			// Set fields to null to indicate initialization failure
+			this.resolvedJarPath = null;
+			this.resolvedTemplatePath = null;
+			this.resolvedTempDir = null;
+			this.restTemplate = null;
 		}
 	}
 
@@ -432,6 +495,9 @@ public class OpenApiGeneratorService {
 	 * Execute OpenAPI Generator CLI with the provided request and output directory
 	 */
 	private void executeOpenapiGenerator(CodeGenerationRequest request, String outputDir) throws Exception {
+		// Ensure JAR path is initialized
+		ensureJarPathInitialized();
+
 		// Use cached JAR path (resolved during initialization)
 		log.debug("Using cached JAR path: {}", this.resolvedJarPath);
 
@@ -466,6 +532,9 @@ public class OpenApiGeneratorService {
 		command.add(additionalProps);
 
 		// Add template parameters if available
+		// Ensure template path is initialized
+		ensureTemplatePathInitialized();
+
 		String languageTemplatePath = this.resolvedTemplatePath + File.separator + request.getLan();
 		log.info("Template path from config: {}", properties.getTemplate().getPath());
 		log.info("Using cached template path: {}", languageTemplatePath);
@@ -796,6 +865,9 @@ public class OpenApiGeneratorService {
 	 */
 	private Path createSecureTempDirectory(String sessionId) throws CodeGenerationException {
 		try {
+			// Ensure temp directory is initialized
+			ensureTempDirInitialized();
+
 			// Use the pre-initialized and validated temp directory
 			Path outputDir = resolvedTempDir.resolve("openapi-generator").resolve(sessionId);
 
@@ -866,6 +938,9 @@ public class OpenApiGeneratorService {
 		log.debug("Making HTTP GET request to: {}", oasUrl);
 
 		try {
+			// Ensure RestTemplate is initialized
+			ensureRestTemplateInitialized();
+
 			// Use cached RestTemplate instance instead of creating new one
 			String jsonResponse = this.restTemplate.getForObject(oasUrl, String.class);
 
@@ -1050,6 +1125,9 @@ public class OpenApiGeneratorService {
 	 */
 	private Path createSecureTempDirectoryForJson() throws CodeGenerationException {
 		try {
+			// Ensure temp directory is initialized
+			ensureTempDirInitialized();
+
 			// Use the pre-initialized and validated temp directory
 			Path jsonDir = resolvedTempDir.resolve("openapi-json");
 
