@@ -103,7 +103,6 @@ import io.tapdata.supervisor.TaskResourceSupervisorManager;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -1532,7 +1531,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								}
 								try {
 									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
-								} catch (ConnectException e) {
+								} catch (Exception e) {
 									needSave.set(false);
 								}
 							}
