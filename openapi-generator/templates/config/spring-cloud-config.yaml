@@ -8,11 +8,11 @@ additionalProperties:
     documentationProvider: none
     useSwaggerUI: false
     useTags: true
-    interfaceOnly: true
     snapshotVersion: false
     useFeignClientContextId: false
     useFeignClientUrl: false
     useOneOfInterfaces: false
+    useResponseEntity: false
     disallowAdditionalPropertiesIfNotPresent: false
     generateGenericResponseEntity: false
     developerEmail: ""

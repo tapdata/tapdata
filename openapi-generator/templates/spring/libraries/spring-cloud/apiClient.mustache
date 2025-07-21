@@ -1,8 +1,26 @@
 package {{package}};
 
 import org.springframework.cloud.openfeign.FeignClient;
-import {{configPackage}}.ClientConfiguration;
+import org.springframework.cloud.openfeign.security.OAuth2AccessTokenInterceptor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 
-@FeignClient(name="${{openbrace}}{{classVarName}}.name:{{classVarName}}{{closebrace}}", {{#useFeignClientContextId}}contextId="${{openbrace}}{{classVarName}}.contextId:${{openbrace}}{{classVarName}}.name{{closebrace}}{{closebrace}}",{{/useFeignClientContextId}} {{#useFeignClientUrl}}url="${{openbrace}}{{classVarName}}.url:{{basePath}}{{closebrace}}",{{/useFeignClientUrl}} configuration = ClientConfiguration.class)
+@FeignClient(name={{classname}}Client.SERVICE_NAME, {{#useFeignClientContextId}}contextId="${{openbrace}}{{classVarName}}.contextId:${{openbrace}}{{classVarName}}.name{{closebrace}}{{closebrace}}",{{/useFeignClientContextId}} {{#useFeignClientUrl}}url="${{openbrace}}{{classVarName}}.url:{{basePath}}{{closebrace}}",{{/useFeignClientUrl}} configuration = {{classname}}Client.FeignClientConfig.class)
 public interface {{classname}}Client extends {{classname}} {
+    String SERVICE_NAME = "{{classname}}";
+
+    class FeignClientConfig {
+        @Bean
+        public OAuth2AuthorizedClientManager oauth2AuthorizedClientManager(ClientRegistrationRepository clientRegistrationRepository,OAuth2AuthorizedClientService oAuth2AuthorizedClientService) {
+            return new AuthorizedClientServiceOAuth2AuthorizedClientManager(clientRegistrationRepository, oAuth2AuthorizedClientService);
+        }
+
+        @Bean
+        public OAuth2AccessTokenInterceptor oauth2AccessTokenInterceptor(OAuth2AuthorizedClientManager oauth2AuthorizedClientManager) {
+            return new OAuth2AccessTokenInterceptor(SERVICE_NAME, oauth2AuthorizedClientManager);
+        }
+    }
 }

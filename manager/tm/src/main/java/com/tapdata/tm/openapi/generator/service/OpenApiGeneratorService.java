@@ -603,10 +603,16 @@ public class OpenApiGeneratorService {
 	}
 
 	private String getAdditionalProps(CodeGenerationRequest request, int javaVersion, ApplicationDto applicationDto) {
-		return String.format(
+		String additionalProps = String.format(
 				"javaVersion=%s,artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s",
 				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret()
 		);
+		if (Boolean.TRUE.equals(request.getInterfaceOnly())) {
+			additionalProps += ",interfaceOnly=true";
+		} else {
+			additionalProps += ",interfaceOnly=false";
+		}
+		return additionalProps;
 	}
 
 	/**
