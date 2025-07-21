@@ -149,7 +149,7 @@ class TaskNodeTableFieldTraceVoTest {
         void shouldReturnNull_WhenSourceFieldsNull() {
             // When
             TaskNodeTableFieldTraceVo result = TaskNodeTableFieldTraceVo.ofTargetTable(
-                targetTable, new HashSet<>(), targetDatabaseType);
+                targetTable, null, targetDatabaseType);
 
             // Then
             assertNull(result);
