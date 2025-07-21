@@ -54,6 +54,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
+import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -85,7 +86,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private ClassHandlers ddlEventHandlers;
 	private WritePolicyService writePolicyService;
 	private Map<String, TapTable> partitionTapTables;
-    private boolean writeGroupByTableEnable = false;
+    @Getter
+    private boolean writeGroupByTableEnable = true;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -721,7 +723,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	void processEvents(List<TapEvent> tapEvents) {
 		TapEvent foundDDLEvent = tapEvents.stream().filter(e -> e instanceof TapDDLEvent).findFirst().orElse(null);
-		if (null == foundDDLEvent && writeGroupByTableEnable) {
+		if (null == foundDDLEvent && isWriteGroupByTableEnable()) {
 			Map<String, List<TapEvent>> dmlEventsGroupByTableId = new HashMap<>();
 			for (TapEvent tapEvent : tapEvents) {
 				if (tapEvent instanceof TapRecordEvent) {
