@@ -822,7 +822,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (null != eventQueue) {
 						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
 						if (drain > 0) {
-							batchTransformToTapValue(tapdataEvents);
+                            batchTransformToTapValue(tapdataEvents);
+                            if (null != taskInspect) {
+                                for (TapdataEvent event : tapdataEvents) {
+                                    if (SyncStage.CDC.equals(event.getSyncStage())) {
+                                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
+                                    }
+                                }
+                            }
 						}
 					}
 				}
@@ -1555,9 +1562,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 TapdataEvent event = tapdataEvent;
                 if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
                     event = this.tapEventFilter.handle(tapdataEvent);
-                    if (null != taskInspect) {
-                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
-                    }
                 }
                 if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
                     break;
