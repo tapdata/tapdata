@@ -1163,7 +1163,7 @@ public class ConnectorManager {
 	/**
 	 * worker heart beat
 	 */
-	@Scheduled(fixedDelay = 5000L)
+	@Scheduled(fixedDelay = 30000L)
 	public void workerHeartBeat() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.WORKER_HEART_BEAT_THREAD, CONNECTOR, instanceNo.substring(instanceNo.length() - 6)));
 		try {

@@ -85,7 +85,10 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@Qualifier("taskControlScheduler")
 	@Autowired
 	private TaskScheduler taskScheduler;
-	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(100);
+	@Autowired
+	private EngineTaskStartRateLimitService engineTaskStartRateLimitService;
+	private TaskTakeoverCompensationService taskTakeoverCompensationService;
+	private final LinkedBlockingQueue<TaskOperation> taskOperationsQueue = new LinkedBlockingQueue<>(1000);
 	private final ExecutorService taskOperationThreadPool = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors() + 1, Runtime.getRuntime().availableProcessors() + 1,
 			0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 	private final Map<String, ScheduleTaskConfig> scheduleTaskConfigs = new ConcurrentHashMap<>();
@@ -154,6 +157,12 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		});
 		initScheduleTask();
 		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::resetTaskRetryServiceIfNeed, 1L, 1L, TimeUnit.MINUTES);
+		// 添加队列监控
+		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::monitorTaskOperationQueue, 30L, 30L, TimeUnit.SECONDS);
+		// 初始化补偿服务
+		initTaskTakeoverCompensationService();
+		// 添加补偿机制调度
+		taskResetRetryServiceScheduledThreadPool.scheduleWithFixedDelay(this::performTaskTakeoverCompensation, 10L, 10L, TimeUnit.SECONDS);
 		PDKIntegration.registerMemoryFetcher("taskScheduler", this);
 	}
 
@@ -235,12 +244,22 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	}
 
 	public void sendStartTask(TaskDto taskDto) {
+		int queueSizeBefore = taskOperationsQueue.size();
 		taskOpEnqueue(StartTaskOperation.create().taskDto(taskDto));
+		int queueSizeAfter = taskOperationsQueue.size();
+
 		if (logger.isDebugEnabled()) {
 			List<String> stackTraces = Arrays.stream(Thread.currentThread().getStackTrace()).map(StackTraceElement::toString).collect(Collectors.toList());
-			logger.debug("Send start task operation: {}[{}]\n{}", taskDto.getName(), taskDto.getId().toHexString(), String.join("\n", stackTraces));
+			logger.debug("Send start task operation: {}[{}], queue size: {} -> {}\n{}",
+					taskDto.getName(), taskDto.getId().toHexString(), queueSizeBefore, queueSizeAfter, String.join("\n", stackTraces));
 		} else if (logger.isInfoEnabled()) {
-			logger.info("Send start task operation: {}[{}]", taskDto.getName(), taskDto.getId().toHexString());
+			logger.info("Send start task operation: {}[{}], queue size: {} -> {}",
+					taskDto.getName(), taskDto.getId().toHexString(), queueSizeBefore, queueSizeAfter);
+		}
+
+		// 队列大小警告
+		if (queueSizeAfter > 500) {
+			logger.warn("Task operation queue size is high: {}, may indicate processing bottleneck", queueSizeAfter);
 		}
 	}
 
@@ -256,14 +275,15 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 	private void taskOpEnqueue(TaskOperation taskOperation) {
 		if (null == taskOperation) return;
-		while (true) {
-			try {
-				if (taskOperationsQueue.offer(taskOperation)) {
-					break;
-				}
-			} catch (Exception e) {
-				break;
-			}
+		try {
+			// 使用阻塞方式入队，确保任务不会丢失
+			taskOperationsQueue.put(taskOperation);
+			logger.debug("Task operation enqueued successfully, queue size: {}", taskOperationsQueue.size());
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.warn("Task operation enqueue interrupted: {}", taskOperation);
+		} catch (Exception e) {
+			logger.error("Task operation enqueue failed: {}", taskOperation, e);
 		}
 	}
 
@@ -281,25 +301,65 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	public void scheduledTask() {
 		Thread.currentThread().setName(String.format(ConnectorConstant.START_TASK_THREAD, instanceNo));
 		try {
-			Query query = new Query(
-					new Criteria("agentId").is(instanceNo)
-							.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
-			);
-			query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
-			query.fields().include("_id").include("name");
-			List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-			for (TaskDto waitRunTask : allWaitRunTasks) {
-				logger.info("Staring task from http query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
-				query = new Query(Criteria.where("id").is(waitRunTask.getId()));
-				Update update = new Update();
-				update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
-				addAgentIdUpdate(update);
+			// 持续尝试启动所有等待的任务，直到没有任务需要启动
+			while (true) {
+				Query query = new Query(
+						new Criteria("agentId").is(instanceNo)
+								.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_WAIT_RUN)
+				);
+				query.with(Sort.by(DataFlow.PING_TIME_FIELD).ascending());
+				query.fields().include("_id").include("name");
+				List<TaskDto> allWaitRunTasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 
-				TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
-				if (taskDto != null) {
-					sendStartTask(taskDto);
+				if (allWaitRunTasks.isEmpty()) {
+					// 没有等待启动的任务，退出循环
+					break;
+				}
+
+				boolean taskStarted = false;
+				for (TaskDto waitRunTask : allWaitRunTasks) {
+					logger.info("Found wait run task from scheduled query: {}[{}]", waitRunTask.getName(), waitRunTask.getId());
+
+					String taskId = waitRunTask.getId().toHexString();
+					String taskName = waitRunTask.getName();
+
+					// 检查引擎端启动限流
+					if (!engineTaskStartRateLimitService.canStartTask(taskId, taskName)) {
+						logger.debug("Engine task start rate limited, will retry: {}[{}]", taskName, taskId);
+						continue;
+					}
+
+					// 直接启动任务，但受限流控制
+					Query updateQuery = new Query(Criteria.where("id").is(waitRunTask.getId()));
+					Update update = new Update();
+					update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
+					addAgentIdUpdate(update);
+
+					TaskDto taskDto = clientMongoOperator.findAndModify(updateQuery, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
+					if (taskDto != null) {
+						// 记录启动时间
+						engineTaskStartRateLimitService.recordTaskStart(taskId, taskName);
+						// 记录任务接管时间
+						if (taskTakeoverCompensationService != null) {
+							taskTakeoverCompensationService.recordTaskTakeover();
+						}
+						sendStartTask(taskDto);
+						taskStarted = true;
+						logger.info("Started task with rate limit: {}[{}]", taskName, taskId);
+						// 限流生效，一次只启动一个任务
+						break;
+					}
+				}
+
+				if (!taskStarted) {
+					// 如果没有任务启动（都被限流了），等待5秒后重试
+					logger.debug("All tasks are rate limited, waiting 5 seconds before retry");
+					Thread.sleep(5000);
 				}
 			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.warn("Scheduled task interrupted");
 		} catch (Exception e) {
 			logger.error("Schedule start task failed {}", e.getMessage(), e);
 		}
@@ -311,14 +371,60 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
 		if (!AppType.currentType().isCloud()) return;
-		Query query = new Query(
-				new Criteria("agentId").is(instanceNo)
-						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
-		);
-		List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
-		if (CollectionUtils.isNotEmpty(tasks)) {
-			logger.info("Found task(s) already running before engine start, will run these task(s) immediately\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
-			tasks.forEach(this::sendStartTask);
+
+		try {
+			// 持续尝试启动所有需要恢复的任务，直到没有任务需要启动
+			while (true) {
+				Query query = new Query(
+						new Criteria("agentId").is(instanceNo)
+								.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
+				);
+				List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+
+				if (CollectionUtils.isEmpty(tasks)) {
+					// 没有需要恢复的任务，退出循环
+					break;
+				}
+
+				logger.info("Found task(s) already running before engine start, will restart with rate limit\n  {}",
+						tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
+
+				boolean taskStarted = false;
+				for (TaskDto task : tasks) {
+					String taskId = task.getId().toHexString();
+					String taskName = task.getName();
+
+					// 检查引擎端启动限流
+					if (!engineTaskStartRateLimitService.canStartTask(taskId, taskName)) {
+						logger.debug("Engine task start rate limited, will retry: {}[{}]", taskName, taskId);
+						continue;
+					}
+
+					// 记录启动时间并直接启动
+					engineTaskStartRateLimitService.recordTaskStart(taskId, taskName);
+					// 记录任务接管时间
+					if (taskTakeoverCompensationService != null) {
+						taskTakeoverCompensationService.recordTaskTakeover();
+					}
+					sendStartTask(task);
+					taskStarted = true;
+					logger.info("Engine restart task with rate limit: {}[{}]", taskName, taskId);
+
+					// 限流生效，一次只启动一个任务
+					break;
+				}
+
+				if (!taskStarted) {
+					// 如果没有任务启动（都被限流了），等待5秒后重试
+					logger.debug("All engine restart tasks are rate limited, waiting 5 seconds before retry");
+					Thread.sleep(5000);
+				}
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			logger.warn("Engine restart task interrupted");
+		} catch (Exception e) {
+			logger.error("Engine restart task failed {}", e.getMessage(), e);
 		}
 	}
 
@@ -352,6 +458,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 			logger.info("The task to be scheduled is found, task name {}, task id {}", taskDto.getName(), taskId);
 			TmStatusService.addNewTask(taskId);
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
+
 			final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 			taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 		} catch (Throwable e) {
@@ -446,6 +553,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 									if (stop) {
 										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);
@@ -504,6 +612,48 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static void clearTaskRetryCache(String taskId) {
 		TaskRetryFactory.getInstance().removeTaskRetryService(taskId);
 		taskRetryTimeMap.remove(taskId);
+	}
+
+	/**
+	 * 监控任务操作队列状态
+	 */
+	private void monitorTaskOperationQueue() {
+		int queueSize = taskOperationsQueue.size();
+		int runningTasks = taskClientMap.size();
+
+		logger.info("Task operation queue status: queueSize={}, runningTasks={}, remainingCapacity={}",
+				queueSize, runningTasks, taskOperationsQueue.remainingCapacity());
+
+		if (queueSize > 100) {
+			logger.warn("Task operation queue size is high: {}, may indicate processing bottleneck", queueSize);
+		}
+
+		if (queueSize > 800) {
+			logger.error("Task operation queue size is critically high: {}, system may be overloaded", queueSize);
+		}
+	}
+
+	/**
+	 * 初始化任务接管补偿服务
+	 */
+	private void initTaskTakeoverCompensationService() {
+		if (taskTakeoverCompensationService == null) {
+			taskTakeoverCompensationService = new TaskTakeoverCompensationService(
+					clientMongoOperator, this, instanceNo);
+		}
+	}
+
+	/**
+	 * 执行任务接管补偿
+	 */
+	private void performTaskTakeoverCompensation() {
+		try {
+			if (taskTakeoverCompensationService != null && taskTakeoverCompensationService.shouldCompensate()) {
+				taskTakeoverCompensationService.performCompensation();
+			}
+		} catch (Exception e) {
+			logger.error("Error performing task takeover compensation", e);
+		}
 	}
 
 	protected void resetTaskRetryServiceIfNeed() {
