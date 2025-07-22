@@ -13,6 +13,9 @@ additionalProperties:
     useFeignClientUrl: false
     useOneOfInterfaces: false
     useResponseEntity: false
+    useBeanValidation: false
+    useSealed: true
+    parentOverridden: false
     disallowAdditionalPropertiesIfNotPresent: false
     generateGenericResponseEntity: false
     developerEmail: ""
