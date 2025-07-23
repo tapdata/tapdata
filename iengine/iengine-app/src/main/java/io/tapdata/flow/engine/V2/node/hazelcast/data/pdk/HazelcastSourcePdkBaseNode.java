@@ -981,7 +981,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }).orElse(tapTable -> false);
             final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
             Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
-            List<List<String>> partition = Lists.partition(addList, BATCH_SIZE);
+            List<List<String>> partition = Lists.partition(new ArrayList<>(addList), BATCH_SIZE);
             partition.forEach(part -> {
                 List<String> batchList = new ArrayList<>(part);
                 LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
@@ -991,7 +991,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         //开启了仅同步子表
                         if (tapTable.checkIsMasterPartitionTable()) {
                             //主表忽略
-                            batchList.remove(tapTable.getId());
+                            addList.remove(tapTable.getId());
                             return;
                         }
                         if (tapTable.checkIsSubPartitionTable()) {
@@ -1004,7 +1004,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         //主表已存在，需要新增表后更新主表的分区信息
                         if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
                             masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
-                            batchList.remove(tapTable.getId());
+                            addList.remove(tapTable.getId());
                             return;
                         }
                     } catch (Exception e) {
