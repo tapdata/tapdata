@@ -29,7 +29,7 @@ public class TaskInspectConfig implements IConfig<TaskInspectConfig> {
     @Override
     public TaskInspectConfig init(int depth) {
         setEnable(init(getEnable(), false));
-        setMode(init(getMode(), TaskInspectMode.CUSTOM));
+        setMode(init(getMode(), TaskInspectMode.CLOSE));
         setCustom(init(getCustom(), depth, Custom.class));
         setIntelligent(init(getIntelligent(), depth, Intelligent.class));
         setQueueCapacity(init(getQueueCapacity(), 1000));
@@ -37,6 +37,10 @@ public class TaskInspectConfig implements IConfig<TaskInspectConfig> {
         setCheckNoPkTable(init(getCheckNoPkTable(), false));
         setTimeCheckMode(init(getTimeCheckMode(), TimeCheckModeEnum.NORMAL));
         return this;
+    }
+
+    public static TaskInspectConfig createClose() {
+        return new TaskInspectConfig().init(-1);
     }
 
     public static void main(String[] args) {

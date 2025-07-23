@@ -2,6 +2,7 @@ package com.tapdata.taskinspect;
 
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.taskinspect.TaskInspectUtils;
 import org.apache.logging.log4j.LogManager;
@@ -10,6 +11,7 @@ import org.bson.types.ObjectId;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,6 +34,11 @@ public class TaskInspectHelper {
             return null;
         } else if (isIgnoreTaskSyncType(task.getSyncType())) {
             return null;
+        } else if (Optional.ofNullable(task.getDag())
+            .map(DAG::getSourceNodes)
+            .map(List::size)
+            .orElse(0) > 1) {
+            return null; // 多源节点的任务不支持
         }
 
         synchronized (INSTANCES) {
