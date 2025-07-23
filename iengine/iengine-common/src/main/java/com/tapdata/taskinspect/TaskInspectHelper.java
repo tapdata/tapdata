@@ -30,15 +30,13 @@ public class TaskInspectHelper {
 
     public static ITaskInspect create(TaskDto task, ClientMongoOperator clientMongoOperator) {
         String taskId = Optional.ofNullable(task.getId()).map(ObjectId::toHexString).orElse(null);
-        if (null == taskId) {
+        if (null == taskId
+            // 不支持的任务类型
+            || isIgnoreTaskSyncType(task.getSyncType())
+            // 不支持多源节点的任务
+            || Optional.ofNullable(task.getDag()).map(DAG::getSourceNodes).map(List::size).orElse(0) > 1
+        ) {
             return null;
-        } else if (isIgnoreTaskSyncType(task.getSyncType())) {
-            return null;
-        } else if (Optional.ofNullable(task.getDag())
-            .map(DAG::getSourceNodes)
-            .map(List::size)
-            .orElse(0) > 1) {
-            return null; // 多源节点的任务不支持
         }
 
         synchronized (INSTANCES) {
