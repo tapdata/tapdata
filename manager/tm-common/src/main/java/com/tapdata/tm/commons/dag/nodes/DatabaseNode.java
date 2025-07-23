@@ -93,6 +93,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     private boolean enableConcurrentRead;
     private int concurrentReadThreadNumber;
 
+    /** 目标是否开启按表分桶写入 */
+    private Boolean writeWithGroupByTableEnable;
+
     public static final String SELF_TYPE = "database";
     private static final String MONGODB = "MongoDB";
 
