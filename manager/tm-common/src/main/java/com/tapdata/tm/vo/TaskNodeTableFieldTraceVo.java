@@ -3,6 +3,7 @@ package com.tapdata.tm.vo;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Data;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,6 +25,7 @@ public class TaskNodeTableFieldTraceVo {
     private List<String> targetFields;
 
     public static TaskNodeTableFieldTraceVo ofTargetTable(TapTable targetTable, Set<String> sourceFields, String targetDatabaseType) {
+        if(CollectionUtils.isEmpty(sourceFields))return null;
         TaskNodeTableFieldTraceVo ins = new TaskNodeTableFieldTraceVo();
         ins.setSourceTable(targetTable.getAncestorsName());
         ins.setTargetTable(targetTable.getName());

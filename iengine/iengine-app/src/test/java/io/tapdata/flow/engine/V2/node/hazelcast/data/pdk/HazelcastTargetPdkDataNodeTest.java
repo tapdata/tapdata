@@ -95,6 +95,7 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 		void beforeEach() {
 			ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "obsLogger", mockObsLogger);
 			doCallRealMethod().when(hazelcastTargetPdkDataNode).processEvents(anyList());
+            doReturn(true).when(hazelcastTargetPdkDataNode).isWriteGroupByTableEnable();
 		}
 
 		@Test
