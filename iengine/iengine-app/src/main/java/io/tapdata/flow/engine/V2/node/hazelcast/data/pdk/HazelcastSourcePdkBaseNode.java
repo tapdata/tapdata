@@ -813,7 +813,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (Boolean.TRUE.equals(toTapValueConcurrent)) {
 					try {
 						tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
-					} catch (ConcurrentProcessorApplyException e) {
+                        accpetCdcEventIfHasInspect(tapdataEvents);
+                    } catch (ConcurrentProcessorApplyException e) {
 						// throw exception not include original events, local log file will include it
 						logger.error("Concurrent transform to tap value failed, original events: {}", e.getOriginValue(), e.getCause());
 						throw new Exception("Concurrent transform to tap value failed", e.getCause());
@@ -823,13 +824,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
 						if (drain > 0) {
                             batchTransformToTapValue(tapdataEvents);
-                            if (null != taskInspect) {
-                                for (TapdataEvent event : tapdataEvents) {
-                                    if (SyncStage.CDC.equals(event.getSyncStage())) {
-                                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
-                                    }
-                                }
-                            }
+                            accpetCdcEventIfHasInspect(tapdataEvents);
 						}
 					}
 				}
@@ -861,6 +856,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
 
         return false;
+    }
+
+    private void accpetCdcEventIfHasInspect(List<TapdataEvent> tapdataEvents) {
+        if (null != taskInspect) {
+            if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+                for (TapdataEvent event : tapdataEvents) {
+                    if (SyncStage.CDC.equals(event.getSyncStage())) {
+                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
+                    }
+                }
+            }
+        }
     }
 
     private boolean checkAllTargetNodesFinishInitial() {
