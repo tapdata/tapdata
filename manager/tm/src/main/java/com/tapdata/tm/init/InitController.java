@@ -59,6 +59,11 @@ public class InitController {
         UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
         List<DataSourceDefinitionDto> definitionDtos = dataSourceDefinitionService.getByDataSourceType(Arrays.asList("MongoDB"),userDetail,"pdkHash");
         if(CollectionUtils.isNotEmpty(definitionDtos)){
+            long count = liveDataPlatformService.count(Query.query(Criteria.where("mode").is("service")));
+            if(count > 0){
+                log.info("init skip liveDataPlatform already exist.");
+                return;
+            }
             String mongodbPdkHash = definitionDtos.get(0).getPdkHash();
 
             // 初始化 FDM, MDM, ADM 三个数据源
@@ -139,9 +144,7 @@ public class InitController {
                 }
                 log.info("init {} connection success", dataSourceName);
             }
-            long count = liveDataPlatformService.count(Query.query(Criteria.where("mode").is("service")));
-
-            if(count == 0 && StringUtils.isNotEmpty(fdmStorageConnectionId) && StringUtils.isNotEmpty(mdmStorageConnectionId)){
+            if(StringUtils.isNotEmpty(fdmStorageConnectionId) && StringUtils.isNotEmpty(mdmStorageConnectionId)){
                 LiveDataPlatformDto liveDataPlatformDto = new LiveDataPlatformDto();
                 liveDataPlatformDto.setMode("service");
                 liveDataPlatformDto.setFdmStorageCluster("self");
