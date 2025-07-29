@@ -19,9 +19,26 @@ import java.util.List;
 @Slf4j
 public class MavenPackagingUtil {
 
-    private static final String MVNW_SCRIPT = "mvnw";
-    private static final String MVNW_CMD = "mvnw.cmd";
     private static final String MAVEN_COMMAND = "mvn";
+    private static final String MAVEN_CMD_COMMAND = "mvn.cmd";
+
+    // Operating system detection
+    private static final String OS_NAME = System.getProperty("os.name").toLowerCase();
+    private static final boolean IS_WINDOWS = OS_NAME.contains("win") && !OS_NAME.contains("darwin");
+    private static final boolean IS_LINUX = OS_NAME.contains("linux") || OS_NAME.contains("nux") ||
+                                           OS_NAME.equals("ubuntu") || OS_NAME.contains("centos") ||
+                                           OS_NAME.contains("redhat") || OS_NAME.contains("red hat") ||
+                                           OS_NAME.contains("suse") || OS_NAME.contains("debian") ||
+                                           OS_NAME.contains("fedora") || OS_NAME.contains("arch");
+    private static final boolean IS_MAC = OS_NAME.contains("mac") || OS_NAME.contains("darwin");
+
+    /**
+     * Get operating system information for logging
+     */
+    private static String getOSInfo() {
+        return String.format("OS: %s (Windows: %s, Linux: %s, Mac: %s)",
+                OS_NAME, IS_WINDOWS, IS_LINUX, IS_MAC);
+    }
 
     /**
      * Package source code into JAR using Maven with offline mode attempt first
@@ -31,6 +48,7 @@ public class MavenPackagingUtil {
      */
     public static PackagingResult packageToJar(Path sourceDir) {
         log.info("Starting Maven packaging for source directory: {}", sourceDir);
+        log.info("Operating system information: {}", getOSInfo());
 
         // First attempt: Try offline mode if conditions are met
         log.info("[OFFLINE MODE] Attempting offline Maven packaging first...");
@@ -63,19 +81,25 @@ public class MavenPackagingUtil {
             // Check if offline mode conditions are met
             Path currentDir = Paths.get(System.getProperty("user.dir"));
             Path sdkDepsPath = currentDir.resolve("../etc/openapi-generator/sdk-deps");
-            Path mvnwPath = currentDir.resolve("../lib/maven/mvnw");
+            // Get Maven binary path based on operating system
+            Path mavenBinaryPath = getMavenBinaryPath(currentDir);
 
             log.debug("[OFFLINE MODE] Checking offline mode conditions:");
             log.debug("[OFFLINE MODE] Current directory: {}", currentDir);
             log.debug("[OFFLINE MODE] SDK deps path: {}", sdkDepsPath);
-            log.debug("[OFFLINE MODE] Mvnw path: {}", mvnwPath);
+            log.debug("[OFFLINE MODE] Maven binary path: {}", mavenBinaryPath);
 
             if (!Files.exists(sdkDepsPath) || !Files.isDirectory(sdkDepsPath)) {
                 return PackagingResult.failure("SDK dependencies directory not found: " + sdkDepsPath);
             }
 
-            if (!Files.exists(mvnwPath) || !Files.isExecutable(mvnwPath)) {
-                return PackagingResult.failure("Maven wrapper not found or not executable: " + mvnwPath);
+            if (!Files.exists(mavenBinaryPath)) {
+                return PackagingResult.failure("Maven binary not found: " + mavenBinaryPath);
+            }
+
+            // On Windows, we don't check executable bit as .cmd files may not have it set
+            if (!IS_WINDOWS && !Files.isExecutable(mavenBinaryPath)) {
+                return PackagingResult.failure("Maven binary not executable: " + mavenBinaryPath);
             }
 
             // Validate source directory and pom.xml
@@ -88,8 +112,8 @@ public class MavenPackagingUtil {
                 return PackagingResult.failure("pom.xml not found in source directory: " + sourceDir);
             }
 
-            // Build offline Maven command
-            List<String> command = buildOfflineMavenCommand(mvnwPath.toAbsolutePath().toString(), sdkDepsPath.toAbsolutePath().toString());
+            // Build offline Maven command with binary
+            List<String> command = buildOfflineMavenCommand(mavenBinaryPath.toAbsolutePath().toString(), sdkDepsPath.toAbsolutePath().toString());
             log.info("[OFFLINE MODE] Executing offline Maven command: {}", String.join(" ", command));
 
             return executeMavenCommand(command, sourceDir, true);
@@ -119,7 +143,7 @@ public class MavenPackagingUtil {
             }
 
             // Determine Maven command to use
-            String mavenCommand = determineMavenCommand(sourceDir);
+            String mavenCommand = determineMavenCommand();
             log.info("Using Maven command: {}", mavenCommand);
 
             // Execute Maven package command
@@ -135,49 +159,84 @@ public class MavenPackagingUtil {
     }
 
     /**
-     * Determine which Maven command to use (mvnw, mvnw.cmd, or mvn)
+     * Find Maven binary with unified search strategy
+     * 1. Check multiple relative paths for Maven commands
+     * 2. Fall back to system Maven if not found locally
+     *
+     * @param baseDir Base directory for relative path resolution (null for current directory)
+     * @param returnAsPath Whether to return Path object (true) or command string (false)
+     * @return Maven binary as Path object or command string, never null
      */
-    private static String determineMavenCommand(Path sourceDir) {
-        // First try to use mvnw from resources directory
-        String[] resourceMvnwPaths = {
-                "resources/mvnw",
-                "../resources/mvnw",
-                "../../resources/mvnw",
-                "../../../resources/mvnw"
+    private static Object findMavenBinaryUnified(Path baseDir, boolean returnAsPath) {
+        log.debug("Finding Maven binary for OS: {}", OS_NAME);
+
+        // Use current directory if baseDir is null
+        if (baseDir == null) {
+            baseDir = Paths.get(System.getProperty("user.dir"));
+        }
+
+        // Define search paths in order of preference
+        String[] searchPaths = {
+            "../lib/maven/bin",
+            "../../lib/maven/bin",
+            "../../../lib/maven/bin"
         };
 
-        for (String resourcePath : resourceMvnwPaths) {
-            Path mvnwPath = Paths.get(resourcePath);
-            if (Files.exists(mvnwPath) && Files.isExecutable(mvnwPath)) {
-                log.info("Using mvnw from resources: {}", mvnwPath.toAbsolutePath());
-                return mvnwPath.toAbsolutePath().toString();
+        // Get possible Maven binary names based on OS
+        String[] mavenBinaryNames = IS_WINDOWS ?
+            new String[]{"mvn.cmd", "mvn.bat"} :
+            new String[]{"mvn"};
+
+        // Search in local relative paths first
+        for (String searchPath : searchPaths) {
+            for (String binaryName : mavenBinaryNames) {
+                Path mavenPath = baseDir.resolve(searchPath + "/" + binaryName);
+                if (Files.exists(mavenPath) && (IS_WINDOWS || Files.isExecutable(mavenPath))) {
+                    log.info("Found local Maven binary at: {}", mavenPath.toAbsolutePath());
+                    if (returnAsPath) {
+                        return mavenPath;
+                    } else {
+                        return mavenPath.toAbsolutePath().toString();
+                    }
+                }
             }
         }
 
-        // Check for mvnw in source directory
-        Path mvnwInSource = sourceDir.resolve(MVNW_SCRIPT);
-        if (Files.exists(mvnwInSource)) {
-            return "./" + MVNW_SCRIPT;
-        }
+        // Fall back to system Maven command
+        String systemMavenCommand = IS_WINDOWS ? MAVEN_CMD_COMMAND : MAVEN_COMMAND;
+        log.info("Local Maven not found, falling back to system Maven command: {}", systemMavenCommand);
 
-        // Check for mvnw.cmd on Windows
-        Path mvnwCmdInSource = sourceDir.resolve(MVNW_CMD);
-        if (Files.exists(mvnwCmdInSource)) {
-            return MVNW_CMD;
+        if (returnAsPath) {
+            return Paths.get(systemMavenCommand);
+        } else {
+            return systemMavenCommand;
         }
-
-        // Fall back to system Maven
-        return MAVEN_COMMAND;
     }
+
+    /**
+     * Get Maven binary path for offline mode (replacement for getMavenBinaryPath)
+     */
+    private static Path getMavenBinaryPath(Path currentDir) {
+        return (Path) findMavenBinaryUnified(currentDir, true);
+    }
+
+    /**
+     * Determine Maven command for online mode (replacement for determineMavenCommand)
+     */
+    private static String determineMavenCommand() {
+        return (String) findMavenBinaryUnified(null, false);
+    }
+
+
 
     /**
      * Build offline Maven command with local repository
      */
-    private static List<String> buildOfflineMavenCommand(String mvnwPath, String localRepoPath) {
+    private static List<String> buildOfflineMavenCommand(String mavenBinaryPath, String localRepoPath) {
         List<String> command = new ArrayList<>();
 
-        // Add Maven wrapper command
-        command.add(mvnwPath);
+        // Add Maven binary command
+        command.add(mavenBinaryPath);
 
         // Add Maven goals and options
         command.add("clean");
