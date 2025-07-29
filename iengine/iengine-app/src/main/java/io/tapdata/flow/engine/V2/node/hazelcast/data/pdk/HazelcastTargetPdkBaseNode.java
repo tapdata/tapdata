@@ -172,7 +172,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     private TapCodecsFilterManager codecsFilterManagerForBatchRead;
 	protected boolean syncTargetPartitionTableEnable;
 	protected TargetAllInitialCompleteNotify targetAllInitialCompleteNotify;
-	protected final Map<String, ConnectorNode> sourceConnectorNodeMap = new ConcurrentHashMap<>();
 
     public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -918,7 +917,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
                 handleTapdataStartCdcEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
-				buildSourceConnectorNodeMap((TapdataStartedCdcEvent) tapdataEvent);
 				flushShareCdcTableMetrics(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataTaskErrorEvent) {
                 throw ((TapdataTaskErrorEvent) tapdataEvent).getThrowable();
@@ -948,15 +946,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             throw new TapdataEventException(TaskTargetProcessorExCode_15.HANDLE_EVENTS_FAILED, throwable).addEvent(tapdataEvent);
         }
     }
-
-	protected void buildSourceConnectorNodeMap(TapdataStartedCdcEvent tapdataEvent) {
-		String sourceNodeId = tapdataEvent.getSourceNodeId();
-		String sourceNodeAssociateId = tapdataEvent.getSourceNodeAssociateId();
-		if (null != sourceNodeId && null != sourceNodeAssociateId && null != ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId)) {
-			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(sourceNodeAssociateId);
-			sourceConnectorNodeMap.putIfAbsent(sourceNodeId, connectorNode);
-		}
-	}
 
 	protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
@@ -1460,41 +1449,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     @Override
     public boolean saveToSnapshot() {
-        try {
-            if (!flushOffset.get()) return true;
-            if (MapUtils.isEmpty(syncProgressMap)) return true;
-            Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
-			AtomicBoolean needSave = new AtomicBoolean(true);
-            for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
-                String key = entry.getKey();
-                SyncProgress syncProgress = entry.getValue();
-                List<String> list = Arrays.asList(key.split(","));
-                if (null != syncProgress.getBatchOffsetObj()) {
-                    syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
-                }
-                if (null != syncProgress.getStreamOffsetObj()) {
-                    if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
-                            && !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
-                        syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
-                        if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
-                            String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
-                            syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
-                        }
-						sourceConnectorNodeMap.forEach((nodeId, node) -> {
-							if (list.contains(nodeId)) {
-								FlushOffsetFunction flushOffsetFunction = node.getConnectorFunctions().getFlushOffsetFunction();
-								if (null == flushOffsetFunction) {
-									return;
-								}
-								try {
-									flushOffsetFunction.flushOffset(node.getConnectorContext(), syncProgress.getStreamOffsetObj());
-								} catch (Exception e) {
-									needSave.set(false);
-								}
-							}
-						});
-                    }
-                }
+		try {
+			if (!flushOffset.get()) return true;
+			if (MapUtils.isEmpty(syncProgressMap)) return true;
+			Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
+				String key = entry.getKey();
+				SyncProgress syncProgress = entry.getValue();
+				List<String> list = Arrays.asList(key.split(","));
+				if (null != syncProgress.getBatchOffsetObj()) {
+					syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+				}
+				if (null != syncProgress.getStreamOffsetObj()) {
+					if (!(syncProgress.getStreamOffsetObj() instanceof String) || (!StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), STREAM_OFFSET_COMPRESS_PREFIX_V2)
+							&& !StringUtils.startsWith((String) syncProgress.getStreamOffsetObj(), ENCODE_PREFIX))) {
+						syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
+						if (syncProgress.getStreamOffset().length() > COMPRESS_STREAM_OFFSET_STRING_LENGTH_THRESHOLD) {
+							String compress = StringCompression.compressV2(syncProgress.getStreamOffset());
+							syncProgress.setStreamOffset(STREAM_OFFSET_COMPRESS_PREFIX_V2 + compress);
+						}
+					}
+				}
 				try {
 					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
 				} catch (JsonProcessingException e) {
@@ -1504,9 +1479,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 			try {
-				if (needSave.get()){
-					clientMongoOperator.insertOne(syncProgressJsonMap, collection);
-				}
+				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
 			} catch (Exception e) {
 				obsLogger.warn("Save to snapshot failed, collection: {}, object: {}, errors: {}", collection, this.syncProgressMap, e.getMessage());
 				return false;
