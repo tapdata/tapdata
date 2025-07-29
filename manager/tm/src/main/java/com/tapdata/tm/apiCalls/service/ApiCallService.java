@@ -5,6 +5,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
@@ -12,8 +13,13 @@ import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
@@ -29,6 +35,10 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -36,10 +46,25 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.DocumentUtils.getLong;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.limit;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.project;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.skip;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.unwind;
 
 /**
  * @Author:
@@ -55,6 +80,9 @@ public class ApiCallService {
     ModulesService modulesService;
     ApplicationService applicationService;
     ApiCallStatsService apiCallStatsService;
+
+    @Autowired
+    private ApplicationConfig applicationConfig;
 
     public ApiCallService() {
     }
@@ -83,6 +111,8 @@ public class ApiCallService {
             ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()));
             if (null != modulesDto) {
                 apiCallDetailVo.setName(modulesDto.getName());
+                apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
+                apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
 
                 //
                 List<ApiCallEntity> apiCallEntityList = findByModuleIds(Arrays.asList(modulesDto.getId().toString()));
@@ -113,7 +143,195 @@ public class ApiCallService {
         return null;
     }
 
+
+
     public Page<ApiCallDetailVo> find(Filter filter, UserDetail userDetail) {
+        final Where where = filter.getWhere();
+        final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
+        final String method = (String) where.getOrDefault("method", "");
+        final Object code = where.get("code");
+        final Object clientName = where.get("clientName");
+        final String id = getValueFromOrList(orList, "id");
+        final String name = getValueFromOrList(orList, "name");
+        final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
+
+        //根据method 查询
+        final Criteria criteria = new Criteria();
+        final Criteria startTimeCriteria = new Criteria();
+        final Criteria endTimeCriteria = new Criteria();
+        if (StringUtils.isNotEmpty(method)) {
+            criteria.and("method").is(method);
+        }
+        Optional.ofNullable(code)
+                .map(value -> String.valueOf(clientName).trim())
+                .ifPresent(value -> {
+            if (Objects.equals("", value)) {
+                criteria.and("code").ne("200");
+            } else {
+                criteria.and("code").is(value);
+            }
+        });
+        Optional.ofNullable(where.get("start"))
+                .map(value -> (Double) where.remove("start"))
+                .map(value -> new Date(value.longValue()))
+                .ifPresent(value -> startTimeCriteria.and("createAt").gte(value));
+        Optional.ofNullable(where.get("end"))
+                .map(value -> (Double) where.remove("end"))
+                .map(value -> new Date(value.longValue()))
+                .ifPresent(value -> startTimeCriteria.and("createAt").gte(value));
+        criteria.andOperator(startTimeCriteria, endTimeCriteria);
+
+        List<Document> bMatchCriteria = new ArrayList<>();
+        bMatchCriteria.add(new Document("$eq", List.of("$_id", new Document("$toObjectId", "$$allPathId"))));
+        bMatchCriteria.add(new Document("$ne", List.of("$delete", true)));
+        if (!Objects.equals(applicationConfig.getAdminAccount(), userDetail.getEmail())) {
+            bMatchCriteria.add(new Document("$eq", List.of("$user_id", userDetail.getUserId())));
+        }
+        if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(id)) {
+            bMatchCriteria.add(new Document("$or", List.of(new Document("input", "$name").append("regex", name).append("options", "i"), new Document("$eq", List.of("$_id", MongoUtils.toObjectId(id))))));
+        } else if (StringUtils.isNotBlank(name)) {
+            bMatchCriteria.add(new Document("$regexMatch", new Document("input", "$name").append("regex", name).append("options", "i")));
+        } else if (StringUtils.isNotBlank(id)) {
+            bMatchCriteria.add(new Document("$eq", List.of("$_id", MongoUtils.toObjectId(id))));
+        }
+        Document lookupDoc = new Document("$lookup", new Document()
+                .append("from", "Modules")
+                .append("let", new Document("allPathId", "$allPathId"))
+                .append("pipeline", List.of(new Document("$match", new Document("$expr", new Document("$and", bMatchCriteria)))))
+                .append("as", "mData")
+        );
+        AggregationOperation lookupOfModule = context -> lookupDoc;
+        AggregationOperation matchStage = Aggregation.match(
+                Criteria.where("mData.0").exists(true).andOperator(criteria)
+        );
+        AggregationOperation countStage = Aggregation.count().as("total");
+
+
+        List<Document> filterApplication = new ArrayList<>();
+        filterApplication.add(new Document("$eq", List.of("$clientId", "$$clientId")));
+        if (null != clientName && StringUtils.isNotBlank(String.valueOf(clientName).trim())) {
+            filterApplication.add(new Document("$regexMatch", new Document("input", "$clientName").append("regex", clientName).append("options", "i")));
+        }
+        Document lookupDocOfApplication = new Document("$lookup", new Document()
+                .append("from", "Application")
+                .append("let", new Document("clientId", "$user_info.clientId"))
+                .append("pipeline", List.of(new Document("$match", new Document("$expr", new Document("$and", filterApplication)))))
+                .append("as", "appData")
+        );
+        AggregationOperation lookupOfApplication = context -> lookupDocOfApplication;
+
+
+        Aggregation countAggregation = Aggregation.newAggregation(
+                lookupOfModule,
+                matchStage,
+                countStage
+        );
+        final AggregationResults<Map<String, Number>> countResults = mongoOperations.aggregate(countAggregation, "ApiCall", (Class<Map<String, Number>>) (Class<?>) Map.class);
+        final long total = countResults.getMappedResults().isEmpty() ? 0L : Optional.ofNullable(countResults.getMappedResults().get(0))
+                .map(e -> e.get("total"))
+                .map(Number::longValue)
+                .orElse(0L);
+        final List<ApiCallDataVo> apiCallDetailVoList;
+        if (total > 0L) {
+            final int page = (filter.getSkip() / filter.getLimit()) + 1;
+            final int size = filter.getLimit();
+            org.springframework.data.domain.Sort sort;
+            if ("createTime DESC".equals(order)) {
+                sort = Sort.by("createAt").descending();
+            } else {
+                sort = Sort.by("createAt").ascending();
+            }
+            final Aggregation aggregation = newAggregation(
+                    match(criteria),
+                    lookupOfApplication,
+                    lookupOfModule,
+                    matchStage,
+                    unwind("mData"),
+                    unwind("appData"),
+                    skip(page),
+                    limit(size),
+                    new SortOperation(sort),
+                    project()
+                            .and("_id").as("id")
+                            .and("createTime").as("createAt")
+                            .and("user_id").as("userId")
+                            .and("createUser").as("createUser")
+                            .and("latency").as("latency")
+                            .and("reqTime").as("reqTime")
+                            .and("resTime").as("resTime")
+                            .and("api_meta").as("apiMeta")
+                            .and("user_info").as("userInfo")
+                            .and("api_path").as("apiPath")
+                            .and("call_id").as("callId")
+                            .and("user_ip").as("userIp")
+                            .and("user_port").as("userPort")
+                            .and("req_path").as("reqPath")
+                            .and("method").as("method")
+                            .and("req_headers").as("reqHeaders")
+                            .and("req_bytes").as("reqBytes")
+                            .and("code").as("code")
+                            .and("codeMsg").as("codeMsg")
+                            .and("report_time").as("reportTime")
+                            .and("visitTotalCount").as("visitTotalCount")
+                            .and("createTime").as("createTime")
+                            .and("speed").as("speed")
+                            .and("averResponseTime").as("averResponseTime")
+                            .and("req_params").as("reqParams")
+                            .and("allPathId").as("apiId")
+                            .and("req_path").as("apiPath")
+
+                            .and("mData.name").as("apiName")
+                            .and("mData.apiVersion").as("apiVersion")
+                            .and("mData.path").as("path")
+                            .and("mData.apiType").as("apiType")
+                            .and("mData.paths").as("paths")
+                            .and("mData.project").as("project")
+                            .and("mData.connection").as("connection")
+                            .and("mData.user").as("user")
+                            .and("mData.Email").as("email")
+                            .and("mData.resRows").as("resRows")
+                            .and("mData.responseTime").as("responseTime")
+                            .and("mData.operationType").as("operationType")
+                            .and("mData.createAt").as("apiCreateAt")
+
+                            .and("appData.clientId").as("clientId")
+                            .and("appData.clientName").as("clientName")
+            );
+            AggregationResults<ApiCallDataVo> apiCall = mongoOperations.aggregate(aggregation, "ApiCall", ApiCallDataVo.class);
+            apiCallDetailVoList = Optional.ofNullable(apiCall.getMappedResults()).orElse(new ArrayList<>());
+        } else {
+            apiCallDetailVoList = new ArrayList<>();
+        }
+        final List<ApiCallDetailVo> resultData = apiCallDetailVoList.stream()
+                .filter(Objects::nonNull)
+                .map(e -> {
+                    final ApiCallDetailVo item = new ApiCallDetailVo();
+                    item.setClientName(e.getClientName());
+                    item.setId(e.getId().toHexString());
+                    item.setApiId(e.getApiId());
+                    item.setName(e.getApiName());
+                    item.setCode(e.getCode());
+                    item.setLatency(e.getLatency());
+                    item.setSpeed(e.getSpeed());
+                    item.setCodeMsg(e.getCodeMsg());
+                    item.setAverResponseTime(e.getAverResponseTime());
+                    item.setVisitTotalCount(e.getVisitTotalCount());
+                    item.setUserIp(e.getUserIp());
+                    item.setLastUpdAt(e.getLastUpdAt());
+                    item.setLastUpdBy(e.getLastUpdBy());
+                    item.setCustomId(e.getCustomId());
+                    item.setReqParams(e.getReqParams());
+                    item.setApiPath(e.getApiPath());
+                    item.setMethod(e.getOperationType());
+                    item.setCreateTime(e.getCreateTime());
+                    item.setCreateAt(e.getApiCreateAt());
+                    return item;
+        }).collect(Collectors.toList());
+        return Page.page(resultData, total);
+    }
+
+
+    public Page<ApiCallDetailVo> findOld(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
         List orList = (List) where.getOrDefault("or", new ArrayList<>());
         String method = (String) where.getOrDefault("method", "");
@@ -266,7 +484,7 @@ public class ApiCallService {
             if (StringUtils.isNotEmpty(allPathId) && null != moduleIdToModule.get(MongoUtils.toObjectId(allPathId))) {
                 apiCallDetailVo.setName(moduleIdToModule.get(MongoUtils.toObjectId(allPathId)).getName());
             }
-
+            apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
             apiCallDetailVo.setCodeMsg(apiCallEntity.getCodeMsg());
             apiCallDetailVo.setMethod(apiCallEntity.getMethod());
             apiCallDetailVo.setCreateTime(apiCallEntity.getCreateAt());

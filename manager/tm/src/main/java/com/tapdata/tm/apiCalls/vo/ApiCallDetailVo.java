@@ -9,6 +9,7 @@ import java.util.Date;
 @Data
 @EqualsAndHashCode(callSuper=false)
 public class ApiCallDetailVo extends BaseVo {
+    private String apiId;
     private String name;
     private  String apiPath;
     private  String code;

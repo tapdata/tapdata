@@ -4,6 +4,7 @@ application:
   commit_version: '@env.GIT_COMMIT_VERSION@'
   description: 'Tapdata Manager'
   build: '@maven.build.timestamp@'
+  admin-account: 'admin@admin.com'
 
 spring:
   servlet:
