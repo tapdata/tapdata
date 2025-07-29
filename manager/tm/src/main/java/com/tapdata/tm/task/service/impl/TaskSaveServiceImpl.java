@@ -153,7 +153,8 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                                 List<MetadataInstancesDto> metaList = schemaMap.get(nodeId);
                                 Optional.ofNullable(metaList).ifPresent(list -> {
                                     list.forEach(schema -> {
-                                        List<String> fields = schema.getFields().stream().filter(Field::getPrimaryKey).map(Field::getFieldName).collect(Collectors.toList());
+                                        List<String> fields = schema.getFields().stream().filter(field -> null != field.getPrimaryKey() && field.getPrimaryKey())
+                                                .map(Field::getFieldName).collect(Collectors.toList());
                                         if (CollectionUtils.isNotEmpty(fields)) {
                                             databaseNode.getUpdateConditionFieldMap().put(schema.getName(), fields);
                                         } else {
