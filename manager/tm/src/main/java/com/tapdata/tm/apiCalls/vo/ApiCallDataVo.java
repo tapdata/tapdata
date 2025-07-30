@@ -49,6 +49,8 @@ public class ApiCallDataVo {
     private String reqPath;
     private String method;
     private String reqParams;
+    private String query;
+    private String body;
 
     private String apiGatewayIp;
     private String apiGatewayPort;

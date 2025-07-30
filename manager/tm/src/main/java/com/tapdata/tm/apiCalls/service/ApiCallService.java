@@ -3,6 +3,7 @@ package com.tapdata.tm.apiCalls.service;
 import cn.hutool.core.bean.BeanUtil;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.UnwindOptions;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
@@ -143,57 +144,66 @@ public class ApiCallService {
         return null;
     }
 
+    protected List<Document> buildNameOrIdExpr(String name, String id, UserDetail userDetail) {
+        List<Document> matchCriteria = new ArrayList<>();
+        matchCriteria.add(new Document("$eq", List.of("$_id", new Document("$toObjectId", "$$allPathId"))));
+        matchCriteria.add(new Document("$ne", List.of("$delete", true)));
+        if (!Objects.equals(applicationConfig.getAdminAccount(), userDetail.getEmail())) {
+            matchCriteria.add(new Document("$eq", List.of("$user_id", userDetail.getUserId())));
+        }
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        //前端都是放在一个输入框，如果是ObjectID就是查询apiId,否则就是模糊查询api name
+        if (null != objectId) {
+            matchCriteria.add(new Document("$eq", List.of("$_id", objectId)));
+        } else if (StringUtils.isNotBlank(name)) {
+            matchCriteria.add(new Document("$regexMatch", new Document("input", "$name").append("regex", name)));
+        }
+        return matchCriteria;
+    }
 
-
-    public Page<ApiCallDetailVo> find(Filter filter, UserDetail userDetail) {
+    protected Criteria genericFilterCriteria(Filter filter) {
+        final Criteria startTimeCriteria = new Criteria();
+        final Criteria endTimeCriteria = new Criteria();
         final Where where = filter.getWhere();
         final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
         final String method = (String) where.getOrDefault("method", "");
         final Object code = where.get("code");
+        final Criteria criteria = new Criteria();
+        if (StringUtils.isNotEmpty(method)) {
+            criteria.and("method").is(method);
+        }
+        Optional.ofNullable(code)
+                .map(value -> String.valueOf(value).trim())
+                .ifPresent(value -> {
+                    if (Objects.equals("", value)) {
+                        criteria.and("code").ne("200");
+                    } else {
+                        criteria.and("code").is(value);
+                    }
+                });
+        Optional.ofNullable(where.get("start"))
+                .map(value -> (Double) where.remove("start"))
+                .map(value -> new Date(value.longValue()))
+                .ifPresent(value -> startTimeCriteria.and("createTime").gte(value));
+        Optional.ofNullable(where.get("end"))
+                .map(value -> (Double) where.remove("end"))
+                .map(value -> new Date(value.longValue()))
+                .ifPresent(value -> endTimeCriteria.and("createTime").lte(value));
+        criteria.andOperator(startTimeCriteria, endTimeCriteria);
+        return criteria;
+    }
+
+    public Page<ApiCallDetailVo> find(Filter filter, UserDetail userDetail) {
+        final Where where = filter.getWhere();
+        final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
         final Object clientName = where.get("clientName");
         final String id = getValueFromOrList(orList, "id");
         final String name = getValueFromOrList(orList, "name");
         final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
 
         //根据method 查询
-        final Criteria criteria = new Criteria();
-        final Criteria startTimeCriteria = new Criteria();
-        final Criteria endTimeCriteria = new Criteria();
-        if (StringUtils.isNotEmpty(method)) {
-            criteria.and("method").is(method);
-        }
-        Optional.ofNullable(code)
-                .map(value -> String.valueOf(clientName).trim())
-                .ifPresent(value -> {
-            if (Objects.equals("", value)) {
-                criteria.and("code").ne("200");
-            } else {
-                criteria.and("code").is(value);
-            }
-        });
-        Optional.ofNullable(where.get("start"))
-                .map(value -> (Double) where.remove("start"))
-                .map(value -> new Date(value.longValue()))
-                .ifPresent(value -> startTimeCriteria.and("createAt").gte(value));
-        Optional.ofNullable(where.get("end"))
-                .map(value -> (Double) where.remove("end"))
-                .map(value -> new Date(value.longValue()))
-                .ifPresent(value -> startTimeCriteria.and("createAt").gte(value));
-        criteria.andOperator(startTimeCriteria, endTimeCriteria);
-
-        List<Document> bMatchCriteria = new ArrayList<>();
-        bMatchCriteria.add(new Document("$eq", List.of("$_id", new Document("$toObjectId", "$$allPathId"))));
-        bMatchCriteria.add(new Document("$ne", List.of("$delete", true)));
-        if (!Objects.equals(applicationConfig.getAdminAccount(), userDetail.getEmail())) {
-            bMatchCriteria.add(new Document("$eq", List.of("$user_id", userDetail.getUserId())));
-        }
-        if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(id)) {
-            bMatchCriteria.add(new Document("$or", List.of(new Document("input", "$name").append("regex", name).append("options", "i"), new Document("$eq", List.of("$_id", MongoUtils.toObjectId(id))))));
-        } else if (StringUtils.isNotBlank(name)) {
-            bMatchCriteria.add(new Document("$regexMatch", new Document("input", "$name").append("regex", name).append("options", "i")));
-        } else if (StringUtils.isNotBlank(id)) {
-            bMatchCriteria.add(new Document("$eq", List.of("$_id", MongoUtils.toObjectId(id))));
-        }
+        final Criteria criteria = genericFilterCriteria(filter);
+        List<Document> bMatchCriteria = buildNameOrIdExpr(name, id, userDetail);
         Document lookupDoc = new Document("$lookup", new Document()
                 .append("from", "Modules")
                 .append("let", new Document("allPathId", "$allPathId"))
@@ -201,16 +211,18 @@ public class ApiCallService {
                 .append("as", "mData")
         );
         AggregationOperation lookupOfModule = context -> lookupDoc;
-        AggregationOperation matchStage = Aggregation.match(
-                Criteria.where("mData.0").exists(true).andOperator(criteria)
-        );
+        Criteria criteriaAll = Criteria.where("mData.0").exists(true).andOperator(criteria);
+
         AggregationOperation countStage = Aggregation.count().as("total");
 
 
         List<Document> filterApplication = new ArrayList<>();
         filterApplication.add(new Document("$eq", List.of("$clientId", "$$clientId")));
         if (null != clientName && StringUtils.isNotBlank(String.valueOf(clientName).trim())) {
-            filterApplication.add(new Document("$regexMatch", new Document("input", "$clientName").append("regex", clientName).append("options", "i")));
+            filterApplication.add(new Document("$regexMatch", new Document()
+                    .append("input", "$clientName")
+                    .append("regex", clientName)));
+            criteriaAll.and("appData.clientName").regex(String.valueOf(clientName).trim());
         }
         Document lookupDocOfApplication = new Document("$lookup", new Document()
                 .append("from", "Application")
@@ -220,8 +232,10 @@ public class ApiCallService {
         );
         AggregationOperation lookupOfApplication = context -> lookupDocOfApplication;
 
-
+        AggregationOperation matchStage = Aggregation.match(criteriaAll);
         Aggregation countAggregation = Aggregation.newAggregation(
+                match(criteria),
+                lookupOfApplication,
                 lookupOfModule,
                 matchStage,
                 countStage
@@ -233,13 +247,13 @@ public class ApiCallService {
                 .orElse(0L);
         final List<ApiCallDataVo> apiCallDetailVoList;
         if (total > 0L) {
-            final int page = (filter.getSkip() / filter.getLimit()) + 1;
+            final int skip = filter.getSkip();
             final int size = filter.getLimit();
             org.springframework.data.domain.Sort sort;
-            if ("createTime DESC".equals(order)) {
-                sort = Sort.by("createAt").descending();
+            if ("createTime ASC".equals(order)) {
+                sort = Sort.by("createTime").ascending();
             } else {
-                sort = Sort.by("createAt").ascending();
+                sort = Sort.by("createTime").descending();
             }
             final Aggregation aggregation = newAggregation(
                     match(criteria),
@@ -247,10 +261,10 @@ public class ApiCallService {
                     lookupOfModule,
                     matchStage,
                     unwind("mData"),
-                    unwind("appData"),
-                    skip(page),
-                    limit(size),
+                    unwind("appData", true),
                     new SortOperation(sort),
+                    skip(skip),
+                    limit(size),
                     project()
                             .and("_id").as("id")
                             .and("createTime").as("createAt")
@@ -261,14 +275,10 @@ public class ApiCallService {
                             .and("resTime").as("resTime")
                             .and("api_meta").as("apiMeta")
                             .and("user_info").as("userInfo")
-                            .and("api_path").as("apiPath")
                             .and("call_id").as("callId")
                             .and("user_ip").as("userIp")
                             .and("user_port").as("userPort")
-                            .and("req_path").as("reqPath")
                             .and("method").as("method")
-                            .and("req_headers").as("reqHeaders")
-                            .and("req_bytes").as("reqBytes")
                             .and("code").as("code")
                             .and("codeMsg").as("codeMsg")
                             .and("report_time").as("reportTime")
@@ -277,6 +287,8 @@ public class ApiCallService {
                             .and("speed").as("speed")
                             .and("averResponseTime").as("averResponseTime")
                             .and("req_params").as("reqParams")
+                            .and("query").as("query")
+                            .and("body").as("body")
                             .and("allPathId").as("apiId")
                             .and("req_path").as("apiPath")
 
@@ -288,7 +300,6 @@ public class ApiCallService {
                             .and("mData.project").as("project")
                             .and("mData.connection").as("connection")
                             .and("mData.user").as("user")
-                            .and("mData.Email").as("email")
                             .and("mData.resRows").as("resRows")
                             .and("mData.responseTime").as("responseTime")
                             .and("mData.operationType").as("operationType")
@@ -321,10 +332,12 @@ public class ApiCallService {
                     item.setLastUpdBy(e.getLastUpdBy());
                     item.setCustomId(e.getCustomId());
                     item.setReqParams(e.getReqParams());
+                    item.setQuery(e.getQuery());
+                    item.setBody(e.getBody());
                     item.setApiPath(e.getApiPath());
-                    item.setMethod(e.getOperationType());
                     item.setCreateTime(e.getCreateTime());
                     item.setCreateAt(e.getApiCreateAt());
+                    item.setMethod(e.getMethod());
                     return item;
         }).collect(Collectors.toList());
         return Page.page(resultData, total);
