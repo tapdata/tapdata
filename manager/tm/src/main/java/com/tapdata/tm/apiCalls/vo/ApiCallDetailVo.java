@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.Date;
+import java.util.Map;
 
 @Data
 @EqualsAndHashCode(callSuper=false)
@@ -23,4 +24,7 @@ public class ApiCallDetailVo extends BaseVo {
     private Long averResponseTime;
     private String clientName;
     private String userIp;
+    private String query;
+    private String body;
+    private Map<String, Object> reqHeaders;
 }

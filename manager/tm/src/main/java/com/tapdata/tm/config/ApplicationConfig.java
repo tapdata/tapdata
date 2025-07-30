@@ -14,21 +14,21 @@ import org.springframework.stereotype.Service;
 @Service
 @Data
 public class ApplicationConfig {
-    @Value("{application.title:TM}")
+    @Value("${application.title:TM}")
     String title;
 
-    @Value("{application.version}")
+    @Value("${application.version}")
     String version;
 
-    @Value("{application.commit_version}")
+    @Value("${application.commit_version}")
     String commitVersion;
 
-    @Value("{application.description:Tapdata Manager}")
+    @Value("${application.description:Tapdata Manager}")
     String description;
 
-    @Value("{application.build}")
+    @Value("${application.build}")
     String build;
 
-    @Value("{application.admin-account:admin@admin.com}")
+    @Value("${application.admin-account:admin@admin.com}")
     String adminAccount;
 }
