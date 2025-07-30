@@ -508,7 +508,7 @@ class ApiCallServiceTest {
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientName\": \"name\"}}");
+            Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \"name\"}}");
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -531,7 +531,7 @@ class ApiCallServiceTest {
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientName\": \" \"}}");
+            Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -554,7 +554,7 @@ class ApiCallServiceTest {
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientName\": \" \"}}");
+            Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -583,7 +583,7 @@ class ApiCallServiceTest {
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            Filter filter = parseFilter("{\"order\": \"createTime ASC\",\"limit\":20,\"skip\":0,\"where\":{\"clientName\": \" \"}}");
+            Filter filter = parseFilter("{\"order\": \"createTime ASC\",\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {

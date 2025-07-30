@@ -194,7 +194,7 @@ public class ApiCallService {
     public Page<ApiCallDetailVo> find(Filter filter, UserDetail userDetail) {
         final Where where = filter.getWhere();
         final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
-        final Object clientName = where.get("clientName");
+        final Object clientId = where.get("clientId");
         final String id = getValueFromOrList(orList, "id");
         final String name = getValueFromOrList(orList, "name");
         final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
@@ -216,11 +216,9 @@ public class ApiCallService {
 
         List<Document> filterApplication = new ArrayList<>();
         filterApplication.add(new Document("$eq", List.of("$clientId", "$$clientId")));
-        if (null != clientName && StringUtils.isNotBlank(String.valueOf(clientName).trim())) {
-            filterApplication.add(new Document("$regexMatch", new Document()
-                    .append("input", "$clientName")
-                    .append("regex", clientName)));
-            criteriaAll.and("appData.clientName").regex(String.valueOf(clientName).trim());
+        if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
+            filterApplication.add(new Document("$eq", List.of("$clientId", clientId)));
+            criteriaAll.and("appData.clientId").is(String.valueOf(clientId).trim());
         }
         Document lookupDocOfApplication = new Document("$lookup", new Document()
                 .append("from", "Application")
