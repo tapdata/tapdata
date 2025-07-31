@@ -218,7 +218,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 
 		Map<String, Object> afterMapInRecord = TapEventUtil.getAfter(tapEvent);
 		if (MapUtils.isEmpty(afterMapInRecord) && MapUtils.isNotEmpty(TapEventUtil.getBefore(tapEvent))) {
-			afterMapInRecord = TapEventUtil.getBefore(tapEvent);
+			afterMapInRecord = new HashMap<>();
+			MapUtil.copyToNewMap(TapEventUtil.getBefore(tapEvent), afterMapInRecord);
 		}
 
 		String op = TapEventUtil.getOp(tapEvent);
