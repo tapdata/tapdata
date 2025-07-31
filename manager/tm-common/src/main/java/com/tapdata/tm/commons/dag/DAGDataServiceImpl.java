@@ -698,7 +698,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 field.setId(new ObjectId().toHexString());
             }
             Field originalField = fields.get(field.getFieldName());
-            if (databaseType.equalsIgnoreCase(field.getSourceDbType()) || field.getSourceDbType().contains(databaseType) || databaseType.contains(field.getSourceDbType())) {
+            if (databaseType.equalsIgnoreCase(field.getSourceDbType()) ||
+                    (field.getSourceDbType() != null && (field.getSourceDbType().contains(databaseType) ||
+                    databaseType.contains(field.getSourceDbType())))) {
                 if (originalField != null && originalField.getDataTypeTemp() != null) {
                     field.setDataType(originalField.getDataTypeTemp());
                     TapType tapType = JSON.parseObject(field.getTapType(), TapType.class);
