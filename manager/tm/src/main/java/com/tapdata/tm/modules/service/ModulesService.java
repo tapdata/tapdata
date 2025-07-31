@@ -70,6 +70,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1134,6 +1135,30 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
+	void checkoutFieldAliasNameIsValid(Path path) {
+		if (CollectionUtils.isEmpty(path.getFields())) {
+			//至少选中一个字段
+			throw new BizException("module.save.check.not-empty");
+		}
+		List<Field> fields = path.getFields();
+		Map<String, AtomicInteger> fieldAliasRepeatMap = new HashMap<>();
+		fields.stream()
+				.filter(e -> StringUtils.isNotBlank(e.getFieldAlias()))
+				.forEach(e -> fieldAliasRepeatMap
+						.computeIfAbsent(e.getFieldAlias(), key -> new AtomicInteger(0))
+						.addAndGet(1)
+				);
+		StringJoiner joiner = new StringJoiner(", ");
+		fieldAliasRepeatMap.forEach((k, v) -> {
+			if (v.get() > 1) {
+				joiner.add(k);
+			}
+		});
+		if (joiner.length() > 0) {
+			throw new BizException("module.save.check.repat", joiner.toString());
+		}
+	}
+
 	private void checkoutInputParamIsValid(ModulesDto modulesDto) {
 		String apiType = modulesDto.getApiType();
 		List<Path> paths = modulesDto.getPaths();
@@ -1169,6 +1194,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					if (!ParamTypeEnum.isValid(param.getType(), param.getDefaultvalue()))
 						throw new BizException(param.getName() + " is invalid");
 				}
+				checkoutFieldAliasNameIsValid(path);
 			}
 		}
 	}
