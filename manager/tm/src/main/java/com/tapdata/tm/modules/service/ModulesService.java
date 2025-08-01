@@ -115,6 +115,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public ModulesDetailVo findById(String id) {
 		ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
+		modulesDto.withPathSettingIfNeed();
 		ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
 
 		String connectionId = modulesDto.getConnection().toString();
@@ -143,7 +144,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 
 		Page page = find(filter, userDetail);
-
+		Optional.ofNullable(page.getItems())
+				.ifPresent(value -> value.stream()
+						.filter(e -> e instanceof ModulesDto)
+						.forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
 		String createUser = "";
 		List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
 		if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -271,6 +275,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	public List<ModulesDto> findByName(String name) {
 		Query query = Query.query(Criteria.where("name").is(name).and("is_deleted").ne(true));
 		List<ModulesDto> modulesDtoList = findAll(query);
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -802,6 +807,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	public List findAllActiveApi(ModuleStatusEnum moduleStatusEnum) {
 		Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue()).and("is_deleted").ne(true));
 		List<ModulesDto> modulesDtoList = findAll(query);
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -1109,6 +1115,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public List<ModulesDto> findByConnectionId(String connectionId) {
 		List<ModulesDto> modulesDtoList = findAll(Query.query(Criteria.where("connection").is(MongoUtils.toObjectId(connectionId)).and("is_deleted").ne(true)));
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
