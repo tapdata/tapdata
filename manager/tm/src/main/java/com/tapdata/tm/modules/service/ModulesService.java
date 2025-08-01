@@ -849,6 +849,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return previewVo;
 	}
 
+	public List<ModulesDto> getByUserId(String userId) {
+		Query query = Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userId));
+		List<ModulesDto> modulesDtoList = findAll(query);
+		return modulesDtoList;
+	}
 
     /**
      * type
