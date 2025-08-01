@@ -8,4 +8,6 @@ import java.util.List;
 public class ModulesPermissionsDto {
     private String moduleId;
     private List<String> acl;
+    private List<String> moduleIds;
+    private String aclName;
 }
