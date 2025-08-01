@@ -48,6 +48,7 @@ import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.*;
+import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -1431,10 +1432,58 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public void updatePermissions(ModulesPermissionsDto permissions, UserDetail userDetail) {
-		if (CollectionUtils.isEmpty(permissions.getAcl())) throw new BizException("Modules.Permission.Scope.Null");
-		Update update = new Update();
-		update.set("paths.$[].acl", permissions.getAcl());
-		updateById(permissions.getModuleId(), update, userDetail);
+		// 判断是批量更新还是单个更新
+		if (StringUtils.isNotBlank(permissions.getAclName())) {
+			// 批量更新：只有指定的 moduleIds 才能拥有该 aclName
+			batchUpdatePermissionsExclusive(permissions.getModuleIds(), permissions.getAclName(), userDetail);
+		} else if (StringUtils.isNotBlank(permissions.getModuleId()) && CollectionUtils.isNotEmpty(permissions.getAcl())) {
+			// 单个更新：原有逻辑
+			Update update = new Update();
+			update.set("paths.$[].acl", permissions.getAcl());
+			updateById(permissions.getModuleId(), update, userDetail);
+		} else {
+			throw new BizException("Modules.Permission.Scope.Null");
+		}
+	}
+
+	/**
+	 * 批量更新权限
+	 * 只有指定的 moduleIds 才能拥有该 aclName，其他所有模块将被移除该权限
+	 *
+	 * @param moduleIds 要拥有权限的模块ID列表
+	 * @param aclName 权限名称
+	 * @param userDetail 用户信息
+	 */
+	private void batchUpdatePermissionsExclusive(List<String> moduleIds, String aclName, UserDetail userDetail) {
+		if (CollectionUtils.isEmpty(moduleIds)) {
+			// 如果目标列表为空，移除所有模块的该权限
+			Query removeAllQuery = new Query(Criteria.where("is_deleted").ne(true)
+				.and("paths.acl").is(aclName));
+			Update removeUpdate = new Update();
+			removeUpdate.pull("paths.$[].acl", aclName);
+			repository.update(removeAllQuery, removeUpdate, userDetail);
+			return;
+		}
+
+		List<ObjectId> targetObjectIds = moduleIds.stream()
+			.map(MongoUtils::toObjectId)
+			.collect(Collectors.toList());
+
+		// 从当前拥有该权限但不在目标列表中的模块移除权限
+		Query removeQuery = new Query(Criteria.where("is_deleted").ne(true)
+			.and("paths.acl").is(aclName)
+			.and("_id").nin(targetObjectIds));
+		Update removeUpdate = new Update();
+		removeUpdate.pull("paths.$[].acl", aclName);
+		repository.update(removeQuery, removeUpdate, userDetail);
+
+		// 给目标模块中还没有该权限的模块添加权限
+		Query addQuery = new Query(Criteria.where("_id").in(targetObjectIds)
+			.and("is_deleted").ne(true)
+			.and("paths.acl").ne(aclName));
+		Update addUpdate = new Update();
+		addUpdate.addToSet("paths.$[].acl", aclName);
+		repository.update(addQuery, addUpdate, userDetail);
 	}
 
 	public void updateTags(ModulesTagsDto modulesTagsDto, UserDetail userDetail) {
