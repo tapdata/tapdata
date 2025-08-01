@@ -86,6 +86,39 @@ class ModulesServiceTest {
     }
 
     @Nested
+    class BatchUpdatePermissionsTest{
+        @Test
+        void test_batchUpdatePermissionsExclusive(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            permissionsDto.setModuleIds(Arrays.asList("module1", "module2"));
+            permissionsDto.setAclName("admin");
+
+            modulesService.updatePermissions(permissionsDto, mock(UserDetail.class));
+            // 验证调用了两次 update：一次移除所有，一次添加指定
+            verify(modulesRepository, times(2)).update(any(), any(), any());
+        }
+
+        @Test
+        void test_singleModuleUpdate(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            permissionsDto.setModuleId("module1");
+            permissionsDto.setAcl(Arrays.asList("admin", "user"));
+
+            modulesService.updatePermissions(permissionsDto, mock(UserDetail.class));
+            verify(modulesRepository, times(1)).updateFirst(any(), any(), any());
+        }
+
+        @Test
+        void test_invalidParams(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            // 既没有设置单个模块参数，也没有设置批量参数
+
+            assertThrows(BizException.class, () ->
+                modulesService.updatePermissions(permissionsDto, mock(UserDetail.class)));
+        }
+    }
+
+    @Nested
     class UpdateTagsTest{
         @Test
         void test_main(){
