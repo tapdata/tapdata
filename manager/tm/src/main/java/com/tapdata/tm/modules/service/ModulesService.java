@@ -115,17 +115,16 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public ModulesDetailVo findById(String id) {
-		ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
+		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
 		modulesDto.withPathSettingIfNeed();
-		ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
-
-		String connectionId = modulesDto.getConnection().toString();
-		DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-		if (null != dataSourceConnectionDto) {
-			dataSourceConnectionDto.setDatabase_password(null);
-			dataSourceConnectionDto.setPlain_password(null);
-			modulesDetailVo.setSource(dataSourceConnectionDto);
-		}
+		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
+		final String connectionId = modulesDto.getConnection().toString();
+		Optional.ofNullable(dataSourceService.findById(MongoUtils.toObjectId(connectionId)))
+				.ifPresent(dataSourceConnectionDto -> {
+					dataSourceConnectionDto.setDatabase_password(null);
+					dataSourceConnectionDto.setPlain_password(null);
+					modulesDetailVo.setSource(dataSourceConnectionDto);
+				});
 		modulesDetailVo.setConnection(connectionId);
 		return modulesDetailVo;
 	}
@@ -806,8 +805,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public List findAllActiveApi(ModuleStatusEnum moduleStatusEnum) {
-		Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue()).and("is_deleted").ne(true));
-		List<ModulesDto> modulesDtoList = findAll(query);
+		if (null == moduleStatusEnum) {
+			return new ArrayList<>();
+		}
+		final Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue())
+				.and("is_deleted").ne(true));
+		final List<ModulesDto> modulesDtoList = Optional.ofNullable(findAll(query)).orElse(new ArrayList<>());
 		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
@@ -845,12 +848,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		previewVo.setVisitTotalLine(apiCallStatsDto.getResponseDataRowTotalCount());
 		previewVo.setLastUpdAt(null != apiCallStatsDto.getLastUpdAt() ? apiCallStatsDto.getLastUpdAt().getTime() : 0L);
 		return previewVo;
-	}
-
-	public List<ModulesDto> getByUserId(String userId) {
-		Query query = Query.query(Criteria.where("is_deleted").ne(true).and("user_id").is(userId));
-		List<ModulesDto> modulesDtoList = findAll(query);
-		return modulesDtoList;
 	}
 
 

@@ -25,6 +25,7 @@ import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.dto.PathSetting;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
@@ -736,6 +737,83 @@ class ModulesServiceTest {
                     throw e;
                 }
             });
+        }
+    }
+
+    @Nested
+    class ServerTest {
+        ModulesService mService;
+        ModulesRepository mRepository;
+
+        DataSourceService dService;
+        DataSourceDefinitionService dDefinitionService;
+
+        @BeforeEach
+        void init() {
+            mService = mock(ModulesService.class);
+            mRepository = mock(ModulesRepository.class);
+            dService = mock(DataSourceService.class);
+            dDefinitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(mService, "dataSourceService", dService);
+            ReflectionTestUtils.setField(mService, "dataSourceDefinitionService", dDefinitionService);
+        }
+
+        @Nested
+        class FindByIdTest {
+            @Test
+            void testWithPathSettingIfNeed() {
+                String id = new ObjectId().toHexString();
+
+                ModulesDto entity = new ModulesDto();
+                entity.setConnection(new ObjectId());
+                when(mService.findById(anyString())).thenCallRealMethod();
+                when(mService.findById(any(ObjectId.class))).thenReturn(entity);
+                when(dService.findById(any(ObjectId.class))).thenReturn(null);
+                ModulesDetailVo byId = mService.findById(id);
+                Assertions.assertNotNull(byId.getPathSetting());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, byId.getPathSetting());
+            }
+
+            @Test
+            void testWithPathSettingIfNeed2() {
+                String id = new ObjectId().toHexString();
+
+                ModulesDto entity = new ModulesDto();
+                entity.setConnection(new ObjectId());
+                when(mService.findById(anyString())).thenCallRealMethod();
+                when(mService.findById(any(ObjectId.class))).thenReturn(entity);
+                when(dService.findById(any(ObjectId.class))).thenReturn(new DataSourceConnectionDto());
+                ModulesDetailVo byId = mService.findById(id);
+                Assertions.assertNotNull(byId.getPathSetting());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, byId.getPathSetting());
+            }
+        }
+
+
+        @Nested
+        class FindAllActiveApiTest {
+            @Test
+            void testNormal() {
+                List<ModulesDto> apis = new ArrayList<>();
+                ModulesDto dto = new ModulesDto();
+                apis.add(dto);
+                ModuleStatusEnum moduleStatusEnum = ModuleStatusEnum.ACTIVE;
+                when(mService.findAllActiveApi(any())).thenCallRealMethod();
+                when(mService.findAll(any(Query.class))).thenReturn(apis);
+                List<ModulesDto> allActiveApi = mService.findAllActiveApi(moduleStatusEnum);
+                Assertions.assertNotNull(allActiveApi);
+                Assertions.assertEquals(1, allActiveApi.size());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, allActiveApi.get(0).getPathSetting());
+            }
+            @Test
+            void testNull() {
+                when(mService.findAllActiveApi(null)).thenCallRealMethod();
+                when(mService.findAll(any(Query.class))).thenReturn(null);
+                List<ModulesDto> allActiveApi = mService.findAllActiveApi(null);
+                Assertions.assertNotNull(allActiveApi);
+                Assertions.assertEquals(0, allActiveApi.size());
+                verify(mService, times(0)).findAll(any(Query.class));
+            }
         }
     }
 }
