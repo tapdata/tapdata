@@ -919,6 +919,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		@BeforeEach
 		void setUp() {
 			hazelcastMergeNode = spy(hazelcastMergeNode);
+			doReturn(false).when(hazelcastMergeNode).isIgnoreSubtableUpdate(any());
 		}
 
 		@Test
@@ -1026,6 +1027,245 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 			assertDoesNotThrow(() -> hazelcastMergeNode.handleBatchUpdateJoinKey(new ArrayList<>()));
 			verify(hazelcastMergeNode, times(0)).handleUpdateJoinKey(any());
+		}
+	}
+
+	@Nested
+	@DisplayName("controlOrIgnoreEvent method test")
+	class ControlOrIgnoreEventTest {
+
+		@BeforeEach
+		void setUp() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+		}
+
+		@Test
+		@DisplayName("should return true when parent method returns true")
+		void shouldReturnTrueWhenParentMethodReturnsTrue() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			tapdataEvent.setTapEvent(null); 
+
+			boolean result = hazelcastMergeNode.controlOrIgnoreEvent(tapdataEvent);
+
+			assertTrue(result);
+		}
+
+		@Test
+		@DisplayName("should return true when parent method returns false but isIgnoreSubtableUpdate returns true")
+		void shouldReturnTrueWhenParentFalseButIgnoreSubtableUpdateTrue() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			tapdataEvent.setTapEvent(tapUpdateEvent);
+			tapdataEvent.addNodeId("testNodeId");
+
+			doReturn(true).when(hazelcastMergeNode).isIgnoreSubtableUpdate(tapdataEvent);
+
+			boolean result = hazelcastMergeNode.controlOrIgnoreEvent(tapdataEvent);
+
+			assertTrue(result);
+		}
+
+		@Test
+		@DisplayName("should return false when both parent method and isIgnoreSubtableUpdate return false")
+		void shouldReturnFalseWhenBothMethodsReturnFalse() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapInsertRecordEvent tapInsertEvent = TapInsertRecordEvent.create();
+			tapdataEvent.setTapEvent(tapInsertEvent);
+			tapdataEvent.addNodeId("testNodeId");
+
+			doReturn(false).when(hazelcastMergeNode).isIgnoreSubtableUpdate(tapdataEvent);
+			
+			boolean result = hazelcastMergeNode.controlOrIgnoreEvent(tapdataEvent);
+			
+			assertFalse(result);
+		}
+	}
+
+	@Nested
+	@DisplayName("isIgnoreSubtableUpdate method test")
+	class IsIgnoreSubtableUpdateTest {
+
+		private List<String> ignoreUpdateEventIdList;
+
+		@BeforeEach
+		void setUp() {
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			ignoreUpdateEventIdList = new ArrayList<>();
+			ignoreUpdateEventIdList.add("ignoreNodeId1");
+			ignoreUpdateEventIdList.add("ignoreNodeId2");
+			ReflectionTestUtils.setField(hazelcastMergeNode, "ignoreUpdateEventIdList", ignoreUpdateEventIdList);
+		}
+
+		@Test
+		@DisplayName("should return true when all conditions are met")
+		void shouldReturnTrueWhenAllConditionsMet() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			tapdataEvent.setTapEvent(tapUpdateEvent);
+			tapdataEvent.addNodeId("ignoreNodeId1");
+
+			doReturn(false).when(hazelcastMergeNode).isInitialSyncTask();
+
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+			
+			assertTrue(result);
+		}
+
+		@Test
+		@DisplayName("should return false when preNodeId is not in ignoreUpdateEventIdList")
+		void shouldReturnFalseWhenPreNodeIdNotInIgnoreList() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			tapdataEvent.setTapEvent(tapUpdateEvent);
+			tapdataEvent.addNodeId("notInIgnoreList");
+
+			doReturn(false).when(hazelcastMergeNode).isInitialSyncTask();
+
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+			
+			assertFalse(result);
+		}
+
+		@Test
+		@DisplayName("should return false when tapEvent is not TapUpdateRecordEvent")
+		void shouldReturnFalseWhenNotUpdateEvent() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapInsertRecordEvent tapInsertEvent = TapInsertRecordEvent.create();
+			tapdataEvent.setTapEvent(tapInsertEvent);
+			tapdataEvent.addNodeId("ignoreNodeId1");
+
+			doReturn(false).when(hazelcastMergeNode).isInitialSyncTask();
+			
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+
+			assertFalse(result);
+		}
+
+		@Test
+		@DisplayName("should return false when it is initial sync task")
+		void shouldReturnFalseWhenInitialSyncTask() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			tapdataEvent.setTapEvent(tapUpdateEvent);
+			tapdataEvent.addNodeId("ignoreNodeId1");
+
+			doReturn(true).when(hazelcastMergeNode).isInitialSyncTask();
+
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+			
+			assertFalse(result);
+		}
+
+		@Test
+		@DisplayName("should return false when tapEvent is TapDeleteRecordEvent")
+		void shouldReturnFalseWhenDeleteEvent() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapDeleteRecordEvent tapDeleteEvent = TapDeleteRecordEvent.create();
+			tapdataEvent.setTapEvent(tapDeleteEvent);
+			tapdataEvent.addNodeId("ignoreNodeId1");
+
+			doReturn(false).when(hazelcastMergeNode).isInitialSyncTask();
+
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+
+			assertFalse(result);
+		}
+
+		@Test
+		@DisplayName("should return false when ignoreUpdateEventIdList is empty")
+		void shouldReturnFalseWhenIgnoreListEmpty() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			tapdataEvent.setTapEvent(tapUpdateEvent);
+			tapdataEvent.addNodeId("anyNodeId");
+
+			ReflectionTestUtils.setField(hazelcastMergeNode, "ignoreUpdateEventIdList", new ArrayList<>());
+
+			doReturn(false).when(hazelcastMergeNode).isInitialSyncTask();
+
+			
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+			
+			assertFalse(result);
+		}
+
+		@Test
+		@DisplayName("should handle multiple nodeIds correctly")
+		void shouldHandleMultipleNodeIdsCorrectly() {
+			
+			TapdataEvent tapdataEvent = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			tapdataEvent.setTapEvent(tapUpdateEvent);
+			tapdataEvent.addNodeId("firstNodeId");
+			tapdataEvent.addNodeId("ignoreNodeId1"); 
+
+			
+			doReturn(false).when(hazelcastMergeNode).isInitialSyncTask();
+			
+			boolean result = hazelcastMergeNode.isIgnoreSubtableUpdate(tapdataEvent);
+			
+			assertTrue(result);
+		}
+	}
+
+	@Nested
+	@DisplayName("tryProcess batch method test")
+	class TryProcessBatchTest {
+
+		@Test
+		@DisplayName("should handle controlOrIgnoreEvent and isIgnoreSubtableUpdate logic correctly")
+		void shouldHandleControlOrIgnoreEventAndIsIgnoreSubtableUpdateLogic() {
+		
+			hazelcastMergeNode = spy(hazelcastMergeNode);
+			
+			TapdataEvent event1 = new TapdataEvent();
+			TapUpdateRecordEvent tapUpdateEvent = TapUpdateRecordEvent.create();
+			event1.setTapEvent(tapUpdateEvent);
+			event1.addNodeId("testNodeId");
+
+
+			List<HazelcastProcessorBaseNode.BatchEventWrapper> batchEventWrappers = Arrays.asList(
+				new HazelcastProcessorBaseNode.BatchEventWrapper(event1)
+			);
+
+		
+            doReturn(false).when(hazelcastMergeNode).needCache(event1);
+			doReturn(true).when(hazelcastMergeNode).controlOrIgnoreEvent(event1);
+			doReturn(true).when(hazelcastMergeNode).isIgnoreSubtableUpdate(event1);
+
+			
+			ObsLogger mockNodeLogger = mock(ObsLogger.class);
+			when(mockNodeLogger.isDebugEnabled()).thenReturn(true);
+			ReflectionTestUtils.setField(hazelcastMergeNode, "nodeLogger", mockNodeLogger);
+			
+			doNothing().when(hazelcastMergeNode).loggerBeforeProcess(any());
+			doNothing().when(hazelcastMergeNode).handleBatchUpdateJoinKey(any());
+			doNothing().when(hazelcastMergeNode).doBatchLookUpConcurrent(any(), any());
+			doNothing().when(hazelcastMergeNode).acceptIfNeed(any(), any(), any());
+
+			HazelcastMergeNode.BatchProcessMetrics batchProcessMetrics = new HazelcastMergeNode.BatchProcessMetrics();
+			ReflectionTestUtils.setField(hazelcastMergeNode, "batchProcessMetrics", batchProcessMetrics);
+
+
+			List<HazelcastProcessorBaseNode.BatchProcessResult> capturedResults = new ArrayList<>();
+			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = capturedResults::addAll;
+
+			hazelcastMergeNode.tryProcess(batchEventWrappers, consumer);
+
+			verify(mockNodeLogger).debug("Subtable update event, will ignore it: {}", event1);
+
+			verify(hazelcastMergeNode,times(2)).controlOrIgnoreEvent(event1);
+
+			verify(hazelcastMergeNode).isIgnoreSubtableUpdate(event1);
 		}
 	}
 
@@ -1853,6 +2093,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "firstLevelMergeNodeIds", firstLevelMergeNodeIds);
 			enableUpdateJoinKeyMap = new HashMap<>();
 			ReflectionTestUtils.setField(mockHazelcastMergeNode, "enableUpdateJoinKeyMap", enableUpdateJoinKeyMap);
+			doReturn(false).when(mockHazelcastMergeNode).controlOrIgnoreEvent(any());
 		}
 
 		@DisplayName("test task is initalSync and mergeMode is mainTableFirst")
@@ -2000,6 +2241,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = o -> assertEquals(batchEventWrappers.size(), o.size());
 
 			doReturn(true).when(hazelcastMergeNode).needCache(any(TapdataEvent.class));
+			doReturn(false).when(hazelcastMergeNode).isIgnoreSubtableUpdate(any(TapdataEvent.class));
 			doAnswer(invocationOnMock -> {
 				Object argument1 = invocationOnMock.getArgument(0);
 				assertInstanceOf(ArrayList.class, argument1);
@@ -2030,6 +2272,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			Consumer<List<HazelcastProcessorBaseNode.BatchProcessResult>> consumer = o -> assertEquals(batchEventWrappers.size(), o.size());
 
 			doReturn(true).when(hazelcastMergeNode).needCache(any(TapdataEvent.class));
+			doReturn(false).when(hazelcastMergeNode).isIgnoreSubtableUpdate(any(TapdataEvent.class));
 			doAnswer(invocationOnMock -> {
 				Object argument1 = invocationOnMock.getArgument(0);
 				assertInstanceOf(ArrayList.class, argument1);
