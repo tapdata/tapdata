@@ -163,3 +163,5 @@ openapi:
       dir: ${java.io.tmpdir}
     java:
       version: 11
+  setting:
+    where-max-deep: ${openapi.setting.whereMaxDeep:10}
