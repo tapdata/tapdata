@@ -23,4 +23,6 @@ public interface IPdkConnector extends AutoCloseable {
     void eachAllTable(Predicate<TapTable> predicate);
 
     LinkedHashMap<String, Object> findOneByKeys(String tableName, LinkedHashMap<String, Object> keys, List<String> fields);
+
+    String getDatabaseType();
 }

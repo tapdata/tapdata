@@ -29,6 +29,18 @@ public class ResultOperationsVo implements Serializable {
      * 自动修复校验
      */
     public static final String OP_AUTO_RECOVER_CHECK = "AUTO_RECOVER_CHECK";
+    /**
+     * 手动校验
+     */
+    public static final String OP_MANUAL_CHECK = "MANUAL_CHECK";
+    /**
+     * 手动修复
+     */
+    public static final String OP_MANUAL_RECOVER = "MANUAL_RECOVER";
+    /**
+     * 手动修复校验
+     */
+    public static final String OP_MANUAL_RECOVER_CHECK = "MANUAL_RECOVER_CHECK";
 
     private Long ts; // 操作时间
     private String op; // 操作类型

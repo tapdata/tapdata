@@ -3,6 +3,7 @@ package com.tapdata.tm.vo;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Data;
+import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,7 +24,8 @@ public class TaskNodeTableFieldTraceVo {
     private LinkedHashMap<String, String> fieldMap;
     private List<String> targetFields;
 
-    public static TaskNodeTableFieldTraceVo ofTargetTable(TapTable targetTable, Set<String> sourceFields) {
+    public static TaskNodeTableFieldTraceVo ofTargetTable(TapTable targetTable, Set<String> sourceFields, String targetDatabaseType) {
+        if(CollectionUtils.isEmpty(sourceFields))return null;
         TaskNodeTableFieldTraceVo ins = new TaskNodeTableFieldTraceVo();
         ins.setSourceTable(targetTable.getAncestorsName());
         ins.setTargetTable(targetTable.getName());
@@ -33,6 +35,8 @@ public class TaskNodeTableFieldTraceVo {
         LinkedHashMap<String, TapField> fieldMap = targetTable.getNameFieldMap();
         if (null != fieldMap) {
             for (TapField field : fieldMap.values()) {
+                if(("Sybase".equalsIgnoreCase(targetDatabaseType) && "timestamp".equalsIgnoreCase(field.getDataType()))
+                        || 	("SQL Server".equalsIgnoreCase(targetDatabaseType) && "timestamp".equalsIgnoreCase(field.getDataType())))continue;
                 String sourceFieldName = field.getOriginalFieldName();
                 if (sourceFields.contains(sourceFieldName)) {
                     ins.getSourceFields().add(sourceFieldName);

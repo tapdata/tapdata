@@ -170,4 +170,9 @@ public class AlarmServiceImpl implements AlarmService {
     public void updateTaskAlarm(AlarmVO alarm) {
         throw new BizException(ERROR);
     }
+
+    @Override
+    public void taskRetryAlarm(String taskId, Map<String, Object> params) {
+        throw new BizException(ERROR);
+    }
 }

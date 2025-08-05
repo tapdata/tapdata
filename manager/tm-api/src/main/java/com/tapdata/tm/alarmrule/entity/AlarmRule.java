@@ -25,4 +25,6 @@ public class AlarmRule extends BaseEntity {
     private int equalsFlag;
     @Schema(description = "毫秒")
     private int ms;
+    @Schema(description = "连续次数")
+    private int times;
 }

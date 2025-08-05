@@ -50,6 +50,7 @@ import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.entity.CountResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
@@ -843,7 +844,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         for (Node<?> targetDataNode : targetDataNodes) {
             String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, targetDataNode.getId());
             Object sourceInitialCounter = taskGlobalVariable.get(key);
-            if (((AtomicInteger) sourceInitialCounter).intValue() > 0) {
+            if (null != sourceInitialCounter && ((AtomicInteger) sourceInitialCounter).intValue() > 0) {
                 allTargetNodesFinishInitial = false;
                 break;
             }
@@ -980,7 +981,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }).orElse(tapTable -> false);
             final Map<TapTable, TapTable> masterAndNewMasterTable = new HashMap<>();
             Set<String> table = partitionTableSubMasterMap.values().stream().map(TapTable::getId).collect(Collectors.toSet());
-            List<List<String>> partition = Lists.partition(addList, BATCH_SIZE);
+            List<List<String>> partition = Lists.partition(new ArrayList<>(addList), BATCH_SIZE);
             partition.forEach(part -> {
                 List<String> batchList = new ArrayList<>(part);
                 LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), batchList, tapTable -> {
@@ -990,7 +991,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         //开启了仅同步子表
                         if (tapTable.checkIsMasterPartitionTable()) {
                             //主表忽略
-                            batchList.remove(tapTable.getId());
+                            addList.remove(tapTable.getId());
                             return;
                         }
                         if (tapTable.checkIsSubPartitionTable()) {
@@ -1003,7 +1004,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         //主表已存在，需要新增表后更新主表的分区信息
                         if (tapTable.checkIsMasterPartitionTable() && null != getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId())) {
                             masterAndNewMasterTable.put(getConnectorNode().getConnectorContext().getTableMap().get(tapTable.getId()), tapTable);
-                            batchList.remove(tapTable.getId());
+                            addList.remove(tapTable.getId());
                             return;
                         }
                     } catch (Exception e) {
@@ -1616,7 +1617,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                                                 snapshotRowSizeMap.putIfAbsent(tableName, count);
                                             }
                                             if (null != tableCountFuncAspect) {
-                                                AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
+                                                AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(count,tableName));
                                             }
                                         } catch (Exception e) {
                                             throw new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
@@ -1668,7 +1669,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         counts.set(batchCountFunction.count(getConnectorNode().getConnectorContext(), table));
 
                         if (null != tableCountFuncAspect) {
-                            AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), counts.get());
+                            AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), getCountResult(counts.get(),table.getName()));
                         }
                     } catch (Throwable e) {
                         throw new NodeException("Query table '" + table.getName() + "'  count failed: " + e.getMessage(), e)
@@ -1828,5 +1829,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             }
         }
         return true;
+    }
+
+    protected CountResult getCountResult(Long count,String tableId) {
+        return new CountResult(count,null != syncProgress && BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
     }
 }

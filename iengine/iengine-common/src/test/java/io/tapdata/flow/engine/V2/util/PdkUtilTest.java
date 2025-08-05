@@ -143,7 +143,7 @@ public class PdkUtilTest {
             ConnectorNode connectorNode = mock(ConnectorNode.class);
             ObjectSerializable objectSerializable = mock(ObjectSerializable.class);
             Object mockDecodeResult = new Object();
-            when(objectSerializable.toObject(any(), any())).thenReturn(mockDecodeResult);
+            when(objectSerializable.toObject(any(), any(),any())).thenReturn(mockDecodeResult);
             try (
                     MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)
             ) {

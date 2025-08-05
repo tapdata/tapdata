@@ -4,8 +4,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.Sampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
+import io.tapdata.entity.CountResult;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,7 +74,7 @@ class TableSampleHandlerTest {
         void setUp() {
             Long snapshotRowTotal = 1000L;
             BigDecimal snapshotSyncRate = new BigDecimal("0.00");
-            tableSampleHandler = new TableSampleHandler(taskDto, "test_table", snapshotRowTotal,
+            tableSampleHandler = new TableSampleHandler(taskDto, "test_table", new CountResult(snapshotRowTotal,false),
                     retrievedTableValues, snapshotSyncRate);
             ReflectionTestUtils.setField(tableSampleHandler, "collector", mockCollector);
         }
@@ -120,6 +122,174 @@ class TableSampleHandlerTest {
         }
 
 
+    }
+
+    @Nested
+    @DisplayName("Constructor Test")
+    class ConstructorTest {
+
+        @Test
+        @DisplayName("test constructor with normal values")
+        void testConstructorWithNormalValues() {
+
+            String tableName = "test_table";
+            Long count = 1000L;
+            Boolean done = false;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.50");
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, retrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertEquals(inputSyncRate, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertEquals(retrievedTableValues, ReflectionTestUtils.getField(handler, "retrievedTableValues"));
+            assertFalse((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+            assertEquals(taskDto, ReflectionTestUtils.getField(handler, "task"));
+        }
+
+        @Test
+        @DisplayName("test constructor when count is zero")
+        void testConstructorWhenCountIsZero() {
+
+            String tableName = "empty_table";
+            Long count = 0L;
+            Boolean done = false;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.30");
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, retrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertEquals(BigDecimal.ONE, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertTrue((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+        }
+
+        @Test
+        @DisplayName("test constructor when done is true")
+        void testConstructorWhenDoneIsTrue() {
+
+            String tableName = "completed_table";
+            Long count = 500L;
+            Boolean done = true;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.75");
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, retrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertEquals(BigDecimal.ONE, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertTrue((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+        }
+
+        @Test
+        @DisplayName("test constructor when both count is zero and done is true")
+        void testConstructorWhenCountIsZeroAndDoneIsTrue() {
+
+            String tableName = "zero_done_table";
+            Long count = 0L;
+            Boolean done = true;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.25");
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, retrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertEquals(BigDecimal.ONE, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertTrue((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+        }
+
+
+        @Test
+        @DisplayName("test constructor with large count value")
+        void testConstructorWithLargeCountValue() {
+
+            String tableName = "large_table";
+            Long count = Long.MAX_VALUE;
+            Boolean done = false;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.01");
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, retrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertEquals(inputSyncRate, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertFalse((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+        }
+
+        @Test
+        @DisplayName("test constructor with null snapshotSyncRate")
+        void testConstructorWithNullSnapshotSyncRate() {
+
+            String tableName = "null_rate_table";
+            Long count = 300L;
+            Boolean done = false;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = null;
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, retrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertNull(ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertFalse((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+        }
+
+        @Test
+        @DisplayName("test constructor with null retrievedTableValues should throw exception")
+        void testConstructorWithNullRetrievedTableValues() {
+
+            String tableName = "test_table";
+            Long count = 100L;
+            Boolean done = false;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.50");
+            Map<String, Number> nullRetrievedTableValues = null;
+
+            assertThrows(NullPointerException.class, () -> {
+                new TableSampleHandler(taskDto, tableName, countResult, nullRetrievedTableValues, inputSyncRate);
+            });
+        }
+
+
+
+        @Test
+        @DisplayName("test constructor with empty retrievedTableValues")
+        void testConstructorWithEmptyRetrievedTableValues() {
+
+            String tableName = "test_table";
+            Long count = 100L;
+            Boolean done = false;
+            CountResult countResult = new CountResult(count, done);
+            BigDecimal inputSyncRate = new BigDecimal("0.50");
+            Map<String, Number> emptyRetrievedTableValues = new HashMap<>();
+
+
+            TableSampleHandler handler = new TableSampleHandler(taskDto, tableName, countResult, emptyRetrievedTableValues, inputSyncRate);
+
+
+            assertEquals(tableName, ReflectionTestUtils.getField(handler, "table"));
+            assertEquals(count, ReflectionTestUtils.getField(handler, "snapshotRowTotal"));
+            assertEquals(inputSyncRate, ReflectionTestUtils.getField(handler, "snapshotSyncRate"));
+            assertEquals(emptyRetrievedTableValues, ReflectionTestUtils.getField(handler, "retrievedTableValues"));
+            assertFalse((Boolean) ReflectionTestUtils.getField(handler, "isSnapshotDone"));
+        }
     }
 
 }

@@ -33,6 +33,7 @@ public class TaskInspectResultsDto extends BaseDto {
     public static final String FIELD_DIFF_TYPE = "diffType";
     public static final String FIELD_DIFF_FIELDS = "diffFields";
     public static final String FIELD_OPERATIONS = "operations";
+    public static final String FIELD_MANUAL_ID = "manualId";
 
     private String taskId;
     private Set<String> histories;
@@ -47,4 +48,5 @@ public class TaskInspectResultsDto extends BaseDto {
     private DiffTypeEnum diffType;
     private List<String> diffFields;
     private List<ResultOperationsVo> operations;
+    private String manualId;
 }
