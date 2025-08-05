@@ -307,6 +307,7 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         private String multiConnectionInstanceId;
         private List<String> namespace;
         private String datasourceInstanceTag;
+        private Boolean isInit = false;
 
 
     /**
