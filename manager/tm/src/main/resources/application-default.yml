@@ -154,3 +154,16 @@ cache:
   initialCapacity: 100 #初始化缓存容量
   maximumSize: 500 #最大缓存数
 
+# OpenAPI Generator Configuration
+openapi:
+  generator:
+    jar:
+      path: auto  # Auto-detect between development and production paths
+    template:
+      path: auto  # Auto-detect between development and production paths
+    temp:
+      dir: ${java.io.tmpdir}
+    java:
+      version: 11
+  setting:
+    where-max-deep: ${openapi.setting.whereMaxDeep:10}

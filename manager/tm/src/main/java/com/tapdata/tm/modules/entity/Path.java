@@ -7,6 +7,7 @@ import com.tapdata.tm.modules.dto.Where;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class Path {
@@ -35,4 +36,10 @@ public class Path {
 
     private List<Where> where;
     private List<Sort> sort;
+
+    /**
+     * 是否开启高级查询，开启后不可逆，默认不开启（false || null）
+     * */
+    private Boolean fullCustomQuery;
+    private Map<String, Object> customWhere;
 }

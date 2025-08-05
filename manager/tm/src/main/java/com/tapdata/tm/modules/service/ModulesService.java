@@ -3,12 +3,16 @@ package com.tapdata.tm.modules.service;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSON;
 import com.deepoove.poi.XWPFTemplate;
 import com.deepoove.poi.config.Configure;
 import com.deepoove.poi.plugin.highlight.HighlightRenderPolicy;
 import com.deepoove.poi.plugin.table.LoopRowTableRenderPolicy;
 import com.deepoove.poi.plugin.toc.TOCRenderPolicy;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -31,6 +35,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -45,6 +50,7 @@ import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
+import com.tapdata.tm.modules.util.MongoQueryValidator;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.*;
@@ -74,7 +80,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.tapdata.tm.utils.DocumentUtils.getLong;
@@ -96,6 +101,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private DataSourceDefinitionService dataSourceDefinitionService;
 	private ApiCallStatsService apiCallStatsService;
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
+	private ApplicationConfig config;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -188,6 +194,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
+		validCustomWhereIfNeed(modulesDto.getPaths());
 		if (findByName(modulesDto.getName()).size() > 1)
 			throw new BizException("Modules.Name.Existed");
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
@@ -201,6 +208,24 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 		return super.save(modulesDto, userDetail);
 
+	}
+
+	protected void validCustomWhereIfNeed(List<Path> allPaths) {
+		Optional.ofNullable(allPaths).ifPresent(paths -> {
+			for (Path path : paths) {
+				if (null != path.getFullCustomQuery() && path.getFullCustomQuery() && null != path.getCustomWhere()) {
+					Map<String, Object> customWhere = path.getCustomWhere();
+					MongoQueryValidator.ValidationContext context = new MongoQueryValidator.ValidationContext(config.getApiMaxWhereDeep());
+					JsonNode query = null;
+					try {
+						query = new ObjectMapper().readTree(JSON.toJSONString(customWhere));
+					} catch (JsonProcessingException e) {
+						throw new BizException("module.save.check.where", e.getMessage());
+					}
+					MongoQueryValidator.checkWhere(query, context);
+				}
+			}
+		});
 	}
 
 
