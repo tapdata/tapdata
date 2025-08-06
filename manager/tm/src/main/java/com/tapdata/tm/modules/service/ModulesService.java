@@ -8,7 +8,10 @@ import com.deepoove.poi.config.Configure;
 import com.deepoove.poi.plugin.highlight.HighlightRenderPolicy;
 import com.deepoove.poi.plugin.table.LoopRowTableRenderPolicy;
 import com.deepoove.poi.plugin.toc.TOCRenderPolicy;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -28,9 +31,14 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -40,15 +48,34 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.constant.ParamTypeEnum;
-import com.tapdata.tm.modules.dto.*;
+import com.tapdata.tm.modules.dto.ApiView;
+import com.tapdata.tm.modules.dto.ApiViewUtil;
+import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
+import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
-import com.tapdata.tm.modules.vo.*;
+import com.tapdata.tm.modules.util.MongoQueryValidator;
+import com.tapdata.tm.modules.vo.ApiDefinitionVo;
+import com.tapdata.tm.modules.vo.ApiDetailVo;
+import com.tapdata.tm.modules.vo.ApiListVo;
+import com.tapdata.tm.modules.vo.ConnectionVo;
+import com.tapdata.tm.modules.vo.ModulesDetailVo;
+import com.tapdata.tm.modules.vo.ModulesListVo;
+import com.tapdata.tm.modules.vo.PreviewVo;
+import com.tapdata.tm.modules.vo.RankListsVo;
+import com.tapdata.tm.modules.vo.Source;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
-import com.tapdata.tm.utils.*;
-import java.util.stream.Collectors;
+import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.EntityUtils;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -63,14 +90,25 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.*;
-import java.util.*;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -96,6 +134,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private DataSourceDefinitionService dataSourceDefinitionService;
 	private ApiCallStatsService apiCallStatsService;
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
+	private ApplicationConfig config;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -188,6 +227,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
+		validCustomWhereIfNeed(modulesDto.getPaths());
 		if (findByName(modulesDto.getName()).size() > 1)
 			throw new BizException("Modules.Name.Existed");
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
@@ -203,8 +243,29 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	}
 
+	protected void validCustomWhereIfNeed(List<Path> allPaths) {
+		Optional.ofNullable(allPaths).ifPresent(paths -> {
+			for (Path path : paths) {
+				if (null != path.getFullCustomQuery() && path.getFullCustomQuery() && null != path.getCustomWhere()) {
+					String customWhereJson = path.getCustomWhere();
+					MongoQueryValidator.ValidationContext context = new MongoQueryValidator.ValidationContext(config.getApiMaxWhereDeep());
+					JsonNode query = null;
+					try {
+						query = new ObjectMapper().readTree(customWhereJson);
+					} catch (JsonProcessingException e) {
+						throw new BizException("module.save.check.where", e.getMessage());
+					}
+					if (null != query) {
+						MongoQueryValidator.checkWhere(query, context);
+					}
+				}
+			}
+		});
+	}
+
 
 	public ModulesDto updateModuleById(ModulesDto modulesDto, UserDetail userDetail) {
+		validCustomWhereIfNeed(modulesDto.getPaths());
 		Where where = new Where();
 		where.put("id", modulesDto.getId().toString());
 

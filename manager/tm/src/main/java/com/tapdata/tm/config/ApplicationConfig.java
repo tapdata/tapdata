@@ -31,4 +31,7 @@ public class ApplicationConfig {
 
     @Value("${application.admin-account:admin@admin.com}")
     String adminAccount;
+
+    @Value("${openapi.setting.where-max-deep:10}")
+    int apiMaxWhereDeep;
 }
