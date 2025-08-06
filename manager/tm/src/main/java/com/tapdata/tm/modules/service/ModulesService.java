@@ -115,16 +115,16 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public ModulesDetailVo findById(String id) {
-		ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
-		ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
-
-		String connectionId = modulesDto.getConnection().toString();
-		DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-		if (null != dataSourceConnectionDto) {
-			dataSourceConnectionDto.setDatabase_password(null);
-			dataSourceConnectionDto.setPlain_password(null);
-			modulesDetailVo.setSource(dataSourceConnectionDto);
-		}
+		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
+		modulesDto.withPathSettingIfNeed();
+		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
+		final String connectionId = modulesDto.getConnection().toString();
+		Optional.ofNullable(dataSourceService.findById(MongoUtils.toObjectId(connectionId)))
+				.ifPresent(dataSourceConnectionDto -> {
+					dataSourceConnectionDto.setDatabase_password(null);
+					dataSourceConnectionDto.setPlain_password(null);
+					modulesDetailVo.setSource(dataSourceConnectionDto);
+				});
 		modulesDetailVo.setConnection(connectionId);
 		return modulesDetailVo;
 	}
@@ -144,7 +144,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 
 		Page page = find(filter, userDetail);
-
+		Optional.ofNullable(page.getItems())
+				.ifPresent(value -> value.stream()
+						.filter(e -> e instanceof ModulesDto)
+						.forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
 		String createUser = "";
 		List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
 		if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -272,6 +275,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	public List<ModulesDto> findByName(String name) {
 		Query query = Query.query(Criteria.where("name").is(name).and("is_deleted").ne(true));
 		List<ModulesDto> modulesDtoList = findAll(query);
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -801,8 +805,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public List findAllActiveApi(ModuleStatusEnum moduleStatusEnum) {
-		Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue()).and("is_deleted").ne(true));
-		List<ModulesDto> modulesDtoList = findAll(query);
+		if (null == moduleStatusEnum) {
+			return new ArrayList<>();
+		}
+		final Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue())
+				.and("is_deleted").ne(true));
+		final List<ModulesDto> modulesDtoList = Optional.ofNullable(findAll(query)).orElse(new ArrayList<>());
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -846,7 +855,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		List<ModulesDto> modulesDtoList = findAll(query);
 		return modulesDtoList;
 	}
-
 
     /**
      * type
@@ -1110,6 +1118,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public List<ModulesDto> findByConnectionId(String connectionId) {
 		List<ModulesDto> modulesDtoList = findAll(Query.query(Criteria.where("connection").is(MongoUtils.toObjectId(connectionId)).and("is_deleted").ne(true)));
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
