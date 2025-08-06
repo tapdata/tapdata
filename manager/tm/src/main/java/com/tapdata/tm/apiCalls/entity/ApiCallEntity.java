@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiCalls.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -16,6 +17,12 @@ import java.util.Map;
 public class ApiCallEntity extends BaseEntity {
     @Field("req_params")
     private String reqParams;
+
+    @Field("query")
+    private String query;
+
+    @Field("body")
+    private String body;
 
     //默认为0 避免出现空指针
     @Field("res_rows")
@@ -59,7 +66,7 @@ public class ApiCallEntity extends BaseEntity {
     private String api_gateway_uuid;
 
     @Field("req_headers")
-    private Map reqHeaders;
+    private Map<String, Object> reqHeaders;
 
     @Field("req_bytes")
     private Long reqBytes;
