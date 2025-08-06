@@ -799,4 +799,54 @@ class ModulesServiceTest {
             }
         }
     }
+
+    @Nested
+    class CheckoutFieldAliasNameIsValidTest {
+        @Test
+        void testNotAnyFields() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.not-empty");
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testNotRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldAlias("test");
+            fields.add(field);
+            Assertions.assertDoesNotThrow(() -> modulesService.checkoutFieldAliasNameIsValid(path));
+        }
+
+        @Test
+        void testRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
+        }
+    }
 }
