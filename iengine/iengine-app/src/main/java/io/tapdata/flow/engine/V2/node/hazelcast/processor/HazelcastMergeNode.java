@@ -106,6 +106,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	private List<String> needCacheIdList;
 	// Create index events for target
 	private TapdataEvent createIndexEvent;
+	// 子表忽略更新事件节点id
+	private List<String> ignoreUpdateEventIdList;
 	private final Map<String, Node<?>> preNodeMap = new ConcurrentHashMap<>();
 	private final Map<String, io.tapdata.pdk.apis.entity.merge.MergeTableProperties> preNodeIdPdkMergeTablePropertieMap = new ConcurrentHashMap<>();
 	private Map<String, Integer> sourceNodeLevelMap;
@@ -293,6 +295,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			doBatchLookUpConcurrent(tapdataEvents, lookupCfs);
 			for (BatchEventWrapper batchEventWrapper : tapdataEvents) {
 				if (controlOrIgnoreEvent(batchEventWrapper.getTapdataEvent())) {
+					if(isIgnoreSubtableUpdate(batchEventWrapper.getTapdataEvent())) {
+						if(nodeLogger.isDebugEnabled()){
+							nodeLogger.debug("Subtable update event, will ignore it: {}", batchEventWrapper.getTapdataEvent());
+						}
+						continue;
+					}
 					batchProcessResults.add(new BatchProcessResult(batchEventWrapper, null));
 				} else {
 					String preTableName = getPreTableName(batchEventWrapper.getTapdataEvent());
@@ -841,6 +849,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		Node<?> node = this.processorBaseContext.getNode();
 		this.lookupMap = new HashMap<>();
 		this.needCacheIdList = new ArrayList<>();
+		this.ignoreUpdateEventIdList = new ArrayList<>();
 		List<MergeTableProperties> mergeProperties = ((MergeTableNode) node).getMergeProperties();
 		for (MergeTableProperties mergeProperty : mergeProperties) {
 			recursiveGetLookupList(mergeProperty);
@@ -857,6 +866,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		}
 		this.lookupMap.put(mergeTableProperties.getId(), lookupList);
 		this.needCacheIdList.addAll(lookupList.stream().map(MergeTableProperties::getId).collect(Collectors.toList()));
+		this.ignoreUpdateEventIdList.addAll(lookupList.stream().filter(mergeProperty -> Boolean.TRUE.equals(mergeProperty.getIgnoreUpdateEvent())).map(MergeTableProperties::getId).toList());
 		StringBuilder lookupLog = new StringBuilder("\nMerge lookup relation{\n  " + mergeTableProperties.getTableName() + "(" + mergeTableProperties.getId() + ")");
 		lookupList.forEach(l -> lookupLog.append("\n    ->").append(l.getTableName()).append("(").append(l.getId()).append(")"));
 		lookupLog.append("\n}");
@@ -2301,6 +2311,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				recursiveMergeInfoTransformToTapValue(childMergeLookupResults);
 			}
 		}
+	}
+	@Override
+	protected boolean controlOrIgnoreEvent(TapdataEvent tapdataEvent) {
+		return super.controlOrIgnoreEvent(tapdataEvent) || isIgnoreSubtableUpdate(tapdataEvent);
+	}
+
+	protected boolean isIgnoreSubtableUpdate(TapdataEvent tapdataEvent) {
+		String preNodeId = getPreNodeId(tapdataEvent);
+		return ignoreUpdateEventIdList.contains(preNodeId) && tapdataEvent.getTapEvent() instanceof TapUpdateRecordEvent && !isInitialSyncTask();
 	}
 
 	@Override

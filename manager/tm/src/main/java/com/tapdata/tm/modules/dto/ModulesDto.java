@@ -97,4 +97,18 @@ public class ModulesDto extends BaseDto {
 
     /** 访问路径方式  默认值 default  自定义 customize*/
     private String pathAccessMethod;
+
+    /** 限制条数 */
+    private Integer limit;
+
+    /**
+     * 用户可以自定义路径最后关键字，没有设置按默认值处理
+     * */
+    private List<PathSetting> pathSetting;
+
+    public void withPathSettingIfNeed() {
+        if (null == pathSetting) {
+            pathSetting = PathSetting.DEFAULT_PATH_SETTING;
+        }
+    }
 }

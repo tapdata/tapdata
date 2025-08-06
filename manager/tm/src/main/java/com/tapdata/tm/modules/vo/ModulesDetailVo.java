@@ -3,6 +3,7 @@ package com.tapdata.tm.modules.vo;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.modules.dto.PathSetting;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
@@ -75,4 +76,11 @@ public class ModulesDetailVo extends BaseVo {
 
     private DataSourceConnectionDto source;
 
+    /** 限制条数 */
+    private Integer limit;
+
+    /**
+     * 用户自定义的路径最后关键字，没有设置按默认值处理
+     * */
+    private List<PathSetting> pathSetting;
 }

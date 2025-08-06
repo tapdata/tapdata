@@ -763,6 +763,10 @@ public class DataSourceServiceImpl extends DataSourceService{
             throw new BizException("Datasource.NotFound", "connections not found or not belong to current user");
         }
 
+        if(connectionDto.getIsInit()){
+            throw new BizException("Datasource.IsInit");
+        }
+
         // 如果有心跳任务，先停止后删除
         taskService.deleteHeartbeatByConnId(user, id);
 

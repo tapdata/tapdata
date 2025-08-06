@@ -293,6 +293,7 @@ public class SchemaUtils {
         field.setDataType(OBJECT_ID);
         field.setDataTypeTemp(OBJECT_ID);
         field.setSourceDbType(databaseType);
+        field.setPrimaryKey(false);
         schema.getFields().add(field);
     }
 }
