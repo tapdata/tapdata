@@ -22,9 +22,9 @@ import java.util.stream.Collectors;
 public final class MongoQueryValidator {
     private static final Set<String> MONGO_OPERATORS = Set.of(
             "$eq", "$gt", "$gte", "$in", "$lt", "$lte", "$ne", "$nin",
-            "$and", "$not", "$nor", "$or",
+            "$and", "$nor", "$or",
             "$exists", "$type",
-            "$regex", "$text", "$where",
+            "$regex",
             "$all", "$elemMatch", "$size",
             "$mod", "$options"
     );
