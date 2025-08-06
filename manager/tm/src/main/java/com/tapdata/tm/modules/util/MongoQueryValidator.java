@@ -26,7 +26,7 @@ public final class MongoQueryValidator {
             "$exists", "$type",
             "$regex", "$text", "$where",
             "$all", "$elemMatch", "$size",
-            "$mod"
+            "$mod", "$options"
     );
     private static final Pattern TEMPLATE_PATTERN =
             Pattern.compile("^\\{\\{[a-zA-Z_][a-zA-Z0-9_]*\\}\\}$");
@@ -89,7 +89,6 @@ public final class MongoQueryValidator {
             if (!MONGO_OPERATORS.contains(field)) {
                 throw new BizException("module.save.check.where.notOperator", field);
             }
-            return;
         }
         if (context.getFieldWhitelist() != null &&
                 !context.getFieldWhitelist().contains(field)) {
@@ -155,7 +154,7 @@ public final class MongoQueryValidator {
         }
     }
 
-    static boolean isCustomParam(JsonNode value) {
+    protected static boolean isCustomParam(JsonNode value) {
         if (null == value || !value.isTextual()) {
             return false;
         }
@@ -163,19 +162,19 @@ public final class MongoQueryValidator {
         return matcher.matches();
     }
 
-    static void gtOrGteOrLtOrLte(String operator, JsonNode value) {
+    protected static void gtOrGteOrLtOrLte(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isNumber() && !value.isTextual()) {
             throw new BizException("module.save.check.where.notNumberOrDate", operator);
         }
     }
 
-    static void inOrNinOrAll(String operator, JsonNode value) {
+    protected static void inOrNinOrAll(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isArray()) {
             throw new BizException("module.save.check.where.notArray", operator);
         }
     }
 
-    static void regex(String operator, JsonNode value) {
+    protected static void regex(String operator, JsonNode value) {
         if (isCustomParam(value)) {
             return;
         }
@@ -189,38 +188,38 @@ public final class MongoQueryValidator {
         }
     }
 
-    static void options(String operator, JsonNode value) {
+    protected static void options(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isTextual()) {
             throw new BizException("module.save.check.where.notString", operator);
         }
     }
 
-    static void exists(String operator, JsonNode value) {
+    protected static void exists(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isBoolean()) {
             throw new BizException("module.save.check.where.notBoolean", operator);
         }
     }
 
-    static void type(String operator, JsonNode value) {
+    protected static void type(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isNumber() && !value.isTextual()) {
             throw new BizException("module.save.check.where.notNumberOrString", operator);
         }
     }
 
-    static void mod(String operator, JsonNode value) {
+    protected static void mod(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isArray() || value.size() != 2 ||
                 !value.get(0).isNumber() || !value.get(1).isNumber()) {
             throw new BizException("module.save.check.where.notNumberArray", operator);
         }
     }
 
-    static void size(String operator, JsonNode value) {
+    protected static void size(String operator, JsonNode value) {
         if (!isCustomParam(value) && !value.isNumber()) {
             throw new BizException("module.save.check.where.notNumber", operator);
         }
     }
 
-    static void elementOrNot(String operator, JsonNode value, ValidationContext context) {
+    protected static void elementOrNot(String operator, JsonNode value, ValidationContext context) {
         if (isCustomParam(value)) {
             return;
         }
@@ -230,7 +229,7 @@ public final class MongoQueryValidator {
         checkWhere(value, context.increaseDepth());
     }
 
-    static void text(JsonNode value) {
+    protected static void text(JsonNode value) {
         if (isCustomParam(value)) {
             return;
         }
@@ -242,7 +241,7 @@ public final class MongoQueryValidator {
         }
     }
 
-    static void where(JsonNode value) {
+    protected static void where(JsonNode value) {
         if (!isCustomParam(value) && !value.isTextual()) {
             throw new BizException("module.save.check.where.notWhereString");
         }
