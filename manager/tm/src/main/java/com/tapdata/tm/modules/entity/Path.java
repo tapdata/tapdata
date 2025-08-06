@@ -1,5 +1,6 @@
 package com.tapdata.tm.modules.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.dto.Sort;
@@ -41,5 +42,7 @@ public class Path {
      * 是否开启高级查询，开启后不可逆，默认不开启（false || null）
      * */
     private Boolean fullCustomQuery;
-    private Map<String, Object> customWhere;
+
+    @JsonProperty("customWhere")
+    private String customWhere;
 }
