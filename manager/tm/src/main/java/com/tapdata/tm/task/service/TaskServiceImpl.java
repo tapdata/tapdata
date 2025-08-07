@@ -241,6 +241,9 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.matc
 public class TaskServiceImpl extends TaskService{
     public static final String USER_ID = "user_id";
     public static final String COLLECTION_ID = "collectionId";
+    protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
+            "mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
+            "rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
     protected static final String PROCESSOR_THREAD_NUM="processorThreadNum";
     protected static final String CATALOG="catalog";
     protected static final String ELEMENT_TYEP="elementType";
@@ -2953,6 +2956,15 @@ public class TaskServiceImpl extends TaskService{
                             if (node instanceof DataParentNode) {
                                 String connectionId = ((DataParentNode<?>) node).getConnectionId();
                                 DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
+                                Map<String, Object> config = dataSourceConnectionDto.getConfig();
+                                if (null != config) {
+                                    config.forEach((k, v) -> {
+                                        if (MASK_PROPERTIES.contains(k)) {
+                                            config.put(k, "");
+                                        }
+                                    });
+                                }
+                                dataSourceConnectionDto.setConnectionString(null);
                                 dataSourceConnectionDto.setCreateUser(null);
                                 dataSourceConnectionDto.setCustomId(null);
                                 dataSourceConnectionDto.setLastUpdBy(null);
