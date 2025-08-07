@@ -23,6 +23,8 @@ import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
@@ -39,6 +41,7 @@ import com.tapdata.tm.modules.vo.ApiListVo;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.vo.PreviewVo;
 import com.tapdata.tm.modules.vo.RankListsVo;
+import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -977,6 +980,47 @@ class ModulesServiceTest {
                 });
                 mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
             }
+        }
+    }
+
+    @Nested
+    class batchLoadTaskTest {
+        HttpServletResponse response;
+        List<String> ids;
+        UserDetail user;
+        FileService fileService = mock(FileService.class);
+        MetadataInstancesService metadataInstancesService = mock(MetadataInstancesService.class);
+        @BeforeEach
+        void init() {
+            modulesService = spy(modulesService);
+            ReflectionTestUtils.setField(modulesService, "fileService", fileService);
+            ReflectionTestUtils.setField(modulesService, "metadataInstancesService", metadataInstancesService);
+            response = mock(HttpServletResponse.class);
+            ids = new ArrayList<>();
+            ids.add("68833dd27415ff02c8d6d916");
+            user = mock(UserDetail.class);
+        }
+        @Test
+        void testNormal() {
+            List<ModulesDto> allModules = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            modulesDto.setId(new ObjectId("68833dd27415ff02c8d6d916"));
+            modulesDto.setConnectionId("678f0f788fe8a57f8a0c635d");
+            allModules.add(modulesDto);
+            doReturn(allModules).when(modulesService).findAllModulesByIds(ids);
+            DataSourceConnectionDto dataSourceConnectionDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceConnectionDto.getId()).thenReturn(new ObjectId("678f0f788fe8a57f8a0c635d"));
+            doReturn(dataSourceConnectionDto).when(dataSourceService).findById(any(ObjectId.class));
+            Map<String, Object> config = new HashMap<>();
+            String uri = "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true";
+            config.put("uri", uri);
+            config.put("ssl", true);
+            config.put("sslKey", "----test key----");
+            config.put("__connectionType", "source_and_target");
+            when(dataSourceConnectionDto.getConfig()).thenReturn(config);
+            modulesService.batchLoadTask(response, ids, user);
+            assertEquals("", config.get("uri"));
+            verify(fileService, times(1)).viewImg1(anyString(), any(HttpServletResponse.class), anyString());
         }
     }
 }
