@@ -1,6 +1,5 @@
 package com.tapdata.tm.modules.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -19,10 +18,11 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
-import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
@@ -32,53 +32,23 @@ import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
-import com.tapdata.tm.modules.util.MongoQueryValidator;
-import com.tapdata.tm.modules.vo.ApiDefinitionVo;
-import com.tapdata.tm.modules.vo.ApiDetailVo;
-import com.tapdata.tm.modules.vo.ApiListVo;
-import com.tapdata.tm.modules.vo.ModulesDetailVo;
-import com.tapdata.tm.modules.vo.PreviewVo;
-import com.tapdata.tm.modules.vo.RankListsVo;
+import com.tapdata.tm.modules.vo.*;
+import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-import org.mockito.MockedStatic;
+import org.junit.jupiter.api.*;
 import org.mockito.internal.verification.Times;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @DisplayName("Class ModulesService Test")
 class ModulesServiceTest {
@@ -88,19 +58,14 @@ class ModulesServiceTest {
     DataSourceService dataSourceService;
     DataSourceDefinitionService dataSourceDefinitionService;
 
-    ApplicationConfig config;
-
     @BeforeEach
     void init(){
-        config = mock(ApplicationConfig.class);
-        when(config.getApiMaxWhereDeep()).thenReturn(10);
         modulesRepository = mock(ModulesRepository.class);
         modulesService = new ModulesService(modulesRepository);
         dataSourceService = mock(DataSourceService.class);
         dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
         ReflectionTestUtils.setField(modulesService, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(modulesService, "dataSourceDefinitionService", dataSourceDefinitionService);
-        ReflectionTestUtils.setField(modulesService, "config", config);
     }
 
     @Nested
@@ -152,7 +117,7 @@ class ModulesServiceTest {
             // 既没有设置单个模块参数，也没有设置批量参数
 
             assertThrows(BizException.class, () ->
-                modulesService.updatePermissions(permissionsDto, mock(UserDetail.class)));
+                    modulesService.updatePermissions(permissionsDto, mock(UserDetail.class)));
         }
     }
 
@@ -889,94 +854,43 @@ class ModulesServiceTest {
     }
 
     @Nested
-    class ValidCustomWhereIfNeedTest {
-
+    class batchLoadTaskTest {
+        HttpServletResponse response;
+        List<String> ids;
+        UserDetail user;
+        FileService fileService = mock(FileService.class);
+        MetadataInstancesService metadataInstancesService = mock(MetadataInstancesService.class);
+        @BeforeEach
+        void init() {
+            modulesService = spy(modulesService);
+            ReflectionTestUtils.setField(modulesService, "fileService", fileService);
+            ReflectionTestUtils.setField(modulesService, "metadataInstancesService", metadataInstancesService);
+            response = mock(HttpServletResponse.class);
+            ids = new ArrayList<>();
+            ids.add("68833dd27415ff02c8d6d916");
+            user = mock(UserDetail.class);
+        }
         @Test
         void testNormal() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("{}");
-            p.setFullCustomQuery(true);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(1));
-            }
-        }
-
-        @Test
-        void testNullPaths() {
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                                .thenReturn(MongoQueryValidator.ValidationResult.success());
-                modulesService.validCustomWhereIfNeed(null);
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testNullFullCustomQuery() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("{}");
-            p.setFullCustomQuery(null);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testNotFullCustomQuery() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("{}");
-            p.setFullCustomQuery(false);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testNoCustomWhere() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere(null);
-            p.setFullCustomQuery(true);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testInvalidCustomWhereJSON() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("xxhY>{}}]");
-            p.setFullCustomQuery(true);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertThrows(BizException.class, () -> {
-                    try {
-                        modulesService.validCustomWhereIfNeed(allPaths);
-                    } catch (BizException e) {
-                        Assertions.assertEquals(e.getErrorCode(), "module.save.check.where");
-                        throw e;
-                    }
-                });
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
+            List<ModulesDto> allModules = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            modulesDto.setId(new ObjectId("68833dd27415ff02c8d6d916"));
+            modulesDto.setConnectionId("678f0f788fe8a57f8a0c635d");
+            allModules.add(modulesDto);
+            doReturn(allModules).when(modulesService).findAllModulesByIds(ids);
+            DataSourceConnectionDto dataSourceConnectionDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceConnectionDto.getId()).thenReturn(new ObjectId("678f0f788fe8a57f8a0c635d"));
+            doReturn(dataSourceConnectionDto).when(dataSourceService).findById(any(ObjectId.class));
+            Map<String, Object> config = new HashMap<>();
+            String uri = "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true";
+            config.put("uri", uri);
+            config.put("ssl", true);
+            config.put("sslKey", "----test key----");
+            config.put("__connectionType", "source_and_target");
+            when(dataSourceConnectionDto.getConfig()).thenReturn(config);
+            modulesService.batchLoadTask(response, ids, user);
+            assertEquals("", config.get("uri"));
+            verify(fileService, times(1)).viewImg1(anyString(), any(HttpServletResponse.class), anyString());
         }
     }
 }
