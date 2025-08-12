@@ -334,4 +334,82 @@ class OpenApiJsonProcessorTest {
         Files.deleteIfExists(result);
         Files.deleteIfExists(tempDir);
     }
+
+    @Test
+    void testProcessOpenapiJson_SkipCustomerQueryPostOperations() throws Exception {
+        // Given
+        String mockOpenApiJson = """
+            {
+              "openapi": "3.0.0",
+              "info": {
+                "title": "Test API",
+                "version": "1.0.0"
+              },
+              "paths": {
+                "/test": {
+                  "get": {
+                    "x-api-id": "test-api",
+                    "summary": "Test GET endpoint"
+                  },
+                  "post": {
+                    "x-api-id": "test-api",
+                    "x-operation-name": "customerQueryData",
+                    "summary": "Test POST endpoint that should be skipped"
+                  }
+                },
+                "/test2": {
+                  "post": {
+                    "x-api-id": "test-api-2",
+                    "x-operation-name": "normalOperation",
+                    "summary": "Test POST endpoint that should be kept"
+                  }
+                },
+                "/test3": {
+                  "post": {
+                    "x-api-id": "test-api-3",
+                    "x-operation-name": "customerQuerySomething",
+                    "summary": "Another POST endpoint that should be skipped"
+                  }
+                }
+              }
+            }
+            """;
+
+        CodeGenerationRequest request = new CodeGenerationRequest();
+        request.setOas("https://example.com/openapi.json");
+        request.setModuleIds(Arrays.asList("test-api", "test-api-2", "test-api-3"));
+
+        when(restTemplate.getForObject(eq("https://example.com/openapi.json"), eq(String.class)))
+            .thenReturn(mockOpenApiJson);
+
+        Path tempDir = Files.createTempDirectory("test-openapi");
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+
+        // Verify the processed content
+        String processedContent = Files.readString(result);
+        assertNotNull(processedContent);
+
+        // Verify that GET operation is kept
+        assertTrue(processedContent.contains("Test GET endpoint"));
+
+        // Verify that POST operations with x-operation-name starting with "customerQuery" are removed
+        assertFalse(processedContent.contains("customerQueryData"));
+        assertFalse(processedContent.contains("customerQuerySomething"));
+        assertFalse(processedContent.contains("Test POST endpoint that should be skipped"));
+        assertFalse(processedContent.contains("Another POST endpoint that should be skipped"));
+
+        // Verify that normal POST operation is kept
+        assertTrue(processedContent.contains("normalOperation"));
+        assertTrue(processedContent.contains("Test POST endpoint that should be kept"));
+
+        // Cleanup
+        Files.deleteIfExists(result);
+        Files.deleteIfExists(tempDir);
+    }
 }

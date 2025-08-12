@@ -23,6 +23,7 @@ additionalProperties:
     developerOrganization: ""
     developerOrganizationUrl: ""
     configPackage: io.tapdata.configuration
+    enableResponseGeneric: true
 files:
     jackson/JacksonConfig.mustache:
         templateType: SupportingFiles

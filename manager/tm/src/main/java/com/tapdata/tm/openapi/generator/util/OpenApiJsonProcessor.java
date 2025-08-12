@@ -582,7 +582,14 @@ public class OpenApiJsonProcessor {
         
         // Process each HTTP method operation
         processOperation(pathItem.getGet(), processedPathItem::setGet, request);
-        processOperation(pathItem.getPost(), processedPathItem::setPost, request);
+
+        // Special filtering for POST operations: skip if x-operation-name starts with "customerQuery"
+        if (pathItem.getPost() != null && shouldSkipPostOperation(pathItem.getPost())) {
+            log.debug("Skipping POST operation with x-operation-name starting with 'customerQuery'");
+        } else {
+            processOperation(pathItem.getPost(), processedPathItem::setPost, request);
+        }
+
         processOperation(pathItem.getPut(), processedPathItem::setPut, request);
         processOperation(pathItem.getDelete(), processedPathItem::setDelete, request);
         processOperation(pathItem.getOptions(), processedPathItem::setOptions, request);
@@ -591,6 +598,32 @@ public class OpenApiJsonProcessor {
         processOperation(pathItem.getTrace(), processedPathItem::setTrace, request);
         
         return processedPathItem;
+    }
+
+    /**
+     * Check if a POST operation should be skipped based on x-operation-name extension
+     *
+     * @param postOperation The POST operation to check
+     * @return true if the operation should be skipped, false otherwise
+     */
+    private boolean shouldSkipPostOperation(Operation postOperation) {
+        if (postOperation == null || postOperation.getExtensions() == null) {
+            return false;
+        }
+
+        Object operationNameExtension = postOperation.getExtensions().get("x-operation-name");
+        if (!(operationNameExtension instanceof String)) {
+            return false;
+        }
+
+        String operationName = (String) operationNameExtension;
+        boolean shouldSkip = StringUtils.startsWith(operationName, "customerQuery");
+
+        if (shouldSkip) {
+            log.debug("POST operation with x-operation-name '{}' will be skipped", operationName);
+        }
+
+        return shouldSkip;
     }
 
     /**

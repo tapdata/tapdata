@@ -30,7 +30,7 @@
 {{#vendorExtensions.x-class-extra-annotation}}
 {{{vendorExtensions.x-class-extra-annotation}}}
 {{/vendorExtensions.x-class-extra-annotation}}
-public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}}{{#vendorExtensions.x-implements}}{{#-first}} implements {{{.}}}{{/-first}}{{^-first}}, {{{.}}}{{/-first}}{{/vendorExtensions.x-implements}} {{>permits}}{
+public {{>sealed}}class {{classname}}{{#vendorExtensions.x-is-response-generic}}<{{vendorExtensions.x-response-generic-type}}>{{/vendorExtensions.x-is-response-generic}}{{#parent}} extends {{{parent}}}{{/parent}}{{^parent}}{{#hateoas}} extends RepresentationModel<{{classname}}> {{/hateoas}}{{/parent}}{{#vendorExtensions.x-implements}}{{#-first}} implements {{{.}}}{{/-first}}{{^-first}}, {{{.}}}{{/-first}}{{/vendorExtensions.x-implements}} {{>permits}}{
 {{#serializableModel}}
 
   private static final long serialVersionUID = 1L;
@@ -153,8 +153,8 @@ public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}
   {{^lombok.Data}}
 
   {{! begin feature: fluent setter methods }}
-  public {{classname}} {{name}}({{{datatypeWithEnum}}} {{name}}) {
-    {{#openApiNullable}}
+  public {{classname}}{{#vendorExtensions.x-is-response-generic}}<{{vendorExtensions.x-response-generic-type}}>{{/vendorExtensions.x-is-response-generic}} {{name}}({{>nullableAnnotation}}{{{datatypeWithEnum}}} {{name}}) {
+      {{#openApiNullable}}
     this.{{name}} = {{#isNullable}}JsonNullable.of({{/isNullable}}{{#useOptional}}{{^required}}{{^isNullable}}{{^isContainer}}Optional.of{{#optionalAcceptNullable}}Nullable{{/optionalAcceptNullable}}({{/isContainer}}{{/isNullable}}{{/required}}{{/useOptional}}{{name}}{{#isNullable}}){{/isNullable}}{{#useOptional}}{{^required}}{{^isNullable}}{{^isContainer}}){{/isContainer}}{{/isNullable}}{{/required}}{{/useOptional}};
     {{/openApiNullable}}
     {{^openApiNullable}}
@@ -164,7 +164,7 @@ public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}
   }
   {{#isArray}}
 
-  public {{classname}} add{{nameInPascalCase}}Item({{{items.datatypeWithEnum}}} {{name}}Item) {
+  public {{classname}}{{#vendorExtensions.x-is-response-generic}}<{{vendorExtensions.x-response-generic-type}}>{{/vendorExtensions.x-is-response-generic}} add{{nameInPascalCase}}Item({{{items.datatypeWithEnum}}} {{name}}Item) {
     {{#openApiNullable}}
     if (this.{{name}} == null{{#isNullable}} || !this.{{name}}.isPresent(){{/isNullable}}) {
       this.{{name}} = {{#isNullable}}JsonNullable.of({{/isNullable}}{{{defaultValue}}}{{^defaultValue}}new {{#uniqueItems}}LinkedHashSet{{/uniqueItems}}{{^uniqueItems}}ArrayList{{/uniqueItems}}<>(){{/defaultValue}}{{#isNullable}}){{/isNullable}};
@@ -182,7 +182,7 @@ public {{>sealed}}class {{classname}}{{#parent}} extends {{{parent}}}{{/parent}}
   {{/isArray}}
   {{#isMap}}
 
-  public {{classname}} put{{nameInPascalCase}}Item(String key, {{{items.datatypeWithEnum}}} {{name}}Item) {
+  public {{classname}}{{#vendorExtensions.x-is-response-generic}}<{{vendorExtensions.x-response-generic-type}}>{{/vendorExtensions.x-is-response-generic}} put{{nameInPascalCase}}Item(String key, {{{items.datatypeWithEnum}}} {{name}}Item) {
     {{#openApiNullable}}
     if (this.{{name}} == null{{#isNullable}} || !this.{{name}}.isPresent(){{/isNullable}}) {
       this.{{name}} = {{#isNullable}}JsonNullable.of({{/isNullable}}{{{defaultValue}}}{{^defaultValue}}new {{#uniqueItems}}LinkedHashSet{{/uniqueItems}}{{^uniqueItems}}HashMap{{/uniqueItems}}<>(){{/defaultValue}}{{#isNullable}}){{/isNullable}};
