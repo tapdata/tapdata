@@ -28,6 +28,7 @@ public class MongoDBLockRepository implements DBLockRepository {
 
     public MongoDBLockRepository(MongoTemplate operations) {
         this.operations = operations;
+        // 初始化表及索引
         if (!operations.collectionExists(entityClass)) {
             operations.createCollection(entityClass);
             operations.indexOps(entityClass).createIndex(new Index(MongoDBLockEntity.FIELD_OWNER, Sort.Direction.ASC));
@@ -61,8 +62,8 @@ public class MongoDBLockRepository implements DBLockRepository {
         MongoDBLockEntity entity = operations.findAndModify(Query.query(Criteria
                 .where(MongoDBLockEntity.FIELD_LOCK_KEY).is(key)
                 .orOperator(
-                    Criteria.where(MongoDBLockEntity.FIELD_EXPIRED).lt(currentDate), // 锁到期
-                    Criteria.where(MongoDBLockEntity.FIELD_OWNER).is(owner)          // 当前锁，可更新
+                    Criteria.where(MongoDBLockEntity.FIELD_EXPIRED).lt(currentDate),     // 锁到期
+                    Criteria.where(MongoDBLockEntity.FIELD_OWNER).is(owner)              // 当前锁，可更新
                 )
             ), Update
                 .update(MongoDBLockEntity.FIELD_UPDATED, currentDate) // 更新时间

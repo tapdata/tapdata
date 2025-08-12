@@ -24,14 +24,14 @@ public interface ILock {
      *
      * @return 锁的仓库，用于与数据库交互进行锁操作
      */
-    DBLockRepository repository();
+    DBLockRepository getRepository();
 
     /**
      * 获取锁的key
      *
      * @return 锁的唯一标识符
      */
-    String key();
+    String getKey();
 
     /**
      * 获取(续约)锁

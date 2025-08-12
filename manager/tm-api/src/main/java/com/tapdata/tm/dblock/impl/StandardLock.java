@@ -16,13 +16,22 @@ import java.util.Date;
  * 该类封装了锁的基本操作，为上层应用提供简洁的锁操作接口。
  * </p>
  *
- * @param repository 锁数据存储仓库，用于与数据库交互
- * @param key        锁的唯一标识键
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2025/8/8 17:50 Create
  */
 @Slf4j
-public record StandardLock(@Getter DBLockRepository repository, @Getter String key) implements ILock {
+public class StandardLock implements ILock {
+    /**
+     * 锁数据存储仓库，用于与数据库交互
+     */
+    @Getter
+    private final DBLockRepository repository;
+    /**
+     * 锁的唯一标识键
+     */
+    @Getter
+    private final String key;
+
     /**
      * 构造函数，初始化标准数据库锁
      * <p>
@@ -55,7 +64,7 @@ public record StandardLock(@Getter DBLockRepository repository, @Getter String k
     @Override
     public LockStateEnums acquire(String owner, long timeout) {
         Date expireTime = new Date(System.currentTimeMillis() + timeout);
-        return repository().renew(key(), owner, expireTime);
+        return this.getRepository().renew(this.getKey(), owner, expireTime);
     }
 
     /**
@@ -69,7 +78,7 @@ public record StandardLock(@Getter DBLockRepository repository, @Getter String k
      */
     @Override
     public boolean release(String owner) {
-        return repository().release(key(), owner);
+        return this.getRepository().release(this.getKey(), owner);
     }
 
 }
