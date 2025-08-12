@@ -69,6 +69,8 @@ import com.tapdata.tm.modules.vo.ModulesListVo;
 import com.tapdata.tm.modules.vo.PreviewVo;
 import com.tapdata.tm.modules.vo.RankListsVo;
 import com.tapdata.tm.modules.vo.Source;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
@@ -100,6 +102,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -138,6 +141,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApiCallStatsService apiCallStatsService;
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private ApplicationConfig config;
+	private TextEncryptionRuleService textEncryptionRuleService;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -494,7 +498,36 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setConnections(connectionVos);
 			apiDefinitionVo.setApis(apis);
 		}
+		textEncryptionRule(apiDefinitionVo);
 		return apiDefinitionVo;
+	}
+
+	protected void textEncryptionRule(ApiDefinitionVo apiDefinitionVo) {
+		if (CollectionUtils.isEmpty(apiDefinitionVo.getApis())) {
+			return;
+		}
+		final List<ModulesDto> apis = apiDefinitionVo.getApis();
+		final Set<String> ids = new HashSet<>();
+		for (ModulesDto api : apis) {
+			for (Path path : api.getPaths()) {
+				final List<Field> fields = path.getFields();
+				Optional.ofNullable(fields)
+						.ifPresent(value -> value.stream()
+								.filter(Objects::nonNull)
+								.filter(e -> CollectionUtils.isNotEmpty(e.getTextEncryptionRuleIds()))
+								.forEach(e -> ids.addAll(e.getTextEncryptionRuleIds()))
+						);
+			}
+		}
+		if (ids.isEmpty()) {
+			return;
+		}
+		final List<TextEncryptionRuleDto> rules = textEncryptionRuleService.getById(ids);
+		final Map<String, TextEncryptionRuleDto> collect = rules.stream()
+				.filter(Objects::nonNull)
+				.filter(e -> Objects.nonNull(e.getId()))
+				.collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e2));
+		apiDefinitionVo.setTextEncryptionRules(collect);
 	}
 
 	public void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {

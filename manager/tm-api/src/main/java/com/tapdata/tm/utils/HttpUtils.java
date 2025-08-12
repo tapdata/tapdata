@@ -13,6 +13,7 @@ import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -114,6 +115,12 @@ public class HttpUtils {
     }
 
     public static String sendPostData(String path, String bodyJson) {
+        Map<String, String> headMap = new HashMap<>();
+        headMap.put("Token", "cba0125db7a18a32508a4e9e077058f33352c1c9124d2c3cbeb3f426096f100a");
+        return sendPostData(path, bodyJson, headMap);
+    }
+
+    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap) {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
@@ -123,7 +130,9 @@ public class HttpUtils {
             entity.setContentType("application/json");
             // 创建post方式请求对象
             HttpPost httpPost = new HttpPost(path);
-            httpPost.addHeader("Token","cba0125db7a18a32508a4e9e077058f33352c1c9124d2c3cbeb3f426096f100a");
+            if (null != headMap && !headMap.isEmpty()) {
+                headMap.forEach(httpPost::addHeader);
+            }
             httpPost.setEntity(entity);
             // 通过请求对象获取响应对象
             response = httpClient.execute(httpPost);

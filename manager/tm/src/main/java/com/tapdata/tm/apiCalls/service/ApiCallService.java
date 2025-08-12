@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiCalls.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.alibaba.fastjson.JSON;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.UnwindOptions;
@@ -25,7 +26,11 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
 import com.tapdata.tm.utils.EntityUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -83,12 +88,15 @@ public class ApiCallService {
     ApplicationService applicationService;
     ApiCallStatsService apiCallStatsService;
     protected ApplicationConfig applicationConfig;
+    protected TextEncryptionRuleService ruleService;
 
     public ApiCallService() {
     }
 
     public ApiCallEntity findOne(Query query) {
-        return mongoOperations.findOne(query, ApiCallEntity.class);
+        return Optional.ofNullable(mongoOperations.findOne(query, ApiCallEntity.class))
+                .map(this::afterFindEntity)
+                .orElse(null);
     }
 
     public ApiCallDto upsertByWhere(Where where, ApiCallDto metadataDefinition, UserDetail loginUser) {
@@ -104,7 +112,9 @@ public class ApiCallService {
 
     public ApiCallDetailVo findById(String id, Field fields, UserDetail loginUser) {
         ApiCallDetailVo apiCallDetailVo = new ApiCallDetailVo();
-        ApiCallEntity apiCallEntity = mongoOperations.findById(id, ApiCallEntity.class);
+        ApiCallEntity apiCallEntity = Optional.ofNullable(mongoOperations.findById(id, ApiCallEntity.class))
+                .map(this::afterFindEntity)
+                .orElse(null);
 
         apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
         if (apiCallEntity != null && StringUtils.isNotBlank(apiCallEntity.getAllPathId())) {
@@ -310,7 +320,10 @@ public class ApiCallService {
         } else {
             apiCallDetailVoList = new ArrayList<>();
         }
-        final List<ApiCallDetailVo> resultData = apiCallDetailVoList.stream()
+        final List<ApiCallDetailVo> resultData = Optional.of(apiCallDetailVoList)
+                .map(this::afterFindDto)
+                .orElse(new ArrayList<>())
+                .stream()
                 .filter(Objects::nonNull)
                 .map(e -> {
                     final ApiCallDetailVo item = new ApiCallDetailVo();
@@ -341,7 +354,6 @@ public class ApiCallService {
     }
 
     public List<ApiCallDto> save(List<ApiCallDto> saveApiCallParamList) {
-        List<ApiCallDto> result = new ArrayList<>();
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         saveApiCallParamList.forEach(saveApiCallParam -> {
             ApiCallEntity apiCallEntity = BeanUtil.copyProperties(saveApiCallParam, ApiCallEntity.class);
@@ -349,10 +361,10 @@ public class ApiCallService {
             apiCallEntityList.add(apiCallEntity);
         });
         mongoOperations.insert(apiCallEntityList, "ApiCall");
-
-        result = com.tapdata.tm.utils.BeanUtil.deepCloneList(apiCallEntityList, ApiCallDto.class);
-
-        return result;
+        return Optional.of(apiCallEntityList)
+                .map(this::afterFindEntity)
+                .map(e -> com.tapdata.tm.utils.BeanUtil.deepCloneList(apiCallEntityList, ApiCallDto.class))
+                .orElse(new ArrayList<>());
     }
 
     public ApiCallDto findOne(Filter filter, UserDetail loginUser) {
@@ -364,6 +376,7 @@ public class ApiCallService {
         query.with(Sort.by("createTime").descending());
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
+        //@todo rule
         return apiCallEntityList;
     }
 
@@ -380,7 +393,7 @@ public class ApiCallService {
                 .stream().map(ObjectId::toString).collect(Collectors.toList())
                 .stream().distinct().collect(Collectors.toList());
         apiCallEntityList = mongoOperations.find(Query.query(Criteria.where("allPathId").in(moduleIdList)), ApiCallEntity.class);
-        return apiCallEntityList;
+        return Optional.of(apiCallEntityList).map(this::afterFindEntity).orElse(new ArrayList<>());
     }
 
     public List<Map<String, String>> findClients(List<String> moduleIdList) {
@@ -623,6 +636,65 @@ public class ApiCallService {
                 .append("day", "$day")
                 .append("hour", "$hour")
                 .append("minute", "$minute");
+    }
+
+    protected ApiCallEntity afterFindEntity(ApiCallEntity entity) {
+        final Boolean open = ruleService.checkAudioSwitchStatus();
+        doAfterOnce(open, entity);
+        return entity;
+    }
+
+    protected void doAfterOnce(Boolean open, ApiCallEntity entity) {
+        String query = entity.getQuery();
+        String body = entity.getBody();
+        String reqParams = entity.getReqParams();
+        entity.setQuery(parse(query, open));
+        entity.setBody(parse(body, open));
+        entity.setReqParams(parse(reqParams, open));
+    }
+
+    protected List<ApiCallEntity> afterFindEntity(List<ApiCallEntity> entities) {
+        final List<String> apiIds = entities.stream()
+                .filter(Objects::nonNull)
+                .map(ApiCallEntity::getAllPathId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (apiIds.isEmpty()) {
+            return entities;
+        }
+        final Boolean open = ruleService.checkAudioSwitchStatus();
+        entities.forEach(entity -> doAfterOnce(open, entity));
+        return entities;
+    }
+
+    protected List<ApiCallDataVo> afterFindDto(List<ApiCallDataVo> entities) {
+        final List<String> apiIds = entities.stream()
+                .filter(Objects::nonNull)
+                .map(ApiCallDataVo::getApiId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (apiIds.isEmpty()) {
+            return entities;
+        }
+        final Boolean open = ruleService.checkAudioSwitchStatus();
+        entities.forEach(data -> {
+            String query = data.getQuery();
+            String body = data.getBody();
+            String reqParams = data.getReqParams();
+            data.setQuery(parse(query, open));
+            data.setBody(parse(body, open));
+            data.setReqParams(parse(reqParams, open));
+        });
+        return entities;
+    }
+
+    String parse(String json, Boolean open) {
+        try {
+            return JSON.toJSONString(TextEncryptionUtil.textEncryptionBySwitch(open, Lists.of(JSON.parseObject(json, Map.class))).get(0));
+        } catch (Exception e) {
+            log.warn("Parse json failed, can not encrypt by config: {}, json: {}, msg: {}", open, json, e.getMessage());
+            return json;
+        }
     }
 
     public static class Tag {
