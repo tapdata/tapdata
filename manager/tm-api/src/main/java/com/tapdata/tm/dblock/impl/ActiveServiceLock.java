@@ -110,11 +110,11 @@ public class ActiveServiceLock implements AutoCloseable {
                     break;
                 }
                 default:
-                    log.warn(DBLock.prefixTag(" unsupported state '%s' for '%s'", state.get(), lock.key()));
+                    log.warn(DBLock.prefixTag(" unsupported state '%s' for '%s'", state.get(), lock.getKey()));
                     break;
             }
         } catch (Exception e) {
-            log.error(DBLock.prefixTag(" heartbeat failed for '%s'", lock.key()), e);
+            log.error(DBLock.prefixTag(" heartbeat failed for '%s'", lock.getKey()), e);
         }
     }
 
@@ -133,7 +133,7 @@ public class ActiveServiceLock implements AutoCloseable {
      * @return 返回锁对象关联的键值字符串
      */
     public String getKey() {
-        return lock.key();
+        return lock.getKey();
     }
 
 
