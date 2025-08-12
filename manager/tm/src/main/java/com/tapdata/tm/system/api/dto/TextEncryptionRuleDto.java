@@ -43,4 +43,6 @@ public class TextEncryptionRuleDto extends BaseDto {
      * 替换数量，将识别出的连续字符用替换符号替换为${outputChar}的个数
      * */
     Integer outputCount;
+
+    Integer type;
 }

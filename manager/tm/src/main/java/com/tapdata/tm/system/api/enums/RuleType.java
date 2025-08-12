@@ -26,4 +26,16 @@ public enum RuleType {
         }
         return SYSTEM;
     }
+
+    public static RuleType of(Integer e) {
+        if (null == e) {
+            return null;
+        }
+        for (RuleType value : values()) {
+            if (value.code == e) {
+                return value;
+            }
+        }
+        return null;
+    }
 }
