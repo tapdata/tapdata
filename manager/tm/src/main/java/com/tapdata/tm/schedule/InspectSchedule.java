@@ -1,54 +1,91 @@
 package com.tapdata.tm.schedule;
 
+import com.tapdata.tm.dblock.DBLock;
+import com.tapdata.tm.dblock.DBLockConfiguration;
+import com.tapdata.tm.dblock.impl.ActiveServiceLock;
+import com.tapdata.tm.dblock.repository.MongoDBLockRepository;
+import com.tapdata.tm.inspect.InspectJobSchedule;
 import com.tapdata.tm.inspect.service.InspectService;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
+ *
  */
 @Slf4j
 @Component
-public class InspectSchedule {
-
+public class InspectSchedule implements DisposableBean {
+    private static final String TAG = InspectSchedule.class.getSimpleName();
 
     @Autowired
-    InspectService inspectService;
+    private InspectService inspectService;
+    @Autowired
+    private InspectJobSchedule jobSchedule;
+    @Autowired
+    private MongoDBLockRepository repository;
+    @Autowired
+    private DBLockConfiguration lockConfig;
 
+    private ActiveServiceLock lock;
+    private CompletableFuture<Void> loopFuture;
 
-    /**
-     * @desc 执行扫描，每 1分钟执行一次
-     */
-//    @Scheduled(cron = "2 0/1 * * * ?")
-//    @Scheduled(cron = "0 */5 * * * ?")
-    @Scheduled(fixedDelay = 1 * 60 * 1000)
-    @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "10s")
-    public void execute() {
-			Thread.currentThread().setName(getClass().getSimpleName() + "-execute");
-        RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
-        String processName = runtimeMXBean.getName();
-        log.debug(processName+"**************** 获得了 InspectSchedule  锁");
-        inspectService.setRepeatInspectTask();
-
+    @PostConstruct
+    public void init() throws Exception {
+        this.lock = DBLock.create(repository, TAG).activeService(
+            lockConfig.getOwner()
+            , lockConfig.getExpireSeconds()
+            , lockConfig.getHeartbeatSeconds()
+            , this::doActive
+            , this::doStandby
+        );
     }
 
-    /**
-     * @desc 执行扫描，每 1分钟执行一次
-     */
-    @Scheduled(initialDelay = 1000, fixedDelay = 1 * 60 * 1000)
-    @SchedulerLock(name = "InspectSchedule.execute", lockAtMostFor = "1m", lockAtLeastFor = "10s")
-    public void cleanDeadInspect() {
-			Thread.currentThread().setName(getClass().getSimpleName() + "-cleanDeadInspect");
-        RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
-        String processName = runtimeMXBean.getName();
-        log.debug(processName+"**************** 获得了 cleanDeadInspect  锁");
-        inspectService.cleanDeadInspect();
-
+    @Override
+    public void destroy() throws Exception {
+        if (null != lock) {
+            lock.close();
+        }
     }
 
+    protected void doActive(ActiveServiceLock lock) {
+        log.info(DBLock.prefixTag(" active for '%s'", lock.getKey()));
+        loopFuture = CompletableFuture.runAsync(() -> {
+            String threadName = Thread.currentThread().getName();
+            Thread.currentThread().setName(String.format("%s-%s", threadName, TAG));
+
+            while (lock.isActive()) {
+                try {
+                    inspectService.cleanDeadInspect();
+                } catch (Exception e) {
+                    log.warn(DBLock.prefixTag(" error while clean dead inspect"), e);
+                }
+
+                try {
+                    inspectService.setRepeatInspectTask();
+                } catch (Exception e) {
+                    log.warn(DBLock.prefixTag(" error while set repeat inspect task"), e);
+                }
+
+                try {
+                    TimeUnit.MINUTES.sleep(1);
+                } catch (InterruptedException e) {
+                    log.error(DBLock.prefixTag(" interrupted while sleeping"), e);
+                    break;
+                }
+            }
+        }, DBLock.executor);
+    }
+
+    protected void doStandby(ActiveServiceLock lock) throws Exception {
+        log.info(DBLock.prefixTag(" standby for '%s'", lock.getKey()));
+        loopFuture.cancel(true);
+        loopFuture = null;
+        jobSchedule.cleanAllJobs();
+    }
 }
