@@ -98,12 +98,25 @@ public class TextEncryptionRuleService {
     public Page<TextEncryptionRuleDto> page(Filter filter) {
         final Where where = filter.getWhere();
         final Object name = where.get("name");
+        final Object type = where.get("type");
         final Query query = new Query();
         final Criteria criteria = Criteria.where("deleted").is(0);
         Optional.ofNullable(name)
-                .map(e -> String.valueOf(name))
+                .map(String::valueOf)
                 .map(String::trim)
                 .ifPresent(e -> criteria.and("name").regex(e));
+        Optional.ofNullable(type)
+                .map(String::valueOf)
+                        .map(e -> {
+                            try {
+                                return Integer.parseInt(e);
+                            } catch (Exception e1) {
+                                return null;
+                            }
+                        })
+                .map(RuleType::of)
+                .ifPresent(e -> criteria.and("type").is(e));
+
         query.addCriteria(criteria);
         final long count = repository.count(query);
         if (count <= 0) {
@@ -225,6 +238,7 @@ public class TextEncryptionRuleService {
         result.setName(entity.getName());
         result.setDescription(entity.getDescription());
         result.setRegex(entity.getRegex());
+        result.setType(entity.getType());
         result.setOutputChar(entity.getOutputChar());
         result.setOutputType(entity.getOutputType());
         result.setOutputCount(entity.getOutputCount());
