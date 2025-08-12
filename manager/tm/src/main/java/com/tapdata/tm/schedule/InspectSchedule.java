@@ -12,7 +12,6 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -83,10 +82,10 @@ public class InspectSchedule implements DisposableBean {
         }, DBLock.executor);
     }
 
-    protected void doStandby(ActiveServiceLock lock) {
+    protected void doStandby(ActiveServiceLock lock) throws Exception {
         log.info(DBLock.prefixTag(" standby for '%s'", lock.getKey()));
         loopFuture.cancel(true);
         loopFuture = null;
-        jobSchedule.cleanJobNotIn(new ArrayList<>());
+        jobSchedule.cleanAllJobs();
     }
 }
