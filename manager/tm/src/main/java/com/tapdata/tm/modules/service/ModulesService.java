@@ -129,6 +129,9 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
+			"mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
+			"rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
 	private ApplicationService applicationService;
 	private DataSourceService dataSourceService;
 	private MetadataInstancesService metadataInstancesService;
@@ -1319,6 +1322,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				jsonList.add(new TaskUpAndLoadDto("Modules", JsonUtil.toJsonUseJackson(modulesDto)));
 
 				DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(modulesDto.getConnectionId()));
+				Map<String, Object> dataSourceConnectionDtoConfig = dataSourceConnectionDto.getConfig();
+				if (null != dataSourceConnectionDtoConfig) {
+					dataSourceConnectionDtoConfig.forEach((k, v) -> {
+						if (MASK_PROPERTIES.contains(k)) {
+							dataSourceConnectionDtoConfig.put(k, "");
+						}
+					});
+				}
+				dataSourceConnectionDto.setConnectionString(null);
 				dataSourceConnectionDto.setCreateUser(null);
 				dataSourceConnectionDto.setCustomId(null);
 				dataSourceConnectionDto.setLastUpdBy(null);
