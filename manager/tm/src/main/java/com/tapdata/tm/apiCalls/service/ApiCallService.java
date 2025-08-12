@@ -168,8 +168,9 @@ public class ApiCallService {
         final Object code = where.get("code");
         final Criteria criteria = new Criteria();
         if (StringUtils.isNotEmpty(method)) {
-            criteria.and(Tag.METHOD).is(method).and(Tag.ALL_PATH_ID).ne(null);
+            criteria.and(Tag.METHOD).is(method);
         }
+        criteria.and(Tag.ALL_PATH_ID).nin("", null);
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
                 .ifPresent(value -> {
