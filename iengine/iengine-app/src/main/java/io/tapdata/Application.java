@@ -129,7 +129,7 @@ public class Application {
 			AgentRuntime.version = (configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString();
 			initTimeZoneInfo();
 			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).build();
-			springApplication.setWebApplicationType(WebApplicationType.NONE);
+			springApplication.setWebApplicationType(WebApplicationType.SERVLET);
 			ConfigurableApplicationContext run = springApplication.run(args);
 
 			TapLogger.setLogListener(new TapLogger.LogListener() {
@@ -325,6 +325,13 @@ public class Application {
 				.build();
 		rootLoggerConfig.addAppender(consoleAppender, defaultLogLevel, null);
 		consoleAppender.start();
+
+		// 注册 MicrometerLogAppender
+		io.tapdata.common.MicrometerLogAppender micrometerAppender = new io.tapdata.common.MicrometerLogAppender();
+		micrometerAppender.start();
+		config.addAppender(micrometerAppender);
+		// 监听所有级别（或至少 ERROR）
+		rootLoggerConfig.addAppender(micrometerAppender, Level.ERROR, null);
 
 		ctx.updateLoggers();
 	}

@@ -7,6 +7,26 @@ spring:
       sslCertKey: ""
       conn_params: ""
 
+# Server configuration for actuator endpoints
+server:
+  port: 8081
+
+# Management endpoints configuration for Prometheus monitoring
+management:
+  export:
+    prometheus:
+      enabled: true
+  metrics:
+    tags: # 为所有指标添加业务标签
+      application: 'FEApplication'
+  endpoints:
+    web:
+      exposure:
+        include: "health, info, prometheus"  # Expose all actuator endpoints
+  endpoint:
+    health:
+      show-details: always
+
 tapdata:
   cloud:
     accessCode: <ACCESS_CODE>

@@ -118,15 +118,19 @@ jasypt:
     password: nmyswls
 
 management:
+  export:
+    prometheus:
+      enabled: true
+  metrics:
+    tags: # 为所有指标添加业务标签
+      application: 'TMApplication'
   endpoints:
     web:
       exposure:
-        include: "health, info"
-  metrics:
-    tags:
-      application: 'TMApplication'
-
-
+        include: "metrics, health, info, prometheus"  # Expose all actuator endpoints
+  endpoint:
+    health:
+      show-details: always
 
 access:
   token:
