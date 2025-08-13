@@ -336,6 +336,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
 	private List<String> namespace;
     private Long timeDifference;
     private String datasourceInstanceTag;
+    private Boolean isInit = false;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

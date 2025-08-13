@@ -21,15 +21,19 @@ import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.file.service.FileService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.dto.PathSetting;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
+import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -82,6 +86,39 @@ class ModulesServiceTest {
             assertThrows(BizException.class,()->modulesService.updatePermissions(modulesPermissionsDto,mock(UserDetail.class)));
         }
 
+    }
+
+    @Nested
+    class BatchUpdatePermissionsTest{
+        @Test
+        void test_batchUpdatePermissionsExclusive(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            permissionsDto.setModuleIds(Arrays.asList("module1", "module2"));
+            permissionsDto.setAclName("admin");
+
+            modulesService.updatePermissions(permissionsDto, mock(UserDetail.class));
+            // 验证调用了两次 update：一次移除所有，一次添加指定
+            verify(modulesRepository, times(2)).update(any(), any(), any());
+        }
+
+        @Test
+        void test_singleModuleUpdate(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            permissionsDto.setModuleId("module1");
+            permissionsDto.setAcl(Arrays.asList("admin", "user"));
+
+            modulesService.updatePermissions(permissionsDto, mock(UserDetail.class));
+            verify(modulesRepository, times(1)).updateFirst(any(), any(), any());
+        }
+
+        @Test
+        void test_invalidParams(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            // 既没有设置单个模块参数，也没有设置批量参数
+
+            assertThrows(BizException.class, () ->
+                    modulesService.updatePermissions(permissionsDto, mock(UserDetail.class)));
+        }
     }
 
     @Nested
@@ -686,6 +723,174 @@ class ModulesServiceTest {
             assertEquals(1, actual.getConnections().size());
             assertNull(actual.getConnections().get(0).getSsl());
             assertNull(actual.getConnections().get(0).getSslCA());
+        }
+    }
+
+    @Nested
+    class ServerTest {
+        ModulesService mService;
+        ModulesRepository mRepository;
+
+        DataSourceService dService;
+        DataSourceDefinitionService dDefinitionService;
+
+        @BeforeEach
+        void init() {
+            mService = mock(ModulesService.class);
+            mRepository = mock(ModulesRepository.class);
+            dService = mock(DataSourceService.class);
+            dDefinitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(mService, "dataSourceService", dService);
+            ReflectionTestUtils.setField(mService, "dataSourceDefinitionService", dDefinitionService);
+        }
+
+        @Nested
+        class FindByIdTest {
+            @Test
+            void testWithPathSettingIfNeed() {
+                String id = new ObjectId().toHexString();
+
+                ModulesDto entity = new ModulesDto();
+                entity.setConnection(new ObjectId());
+                when(mService.findById(anyString())).thenCallRealMethod();
+                when(mService.findById(any(ObjectId.class))).thenReturn(entity);
+                when(dService.findById(any(ObjectId.class))).thenReturn(null);
+                ModulesDetailVo byId = mService.findById(id);
+                Assertions.assertNotNull(byId.getPathSetting());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, byId.getPathSetting());
+            }
+
+            @Test
+            void testWithPathSettingIfNeed2() {
+                String id = new ObjectId().toHexString();
+
+                ModulesDto entity = new ModulesDto();
+                entity.setConnection(new ObjectId());
+                when(mService.findById(anyString())).thenCallRealMethod();
+                when(mService.findById(any(ObjectId.class))).thenReturn(entity);
+                when(dService.findById(any(ObjectId.class))).thenReturn(new DataSourceConnectionDto());
+                ModulesDetailVo byId = mService.findById(id);
+                Assertions.assertNotNull(byId.getPathSetting());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, byId.getPathSetting());
+            }
+        }
+
+
+        @Nested
+        class FindAllActiveApiTest {
+            @Test
+            void testNormal() {
+                List<ModulesDto> apis = new ArrayList<>();
+                ModulesDto dto = new ModulesDto();
+                apis.add(dto);
+                ModuleStatusEnum moduleStatusEnum = ModuleStatusEnum.ACTIVE;
+                when(mService.findAllActiveApi(any())).thenCallRealMethod();
+                when(mService.findAll(any(Query.class))).thenReturn(apis);
+                List<ModulesDto> allActiveApi = mService.findAllActiveApi(moduleStatusEnum);
+                Assertions.assertNotNull(allActiveApi);
+                Assertions.assertEquals(1, allActiveApi.size());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, allActiveApi.get(0).getPathSetting());
+            }
+            @Test
+            void testNull() {
+                when(mService.findAllActiveApi(null)).thenCallRealMethod();
+                when(mService.findAll(any(Query.class))).thenReturn(null);
+                List<ModulesDto> allActiveApi = mService.findAllActiveApi(null);
+                Assertions.assertNotNull(allActiveApi);
+                Assertions.assertEquals(0, allActiveApi.size());
+                verify(mService, times(0)).findAll(any(Query.class));
+            }
+        }
+    }
+
+    @Nested
+    class CheckoutFieldAliasNameIsValidTest {
+        @Test
+        void testNotAnyFields() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.not-empty");
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testNotRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldAlias("test");
+            fields.add(field);
+            Assertions.assertDoesNotThrow(() -> modulesService.checkoutFieldAliasNameIsValid(path));
+        }
+
+        @Test
+        void testRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
+        }
+    }
+
+    @Nested
+    class batchLoadTaskTest {
+        HttpServletResponse response;
+        List<String> ids;
+        UserDetail user;
+        FileService fileService = mock(FileService.class);
+        MetadataInstancesService metadataInstancesService = mock(MetadataInstancesService.class);
+        @BeforeEach
+        void init() {
+            modulesService = spy(modulesService);
+            ReflectionTestUtils.setField(modulesService, "fileService", fileService);
+            ReflectionTestUtils.setField(modulesService, "metadataInstancesService", metadataInstancesService);
+            response = mock(HttpServletResponse.class);
+            ids = new ArrayList<>();
+            ids.add("68833dd27415ff02c8d6d916");
+            user = mock(UserDetail.class);
+        }
+        @Test
+        void testNormal() {
+            List<ModulesDto> allModules = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            modulesDto.setId(new ObjectId("68833dd27415ff02c8d6d916"));
+            modulesDto.setConnectionId("678f0f788fe8a57f8a0c635d");
+            allModules.add(modulesDto);
+            doReturn(allModules).when(modulesService).findAllModulesByIds(ids);
+            DataSourceConnectionDto dataSourceConnectionDto = mock(DataSourceConnectionDto.class);
+            when(dataSourceConnectionDto.getId()).thenReturn(new ObjectId("678f0f788fe8a57f8a0c635d"));
+            doReturn(dataSourceConnectionDto).when(dataSourceService).findById(any(ObjectId.class));
+            Map<String, Object> config = new HashMap<>();
+            String uri = "mongodb://root:******@mongo-ssl.internal.tapdata.io:27018/test?authSource=admin&ssl=true";
+            config.put("uri", uri);
+            config.put("ssl", true);
+            config.put("sslKey", "----test key----");
+            config.put("__connectionType", "source_and_target");
+            when(dataSourceConnectionDto.getConfig()).thenReturn(config);
+            modulesService.batchLoadTask(response, ids, user);
+            assertEquals("", config.get("uri"));
+            verify(fileService, times(1)).viewImg1(anyString(), any(HttpServletResponse.class), anyString());
         }
     }
 }

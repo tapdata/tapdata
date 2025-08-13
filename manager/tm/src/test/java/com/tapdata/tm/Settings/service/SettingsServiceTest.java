@@ -219,6 +219,25 @@ public class SettingsServiceTest {
             assertThat(result.get(0).getValue()).isEqualTo(settings.getValue());
         }
         @Test
+        void testFindALl_Agent() {
+            final Filter filter = new Filter();
+            final Settings settings = new Settings();
+            settings.setKey("buildProfile");
+            settings.setValue("DASS");
+            settings.setCategory("type");
+            final Settings settings2 = new Settings();
+            settings2.setKey("license");
+            settings2.setCategory("License");
+            settings2.setValue("1");
+            List<Settings> list = new ArrayList<>();
+            list.add(settings);
+            list.add(settings2);
+            when(mongoTemplate.find(any(Query.class), eq(Settings.class))).thenReturn(list);
+            when(mockSettingsRepository.findAll()).thenReturn(list);
+            final List<SettingsDto> result = settingsService.findALl("1", filter);
+            assertEquals(1,result.size());
+        }
+        @Test
         void testFindALlWithPwd() {
             final Filter filter = new Filter();
             Settings settings1 = new Settings();

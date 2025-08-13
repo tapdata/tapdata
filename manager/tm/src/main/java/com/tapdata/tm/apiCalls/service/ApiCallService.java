@@ -3,8 +3,10 @@ package com.tapdata.tm.apiCalls.service;
 import cn.hutool.core.bean.BeanUtil;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.UnwindOptions;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
@@ -12,8 +14,13 @@ import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.entity.ModulesEntity;
@@ -29,6 +36,10 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.SortOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -36,10 +47,26 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.DocumentUtils.getLong;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.limit;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.project;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.skip;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.unwind;
 
 /**
  * @Author:
@@ -55,6 +82,7 @@ public class ApiCallService {
     ModulesService modulesService;
     ApplicationService applicationService;
     ApiCallStatsService apiCallStatsService;
+    protected ApplicationConfig applicationConfig;
 
     public ApiCallService() {
     }
@@ -83,6 +111,8 @@ public class ApiCallService {
             ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()));
             if (null != modulesDto) {
                 apiCallDetailVo.setName(modulesDto.getName());
+                apiCallDetailVo.setApiId(apiCallEntity.getAllPathId());
+                apiCallDetailVo.setApiPath(apiCallEntity.getReq_path());
 
                 //
                 List<ApiCallEntity> apiCallEntityList = findByModuleIds(Arrays.asList(modulesDto.getId().toString()));
@@ -113,173 +143,201 @@ public class ApiCallService {
         return null;
     }
 
+    protected List<Document> buildNameOrIdExpr(String name, String id, UserDetail userDetail) {
+        List<Document> matchCriteria = new ArrayList<>();
+        matchCriteria.add(new Document("$eq", List.of("$_id", new Document("$toObjectId", "$$allPathId"))));
+        matchCriteria.add(new Document("$ne", List.of("$delete", true)));
+        if (!Objects.equals(applicationConfig.getAdminAccount(), userDetail.getEmail())) {
+            matchCriteria.add(new Document("$eq", List.of("$user_id", userDetail.getUserId())));
+        }
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        //前端都是放在一个输入框，如果是ObjectID就是查询apiId,否则就是模糊查询api name
+        if (null != objectId) {
+            matchCriteria.add(new Document("$eq", List.of("$_id", objectId)));
+        } else if (StringUtils.isNotBlank(name)) {
+            matchCriteria.add(new Document("$regexMatch", new Document("input", "$name").append("regex", name)));
+        }
+        return matchCriteria;
+    }
+
+    protected Criteria genericFilterCriteria(Filter filter) {
+        final Criteria startTimeCriteria = new Criteria();
+        final Criteria endTimeCriteria = new Criteria();
+        final Where where = filter.getWhere();
+        final String method = (String) where.getOrDefault(Tag.METHOD, "");
+        final Object code = where.get("code");
+        final Criteria criteria = new Criteria();
+        if (StringUtils.isNotEmpty(method)) {
+            criteria.and(Tag.METHOD).is(method);
+        }
+        criteria.and(Tag.ALL_PATH_ID).nin("", null);
+        Optional.ofNullable(code)
+                .map(value -> String.valueOf(value).trim())
+                .ifPresent(value -> {
+                    if (Objects.equals("", value)) {
+                        criteria.and("code").ne("200");
+                    } else {
+                        criteria.and("code").is(value);
+                    }
+                });
+        Optional.ofNullable(where.get(Tag.START))
+                .map(value -> (Double) where.remove(Tag.START))
+                .map(value -> new Date(value.longValue()))
+                .ifPresent(value -> startTimeCriteria.and(Tag.CREATE_TIME).gte(value));
+        Optional.ofNullable(where.get("end"))
+                .map(value -> (Double) where.remove("end"))
+                .map(value -> new Date(value.longValue()))
+                .ifPresent(value -> endTimeCriteria.and(Tag.CREATE_TIME).lte(value));
+        criteria.andOperator(startTimeCriteria, endTimeCriteria);
+        return criteria;
+    }
+
     public Page<ApiCallDetailVo> find(Filter filter, UserDetail userDetail) {
-        Where where = filter.getWhere();
-        List orList = (List) where.getOrDefault("or", new ArrayList<>());
-        String method = (String) where.getOrDefault("method", "");
-        Object code = where.get("code");
-        String id = getValueFromOrList(orList, "id");
-        String name = getValueFromOrList(orList, "name");
-        String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
-
-
-        Query query = new Query();
-        Criteria criteria = new Criteria();
-
-
-        //先查出这个用户名下能看到的apiCall
-        List<ModulesDto> modulesDtoList = new ArrayList<>();
-        List<ApiCallEntity> currentUserApiCallList = new ArrayList<>();
-        List<String> currentUserApiCallId = new ArrayList<>();
-//        Map<ObjectId, ModulesDto> moduleIdToModule = new HashMap<>();
-
-        Criteria noPathIdCriteria = new Criteria();
-        if ("admin@admin.com".equals(userDetail.getEmail())) {
-            //管理员可以看到所有的访问记录
-            List<ModulesDto> deletedModulesDtoList = modulesService.findAll(Query.query(Criteria.where("is_deleted").is(true)));
-            criteria.and("allPathId").nin(deletedModulesDtoList);
-//            moduleIdToModule=  modulesDtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
-        } else {
-            modulesDtoList = modulesService.getByUserId(userDetail.getUserId());
-            if (CollectionUtils.isNotEmpty(modulesDtoList)) {
-                currentUserApiCallList = findByUser(modulesDtoList);
-                if (CollectionUtils.isNotEmpty(currentUserApiCallList)) {
-                    currentUserApiCallId = currentUserApiCallList.stream().map(ApiCallEntity::getId).collect(Collectors.toList())
-                            .stream().map(ObjectId::toString).collect(Collectors.toList());
-                    criteria.and("id").in(currentUserApiCallId);
-//            moduleIdToModule=  modulesDtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
-                }
-            }
-        }
-
-
-        /*组装ID和NAME 的查询条件，比较复杂，后期最好前后端一起优化掉这种传参方式*/
-        List<Criteria> nameOrIdCriteriaList = new ArrayList<>();
-
-        //如果要根据name  查找
-        List<ModulesEntity> nameModulesList = new ArrayList<>();
-        if (StringUtils.isNotEmpty(name)) {
-            Query queryModule = Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("is_deleted").ne(true).and("name").regex(name));
-            nameModulesList = mongoOperations.find(queryModule, ModulesEntity.class);
-            if (CollectionUtils.isNotEmpty(nameModulesList)) {
-                List<String> nameAllPathID = nameModulesList.stream().map(ModulesEntity::getId).collect(Collectors.toList())
-                        .stream().map(ObjectId::toString).collect(Collectors.toList());
-                nameOrIdCriteriaList.add(Criteria.where("allPathId").in(nameAllPathID));
-            }
-        }
-        //如果要根据 id  查找
-        if (StringUtils.isNotEmpty(id)) {
-            nameOrIdCriteriaList.add(Criteria.where("_id").is(id));
-        }
-        Criteria nameOrIdCriteria = new Criteria();
-        if (CollectionUtils.isNotEmpty(nameOrIdCriteriaList)) {
-            nameOrIdCriteria = new Criteria().orOperator(nameOrIdCriteriaList);
-        }
-        /*组装ID和NAME 的查询条件，比较复杂，后期最好前后端一起优化掉这种传参方式*/
-
+        final Where where = filter.getWhere();
+        final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
+        final Object clientId = where.get("clientId");
+        final String id = getValueFromOrList(orList, "id");
+        final String name = getValueFromOrList(orList, "name");
+        final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
 
         //根据method 查询
-        if (StringUtils.isNotEmpty(method)) {
-            criteria.and("method").is(method);
-        }
+        final Criteria criteria = genericFilterCriteria(filter);
+        List<Document> bMatchCriteria = buildNameOrIdExpr(name, id, userDetail);
+        Document lookupDoc = new Document("$lookup", new Document()
+                .append("from", "Modules")
+                .append("let", new Document(Tag.ALL_PATH_ID, "$" + Tag.ALL_PATH_ID))
+                .append("pipeline", List.of(new Document(Tag.MATCH, new Document("$expr", new Document("$and", bMatchCriteria)))))
+                .append("as", "mData")
+        );
+        AggregationOperation lookupOfModule = context -> lookupDoc;
+        Criteria criteriaAll = Criteria.where("mData.0").exists(true).andOperator(criteria);
 
-        if (null != code) {
-            if (" ".equals(code)) {
-                criteria.and("code").ne("200");
+        AggregationOperation countStage = Aggregation.count().as("total");
+
+
+        List<Document> filterApplication = new ArrayList<>();
+        filterApplication.add(new Document("$eq", List.of("$clientId", "$$clientId")));
+        if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
+            filterApplication.add(new Document("$eq", List.of("$clientId", clientId)));
+            criteriaAll.and("appData.clientId").is(String.valueOf(clientId).trim());
+        }
+        Document lookupDocOfApplication = new Document("$lookup", new Document()
+                .append("from", "Application")
+                .append("let", new Document("clientId", "$user_info.clientId"))
+                .append("pipeline", List.of(new Document(Tag.MATCH, new Document("$expr", new Document("$and", filterApplication)))))
+                .append("as", "appData")
+        );
+        AggregationOperation lookupOfApplication = context -> lookupDocOfApplication;
+
+        AggregationOperation matchStage = Aggregation.match(criteriaAll);
+        Aggregation countAggregation = Aggregation.newAggregation(
+                match(criteria),
+                lookupOfApplication,
+                lookupOfModule,
+                matchStage,
+                countStage
+        );
+        final AggregationResults<Map<String, Number>> countResults = mongoOperations.aggregate(countAggregation, Tag.API_CALL, (Class<Map<String, Number>>) (Class<?>) Map.class);
+        final long total = countResults.getMappedResults().isEmpty() ? 0L : Optional.ofNullable(countResults.getMappedResults().get(0))
+                .map(e -> e.get("total"))
+                .map(Number::longValue)
+                .orElse(0L);
+        final List<ApiCallDataVo> apiCallDetailVoList;
+        if (total > 0L) {
+            final int skip = filter.getSkip();
+            final int size = filter.getLimit();
+            org.springframework.data.domain.Sort sort;
+            if ("createTime ASC".equals(order)) {
+                sort = Sort.by(Tag.CREATE_TIME).ascending();
             } else {
-                criteria.and("code").is(code);
+                sort = Sort.by(Tag.CREATE_TIME).descending();
             }
+            final Aggregation aggregation = newAggregation(
+                    match(criteria),
+                    lookupOfApplication,
+                    lookupOfModule,
+                    matchStage,
+                    unwind("mData"),
+                    unwind("appData", true),
+                    new SortOperation(sort),
+                    skip(skip),
+                    limit(size),
+                    project()
+                            .and("_id").as("id")
+                            .and(Tag.CREATE_TIME).as(Tag.CREATE_AT)
+                            .and("user_id").as("userId")
+                            .and("createUser").as("createUser")
+                            .and(Tag.LATENCY).as(Tag.LATENCY)
+                            .and("reqTime").as("reqTime")
+                            .and("resTime").as("resTime")
+                            .and("api_meta").as("apiMeta")
+                            .and("user_info").as("userInfo")
+                            .and("call_id").as("callId")
+                            .and("user_ip").as("userIp")
+                            .and("user_port").as("userPort")
+                            .and(Tag.METHOD).as(Tag.METHOD)
+                            .and("code").as("code")
+                            .and("codeMsg").as("codeMsg")
+                            .and("report_time").as("reportTime")
+                            .and("visitTotalCount").as("visitTotalCount")
+                            .and(Tag.CREATE_TIME).as(Tag.CREATE_TIME)
+                            .and("speed").as("speed")
+                            .and("averResponseTime").as("averResponseTime")
+                            .and("req_params").as("reqParams")
+                            .and("query").as("query")
+                            .and("body").as("body")
+                            .and(Tag.ALL_PATH_ID).as("apiId")
+                            .and("req_path").as("apiPath")
+
+                            .and("mData.name").as("apiName")
+                            .and("mData.apiVersion").as("apiVersion")
+                            .and("mData.path").as("path")
+                            .and("mData.apiType").as("apiType")
+                            .and("mData.paths").as("paths")
+                            .and("mData.project").as("project")
+                            .and("mData.connection").as("connection")
+                            .and("mData.user").as("user")
+                            .and("mData.resRows").as("resRows")
+                            .and("mData.responseTime").as("responseTime")
+                            .and("mData.operationType").as("operationType")
+                            .and("mData.createAt").as("apiCreateAt")
+
+                            .and("appData.clientId").as("clientId")
+                            .and("appData.clientName").as("clientName")
+            );
+            AggregationResults<ApiCallDataVo> apiCall = mongoOperations.aggregate(aggregation, Tag.API_CALL, ApiCallDataVo.class);
+            apiCallDetailVoList = Optional.ofNullable(apiCall.getMappedResults()).orElse(new ArrayList<>());
+        } else {
+            apiCallDetailVoList = new ArrayList<>();
         }
-
-        Criteria startTimeCriteria = new Criteria();
-        if (null != where.get("start")) {
-            Double startDate = (Double) where.remove("start");
-            startTimeCriteria.and("createAt").gte(new Date(startDate.longValue()));
-        }
-
-        Criteria endTimeCriteria = new Criteria();
-        if (null != where.get("end")) {
-            Double endDate = (Double) where.remove("end");
-            endTimeCriteria.and("createAt").lte(new Date(endDate.longValue()));
-        }
-        criteria.andOperator(startTimeCriteria, endTimeCriteria, nameOrIdCriteria);
-        /*---------------------------------------------关联查询条件结束--------------------------------------------*/
-
-        query.addCriteria(criteria);
-
-
-        TmPageable tmPageable = new TmPageable();
-        Integer page = (filter.getSkip() / filter.getLimit()) + 1;
-        tmPageable.setPage(page);
-        tmPageable.setSize(filter.getLimit());
-
-        if ("createTime DESC".equals(order)) {
-            tmPageable.setSort(Sort.by("createTime").descending());
-        } else if ("createTime ASC".equals(order)) {
-            tmPageable.setSort(Sort.by("createTime").ascending());
-        }
-
-        Long total = mongoOperations.count(query, ApiCallEntity.class);
-        List<ApiCallEntity> apiCallEntityList = mongoOperations.find(query.with(tmPageable), ApiCallEntity.class);
-        List<ApiCallDetailVo> apiCallDetailVoList = new ArrayList<>();
-
-
-        List<Map> userInfoList = new ArrayList<>();
-        if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
-            userInfoList = apiCallEntityList.stream().map(ApiCallEntity::getUserInfo).collect(Collectors.toList());
-        }
-        List<String> clientIdList = new ArrayList<>();
-        for (Map userInfo : userInfoList) {
-            if (null != userInfo.get("clientId")) {
-                clientIdList.add((String) userInfo.get("clientId"));
-            }
-        }
-
-        List<ApplicationDto> applicationDtoList = applicationService.findByIds(clientIdList);
-        Map<ObjectId, ApplicationDto> clientIdToApplication = new HashMap<>();
-        if (CollectionUtils.isNotEmpty(applicationDtoList)) {
-            clientIdToApplication = applicationDtoList.stream().collect(Collectors.toMap(ApplicationDto::getId, a -> a, (k1, k2) -> k1));
-        }
-
-        //查询api名称
-        List<String> allPathIdList = apiCallEntityList.stream().filter(apiCallEntity -> StringUtils.isNotEmpty(apiCallEntity.getAllPathId())).collect(Collectors.toList())
-                .stream().map(ApiCallEntity::getAllPathId).collect(Collectors.toList());
-        List<ModulesDto> hitModuledtoList = modulesService.findAll(Query.query(Criteria.where("id").in(allPathIdList)));
-        Map<ObjectId, ModulesDto> moduleIdToModule = new HashMap<>();
-        if (CollectionUtils.isNotEmpty(hitModuledtoList)) {
-            moduleIdToModule = hitModuledtoList.stream().collect(Collectors.toMap(ModulesDto::getId, a -> a, (k1, k2) -> k1));
-        }
-
-
-        for (ApiCallEntity apiCallEntity : apiCallEntityList) {
-            String allPathId = apiCallEntity.getAllPathId();
-            ApiCallDetailVo apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
-
-            Map userInfo = apiCallEntity.getUserInfo();
-            if (null != userInfo && null != userInfo.get("clientId")) {
-                String clientId = (String) userInfo.getOrDefault("clientId", "");
-                ApplicationDto applicationDto = clientIdToApplication.get(MongoUtils.toObjectId(clientId));
-                if (applicationDto != null) {
-                    apiCallDetailVo.setClientName(applicationDto.getClientId());
-                }
-            }
-            if (StringUtils.isNotEmpty(allPathId) && null != moduleIdToModule.get(MongoUtils.toObjectId(allPathId))) {
-                apiCallDetailVo.setName(moduleIdToModule.get(MongoUtils.toObjectId(allPathId)).getName());
-            }
-
-            apiCallDetailVo.setCodeMsg(apiCallEntity.getCodeMsg());
-            apiCallDetailVo.setMethod(apiCallEntity.getMethod());
-            apiCallDetailVo.setCreateTime(apiCallEntity.getCreateAt());
-            apiCallDetailVo.setCode(apiCallEntity.getCode());
-            apiCallDetailVo.setUserIp(apiCallEntity.getUserIp());
-
-            apiCallDetailVoList.add(apiCallDetailVo);
-        }
-
-        Page result = new Page();
-        result.setItems(apiCallDetailVoList);
-        result.setTotal(total);
-        return result;
+        final List<ApiCallDetailVo> resultData = apiCallDetailVoList.stream()
+                .filter(Objects::nonNull)
+                .map(e -> {
+                    final ApiCallDetailVo item = new ApiCallDetailVo();
+                    item.setClientName(e.getClientName());
+                    item.setId(e.getId().toHexString());
+                    item.setApiId(e.getApiId());
+                    item.setName(e.getApiName());
+                    item.setCode(e.getCode());
+                    item.setLatency(e.getLatency());
+                    item.setSpeed(e.getSpeed());
+                    item.setCodeMsg(e.getCodeMsg());
+                    item.setAverResponseTime(e.getAverResponseTime());
+                    item.setVisitTotalCount(e.getVisitTotalCount());
+                    item.setUserIp(e.getUserIp());
+                    item.setLastUpdAt(e.getLastUpdAt());
+                    item.setLastUpdBy(e.getLastUpdBy());
+                    item.setCustomId(e.getCustomId());
+                    item.setReqParams(e.getReqParams());
+                    item.setQuery(e.getQuery());
+                    item.setBody(e.getBody());
+                    item.setApiPath(e.getApiPath());
+                    item.setCreateTime(e.getCreateTime());
+                    item.setCreateAt(e.getApiCreateAt());
+                    item.setMethod(e.getMethod());
+                    return item;
+        }).toList();
+        return Page.page(resultData, total);
     }
 
     public List<ApiCallDto> save(List<ApiCallDto> saveApiCallParamList) {
@@ -565,5 +623,17 @@ public class ApiCallService {
                 .append("day", "$day")
                 .append("hour", "$hour")
                 .append("minute", "$minute");
+    }
+
+    public static class Tag {
+        private Tag() {}
+        public static final String MATCH = "$match";
+        public static final String CREATE_TIME = "createTime";
+        public static final String METHOD = "method";
+        public static final String START = "start";
+        public static final String ALL_PATH_ID = "allPathId";
+        public static final String API_CALL = "ApiCall";
+        public static final String CREATE_AT = "createAt";
+        public static final String LATENCY = "latency";
     }
 }

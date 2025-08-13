@@ -3,6 +3,7 @@ package com.tapdata.tm.modules.entity;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.modules.dto.PathSetting;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.bson.types.ObjectId;
@@ -89,4 +90,12 @@ public class ModulesEntity extends BaseEntity {
     private String description;
     /** 访问路径方式  默认值 default  自定义 customize*/
     private String pathAccessMethod;
+
+    /** 限制条数 */
+    private Integer limit;
+
+    /**
+     * 用户可以自定义路径最后关键字，没有设置按默认值处理
+     * */
+    private List<PathSetting> pathSetting;
 }
