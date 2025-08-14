@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -91,12 +92,11 @@ public class TextEncryptionUtil {
     }
 
     public static DebugVo map(Map<String, List<TextEncryptionRuleDto>> config, DebugVo debugVo) {
-        if (null == config || config.isEmpty()
-                || null == debugVo || null == debugVo.getData() || debugVo.getData().isEmpty()) {
-            return debugVo;
+        if (null == debugVo) {
+            return null;
         }
         List<Map<String, Object>> data = debugVo.getData();
-        config.keySet().forEach(fieldName -> data.forEach(item -> deepSearch(fieldName.split("\\."), item, config.get(fieldName))));
+        map(config, data);
         return debugVo;
     }
 
@@ -118,7 +118,7 @@ public class TextEncryptionUtil {
         for (Map<String, Object> result : results) {
             Object itemObject = result.get("value");
             String key = (String) result.get("key");
-            if (result.get("parent") instanceof Map<?, ?> parent) {
+            if (result.get("parent") instanceof Map parent) {
                 Object mappedValue = mapFieldValue(config, itemObject);
                 if (null == mappedValue) {
                     continue;
@@ -145,11 +145,11 @@ public class TextEncryptionUtil {
             return;
         }
         String key = fields[index];
-        if (current instanceof Map) {
-            Object next = ((Map<String, Object>) current).get(key);
-            findRecursive(next, current, fields, index + 1, results);
-        } else if (current instanceof List) {
-            for (Object element : (List<?>) current) {
+        if (current instanceof Map<?, ?> cMap) {
+            Object next = cMap.get(key);
+            findRecursive(next, cMap, fields, index + 1, results);
+        } else if (current instanceof List<?> list) {
+            for (Object element : list) {
                 findRecursive(element, parent, fields, index, results);
             }
         }
@@ -163,11 +163,27 @@ public class TextEncryptionUtil {
         String target;
         int type;
         if (value instanceof String || value instanceof Character) {
-            target = (String) value;
+            target = String.valueOf(value);
             type = 0;
-        } else if (value instanceof Map<?, ?> || value instanceof Collection<?> || value.getClass().isArray()) {
-            target = JSON.toJSONString(value);
-            type = value instanceof Map<?, ?> ? 10 : 11;
+        } else if (value instanceof Map map) {
+            List<String> keys = new ArrayList<>(map.keySet());
+            Map<String, Object> targetMap = new HashMap<>();
+            for (String key : keys) {
+                targetMap.put(key, mapFieldValue(textEncryptionRules, map.get(key)));
+            }
+            return targetMap;
+        } else if (value instanceof Collection<?> list) {
+            List<Object> targetList = new ArrayList<>();
+            for (Object item : list) {
+                targetList.add(mapFieldValue(textEncryptionRules, item));
+            }
+            return targetList;
+        } else if (value.getClass().isArray()) {
+            Object[] objects = new Object[((Object[]) value).length];
+            for (int index = 0; index < ((Object[]) value).length; index++) {
+                objects[index] = mapFieldValue(textEncryptionRules, ((Object[]) value)[index]);
+            }
+            return objects;
         } else if (value instanceof Number || value instanceof Boolean) {
             target = value.toString();
             type = value instanceof Boolean ? 20 : 21;
@@ -176,14 +192,12 @@ public class TextEncryptionUtil {
             type = 30;
         } else {
             log.info("Unsupported type: {}, can not be encrypted.", value.getClass().getName());
-            return null;
+            return value;
         }
         for (TextEncryptionRuleDto rule : textEncryptionRules) {
             target = replace(rule, target);
         }
         return switch (type) {
-            case 10 -> Cover.call(target, "object", e -> JSON.parseObject(e, Map.class));
-            case 11 -> Cover.call(target, "array", e -> JSON.parseObject(e, List.class));
             case 21 -> tryBackNumber(target, (Number) value);
             case 0, 20, 30 -> target;
             default -> value;
@@ -197,7 +211,7 @@ public class TextEncryptionUtil {
             try {
                 return cover.back(value);
             } catch (Exception e) {
-                log.info("unable to convert string to {}, return as string. encrypted value:{}, msg: {}", tag, value, e.getMessage());
+                log.debug("unable to convert string to {}, return as string. encrypted value:{}, msg: {}", tag, value, e.getMessage());
                 return value;
             }
         }
@@ -230,9 +244,10 @@ public class TextEncryptionUtil {
         String regex = rule.getRegex();
         String outputChar = rule.getOutputChar();
         return switch (outputType) {
-            case AUTO -> text.replaceAll(regex, outputChar);
-            case CUSTOM -> text.replaceAll(regex, outputChar.repeat(rule.getOutputCount()));
-            default -> text;
+            case CUSTOM -> text.replaceAll(regex, String.valueOf(outputChar).repeat(rule.getOutputCount() <= 0 ? 1 : rule.getOutputCount()));
+            case AUTO -> Pattern.compile(regex)
+                    .matcher(text)
+                    .replaceAll(m -> outputChar.repeat(m.group().length()));
         };
     }
 }

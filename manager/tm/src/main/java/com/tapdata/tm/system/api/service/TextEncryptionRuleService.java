@@ -74,7 +74,7 @@ public class TextEncryptionRuleService {
         if (StringUtils.isBlank(ids)) {
             return new ArrayList<>();
         }
-        return getById(new ArrayList<>(List.of(ids)));
+        return getById(new ArrayList<>(List.of(ids.split(","))));
     }
 
     public List<TextEncryptionRuleDto> getById(Collection<String> ids) {
@@ -85,14 +85,13 @@ public class TextEncryptionRuleService {
         if (objectIds.isEmpty()) {
             return new ArrayList<>();
         }
-        final Query query = Query.query(Criteria.where("_id").in(objectIds));
+        final Query query = Query.query(Criteria.where("_id").in(objectIds).and("delete").is(0));
         final List<TextEncryptionRuleEntity> findResult = repository.findAll(query);
         return findResult
                 .stream()
                 .filter(Objects::nonNull)
-                .filter(e -> Objects.equals(e.getDeleted(), 0))
                 .map(this::mapToDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     public Page<TextEncryptionRuleDto> page(Filter filter) {
@@ -130,7 +129,7 @@ public class TextEncryptionRuleService {
         final List<TextEncryptionRuleDto> collect = all.stream()
                 .filter(Objects::nonNull)
                 .map(this::mapToDto)
-                .collect(Collectors.toList());
+                .toList();
         return Page.page(collect, count);
     }
 
@@ -154,7 +153,6 @@ public class TextEncryptionRuleService {
             if (outputCount < 1) {
                 outputCount = 1;
             }
-            saveEntity.setOutputCount(0);
             saveEntity.setOutputCount(outputCount);
         }
         saveEntity.setDescription(description);
@@ -259,7 +257,7 @@ public class TextEncryptionRuleService {
     }
 
     /**
-     * 获取某个api下所有返回字段的文本加密规则配置
+     * Get the text encryption rule configuration for all return fields under a certain API
      *
      * @param apiId
      * @return
@@ -285,6 +283,9 @@ public class TextEncryptionRuleService {
 
     protected Path getPartByApiId(String apiId) {
         final ModulesDetailVo apiInfo = modulesService.findById(apiId);
+        if (null == apiInfo) {
+            return null;
+        }
         final List<Path> paths = apiInfo.getPaths();
         if (paths.isEmpty()) {
             return null;
@@ -298,16 +299,13 @@ public class TextEncryptionRuleService {
         }
         final List<TextEncryptionRuleDto> rules = getById(ruleIds);
         final Map<String, TextEncryptionRuleDto> ruleIdToRuleMap = rules.stream()
-                .collect(Collectors.toMap(
-                        e -> e.getId().toHexString(),
-                        Function.identity()
-                ));
+                .collect(Collectors.toMap(e -> e.getId().toHexString(), Function.identity()));
         final Map<String, List<TextEncryptionRuleDto>> result = new HashMap<>();
         fieldRuleIds.forEach((fieldName, ruleIdList) -> {
             List<TextEncryptionRuleDto> ruleDtos = ruleIdList.stream()
                     .map(ruleIdToRuleMap::get)
                     .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                    .toList();
             if (!ruleDtos.isEmpty()) {
                 result.put(fieldName, ruleDtos);
             }

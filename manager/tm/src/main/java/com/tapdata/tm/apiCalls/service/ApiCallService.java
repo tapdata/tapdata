@@ -376,8 +376,7 @@ public class ApiCallService {
         query.with(Sort.by("createTime").descending());
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
-        //@todo rule
-        return apiCallEntityList;
+        return Optional.of(apiCallEntityList).map(this::afterFindEntity).orElse(null);
     }
 
 
