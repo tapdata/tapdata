@@ -1,30 +1,18 @@
 package com.tapdata.tm.system.api.enums;
 
+import lombok.Getter;
+
 public enum RuleType {
     SYSTEM(999, "Built in system"),
     USER(0, "User defined")
     ;
+    @Getter
+    final
     int code;
-    String description;
+    final String description;
     RuleType(int code, String description) {
         this.code = code;
         this.description = description;
-    }
-
-    public int getCode() {
-        return code;
-    }
-
-    public static RuleType getDescription(Integer code) {
-        if (null == code) {
-            return SYSTEM;
-        }
-        for (RuleType value : values()) {
-            if (value.getCode() == code) {
-                return value;
-            }
-        }
-        return SYSTEM;
     }
 
     public static RuleType of(Integer e) {
