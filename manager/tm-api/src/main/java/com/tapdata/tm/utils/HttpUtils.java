@@ -12,6 +12,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,6 +22,9 @@ public class HttpUtils {
     private static final String UTF_8 ="utf-8";
 
 
+    public static String sendGetData(String path, Map<String, String> headMap) {
+        return sendGetData(path, headMap, true);
+    }
     /**
      * get请求传输数据
      *
@@ -28,7 +32,7 @@ public class HttpUtils {
      * @throws ClientProtocolException
      * @throws IOException
      */
-    public static String sendGetData(String path, Map<String, String> headMap) {
+    public static String sendGetData(String path, Map<String, String> headMap, boolean ignoreNotNormalResult) {
         log.info("request tcm, path：{}，headMap：{}  ",path,headMap);
         String result = "";
         CloseableHttpResponse response =null;
@@ -45,10 +49,10 @@ public class HttpUtils {
 
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), UTF_8);
-            } else {
+            if (ignoreNotNormalResult && response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 log.error("get请求传输 异常.url:{}, headMap:{}", path, headMap);
+            } else {
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
         } catch (ClientProtocolException e) {
             log.error("get请求传输 异常 ", e);
@@ -117,10 +121,10 @@ public class HttpUtils {
     public static String sendPostData(String path, String bodyJson) {
         Map<String, String> headMap = new HashMap<>();
         headMap.put("Token", "cba0125db7a18a32508a4e9e077058f33352c1c9124d2c3cbeb3f426096f100a");
-        return sendPostData(path, bodyJson, headMap);
+        return sendPostData(path, bodyJson, headMap, true);
     }
 
-    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap) {
+    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap, boolean ignoreNotNormalResult) {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
@@ -138,13 +142,11 @@ public class HttpUtils {
             response = httpClient.execute(httpPost);
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), UTF_8);
-            } else {
+            if (ignoreNotNormalResult && response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 log.error("post请求传输 异常.url:{}, bodyJson:{}", path, bodyJson);
+            } else {
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
-
-
         } catch (ClientProtocolException e) {
             log.error("post请求传输 异常 ", e);
             log.error("post请求传输 异常.path:{}, headMap:{}", path, bodyJson);
@@ -165,5 +167,4 @@ public class HttpUtils {
         log.debug(result);
         return result;
     }
-
 }

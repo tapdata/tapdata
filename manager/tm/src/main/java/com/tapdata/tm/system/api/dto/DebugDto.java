@@ -15,7 +15,7 @@ public class DebugDto {
     String apiId;
     String url;
     String method;
-    Map<String, String> body;
+    Map<String, Object> body;
     Map<String, String> headers;
-    Map<String, String> params;
+    Map<String, Object> params;
 }

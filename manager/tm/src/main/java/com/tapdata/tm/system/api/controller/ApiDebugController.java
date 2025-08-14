@@ -67,7 +67,7 @@ public class ApiDebugController extends BaseController {
     }
 
     DebugVo post(DebugDto debugDto) {
-        String json = HttpUtils.sendPostData(debugDto.getUrl(), JSON.toJSONString(debugDto.getBody()), debugDto.getHeaders());
+        String json = HttpUtils.sendPostData(debugDto.getUrl(), JSON.toJSONString(debugDto.getBody()), debugDto.getHeaders(), false);
         try {
             return JSON.parseObject(json, DebugVo.class);
         } catch (Exception e) {
@@ -76,7 +76,7 @@ public class ApiDebugController extends BaseController {
     }
 
     DebugVo get(DebugDto debugDto) {
-        String json = HttpUtils.sendGetData(debugDto.getUrl(), debugDto.getHeaders());
+        String json = HttpUtils.sendGetData(debugDto.getUrl(), debugDto.getHeaders(), false);
         try {
             return JSON.parseObject(json, DebugVo.class);
         } catch (Exception e) {

@@ -67,7 +67,7 @@ public class TextEncryptionRuleService {
             return false;
         }
         Settings item = settings.get(0);
-        return Boolean.TRUE.equals(item.getValue());
+        return Objects.equals(Boolean.TRUE.toString(), String.valueOf(item.getValue()));
     }
 
     public List<TextEncryptionRuleDto> getById(String ids) {

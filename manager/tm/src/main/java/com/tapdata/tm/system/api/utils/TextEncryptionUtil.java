@@ -37,10 +37,12 @@ public class TextEncryptionUtil {
     }
 
     static Map<String, Object> textEncryptionBySwitch(Map<String, Object> data) {
-        for (String key : data.keySet()) {
+        final List<String> keys = new ArrayList<>(data.keySet());
+        for (String key : keys) {
             if (SYSTEM_FIELDS.contains(key)) {
                 continue;
             }
+            handleFilter(key, data);
             Object value = data.get(key);
             if (value instanceof String || value instanceof Character) {
                 data.put(key, PARAM_REPLACE_CHAR);
@@ -59,6 +61,16 @@ public class TextEncryptionUtil {
         return data;
     }
 
+    protected static void handleFilter(String key, Map<String, Object> data) {
+        if ("filter".equals(key) && data.get(key) instanceof String json) {
+            try {
+                data.put(key, JSON.parseObject(json, Map.class));
+            } catch (Exception e) {
+                log.warn("filter not a json", e);
+            }
+        }
+    }
+
     static Object textEncryptionBySwitchOnce(String parent, Object value) {
         if (null == value || SYSTEM_FIELDS.contains(parent)) {
             return value;
@@ -67,6 +79,7 @@ public class TextEncryptionUtil {
             return PARAM_REPLACE_CHAR;
         } else if (value instanceof Map) {
             ((Map<String, Object>) value).forEach((k, v) -> ((Map<String, Object>) value).put(k, textEncryptionBySwitchOnce(parent + "." + k, v)));
+            return value;
         } else if (value instanceof Collection<?>) {
             List<Object> newOne = new ArrayList<>();
             for (Object item : ((Collection<?>) value)) {
@@ -76,9 +89,6 @@ public class TextEncryptionUtil {
         }
         return PARAM_REPLACE_CHAR;
     }
-
-
-
 
     public static DebugVo map(Map<String, List<TextEncryptionRuleDto>> config, DebugVo debugVo) {
         if (null == config || config.isEmpty()
