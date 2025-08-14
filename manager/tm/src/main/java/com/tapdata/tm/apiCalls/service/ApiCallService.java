@@ -689,6 +689,9 @@ public class ApiCallService {
     }
 
     String parse(String json, Boolean open) {
+        if (null == json || !Boolean.TRUE.equals(open)) {
+            return json;
+        }
         try {
             return JSON.toJSONString(TextEncryptionUtil.textEncryptionBySwitch(open, Lists.of(JSON.parseObject(json, Map.class))).get(0));
         } catch (Exception e) {

@@ -1,0 +1,23 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+        "category": "ApiServer",
+        "category_sort": "1",
+        "default_value": "true",
+        "documentation": "Desensitize API request parameters",
+        "hot_reloading": false,
+        "key": "audioLogEncryption",
+        "key_label": "Desensitize API request parameters",
+        "last_update": 0,
+        "scope": "global",
+        "sort": "6",
+        "user_visible": true,
+        "value": "true",
+        "enums": ["true", "false"]
+      }
+    ]
+  }
+]
