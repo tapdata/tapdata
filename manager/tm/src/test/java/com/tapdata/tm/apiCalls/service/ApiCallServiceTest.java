@@ -21,6 +21,7 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -60,9 +61,11 @@ class ApiCallServiceTest {
     private ApplicationService applicationService;
     private ApiCallStatsService apiCallStatsService;
     ApplicationConfig applicationConfig;
+    TextEncryptionRuleService ruleService;
 
     @BeforeEach
     void setUp() {
+        ruleService = mock(TextEncryptionRuleService.class);
         apiCallService = new ApiCallService();
         apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
         applicationConfig = mock(ApplicationConfig.class);
@@ -77,7 +80,7 @@ class ApiCallServiceTest {
         ReflectionTestUtils.setField(apiCallService, "applicationService", applicationService);
         apiCallStatsService = mock(ApiCallStatsService.class);
         ReflectionTestUtils.setField(apiCallService, "apiCallStatsService", apiCallStatsService);
-
+        ReflectionTestUtils.setField(apiCallService, "ruleService", ruleService);
     }
 
     @Nested
@@ -337,7 +340,7 @@ class ApiCallServiceTest {
             return apiCallEntity;
         });
 
-        assertSame(apiCallEntity, apiCallService.findOne(inputQuery));
+        assertEquals(null, apiCallService.findOne(inputQuery));
     }
 
     @Nested
@@ -405,31 +408,31 @@ class ApiCallServiceTest {
         void testGenericFilterCriteria() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaMethod() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"method\":\"get\"}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"method\":\"get\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"method\":\"get\",\"allPathId\":{\"$nin\":[\"\",null]},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaCode() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"code\":200}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"code\":\"200.0\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"code\":\"200.0\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaCodeV2() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"code\":\" \"}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"code\":{\"$ne\":\"200\"},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"code\":{\"$ne\":\"200\"},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaTime() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"start\":1753804800000,\"end\":1753891200000}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$and\":[{\"createTime\":{\"$gte\":1753804800000}},{\"createTime\":{\"$lte\":1753891200000}}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"$and\":[{\"createTime\":{\"$gte\":1753804800000}},{\"createTime\":{\"$lte\":1753891200000}}]}}", JSON.toJSONString(criteria));
         }
     }
 
@@ -600,6 +603,102 @@ class ApiCallServiceTest {
             Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
             Assertions.assertEquals(page.getItems().size(), 2);
             Assertions.assertEquals(page.getTotal(), 3L);
+        }
+    }
+
+    @Nested
+    class afterFindEntityTest {
+        @Test
+        void testNormal() {
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallEntity entity = new ApiCallEntity();
+            ApiCallEntity apiCallEntity = apiCallService.afterFindEntity(entity);
+            Assertions.assertEquals(entity, apiCallEntity);
+        }
+
+        @Test
+        void testBatchNormal() {
+            List<ApiCallEntity> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallEntity entity = new ApiCallEntity();
+            entities.add(entity);
+            entity.setAllPathId(new ObjectId().toHexString());
+            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormal2() {
+            List<ApiCallEntity> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDto() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoFalse() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonNotEmpty() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{\"id\": \"xxkdf\"}");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonInvalide() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonInvalide2() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormal2afterFindDto() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
         }
     }
 
