@@ -8,6 +8,7 @@ import com.tapdata.tm.system.api.dto.DebugDto;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
+import com.tapdata.tm.system.api.utils.ThreadPoolManager;
 import com.tapdata.tm.system.api.vo.DebugVo;
 import com.tapdata.tm.utils.HttpUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -35,17 +38,24 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 @RequestMapping(value = {"/api/debug"})
 public class ApiDebugController extends BaseController {
+    private static final ExecutorService ASYNC_EXECUTOR = ThreadPoolManager.getAsyncTaskExecutor();
+
     @Resource(name = "textEncryptionRuleService")
     TextEncryptionRuleService ruleService;
+
 
     @Operation(summary = "API debug")
     @PostMapping
     public ResponseMessage<DebugVo> debug(@RequestBody DebugDto debugDto) throws ExecutionException {
-        //1. 异步分别获取 API敏感字段配置 && 接口请求结果
-        //2. 对返回数据进行脱敏
-        //3. 返回结果
-        final CompletableFuture<Map<String, List<TextEncryptionRuleDto>>> supplyAsync = CompletableFuture.supplyAsync(() -> ruleService.getFieldEncryptionRuleByApiId(debugDto.getApiId()));
-        final CompletableFuture<DebugVo> future = CompletableFuture.supplyAsync(() -> http(debugDto));
+        //1. Asynchronous retrieval of API sensitive field configuration and interface request results separately
+        //2. Desensitize the returned data
+        //3. Return result
+        final CompletableFuture<Map<String, List<TextEncryptionRuleDto>>> supplyAsync = CompletableFuture.supplyAsync(
+                () -> ruleService.getFieldEncryptionRuleByApiId(debugDto.getApiId()),
+                ASYNC_EXECUTOR);
+        final CompletableFuture<DebugVo> future = CompletableFuture.supplyAsync(
+                () -> http(debugDto),
+                ASYNC_EXECUTOR);
         try {
             Map<String, List<TextEncryptionRuleDto>> objConfig = supplyAsync.get();
             DebugVo objHttp = future.get();
