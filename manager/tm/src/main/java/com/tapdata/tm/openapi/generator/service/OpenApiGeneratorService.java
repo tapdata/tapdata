@@ -956,44 +956,6 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
-	 * Create a secure temporary directory specifically for JSON files using pre-initialized temp directory
-	 *
-	 * @return Path to the created temporary directory
-	 * @throws CodeGenerationException if directory creation fails
-	 */
-	private Path createSecureTempDirectoryForJson() throws CodeGenerationException {
-		try {
-			// Ensure temp directory is initialized
-			ensureTempDirInitialized();
-
-			// Use the pre-initialized and validated temp directory
-			Path jsonDir = resolvedTempDir.resolve("openapi-json");
-
-			// The directory should already exist from initialization, but verify it's still writable
-			if (Files.exists(jsonDir) && Files.isWritable(jsonDir)) {
-				log.debug("Using pre-initialized JSON temp directory: {}", jsonDir);
-				return jsonDir;
-			} else {
-				// Try to recreate if it doesn't exist or isn't writable
-				Files.createDirectories(jsonDir);
-				if (Files.exists(jsonDir) && Files.isWritable(jsonDir)) {
-					log.debug("Recreated JSON temp directory: {}", jsonDir);
-					return jsonDir;
-				} else {
-					throw new CodeGenerationException("JSON directory is not writable: " + jsonDir);
-				}
-			}
-
-		} catch (IOException e) {
-			log.error("Failed to access JSON temp directory using resolved path: {}", resolvedTempDir, e);
-			throw new CodeGenerationException(
-					"Failed to create temporary directory for JSON files. Base temp directory: " + resolvedTempDir +
-					". Error: " + e.getMessage(), e
-			);
-		}
-	}
-
-	/**
 	 * Enhanced code generation with ZIP and JAR creation and GridFS upload
 	 * This method is used by the async service for complete SDK generation
 	 */

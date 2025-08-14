@@ -25,6 +25,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Async code generation service for handling SDK generation tasks
@@ -316,41 +317,143 @@ public class AsyncCodeGenerationService {
 	}
 
 	/**
-	 * Create module records and save module snapshots
+	 * Create module records and save module snapshots using batch processing to prevent memory overflow
 	 */
 	private void createModuleRecords(String sdkId, String versionId, List<String> moduleIds, UserDetail userDetail) {
-		List<ModulesDto> modulesToProcess;
+		// Configurable batch size for processing modules
+		final int BATCH_SIZE = 20; // Process 50 modules at a time
+		final int QUERY_BATCH_SIZE = 40; // Query 100 modules at a time for specific IDs
 
 		if (CollectionUtils.isEmpty(moduleIds)) {
-			log.info("No module IDs provided, retrieving all modules");
-			// Get all modules that are not deleted
-			Query allModulesQuery = new Query(Criteria.where("is_deleted").ne(true).and("status").is("active"));
-			modulesToProcess = modulesService.findAllDto(allModulesQuery, userDetail);
-			log.info("Found {} modules to process", modulesToProcess.size());
+			log.info("No module IDs provided, processing all active modules in batches");
+			processAllModulesInBatches(sdkId, versionId, userDetail, BATCH_SIZE);
 		} else {
-			log.info("Creating module records and saving snapshots for {} specific modules", moduleIds.size());
-			modulesToProcess = new ArrayList<>();
-			List<ObjectId> batchModuleIds = new ArrayList<>();
-			for (String moduleId : moduleIds) {
-				batchModuleIds.add(new ObjectId(moduleId));
-				if (batchModuleIds.size() >= 10) {
-					List<ModulesDto> modulesDtos = modulesService.findAllDto(Query.query(Criteria.where("_id").in(batchModuleIds)), userDetail);
-					if (null != modulesDtos) {
-						modulesToProcess.addAll(modulesDtos);
-					}
-					batchModuleIds.clear();
-				}
+			log.info("Processing {} specific modules in batches", moduleIds.size());
+			processSpecificModulesInBatches(sdkId, versionId, moduleIds, userDetail, QUERY_BATCH_SIZE, BATCH_SIZE);
+		}
+	}
+
+	/**
+	 * Process all active modules using pagination to prevent memory overflow
+	 */
+	private void processAllModulesInBatches(String sdkId, String versionId, UserDetail userDetail, int batchSize) {
+		Criteria baseCriteria = Criteria.where("is_deleted").ne(true).and("status").is("active");
+		Query baseQuery = new Query(baseCriteria);
+
+		// Get total count for logging
+		long totalCount = modulesService.count(baseQuery, userDetail);
+		log.info("Found {} total active modules to process in batches of {}", totalCount, batchSize);
+
+		int skip = 0;
+		int processedCount = 0;
+		int batchNumber = 1;
+
+		while (true) {
+			// Create paginated query with same criteria
+			Query paginatedQuery = new Query(baseCriteria)
+					.skip(skip)
+					.limit(batchSize);
+
+			// Retrieve current batch
+			List<ModulesDto> currentBatch = modulesService.findAllDto(paginatedQuery, userDetail);
+
+			if (currentBatch.isEmpty()) {
+				log.info("No more modules to process. Total processed: {}", processedCount);
+				break;
 			}
-			if (!batchModuleIds.isEmpty()) {
-				List<ModulesDto> modulesDtos = modulesService.findAllDto(Query.query(Criteria.where("_id").in(batchModuleIds)), userDetail);
-				if (null != modulesDtos) {
-					modulesToProcess.addAll(modulesDtos);
-				}
+
+			log.info("Processing batch {} with {} modules (skip: {}, processed so far: {})",
+					batchNumber, currentBatch.size(), skip, processedCount);
+
+			// Check if this is the last batch before processing
+			boolean isLastBatch = currentBatch.size() < batchSize;
+
+			// Process current batch
+			List<SdkModuleDto> sdkModuleBatch = processBatch(currentBatch, sdkId, versionId);
+
+			// Batch save all modules in current batch
+			saveBatch(sdkModuleBatch, userDetail, batchNumber);
+
+			processedCount += currentBatch.size();
+			skip += batchSize;
+			batchNumber++;
+
+			// Clear batch from memory
+			currentBatch.clear();
+			sdkModuleBatch.clear();
+
+			// If this was the last batch, we've reached the end
+			if (isLastBatch) {
+				log.info("Reached end of modules. Total processed: {}", processedCount);
+				break;
 			}
 		}
 
-		// Process all modules (either all modules or specific ones)
-		for (ModulesDto moduleDto : modulesToProcess) {
+		log.info("Completed processing all modules. Total processed: {} modules in {} batches",
+				processedCount, batchNumber - 1);
+	}
+
+	/**
+	 * Process specific modules by IDs using batch queries and processing
+	 */
+	private void processSpecificModulesInBatches(String sdkId, String versionId, List<String> moduleIds,
+												 UserDetail userDetail, int queryBatchSize, int processBatchSize) {
+		log.info("Processing {} specific modules with query batch size {} and process batch size {}",
+				moduleIds.size(), queryBatchSize, processBatchSize);
+
+		List<ModulesDto> allModulesToProcess = new ArrayList<>();
+
+		// First, retrieve all specified modules in query batches
+		for (int i = 0; i < moduleIds.size(); i += queryBatchSize) {
+			int endIndex = Math.min(i + queryBatchSize, moduleIds.size());
+			List<String> batchModuleIds = moduleIds.subList(i, endIndex);
+
+			List<ObjectId> objectIds = batchModuleIds.stream()
+					.map(ObjectId::new)
+					.collect(Collectors.toList());
+
+			Query batchQuery = Query.query(Criteria.where("_id").in(objectIds));
+			List<ModulesDto> batchModules = modulesService.findAllDto(batchQuery, userDetail);
+
+			if (batchModules != null && !batchModules.isEmpty()) {
+				allModulesToProcess.addAll(batchModules);
+				log.info("Retrieved {} modules in query batch {}/{}",
+						batchModules.size(), (i / queryBatchSize) + 1,
+						(moduleIds.size() + queryBatchSize - 1) / queryBatchSize);
+			}
+		}
+
+		log.info("Retrieved {} total modules, now processing in batches of {}",
+				allModulesToProcess.size(), processBatchSize);
+
+		// Process retrieved modules in processing batches
+		for (int i = 0; i < allModulesToProcess.size(); i += processBatchSize) {
+			int endIndex = Math.min(i + processBatchSize, allModulesToProcess.size());
+			List<ModulesDto> processBatch = allModulesToProcess.subList(i, endIndex);
+
+			int batchNumber = (i / processBatchSize) + 1;
+			log.info("Processing batch {} with {} modules", batchNumber, processBatch.size());
+
+			// Process current batch
+			List<SdkModuleDto> sdkModuleBatch = processBatch(processBatch, sdkId, versionId);
+
+			// Batch save all modules in current batch
+			saveBatch(sdkModuleBatch, userDetail, batchNumber);
+
+			// Clear processed batch from memory
+			sdkModuleBatch.clear();
+		}
+
+		log.info("Completed processing {} specific modules", allModulesToProcess.size());
+	}
+
+	/**
+	 * Process a batch of modules and convert them to SdkModuleDto
+	 */
+	private List<SdkModuleDto> processBatch(List<ModulesDto> modulesBatch, String sdkId, String versionId) {
+		List<SdkModuleDto> sdkModuleBatch = new ArrayList<>(modulesBatch.size());
+
+		for (ModulesDto moduleDto : modulesBatch) {
 			try {
 				SdkModuleDto sdkModuleDto = new SdkModuleDto();
 				// Copy module properties (this creates the snapshot)
@@ -361,12 +464,46 @@ public class AsyncCodeGenerationService {
 				// Clear ID to create new record
 				sdkModuleDto.setId(null);
 
-				// Save the module snapshot as SdkModule record
-				sdkModuleService.save(sdkModuleDto, userDetail);
-				log.info("Created SDK module record and saved snapshot for module ID: {}", moduleDto.getId());
+				sdkModuleBatch.add(sdkModuleDto);
 			} catch (Exception e) {
-				log.error("Failed to create SDK module record for module ID: {}", moduleDto.getId(), e);
+				log.error("Failed to process module ID: {} in batch, skipping", moduleDto.getId(), e);
 			}
+		}
+
+		return sdkModuleBatch;
+	}
+
+	/**
+	 * Save a batch of SdkModuleDto using batch save operation
+	 */
+	private void saveBatch(List<SdkModuleDto> sdkModuleBatch, UserDetail userDetail, int batchNumber) {
+		if (sdkModuleBatch.isEmpty()) {
+			log.warn("Batch {} is empty, skipping save operation", batchNumber);
+			return;
+		}
+
+		try {
+			// Use batch save operation
+			List<SdkModuleDto> savedModules = sdkModuleService.save(sdkModuleBatch, userDetail);
+			log.info("Successfully saved batch {} with {} SDK module records",
+					batchNumber, savedModules.size());
+		} catch (Exception e) {
+			log.error("Failed to save batch {} with {} modules, attempting individual saves",
+					batchNumber, sdkModuleBatch.size(), e);
+
+			// Fallback to individual saves if batch save fails
+			int successCount = 0;
+			for (SdkModuleDto sdkModuleDto : sdkModuleBatch) {
+				try {
+					sdkModuleService.save(sdkModuleDto, userDetail);
+					successCount++;
+				} catch (Exception individualError) {
+					log.error("Failed to save individual SDK module record for module ID: {}",
+							sdkModuleDto.getId(), individualError);
+				}
+			}
+			log.info("Batch {} fallback completed: {}/{} modules saved successfully",
+					batchNumber, successCount, sdkModuleBatch.size());
 		}
 	}
 
