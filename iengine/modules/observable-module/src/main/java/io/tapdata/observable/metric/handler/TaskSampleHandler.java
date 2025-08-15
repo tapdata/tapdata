@@ -2,7 +2,6 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.micrometer.core.instrument.Metrics;
-import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SamplerPrometheus;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -14,12 +13,10 @@ import io.tapdata.firedome.MultiTaggedGauge;
 import io.tapdata.firedome.PrometheusName;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -148,7 +145,7 @@ public class TaskSampleHandler extends AbstractHandler {
             taskName = Optional.ofNullable(task.getName()).orElse("");
 
             // build gauge for REPLICATE_LAG -> task_cdc_delay_seconds
-            replicateLagGauge = new MultiTaggedGauge(PrometheusName.TASK_CDC_DELAY_SECONDS, Metrics.globalRegistry,
+            replicateLagGauge = new MultiTaggedGauge(PrometheusName.TASK_CDC_DELAY_MS, Metrics.globalRegistry,
                     "task_id", "task_name", "task_type");
         } catch (Throwable ignore) {
         }
