@@ -17,6 +17,23 @@
         "user_visible": true,
         "value": "true",
         "enums": ["true", "false"]
+      },
+      {
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+        "category": "ApiServer",
+        "category_sort": "1",
+        "default_value": "30000",
+        "documentation": "The timeout period for API access to the database (millisecond)",
+        "hot_reloading": false,
+        "key": "accessTimeout",
+        "key_label": "Timeout period for API access to the database (millisecond)",
+        "last_update": 0,
+        "scope": "global",
+        "sort": "7",
+        "user_visible": true,
+        "value": "30000",
+        "min": "1000",
+        "max": "3600000"
       }
     ]
   }
