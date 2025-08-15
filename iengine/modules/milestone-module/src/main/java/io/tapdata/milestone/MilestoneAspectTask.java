@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
@@ -18,6 +19,8 @@ import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TmUnavailableException;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -72,6 +75,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     protected static final String KPI_CDC_WRITE = "CDC_WRITE";
     protected static final String KPI_TABLE_INIT = "TABLE_INIT";
     protected static final String KPI_DEDUCTION = "DEDUCTION";
+    private static final MultiTaggedGauge taskMilestoneGauge = new MultiTaggedGauge(PrometheusName.TASK_MILESTONE_STATUS, Metrics.globalRegistry, "task_id", "task_name", "task_type");
 
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
     private final Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
@@ -101,6 +105,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             m.setTotals((long) aspect.getTables().size());
             setRunning(m);
             taskMilestone(KPI_SNAPSHOT, this::setRunning);
+            taskMilestoneGauge.set(0, task.getId().toHexString(), task.getName(), task.getSyncType());
         });
         nodeRegister(SnapshotReadEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> setFinish(m));
         nodeRegister(SnapshotReadErrorAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
@@ -123,6 +128,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         nodeRegister(CDCReadStartedAspect.class, (nodeId, aspect) -> {
             nodeMilestones(nodeId, KPI_OPEN_CDC_READ, this::setFinish);
             nodeMilestones(nodeId, KPI_CDC_READ, this::setRunning);
+            taskMilestoneGauge.set(1, task.getId().toHexString(), task.getName(), task.getSyncType());
         });
         nodeRegister(CDCReadErrorAspect.class, (nodeId, aspect) -> nodeMilestones(nodeId, KPI_OPEN_CDC_READ, m -> {
             if (null == m.getEnd()) {

@@ -31,7 +31,9 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.micrometer.core.instrument.Metrics;
 import io.tapdata.HazelcastTaskNodeOffer;
+import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.DataFunctionAspect;
 import io.tapdata.aspect.DataNodeCloseAspect;
 import io.tapdata.aspect.DataNodeInitAspect;
@@ -57,6 +59,8 @@ import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkBaseException;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
@@ -148,6 +152,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected ExternalStorageDto externalStorageDto;
 	protected TaskPreviewInstance taskPreviewInstance;
 	protected HazelcastTaskNodeOffer hazelcastTaskNodeOffer;
+	protected static final MultiTaggedGauge taskActiveDbGauge = new MultiTaggedGauge(PrometheusName.TASK_ACTIVE_DB, Metrics.globalRegistry, "task_id", "task_name", "task_type", "node_id", "node_name");
 
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
@@ -701,6 +706,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				getErrorMessage(errorMessage, currentEx);
 				saveErrorEvent(taskDto.getErrorEvents(), errorEvent.get(),taskDto.getId(),skipError);
 				obsLogger.error(errorMessage, currentEx);
+				reportError2Prometheus(currentEx);
 				this.running.set(false);
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
@@ -720,6 +726,32 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			logger.error("Preview task node {}[{}] have error", getNode().getName(), getNode().getId(), currentEx);
 		}
 		return currentEx;
+	}
+
+	private void reportError2Prometheus(Throwable throwable) {
+		if (null == throwable) {
+			return;
+		}
+		Double value = null;
+		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+		if (matchThrowable instanceof TapCodeException) {
+			TapCodeException tapCodeException = (TapCodeException) matchThrowable;
+			if (tapCodeException.getCode().equals(PDKExCode_10.TERMINATE_BY_SERVER)) {
+				value = 1D;
+			} else if (tapCodeException.getCode().equals(PDKExCode_10.USERNAME_PASSWORD_INVALID)) {
+				value = 2D;
+			}
+		}
+		if (null != value) {
+			taskActiveDbGauge.set(
+					value,
+					processorBaseContext.getTaskDto().getId().toHexString(),
+					processorBaseContext.getTaskDto().getName(),
+					processorBaseContext.getTaskDto().getSyncType(),
+					getNode().getId(),
+					getNode().getName()
+			);
+		}
 	}
 
 	protected void stopJetJobIfStatusIsRunning(JobStatus status, TaskDto taskDto, com.hazelcast.jet.Job hazelcastJob) {
