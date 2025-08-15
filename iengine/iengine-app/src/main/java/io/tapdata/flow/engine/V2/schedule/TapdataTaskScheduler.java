@@ -2,6 +2,9 @@ package io.tapdata.flow.engine.V2.schedule;
 
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import io.micrometer.core.instrument.Metrics;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -97,6 +100,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final Map<String, Long> taskRetryTimeMap = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
+	private static final MultiTaggedGauge taskStatusGauge = new MultiTaggedGauge(PrometheusName.TASK_STATUS, Metrics.globalRegistry, "task_id", "task_name", "task_type");
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -444,6 +448,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 								if (taskRetryResult.isCanRetry()) {
 									boolean stop = taskClient.stop();
 									if (stop) {
+										taskStatusGauge.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
 										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
@@ -596,6 +601,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 		final boolean stop = taskClient.stop();
 		if (stop) {
+			if (stopTaskResource.equals(StopTaskResource.RUN_ERROR)) {
+				taskStatusGauge.set(1, taskClient.getTask().getId().toHexString(), taskClient.getTask().getName(), taskClient.getTask().getSyncType());
+			}
 			final TaskDto task = taskClient.getTask();
 			final String taskName = task.getName();
 			final String taskId = task.getId().toHexString();

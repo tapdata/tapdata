@@ -1,7 +1,7 @@
 package io.tapdata.common;
 
-import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
+import io.tapdata.firedome.MultiTaggedCounter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
