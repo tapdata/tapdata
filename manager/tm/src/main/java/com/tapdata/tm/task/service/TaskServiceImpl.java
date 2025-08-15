@@ -2525,7 +2525,8 @@ public class TaskServiceImpl extends TaskService{
             checkTaskName(newName, user, objectId);
         }
 
-        Update update = new Update();
+        var update = new Update();
+
         if (nameChanged) {
             update.set("name", newName);
         }
