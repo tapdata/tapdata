@@ -369,6 +369,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
 			}
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
+			Optional.of(taskDto).ifPresent(task -> taskStatusGauge.set(1, task.getId().toHexString(), task.getName(), task.getSyncType()));
 		} finally {
 			ThreadContext.clearAll();
 		}
