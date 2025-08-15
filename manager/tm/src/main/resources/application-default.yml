@@ -122,13 +122,10 @@ management:
   export:
     prometheus:
       enabled: true
-  metrics:
-    tags: # 为所有指标添加业务标签
-      application: 'TMApplication'
   endpoints:
     web:
       exposure:
-        include: "metrics, health, info, prometheus"  # Expose all actuator endpoints
+        include: "info, prometheus"  # Expose all actuator endpoints
   endpoint:
     health:
       show-details: always
