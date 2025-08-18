@@ -24,7 +24,10 @@ public class MicrometerLogAppender extends AbstractAppender {
     public void append(LogEvent event) {
         if (event.getLevel().isMoreSpecificThan(Level.ERROR)) {
             multiTaggedCounter.increment(event.getLevel().name());
-            log.info("MicrometerLogAppender increment ef_errors_log");
+            log.info("MicrometerLogAppender increment ef_errors_log ERROR");
+        } else if (event.getLevel().isMoreSpecificThan(Level.WARN)) {
+            multiTaggedCounter.increment(event.getLevel().name());
+            log.info("MicrometerLogAppender increment ef_errors_log WARN");
         }
     }
 }
