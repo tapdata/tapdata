@@ -242,6 +242,7 @@ public class TextEncryptionRuleService {
 
     protected TextEncryptionRuleDto mapToDto(TextEncryptionRuleEntity entity) {
         TextEncryptionRuleDto result = new TextEncryptionRuleDto();
+        result.setId(entity.getId());
         result.setName(entity.getName());
         result.setDescription(entity.getDescription());
         result.setRegex(entity.getRegex());
@@ -250,6 +251,7 @@ public class TextEncryptionRuleService {
         result.setOutputType(entity.getOutputType());
         result.setOutputCount(entity.getOutputCount());
         result.setCreateAt(entity.getCreateAt());
+        result.setLastUpdAt(entity.getLastUpdAt());
         if (null != entity.getType() && entity.getType() == RuleType.SYSTEM.getCode()) {
             Optional.ofNullable(entity.getNameLangCode())
                     .map(MessageUtil::getMessage)
