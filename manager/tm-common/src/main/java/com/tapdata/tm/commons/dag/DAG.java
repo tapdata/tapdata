@@ -1149,6 +1149,7 @@ public class DAG implements Serializable, Cloneable {
         private FieldChangeRuleGroup fieldChangeRules;
         private boolean isIsomorphismTask;
         private boolean preview;
+        private Map<String, String> tableRenameRelationMap;
 
         public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
             this.rollback = rollback;
