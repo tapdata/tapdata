@@ -99,7 +99,7 @@ public class TextEncryptionRuleService {
         final Object name = where.get("name");
         final Object type = where.get("type");
         final Query query = new Query();
-        final Criteria criteria = Criteria.where("deleted").is(0);
+        final Criteria criteria = Criteria.where("deleted").ne(1);
         Optional.ofNullable(name)
                 .map(String::valueOf)
                 .map(String::trim)
@@ -233,6 +233,7 @@ public class TextEncryptionRuleService {
 
     protected TextEncryptionRuleDto mapToDto(TextEncryptionRuleEntity entity) {
         TextEncryptionRuleDto result = new TextEncryptionRuleDto();
+        result.setId(entity.getId());
         result.setName(entity.getName());
         result.setDescription(entity.getDescription());
         result.setRegex(entity.getRegex());
@@ -241,6 +242,7 @@ public class TextEncryptionRuleService {
         result.setOutputType(entity.getOutputType());
         result.setOutputCount(entity.getOutputCount());
         result.setCreateAt(entity.getCreateAt());
+        result.setLastUpdAt(entity.getLastUpdAt());
         return result;
     }
 
