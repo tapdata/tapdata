@@ -100,7 +100,6 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final Map<String, Long> taskRetryTimeMap = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
-	private static final MultiTaggedGauge taskStatusGauge = new MultiTaggedGauge(PrometheusName.TASK_STATUS, Metrics.globalRegistry, "task_id", "task_name", "task_type");
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -369,7 +368,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
 			}
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
-			Optional.of(taskDto).ifPresent(task -> taskStatusGauge.set(1, task.getId().toHexString(), task.getName(), task.getSyncType()));
+			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, task.getId().toHexString(), task.getName(), task.getSyncType()));
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -449,7 +448,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 								if (taskRetryResult.isCanRetry()) {
 									boolean stop = taskClient.stop();
 									if (stop) {
-										taskStatusGauge.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
+										ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
 										clearTaskCacheAfterStopped(taskClient);
 										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
@@ -603,7 +602,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		final boolean stop = taskClient.stop();
 		if (stop) {
 			if (stopTaskResource.equals(StopTaskResource.RUN_ERROR)) {
-				taskStatusGauge.set(1, taskClient.getTask().getId().toHexString(), taskClient.getTask().getName(), taskClient.getTask().getSyncType());
+				ConnectorConstant.TASK_STATUS_GAUGE.set(1, taskClient.getTask().getId().toHexString(), taskClient.getTask().getName(), taskClient.getTask().getSyncType());
 			}
 			final TaskDto task = taskClient.getTask();
 			final String taskName = task.getName();
