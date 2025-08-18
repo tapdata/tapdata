@@ -281,7 +281,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             initAndStartSourceRunner();
             initTapCodecsFilterManager();
             initToTapValueConcurrent();
+            reportPrometheusTaskRunning();
         });
+    }
+
+    private void reportPrometheusTaskRunning() {
+        ConnectorConstant.TASK_STATUS_GAUGE.set(0, dataProcessorContext.getTaskDto().getId().toHexString(), dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getSyncType());
     }
 
     private void initTargetDataNodes() {

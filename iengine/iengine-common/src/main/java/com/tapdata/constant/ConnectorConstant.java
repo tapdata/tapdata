@@ -25,6 +25,9 @@
 package com.tapdata.constant;
 
 import com.tapdata.mongo.ClientMongoOperator;
+import io.micrometer.core.instrument.Metrics;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 
 import java.text.SimpleDateFormat;
 
@@ -353,5 +356,9 @@ public class ConnectorConstant {
 	public static final String TARGET_MONGO_DB_EXTERNAL_STORAGE_NAME = "Target MongoDB External Storage";
 
 	public static final String JUNIT_TEST_PROP_KEY = "JUNIT_TEST";
+
+
+	/* Prometheus metrics */
+	public static final MultiTaggedGauge TASK_STATUS_GAUGE = new MultiTaggedGauge(PrometheusName.TASK_STATUS, Metrics.globalRegistry, "task_id", "task_name", "task_type");
 
 }
