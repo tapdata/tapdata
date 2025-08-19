@@ -1248,23 +1248,37 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			throw new BizException("module.save.check.not-empty");
 		}
 		List<Field> fields = path.getFields();
+		String spiltChars = "@to@";
+		Map<String, List<Field>> collect = fields.stream()
+				.filter(Objects::nonNull)
+				.filter(f -> StringUtils.isNotBlank(f.getFieldName()))
+				.collect(Collectors.groupingBy(f -> {
+					String[] split = f.getFieldName().split("\\.");
+					if (split.length == 1) {
+						return "";
+					}
+					return split[split.length - 2] + spiltChars;
+				}));
 		Map<String, AtomicInteger> fieldAliasRepeatMap = new HashMap<>();
-		fields.stream()
-				.filter(e -> StringUtils.isNotBlank(e.getFieldAlias()))
-				.forEach(e -> fieldAliasRepeatMap
-						.computeIfAbsent(e.getFieldAlias(), key -> new AtomicInteger(0))
-						.addAndGet(1)
-				);
+		collect.forEach((suffix, aliasList) ->
+			aliasList.forEach(e -> fieldAliasRepeatMap
+							.computeIfAbsent(suffix + e.getFieldAlias(), key -> new AtomicInteger(0))
+							.addAndGet(1)
+					)
+		);
 		StringJoiner joiner = new StringJoiner(", ");
 		fieldAliasRepeatMap.forEach((k, v) -> {
 			if (v.get() > 1) {
-				joiner.add(k);
+				String[] split = k.split(spiltChars);
+				joiner.add(split[split.length - 1]);
 			}
 		});
 		if (joiner.length() > 0) {
 			throw new BizException("module.save.check.repat", joiner.toString());
 		}
 	}
+
+
 
 	private void checkoutInputParamIsValid(ModulesDto modulesDto) {
 		String apiType = modulesDto.getApiType();

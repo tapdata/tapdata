@@ -926,9 +926,34 @@ class ModulesServiceTest {
             Path path = new Path();
             path.setFields(fields);
             Field field = new Field();
+            field.setFieldName("test");
             field.setFieldAlias("test");
             fields.add(field);
             Field field1 = new Field();
+            field1.setFieldName("test1");
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testRepeat2() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldName("test.oid");
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldName("test.mid");
             field1.setFieldAlias("test");
             fields.add(field1);
             Assertions.assertThrows(BizException.class, () -> {
