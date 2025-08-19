@@ -17,52 +17,67 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @Document("TextEncryptionRule")
 public class TextEncryptionRuleEntity extends BaseEntity {
     /**
-     * 规则名称
+     * Rule name
      * */
     @Field("name")
     String name;
 
     /**
-     * 规则类型
+     * Rule type
      * @see com.tapdata.tm.system.api.enums.RuleType
      * */
     @Field("type")
     Integer type;
 
     /**
-     * 规则描述
+     * rule description
      * */
     @Field("description")
     String description;
 
     /**
-     * 正则表达式：具体的匹配规则
+     * regex: Specific matching rules
      * */
     @Field("regex")
     String regex;
 
     /**
-     * 替换符号
+     * Replace symbol
      * */
     @Field("outputChar")
     String outputChar;
 
     /**
-     * 替换类型
+     * Replace type
      * @see com.tapdata.tm.system.api.enums.OutputType
      * */
     @Field("outputType")
     Integer outputType;
 
     /**
-     * 替换数量，将识别出的连续字符用替换符号替换为${outputChar}的个数
+     * Replace the quantity by using replacement symbols to replace the recognized consecutive characters with the number of ${outputted Char}
      * */
     @Field("outputCount")
     Integer outputCount;
 
     /**
-     * 删除标记，1表示被删除
+     * Delete marker, 1 indicates deleted
      * */
     @Field("deleted")
     Integer deleted;
+
+    /**
+     * Name: Multilingual Code
+     * */
+    @Field("nameLangCode")
+    String nameLangCode;
+
+    /**
+     * Description Text Multilingual Code
+     * */
+    @Field("descriptionLangCode")
+    String descriptionLangCode;
+
+    @Field("sort")
+    int sort;
 }

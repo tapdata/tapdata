@@ -16,6 +16,7 @@ import com.tapdata.tm.system.api.entity.TextEncryptionRuleEntity;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.enums.RuleType;
 import com.tapdata.tm.system.api.repository.TextEncryptionRuleRepository;
+import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.QueryUtil;
 import lombok.Setter;
@@ -103,7 +104,10 @@ public class TextEncryptionRuleService {
         Optional.ofNullable(name)
                 .map(String::valueOf)
                 .map(String::trim)
-                .ifPresent(e -> criteria.and("name").regex(e));
+                .ifPresent(e -> criteria.orOperator(
+                        Criteria.where("name").regex(e, "i").and("type").is(RuleType.USER.getCode()),
+                        Criteria.where("type").is(RuleType.SYSTEM.getCode())
+                ));
         Optional.ofNullable(type)
                 .map(String::valueOf)
                         .map(e -> {
@@ -115,7 +119,6 @@ public class TextEncryptionRuleService {
                         })
                 .map(RuleType::of)
                 .ifPresent(e -> criteria.and("type").is(e));
-
         query.addCriteria(criteria);
         final long count = repository.count(query);
         if (count <= 0) {
@@ -129,7 +132,13 @@ public class TextEncryptionRuleService {
         final List<TextEncryptionRuleDto> collect = all.stream()
                 .filter(Objects::nonNull)
                 .map(this::mapToDto)
-                .toList();
+                .filter(e -> {
+                    if (null != name && e.getType() == RuleType.SYSTEM.getCode()) {
+                        return e.getName().contains(name.toString());
+                    } else {
+                        return true;
+                    }
+                }).toList();
         return Page.page(collect, count);
     }
 
@@ -243,6 +252,14 @@ public class TextEncryptionRuleService {
         result.setOutputCount(entity.getOutputCount());
         result.setCreateAt(entity.getCreateAt());
         result.setLastUpdAt(entity.getLastUpdAt());
+        if (null != entity.getType() && entity.getType() == RuleType.SYSTEM.getCode()) {
+            Optional.ofNullable(entity.getNameLangCode())
+                    .map(MessageUtil::getMessage)
+                    .ifPresent(result::setName);
+            Optional.ofNullable(entity.getDescriptionLangCode())
+                    .map(MessageUtil::getMessage)
+                    .ifPresent(result::setDescription);
+        }
         return result;
     }
 
