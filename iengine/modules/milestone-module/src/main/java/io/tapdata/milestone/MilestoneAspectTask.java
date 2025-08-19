@@ -75,7 +75,15 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     protected static final String KPI_CDC_WRITE = "CDC_WRITE";
     protected static final String KPI_TABLE_INIT = "TABLE_INIT";
     protected static final String KPI_DEDUCTION = "DEDUCTION";
-    private static final MultiTaggedGauge taskMilestoneGauge = new MultiTaggedGauge(PrometheusName.TASK_MILESTONE_STATUS, Metrics.globalRegistry, "task_id", "task_name", "task_type");
+
+    private static final MultiTaggedGauge taskMilestoneStatusGauge = new MultiTaggedGauge(PrometheusName.TASK_MILESTONE_STATUS, Metrics.globalRegistry,
+            "task_id", "task_name", "task_type", "milestone_status", "milestone", "order");
+    private static final MultiTaggedGauge taskMilestoneTimeGauge = new MultiTaggedGauge(PrometheusName.TASK_MILESTONE_TIME, Metrics.globalRegistry,
+            "task_id", "task_name", "task_type", "milestone_status", "milestone", "order");
+
+    /* dynamic milestone order for prometheus tag 'order', based on actual creation sequence per task */
+    private final Map<String, Integer> milestoneOrder = new ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicInteger milestoneOrderSeq = new java.util.concurrent.atomic.AtomicInteger(1);
 
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
     private final Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
@@ -86,6 +94,42 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private final Set<String> targetNodes = new HashSet<>();
 	private final AtomicLong snapshotTableCounts = new AtomicLong(0);
 	private final AtomicLong snapshotTableProgress = new AtomicLong(0);
+
+    private String statusTag(io.tapdata.milestone.constants.MilestoneStatus status) {
+        return Optional.ofNullable(status).map(s -> s.name().toLowerCase(Locale.ROOT)).orElse("");
+    }
+
+    private String orderOf(String code) {
+        Integer idx = milestoneOrder.get(code);
+        return String.valueOf(idx == null ? 999 : idx);
+    }
+
+    private void reportMilestoneStatus(String code, io.tapdata.milestone.constants.MilestoneStatus status) {
+        try {
+            taskMilestoneStatusGauge.set(1,
+                    task.getId().toHexString(),
+                    task.getName(),
+                    task.getSyncType(),
+                    statusTag(status),
+                    code,
+                    orderOf(code)
+            );
+        } catch (Throwable ignore) {}
+    }
+
+    private void reportMilestoneTime(String code, io.tapdata.milestone.constants.MilestoneStatus status, long durationMs) {
+        if (status != io.tapdata.milestone.constants.MilestoneStatus.FINISH && status != io.tapdata.milestone.constants.MilestoneStatus.ERROR) return;
+        try {
+            taskMilestoneTimeGauge.set(durationMs,
+                    task.getId().toHexString(),
+                    task.getName(),
+                    task.getSyncType(),
+                    statusTag(status),
+                    code,
+                    orderOf(code)
+            );
+        } catch (Throwable ignore) {}
+    }
 
     public MilestoneAspectTask() {
         init();
@@ -105,7 +149,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             m.setTotals((long) aspect.getTables().size());
             setRunning(m);
             taskMilestone(KPI_SNAPSHOT, this::setRunning);
-            taskMilestoneGauge.set(0, task.getId().toHexString(), task.getName(), task.getSyncType());
         });
         nodeRegister(SnapshotReadEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> setFinish(m));
         nodeRegister(SnapshotReadErrorAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
@@ -128,7 +171,6 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         nodeRegister(CDCReadStartedAspect.class, (nodeId, aspect) -> {
             nodeMilestones(nodeId, KPI_OPEN_CDC_READ, this::setFinish);
             nodeMilestones(nodeId, KPI_CDC_READ, this::setRunning);
-            taskMilestoneGauge.set(1, task.getId().toHexString(), task.getName(), task.getSyncType());
         });
         nodeRegister(CDCReadErrorAspect.class, (nodeId, aspect) -> nodeMilestones(nodeId, KPI_OPEN_CDC_READ, m -> {
             if (null == m.getEnd()) {
@@ -462,6 +504,10 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == entity) {
             synchronized (milestones) {
                 entity = milestones.computeIfAbsent(code, s -> new MilestoneEntity(code, MilestoneStatus.WAITING));
+                // set dynamic order at creation time
+                milestoneOrder.computeIfAbsent(code, k -> milestoneOrderSeq.getAndIncrement());
+                // report milestone creation (waiting)
+                reportMilestoneStatus(code, MilestoneStatus.WAITING);
             }
         }
         if (null != consumer) {
@@ -478,6 +524,12 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
 
         MilestoneEntity entity = nodeMap.computeIfAbsent(code, s -> new MilestoneEntity(code, MilestoneStatus.WAITING));
+        // set dynamic order at creation time
+        milestoneOrder.computeIfAbsent(code, k -> milestoneOrderSeq.getAndIncrement());
+        // report milestone created(waiting)
+        if (entity.getBegin() == null && entity.getStatus() == MilestoneStatus.WAITING) {
+            reportMilestoneStatus(code, MilestoneStatus.WAITING);
+        }
         consumer.accept(entity);
     }
 
@@ -508,6 +560,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.RUNNING);
+            // report RUNNING when first time begin
+            reportMilestoneStatus(milestone.getCode(), MilestoneStatus.RUNNING);
         }
         milestone.setEnd(null);
         milestone.setErrorMessage(null);
@@ -520,6 +574,12 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == milestone.getEnd()) {
             milestone.setEnd(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.FINISH);
+            // report FINISH status and duration
+            reportMilestoneStatus(milestone.getCode(), MilestoneStatus.FINISH);
+            long duration = milestone.getEnd() - milestone.getBegin();
+            if (duration >= 0) {
+                reportMilestoneTime(milestone.getCode(), MilestoneStatus.FINISH, duration);
+            }
         }
     }
 
@@ -531,7 +591,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected void setError(Throwable error, MilestoneEntity m) {
-        m.setEnd(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        m.setEnd(now);
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(error).map(Throwable::getMessage).orElse(null));
         if (error != null && m.getErrorCode() == null) {
@@ -543,6 +604,14 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         Throwable tapCodeError = CommonUtils.matchThrowable(error, TapCodeException.class);
         if (tapCodeError != null) {
             m.setDynamicDescriptionParameters(((TapCodeException) tapCodeError).getDynamicDescriptionParameters());
+        }
+        // report ERROR status and duration
+        reportMilestoneStatus(m.getCode(), MilestoneStatus.ERROR);
+        if (m.getBegin() != null) {
+            long duration = now - m.getBegin();
+            if (duration >= 0) {
+                reportMilestoneTime(m.getCode(), MilestoneStatus.ERROR, duration);
+            }
         }
     }
 
