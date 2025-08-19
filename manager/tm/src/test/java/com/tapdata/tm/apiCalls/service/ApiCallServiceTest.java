@@ -340,7 +340,7 @@ class ApiCallServiceTest {
             return apiCallEntity;
         });
 
-        assertEquals(null, apiCallService.findOne(inputQuery));
+        assertEquals(apiCallEntity, apiCallService.findOne(inputQuery));
     }
 
     @Nested
