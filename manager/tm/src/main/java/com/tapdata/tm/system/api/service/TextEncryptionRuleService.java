@@ -86,7 +86,7 @@ public class TextEncryptionRuleService {
         if (objectIds.isEmpty()) {
             return new ArrayList<>();
         }
-        final Query query = Query.query(Criteria.where("_id").in(objectIds).and("delete").is(0));
+        final Query query = Query.query(Criteria.where("_id").in(objectIds).and("delete").ne(1));
         final List<TextEncryptionRuleEntity> findResult = repository.findAll(query);
         return findResult
                 .stream()

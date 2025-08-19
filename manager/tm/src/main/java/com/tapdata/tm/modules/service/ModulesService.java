@@ -1252,6 +1252,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, List<Field>> collect = fields.stream()
 				.filter(Objects::nonNull)
 				.filter(f -> StringUtils.isNotBlank(f.getFieldName()))
+				.filter(f -> StringUtils.isNotBlank(f.getFieldAlias()))
 				.collect(Collectors.groupingBy(f -> {
 					String[] split = f.getFieldName().split("\\.");
 					if (split.length == 1) {
