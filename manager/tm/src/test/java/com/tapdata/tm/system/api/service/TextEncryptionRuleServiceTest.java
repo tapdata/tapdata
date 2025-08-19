@@ -13,6 +13,7 @@ import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.entity.TextEncryptionRuleEntity;
 import com.tapdata.tm.system.api.enums.OutputType;
+import com.tapdata.tm.system.api.enums.RuleType;
 import com.tapdata.tm.system.api.repository.TextEncryptionRuleRepository;
 import com.tapdata.tm.utils.Lists;
 import org.bson.types.ObjectId;
@@ -190,6 +191,18 @@ class TextEncryptionRuleServiceTest {
             dto.setRegex(".*");
             dto.setOutputType(OutputType.CUSTOM.getCode());
             dto.setOutputCount(-1);
+            when(repository.count(any(Query.class))).thenReturn(0L);
+            when(repository.save(any(TextEncryptionRuleEntity.class), any(UserDetail.class))).thenReturn(new TextEncryptionRuleEntity());
+            Assertions.assertTrue(service.create(dto, userDetail));
+        }
+
+        @Test
+        void testSystem() {
+            dto.setName("gavin'xiao");
+            dto.setRegex(".*");
+            dto.setOutputType(OutputType.CUSTOM.getCode());
+            dto.setOutputCount(-1);
+            dto.setType(RuleType.SYSTEM.getCode());
             when(repository.count(any(Query.class))).thenReturn(0L);
             when(repository.save(any(TextEncryptionRuleEntity.class), any(UserDetail.class))).thenReturn(new TextEncryptionRuleEntity());
             Assertions.assertTrue(service.create(dto, userDetail));
@@ -542,6 +555,20 @@ class TextEncryptionRuleServiceTest {
         void testNormal() {
             when(service.mapToDto(any(TextEncryptionRuleEntity.class))).thenCallRealMethod();
             Assertions.assertNotNull(service.mapToDto(new TextEncryptionRuleEntity()));
+        }
+        @Test
+        void testSystem() {
+            TextEncryptionRuleEntity textEncryptionRuleEntity = new TextEncryptionRuleEntity();
+            textEncryptionRuleEntity.setType(RuleType.SYSTEM.getCode());
+            when(service.mapToDto(any(TextEncryptionRuleEntity.class))).thenCallRealMethod();
+            Assertions.assertNotNull(service.mapToDto(textEncryptionRuleEntity));
+        }
+        @Test
+        void testUser() {
+            TextEncryptionRuleEntity textEncryptionRuleEntity = new TextEncryptionRuleEntity();
+            textEncryptionRuleEntity.setType(RuleType.USER.getCode());
+            when(service.mapToDto(any(TextEncryptionRuleEntity.class))).thenCallRealMethod();
+            Assertions.assertNotNull(service.mapToDto(textEncryptionRuleEntity));
         }
     }
 
