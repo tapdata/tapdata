@@ -168,6 +168,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract void rename(String taskId, String newName, UserDetail user);
 
+    public abstract void updateTaskInfo(String taskId, String newName, String desc, UserDetail user);
+
     public abstract TaskStatsDto stats(UserDetail userDetail);
 
     public abstract DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail);

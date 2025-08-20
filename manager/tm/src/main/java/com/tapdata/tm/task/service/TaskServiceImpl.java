@@ -2510,6 +2510,33 @@ public class TaskServiceImpl extends TaskService{
 
     }
 
+    public void updateTaskInfo(String taskId, String newName, String desc, UserDetail user) {
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
+        TaskDto taskDto = checkExistById(objectId, user, "name", "desc");
+
+        boolean nameChanged = newName != null && !newName.equals(taskDto.getName());
+        boolean descChanged = desc != null && !desc.equals(taskDto.getDesc());
+
+        if (!nameChanged && !descChanged) {
+            return;
+        }
+
+        if (nameChanged) {
+            checkTaskName(newName, user, objectId);
+        }
+
+        var update = new Update();
+
+        if (nameChanged) {
+            update.set("name", newName);
+        }
+        if (descChanged) {
+            update.set("desc", desc);
+        }
+
+        updateById(objectId, update, user);
+    }
+
     public TaskStatsDto stats(UserDetail userDetail) {
 
         Map<String, Long> taskTypeStats = typeTaskStats(userDetail);
