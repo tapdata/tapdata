@@ -28,8 +28,9 @@ public class InspectCronJob implements Job {
         log.info("工作任务的名称:" + inspectId + " 工作任务组的名称:" + jobKey.getGroup());
         InspectDto inspectDto = inspectService.findById(MongoUtils.toObjectId(inspectId));
 
+        Boolean enabled = inspectDto.getEnabled();
         String status = inspectDto.getStatus();
-        if (InspectStatusEnum.SCHEDULING.getValue().equals(status) || InspectStatusEnum.RUNNING.getValue().equals(status)) {
+        if (!Boolean.TRUE.equals(enabled) || InspectStatusEnum.SCHEDULING.getValue().equals(status) || InspectStatusEnum.RUNNING.getValue().equals(status)) {
             log.info("inspect {},status:{}  不用在进行校验", inspectId, status);
         } else {
             log.info("inspect {},status:{}  定时在进行校验", inspectId, status);
