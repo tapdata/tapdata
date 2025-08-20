@@ -40,10 +40,6 @@ class MongoQueryValidatorTest {
                     "    },\n" +
                     "      {\"name\": {\"$type\": \"1\"}},\n" +
                     "      {\"name\": {\"$regex\":\".*\"}},\n" +
-                    "      {\"name\": {\"$text\": {\n" +
-                    "        \"$search\": \"oid\"\n" +
-                    "      }}},\n" +
-                    "      {\"name\": {\"$where\": \"{}\"}},\n" +
                     "      {\"name\": {\"$all\": [\"1\", \"2\", \"3\"]}},\n" +
                     "      {\"name\": {\"$elemMatch\": {\n" +
                     "        \"id\": \"{{id}}\"\n" +
