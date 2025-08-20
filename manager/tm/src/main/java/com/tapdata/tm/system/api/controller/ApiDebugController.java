@@ -14,6 +14,7 @@ import com.tapdata.tm.utils.HttpUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.client.methods.CloseableHttpResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -53,12 +54,14 @@ public class ApiDebugController extends BaseController {
         final CompletableFuture<Map<String, List<TextEncryptionRuleDto>>> supplyAsync = CompletableFuture.supplyAsync(
                 () -> ruleService.getFieldEncryptionRuleByApiId(debugDto.getApiId()),
                 ASYNC_EXECUTOR);
+        final AtomicReference<Integer> httpCode = new AtomicReference<>(null);
         final CompletableFuture<DebugVo> future = CompletableFuture.supplyAsync(
-                () -> http(debugDto),
+                () -> http(debugDto, e -> this.updateHttpStatus(httpCode, e)),
                 ASYNC_EXECUTOR);
         try {
             Map<String, List<TextEncryptionRuleDto>> objConfig = supplyAsync.get();
             DebugVo objHttp = future.get();
+            objHttp.setHttpCode(httpCode.get());
             return success(TextEncryptionUtil.map(objConfig, objHttp));
         } catch (InterruptedException e) {
             log.warn("Interrupted when get api debug result: {}", e.getMessage(), e);
@@ -67,17 +70,22 @@ public class ApiDebugController extends BaseController {
         }
     }
 
-    protected DebugVo http(DebugDto debugDto) {
+    protected DebugVo http(DebugDto debugDto, HttpUtils.DoAfter after) {
         final String method = String.valueOf(debugDto.getMethod()).trim().toUpperCase();
         return switch (method) {
-            case "POST" -> post(debugDto);
-            case "GET" -> get(debugDto);
+            case "POST" -> post(debugDto, after);
+            case "GET" -> get(debugDto, after);
             default -> throw new BizException("api.debug.not.support", method);
         };
     }
 
-    DebugVo post(DebugDto debugDto) {
-        String json = HttpUtils.sendPostData(debugDto.getUrl(), JSON.toJSONString(debugDto.getBody()), debugDto.getHeaders(), false);
+    DebugVo post(DebugDto debugDto, HttpUtils.DoAfter after) {
+        String json = HttpUtils.sendPostData(
+                debugDto.getUrl(),
+                JSON.toJSONString(debugDto.getBody()),
+                debugDto.getHeaders(),
+                false,
+                after);
         try {
             return JSON.parseObject(json, DebugVo.class);
         } catch (Exception e) {
@@ -85,12 +93,20 @@ public class ApiDebugController extends BaseController {
         }
     }
 
-    DebugVo get(DebugDto debugDto) {
-        String json = HttpUtils.sendGetData(debugDto.getUrl(), debugDto.getHeaders(), false);
+    DebugVo get(DebugDto debugDto, HttpUtils.DoAfter after) {
+        String json = HttpUtils.sendGetData(
+                debugDto.getUrl(),
+                debugDto.getHeaders(),
+                false, after);
         try {
             return JSON.parseObject(json, DebugVo.class);
         } catch (Exception e) {
             return DebugVo.error("Invalid data: " +json);
         }
+    }
+
+    void updateHttpStatus(AtomicReference<Integer> httpCode, CloseableHttpResponse r) {
+        int statusCode = r.getStatusLine().getStatusCode();
+        httpCode.set(statusCode);
     }
 }

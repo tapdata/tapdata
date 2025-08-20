@@ -12,14 +12,32 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 public class HttpUtils {
     private static final String UTF_8 ="utf-8";
+
+    public interface DoAfter {
+        void doAfter(CloseableHttpResponse response);
+
+        static void forEach(CloseableHttpResponse response, DoAfter... doAfters) {
+            Optional.ofNullable(response)
+                    .ifPresent(r -> Optional.ofNullable(doAfters)
+                            .ifPresent(es -> new ArrayList<>(Arrays.asList(es)).forEach(e -> {
+                               try {
+                                   e.doAfter(r);
+                               } catch (Exception ex) {
+                                   log.warn("Failed to execute post method：{}", ex.getMessage(), ex);
+                               }
+                            })));
+        }
+    }
 
 
     public static String sendGetData(String path, Map<String, String> headMap) {
@@ -32,7 +50,7 @@ public class HttpUtils {
      * @throws ClientProtocolException
      * @throws IOException
      */
-    public static String sendGetData(String path, Map<String, String> headMap, boolean ignoreNotNormalResult) {
+    public static String sendGetData(String path, Map<String, String> headMap, boolean ignoreNotNormalResult, DoAfter ... execute) {
         log.info("request tcm, path：{}，headMap：{}  ",path,headMap);
         String result = "";
         CloseableHttpResponse response =null;
@@ -64,6 +82,7 @@ public class HttpUtils {
         finally {
             try {
                 if (null!=response){
+                    DoAfter.forEach(response, execute);
                     response.close();
                 }
             } catch (IOException e) {
@@ -124,7 +143,7 @@ public class HttpUtils {
         return sendPostData(path, bodyJson, headMap, true);
     }
 
-    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap, boolean ignoreNotNormalResult) {
+    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap, boolean ignoreNotNormalResult, DoAfter ... execute) {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
@@ -140,6 +159,7 @@ public class HttpUtils {
             httpPost.setEntity(entity);
             // 通过请求对象获取响应对象
             response = httpClient.execute(httpPost);
+
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
             if (ignoreNotNormalResult && response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
@@ -158,6 +178,7 @@ public class HttpUtils {
             try {
                 // 释放链接
                 if (null!=response){
+                    DoAfter.forEach(response, execute);
                     response.close();
                 }
             } catch (IOException e) {
