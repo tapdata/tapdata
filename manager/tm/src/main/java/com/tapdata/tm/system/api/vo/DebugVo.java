@@ -15,6 +15,8 @@ import java.util.Map;
  */
 @Data
 public class DebugVo {
+    Integer httpCode;
+
     List<Map<String, Object>> data;
 
     Map<String, Object> total;
