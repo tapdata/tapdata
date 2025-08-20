@@ -405,31 +405,31 @@ class ApiCallServiceTest {
         void testGenericFilterCriteria() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaMethod() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"method\":\"get\"}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"method\":\"get\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"method\":\"get\",\"allPathId\":{\"$nin\":[\"\",null]},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaCode() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"code\":200}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"code\":\"200.0\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"code\":\"200.0\",\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaCodeV2() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"code\":\" \"}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"code\":{\"$ne\":\"200\"},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"code\":{\"$ne\":\"200\"},\"$and\":[{},{}]}}", JSON.toJSONString(criteria));
         }
         @Test
         void testGenericFilterCriteriaTime() {
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"start\":1753804800000,\"end\":1753891200000}}");
             Criteria criteria = apiCallService.genericFilterCriteria(filter);
-            Assertions.assertEquals("{\"criteriaObject\":{\"$and\":[{\"createTime\":{\"$gte\":1753804800000}},{\"createTime\":{\"$lte\":1753891200000}}]}}", JSON.toJSONString(criteria));
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]},\"$and\":[{\"createTime\":{\"$gte\":1753804800000}},{\"createTime\":{\"$lte\":1753891200000}}]}}", JSON.toJSONString(criteria));
         }
     }
 
