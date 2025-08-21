@@ -46,7 +46,7 @@ public class TextEncryptionUtil {
             handleFilter(key, data);
             Object value = data.get(key);
             if (value instanceof String || value instanceof Character) {
-                data.put(key, PARAM_REPLACE_CHAR);
+                data.put(key, parseAndEncryptionJson(key, value));
             } else if (value instanceof Map) {
                 data.put(key, textEncryptionBySwitchOnce(key, value));
             } else if (value instanceof Collection<?>) {
@@ -77,7 +77,7 @@ public class TextEncryptionUtil {
             return value;
         }
         if (value instanceof String || value instanceof Character) {
-            return PARAM_REPLACE_CHAR;
+            return parseAndEncryptionJson(parent, value);
         } else if (value instanceof Map) {
             ((Map<String, Object>) value).forEach((k, v) -> ((Map<String, Object>) value).put(k, textEncryptionBySwitchOnce(parent + "." + k, v)));
             return value;
@@ -89,6 +89,18 @@ public class TextEncryptionUtil {
             return newOne;
         }
         return PARAM_REPLACE_CHAR;
+    }
+
+    static Object parseAndEncryptionJson(String parent, Object jsonItem) {
+        if (jsonItem instanceof Character) {
+            return PARAM_REPLACE_CHAR;
+        }
+        try {
+            return textEncryptionBySwitchOnce(parent, JSON.parseObject(String.valueOf(jsonItem)));
+        } catch (Exception e) {
+            log.warn("unable to parse json, return encryption chars as string. json: {}, msg: {}", parent, e.getMessage());
+            return PARAM_REPLACE_CHAR;
+        }
     }
 
     public static DebugVo map(Map<String, List<TextEncryptionRuleDto>> config, DebugVo debugVo) {
