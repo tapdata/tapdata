@@ -1,6 +1,7 @@
 package com.tapdata.tm.system.api.utils;
 
 import com.alibaba.fastjson.JSON;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.vo.DebugVo;
@@ -23,10 +24,25 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 public class TextEncryptionUtil {
+    public static final String FILTER = "filter";
     public static final List<String> SYSTEM_FIELDS = List.of("limit", "page", "filter.fields", "filter.sort", "filter.order", "sort", "order");
     public static final String PARAM_REPLACE_CHAR = "******";
 
     private TextEncryptionUtil() {
+    }
+
+    public static void formatFilter(Map<String, Object> item) {
+        if (item.get(FILTER) instanceof String json) {
+            if (StringUtils.isBlank(json)) {
+                item.put(FILTER, new HashMap<>());
+                return;
+            }
+            try {
+                item.put(FILTER, JSON.parseObject(json, Map.class));
+            } catch (Exception e) {
+                log.warn("filter not a json", e);
+            }
+        }
     }
 
     public static List<Map<String, Object>> textEncryptionBySwitch(Boolean open, List<Map<String, Object>> data) {
@@ -37,7 +53,7 @@ public class TextEncryptionUtil {
         return data;
     }
 
-    static Map<String, Object> textEncryptionBySwitch(Map<String, Object> data) {
+    public static Map<String, Object> textEncryptionBySwitch(Map<String, Object> data) {
         final List<String> keys = new ArrayList<>(data.keySet());
         for (String key : keys) {
             if (SYSTEM_FIELDS.contains(key)) {
@@ -63,7 +79,7 @@ public class TextEncryptionUtil {
     }
 
     protected static void handleFilter(String key, Map<String, Object> data) {
-        if ("filter".equals(key) && data.get(key) instanceof String json) {
+        if (FILTER.equals(key) && data.get(key) instanceof String json) {
             try {
                 data.put(key, JSON.parseObject(json, Map.class));
             } catch (Exception e) {

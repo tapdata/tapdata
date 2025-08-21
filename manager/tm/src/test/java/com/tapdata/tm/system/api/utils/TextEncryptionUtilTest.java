@@ -231,4 +231,39 @@ class TextEncryptionUtilTest {
             Assertions.assertNotNull(map.getData());
         }
     }
+
+    @Nested
+    class formatFilterTest {
+        @Test
+        void testFilterNotString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.FILTER, 1);
+            TextEncryptionUtil.formatFilter(map);
+            Assertions.assertEquals(map.get("filter"), 1);
+        }
+        @Test
+        void testFilterIsBlankString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.FILTER, "");
+            TextEncryptionUtil.formatFilter(map);
+            Assertions.assertNotNull(map.get("filter"));
+            Assertions.assertEquals(map.get("filter").getClass(), HashMap.class);
+            Assertions.assertEquals(((Map<String, Object>) map.get("filter")).size(), 0);
+        }
+        @Test
+        void testFilterNotJsonString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.FILTER, "xxx");
+            TextEncryptionUtil.formatFilter(map);
+            Assertions.assertEquals(map.get("filter"), "xxx");
+        }
+        @Test
+        void testFilterIsJsonString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.FILTER, "{\"id\":\"id\"}");
+            TextEncryptionUtil.formatFilter(map);
+            Assertions.assertNotNull(map.get("filter"));
+            Assertions.assertEquals(JSON.toJSONString(map.get("filter")), "{\"id\":\"id\"}");
+        }
+    }
 }

@@ -688,11 +688,16 @@ public class ApiCallService {
     }
 
     String parse(String json, Boolean open) {
-        if (null == json || !Boolean.TRUE.equals(open)) {
-            return json;
+        if (null == json) {
+            return null;
         }
         try {
-            return JSON.toJSONString(TextEncryptionUtil.textEncryptionBySwitch(open, Lists.of(JSON.parseObject(json, Map.class))).get(0));
+            Map<String,Object> map = JSON.parseObject(json, Map.class);
+            TextEncryptionUtil.formatFilter(map);
+            if (!Boolean.TRUE.equals(open)) {
+                return JSON.toJSONString(map);
+            }
+            return JSON.toJSONString(TextEncryptionUtil.textEncryptionBySwitch(map));
         } catch (Exception e) {
             log.warn("Parse json failed, can not encrypt by config: {}, json: {}, msg: {}", open, json, e.getMessage());
             return json;
