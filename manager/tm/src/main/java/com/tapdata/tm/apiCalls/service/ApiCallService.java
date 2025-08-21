@@ -337,7 +337,6 @@ public class ApiCallService {
                     item.setLastUpdAt(e.getLastUpdAt());
                     item.setLastUpdBy(e.getLastUpdBy());
                     item.setCustomId(e.getCustomId());
-                    item.setReqParams(e.getReqParams());
                     item.setQuery(e.getQuery());
                     item.setBody(e.getBody());
                     item.setApiPath(e.getApiPath());
@@ -643,10 +642,9 @@ public class ApiCallService {
         Map<String, Param> paramMap = findApiParamTypeMap(MongoUtils.toObjectId(entity.getAllPathId())).get(entity.getAllPathId());
         String query = entity.getQuery();
         String body = entity.getBody();
-        String reqParams = entity.getReqParams();
         entity.setQuery(parse(query, open, paramMap));
         entity.setBody(parse(body, open, paramMap));
-        entity.setReqParams(parse(reqParams, open, paramMap));
+        entity.setReqParams(null);
     }
 
     protected List<ApiCallEntity> afterFindEntity(List<ApiCallEntity> entities) {
@@ -677,11 +675,10 @@ public class ApiCallService {
         entities.forEach(data -> {
             String query = data.getQuery();
             String body = data.getBody();
-            String reqParams = data.getReqParams();
             Map<String, Param> paramMap = apiParamTypeMap.get(data.getApiId());
             data.setQuery(parse(query, open, paramMap));
             data.setBody(parse(body, open, paramMap));
-            data.setReqParams(parse(reqParams, open, paramMap));
+            data.setReqParams(null);
         });
         return entities;
     }
