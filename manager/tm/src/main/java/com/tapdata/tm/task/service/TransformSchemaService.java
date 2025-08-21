@@ -23,6 +23,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
@@ -45,6 +46,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -76,6 +78,8 @@ public class TransformSchemaService {
     private static final String QUALIFIED_NAME = "qualified_name";
     @Autowired
     private AgentGroupService agentGroupService;
+    @Autowired
+    private MetadataInstancesCompareService metadataInstancesCompareService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
@@ -193,9 +197,19 @@ public class TransformSchemaService {
 
         List<Node> dagNodes = dag.getNodes();
         List<String> tableNames = new ArrayList<>();
-        dag.getSourceNode().forEach(node -> {
-            if (node != null) {
-                tableNames.addAll(node.getTableNames());
+        dag.getSourceNode().forEach(srcNode -> {
+           tableNames.addAll(srcNode.getTableNames());
+        });
+        dag.getTargetNodes().forEach(targetNode -> {
+            if(targetNode instanceof TableNode){
+                tableNames.add(((TableNode) targetNode).getTableName());
+            }
+        });
+        AtomicReference<Map<String, String>> tableRenameTableMap = new AtomicReference<>();
+        dagNodes.forEach(node -> {
+            if (node instanceof TableRenameProcessNode tableRenameProcessNode) {
+                tableRenameTableMap.set(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
+                options.setTableRenameRelationMap(tableRenameTableMap.get());
             }
         });
         dagNodes.forEach(node -> {
@@ -209,10 +223,29 @@ public class TransformSchemaService {
                     }
                     options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
                 });
-            }
-            if (node instanceof TableRenameProcessNode) {
-                TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
-                options.setTableRenameRelationMap(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
+                List<MetadataInstancesCompareDto> applyDtos = metadataInstancesCompareService.findAll(Query.query(Criteria.where("nodeId").is(node.getId()).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
+                if (CollectionUtils.isNotEmpty(applyDtos)) {
+                    Map<String,List<DifferenceField>> differenceFieldMap = applyDtos.stream().collect(Collectors.toMap(MetadataInstancesCompareDto::getQualifiedName, MetadataInstancesCompareDto::getDifferenceFieldList));
+                    options.setDifferenceFields(differenceFieldMap);
+                }
+                if(((DataParentNode<?>) node).getApplyCompareRule() && CollectionUtils.isNotEmpty(tableNames)) {
+                    List<String> newTableNames = new ArrayList<>();
+                    if(tableRenameTableMap.get() != null) {
+                      tableNames.forEach(
+                              tableName -> {
+                                  String newTableName = tableRenameTableMap.get().get(tableName);
+                                  if(StringUtils.isNotBlank(newTableName)) {
+                                      newTableNames.add(newTableName);
+                                  }else{
+                                      newTableNames.add(tableName);
+                                  }
+                              }
+                      );
+                    }
+                    options.setApplyRules(((DataParentNode<?>) node).getApplyCompareRules().entrySet().stream().filter(Map.Entry::getValue).map(Map.Entry::getKey).toList());
+                    List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findSourceSchemaBySourceId(((DataParentNode<?>) node).getConnectionId(), CollectionUtils.isEmpty(newTableNames) ? tableNames : newTableNames, user, "original_name", "fields", "qualified_name", "name", "source._id");
+                    options.setTargetMetadataInstancesDtos(metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, m -> m, (m1, m2) -> m1)));
+                }
             }
         });
         List<Node> nodes = dagNodes;

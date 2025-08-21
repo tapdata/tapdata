@@ -296,4 +296,36 @@ public class SchemaUtils {
         field.setPrimaryKey(false);
         schema.getFields().add(field);
     }
+
+    public static List<DifferenceField> compareSchema(MetadataInstancesDto deductionMetadataInstance, MetadataInstancesDto targetMetadataInstance) {
+        List<DifferenceField> differenceFieldList = new ArrayList<>();
+        if(Objects.isNull(deductionMetadataInstance) || Objects.isNull(targetMetadataInstance)){
+            return differenceFieldList;
+        }
+        Map<String, Field> sourceFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+        Map<String, Field> targetFieldMap = targetMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+
+        sourceFieldMap.keySet().forEach(fieldName -> {
+            if (!targetFieldMap.containsKey(fieldName)) {
+                differenceFieldList.add(DifferenceField.buildMissingField(fieldName,sourceFieldMap.get(fieldName)));
+            }
+        });
+
+        targetFieldMap.forEach((fieldName, targetField) -> {
+            if (!sourceFieldMap.containsKey(fieldName)) {
+                differenceFieldList.add(DifferenceField.buildAdditionalField(fieldName, targetField));
+            } else {
+                Field sourceField = sourceFieldMap.get(fieldName);
+                if (!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
+                    if(targetField.getTapType().contains("cannotWrite")){
+                        differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField,targetField));
+                    }else{
+                        differenceFieldList.add(DifferenceField.buildDifferentField(fieldName, sourceField, targetField));
+                    }
+
+                }
+            }
+        });
+        return differenceFieldList;
+    }
 }

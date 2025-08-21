@@ -5225,8 +5225,13 @@ public class TaskServiceImpl extends TaskService{
         // 执行推演
         transformSchemaService.transformSchema(taskDto, userDetail);
     }
+    @Override
+    public void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail) {
+        wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, userDetail,null);
+    }
 
-    protected void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail) {
+    @Override
+    public void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail, MetadataInstancesCompareDto metadataInstancesCompareDto) {
         Field fields = new Field();
         fields.put(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, 1);
         fields.put(DataSourceConnectionDto.FIELD_LAST_UPDATE, 1);
@@ -5238,10 +5243,13 @@ public class TaskServiceImpl extends TaskService{
                 return;
             }
             if (null != newConn.getLastUpdate() && beginTime < newConn.getLastUpdate()) {
-                if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(newConn.getLoadFieldsStatus())) {
+                if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING.equals(newConn.getLoadFieldsStatus())) {
                     log.info("Task '{}' connection '{}' refresh failed, status={}", taskId, connId, newConn.getStatus());
+                    if(metadataInstancesCompareDto != null && DataSourceConnectionDto.LOAD_FIELD_STATUS_ERROR.equals(newConn.getLoadFieldsStatus())){
+                        metadataInstancesCompareDto.setStatus(MetadataInstancesCompareDto.STATUS_ERROR);
+                    }
+                    return;
                 }
-                return;
             }
             try {
                 Thread.sleep(1000);
@@ -5251,5 +5259,7 @@ public class TaskServiceImpl extends TaskService{
             }
         } while (System.currentTimeMillis() - beginTime < timeout); // 30秒超时
         log.info("Task '{}' connection '{}' refresh timeout", taskId, connId);
+        if(metadataInstancesCompareDto != null)metadataInstancesCompareDto.setStatus(MetadataInstancesCompareDto.STATUS_TIMEOUT);
+
     }
 }

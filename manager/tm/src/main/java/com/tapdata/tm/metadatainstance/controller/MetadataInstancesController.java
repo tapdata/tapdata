@@ -8,14 +8,14 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.commons.schema.FindMetadataDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TapTableDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadataInstancesCompare.param.MetadataInstancesApplyParam;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.*;
@@ -26,12 +26,7 @@ import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.vo.ExportModulesVo;
-import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
-import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
-import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
-import com.tapdata.tm.metadatainstance.vo.TableListVo;
-import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
+import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.GZIPUtil;
@@ -52,18 +47,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
@@ -92,6 +76,7 @@ public class MetadataInstancesController extends BaseController {
     private ModulesService modulesService;
     private InspectService inspectService;
     private MetaMigrateService metaMigrateService;
+    private MetadataInstancesCompareService metadataInstancesCompareService;
 
     /**
      * 新增元数据
@@ -866,4 +851,42 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage<Boolean> checkMetadataInstancesIndex(@RequestParam("cacheKeys") String cacheKeys,@RequestParam("id") String id){
         return success(metadataInstancesService.checkMetadataInstancesIndex(cacheKeys,id));
     }
+
+    @Operation(summary = "目标模型探测")
+    @GetMapping("targetSchemaDetection")
+    public ResponseMessage<Void> targetSchemaDetection(@RequestParam("nodeId") String nodeId,@RequestParam("taskId") String taskId) {
+        metadataInstancesService.targetSchemaDetection(nodeId,taskId,getLoginUser());
+        return success();
+    }
+
+    @Operation(summary = "应用配置")
+    @PostMapping("saveMetadataInstancesCompareApply")
+    public ResponseMessage<Void> saveMetadataInstancesCompareApply(@RequestParam(value = "all") Boolean all,
+                                                                                         @RequestParam(value = "nodeId") String nodeId,
+                                                                                         @RequestBody(required = false) List<MetadataInstancesApplyParam> metadataInstancesApplyParams) {
+        metadataInstancesCompareService.saveMetadataInstancesCompareApply(metadataInstancesApplyParams,getLoginUser(),all,nodeId);
+        return success();
+    }
+
+    @Operation(summary = "删除配置")
+    @DeleteMapping("deleteMetadataInstancesCompareApply")
+    public ResponseMessage<Void> deleteMetadataInstancesCompareApply(@RequestParam(value = "all") Boolean all,
+                                                                                           @RequestParam(value = "nodeId") String nodeId,
+                                                                                           @RequestBody(required = false) List<MetadataInstancesApplyParam> metadataInstancesApplyParams) {
+        metadataInstancesCompareService.deleteMetadataInstancesCompareApply(metadataInstancesApplyParams,getLoginUser(),all,nodeId);
+        return success();
+    }
+
+    @Operation(summary = "获取目标模型对比结果")
+    @GetMapping("getMetadataInstancesCompareResult")
+    public ResponseMessage<MetadataInstancesCompareResult> getMetadataInstancesCompareResult(@RequestParam("nodeId") String nodeId,
+                                                                                             @RequestParam("taskId") String taskId,
+                                                                                             @RequestParam(value = "tableFilter", required = false) String tableFilter,
+                                                                                             @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                                                                             @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize)  {
+        return success(metadataInstancesCompareService.getMetadataInstancesCompareResult(nodeId,taskId,tableFilter,page,pageSize));
+    }
+
+
+
 }

@@ -1603,7 +1603,7 @@ public class DataSourceServiceImpl extends DataSourceService{
 			List<MetadataInstancesDto> oldModelList = metadataInstancesService.findAllDto(query,user);
 			setDescription(newModelList,oldModelList);
 			Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
-            metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
+            //metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
             String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
             log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
                     , newModelList.size(), name, pair.getLeft(), pair.getRight());
@@ -2045,17 +2045,56 @@ public class DataSourceServiceImpl extends DataSourceService{
             return;
         }
 
-        Criteria criteria = Criteria.where("source._id").is(connectionId).and("meta_type").is("database");
-        Query query = new Query(criteria);
-        query.fields().include("_id");
-
-        MetadataInstancesDto databaseModel = metadataInstancesService.findOne(query, user);
-        String databaseModelId = databaseModel.getId().toHexString();
+        String databaseModelId = getDatabaseModelId(connectionId, user);
         if (StringUtils.isBlank(databaseModelId)) {
             return;
         }
 
         loadSchema(user, tables, connectionDto, definitionDto.getExpression(), databaseModelId, true,true);
+    }
+
+    public void loadPartTablesByName(String connectionId, List<String> tables, UserDetail user) {
+        DataSourceConnectionDto connectionDto = findById(toObjectId(connectionId));
+        if (connectionDto == null) {
+            return;
+        }
+
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+        if (definitionDto == null) {
+            return;
+        }
+
+        String databaseModelId = getDatabaseModelId(connectionId, user);
+        if (StringUtils.isBlank(databaseModelId)) {
+            return;
+        }
+
+        Criteria criteria = Criteria.where("source._id").is(connectionId).and("sourceType").is("SOURCE").and("original_name").in(tables);
+        Query query = new Query(criteria);
+        query.fields().include("original_name");
+        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findAllDto(query, user);
+        List<String> tableNames = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+            tables.forEach(t -> {
+                if (metadataInstancesDtos.stream().noneMatch(m -> m.getOriginalName().equals(t))) {
+                    tableNames.add(t);
+                }
+            });
+        }else{
+            tableNames.addAll(tables);
+        }
+
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            sendTestConnection(connectionDto, true, true, String.join(",", tableNames), user);
+        }
+    }
+
+    protected String getDatabaseModelId(String connectionId, UserDetail user) {
+        Criteria criteria = Criteria.where("source._id").is(connectionId).and("meta_type").is("database");
+        Query query = new Query(criteria);
+        query.fields().include("_id");
+        MetadataInstancesDto databaseModel = metadataInstancesService.findOne(query, user);
+        return databaseModel.getId().toHexString();
     }
 
     public void batchEncryptConfig() {
