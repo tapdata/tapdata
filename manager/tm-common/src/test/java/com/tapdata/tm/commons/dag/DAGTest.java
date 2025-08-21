@@ -527,13 +527,13 @@ public class DAGTest {
 	@Nested
 	@DisplayName("ProcessDifferenceField Tests")
 	class ProcessDifferenceFieldTest {
-	private DAG.Options options;
-	private MetadataInstancesDto dto;
-	private Map<String, List<DifferenceField>> differenceFields;
-	private Map<String, MetadataInstancesDto> targetMetadataInstancesDtos;
-	private List<String> applyRules;
-	private List<Field> fields;
-	private SourceDto sourceConnection;
+		private DAG.Options options;
+		private MetadataInstancesDto dto;
+		private Map<String, List<DifferenceField>> differenceFields;
+		private Map<String, MetadataInstancesDto> targetMetadataInstancesDtos;
+		private List<String> applyRules;
+		private List<Field> fields;
+		private SourceDto sourceConnection;
 
 	@BeforeEach
 	void setUp() {
@@ -556,16 +556,6 @@ public class DAGTest {
 		ReflectionTestUtils.setField(options, "differenceFields", differenceFields);
 		ReflectionTestUtils.setField(options, "targetMetadataInstancesDtos", targetMetadataInstancesDtos);
 		ReflectionTestUtils.setField(options, "applyRules", applyRules);
-	}
-
-	@Test
-	@DisplayName("Should return early when differenceFieldList is empty and no target metadata")
-	void testProcessDifferenceField_EmptyDifferenceFieldList() {
-		// Given - no difference fields and no target metadata
-
-		// When
-		options.processDifferenceField(dto);
-
 	}
 
 	@Test

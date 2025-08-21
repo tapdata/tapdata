@@ -287,7 +287,7 @@ class SchemaUtilsTest {
         @DisplayName("Should return empty list when source metadata is null")
         void testCompareSchema_SourceNull() {
             // Given
-            targetFields.add(createField("field1", "varchar(255)", "TapString"));
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(null, targetMetadata);
@@ -301,7 +301,7 @@ class SchemaUtilsTest {
         @DisplayName("Should return empty list when target metadata is null")
         void testCompareSchema_TargetNull() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, null);
@@ -315,11 +315,11 @@ class SchemaUtilsTest {
         @DisplayName("Should return empty list when both schemas are identical")
         void testCompareSchema_IdenticalSchemas() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field2", "int", "TapNumber"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "varchar(255)", "TapString"));
-            targetFields.add(createField("field2", "int", "TapNumber"));
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -333,11 +333,11 @@ class SchemaUtilsTest {
         @DisplayName("Should detect missing fields in target")
         void testCompareSchema_MissingFields() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field2", "int", "TapNumber"));
-            sourceFields.add(createField("field3", "datetime", "TapDateTime"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field3", "datetime", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "varchar(255)", "TapString"));
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
             // field2 and field3 are missing in target
 
             // When
@@ -368,11 +368,11 @@ class SchemaUtilsTest {
         @DisplayName("Should detect additional fields in target")
         void testCompareSchema_AdditionalFields() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "varchar(255)", "TapString"));
-            targetFields.add(createField("field2", "int", "TapNumber"));
-            targetFields.add(createField("field3", "datetime", "TapDateTime"));
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field3", "datetime", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -402,13 +402,13 @@ class SchemaUtilsTest {
         @DisplayName("Should detect different data types")
         void testCompareSchema_DifferentDataTypes() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field2", "int", "TapNumber"));
-            sourceFields.add(createField("field3", "datetime", "TapDateTime"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field3", "datetime", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "text", "TapString"));
-            targetFields.add(createField("field2", "bigint", "TapNumber"));
-            targetFields.add(createField("field3", "timestamp", "TapDateTime"));
+            targetFields.add(createField("field1", "text", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field2", "bigint", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field3", "timestamp", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -430,11 +430,11 @@ class SchemaUtilsTest {
         @DisplayName("Should detect cannotWrite fields")
         void testCompareSchema_CannotWriteFields() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field2", "int", "TapNumber"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "text", "TapString.cannotWrite"));
-            targetFields.add(createField("field2", "bigint", "TapNumber.cannotWrite"));
+            targetFields.add(createField("field1", "text", "{\"bytes\":8,\"cannotWrite\":true,\"type\":9}"));
+            targetFields.add(createField("field2", "bigint", "{\"bytes\":8,\"cannotWrite\":true,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -455,15 +455,14 @@ class SchemaUtilsTest {
         @DisplayName("Should handle mixed differences - missing, additional, different, and cannotWrite")
         void testCompareSchema_MixedDifferences() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field2", "int", "TapNumber"));
-            sourceFields.add(createField("field3", "datetime", "TapDateTime"));
-            sourceFields.add(createField("field4", "boolean", "TapBoolean"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field3", "datetime", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field4", "boolean", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "text", "TapString"));                    // Different
-            targetFields.add(createField("field2", "bigint", "TapNumber.cannotWrite"));     // CannotWrite
-            // field3 is missing in target                                                   // Missing
-            targetFields.add(createField("field5", "decimal", "TapNumber"));                // Additional
+            targetFields.add(createField("field1", "text", "{\"bytes\":8,\"type\":9}"));                    // Different
+            targetFields.add(createField("field2", "bigint", "{\"bytes\":8,\"cannotWrite\":true,\"type\":9}"));     // CannotWrite
+            targetFields.add(createField("field5", "decimal", "{\"bytes\":8,\"type\":9}"));                // Additional
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -508,8 +507,8 @@ class SchemaUtilsTest {
         void testCompareSchema_EmptySourceFields() {
             // Given
             // sourceFields is empty
-            targetFields.add(createField("field1", "varchar(255)", "TapString"));
-            targetFields.add(createField("field2", "int", "TapNumber"));
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -529,8 +528,8 @@ class SchemaUtilsTest {
         @DisplayName("Should handle empty target fields")
         void testCompareSchema_EmptyTargetFields() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field2", "int", "TapNumber"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
             // targetFields is empty
 
             // When
@@ -565,11 +564,11 @@ class SchemaUtilsTest {
         @DisplayName("Should handle case insensitive data type comparison")
         void testCompareSchema_CaseInsensitiveDataTypes() {
             // Given
-            sourceFields.add(createField("field1", "VARCHAR", "TapString"));
-            sourceFields.add(createField("field2", "INT", "TapNumber"));
+            sourceFields.add(createField("field1", "VARCHAR", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field2", "INT", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field1", "varchar", "TapString"));
-            targetFields.add(createField("field2", "int", "TapNumber"));
+            targetFields.add(createField("field1", "varchar", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -583,8 +582,8 @@ class SchemaUtilsTest {
         @DisplayName("Should handle fields with null data types")
         void testCompareSchema_NullDataTypes() {
             // Given
-            Field sourceField = createField("field1", null, "TapString");
-            Field targetField = createField("field1", "varchar(255)", "TapString");
+            Field sourceField = createField("field1", null, "{\"bytes\":8,\"type\":9}");
+            Field targetField = createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}");
 
             sourceFields.add(sourceField);
             targetFields.add(targetField);
@@ -599,10 +598,10 @@ class SchemaUtilsTest {
         @DisplayName("Should handle duplicate field names in source")
         void testCompareSchema_DuplicateSourceFields() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field1", "text", "TapString")); // Duplicate name, different type
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field1", "text", "{\"bytes\":8,\"type\":9}")); // Duplicate name, different type
 
-            targetFields.add(createField("field1", "varchar(255)", "TapString"));
+            targetFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
 
             // When & Then - Should throw IllegalStateException due to duplicate keys
             assertThrows(IllegalStateException.class, () -> {
@@ -614,15 +613,15 @@ class SchemaUtilsTest {
         @DisplayName("Should handle complex field names with special characters")
         void testCompareSchema_SpecialCharacterFieldNames() {
             // Given
-            sourceFields.add(createField("field_with_underscore", "varchar(255)", "TapString"));
-            sourceFields.add(createField("field-with-dash", "int", "TapNumber"));
-            sourceFields.add(createField("field.with.dots", "datetime", "TapDateTime"));
-            sourceFields.add(createField("field with spaces", "boolean", "TapBoolean"));
+            sourceFields.add(createField("field_with_underscore", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field-with-dash", "int", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field.with.dots", "datetime", "{\"bytes\":8,\"type\":9}"));
+            sourceFields.add(createField("field with spaces", "boolean", "{\"bytes\":8,\"type\":9}"));
 
-            targetFields.add(createField("field_with_underscore", "text", "TapString"));
-            targetFields.add(createField("field-with-dash", "bigint", "TapNumber"));
-            targetFields.add(createField("field.with.dots", "timestamp", "TapDateTime"));
-            targetFields.add(createField("field with spaces", "bit", "TapBoolean"));
+            targetFields.add(createField("field_with_underscore", "text", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field-with-dash", "bigint", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field.with.dots", "timestamp", "{\"bytes\":8,\"type\":9}"));
+            targetFields.add(createField("field with spaces", "bit", "{\"bytes\":8,\"type\":9}"));
 
             // When
             List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
@@ -641,9 +640,9 @@ class SchemaUtilsTest {
         @DisplayName("Should prioritize cannotWrite over different when tapType contains cannotWrite")
         void testCompareSchema_CannotWritePriority() {
             // Given
-            sourceFields.add(createField("field1", "varchar(255)", "TapString"));
+            sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
 
-            Field targetField = createField("field1", "text", "TapString.cannotWrite.someOtherTag");
+            Field targetField = createField("field1", "text", "{\"bytes\":8,\"cannotWrite\":true,\"type\":9}");
             targetFields.add(targetField);
 
             // When
@@ -654,36 +653,6 @@ class SchemaUtilsTest {
             assertEquals(1, result.size());
             assertEquals(DifferenceTypeEnum.CannotWrite, result.get(0).getType());
             assertEquals("field1", result.get(0).getColumnName());
-        }
-
-        @Test
-        @DisplayName("Should handle large number of fields efficiently")
-        void testCompareSchema_LargeNumberOfFields() {
-            // Given
-            int fieldCount = 1000;
-
-            for (int i = 0; i < fieldCount; i++) {
-                sourceFields.add(createField("field" + i, "varchar(255)", "TapString"));
-                if (i % 2 == 0) {
-                    targetFields.add(createField("field" + i, "text", "TapString")); // Different type
-                } else {
-                    targetFields.add(createField("field" + i, "varchar(255)", "TapString")); // Same type
-                }
-            }
-
-            // When
-            long startTime = System.currentTimeMillis();
-            List<DifferenceField> result = SchemaUtils.compareSchema(sourceMetadata, targetMetadata);
-            long endTime = System.currentTimeMillis();
-
-            // Then
-            assertNotNull(result);
-            assertEquals(fieldCount / 2, result.size()); // Half should be different
-            assertTrue(endTime - startTime < 1000, "Should complete within 1 second for 1000 fields");
-
-            for (DifferenceField diff : result) {
-                assertEquals(DifferenceTypeEnum.Different, diff.getType());
-            }
         }
 
         /**

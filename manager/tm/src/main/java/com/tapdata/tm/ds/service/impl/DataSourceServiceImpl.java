@@ -1603,7 +1603,6 @@ public class DataSourceServiceImpl extends DataSourceService{
 			List<MetadataInstancesDto> oldModelList = metadataInstancesService.findAllDto(query,user);
 			setDescription(newModelList,oldModelList);
 			Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
-            //metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
             String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
             log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
                     , newModelList.size(), name, pair.getLeft(), pair.getRight());

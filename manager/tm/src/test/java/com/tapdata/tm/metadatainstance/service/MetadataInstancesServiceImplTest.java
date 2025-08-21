@@ -3372,7 +3372,6 @@ public class MetadataInstancesServiceImplTest {
 			doReturn(new Page<>(0L, Collections.emptyList())).when(metadataInstancesService).findByNodeId(anyString(), any(), any(UserDetail.class), any(), any(), any(), anyInt(), anyInt());
 
 			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class);
-				 MockedStatic<CollectionUtils> collectionUtilsMock = mockStatic(CollectionUtils.class);
 				 MockedStatic<CompletableFuture> completableFutureMock = mockStatic(CompletableFuture.class)) {
 
 				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
@@ -3381,6 +3380,9 @@ public class MetadataInstancesServiceImplTest {
 				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
 				when(dag.getNode(nodeId)).thenReturn(targetNode);
 				when(targetNode.getApplyCompareRule()).thenReturn(true);
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
 
 				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(applyDtos);
 				doReturn(1L).when(metadataInstancesCompareService).deleteAll(any(Query.class));
@@ -3413,10 +3415,9 @@ public class MetadataInstancesServiceImplTest {
 			DAG dag = mock(DAG.class);
 			DataParentNode targetNode = mock(DataParentNode.class);
 			taskDto.setDag(dag);
-			doReturn(new Page<>(0L, Collections.emptyList())).when(metadataInstancesService).findByNodeId(anyString(), any(), any(UserDetail.class), any(), any(), any(), anyInt(), anyInt());
+			doReturn(Page.empty()).when(metadataInstancesService).findByNodeId(anyString(), any(), any(UserDetail.class), any(), any(), any(), anyInt(), anyInt());
 
 			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class);
-				 MockedStatic<CollectionUtils> collectionUtilsMock = mockStatic(CollectionUtils.class);
 				 MockedStatic<CompletableFuture> completableFutureMock = mockStatic(CompletableFuture.class)) {
 
 				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
@@ -3424,9 +3425,11 @@ public class MetadataInstancesServiceImplTest {
 				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
 				when(dag.getNode(nodeId)).thenReturn(targetNode);
 				when(targetNode.getApplyCompareRule()).thenReturn(false);
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
 
-				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
-				collectionUtilsMock.when(() -> CollectionUtils.isNotEmpty(anyList())).thenReturn(false);
+				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
 
 				// Mock the async execution to run synchronously for testing
 				completableFutureMock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
@@ -3510,6 +3513,9 @@ public class MetadataInstancesServiceImplTest {
 
 				doReturn(1L).when(metadataInstancesCompareService).deleteAll(any(Query.class));
 				doReturn(1L).when(metadataInstancesCompareService).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
 
 				// Mock the async execution to run synchronously for testing
 				completableFutureMock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
@@ -3600,7 +3606,7 @@ public class MetadataInstancesServiceImplTest {
 				doAnswer(invocationOnMock -> {
 					List<MetadataInstancesCompareDto> list = invocationOnMock.getArgument(0);
 					assertEquals(2, list.size());
-					assertEquals(3, list.get(0).getDifferenceFieldList().size());
+					assertEquals(4, list.get(0).getDifferenceFieldList().size());
 					return list;
 				}).when(metadataInstancesCompareService).save(any(List.class),any(UserDetail.class));
 
@@ -3670,7 +3676,7 @@ public class MetadataInstancesServiceImplTest {
 		Field field = new Field();
 		field.setFieldName(fieldName);
 		field.setDataType(dataType);
-		field.setTapType("TapString");
+		field.setTapType("{\"bytes\":8,\"type\":9}");
 		return field;
 	}
 

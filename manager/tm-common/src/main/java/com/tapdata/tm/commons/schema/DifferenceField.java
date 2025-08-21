@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Objects;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -37,23 +39,45 @@ public class DifferenceField {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == this) {
+        if (this == obj) {
             return true;
         }
-        if (obj == null) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        if (obj instanceof DifferenceField that) {
-            return switch (type) {
-                case Missing -> columnName.equals(that.columnName) && type.equals(that.type) && sourceField.toString().equals(that.sourceField.toString());
-                case Additional -> columnName.equals(that.columnName) && type.equals(that.type) && targetField.toString().equals(that.targetField.toString());
-                case Different,CannotWrite ->
-                        columnName.equals(that.columnName) && type.equals(that.type) && sourceField.toString().equals(that.sourceField.toString()) && targetField.toString().equals(that.targetField.toString());
-                default -> false;
-            };
 
+        DifferenceField that = (DifferenceField) obj;
+
+        if (!Objects.equals(columnName, that.columnName) || !Objects.equals(type, that.type)) {
+            return false;
         }
-        return false;
+
+        if (type == null) {
+            return false;
+        }
+
+        return switch (type) {
+            case Missing -> Objects.equals(sourceField, that.sourceField);
+            case Additional -> Objects.equals(targetField, that.targetField);
+            case Different, CannotWrite ->
+                Objects.equals(sourceField, that.sourceField) &&
+                Objects.equals(targetField, that.targetField);
+            default -> false;
+        };
+    }
+
+    @Override
+    public int hashCode() {
+        if (type == null) {
+            return Objects.hash(columnName);
+        }
+
+        return switch (type) {
+            case Missing -> Objects.hash(columnName, type, sourceField);
+            case Additional -> Objects.hash(columnName, type, targetField);
+            case Different, CannotWrite -> Objects.hash(columnName, type, sourceField, targetField);
+            default -> Objects.hash(columnName, type);
+        };
     }
 
 }

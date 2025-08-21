@@ -2623,7 +2623,6 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         }
         CompletableFuture.runAsync(() -> {
             try {
-                // 分批处理，每批500个
                 int batchSize = 500;
                 int currentPage = 1;
                 boolean hasMoreData = true;
