@@ -100,8 +100,8 @@ jobs:
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
           bash build/build.sh -c tapdata -u false -l "-Dmaven.compile.fork=true -P idaas -P oss"
-          update-alternatives --set java /usr/java/jdk1.8.0_202/bin/java
-          export JAVA_HOME=/usr/java/jdk1.8.0_202
+          update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_361
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p tapdata
@@ -151,8 +151,8 @@ jobs:
           update-alternatives --set java /usr/java/jdk-17.0.12/bin/java
           export JAVA_HOME=/usr/java/jdk-17.0.12
           bash build/build.sh -c connectors -u false -l "-Dmaven.compile.fork=true"
-          update-alternatives --set java /usr/java/jdk1.8.0_202/bin/java
-          export JAVA_HOME=/usr/java/jdk1.8.0_202
+          update-alternatives --set java /usr/java/jdk1.8.0_361/bin/java
+          export JAVA_HOME=/usr/java/jdk1.8.0_361
       - name: Upload Outputs
         run: |
           cd tapdata && bash build/build.sh -p connectors

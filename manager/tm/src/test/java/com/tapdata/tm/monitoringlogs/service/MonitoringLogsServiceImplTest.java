@@ -5,9 +5,14 @@ import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
+import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
@@ -22,6 +27,15 @@ import static org.mockito.Mockito.*;
  * create at 2024/11/20 14:02
  */
 public class MonitoringLogsServiceImplTest {
+    MonitoringLogsServiceImpl monitoringLogsService;
+    MongoTemplate mongo;
+
+    @BeforeEach
+    void init() {
+        mongo = mock(MongoTemplate.class);
+        monitoringLogsService = mock(MonitoringLogsServiceImpl.class);
+        ReflectionTestUtils.setField(monitoringLogsService, "mongoOperations", mongo);
+    }
 
     @Test
     void testQuery() throws ExecutionException, InterruptedException {
@@ -54,4 +68,27 @@ public class MonitoringLogsServiceImplTest {
 
     }
 
+    @Nested
+    class QueryTest {
+
+        @BeforeEach
+        void init() {
+            when(mongo.count(any(), any(Class.class))).thenReturn(0L);
+            when(monitoringLogsService.query(any(MonitoringLogQueryParam.class))).thenCallRealMethod();
+        }
+
+        @Test
+        void testNodeIdIsNotEmpty() {
+            MonitoringLogQueryParam param = new MonitoringLogQueryParam();
+            param.setTaskId(new ObjectId().toHexString());
+            param.setNodeId(new ObjectId().toHexString());
+            param.setType("testRun");
+            param.setStart(System.currentTimeMillis());
+            param.setOrder(MonitoringLogQueryParam.ORDER_ASC);
+            Page<MonitoringLogsDto> query = monitoringLogsService.query(param);
+            Assertions.assertEquals(0L, query.getTotal());
+            Assertions.assertTrue(query.getItems().isEmpty());
+
+        }
+    }
 }
