@@ -43,6 +43,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -293,8 +294,15 @@ public class TextEncryptionRuleService {
                 .forEach(e -> {
                     final List<String> textEncryptionRuleIds = e.getTextEncryptionRuleIds();
                     if (CollectionUtils.isNotEmpty(textEncryptionRuleIds)) {
+                        String aliasName = e.getFieldAlias();
+                        String fieldName = e.getFieldName();
+                        if (StringUtils.isNotBlank(aliasName)) {
+                            String[] split = fieldName.split("\\.");
+                            split[split.length - 1] = aliasName;
+                            fieldName = StringUtils.join(split, ".");
+                        }
                         ruleIds.addAll(textEncryptionRuleIds);
-                        fieldRuleIds.put(e.getFieldName(), textEncryptionRuleIds);
+                        fieldRuleIds.put(fieldName, textEncryptionRuleIds);
                     }
                 });
         return toRule(fieldRuleIds, ruleIds);
