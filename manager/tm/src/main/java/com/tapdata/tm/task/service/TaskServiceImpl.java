@@ -38,6 +38,7 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
 import org.mockito.Mockito;
 import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.exception.TaskScheduleRateLimitException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
@@ -138,6 +139,8 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.service.TaskOperationRateLimitService;
+import com.tapdata.tm.task.service.TaskStartQueueService;
 import com.tapdata.tm.task.service.batchin.ParseRelMig;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.batchup.BatchUpChecker;
@@ -379,6 +382,8 @@ public class TaskServiceImpl extends TaskService{
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
     private ILicenseService iLicenseService;
+    private TaskOperationRateLimitService taskOperationRateLimitService;
+    private TaskStartQueueService taskStartQueueService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -3934,8 +3939,12 @@ public class TaskServiceImpl extends TaskService{
     }
 
     protected void sendRenewMq(TaskDto taskDto, UserDetail user, String opType) {
+        String taskId = taskDto.getId().toHexString();
+
+        // 重置操作不受限流限制，直接执行
+
         DataSyncMq mq = new DataSyncMq();
-        mq.setTaskId(taskDto.getId().toHexString());
+        mq.setTaskId(taskId);
         mq.setOpType(opType);
         mq.setType(MessageType.DATA_SYNC.getType());
         Map<String, Object> data;
@@ -3946,9 +3955,10 @@ public class TaskServiceImpl extends TaskService{
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
+        log.debug("build reset task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
+        log.info("Task reset message sent successfully: taskId={}, agentId={}, opType={}", taskId, taskDto.getAgentId(), opType);
     }
 
     @NotNull
@@ -4275,7 +4285,15 @@ public class TaskServiceImpl extends TaskService{
                     .set(RESTART_FLAG, false)
                     .set(STOP_RETRY_TIMES, 0);
             update(query, set, user);
-            taskScheduleService.scheduling(taskDto, user);
+            // 使用任务启动队列服务进行调度，支持排队等待
+            String taskId = taskDto.getId().toHexString();
+            boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+            if (scheduledImmediately) {
+                log.debug("Task schedule request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+            } else {
+                log.info("Task schedule request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+            }
         } finally {
             lock.unlock();
             if (!lock.isLocked()) {
@@ -4414,6 +4432,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public void sendStoppingMsg(String taskId, String agentId, UserDetail user, boolean force) {
+        // 停止操作不受限流限制，直接执行
         DataSyncMq dataSyncMq = new DataSyncMq();
         dataSyncMq.setTaskId(taskId);
         dataSyncMq.setForce(force);
@@ -4430,6 +4449,8 @@ public class TaskServiceImpl extends TaskService{
 
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
+
+        log.info("Task stop message sent successfully: taskId={}, agentId={}, force={}", taskId, agentId, force);
     }
 
 

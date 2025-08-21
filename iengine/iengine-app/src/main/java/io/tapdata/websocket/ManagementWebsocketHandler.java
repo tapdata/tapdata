@@ -86,7 +86,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	/**
 	 * Check ws alive every {PING_INTERVAL} seconds.
 	 */
-	private static final Long PING_INTERVAL = 10L;
+	private static final Long PING_INTERVAL = 30L;
 	/**
 	 * websocket接受消息的长度限制：10MB
 	 */

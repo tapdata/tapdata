@@ -193,10 +193,14 @@ public class TaskController extends BaseController {
             userDetail = getLoginUser();
         } else if (where.containsKey("_id") || where.containsKey("id")) {
             Object objectId = where.get("_id");
+            Object objectId2 = where.get("id");
             String taskId;
-            if (objectId != null)
+            if (objectId != null) {
                 taskId = objectId instanceof Map ? ((Map) objectId).get("$oid").toString() : objectId.toString();
-            else taskId = where.get("id").toString();
+            }
+            else {
+                taskId = objectId2 instanceof Map ? ((Map) objectId2).get("$oid").toString() : objectId2.toString();
+            }
             TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
             if (taskDto == null) {
                 return success(new Page<>());

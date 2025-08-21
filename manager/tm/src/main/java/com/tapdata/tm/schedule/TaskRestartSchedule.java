@@ -12,6 +12,8 @@ import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
+import com.tapdata.tm.task.service.TaskOperationRateLimitService;
+import com.tapdata.tm.task.service.TaskStartQueueService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TransformSchemaService;
@@ -57,12 +59,14 @@ public class TaskRestartSchedule {
     private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
+    private TaskOperationRateLimitService taskOperationRateLimitService;
+    private TaskStartQueueService taskStartQueueService;
 
     /**
-     * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
+     * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每120秒启动一次
      */
-    @Scheduled(fixedDelay = 60 * 1000)
-    @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name ="restartTask_lock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void restartTask() {
         Thread.currentThread().setName("taskSchedule-restartTask");
         //查询到所有需要重启的任务
@@ -82,8 +86,8 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 120 * 1000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
         //云版不需要这个重新调度的逻辑
@@ -136,7 +140,16 @@ public class TaskRestartSchedule {
             StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
             if (stateMachineResult.isOk()) {
                 transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user);
+
+                String taskId = taskDto.getId().toHexString();
+                // 使用任务启动队列服务进行调度，支持排队等待
+                boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+                if (scheduledImmediately) {
+                    log.debug("Task engine restart schedule request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                } else {
+                    log.info("Task engine restart schedule request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                }
             }
         }
     }
@@ -159,13 +172,51 @@ public class TaskRestartSchedule {
         return heartExpire;
     }
 
+    /**
+     * 根据启动中的任务数量动态计算超时时间
+     * 如果有100个启动中的任务，超时时间为3000秒
+     *
+     * @return 动态调整后的超时时间
+     */
+    private long getDynamicHeartExpire() {
+        // 获取基础超时时间
+        long baseHeartExpire = getHeartExpire();
+
+        // 查询当前启动中的任务数量
+        Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_SCHEDULING);
+        long schedulingTaskCount = taskService.count(Query.query(criteria));
+
+        // 动态调整超时时间
+        // 基础公式：每100个任务增加10倍超时时间
+        // 100个任务 -> 3000秒 (10倍)
+        // 50个任务 -> 1650秒 (5.5倍)
+        // 10个任务 -> 600秒 (2倍)
+        long dynamicHeartExpire;
+        if (schedulingTaskCount >= 100) {
+            // 100个或以上任务，使用3000秒
+            dynamicHeartExpire = 3000000L; // 3000秒
+        } else if (schedulingTaskCount > 0) {
+            // 根据任务数量线性调整：300秒 + (任务数量 / 100) * 2700秒
+            double multiplier = 1.0 + (schedulingTaskCount / 100.0) * 9.0; // 1倍到10倍之间
+            dynamicHeartExpire = (long) (baseHeartExpire * multiplier);
+        } else {
+            // 没有启动中的任务，使用基础超时时间
+            dynamicHeartExpire = baseHeartExpire;
+        }
+
+        log.debug("Dynamic heart expire calculated: schedulingTaskCount={}, baseHeartExpire={}ms, dynamicHeartExpire={}ms",
+                schedulingTaskCount, baseHeartExpire, dynamicHeartExpire);
+
+        return dynamicHeartExpire;
+    }
+
 
 
     /**
      * 对于少量因为tm线程终止导致的任务一直启动中（页面的直观显示），也就是调度中状态。做一些定时任务补救措施
      */
-    @Scheduled(fixedDelay = 30 * 1000)
-    @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name ="schedulingTask_lock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void overTimeTask() {
         Thread.currentThread().setName("taskSchedule-schedulingTask");
         FunctionUtils.ignoreAnyError(this::stoppingTask);
@@ -202,9 +253,15 @@ public class TaskRestartSchedule {
                 });
                 stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
             } else {
-                taskService.sendStoppingMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetail, false);
-                Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
-                taskService.updateById(taskDto.getId(), update, userDetail);
+                String taskId = taskDto.getId().toHexString();
+                // 检查重试冷却期
+                if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                    taskService.sendStoppingMsg(taskId, taskDto.getAgentId(), userDetail, false);
+                    Update update = Update.update("stopRetryTimes", taskDto.getStopRetryTimes() + 1).set("last_updated", taskDto.getLastUpdAt());
+                    taskService.updateById(taskDto.getId(), update, userDetail);
+                } else {
+                    log.debug("Task stop retry in cooldown period, taskId: {}", taskId);
+                }
             }
         }
     }
@@ -233,14 +290,17 @@ public class TaskRestartSchedule {
             }
 
 
-            long heartExpire = getHeartExpire();
+            long heartExpire = getDynamicHeartExpire();
+            long schedulingElapsed = System.currentTimeMillis() - taskDto.getSchedulingTime().getTime();
 
             transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-            if (Objects.nonNull(taskDto.getSchedulingTime()) && (
-                    System.currentTimeMillis() - taskDto.getSchedulingTime().getTime() > heartExpire)) {
+            if (Objects.nonNull(taskDto.getSchedulingTime()) && schedulingElapsed > heartExpire) {
+
+                log.warn("Task scheduling timeout detected: taskId={}, agentId={}, schedulingElapsed={}ms, dynamicTimeout={}ms",
+                        taskDto.getId().toHexString(), taskDto.getAgentId(), schedulingElapsed, heartExpire);
 
                 CompletableFuture.runAsync(() -> {
-                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms.";
+                    String template = "The engine[{0}] takes over the task with a timeout of {1}ms (dynamic timeout based on scheduling queue).";
                     String msg = MessageFormat.format(template, taskDto.getAgentId(), heartExpire);
                     monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
                 });
@@ -259,7 +319,20 @@ public class TaskRestartSchedule {
                     }
                 }
             } else {
-                taskScheduleService.scheduling(taskDto, user);
+                String taskId = taskDto.getId().toHexString();
+                // 检查重试冷却期
+                if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                    // 使用任务启动队列服务进行调度，支持排队等待
+                    boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+                    if (scheduledImmediately) {
+                        log.debug("Task scheduling retry request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                    } else {
+                        log.info("Task scheduling retry request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                    }
+                } else {
+                    log.debug("Task scheduling retry blocked by cooldown: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                }
             }
         }
     }
@@ -295,7 +368,20 @@ public class TaskRestartSchedule {
                         monitoringLogsService.startTaskErrorLog(taskDto, user, msg, Level.WARN);
                     });
 
-                    taskScheduleService.scheduling(taskDto, user);
+                    String taskId = taskDto.getId().toHexString();
+                    // 检查重试冷却期
+                    if (taskOperationRateLimitService.canRetryOperation(taskId)) {
+                        // 使用任务启动队列服务进行调度，支持排队等待
+                        boolean scheduledImmediately = taskStartQueueService.requestStartTask(taskId, taskDto.getAgentId(), user, "schedule");
+
+                        if (scheduledImmediately) {
+                            log.debug("Task wait run retry request executed immediately: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                        } else {
+                            log.info("Task wait run retry request queued due to rate limit: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                        }
+                    } else {
+                        log.debug("Task wait run retry blocked by cooldown: taskId={}, agentId={}", taskId, taskDto.getAgentId());
+                    }
                 } catch (Exception e) {
                     monitoringLogsService.startTaskErrorLog(taskDto, user, e, Level.ERROR);
                     throw e;

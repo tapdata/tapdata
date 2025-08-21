@@ -21,8 +21,10 @@ import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskCollectionObjService;
+import com.tapdata.tm.task.service.TaskOperationRateLimitService;
 import com.tapdata.tm.task.service.TaskScheduleService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TaskStartQueueService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
@@ -63,6 +65,8 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     private StateMachineService stateMachineService;
     private UserService userService;
     private AgentGroupService agentGroupService;
+    private TaskOperationRateLimitService taskOperationRateLimitService;
+    private TaskStartQueueService taskStartQueueService;
 
     @Override
     public void scheduling(TaskDto taskDto, UserDetail user) {
@@ -108,6 +112,24 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
     }
 
     public void sendStartMsg(String taskId, String agentId, UserDetail user) {
+        // 使用任务启动队列服务，支持排队等待
+        boolean startedImmediately = taskStartQueueService.requestStartTask(taskId, agentId, user, "start");
+
+        if (startedImmediately) {
+            log.debug("Task start request executed immediately: taskId={}, agentId={}", taskId, agentId);
+        } else {
+            log.info("Task start request queued due to rate limit: taskId={}, agentId={}", taskId, agentId);
+        }
+    }
+
+    /**
+     * 实际执行任务启动消息发送（由TaskStartQueueService调用）
+     *
+     * @param taskId 任务ID
+     * @param agentId 引擎ID
+     * @param user 用户信息
+     */
+    public void doSendStartMsg(String taskId, String agentId, UserDetail user) {
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
         dataSyncMq.setTaskId(taskId);
@@ -124,6 +146,11 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
 
         log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", agentId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
+
+        // 记录首次下发完成时间
+        taskOperationRateLimitService.recordFirstDeliveryComplete(taskId);
+
+        log.info("Task start message sent successfully: taskId={}, agentId={}", taskId, agentId);
     }
 
     /**

@@ -19,14 +19,14 @@ public class MigrateDagSchedule {
     }
 
 
-    @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void migrateDagPlanStart() {
         taskService.startPlanMigrateDagTask();
     }
 
-    @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name = "startPlanCronTaskLock", lockAtMostFor = "30s", lockAtLeastFor = "10s")
+    @Scheduled(fixedDelay = 120 * 1000)
+    @SchedulerLock(name = "startPlanCronTaskLock", lockAtMostFor = "120s", lockAtLeastFor = "60s")
     public void startPlanCronTask() {
         taskService.startPlanCronTask();
     }
