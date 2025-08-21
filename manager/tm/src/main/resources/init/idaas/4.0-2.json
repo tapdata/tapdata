@@ -32,7 +32,7 @@
         "sort": "7",
         "user_visible": true,
         "value": "30000",
-        "min": "1000",
+        "min": "10",
         "max": "3600000"
       }
     ]
