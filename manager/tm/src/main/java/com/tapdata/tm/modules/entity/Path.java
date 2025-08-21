@@ -8,7 +8,6 @@ import com.tapdata.tm.modules.dto.Where;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
 
 @Data
 public class Path {

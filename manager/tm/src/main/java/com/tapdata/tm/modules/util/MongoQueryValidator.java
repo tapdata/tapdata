@@ -143,12 +143,6 @@ public final class MongoQueryValidator {
             case "$elemMatch", "$not":
                 elementOrNot(operator, value, context);
                 break;
-            case "$text":
-                text(value);
-                break;
-            case "$where":
-                where(value);
-                break;
             default:
                 throw new BizException("module.save.check.where.unKnownOperator", operator);
         }
