@@ -2,6 +2,7 @@ package com.tapdata.tm.system.api.utils;
 
 
 import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.vo.DebugVo;
@@ -238,32 +239,164 @@ class TextEncryptionUtilTest {
         void testFilterNotString() {
             Map<String, Object> map = new HashMap<>();
             map.put(TextEncryptionUtil.FILTER, 1);
-            TextEncryptionUtil.formatFilter(map);
-            Assertions.assertEquals(map.get("filter"), 1);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("object");
+            paramTypeMap.put(TextEncryptionUtil.FILTER, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.FILTER), 1);
         }
         @Test
         void testFilterIsBlankString() {
             Map<String, Object> map = new HashMap<>();
             map.put(TextEncryptionUtil.FILTER, "");
-            TextEncryptionUtil.formatFilter(map);
-            Assertions.assertNotNull(map.get("filter"));
-            Assertions.assertEquals(map.get("filter").getClass(), HashMap.class);
-            Assertions.assertEquals(((Map<String, Object>) map.get("filter")).size(), 0);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("object");
+            paramTypeMap.put(TextEncryptionUtil.FILTER, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertNotNull(map.get(TextEncryptionUtil.FILTER));
+            Assertions.assertEquals(map.get(TextEncryptionUtil.FILTER).getClass(), HashMap.class);
+            Assertions.assertEquals(((Map<String, Object>) map.get(TextEncryptionUtil.FILTER)).size(), 0);
         }
         @Test
         void testFilterNotJsonString() {
             Map<String, Object> map = new HashMap<>();
             map.put(TextEncryptionUtil.FILTER, "xxx");
-            TextEncryptionUtil.formatFilter(map);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("object");
+            paramTypeMap.put(TextEncryptionUtil.FILTER, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
             Assertions.assertEquals(map.get("filter"), "xxx");
         }
         @Test
         void testFilterIsJsonString() {
             Map<String, Object> map = new HashMap<>();
             map.put(TextEncryptionUtil.FILTER, "{\"id\":\"id\"}");
-            TextEncryptionUtil.formatFilter(map);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("object");
+            paramTypeMap.put(TextEncryptionUtil.FILTER, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
             Assertions.assertNotNull(map.get("filter"));
             Assertions.assertEquals(JSON.toJSONString(map.get("filter")), "{\"id\":\"id\"}");
+        }
+        @Test
+        void testPageIsNumberString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.PAGE, "1");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("number");
+            paramTypeMap.put(TextEncryptionUtil.PAGE, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.PAGE), 1);
+        }
+        @Test
+        void testPageIsNumber() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.PAGE, 1);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("number");
+            paramTypeMap.put(TextEncryptionUtil.PAGE, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.PAGE), 1);
+        }
+        @Test
+        void testPageIsNotNumber() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.PAGE, "xxx");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("number");
+            paramTypeMap.put(TextEncryptionUtil.PAGE, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.PAGE), "xxx");
+        }
+        @Test
+        void testLimitIsNumberString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.LIMIT, "1");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("number");
+            paramTypeMap.put(TextEncryptionUtil.LIMIT, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.LIMIT), 1);
+        }
+        @Test
+        void testLimitIsNumber() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.LIMIT, 1);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("number");
+            paramTypeMap.put(TextEncryptionUtil.LIMIT, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.LIMIT), 1);
+        }
+        @Test
+        void testLimitIsNotNumber() {
+            Map<String, Object> map = new HashMap<>();
+            map.put(TextEncryptionUtil.LIMIT, "xxx");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("number");
+            paramTypeMap.put(TextEncryptionUtil.LIMIT, p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get(TextEncryptionUtil.LIMIT), "xxx");
+        }
+
+        @Test
+        void testBooleanIsBooleanString() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("bool", "true");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("boolean");
+            paramTypeMap.put("bool", p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get("bool"), true);
+        }
+
+        @Test
+        void testBooleanIsBoolean() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("bool", true);
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("boolean");
+            paramTypeMap.put("bool", p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get("bool"), true);
+        }
+        @Test
+        void testBooleanIsNotBoolean() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("bool", "xxx");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            Param p = new Param();
+            p.setType("boolean");
+            paramTypeMap.put("bool", p);
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get("bool"), "xxx");
+        }
+        @Test
+        void testParamTypeMapIsEmpty() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("bool", "1");
+            Map<String, Param> paramTypeMap = new HashMap<>();
+            TextEncryptionUtil.formatBefore(map, paramTypeMap);
+            Assertions.assertEquals(map.get("bool"), "1");
+        }
+        @Test
+        void testParamTypeMapIsNull() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("bool", "1");
+            TextEncryptionUtil.formatBefore(map, null);
+            Assertions.assertEquals(map.get("bool"), "1");
         }
     }
 }
