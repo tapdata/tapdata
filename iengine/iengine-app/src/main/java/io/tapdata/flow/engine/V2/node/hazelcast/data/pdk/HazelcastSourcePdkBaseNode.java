@@ -722,7 +722,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 switch (pointType) {
                     case "localTZ":
                     case "connTZ":
-                        offsetStartTimeMs = syncPoint.getDateTime();
+                        if(null != syncPoint){
+                            offsetStartTimeMs = syncPoint.getDateTime();
+                        }
                         break;
                     case "current":
                         break;
