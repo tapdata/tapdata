@@ -7,22 +7,12 @@ spring:
       sslCertKey: ""
       conn_params: ""
 
-# Server configuration for actuator endpoints
-server:
-  port: 8081
-
-# Management endpoints configuration for Prometheus monitoring
+# 使用JdkHttpServerConfig jdk 内置的httpserver开启http服务，避免tomcat也暴露端点
 management:
-  export:
-    prometheus:
-      enabled: true
   endpoints:
     web:
       exposure:
-        include: "info, prometheus"  # Expose all actuator endpoints
-  endpoint:
-    health:
-      show-details: always
+        exclude: "*"
 
 tapdata:
   cloud:

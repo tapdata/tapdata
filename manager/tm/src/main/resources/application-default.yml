@@ -118,18 +118,6 @@ jasypt:
   encryptor:
     password: nmyswls
 
-management:
-  export:
-    prometheus:
-      enabled: true
-  endpoints:
-    web:
-      exposure:
-        include: "info, prometheus"  # Expose all actuator endpoints
-  endpoint:
-    health:
-      show-details: always
-
 access:
   token:
     ttl: 1209600

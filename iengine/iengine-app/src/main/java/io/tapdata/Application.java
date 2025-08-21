@@ -129,7 +129,7 @@ public class Application {
 			AgentRuntime.version = (configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString();
 			initTimeZoneInfo();
 			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).build();
-			springApplication.setWebApplicationType(WebApplicationType.SERVLET);
+			springApplication.setWebApplicationType(WebApplicationType.NONE);
 			ConfigurableApplicationContext run = springApplication.run(args);
 
 			TapLogger.setLogListener(new TapLogger.LogListener() {
