@@ -323,9 +323,7 @@ public class TextEncryptionUtil {
         String outputChar = rule.getOutputChar();
         return switch (outputType) {
             case CUSTOM -> text.replaceAll(regex, String.valueOf(outputChar).repeat(rule.getOutputCount() <= 0 ? 1 : rule.getOutputCount()));
-            case AUTO -> Pattern.compile(regex)
-                    .matcher(text)
-                    .replaceAll(m -> outputChar.repeat(m.group().length()));
+            case AUTO -> text.replaceAll(regex, outputChar);
         };
     }
 }
