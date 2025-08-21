@@ -20,7 +20,11 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -60,9 +64,11 @@ class ApiCallServiceTest {
     private ApplicationService applicationService;
     private ApiCallStatsService apiCallStatsService;
     ApplicationConfig applicationConfig;
+    TextEncryptionRuleService ruleService;
 
     @BeforeEach
     void setUp() {
+        ruleService = mock(TextEncryptionRuleService.class);
         apiCallService = new ApiCallService();
         apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
         applicationConfig = mock(ApplicationConfig.class);
@@ -77,7 +83,7 @@ class ApiCallServiceTest {
         ReflectionTestUtils.setField(apiCallService, "applicationService", applicationService);
         apiCallStatsService = mock(ApiCallStatsService.class);
         ReflectionTestUtils.setField(apiCallService, "apiCallStatsService", apiCallStatsService);
-
+        ReflectionTestUtils.setField(apiCallService, "ruleService", ruleService);
     }
 
     @Nested
@@ -337,7 +343,7 @@ class ApiCallServiceTest {
             return apiCallEntity;
         });
 
-        assertSame(apiCallEntity, apiCallService.findOne(inputQuery));
+        assertEquals(apiCallEntity, apiCallService.findOne(inputQuery));
     }
 
     @Nested
@@ -600,6 +606,168 @@ class ApiCallServiceTest {
             Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
             Assertions.assertEquals(page.getItems().size(), 2);
             Assertions.assertEquals(page.getTotal(), 3L);
+        }
+    }
+
+    @Nested
+    class afterFindEntityTest {
+        @Test
+        void testNormal() {
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallEntity entity = new ApiCallEntity();
+            ApiCallEntity apiCallEntity = apiCallService.afterFindEntity(entity);
+            Assertions.assertEquals(entity, apiCallEntity);
+        }
+
+        @Test
+        void testBatchNormal() {
+            List<ApiCallEntity> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallEntity entity = new ApiCallEntity();
+            entities.add(entity);
+            entity.setAllPathId(new ObjectId().toHexString());
+            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormal2() {
+            List<ApiCallEntity> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDto() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoFalse() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonNotEmpty() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{\"id\": \"xxkdf\"}");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonInvalide() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonInvalide2() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormal2afterFindDto() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+    }
+
+    @Nested
+    class findApiParamTypeMapTest {
+        @Test
+        void testEmpty() {
+            List<ModulesDto> all = new ArrayList<>();
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.size());
+        }
+        @Test
+        void testNotApiId() {
+            List<ModulesDto> all = new ArrayList<>();
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId[0]);
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.size());
+        }
+
+        @Test
+        void testNormal() {
+            List<ModulesDto> all = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            all.add(modulesDto);
+            ModulesDto modulesDto1 = new ModulesDto();
+            all.add(modulesDto1);
+
+            ModulesDto modulesDto2 = new ModulesDto();
+            modulesDto2.setId(new ObjectId());
+            all.add(modulesDto2);
+            all.add(null);
+
+            ModulesDto modulesDto3 = new ModulesDto();
+            modulesDto3.setId(new ObjectId());
+            modulesDto3.setPaths(List.of(new Path()));
+            all.add(modulesDto3);
+
+            ModulesDto modulesDto4 = new ModulesDto();
+            modulesDto4.setId(new ObjectId());
+            Path path = new Path();
+            path.setName("name");
+            Param param = new Param();
+            param.setName("number");
+            path.setParams(List.of(param));
+            modulesDto4.setPaths(List.of(path));
+            all.add(modulesDto4);
+
+            ModulesDto modulesDto5 = new ModulesDto();
+            modulesDto5.setId(new ObjectId());
+            Path path1 = new Path();
+            path1.setName("name");
+            path1.setType("number");
+            Param param1 = new Param();
+            param1.setName("number");
+            param1.setType("number");
+            path1.setParams(List.of(param1));
+            modulesDto5.setPaths(List.of(path1));
+            all.add(modulesDto5);
+
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(2, result.size());
         }
     }
 
