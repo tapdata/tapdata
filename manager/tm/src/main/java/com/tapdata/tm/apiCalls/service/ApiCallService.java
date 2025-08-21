@@ -4,7 +4,6 @@ import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.UnwindOptions;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
@@ -18,19 +17,17 @@ import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
-import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
-import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
 import com.tapdata.tm.utils.EntityUtils;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -63,7 +60,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.DocumentUtils.getLong;
 import static org.springframework.data.mongodb.core.aggregation.Aggregation.limit;
@@ -644,12 +640,13 @@ public class ApiCallService {
     }
 
     protected void doAfterOnce(Boolean open, ApiCallEntity entity) {
+        Map<String, Param> paramMap = findApiParamTypeMap(MongoUtils.toObjectId(entity.getAllPathId())).get(entity.getAllPathId());
         String query = entity.getQuery();
         String body = entity.getBody();
         String reqParams = entity.getReqParams();
-        entity.setQuery(parse(query, open));
-        entity.setBody(parse(body, open));
-        entity.setReqParams(parse(reqParams, open));
+        entity.setQuery(parse(query, open, paramMap));
+        entity.setBody(parse(body, open, paramMap));
+        entity.setReqParams(parse(reqParams, open, paramMap));
     }
 
     protected List<ApiCallEntity> afterFindEntity(List<ApiCallEntity> entities) {
@@ -676,24 +673,59 @@ public class ApiCallService {
             return entities;
         }
         final Boolean open = ruleService.checkAudioSwitchStatus();
+        Map<String, Map<String, Param>> apiParamTypeMap = findApiParamTypeMap(apiIds.stream().map(ObjectId::new).toArray(ObjectId[]::new));
         entities.forEach(data -> {
             String query = data.getQuery();
             String body = data.getBody();
             String reqParams = data.getReqParams();
-            data.setQuery(parse(query, open));
-            data.setBody(parse(body, open));
-            data.setReqParams(parse(reqParams, open));
+            Map<String, Param> paramMap = apiParamTypeMap.get(data.getApiId());
+            data.setQuery(parse(query, open, paramMap));
+            data.setBody(parse(body, open, paramMap));
+            data.setReqParams(parse(reqParams, open, paramMap));
         });
         return entities;
     }
 
-    String parse(String json, Boolean open) {
+    protected Map<String, Map<String, Param>> findApiParamTypeMap(ObjectId ...apiId) {
+        if (apiId.length == 0) {
+            return new HashMap<>();
+        }
+        Query query = Query.query(Criteria.where("_id").in(new ArrayList<>(Arrays.asList(apiId))));
+        query.fields().include("paths.params", "_id");
+        List<ModulesDto> all = modulesService.findAll(query);
+        return all.stream()
+                .filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getId()))
+                .filter(e -> Objects.nonNull(e.getPaths())
+                        && !e.getPaths().isEmpty()
+                        && e.getPaths().get(0) != null
+                        && Objects.nonNull(e.getPaths().get(0).getParams())
+                        && !e.getPaths().get(0).getParams().isEmpty()
+                ).collect(
+                        Collectors.toMap(
+                                e -> e.getId().toHexString(),
+                                e -> {
+                                    List<Path> paths = e.getPaths();
+                                    Path path = paths.get(0);
+                                    return path.getParams().stream()
+                                            .filter(Objects::nonNull)
+                                            .filter(p -> Objects.nonNull(p.getName()))
+                                            .filter(p -> Objects.nonNull(p.getType()))
+                                            .collect(Collectors.toMap(Param::getName, p -> p, (p1, p2) -> p2));
+
+                                },
+                                (e1, e2) -> e2
+                        )
+                );
+    }
+
+    String parse(String json, Boolean open, Map<String, Param> paramMap) {
         if (null == json) {
             return null;
         }
         try {
             Map<String,Object> map = JSON.parseObject(json, Map.class);
-            TextEncryptionUtil.formatFilter(map);
+            TextEncryptionUtil.formatBefore(map, paramMap);
             if (!Boolean.TRUE.equals(open)) {
                 return JSON.toJSONString(map);
             }

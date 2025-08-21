@@ -2,6 +2,7 @@ package com.tapdata.tm.system.api.utils;
 
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.vo.DebugVo;
@@ -14,6 +15,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -25,24 +28,75 @@ import java.util.regex.Pattern;
 @Slf4j
 public class TextEncryptionUtil {
     public static final String FILTER = "filter";
-    public static final List<String> SYSTEM_FIELDS = List.of("limit", "page", "filter.fields", "filter.sort", "filter.order", "sort", "order");
+    public static final String LIMIT = "limit";
+    public static final String PAGE = "page";
+    public static final List<String> SYSTEM_FIELDS = List.of(LIMIT, PAGE, "filter.fields", "filter.sort", "filter.order", "sort", "order");
     public static final String PARAM_REPLACE_CHAR = "******";
+
+    interface ParseRule {
+        void parse(Map<String, Object> dataMap, String key);
+    }
+    private static final Map<String, ParseRule> parseRuleMap = new HashMap<>();
+
+    static {
+        parseRuleMap.put("string", (dataMap, key) -> {});
+        parseRuleMap.put("number", (dataMap, key) -> {
+            if (dataMap.get(key) instanceof String page) {
+                try {
+                    dataMap.put(key, Integer.parseInt(page));
+                } catch (Exception e) {
+                    log.warn("{} not a number: {}", key, page, e);
+                }
+            }
+        });
+        parseRuleMap.put("boolean", (dataMap, key) -> {
+            if (dataMap.get(key) instanceof String bool) {
+                switch (bool) {
+                    case "true":
+                        dataMap.put(key, true);
+                        return;
+                    case "false":
+                        dataMap.put(key, false);
+                        return;
+                    default:
+                        dataMap.put(key, bool);
+                }
+            }
+        });
+        parseRuleMap.put("date", (dataMap, key) -> {});
+        parseRuleMap.put("datetime", (dataMap, key) -> {});
+        parseRuleMap.put("time", (dataMap, key) -> {});
+        parseRuleMap.put("object", (dataMap, key) -> {
+            if (dataMap.get(key) instanceof String json) {
+                if (StringUtils.isBlank(json)) {
+                    dataMap.put(key, new HashMap<>());
+                    return;
+                }
+                try {
+                    dataMap.put(key, JSON.parseObject(json, Map.class));
+                } catch (Exception e) {
+                    log.warn("{} not a json: {}", key, json, e);
+                }
+            }
+        });
+    }
 
     private TextEncryptionUtil() {
     }
 
-    public static void formatFilter(Map<String, Object> item) {
-        if (item.get(FILTER) instanceof String json) {
-            if (StringUtils.isBlank(json)) {
-                item.put(FILTER, new HashMap<>());
-                return;
-            }
-            try {
-                item.put(FILTER, JSON.parseObject(json, Map.class));
-            } catch (Exception e) {
-                log.warn("filter not a json", e);
-            }
+    public static void formatBefore(Map<String, Object> item, Map<String, Param> paramTypeMap) {
+        if (null == paramTypeMap || paramTypeMap.isEmpty()) {
+            return;
         }
+        paramTypeMap.forEach((key, p) -> {
+            final String type = p.getType();
+            final String defaultValue = p.getDefaultvalue();
+            Optional.ofNullable(parseRuleMap.get(type))
+                    .ifPresent(handler -> {
+                        item.putIfAbsent(key, defaultValue);
+                        handler.parse(item, key);
+                    });
+        });
     }
 
     public static List<Map<String, Object>> textEncryptionBySwitch(Boolean open, List<Map<String, Object>> data) {
@@ -146,7 +200,7 @@ public class TextEncryptionUtil {
         for (Map<String, Object> result : results) {
             Object itemObject = result.get("value");
             String key = (String) result.get("key");
-            if (result.get("parent") instanceof Map parent) {
+            if (result.get("parent") instanceof Map<?, ?> parent) {
                 Object mappedValue = mapFieldValue(config, itemObject);
                 if (null == mappedValue) {
                     continue;
@@ -193,18 +247,14 @@ public class TextEncryptionUtil {
         if (value instanceof String || value instanceof Character) {
             target = String.valueOf(value);
             type = 0;
-        } else if (value instanceof Map map) {
-            List<String> keys = new ArrayList<>(map.keySet());
+        } else if (value instanceof Map<?, ?> map) {
+            List<String> keys = new ArrayList<>(((Map<String, Object>)map).keySet());
             Map<String, Object> targetMap = new HashMap<>();
-            for (String key : keys) {
-                targetMap.put(key, mapFieldValue(textEncryptionRules, map.get(key)));
-            }
+            keys.forEach(key -> targetMap.put(key, mapFieldValue(textEncryptionRules, map.get(key))));
             return targetMap;
         } else if (value instanceof Collection<?> list) {
             List<Object> targetList = new ArrayList<>();
-            for (Object item : list) {
-                targetList.add(mapFieldValue(textEncryptionRules, item));
-            }
+            list.forEach(item -> targetList.add(mapFieldValue(textEncryptionRules, item)));
             return targetList;
         } else if (value.getClass().isArray()) {
             Object[] objects = new Object[((Object[]) value).length];

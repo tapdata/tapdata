@@ -20,6 +20,9 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import org.bson.Document;
@@ -699,6 +702,72 @@ class ApiCallServiceTest {
             when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
             List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
             Assertions.assertEquals(entities, apiCallEntities);
+        }
+    }
+
+    @Nested
+    class findApiParamTypeMapTest {
+        @Test
+        void testEmpty() {
+            List<ModulesDto> all = new ArrayList<>();
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.size());
+        }
+        @Test
+        void testNotApiId() {
+            List<ModulesDto> all = new ArrayList<>();
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId[0]);
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.size());
+        }
+
+        @Test
+        void testNormal() {
+            List<ModulesDto> all = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            all.add(modulesDto);
+            ModulesDto modulesDto1 = new ModulesDto();
+            all.add(modulesDto1);
+
+            ModulesDto modulesDto2 = new ModulesDto();
+            modulesDto2.setId(new ObjectId());
+            all.add(modulesDto2);
+            all.add(null);
+
+            ModulesDto modulesDto3 = new ModulesDto();
+            modulesDto3.setId(new ObjectId());
+            modulesDto3.setPaths(List.of(new Path()));
+            all.add(modulesDto3);
+
+            ModulesDto modulesDto4 = new ModulesDto();
+            modulesDto4.setId(new ObjectId());
+            Path path = new Path();
+            path.setName("name");
+            Param param = new Param();
+            param.setName("number");
+            path.setParams(List.of(param));
+            modulesDto4.setPaths(List.of(path));
+            all.add(modulesDto4);
+
+            ModulesDto modulesDto5 = new ModulesDto();
+            modulesDto5.setId(new ObjectId());
+            Path path1 = new Path();
+            path1.setName("name");
+            path1.setType("number");
+            Param param1 = new Param();
+            param1.setName("number");
+            param1.setType("number");
+            path1.setParams(List.of(param1));
+            modulesDto5.setPaths(List.of(path1));
+            all.add(modulesDto5);
+
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(2, result.size());
         }
     }
 
