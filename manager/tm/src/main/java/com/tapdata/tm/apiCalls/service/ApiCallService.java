@@ -13,6 +13,7 @@ import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.application.dto.ApplicationDto;
+import com.tapdata.tm.application.entity.ApplicationEntity;
 import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
@@ -149,34 +150,21 @@ public class ApiCallService {
         return null;
     }
 
-    protected List<Document> buildNameOrIdExpr(String name, String id, UserDetail userDetail) {
-        List<Document> matchCriteria = new ArrayList<>();
-        matchCriteria.add(new Document("$eq", List.of("$_id", new Document("$toObjectId", "$$allPathId"))));
-        matchCriteria.add(new Document("$ne", List.of("$delete", true)));
-        if (!Objects.equals(applicationConfig.getAdminAccount(), userDetail.getEmail())) {
-            matchCriteria.add(new Document("$eq", List.of("$user_id", userDetail.getUserId())));
-        }
-        ObjectId objectId = MongoUtils.toObjectId(id);
-        //前端都是放在一个输入框，如果是ObjectID就是查询apiId,否则就是模糊查询api name
-        if (null != objectId) {
-            matchCriteria.add(new Document("$eq", List.of("$_id", objectId)));
-        } else if (StringUtils.isNotBlank(name)) {
-            matchCriteria.add(new Document("$regexMatch", new Document("input", "$name").append("regex", name)));
-        }
-        return matchCriteria;
-    }
-
     protected Criteria genericFilterCriteria(Filter filter) {
         final Criteria startTimeCriteria = new Criteria();
         final Criteria endTimeCriteria = new Criteria();
         final Where where = filter.getWhere();
         final String method = (String) where.getOrDefault(Tag.METHOD, "");
         final Object code = where.get("code");
+        final Object clientId = where.get(Tag.CLIENT_ID);
         final Criteria criteria = new Criteria();
         if (StringUtils.isNotEmpty(method)) {
             criteria.and(Tag.METHOD).is(method);
         }
-        criteria.and(Tag.ALL_PATH_ID).nin("", null);
+        if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
+            criteria.and("user_info").exists(true)
+                    .and(String.format("user_info.%s", Tag.CLIENT_ID)).is(clientId);
+        }
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
                 .ifPresent(value -> {
@@ -198,48 +186,58 @@ public class ApiCallService {
         return criteria;
     }
 
-    public Page<ApiCallDetailVo> find(Filter filter, UserDetail userDetail) {
+    protected void startFilterApiNameOrId(Filter filter, Criteria criteria) {
         final Where where = filter.getWhere();
         final List<Map<String, Map<String, String>>> orList = (List<Map<String, Map<String, String>>>) where.getOrDefault("or", new ArrayList<>());
-        final Object clientId = where.get("clientId");
-        final String id = getValueFromOrList(orList, "id");
-        final String name = getValueFromOrList(orList, "name");
+        final String id = getValueFromOrList(orList, Tag.ID);
+        final String name = getValueFromOrList(orList, Tag.NAME);
+        ObjectId apiId = MongoUtils.toObjectId(id);
+        if (null != apiId) {
+            //filter by api id
+            criteria.and(Tag.ALL_PATH_ID).is(id);
+        } else if (StringUtils.isNotBlank(name)) {
+            //filter by api name
+            Criteria regexName = Criteria.where(Tag.NAME).regex(name, "i");
+            Query query = Query.query(regexName);
+            List<ModulesDto> all = modulesService.findAll(query);
+            List<Criteria> or = new ArrayList<>();
+            if (!all.isEmpty()) {
+                List<String> apiIds = all.stream()
+                        .filter(Objects::nonNull)
+                        .map(ModulesDto::getId)
+                        .map(ObjectId::toString)
+                        .distinct()
+                        .toList();
+                or.add(Criteria.where(Tag.ALL_PATH_ID).in(apiIds));
+            }
+            if (StringUtils.isNotBlank(id)) {
+                or.add(Criteria.where(Tag.ALL_PATH_ID).regex(id));
+            }
+            if (or.isEmpty()) {
+                criteria.and(Tag.ALL_PATH_ID).nin("", null);
+            } else {
+                criteria.orOperator(or);
+            }
+        } else {
+            criteria.and(Tag.ALL_PATH_ID).nin("", null);
+        }
+    }
+
+    public Page<ApiCallDetailVo> find(Filter filter) {
+        final Where where = filter.getWhere();
+        final Object clientId = where.get(Tag.CLIENT_ID);
         final String order = (String) ((filter.getOrder() == null) ? "createTime DESC" : filter.getOrder());
 
-        //根据method 查询
+        //filter by method
         final Criteria criteria = genericFilterCriteria(filter);
-        List<Document> bMatchCriteria = buildNameOrIdExpr(name, id, userDetail);
-        Document lookupDoc = new Document("$lookup", new Document()
-                .append("from", "Modules")
-                .append("let", new Document(Tag.ALL_PATH_ID, "$" + Tag.ALL_PATH_ID))
-                .append("pipeline", List.of(new Document(Tag.MATCH, new Document("$expr", new Document("$and", bMatchCriteria)))))
-                .append("as", "mData")
-        );
-        AggregationOperation lookupOfModule = context -> lookupDoc;
-        Criteria criteriaAll = Criteria.where("mData.0").exists(true).andOperator(criteria);
-
+        startFilterApiNameOrId(filter, criteria);
         AggregationOperation countStage = Aggregation.count().as("total");
-
-
-        List<Document> filterApplication = new ArrayList<>();
-        filterApplication.add(new Document("$eq", List.of("$clientId", "$$clientId")));
+        Set<String> clientIds = new HashSet<>();
         if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
-            filterApplication.add(new Document("$eq", List.of("$clientId", clientId)));
-            criteriaAll.and("appData.clientId").is(String.valueOf(clientId).trim());
+            clientIds.add(String.valueOf(clientId).trim());
         }
-        Document lookupDocOfApplication = new Document("$lookup", new Document()
-                .append("from", "Application")
-                .append("let", new Document("clientId", "$user_info.clientId"))
-                .append("pipeline", List.of(new Document(Tag.MATCH, new Document("$expr", new Document("$and", filterApplication)))))
-                .append("as", "appData")
-        );
-        AggregationOperation lookupOfApplication = context -> lookupDocOfApplication;
-
-        AggregationOperation matchStage = Aggregation.match(criteriaAll);
+        AggregationOperation matchStage = Aggregation.match(criteria);
         Aggregation countAggregation = Aggregation.newAggregation(
-                match(criteria),
-                lookupOfApplication,
-                lookupOfModule,
                 matchStage,
                 countStage
         );
@@ -259,17 +257,12 @@ public class ApiCallService {
                 sort = Sort.by(Tag.CREATE_TIME).descending();
             }
             final Aggregation aggregation = newAggregation(
-                    match(criteria),
-                    lookupOfApplication,
-                    lookupOfModule,
                     matchStage,
-                    unwind("mData"),
-                    unwind("appData", true),
                     new SortOperation(sort),
                     skip(skip),
                     limit(size),
                     project()
-                            .and("_id").as("id")
+                            .and("_id").as(Tag.ID)
                             .and(Tag.CREATE_TIME).as(Tag.CREATE_AT)
                             .and("user_id").as("userId")
                             .and("createUser").as("createUser")
@@ -294,25 +287,59 @@ public class ApiCallService {
                             .and("body").as("body")
                             .and(Tag.ALL_PATH_ID).as("apiId")
                             .and("req_path").as("apiPath")
-
-                            .and("mData.name").as("apiName")
-                            .and("mData.apiVersion").as("apiVersion")
-                            .and("mData.path").as("path")
-                            .and("mData.apiType").as("apiType")
-                            .and("mData.paths").as("paths")
-                            .and("mData.project").as("project")
-                            .and("mData.connection").as("connection")
-                            .and("mData.user").as("user")
-                            .and("mData.resRows").as("resRows")
-                            .and("mData.responseTime").as("responseTime")
-                            .and("mData.operationType").as("operationType")
-                            .and("mData.createAt").as("apiCreateAt")
-
-                            .and("appData.clientId").as("clientId")
-                            .and("appData.clientName").as("clientName")
             );
+            Set<String> moduleIds = new HashSet<>();
             AggregationResults<ApiCallDataVo> apiCall = mongoOperations.aggregate(aggregation, Tag.API_CALL, ApiCallDataVo.class);
             apiCallDetailVoList = Optional.ofNullable(apiCall.getMappedResults()).orElse(new ArrayList<>());
+            apiCallDetailVoList.stream()
+                    .filter(Objects::nonNull)
+                    .map(ApiCallDataVo::getUserInfo)
+                    .filter(Objects::nonNull)
+                    .filter(e -> Objects.nonNull(e.get(Tag.CLIENT_ID)))
+                    .map(e -> String.valueOf(e.get(Tag.CLIENT_ID)))
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(clientIds::add);
+            apiCallDetailVoList.stream()
+                    .filter(Objects::nonNull)
+                    .map(ApiCallDataVo::getApiId)
+                    .filter(Objects::nonNull)
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(moduleIds::add);
+            final Map<String, String> applicationNameMap = new HashMap<>();
+            if (!clientIds.isEmpty()) {
+                List<ApplicationDto> applications = applicationService.findByIds(new ArrayList<>(clientIds));
+                applicationNameMap.putAll(applications.stream()
+                        .filter(Objects::nonNull)
+                        .filter(e -> Objects.nonNull(e.getClientId()))
+                        .collect(Collectors.toMap(ApplicationDto::getClientId, ApplicationDto::getClientName, (e1, e2) -> e2)));
+            }
+            final Map<String, ModulesDto> modulesDtoMap = new HashMap<>();
+            if (!moduleIds.isEmpty()) {
+                List<ModulesDto> allModulesByIds = modulesService.findAllModulesByIds(new ArrayList<>(moduleIds));
+                modulesDtoMap.putAll(allModulesByIds.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e2)));
+            }
+            apiCallDetailVoList.stream().filter(Objects::nonNull).forEach(e -> {
+                Optional.ofNullable(e.getUserInfo())
+                        .map(userInfo -> userInfo.get(Tag.CLIENT_ID))
+                        .map(applicationNameMap::get)
+                        .ifPresent(e::setClientName);
+                Optional.ofNullable(modulesDtoMap.get(e.getApiId())).ifPresent(api -> {
+                    e.setApiName(api.getName());
+                    e.setApiVersion(api.getApiVersion());
+                    e.setApiPath(api.getPath());
+                    e.setApiType(api.getApiType());
+                    e.setPaths(api.getPaths());
+                    e.setProject(api.getProject());
+                    e.setConnection(api.getConnection());
+                    e.setUser(api.getUser());
+                    e.setResRows(api.getResRows());
+                    e.setResponseTime(api.getResponseTime());
+                    e.setOperationType(api.getOperationType());
+                    e.setApiCreateAt(api.getCreateAt());
+                });
+            });
         } else {
             apiCallDetailVoList = new ArrayList<>();
         }
@@ -321,31 +348,34 @@ public class ApiCallService {
                 .orElse(new ArrayList<>())
                 .stream()
                 .filter(Objects::nonNull)
-                .map(e -> {
-                    final ApiCallDetailVo item = new ApiCallDetailVo();
-                    item.setClientName(e.getClientName());
-                    item.setId(e.getId().toHexString());
-                    item.setApiId(e.getApiId());
-                    item.setName(e.getApiName());
-                    item.setCode(e.getCode());
-                    item.setLatency(e.getLatency());
-                    item.setSpeed(e.getSpeed());
-                    item.setCodeMsg(e.getCodeMsg());
-                    item.setAverResponseTime(e.getAverResponseTime());
-                    item.setVisitTotalCount(e.getVisitTotalCount());
-                    item.setUserIp(e.getUserIp());
-                    item.setLastUpdAt(e.getLastUpdAt());
-                    item.setLastUpdBy(e.getLastUpdBy());
-                    item.setCustomId(e.getCustomId());
-                    item.setQuery(e.getQuery());
-                    item.setBody(e.getBody());
-                    item.setApiPath(e.getApiPath());
-                    item.setCreateTime(e.getCreateTime());
-                    item.setCreateAt(e.getApiCreateAt());
-                    item.setMethod(e.getMethod());
-                    return item;
-        }).toList();
+                .map(this::mapToApiCallDetailVo)
+                .toList();
         return Page.page(resultData, total);
+    }
+
+    protected ApiCallDetailVo mapToApiCallDetailVo(ApiCallDataVo e) {
+        final ApiCallDetailVo item = new ApiCallDetailVo();
+        item.setClientName(e.getClientName());
+        item.setId(e.getId().toHexString());
+        item.setApiId(e.getApiId());
+        item.setName(e.getApiName());
+        item.setCode(e.getCode());
+        item.setLatency(e.getLatency());
+        item.setSpeed(e.getSpeed());
+        item.setCodeMsg(e.getCodeMsg());
+        item.setAverResponseTime(e.getAverResponseTime());
+        item.setVisitTotalCount(e.getVisitTotalCount());
+        item.setUserIp(e.getUserIp());
+        item.setLastUpdAt(e.getLastUpdAt());
+        item.setLastUpdBy(e.getLastUpdBy());
+        item.setCustomId(e.getCustomId());
+        item.setQuery(e.getQuery());
+        item.setBody(e.getBody());
+        item.setApiPath(e.getApiPath());
+        item.setCreateTime(e.getCreateTime());
+        item.setCreateAt(e.getApiCreateAt());
+        item.setMethod(e.getMethod());
+        return item;
     }
 
     public List<ApiCallDto> save(List<ApiCallDto> saveApiCallParamList) {
@@ -367,7 +397,7 @@ public class ApiCallService {
     }
 
     public List<ApiCallEntity> findByModuleIds(List<String> moduleIdList) {
-        Query query = Query.query(Criteria.where("allPathId").in(moduleIdList));
+        Query query = Query.query(Criteria.where(Tag.ALL_PATH_ID).in(moduleIdList));
         query.with(Sort.by("createTime").descending());
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         apiCallEntityList = mongoOperations.find(query, ApiCallEntity.class);
@@ -386,7 +416,7 @@ public class ApiCallService {
         List<String> moduleIdList = modulesDtoList.stream().map(ModulesDto::getId).collect(Collectors.toList())
                 .stream().map(ObjectId::toString).collect(Collectors.toList())
                 .stream().distinct().collect(Collectors.toList());
-        apiCallEntityList = mongoOperations.find(Query.query(Criteria.where("allPathId").in(moduleIdList)), ApiCallEntity.class);
+        apiCallEntityList = mongoOperations.find(Query.query(Criteria.where(Tag.ALL_PATH_ID).in(moduleIdList)), ApiCallEntity.class);
         return Optional.of(apiCallEntityList).map(this::afterFindEntity).orElse(new ArrayList<>());
     }
 
@@ -409,8 +439,8 @@ public class ApiCallService {
         List<ApplicationDto> applicationDtoList = applicationService.findByIds(new ArrayList<>(clientIdSet));
         applicationDtoList.forEach(applicationDto -> {
             Map<String, String> map = new HashMap<>();
-            map.put("id", applicationDto.getId().toString());
-            map.put("name", applicationDto.getName());
+            map.put(Tag.ID, applicationDto.getId().toString());
+            map.put(Tag.NAME, applicationDto.getName());
             result.add(map);
         });
 
@@ -444,7 +474,7 @@ public class ApiCallService {
         MongoCollection<Document> apiCallCollection = mongoOperations.getCollection(apiCallCollectionName);
 
         // Build aggregation pipeline
-        Document match = new Document("allPathId", allPathId);
+        Document match = new Document(Tag.ALL_PATH_ID, allPathId);
         if (StringUtils.isNotBlank(lastApiCallId)) {
             match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
         }
@@ -672,7 +702,9 @@ public class ApiCallService {
         }
         final Boolean open = ruleService.checkAudioSwitchStatus();
         Map<String, Map<String, Param>> apiParamTypeMap = findApiParamTypeMap(apiIds.stream().map(ObjectId::new).toArray(ObjectId[]::new));
-        entities.forEach(data -> {
+        entities.stream()
+                .filter(Objects::nonNull)
+                .forEach(data -> {
             String query = data.getQuery();
             String body = data.getBody();
             Map<String, Param> paramMap = apiParamTypeMap.get(data.getApiId());
@@ -735,13 +767,15 @@ public class ApiCallService {
 
     public static class Tag {
         private Tag() {}
-        public static final String MATCH = "$match";
         public static final String CREATE_TIME = "createTime";
         public static final String METHOD = "method";
+        public static final String CLIENT_ID = "clientId";
         public static final String START = "start";
         public static final String ALL_PATH_ID = "allPathId";
         public static final String API_CALL = "ApiCall";
         public static final String CREATE_AT = "createAt";
         public static final String LATENCY = "latency";
+        public static final String NAME = "name";
+        public static final String ID = "id";
     }
 }
