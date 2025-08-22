@@ -19,6 +19,8 @@ public class DebugVo {
 
     List<Map<String, Object>> data;
 
+    Integer count;
+
     Map<String, Object> total;
 
     @JsonProperty("api_monit_info")
