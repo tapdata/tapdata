@@ -148,7 +148,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
     }
 
-    private Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, PageParameter pageParameter, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
+    protected Page<MetadataTransformerItemDto> getNodeInfoByMigrate(String taskId, String nodeId, String searchTableName, PageParameter pageParameter, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag) {
         DatabaseNode sourceNode = dag.getSourceNode(nodeId);
         if (Objects.isNull(sourceNode)) {
             return result;
@@ -156,17 +156,36 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
         List<String> tableNames = getMigrateTableNames(sourceNode,userDetail);
         checkUnionProcess(dag,nodeId, tableNames);
-        List<String> currentTableList = Lists.newArrayList();
+        Map<String, String> convertTableNameMap = Maps.newHashMap();
+        dag.getPreNodes(nodeId).stream().filter(TableRenameProcessNode.class::isInstance).forEach(n -> {
+            TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) n;
+            convertTableNameMap.putAll(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
+        });
+        Map<String, String> reverseConvertTableNameMap = Maps.newHashMap();
+        convertTableNameMap.forEach((k, v) -> {
+            if (StringUtils.isNotBlank(v)) {
+                reverseConvertTableNameMap.put(v, k);
+            }
+        });
+        List<String> currentTableList = tableNames.stream().map(s -> convertTableNameMap.getOrDefault(s, s)).collect(Collectors.toList());
         if (StringUtils.isNotBlank(searchTableName)) {
             currentTableList.add(searchTableName);
-            tableNames = tableNames.stream().filter(s -> s.toUpperCase().contains(searchTableName.toUpperCase())).collect(Collectors.toList());
+            currentTableList = currentTableList.stream().filter(s -> s.toUpperCase().contains(searchTableName.toUpperCase())).collect(Collectors.toList());
         }
+        if (MapUtils.isNotEmpty(reverseConvertTableNameMap)) {
+            tableNames.clear();
+        }
+        currentTableList.forEach(tableName -> {
+            if (null != reverseConvertTableNameMap.get(tableName)) {
+                tableNames.add(reverseConvertTableNameMap.get(tableName));
+            }
+        });
 
         if (CollectionUtils.isEmpty(tableNames)) {
             return result;
         }
 
-        currentTableList = ListUtils.partition(tableNames, pageParameter.getPageSize()).get(pageParameter.getPage() - 1);
+        currentTableList = ListUtils.partition(currentTableList, pageParameter.getPageSize()).get(pageParameter.getPage() - 1);
 
         DataSourceConnectionDto targetDataSource;
         if (targetNode != null) {
@@ -188,10 +207,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, taskId, userDetail);
         else
-            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
+            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode, convertTableNameMap, reverseConvertTableNameMap);
     }
 
-    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId, UserDetail user) {
+    protected Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId, UserDetail user) {
         // table rename
         LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors.stream()
                 .filter(node -> node instanceof TableRenameProcessNode)
@@ -347,11 +366,11 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
+    protected Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
 
             , Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode
             , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
-            , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
+            , final String taskId, List<Node<?>> predecessors, Node<?> currentNode, Map<String, String> convertTableNameMap, Map<String, String> reverseConvertTableNameMap) {
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();
         }
@@ -378,16 +397,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
         List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
         boolean queryFormSource = false;
-        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
+        if (CollectionUtils.isEmpty(list)) {
             // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
             list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
-                    currentTableList, userDetail);
+                    tableNames, userDetail);
             queryFormSource = true;
         }
         if (CollectionUtils.isNotEmpty(list)) {
             boolean finalQueryFormSource = queryFormSource;
             metaMap = list.stream()
-                    .filter(t -> currentTableList.contains(t.getAncestorsName()))
+                    .filter(t -> convertTableNameMap.isEmpty() ? currentTableList.contains(t.getAncestorsName()) : currentTableList.contains(convertTableNameMap.get(t.getAncestorsName())))
                     .map(meta -> {
                 // source & target not same database type and query from source
                 if (finalQueryFormSource && currentNode instanceof DatabaseNode
@@ -406,6 +425,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
+            tableName = reverseConvertTableNameMap.getOrDefault(tableName, tableName);
             if (metaMap.get(tableName) == null) {
                 continue;
             }

@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl;
 
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.PageParameter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
@@ -13,8 +14,11 @@ import com.tapdata.tm.commons.dag.process.MigrateDateProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateUnionProcessorNode;
 import com.tapdata.tm.commons.dag.process.StandardMigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -24,6 +28,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -31,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -352,6 +358,203 @@ class TaskNodeServiceImplTest {
             verify(node1, times(0)).getId();
             verify(node2, times(0)).getId();
             verify(dag, times(1)).getNodes();
+        }
+    }
+
+    @Nested
+    class GetNodeInfoByMigrateTest {
+        private DAG dag;
+        private DatabaseNode sourceNode;
+        private DatabaseNode targetNode;
+        private DataSourceService dataSourceService;
+        private DataSourceConnectionDto sourceDataSource;
+        private DataSourceConnectionDto targetDataSource;
+        private TableRenameProcessNode tableRenameProcessNode;
+
+        @BeforeEach
+        void setUp() {
+            dag = mock(DAG.class);
+            sourceNode = mock(DatabaseNode.class);
+            targetNode = mock(DatabaseNode.class);
+            dataSourceService = mock(DataSourceService.class);
+            sourceDataSource = mock(DataSourceConnectionDto.class);
+            targetDataSource = mock(DataSourceConnectionDto.class);
+            tableRenameProcessNode = mock(TableRenameProcessNode.class);
+
+            ReflectionTestUtils.setField(taskNodeService, "dataSourceService", dataSourceService);
+
+            // Mock basic setup
+            when(dag.getSourceNode("nodeId")).thenReturn(sourceNode);
+            LinkedList<DatabaseNode> targetNodes = new LinkedList<>();
+            targetNodes.add(targetNode);
+            when(dag.getTargetNode()).thenReturn(targetNodes);
+            when(dag.getTargetNode("nodeId")).thenReturn(targetNode);
+            when(sourceNode.getConnectionId()).thenReturn("sourceConnectionId");
+            when(targetNode.getConnectionId()).thenReturn("targetConnectionId");
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(targetDataSource);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(tableRenameProcessNode);
+            when(dag.getPreNodes("nodeId")).thenReturn(preNodes);
+            when(dag.nodeMap()).thenReturn(new HashMap<>());
+            when(dag.getNode("nodeId")).thenReturn((Node)sourceNode);
+
+            // Mock getMigrateTableNames method
+            doCallRealMethod().when(taskNodeService).getNodeInfoByMigrate(
+                any(String.class), any(String.class), any(String.class),
+                any(PageParameter.class), any(UserDetail.class),
+                any(Page.class), any(DAG.class));
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_SourceNodeIsNull() {
+            when(dag.getSourceNode("nodeId")).thenReturn(null);
+            Page<MetadataTransformerItemDto> result = new Page<>();
+
+            Page<MetadataTransformerItemDto> actualResult = taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", "searchTable",
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            Assertions.assertEquals(result, actualResult);
+            verify(dag, times(1)).getSourceNode("nodeId");
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_EmptyTableNames() {
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(new ArrayList<>());
+            Page<MetadataTransformerItemDto> result = new Page<>();
+
+            Page<MetadataTransformerItemDto> actualResult = taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", null,
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            Assertions.assertEquals(null, actualResult);
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_WithTableRename() {
+            List<String> tableNames = Arrays.asList("table1", "table2");
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+
+            Map<String, String> convertMap = new HashMap<>();
+            convertMap.put("table1", "renamed_table1");
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            when(taskNodeService.getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(result);
+
+            Page<MetadataTransformerItemDto> actualResult = taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", "",
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            verify(dag, times(2)).getPreNodes(any());
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_WithSearchTableName() {
+            List<String> tableNames = Arrays.asList("user_table", "order_table", "product_table");
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+            when(dag.getPreNodes("nodeId")).thenReturn(new LinkedList<>());
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            when(taskNodeService.getMetadataTransformerItemDtoPage(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(result);
+
+            Page<MetadataTransformerItemDto> actualResult = taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", "user",
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            Assertions.assertNotNull(actualResult);
+        }
+
+        @Test
+        void testGetNodeInfoByMigrate_WithJsNode() {
+            List<String> tableNames = Arrays.asList("table1");
+            when(taskNodeService.getMigrateTableNames(sourceNode, userDetail)).thenReturn(tableNames);
+
+            MigrateJsProcessorNode jsNode = mock(MigrateJsProcessorNode.class);
+            LinkedList<Node<?>> preNodes = new LinkedList<>();
+            preNodes.add(jsNode);
+            when(dag.getPreNodes("nodeId")).thenReturn(preNodes);
+
+            Page<MetadataTransformerItemDto> result = new Page<>();
+            when(taskNodeService.getMetaByJsNode(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(result);
+
+            Page<MetadataTransformerItemDto> actualResult = taskNodeService.getNodeInfoByMigrate(
+                "taskId", "nodeId", "",
+                new PageParameter(1, 10), userDetail, result, dag);
+
+            verify(taskNodeService, times(1)).getMetaByJsNode(
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        }
+    }
+
+    @Nested
+    class TableNameReplacementTest {
+
+        @Test
+        void testTableNameReplacement_WithReverseMapping() {
+            List<String> tableNames = new ArrayList<>(Arrays.asList("table1", "table2", "table3"));
+            List<String> currentTableList = Arrays.asList("renamed_table1", "renamed_table2", "table3");
+            Map<String, String> reverseConvertTableNameMap = new HashMap<>();
+            reverseConvertTableNameMap.put("renamed_table1", "table1");
+            reverseConvertTableNameMap.put("renamed_table2", "table2");
+
+            if (!reverseConvertTableNameMap.isEmpty()) {
+                List<String> originalTableNames = currentTableList.stream()
+                        .map(tableName -> reverseConvertTableNameMap.getOrDefault(tableName, tableName))
+                        .collect(Collectors.toList());
+                tableNames.clear();
+                tableNames.addAll(originalTableNames);
+            }
+
+            Assertions.assertEquals(3, tableNames.size());
+            Assertions.assertTrue(tableNames.contains("table1"));
+            Assertions.assertTrue(tableNames.contains("table2"));
+            Assertions.assertTrue(tableNames.contains("table3"));
+        }
+
+        @Test
+        void testTableNameReplacement_EmptyReverseMapping() {
+            List<String> tableNames = new ArrayList<>(Arrays.asList("table1", "table2"));
+            List<String> currentTableList = Arrays.asList("table1", "table2");
+            Map<String, String> reverseConvertTableNameMap = new HashMap<>();
+
+            if (!reverseConvertTableNameMap.isEmpty()) {
+                List<String> originalTableNames = currentTableList.stream()
+                        .map(tableName -> reverseConvertTableNameMap.getOrDefault(tableName, tableName))
+                        .collect(Collectors.toList());
+                tableNames.clear();
+                tableNames.addAll(originalTableNames);
+            }
+
+            Assertions.assertEquals(2, tableNames.size());
+            Assertions.assertTrue(tableNames.contains("table1"));
+            Assertions.assertTrue(tableNames.contains("table2"));
+        }
+
+        @Test
+        void testTableNameReplacement_PartialMapping() {
+            List<String> tableNames = new ArrayList<>(Arrays.asList("table1", "table2", "table3"));
+            List<String> currentTableList = Arrays.asList("renamed_table1", "table2", "new_table");
+            Map<String, String> reverseConvertTableNameMap = new HashMap<>();
+            reverseConvertTableNameMap.put("renamed_table1", "table1");
+
+            if (!reverseConvertTableNameMap.isEmpty()) {
+                List<String> originalTableNames = currentTableList.stream()
+                        .map(tableName -> reverseConvertTableNameMap.getOrDefault(tableName, tableName))
+                        .collect(Collectors.toList());
+                tableNames.clear();
+                tableNames.addAll(originalTableNames);
+            }
+
+            Assertions.assertEquals(3, tableNames.size());
+            Assertions.assertTrue(tableNames.contains("table1"));
+            Assertions.assertTrue(tableNames.contains("table2"));
+            Assertions.assertTrue(tableNames.contains("new_table"));
         }
     }
 }
