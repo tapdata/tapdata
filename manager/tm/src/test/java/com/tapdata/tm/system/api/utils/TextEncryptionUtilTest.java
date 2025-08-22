@@ -197,7 +197,7 @@ class TextEncryptionUtilTest {
             System.out.println(JSON.toJSONString(debugVo.getData()));
             Assertions.assertEquals(
                     JSON.toJSONString(debugVo.getData()),
-                    "[{\"other\":{\"date\":\"****************************\",\"bool\":\"****\",\"customObj\":{},\"numbers\":[\"***\",\"***\",\"********\"],\"numBD\":\"*****\",\"chr\":\"*\",\"numD\":\"*****\",\"numB\":\"*\",\"numI\":\"**\",\"numF\":10.9,\"numBL\":\"***\",\"numL\":\"**\",\"array\":[\"**\",\"**\",\"**\"],\"kard\":\"*****\",\"id\":\"*********\",\"numS\":\"*\",\"info\":{\"key\":\"*****\"}},\"address\":[\"********\",\"*******\",\"*****\",\"*********\",\"*******\"],\"limit\":1,\"name\":\"**********\",\"page\":1}]"
+                    "[{\"other\":{\"date\":\"**\",\"bool\":\"**\",\"customObj\":{},\"numbers\":[\"**\",\"**\",\"**\"],\"numBD\":\"**\",\"chr\":\"**\",\"numD\":\"**\",\"numB\":\"**\",\"numI\":\"**\",\"numF\":10.9,\"numBL\":\"**\",\"numL\":\"**\",\"array\":[\"**\",\"**\",\"**\"],\"kard\":\"**\",\"id\":\"**\",\"numS\":\"**\",\"info\":{\"key\":\"**\"}},\"address\":[\"**\",\"**\",\"**\",\"**\",\"**\"],\"limit\":1,\"name\":\"**\",\"page\":1}]"
             );
         }
 
