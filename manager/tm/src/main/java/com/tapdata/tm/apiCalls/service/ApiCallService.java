@@ -162,7 +162,8 @@ public class ApiCallService {
             criteria.and(Tag.METHOD).is(method);
         }
         if (null != clientId && StringUtils.isNotBlank(String.valueOf(clientId).trim())) {
-            criteria.and(Tag.CLIENT_ID).is(clientId);
+            criteria.and("user_info").exists(true)
+                    .and(String.format("user_info.%s", Tag.CLIENT_ID)).is(clientId);
         }
         Optional.ofNullable(code)
                 .map(value -> String.valueOf(value).trim())
