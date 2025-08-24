@@ -156,3 +156,7 @@ openapi:
       version: 11
   setting:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
+
+tapdata:
+  monitor:
+    enable: true

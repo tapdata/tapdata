@@ -16,12 +16,16 @@ import java.util.Collections;
 @Configuration
 public class ActuatorConfig {
 
-    @Value("${TAPDATA_MONITOR_ENABLE:true}")
-    private boolean monitorEnabled;
+    @Value("${tapdata.monitor.enable}")
+    private Boolean monitorEnabled;
 
     @Bean
     @Primary
     public WebEndpointProperties webEndpointProperties() {
+
+        if (monitorEnabled == null) {
+            monitorEnabled = Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE"));
+        }
         WebEndpointProperties properties = new WebEndpointProperties();
         if (monitorEnabled) {
             properties.getExposure().getInclude().addAll(Arrays.asList("info", "prometheus"));

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.boot.actuate.health.SystemHealth;
@@ -29,8 +30,11 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     private final HealthEndpoint healthEndpoint;
     private final PrometheusScrapeEndpoint prometheusScrapeEndpoint;
     private final ObjectMapper objectMapper;
+
+    @Value("${tapdata.monitor.enable}")
+    private Boolean monitorEnabled;
+
     //是否开启monitor监控
-    private boolean enabled = Boolean.parseBoolean(System.getenv().getOrDefault("TAPDATA_MONITOR_ENABLE", String.valueOf(false)));
     private int port = Integer.parseInt(System.getenv().getOrDefault("TAPDATA_EF_MONITOR_PORT", String.valueOf(3003)));
     private int threadPoolSize = 4;
 
@@ -46,8 +50,13 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
+
+        if (monitorEnabled == null) {
+            monitorEnabled = Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE"));
+        }
+
         // 检查是否启用
-        if (!enabled) {
+        if (!monitorEnabled) {
             System.out.println("JDK Actuator HTTP server is disabled by configuration.");
             return;
         }
