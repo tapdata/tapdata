@@ -138,6 +138,11 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>3.17.0</version>
+    </dependency>
+    <dependency>
         <groupId>io.tapdata</groupId>
         <artifactId>tapdata-pdk-runner</artifactId>
       <version>${tapdata-pdk-runner.version}</version>
