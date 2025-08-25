@@ -60,15 +60,11 @@ class ApiCallServiceTest {
     private ModulesService modulesService;
     private ApplicationService applicationService;
     private ApiCallStatsService apiCallStatsService;
-    ApplicationConfig applicationConfig;
 
     @BeforeEach
     void setUp() {
         apiCallService = new ApiCallService();
         apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
-        applicationConfig = mock(ApplicationConfig.class);
-        when(applicationConfig.getAdminAccount()).thenReturn("admin@admin.com");
-        ReflectionTestUtils.setField(apiCallService, "applicationConfig", applicationConfig);
         ReflectionTestUtils.setField(apiCallService, "apiCallMinuteStatsService", apiCallMinuteStatsService);
         mongoTemplate = mock(MongoTemplate.class);
         ReflectionTestUtils.setField(apiCallService, "mongoOperations", mongoTemplate);
