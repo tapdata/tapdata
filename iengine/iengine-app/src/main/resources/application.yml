@@ -17,6 +17,7 @@ management:
 tapdata:
   monitor:
     enable: true
+    EFPort: 3031
   cloud:
     accessCode: <ACCESS_CODE>
     retryTime: 3

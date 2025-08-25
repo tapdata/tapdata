@@ -34,8 +34,10 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     @Value("${tapdata.monitor.enable}")
     private Boolean monitorEnabled;
 
+    @Value("${tapdata.monitor.EFPort}")
+    private Integer port;
+
     //是否开启monitor监控
-    private int port = Integer.parseInt(System.getenv().getOrDefault("TAPDATA_EF_MONITOR_PORT", String.valueOf(3003)));
     private int threadPoolSize = 4;
 
     private HttpServer server;
@@ -53,6 +55,9 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
         if (monitorEnabled == null) {
             monitorEnabled = Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE"));
+        }
+        if (port == null) {
+            port = Integer.valueOf(System.getenv("TAPDATA_EF_MONITOR_PORT"));
         }
 
         // 检查是否启用
