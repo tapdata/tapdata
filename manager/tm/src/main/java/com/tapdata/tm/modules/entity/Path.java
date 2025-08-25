@@ -1,5 +1,6 @@
 package com.tapdata.tm.modules.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.dto.Sort;
@@ -7,6 +8,7 @@ import com.tapdata.tm.modules.dto.Where;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class Path {
@@ -35,4 +37,12 @@ public class Path {
 
     private List<Where> where;
     private List<Sort> sort;
+
+    /**
+     * 是否开启高级查询，开启后不可逆，默认不开启（false || null）
+     * */
+    private Boolean fullCustomQuery;
+
+    @JsonProperty("customWhere")
+    private String customWhere;
 }

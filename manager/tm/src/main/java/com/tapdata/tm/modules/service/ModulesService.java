@@ -8,7 +8,10 @@ import com.deepoove.poi.config.Configure;
 import com.deepoove.poi.plugin.highlight.HighlightRenderPolicy;
 import com.deepoove.poi.plugin.table.LoopRowTableRenderPolicy;
 import com.deepoove.poi.plugin.toc.TOCRenderPolicy;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -28,9 +31,14 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -40,14 +48,34 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.constant.ParamTypeEnum;
-import com.tapdata.tm.modules.dto.*;
+import com.tapdata.tm.modules.dto.ApiView;
+import com.tapdata.tm.modules.dto.ApiViewUtil;
+import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
+import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
-import com.tapdata.tm.modules.vo.*;
+import com.tapdata.tm.modules.util.MongoQueryValidator;
+import com.tapdata.tm.modules.vo.ApiDefinitionVo;
+import com.tapdata.tm.modules.vo.ApiDetailVo;
+import com.tapdata.tm.modules.vo.ApiListVo;
+import com.tapdata.tm.modules.vo.ConnectionVo;
+import com.tapdata.tm.modules.vo.ModulesDetailVo;
+import com.tapdata.tm.modules.vo.ModulesListVo;
+import com.tapdata.tm.modules.vo.PreviewVo;
+import com.tapdata.tm.modules.vo.RankListsVo;
+import com.tapdata.tm.modules.vo.Source;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
-import com.tapdata.tm.utils.*;
+import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.EntityUtils;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.GZIPUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -62,14 +90,26 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.*;
-import java.util.*;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -86,6 +126,9 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ModulesService extends BaseService<ModulesDto, ModulesEntity, ObjectId, ModulesRepository> {
+	protected static final List<String> MASK_PROPERTIES = Arrays.asList("host", "uri", "database", "schema", "sid", "masterSlaveAddress", "sentinelAddress",
+			"mqQueueString", "mqTopicString", "brokerURL", "mqUsername", "mqPassword", "nameSrvAddr", "ftpHost", "ftpUsername", "ftpPassword",
+			"rawLogServerHost", "databaseName", "username", "user", "password", "sslPass");
 	private ApplicationService applicationService;
 	private DataSourceService dataSourceService;
 	private MetadataInstancesService metadataInstancesService;
@@ -94,6 +137,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private DataSourceDefinitionService dataSourceDefinitionService;
 	private ApiCallStatsService apiCallStatsService;
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
+	private ApplicationConfig config;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -114,16 +158,16 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public ModulesDetailVo findById(String id) {
-		ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
-		ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
-
-		String connectionId = modulesDto.getConnection().toString();
-		DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-		if (null != dataSourceConnectionDto) {
-			dataSourceConnectionDto.setDatabase_password(null);
-			dataSourceConnectionDto.setPlain_password(null);
-			modulesDetailVo.setSource(dataSourceConnectionDto);
-		}
+		final ModulesDto modulesDto = findById(MongoUtils.toObjectId(id));
+		modulesDto.withPathSettingIfNeed();
+		final ModulesDetailVo modulesDetailVo = BeanUtil.copyProperties(modulesDto, ModulesDetailVo.class);
+		final String connectionId = modulesDto.getConnection().toString();
+		Optional.ofNullable(dataSourceService.findById(MongoUtils.toObjectId(connectionId)))
+				.ifPresent(dataSourceConnectionDto -> {
+					dataSourceConnectionDto.setDatabase_password(null);
+					dataSourceConnectionDto.setPlain_password(null);
+					modulesDetailVo.setSource(dataSourceConnectionDto);
+				});
 		modulesDetailVo.setConnection(connectionId);
 		return modulesDetailVo;
 	}
@@ -143,7 +187,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		}
 
 		Page page = find(filter, userDetail);
-
+		Optional.ofNullable(page.getItems())
+				.ifPresent(value -> value.stream()
+						.filter(e -> e instanceof ModulesDto)
+						.forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
 		String createUser = "";
 		List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
 		if (CollectionUtils.isNotEmpty(modulesListVoList)) {
@@ -183,6 +230,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 //        if (null == modulesDto.getDataSource()) {
 //            throw new BizException("Modules.Connection.Null");
 //        }
+		validCustomWhereIfNeed(modulesDto.getPaths());
 		if (findByName(modulesDto.getName()).size() > 1)
 			throw new BizException("Modules.Name.Existed");
 		modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
@@ -198,8 +246,29 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	}
 
+	protected void validCustomWhereIfNeed(List<Path> allPaths) {
+		Optional.ofNullable(allPaths).ifPresent(paths -> {
+			for (Path path : paths) {
+				if (null != path.getFullCustomQuery() && path.getFullCustomQuery() && null != path.getCustomWhere()) {
+					String customWhereJson = path.getCustomWhere();
+					MongoQueryValidator.ValidationContext context = new MongoQueryValidator.ValidationContext(config.getApiMaxWhereDeep());
+					JsonNode query = null;
+					try {
+						query = new ObjectMapper().readTree(customWhereJson);
+					} catch (JsonProcessingException e) {
+						throw new BizException("module.save.check.where", e.getMessage());
+					}
+					if (null != query) {
+						MongoQueryValidator.checkWhere(query, context);
+					}
+				}
+			}
+		});
+	}
+
 
 	public ModulesDto updateModuleById(ModulesDto modulesDto, UserDetail userDetail) {
+		validCustomWhereIfNeed(modulesDto.getPaths());
 		Where where = new Where();
 		where.put("id", modulesDto.getId().toString());
 
@@ -271,6 +340,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	public List<ModulesDto> findByName(String name) {
 		Query query = Query.query(Criteria.where("name").is(name).and("is_deleted").ne(true));
 		List<ModulesDto> modulesDtoList = findAll(query);
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -800,8 +870,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
 	public List findAllActiveApi(ModuleStatusEnum moduleStatusEnum) {
-		Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue()).and("is_deleted").ne(true));
-		List<ModulesDto> modulesDtoList = findAll(query);
+		if (null == moduleStatusEnum) {
+			return new ArrayList<>();
+		}
+		final Query query = Query.query(Criteria.where("status").is(moduleStatusEnum.getValue())
+				.and("is_deleted").ne(true));
+		final List<ModulesDto> modulesDtoList = Optional.ofNullable(findAll(query)).orElse(new ArrayList<>());
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -845,7 +920,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		List<ModulesDto> modulesDtoList = findAll(query);
 		return modulesDtoList;
 	}
-
 
     /**
      * type
@@ -1109,6 +1183,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	public List<ModulesDto> findByConnectionId(String connectionId) {
 		List<ModulesDto> modulesDtoList = findAll(Query.query(Criteria.where("connection").is(MongoUtils.toObjectId(connectionId)).and("is_deleted").ne(true)));
+		modulesDtoList.forEach(ModulesDto::withPathSettingIfNeed);
 		return modulesDtoList;
 	}
 
@@ -1134,6 +1209,30 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return super.upsertByWhere(where, modulesDto, userDetail);
 	}
 
+	void checkoutFieldAliasNameIsValid(Path path) {
+		if (CollectionUtils.isEmpty(path.getFields())) {
+			//至少选中一个字段
+			throw new BizException("module.save.check.not-empty");
+		}
+		List<Field> fields = path.getFields();
+		Map<String, AtomicInteger> fieldAliasRepeatMap = new HashMap<>();
+		fields.stream()
+				.filter(e -> StringUtils.isNotBlank(e.getFieldAlias()))
+				.forEach(e -> fieldAliasRepeatMap
+						.computeIfAbsent(e.getFieldAlias(), key -> new AtomicInteger(0))
+						.addAndGet(1)
+				);
+		StringJoiner joiner = new StringJoiner(", ");
+		fieldAliasRepeatMap.forEach((k, v) -> {
+			if (v.get() > 1) {
+				joiner.add(k);
+			}
+		});
+		if (joiner.length() > 0) {
+			throw new BizException("module.save.check.repat", joiner.toString());
+		}
+	}
+
 	private void checkoutInputParamIsValid(ModulesDto modulesDto) {
 		String apiType = modulesDto.getApiType();
 		List<Path> paths = modulesDto.getPaths();
@@ -1141,7 +1240,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (StringUtils.isBlank(modulesDto.getTableName())) throw new BizException("tableName can't be null");
 		if (StringUtils.isBlank(modulesDto.getApiType())) throw new BizException("apiType can't be null");
 		if (StringUtils.isBlank(modulesDto.getConnectionId())) throw new BizException("connectionId can't be null");
-		if (StringUtils.isBlank(modulesDto.getOperationType())) throw new BizException("operationType can't be null");
 		if (StringUtils.isBlank(modulesDto.getConnectionType())) throw new BizException("connectionType can't be null");
 		if (StringUtils.isBlank(modulesDto.getConnectionName())) throw new BizException("connectionName can't be null");
 		if (CollectionUtils.isNotEmpty(paths)) {
@@ -1169,6 +1267,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 					if (!ParamTypeEnum.isValid(param.getType(), param.getDefaultvalue()))
 						throw new BizException(param.getName() + " is invalid");
 				}
+				checkoutFieldAliasNameIsValid(path);
 			}
 		}
 	}
@@ -1189,6 +1288,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 				jsonList.add(new TaskUpAndLoadDto("Modules", JsonUtil.toJsonUseJackson(modulesDto)));
 
 				DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(modulesDto.getConnectionId()));
+				Map<String, Object> dataSourceConnectionDtoConfig = dataSourceConnectionDto.getConfig();
+				if (null != dataSourceConnectionDtoConfig) {
+					dataSourceConnectionDtoConfig.forEach((k, v) -> {
+						if (MASK_PROPERTIES.contains(k)) {
+							dataSourceConnectionDtoConfig.put(k, "");
+						}
+					});
+				}
+				dataSourceConnectionDto.setConnectionString(null);
 				dataSourceConnectionDto.setCreateUser(null);
 				dataSourceConnectionDto.setCustomId(null);
 				dataSourceConnectionDto.setLastUpdBy(null);
@@ -1396,10 +1504,58 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	public void updatePermissions(ModulesPermissionsDto permissions, UserDetail userDetail) {
-		if (CollectionUtils.isEmpty(permissions.getAcl())) throw new BizException("Modules.Permission.Scope.Null");
-		Update update = new Update();
-		update.set("paths.$[].acl", permissions.getAcl());
-		updateById(permissions.getModuleId(), update, userDetail);
+		// 判断是批量更新还是单个更新
+		if (StringUtils.isNotBlank(permissions.getAclName())) {
+			// 批量更新：只有指定的 moduleIds 才能拥有该 aclName
+			batchUpdatePermissionsExclusive(permissions.getModuleIds(), permissions.getAclName(), userDetail);
+		} else if (StringUtils.isNotBlank(permissions.getModuleId()) && CollectionUtils.isNotEmpty(permissions.getAcl())) {
+			// 单个更新：原有逻辑
+			Update update = new Update();
+			update.set("paths.$[].acl", permissions.getAcl());
+			updateById(permissions.getModuleId(), update, userDetail);
+		} else {
+			throw new BizException("Modules.Permission.Scope.Null");
+		}
+	}
+
+	/**
+	 * 批量更新权限
+	 * 只有指定的 moduleIds 才能拥有该 aclName，其他所有模块将被移除该权限
+	 *
+	 * @param moduleIds 要拥有权限的模块ID列表
+	 * @param aclName 权限名称
+	 * @param userDetail 用户信息
+	 */
+	private void batchUpdatePermissionsExclusive(List<String> moduleIds, String aclName, UserDetail userDetail) {
+		if (CollectionUtils.isEmpty(moduleIds)) {
+			// 如果目标列表为空，移除所有模块的该权限
+			Query removeAllQuery = new Query(Criteria.where("is_deleted").ne(true)
+				.and("paths.acl").is(aclName));
+			Update removeUpdate = new Update();
+			removeUpdate.pull("paths.$[].acl", aclName);
+			repository.update(removeAllQuery, removeUpdate, userDetail);
+			return;
+		}
+
+		List<ObjectId> targetObjectIds = moduleIds.stream()
+			.map(MongoUtils::toObjectId)
+			.collect(Collectors.toList());
+
+		// 从当前拥有该权限但不在目标列表中的模块移除权限
+		Query removeQuery = new Query(Criteria.where("is_deleted").ne(true)
+			.and("paths.acl").is(aclName)
+			.and("_id").nin(targetObjectIds));
+		Update removeUpdate = new Update();
+		removeUpdate.pull("paths.$[].acl", aclName);
+		repository.update(removeQuery, removeUpdate, userDetail);
+
+		// 给目标模块中还没有该权限的模块添加权限
+		Query addQuery = new Query(Criteria.where("_id").in(targetObjectIds)
+			.and("is_deleted").ne(true)
+			.and("paths.acl").ne(aclName));
+		Update addUpdate = new Update();
+		addUpdate.addToSet("paths.$[].acl", aclName);
+		repository.update(addQuery, addUpdate, userDetail);
 	}
 
 	public void updateTags(ModulesTagsDto modulesTagsDto, UserDetail userDetail) {

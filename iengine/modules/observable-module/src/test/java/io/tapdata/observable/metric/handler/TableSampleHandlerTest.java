@@ -58,7 +58,7 @@ class TableSampleHandlerTest {
                     assertEquals(1000L, sampler.value());
                 }
                 return null;
-            }).when(mockCollector).addSampler(eq("snapshotRowTotal"), any(Sampler.class));
+            }).when(mockCollector).addSampler(eq("snapshotRowTotal"), any(io.tapdata.common.sample.SamplerPrometheus.class));
 
             doAnswer(invocation -> {
                 String name = invocation.getArgument(0);
@@ -67,7 +67,7 @@ class TableSampleHandlerTest {
                     assertEquals(snapshotSyncRate, sampler.value());
                 }
                 return null;
-            }).when(mockCollector).addSampler(eq("snapshotSyncRate"), any(Sampler.class));
+            }).when(mockCollector).addSampler(eq("snapshotSyncRate"), any(io.tapdata.common.sample.SamplerPrometheus.class));
         }
 
         @BeforeEach
