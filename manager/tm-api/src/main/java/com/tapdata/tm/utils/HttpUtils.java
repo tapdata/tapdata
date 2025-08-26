@@ -1,6 +1,9 @@
 package com.tapdata.tm.utils;
 
+import com.tapdata.tm.base.exception.BizException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
+import org.apache.http.HttpException;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -10,6 +13,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -41,7 +45,7 @@ public class HttpUtils {
 
 
     public static String sendGetData(String path, Map<String, String> headMap) {
-        return sendGetData(path, headMap, true);
+        return sendGetData(path, headMap, true, true);
     }
     /**
      * get请求传输数据
@@ -50,7 +54,7 @@ public class HttpUtils {
      * @throws ClientProtocolException
      * @throws IOException
      */
-    public static String sendGetData(String path, Map<String, String> headMap, boolean ignoreNotNormalResult, DoAfter ... execute) {
+    public static String sendGetData(String path, Map<String, String> headMap, boolean ignoreNotNormalResult, boolean ignoreError, DoAfter ... execute) {
         log.info("request tcm, path：{}，headMap：{}  ",path,headMap);
         String result = "";
         CloseableHttpResponse response =null;
@@ -72,14 +76,9 @@ public class HttpUtils {
             } else {
                 result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
-        } catch (ClientProtocolException e) {
-            log.error("get请求传输 异常 ", e);
-            log.error("get请求传输 异常.path:{}, headMap:{}", path, headMap);
         } catch (IOException e) {
-            log.error("get请求传输 异常 ", e);
-            log.error("get请求传输 异常.path:{}, headMap:{}", path, headMap);
-        }
-        finally {
+            AccessException.thorwIfNeed(ignoreError, e, log, path, headMap);
+        } finally {
             try {
                 if (null!=response){
                     DoAfter.forEach(response, execute);
@@ -140,10 +139,10 @@ public class HttpUtils {
     public static String sendPostData(String path, String bodyJson) {
         Map<String, String> headMap = new HashMap<>();
         headMap.put("Token", "cba0125db7a18a32508a4e9e077058f33352c1c9124d2c3cbeb3f426096f100a");
-        return sendPostData(path, bodyJson, headMap, true);
+        return sendPostData(path, bodyJson, headMap, true, true);
     }
 
-    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap, boolean ignoreNotNormalResult, DoAfter ... execute) {
+    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap, boolean ignoreNotNormalResult, boolean ignoreError, DoAfter ... execute) {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
@@ -167,14 +166,9 @@ public class HttpUtils {
             } else {
                 result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
-        } catch (ClientProtocolException e) {
-            log.error("post请求传输 异常 ", e);
-            log.error("post请求传输 异常.path:{}, headMap:{}", path, bodyJson);
         } catch (IOException e) {
-            log.error("post请求传输 异常 ", e);
-            log.error("post请求传输 异常.path:{}, headMap:{}", path, bodyJson);
-        }
-        finally {
+            AccessException.thorwIfNeed(ignoreError, e, log, path, bodyJson);
+        } finally {
             try {
                 // 释放链接
                 if (null!=response){
@@ -187,5 +181,25 @@ public class HttpUtils {
         }
         log.debug(result);
         return result;
+    }
+
+    public static class AccessException extends RuntimeException {
+
+        public AccessException(String message) {
+            super(message);
+        }
+
+        public static void thorwIfNeed(boolean ignoreError, Throwable e, Logger logger, String path, Object bodyJson) {
+            if (null == e) {
+                return;
+            }
+            if (!ignoreError) {
+                throw new AccessException(e.getMessage());
+            }
+            if (null == logger) {
+                return;
+            }
+            logger.error("POST request transmission exception: path: {}, headMap: {}", path, bodyJson, e);
+        }
     }
 }
