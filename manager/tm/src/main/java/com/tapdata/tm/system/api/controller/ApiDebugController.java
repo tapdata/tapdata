@@ -61,6 +61,11 @@ public class ApiDebugController extends BaseController {
         try {
             Map<String, List<TextEncryptionRuleDto>> objConfig = supplyAsync.get();
             DebugVo objHttp = future.get();
+            if (null == objHttp) {
+                objHttp = new DebugVo();
+                objHttp.setHttpCode(httpCode.get());
+                objHttp.setError(Map.of("message", "No data returned", "code", "NO_DATA"));
+            }
             objHttp.setHttpCode(httpCode.get());
             return success(TextEncryptionUtil.map(objConfig, objHttp));
         } catch (InterruptedException e) {
@@ -72,11 +77,15 @@ public class ApiDebugController extends BaseController {
 
     protected DebugVo http(DebugDto debugDto, HttpUtils.DoAfter after) {
         final String method = String.valueOf(debugDto.getMethod()).trim().toUpperCase();
-        return switch (method) {
-            case "POST" -> post(debugDto, after);
-            case "GET" -> get(debugDto, after);
-            default -> throw new BizException("api.debug.not.support", method);
-        };
+        try {
+            return switch (method) {
+                case "POST" -> post(debugDto, after);
+                case "GET" -> get(debugDto, after);
+                default -> throw new BizException("api.debug.not.support", method);
+            };
+        } catch (Exception e) {
+            return DebugVo.error(500, e.getMessage());
+        }
     }
 
     DebugVo post(DebugDto debugDto, HttpUtils.DoAfter after) {
@@ -84,6 +93,7 @@ public class ApiDebugController extends BaseController {
                 debugDto.getUrl(),
                 JSON.toJSONString(debugDto.getBody()),
                 debugDto.getHeaders(),
+                false,
                 false,
                 after);
         try {
@@ -97,6 +107,7 @@ public class ApiDebugController extends BaseController {
         String json = HttpUtils.sendGetData(
                 debugDto.getUrl(),
                 debugDto.getHeaders(),
+                false ,
                 false, after);
         try {
             return JSON.parseObject(json, DebugVo.class);
