@@ -126,7 +126,7 @@ public class OpenApiJsonProcessor {
             }
 
             log.info("Successfully parsed OpenAPI JSON into OpenAPI model");
-            log.debug("OpenAPI info: title={}, version={}", 
+            log.debug("OpenAPI info: title={}, version={}",
                 openAPI.getInfo() != null ? openAPI.getInfo().getTitle() : "N/A",
                 openAPI.getInfo() != null ? openAPI.getInfo().getVersion() : "N/A");
 
@@ -174,6 +174,10 @@ public class OpenApiJsonProcessor {
 
             // Process response schemas to modify count fields
             processResponseSchemas(processedPaths, processedComponents);
+
+            // Update operation tags: set first tag to artifactId for all operations under paths
+            setArtifactIdTagForAllOperations(processedPaths, request.getArtifactId());
+
 
             processedOpenAPI.setPaths(processedPaths);
         }
@@ -541,7 +545,7 @@ public class OpenApiJsonProcessor {
      */
     private Paths processPaths(Paths paths, CodeGenerationRequest request) {
         Paths processedPaths = new Paths();
-        
+
         if (paths == null || paths.isEmpty()) {
             return processedPaths;
         }
@@ -549,18 +553,18 @@ public class OpenApiJsonProcessor {
         for (Map.Entry<String, PathItem> pathEntry : paths.entrySet()) {
             String pathKey = pathEntry.getKey();
             PathItem pathItem = pathEntry.getValue();
-            
+
             PathItem processedPathItem = processPathItem(pathItem, request);
-            
+
             // Only add path if it has operations after processing
             if (hasOperations(processedPathItem)) {
                 processedPaths.addPathItem(pathKey, processedPathItem);
             }
         }
 
-        log.debug("Processed {} paths, kept {} paths after filtering", 
+        log.debug("Processed {} paths, kept {} paths after filtering",
             paths.size(), processedPaths.size());
-        
+
         return processedPaths;
     }
 
@@ -573,13 +577,13 @@ public class OpenApiJsonProcessor {
      */
     private PathItem processPathItem(PathItem pathItem, CodeGenerationRequest request) {
         PathItem processedPathItem = new PathItem();
-        
+
         // Copy basic properties
         processedPathItem.setSummary(pathItem.getSummary());
         processedPathItem.setDescription(pathItem.getDescription());
         processedPathItem.setServers(pathItem.getServers());
         processedPathItem.setParameters(pathItem.getParameters());
-        
+
         // Process each HTTP method operation
         processOperation(pathItem.getGet(), processedPathItem::setGet, request);
 
@@ -596,7 +600,7 @@ public class OpenApiJsonProcessor {
         processOperation(pathItem.getHead(), processedPathItem::setHead, request);
         processOperation(pathItem.getPatch(), processedPathItem::setPatch, request);
         processOperation(pathItem.getTrace(), processedPathItem::setTrace, request);
-        
+
         return processedPathItem;
     }
 
@@ -691,6 +695,42 @@ public class OpenApiJsonProcessor {
                pathItem.getOptions() != null || pathItem.getHead() != null ||
                pathItem.getPatch() != null || pathItem.getTrace() != null;
     }
+
+    /**
+     * Set the first tag of all operations under the given paths to the specified artifactId tag
+     *
+     * @param paths          processed paths
+     * @param artifactIdTag  tag value to set as the first tag
+     */
+    private void setArtifactIdTagForAllOperations(Paths paths, String artifactIdTag) {
+        if (paths == null || paths.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, PathItem> pathEntry : paths.entrySet()) {
+            PathItem pathItem = pathEntry.getValue();
+            if (pathItem == null) continue;
+            List<Operation> ops = Arrays.asList(
+                pathItem.getGet(),
+                pathItem.getPost(),
+                pathItem.getPut(),
+                pathItem.getDelete(),
+                pathItem.getOptions(),
+                pathItem.getHead(),
+                pathItem.getPatch(),
+                pathItem.getTrace()
+            );
+            for (Operation op : ops) {
+                if (op == null) continue;
+                List<String> tags = op.getTags();
+                if (tags == null || tags.isEmpty()) {
+                    op.setTags(new ArrayList<>(Collections.singletonList(artifactIdTag)));
+                } else {
+                    tags.set(0, artifactIdTag);
+                }
+            }
+        }
+    }
+
 
     /**
      * Process components with security scheme modifications
