@@ -157,6 +157,12 @@ openapi:
   setting:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
 
-tapdata:
-  monitor:
-    enable: true
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "info, prometheus"
