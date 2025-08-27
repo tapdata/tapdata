@@ -35,4 +35,13 @@ public class DebugVo {
         error.getError().put("code", "INVALID_BODY_VALUE");
         return error;
     }
+
+    public static DebugVo error(int code, String msg) {
+        DebugVo error = new DebugVo();
+        error.setError(new HashMap<>());
+        error.getError().put("statusCode", code);
+        error.getError().put("name", "BadRequestError");
+        error.getError().put("message", msg);
+        return error;
+    }
 }
