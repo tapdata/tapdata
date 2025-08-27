@@ -1,9 +1,6 @@
 package com.tapdata.tm.utils;
 
-import com.tapdata.tm.base.exception.BizException;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.catalina.connector.ClientAbortException;
-import org.apache.http.HttpException;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -77,7 +74,7 @@ public class HttpUtils {
                 result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
         } catch (IOException e) {
-            AccessException.thorwIfNeed(ignoreError, e, log, path, headMap);
+            AccessException.throwIfNeed(ignoreError, e, log, path, headMap);
         } finally {
             try {
                 if (null!=response){
@@ -167,7 +164,7 @@ public class HttpUtils {
                 result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
         } catch (IOException e) {
-            AccessException.thorwIfNeed(ignoreError, e, log, path, bodyJson);
+            AccessException.throwIfNeed(ignoreError, e, log, path, bodyJson);
         } finally {
             try {
                 // 释放链接
@@ -189,12 +186,13 @@ public class HttpUtils {
             super(message);
         }
 
-        public static void thorwIfNeed(boolean ignoreError, Throwable e, Logger logger, String path, Object bodyJson) {
+        public static void throwIfNeed(boolean ignoreError, Throwable e, Logger logger, String path, Object bodyJson) {
             if (null == e) {
                 return;
             }
             if (!ignoreError) {
-                throw new AccessException(e.getMessage());
+                String message = e.getMessage();
+                throw new AccessException(message);
             }
             if (null == logger) {
                 return;
