@@ -38,7 +38,7 @@ public class WebSocketConfig implements WebSocketConfigurer, ServletContextIniti
 
 	private final WebSocketClusterServer webSocketClusterServer;
 
-	private final long WS_BUFFER_SIZE = 8 * 10 * 1024;
+	private final long WS_BUFFER_SIZE = 20 * 10 * 1024;
 
 	public WebSocketConfig(WebSocketServer webSocket, WebSocketClusterServer webSocketClusterServer) {
 		this.webSocket = webSocket;
