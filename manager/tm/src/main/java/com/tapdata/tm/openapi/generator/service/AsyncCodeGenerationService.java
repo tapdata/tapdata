@@ -22,9 +22,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -110,9 +108,55 @@ public class AsyncCodeGenerationService {
 		if(CollectionUtils.isEmpty(request.getModuleIds())){
 			throw new BizException("openapi.generator.module.empty");
 		}
+		// Check version conflicts among selected modules: same basePath+prefix must share the same version
+		checkModuleVersionConflicts(request, userDetail);
 		// Validate package name format
 		validatePackageName(request.getPackageName());
 		request.setGroupId(request.getPackageName());
+	}
+
+	/**
+	 * Check version conflicts for selected modules.
+	 * If there exist modules with the same basePath and prefix but different versions, throws BizException.
+	 * Notes:
+	 * - Treat missing basePath or prefix as empty string "".
+	 * - Error message will explicitly list basePath values that have version conflicts.
+	 */
+	private void checkModuleVersionConflicts(CodeGenerationRequest request, UserDetail userDetail) {
+		List<String> moduleIds = request.getModuleIds();
+		if (CollectionUtils.isEmpty(moduleIds)) {
+			return;
+		}
+		List<ObjectId> objectIds = moduleIds.stream().map(ObjectId::new).collect(Collectors.toList());
+		Query query = Query.query(Criteria.where("_id").in(objectIds));
+		// Only fetch necessary fields to reduce resource usage
+		query.fields().include("basePath", "prefix", "apiVersion");
+		List<ModulesDto> modules = modulesService.findAllDto(query, userDetail);
+		if (modules == null || modules.isEmpty()) {
+			return;
+		}
+		// Group versions by basePath+prefix key
+		Map<String, Set<String>> versionsByKey = new java.util.HashMap<>();
+		for (ModulesDto m : modules) {
+			String basePath = m.getBasePath() == null ? "" : m.getBasePath();
+			String prefix = m.getPrefix() == null ? "" : m.getPrefix();
+			String version = m.getApiVersion() == null ? "" : m.getApiVersion();
+			String key = basePath + "\u0001" + prefix; // use non-printable delimiter to avoid collisions
+			versionsByKey.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(version);
+		}
+		List<String> conflictBasePaths = versionsByKey.entrySet().stream()
+				.filter(e -> e.getValue().size() > 1)
+				.map(e -> {
+					String key = e.getKey();
+					int idx = key.indexOf('\u0001');
+					return idx >= 0 ? key.substring(0, idx) : key; // extract basePath from key
+				})
+				.distinct()
+				.collect(Collectors.toList());
+		if (!conflictBasePaths.isEmpty()) {
+			String detail = String.join(", ", conflictBasePaths);
+			throw new BizException("openapi.generator.module.version.conflict", detail);
+		}
 	}
 
 	/**
