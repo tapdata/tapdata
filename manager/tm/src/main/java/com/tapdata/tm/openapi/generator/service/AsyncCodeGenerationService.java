@@ -130,31 +130,29 @@ public class AsyncCodeGenerationService {
 		List<ObjectId> objectIds = moduleIds.stream().map(ObjectId::new).collect(Collectors.toList());
 		Query query = Query.query(Criteria.where("_id").in(objectIds));
 		// Only fetch necessary fields to reduce resource usage
-		query.fields().include("basePath", "prefix", "apiVersion");
+		query.fields().include("basePath", "prefix", "apiVersion", "name");
 		List<ModulesDto> modules = modulesService.findAllDto(query, userDetail);
 		if (modules == null || modules.isEmpty()) {
 			return;
 		}
-		// Group versions by basePath+prefix key
-		Map<String, Set<String>> versionsByKey = new java.util.HashMap<>();
+		// Group versions by basePath+prefix key, and collect module names for conflict reporting
+		Map<String, Set<String>> versionsByKey = new HashMap<>();
+		Map<String, List<String>> namesByKey = new HashMap<>();
 		for (ModulesDto m : modules) {
 			String basePath = m.getBasePath() == null ? "" : m.getBasePath();
 			String prefix = m.getPrefix() == null ? "" : m.getPrefix();
 			String version = m.getApiVersion() == null ? "" : m.getApiVersion();
 			String key = basePath + "\u0001" + prefix; // use non-printable delimiter to avoid collisions
-			versionsByKey.computeIfAbsent(key, k -> new java.util.HashSet<>()).add(version);
+			versionsByKey.computeIfAbsent(key, k -> new HashSet<>()).add(version);
+			namesByKey.computeIfAbsent(key, k -> new ArrayList<>()).add(m.getName());
 		}
-		List<String> conflictBasePaths = versionsByKey.entrySet().stream()
+		java.util.List<String> conflictModuleNames = versionsByKey.entrySet().stream()
 				.filter(e -> e.getValue().size() > 1)
-				.map(e -> {
-					String key = e.getKey();
-					int idx = key.indexOf('\u0001');
-					return idx >= 0 ? key.substring(0, idx) : key; // extract basePath from key
-				})
+				.flatMap(e -> namesByKey.getOrDefault(e.getKey(), Collections.emptyList()).stream())
 				.distinct()
 				.collect(Collectors.toList());
-		if (!conflictBasePaths.isEmpty()) {
-			String detail = String.join(", ", conflictBasePaths);
+		if (!conflictModuleNames.isEmpty()) {
+			String detail = String.join(", ", conflictModuleNames);
 			throw new BizException("openapi.generator.module.version.conflict", detail);
 		}
 	}
