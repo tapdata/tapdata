@@ -25,6 +25,7 @@ additionalProperties:
     developerOrganizationUrl: ""
     configPackage: io.tapdata.configuration
     enableResponseGeneric: true
+    removeRequestPrefix: "get,find"
 files:
     jackson/JacksonConfig.mustache:
         templateType: SupportingFiles

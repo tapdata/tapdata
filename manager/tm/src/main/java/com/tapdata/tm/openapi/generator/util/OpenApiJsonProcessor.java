@@ -663,10 +663,8 @@ public class OpenApiJsonProcessor {
 
                             // Set default values: limit=10, page=1
                             if ("limit".equals(param.getName())) {
-                                param.getSchema().setDefault(10);
                                 log.debug("Set default value 10 for limit parameter in operation");
                             } else if ("page".equals(param.getName())) {
-                                param.getSchema().setDefault(1);
                                 log.debug("Set default value 1 for page parameter in operation");
                             }
                         }
@@ -677,7 +675,65 @@ public class OpenApiJsonProcessor {
             operation.setParameters(processedParameters);
         }
 
+        // Process requestBody for POST/PUT/PATCH operations
+        if (operation.getRequestBody() != null && operation.getRequestBody().getContent() != null) {
+            Content content = operation.getRequestBody().getContent();
+            for (MediaType mediaType : content.values()) {
+                if (mediaType.getSchema() != null) {
+                    processSchemaForPageLimit(mediaType.getSchema());
+                }
+            }
+        }
+
         setter.accept(operation);
+    }
+
+    /**
+     * Process schema recursively to modify page and limit fields
+     *
+     * @param schema Schema to process
+     */
+    private void processSchemaForPageLimit(Schema<?> schema) {
+        if (schema == null) {
+            return;
+        }
+
+        // Process properties if this is an object schema
+        if (schema.getProperties() != null) {
+            Map<String, Schema> properties = schema.getProperties();
+            for (Map.Entry<String, Schema> entry : properties.entrySet()) {
+                String propertyName = entry.getKey();
+                Schema propertySchema = entry.getValue();
+
+                // Modify page and limit properties to be integers
+                if (StringUtils.equalsAny(propertyName, "page", "limit")) {
+                    propertySchema.setType("integer");
+                    propertySchema.setFormat("int32");
+
+                    // Set default values: limit=10, page=1
+                    if ("limit".equals(propertyName)) {
+                        propertySchema.setDefault(10);
+                        log.debug("Set default value 10 for limit property in requestBody schema");
+                    } else if ("page".equals(propertyName)) {
+                        propertySchema.setDefault(1);
+                        log.debug("Set default value 1 for page property in requestBody schema");
+                    }
+                } else {
+                    // Recursively process nested schemas
+                    processSchemaForPageLimit(propertySchema);
+                }
+            }
+        }
+
+        // Process array items
+        if (schema.getItems() != null) {
+            processSchemaForPageLimit(schema.getItems());
+        }
+
+        // Process additional properties
+        if (schema.getAdditionalProperties() instanceof Schema) {
+            processSchemaForPageLimit((Schema<?>) schema.getAdditionalProperties());
+        }
     }
 
     /**
