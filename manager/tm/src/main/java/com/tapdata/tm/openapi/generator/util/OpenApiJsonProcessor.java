@@ -17,6 +17,7 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.parser.OpenAPIV3Parser;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -168,6 +169,9 @@ public class OpenApiJsonProcessor {
         // Process paths and extract filter schemas
         if (openAPI.getPaths() != null) {
             Paths processedPaths = processPaths(openAPI.getPaths(), request);
+
+            // Remove non-200 responses under all paths to keep only HTTP 200
+            removeNon200ResponsesFromPaths(processedPaths);
 
             // Extract filter schemas from processed GET operations and add to components
             extractAndAddFilterSchemas(processedPaths, processedComponents, request);
@@ -730,6 +734,62 @@ public class OpenApiJsonProcessor {
             }
         }
     }
+
+    /**
+     * Remove all non-200 responses from every operation under all paths
+     *
+     * @param paths processed paths to clean up
+     */
+    private void removeNon200ResponsesFromPaths(Paths paths) {
+        if (paths == null || paths.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, PathItem> pathEntry : paths.entrySet()) {
+            PathItem pathItem = pathEntry.getValue();
+            if (pathItem == null) continue;
+            List<Operation> ops = Arrays.asList(
+                pathItem.getGet(),
+                pathItem.getPost(),
+                pathItem.getPut(),
+                pathItem.getDelete(),
+                pathItem.getOptions(),
+                pathItem.getHead(),
+                pathItem.getPatch(),
+                pathItem.getTrace()
+            );
+            for (Operation op : ops) {
+                if (op == null) continue;
+                removeNon200Responses(op);
+            }
+        }
+        log.debug("Removed non-200 responses from all operations under paths");
+    }
+
+    /**
+     * Keep only HTTP 200 responses in the given operation
+     *
+     * @param operation operation to update
+     */
+    private void removeNon200Responses(Operation operation) {
+        if (operation == null || operation.getResponses() == null) {
+            return;
+        }
+        ApiResponses responses = operation.getResponses();
+        if (responses.isEmpty()) {
+            return;
+        }
+        // Collect keys to remove to avoid concurrent modification
+        List<String> toRemove = new ArrayList<>();
+        for (String code : responses.keySet()) {
+            if (!"200".equals(code)) {
+                toRemove.add(code);
+            }
+        }
+        for (String code : toRemove) {
+            responses.remove(code);
+        }
+    }
+
 
 
     /**

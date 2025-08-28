@@ -15,6 +15,7 @@ additionalProperties:
     useResponseEntity: false
     useBeanValidation: false
     useSealed: true
+    useVersion: false
     parentOverridden: false
     disallowAdditionalPropertiesIfNotPresent: false
     generateGenericResponseEntity: false
