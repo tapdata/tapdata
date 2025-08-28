@@ -4872,7 +4872,7 @@ public class TaskServiceImpl extends TaskService{
             );
         }
         Query query = Query.query(criteria);
-        return findAllDto(query,userDetail);
+        return findAll(query);
     }
 
     public TableStatusInfoDto getTableStatus(String connectionId, String tableName, UserDetail userDetail) {
