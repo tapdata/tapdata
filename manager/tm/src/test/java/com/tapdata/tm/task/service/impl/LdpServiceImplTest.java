@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.livedataplatform.service.LiveDataPlatformService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
@@ -365,5 +366,16 @@ class LdpServiceImplTest {
         doCallRealMethod().when(ldpService).fuzzySearch(key, connectType, user);
         ldpService.fuzzySearch(key, connectType, user);
         verify(ldpService, new Times(1)).getLdpFuzzySearchVos(user, criteria);
+    }
+
+    @Test
+    void getLdpFuzzySearchVosTest() {
+        DataSourceService dataSourceService = mock(DataSourceService.class);
+        ReflectionTestUtils.setField(ldpService, "dataSourceService", dataSourceService);
+        UserDetail user = mock(UserDetail.class);
+        Criteria criteria = Criteria.where("original_name").regex(Pattern.compile("TEST", Pattern.CASE_INSENSITIVE)).and("sourceType").is(SourceTypeEnum.SOURCE.name());
+        doCallRealMethod().when(ldpService).getLdpFuzzySearchVos(user, criteria);
+        ldpService.getLdpFuzzySearchVos(user, criteria);
+        verify(dataSourceService, new Times(1)).findAll(any(Query.class));
     }
 }
