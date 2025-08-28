@@ -590,14 +590,7 @@ public class OpenApiJsonProcessor {
 
         // Process each HTTP method operation
         processOperation(pathItem.getGet(), processedPathItem::setGet, request);
-
-        // Special filtering for POST operations: skip if x-operation-name starts with "customerQuery"
-        if (pathItem.getPost() != null && shouldSkipPostOperation(pathItem.getPost())) {
-            log.debug("Skipping POST operation with x-operation-name starting with 'customerQuery'");
-        } else {
-            processOperation(pathItem.getPost(), processedPathItem::setPost, request);
-        }
-
+        processOperation(pathItem.getPost(), processedPathItem::setPost, request);
         processOperation(pathItem.getPut(), processedPathItem::setPut, request);
         processOperation(pathItem.getDelete(), processedPathItem::setDelete, request);
         processOperation(pathItem.getOptions(), processedPathItem::setOptions, request);
