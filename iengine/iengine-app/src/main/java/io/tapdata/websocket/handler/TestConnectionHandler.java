@@ -312,6 +312,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		boolean needLoadField = needLoadField(updateSchema, validateResult.getSchema(), everLoadSchema);
 		ConnectionUpdateOperation.LOAD_SCHEMA_FIELD.set(update, needLoadField);
 		ConnectionUpdateOperation.NAME.set(update, isExternalStorage, name);
+		ConnectionUpdateOperation.MONITOR_API.set(update, validateResult.getMonitorResult());
 
 		clientMongoOperator.update(connectionIdQuery, update, collection);
 		if (!isExternalStorage) {

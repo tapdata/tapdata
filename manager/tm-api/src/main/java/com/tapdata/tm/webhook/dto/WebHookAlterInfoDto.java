@@ -119,6 +119,8 @@ public class WebHookAlterInfoDto {
                 this.metricTxt = "数据源连接网络完成";break;
             case INSPECT_TASK_ERROR:
                 this.metricTxt = "校验任务遇到错误";break;
+            case TASK_RETRY_WARN:
+                this.metricTxt = "任务重试次数超过阈值";break;
             default:
                 this.metricTxt = "-";
         }

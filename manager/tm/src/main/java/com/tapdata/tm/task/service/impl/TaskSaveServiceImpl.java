@@ -200,11 +200,13 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 //            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
             addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_DIFFERENCE));
+            addIfNotNull(alarmSettingDtos, settingDtoMap.get(AlarmKeyEnum.TASK_RETRY_WARN));
             taskDto.setAlarmSettings(CglibUtil.copyList(alarmSettingDtos, AlarmSettingVO::new));
         }
 
         if (CollectionUtils.isEmpty(taskDto.getAlarmRules())) {
             addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
+            addIfNotNull(alarmRuleDtos, ruleDtoMap.get(AlarmKeyEnum.TASK_RETRY_WARN));
             taskDto.setAlarmRules(CglibUtil.copyList(alarmRuleDtos, AlarmRuleVO::new));
         }
 

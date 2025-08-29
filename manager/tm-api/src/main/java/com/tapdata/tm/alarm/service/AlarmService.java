@@ -63,4 +63,6 @@ public interface AlarmService {
 	void closeWhenInspectTaskRunning(String id);
 
     void updateTaskAlarm(AlarmVO alarm);
+
+    void taskRetryAlarm(String taskId,Map<String, Object> params);
 }

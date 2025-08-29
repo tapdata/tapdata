@@ -182,10 +182,16 @@ public interface TaskProcessorExCode_11 {
 	String SOURCE_NOT_SUPPORT_COUNT_BY_PARTITION_FILTER_FUNCTION = "11029";
 
 	@TapExCode(
+			describe = "Data convert failed",
+			describeCN = "数据转换失败"
+	)
+	String DATA_COVERT_FAILED = "11030";
+
+	@TapExCode(
 			describe = "When starting an incremental task, parsing the incremental Offset format failed",
 			describeCN = "启动增量任务时，解析增量Offset格式失败",
 			solution = "Please refer to the corresponding data source document and correctly fill in the data source Offset format.",
 			solutionCN = "请您参考对应数据源文档，正确填写数据源Offset格式"
 	)
-	String INIT_STREAM_OFFSET_FAILED = "11030";
+	String INIT_STREAM_OFFSET_FAILED = "11031";
 }
