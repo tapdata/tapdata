@@ -330,7 +330,7 @@ public class SchemaUtils {
                     });
                 }
                 if(null != tapType && Boolean.TRUE.equals(tapType.getCannotWrite())){
-                    differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField,targetField));
+                    differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField));
                 }else if(!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
                     differenceFieldList.add(DifferenceField.buildDifferentField(fieldName, sourceField, targetField));
                 }

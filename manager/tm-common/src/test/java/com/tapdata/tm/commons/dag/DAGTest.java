@@ -825,7 +825,7 @@ public class DAGTest {
 			// Additional - field5 will be added
 			existingDifferences.add(DifferenceField.buildAdditionalField("field5", createField("field5", "decimal", "TapNumber")));
 			// CannotWrite - field4 will be removed
-			existingDifferences.add(DifferenceField.buildCannotWriteField("field4", field4, createField("field4", "bit", "TapBoolean.cannotWrite")));
+			existingDifferences.add(DifferenceField.buildCannotWriteField("field4", field4));
 
 			differenceFields.put("test.table1", existingDifferences);
 

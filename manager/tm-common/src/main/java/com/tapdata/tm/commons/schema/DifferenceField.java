@@ -33,8 +33,8 @@ public class DifferenceField {
         return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).type(DifferenceTypeEnum.Different).build();
     }
 
-    public static DifferenceField buildCannotWriteField(String columnName,Field sourceField,Field targetField) {
-        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).targetField(targetField).type(DifferenceTypeEnum.CannotWrite).build();
+    public static DifferenceField buildCannotWriteField(String columnName,Field sourceField) {
+        return DifferenceField.builder().columnName(columnName).sourceField(sourceField).type(DifferenceTypeEnum.CannotWrite).build();
     }
 
     @Override
@@ -57,9 +57,9 @@ public class DifferenceField {
         }
 
         return switch (type) {
-            case Missing -> Objects.equals(sourceField, that.sourceField);
+            case Missing,CannotWrite -> Objects.equals(sourceField, that.sourceField);
             case Additional -> Objects.equals(targetField, that.targetField);
-            case Different, CannotWrite ->
+            case Different ->
                 Objects.equals(sourceField, that.sourceField) &&
                 Objects.equals(targetField, that.targetField);
             default -> false;
@@ -73,9 +73,9 @@ public class DifferenceField {
         }
 
         return switch (type) {
-            case Missing -> Objects.hash(columnName, type, sourceField);
+            case Missing,CannotWrite -> Objects.hash(columnName, type, sourceField);
             case Additional -> Objects.hash(columnName, type, targetField);
-            case Different, CannotWrite -> Objects.hash(columnName, type, sourceField, targetField);
+            case Different -> Objects.hash(columnName, type, sourceField, targetField);
             default -> Objects.hash(columnName, type);
         };
     }

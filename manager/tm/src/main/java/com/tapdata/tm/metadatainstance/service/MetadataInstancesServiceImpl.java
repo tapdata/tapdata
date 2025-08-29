@@ -2644,7 +2644,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
                     Map<String, MetadataInstancesDto> map = metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getName, m -> m));
                     List<String> tableNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
-                    int timeout = 10 * 1000 * tableNames.size();
+                    int timeout = 5 * 1000 * tableNames.size();
                     long beginTime = System.currentTimeMillis();
                     String connectionId = metadataInstancesDtos.get(0).getSource().get_id();
                     DataSourceConnectionDto connDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
@@ -2655,13 +2655,10 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                             MetadataInstancesDto deductionMetadataInstance = map.get(targetMetadataInstance.getName());
                             // Create field maps for comparison
                             Map<String, Field> deductionFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
-                            List<DifferenceField> applyDifferenceFields;
-                            if(MapUtil.isNotEmpty(applyFields) && applyFields.containsKey(deductionMetadataInstance.getQualifiedName())){
-                                applyDifferenceFields = applyFields.get(deductionMetadataInstance.getQualifiedName());
-                            }else{
-                                applyDifferenceFields = new ArrayList<>();
-                            }
-
+                            List<DifferenceField> applyDifferenceFields =
+                                    Optional.ofNullable(applyFields)
+                                            .map(m -> m.get(deductionMetadataInstance.getQualifiedName()))
+                                            .orElse(Collections.emptyList());
                             if(CollectionUtils.isNotEmpty(applyDifferenceFields)){
                                 applyDifferenceFields.forEach(differenceField -> {
                                     differenceField.getType().recoverField(deductionFieldMap.get(differenceField.getColumnName()),deductionMetadataInstance.getFields(),differenceField);
@@ -2707,6 +2704,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     }
 
     protected void updateStatus(MetadataInstancesCompareDto metadataInstancesCompareDto) {
+        metadataInstancesCompareDto.setLastUpdAt(new Date());
         metadataInstancesCompareService.upsert(Query.query(Criteria.where("nodeId").is(metadataInstancesCompareDto.getNodeId()).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)),metadataInstancesCompareDto);
     }
 }

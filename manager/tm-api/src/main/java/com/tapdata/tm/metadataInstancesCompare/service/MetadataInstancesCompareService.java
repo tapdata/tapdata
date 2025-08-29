@@ -23,7 +23,7 @@ public abstract class MetadataInstancesCompareService extends BaseService<Metada
     }
 
     public abstract void saveMetadataInstancesCompareApply(List<MetadataInstancesApplyParam> metadataInstancesCompareDtos, UserDetail userDetail, Boolean all, String nodeId);
-    public abstract void deleteMetadataInstancesCompareApply(List<MetadataInstancesApplyParam> metadataInstancesCompareDtos, UserDetail userDetail, Boolean all, String nodeId);
+    public abstract void deleteMetadataInstancesCompareApply(List<MetadataInstancesApplyParam> metadataInstancesCompareDtos, UserDetail userDetail, Boolean all, Boolean invalid, String nodeId);
     public abstract MetadataInstancesCompareResult getMetadataInstancesCompareResult(String nodeId,String taskId,String tableFilter,int page, int pageSize);
     public abstract List<String> getApplyRules(String nodeId,String taskId);
 }

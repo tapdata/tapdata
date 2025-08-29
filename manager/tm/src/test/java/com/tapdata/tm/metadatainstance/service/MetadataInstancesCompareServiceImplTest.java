@@ -163,7 +163,7 @@ class MetadataInstancesCompareServiceImplTest {
             when(metadataInstancesService.findAll(any(Query.class))).thenReturn(createMockMetadataInstancesDtos());
             when(metadataInstancesService.bulkUpsetByWhere(anyList(), any(UserDetail.class))).thenReturn(mock(Pair.class));
             // When
-            service.deleteMetadataInstancesCompareApply(params, userDetail, true, nodeId);
+            service.deleteMetadataInstancesCompareApply(params, userDetail, true, false,nodeId);
 
             // Then
             verify(service).deleteAll(any(Query.class));
@@ -183,7 +183,7 @@ class MetadataInstancesCompareServiceImplTest {
             when(metadataInstancesService.bulkUpsetByWhere(anyList(), any(UserDetail.class))).thenReturn(mock(Pair.class));
 
             // When
-            service.deleteMetadataInstancesCompareApply(params, userDetail, false, nodeId);
+            service.deleteMetadataInstancesCompareApply(params, userDetail, false, false,nodeId);
 
             // Then
             verify(service, atLeastOnce()).findAll(any(Query.class));
@@ -198,7 +198,7 @@ class MetadataInstancesCompareServiceImplTest {
             List<MetadataInstancesApplyParam> params = Collections.emptyList();
 
             // When
-            service.deleteMetadataInstancesCompareApply(params, userDetail, false, nodeId);
+            service.deleteMetadataInstancesCompareApply(params, userDetail, false, false,nodeId);
 
             // Then
             verify(service, never()).findAll(any(Query.class));
@@ -311,7 +311,6 @@ class MetadataInstancesCompareServiceImplTest {
             // Then
             assertNotNull(result);
             assertTrue(result.getCompareDtos().getItems().isEmpty());
-            assertTrue(result.getInvalidApplyDtos().isEmpty());
         }
     }
 
@@ -326,11 +325,7 @@ class MetadataInstancesCompareServiceImplTest {
             TaskDto taskDto = createMockTaskDto();
             DataParentNode targetNode = createMockDataParentNode();
             targetNode.setApplyCompareRule(true);
-            Map<String, Boolean> applyRules = new HashMap<>();
-            applyRules.put("rule1", true);
-            applyRules.put("rule2", false);
-            applyRules.put("rule3", true);
-            targetNode.setApplyCompareRules(applyRules);
+            targetNode.setApplyCompareRules(Arrays.asList("rule1", "rule2", "rule3"));
 
             try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
                 mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
@@ -342,10 +337,10 @@ class MetadataInstancesCompareServiceImplTest {
 
                 // Then
                 assertNotNull(result);
-                assertEquals(2, result.size());
+                assertEquals(3, result.size());
                 assertTrue(result.contains("rule1"));
                 assertTrue(result.contains("rule3"));
-                assertFalse(result.contains("rule2"));
+                assertTrue(result.contains("rule2"));
             }
         }
 
@@ -413,10 +408,7 @@ class MetadataInstancesCompareServiceImplTest {
             TaskDto taskDto = createMockTaskDto();
             DataParentNode targetNode = createMockDataParentNode();
             targetNode.setApplyCompareRule(true);
-            Map<String, Boolean> applyRules = new HashMap<>();
-            applyRules.put("rule1", false);
-            applyRules.put("rule2", false);
-            targetNode.setApplyCompareRules(applyRules);
+            targetNode.setApplyCompareRules(new ArrayList<>());
 
             try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
                 mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
@@ -504,7 +496,7 @@ class MetadataInstancesCompareServiceImplTest {
 
             // Then
             assertNotNull(result);
-            assertTrue(result.isEmpty());
+            assertFalse(result.isEmpty());
         }
 
         @Test
@@ -686,7 +678,7 @@ class MetadataInstancesCompareServiceImplTest {
             verify(service, atLeastOnce()).save(anyList(), eq(userDetail));
 
             // When - Delete apply configurations
-            service.deleteMetadataInstancesCompareApply(params, userDetail, false, nodeId);
+            service.deleteMetadataInstancesCompareApply(params, userDetail, false, false,nodeId);
 
             // Then - Verify delete operations
             verify(service, atLeastOnce()).deleteAll(any(Query.class));
@@ -725,11 +717,11 @@ class MetadataInstancesCompareServiceImplTest {
         void testEdgeCases() {
             // Test with null parameters
             assertDoesNotThrow(() -> service.saveMetadataInstancesCompareApply(null, userDetail, false, nodeId));
-            assertDoesNotThrow(() -> service.deleteMetadataInstancesCompareApply(null, userDetail, false, nodeId));
+            assertDoesNotThrow(() -> service.deleteMetadataInstancesCompareApply(null, userDetail, false, false,nodeId));
 
             // Test with empty parameters
             assertDoesNotThrow(() -> service.saveMetadataInstancesCompareApply(Collections.emptyList(), userDetail, false, nodeId));
-            assertDoesNotThrow(() -> service.deleteMetadataInstancesCompareApply(Collections.emptyList(), userDetail, false, nodeId));
+            assertDoesNotThrow(() -> service.deleteMetadataInstancesCompareApply(Collections.emptyList(), userDetail, false, false,nodeId));
 
             // Test getInvalidApplyDtos with null parameters
             List<MetadataInstancesCompareDto> result1 = service.getInvalidApplyDtos(null, null,null);
@@ -742,7 +734,7 @@ class MetadataInstancesCompareServiceImplTest {
 
             List<MetadataInstancesCompareDto> result3 = service.getInvalidApplyDtos(null, createMockApplyDtos(),null);
             assertNotNull(result3);
-            assertTrue(result3.isEmpty());
+            assertFalse(result3.isEmpty());
         }
     }
 }

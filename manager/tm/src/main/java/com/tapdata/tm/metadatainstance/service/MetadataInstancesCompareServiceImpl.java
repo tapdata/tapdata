@@ -3,6 +3,7 @@ package com.tapdata.tm.metadatainstance.service;
 import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.schema.DifferenceField;
 import com.tapdata.tm.commons.schema.Field;
@@ -192,11 +193,37 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
     }
 
     @Override
-    public void deleteMetadataInstancesCompareApply(List<MetadataInstancesApplyParam> metadataInstancesApplyParams, UserDetail userDetail, Boolean all, String nodeId) {
-        if (all) {
+    public void deleteMetadataInstancesCompareApply(List<MetadataInstancesApplyParam> metadataInstancesApplyParams, UserDetail userDetail, Boolean all,Boolean invalid, String nodeId) {
+        if (all && Boolean.TRUE.equals(invalid)) {
+            handleDeleteInvalidApply(nodeId, userDetail);
+        }else if(all){
             handleDeleteAllApply(nodeId, userDetail);
         } else {
             handleDeletePartialApply(metadataInstancesApplyParams, nodeId, userDetail);
+        }
+    }
+
+    private void handleDeleteInvalidApply(String nodeId, UserDetail userDetail) {
+        List<MetadataInstancesCompareDto> compareDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
+        List<MetadataInstancesCompareDto> applyDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
+                .and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
+        List<MetadataInstancesCompareDto> invalidApplyDtos = getInvalidApplyDtos(compareDtos, applyDtos,null);
+        if(CollectionUtils.isNotEmpty(invalidApplyDtos)){
+            Map<String, List<String>> removeFieldsMap = invalidApplyDtos.stream()
+                    .collect(Collectors.toMap(
+                            MetadataInstancesCompareDto::getQualifiedName,
+                            param -> Optional.ofNullable(param.getDifferenceFieldList()).stream().flatMap(Collection::stream).map(DifferenceField::getColumnName).collect(Collectors.toList()),
+                            (existing, replacement) -> existing
+                    ));
+            Query query = Query.query(Criteria.where("nodeId").is(nodeId)
+                    .and("qualifiedName").in(invalidApplyDtos.stream().map(MetadataInstancesCompareDto::getQualifiedName).collect(Collectors.toList()))
+                    .and("type").is(MetadataInstancesCompareDto.TYPE_APPLY));
+            ProcessResult processResult = processFieldDeletion(applyDtos, removeFieldsMap);
+            deleteAll(query);
+            if (CollectionUtils.isNotEmpty(processResult.getUpdatedCompareDtos())) {
+                save(processResult.getUpdatedCompareDtos(), userDetail);
+            }
         }
     }
 
@@ -206,6 +233,9 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
     private void handleDeleteAllApply(String nodeId, UserDetail userDetail) {
         Query query = Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY));
         List<MetadataInstancesCompareDto> compareDtos = findAll(query);
+        if (CollectionUtils.isEmpty(compareDtos)) {
+            throw new BizException("metadatainstances.compare.undo.configuration");
+        }
         deleteAll(query);
         getProcessMetadataInstances(compareDtos, false, userDetail);
     }
@@ -224,10 +254,9 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 .collect(Collectors.toList());
 
         Map<String, List<String>> removeFieldsMap = metadataInstancesApplyParams.stream()
-                .filter(param -> CollectionUtils.isNotEmpty(param.getFieldNames()))
                 .collect(Collectors.toMap(
                         MetadataInstancesApplyParam::getQualifiedName,
-                        MetadataInstancesApplyParam::getFieldNames,
+                        param -> Optional.ofNullable(param.getFieldNames()).orElse(Collections.emptyList()),
                         (existing, replacement) -> existing // 处理重复key的情况
                 ));
 
@@ -238,7 +267,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
 
         List<MetadataInstancesCompareDto> existingCompareDtos = findAll(query);
         if (CollectionUtils.isEmpty(existingCompareDtos)) {
-            return;
+            throw new BizException("metadatainstances.compare.undo.configuration");
         }
 
         // 处理字段删除逻辑
@@ -267,17 +296,24 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             String qualifiedName = compareDto.getQualifiedName();
             List<String> fieldsToRemove = removeFieldsMap.get(qualifiedName);
 
-            if (CollectionUtils.isEmpty(fieldsToRemove) || CollectionUtils.isEmpty(compareDto.getDifferenceFieldList())) {
+            if (CollectionUtils.isEmpty(compareDto.getDifferenceFieldList())) {
                 // 如果没有要删除的字段或者原本就没有字段，跳过处理
                 continue;
             }
 
             // 分离要保留和要删除的字段
-            Map<Boolean, List<DifferenceField>> partitionedFields = compareDto.getDifferenceFieldList().stream()
-                    .collect(Collectors.partitioningBy(field -> fieldsToRemove.contains(field.getColumnName())));
+            List<DifferenceField> fieldsToKeep ;
+            List<DifferenceField> fieldsToDelete;
+            if(CollectionUtils.isNotEmpty(fieldsToRemove)){
+                Map<Boolean, List<DifferenceField>> partitionedFields = compareDto.getDifferenceFieldList().stream()
+                        .collect(Collectors.partitioningBy(field -> fieldsToRemove.contains(field.getColumnName())));
+                fieldsToKeep = partitionedFields.get(false);
+                fieldsToDelete = partitionedFields.get(true);
+            }else{
+                fieldsToKeep = new ArrayList<>();
+                fieldsToDelete = compareDto.getDifferenceFieldList();
+            }
 
-            List<DifferenceField> fieldsToKeep = partitionedFields.get(false);
-            List<DifferenceField> fieldsToDelete = partitionedFields.get(true);
 
             // 创建删除记录
             if (CollectionUtils.isNotEmpty(fieldsToDelete)) {
@@ -327,6 +363,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         MetadataInstancesCompareResult metadataInstancesCompareResult = new MetadataInstancesCompareResult();
         metadataInstancesCompareResult.setStatus(metadataInstancesCompareStatus.getStatus());
         if (metadataInstancesCompareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_DONE)) {
+            metadataInstancesCompareResult.setFinishTime(metadataInstancesCompareStatus.getLastUpdAt());
             Criteria where = Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE);
             if (StringUtils.isNotBlank(tableFilter)) {
                 Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
@@ -357,13 +394,11 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         TaskDto taskDto = taskService.findOne(query);
         if(taskDto == null)return new ArrayList<>();
         DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
-        Map<String,Boolean> applyCompareRules;
         if(targetNode.getApplyCompareRule()){
-            applyCompareRules = targetNode.getApplyCompareRules();
+            return targetNode.getApplyCompareRules();
         } else {
             return new ArrayList<>();
         }
-        return applyCompareRules.entrySet().stream().filter(Map.Entry::getValue).map(Map.Entry::getKey).toList();
     }
 
     /**
@@ -374,25 +409,23 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
     protected List<MetadataInstancesCompareDto> getInvalidApplyDtos(List<MetadataInstancesCompareDto> compareDtos, List<MetadataInstancesCompareDto> applyDtos,List<String> applyRules) {
         List<MetadataInstancesCompareDto> invalidApplyDtos = new ArrayList<>();
 
-        if (CollectionUtils.isEmpty(compareDtos)) {
-            return invalidApplyDtos;
-        }
-
         // 创建compareDtos的字段映射，按表名和字段名分组
         Map<String, Map<String, DifferenceField>> compareFieldsMap = new HashMap<>();
-        for (MetadataInstancesCompareDto compareDto : compareDtos) {
-            String tableName = compareDto.getTableName();
-            if (CollectionUtils.isNotEmpty(compareDto.getDifferenceFieldList())) {
-                Map<String, DifferenceField> fieldMap = compareDto.getDifferenceFieldList().stream()
-                        .collect(Collectors.toMap(DifferenceField::getColumnName, field -> field));
-                if(CollectionUtils.isNotEmpty(applyRules)){
-                    fieldMap.values().forEach(differenceField -> {
-                        if(applyRules.contains(differenceField.getType().name())){
-                            differenceField.setApplyType(DifferenceField.APPLY_TYPE_AUTO);
-                        }
-                    });
+        if (CollectionUtils.isNotEmpty(compareDtos)) {
+            for (MetadataInstancesCompareDto compareDto : compareDtos) {
+                String tableName = compareDto.getTableName();
+                if (CollectionUtils.isNotEmpty(compareDto.getDifferenceFieldList())) {
+                    Map<String, DifferenceField> fieldMap = compareDto.getDifferenceFieldList().stream()
+                            .collect(Collectors.toMap(DifferenceField::getColumnName, field -> field));
+                    if(CollectionUtils.isNotEmpty(applyRules)){
+                        fieldMap.values().forEach(differenceField -> {
+                            if(applyRules.contains(differenceField.getType().name())){
+                                differenceField.setApplyType(DifferenceField.APPLY_TYPE_AUTO);
+                            }
+                        });
+                    }
+                    compareFieldsMap.put(tableName, fieldMap);
                 }
-                compareFieldsMap.put(tableName, fieldMap);
             }
         }
 
@@ -460,21 +493,28 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         List<MetadataInstancesCompareDto> metadataInstancesCompareDtos = new ArrayList<>();
         if(CollectionUtils.isNotEmpty(metadataInstancesApplyParams)){
             List<String> qualifiedNames = metadataInstancesApplyParams.stream().map(MetadataInstancesApplyParam::getQualifiedName).toList();
-            Map<String,List<String>> applyFields = metadataInstancesApplyParams.stream()
-                    .filter(metadataInstancesApplyParam -> CollectionUtils.isNotEmpty(metadataInstancesApplyParam.getFieldNames()))
-                    .collect(Collectors.toMap(MetadataInstancesApplyParam::getQualifiedName, MetadataInstancesApplyParam::getFieldNames));
+            Map<String, List<String>> applyFields = metadataInstancesApplyParams.stream()
+                    .collect(Collectors.toMap(
+                            MetadataInstancesApplyParam::getQualifiedName,
+                            param -> Optional.ofNullable(param.getFieldNames()).orElse(Collections.emptyList())
+                    ));
             if(CollectionUtils.isNotEmpty(qualifiedNames)){
                 List<MetadataInstancesCompareDto> compareDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
                         .and("qualifiedName").in(qualifiedNames).
                         and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
                 compareDtos.forEach(compareDto -> {
+                    List<DifferenceField> differenceFields;
                     if(applyFields.containsKey(compareDto.getQualifiedName())){
-                        List<DifferenceField> differenceFields = compareDto.getDifferenceFieldList().stream()
-                                .filter(differenceField -> applyFields.get(compareDto.getQualifiedName()).contains(differenceField.getColumnName()))
-                                .collect(Collectors.toList());
+                        if(CollectionUtils.isEmpty(applyFields.get(compareDto.getQualifiedName()))){
+                            differenceFields = compareDto.getDifferenceFieldList();
+                        }else{
+                            differenceFields = compareDto.getDifferenceFieldList().stream()
+                                    .filter(differenceField -> applyFields.get(compareDto.getQualifiedName()).contains(differenceField.getColumnName()))
+                                    .collect(Collectors.toList());
+                        }
                         compareDto.setDifferenceFieldList(differenceFields);
+                        metadataInstancesCompareDtos.add(compareDto);
                     }
-                    metadataInstancesCompareDtos.add(compareDto);
                 });
             }
         }

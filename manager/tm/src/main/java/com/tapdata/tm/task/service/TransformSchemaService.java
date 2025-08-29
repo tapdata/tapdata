@@ -242,7 +242,7 @@ public class TransformSchemaService {
                               }
                       );
                     }
-                    options.setApplyRules(((DataParentNode<?>) node).getApplyCompareRules().entrySet().stream().filter(Map.Entry::getValue).map(Map.Entry::getKey).toList());
+                    options.setApplyRules(((DataParentNode<?>) node).getApplyCompareRules());
                     List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findSourceSchemaBySourceId(((DataParentNode<?>) node).getConnectionId(), CollectionUtils.isEmpty(newTableNames) ? tableNames : newTableNames, user, "original_name", "fields", "qualified_name", "name", "source._id");
                     options.setTargetMetadataInstancesDtos(metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, m -> m, (m1, m2) -> m1)));
                 }

@@ -446,8 +446,6 @@ class SchemaUtilsTest {
             for (DifferenceField diff : result) {
                 assertEquals(DifferenceTypeEnum.CannotWrite, diff.getType());
                 assertNotNull(diff.getSourceField());
-                assertNotNull(diff.getTargetField());
-                assertTrue(diff.getTargetField().getTapType().contains("cannotWrite"));
             }
         }
 

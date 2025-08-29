@@ -28,6 +28,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
@@ -379,6 +380,7 @@ public class TaskServiceImpl extends TaskService{
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
     private ILicenseService iLicenseService;
+    private MetadataInstancesCompareService metadataInstancesCompareService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -1083,6 +1085,12 @@ public class TaskServiceImpl extends TaskService{
                 sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
             }
 
+        }
+
+        if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
+            taskDto.getDag().getTargetNodes().forEach(node -> {
+                metadataInstancesCompareService.deleteAll(Query.query(Criteria.where("nodeId").is(node.getId())));
+            });
         }
 
         return taskDto;

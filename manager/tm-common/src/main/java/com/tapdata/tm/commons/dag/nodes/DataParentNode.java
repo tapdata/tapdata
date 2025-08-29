@@ -113,7 +113,7 @@ public abstract class DataParentNode<S> extends Node<S> {
 
     private Boolean applyCompareRule = false;
 
-    private Map<String,Boolean> applyCompareRules = Map.of(DifferenceTypeEnum.Additional.name(),true,DifferenceTypeEnum.Different.name(),true,DifferenceTypeEnum.CannotWrite.name(),true,DifferenceTypeEnum.Missing.name(),true);
+    private List<String> applyCompareRules;
     /**
      * constructor for node
      *

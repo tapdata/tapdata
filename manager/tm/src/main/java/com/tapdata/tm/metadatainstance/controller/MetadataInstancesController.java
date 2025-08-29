@@ -872,8 +872,9 @@ public class MetadataInstancesController extends BaseController {
     @DeleteMapping("deleteMetadataInstancesCompareApply")
     public ResponseMessage<Void> deleteMetadataInstancesCompareApply(@RequestParam(value = "all") Boolean all,
                                                                                            @RequestParam(value = "nodeId") String nodeId,
+                                                                                           @RequestParam(value = "invalid",required = false) Boolean invalid,
                                                                                            @RequestBody(required = false) List<MetadataInstancesApplyParam> metadataInstancesApplyParams) {
-        metadataInstancesCompareService.deleteMetadataInstancesCompareApply(metadataInstancesApplyParams,getLoginUser(),all,nodeId);
+        metadataInstancesCompareService.deleteMetadataInstancesCompareApply(metadataInstancesApplyParams,getLoginUser(),all,invalid,nodeId);
         return success();
     }
 
