@@ -4587,7 +4587,7 @@ class TaskServiceImplTest {
             Criteria criteria = new Criteria();
             criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
             Query query = Query.query(criteria);
-            verify(taskService).findAllDto(query,user);
+            verify(taskService).findAll(query);
         }
         @Test
         @DisplayName("test getTaskStatsByTableNameOrConnectionId method normal")
@@ -4599,9 +4599,10 @@ class TaskServiceImplTest {
             Criteria criteria = new Criteria();
             criteria.and("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true);
             criteria.orOperator(new Criteria().and("dag.nodes.tableName").is(tableName),
+                    new Criteria().and("dag.nodes.tableNames").is(tableName),
                     new Criteria().and("dag.nodes.syncObjects.objectNames").is(tableName));
             Query query = Query.query(criteria);
-            verify(taskService).findAllDto(query,user);
+            verify(taskService).findAll(query);
         }
     }
     @Nested
