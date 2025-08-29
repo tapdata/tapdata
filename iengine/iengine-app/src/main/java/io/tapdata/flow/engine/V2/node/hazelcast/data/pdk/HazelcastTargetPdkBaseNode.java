@@ -368,7 +368,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected void doCreateTable(TapTable tapTable, AtomicReference<TapCreateTableEvent> tapCreateTableEvent, Runnable runnable) {
+    protected void doCreateTable(TapTable tapTable, AtomicReference<TapCreateTableEvent> tapCreateTableEvent, Runnable runnable,AtomicBoolean succeed) {
 		TapTable finalTapTable = new TapTable();
 		handleTapTablePrimaryKeys(tapTable);
 		BeanUtil.copyProperties(tapTable, finalTapTable);
@@ -382,8 +382,13 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		masterTableId(tapCreateTableEvent.get(), tapTable);
 		runnable.run();
-		clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
-				ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+		if(succeed.get()) {
+			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable),
+					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tables/" + dataProcessorContext.getTargetConn().getId());
+		}else{
+			clientMongoOperator.insertOne(Collections.singletonList(finalTapTable.getName()),
+					ConnectorConstant.CONNECTION_COLLECTION + "/load/part/tablesByName/" + dataProcessorContext.getTargetConn().getId());
+		}
 	}
 
 	protected boolean createPartitionTable(CreatePartitionTableFunction createPartitionTableFunction,
@@ -406,7 +411,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						succeed.set(!createTableOptions.getTableExists());
 						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
 					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
-		});
+		},succeed);
 		return true;
 	}
 
@@ -435,7 +440,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						succeed.set(!Boolean.TRUE.equals(createTableOptions.getTableExists()));
 						Optional.ofNullable(createTableFuncAspect).ifPresent(aspect -> aspect.createTableOptions(createTableOptions));
 					}, TAG, buildErrorConsumer(createTableEvent.getTableId()))));
-		});
+		},succeed);
 		return true;
 	}
 
@@ -504,7 +509,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 								} else {
 									createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
 								}
-							}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId()))))
+							}, TAG,buildErrorConsumer(tapCreateTableEvent.get().getTableId())))),succeed
                 );
 			} else {
 				// only execute start function aspect so that it would be cheated as input

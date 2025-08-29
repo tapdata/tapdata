@@ -7,8 +7,11 @@ import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
@@ -38,8 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -594,5 +596,207 @@ class DataSourceServiceImplTest {
             long count = dataSourceService.updatePartialSchema(connId, loadFieldsStatus, lastUpdate, fromSchemaVersion, toSchemaVersion, filters, userDetail);
             assertEquals(2, count);
         }
+    }
+
+    @Nested
+    @DisplayName("LoadPartTablesByName Tests")
+    class LoadPartTablesByNameTest {
+        private DataSourceServiceImpl dataSourceService;
+        private MetadataInstancesService metadataInstancesService;
+        private DataSourceDefinitionService dataSourceDefinitionService;
+        private UserDetail userDetail;
+        private String connectionId;
+        private List<String> tables;
+        private DataSourceConnectionDto connectionDto;
+        private DataSourceDefinitionDto definitionDto;
+        private MetadataInstancesDto databaseModel;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceService = mock(DataSourceServiceImpl.class);
+            metadataInstancesService = mock(MetadataInstancesService.class);
+            dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+            userDetail = new UserDetail("6393f084c162f518b18165c3", "customerId", "username", "password", "customerType",
+                    "accessCode", false, false, false, false, Arrays.asList(new SimpleGrantedAuthority("role")));
+            connectionId = "507f1f77bcf86cd799439011";
+            tables = Arrays.asList("table1", "table2", "table3");
+
+            connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId(connectionId));
+            connectionDto.setDatabase_type("mysql");
+
+            definitionDto = new DataSourceDefinitionDto();
+            definitionDto.setExpression("test_expression");
+
+            databaseModel = new MetadataInstancesDto();
+            databaseModel.setId(new ObjectId());
+
+            // Set up mocks using reflection
+            ReflectionTestUtils.setField(dataSourceService, "metadataInstancesService", metadataInstancesService);
+            ReflectionTestUtils.setField(dataSourceService, "dataSourceDefinitionService", dataSourceDefinitionService);
+
+            // Mock the real method call
+            doCallRealMethod().when(dataSourceService).loadPartTablesByName(anyString(), anyList(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("Should return early when connection not found")
+        void testLoadPartTablesByName_ConnectionNotFound() {
+            // Given
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(null);
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService).findById(any(ObjectId.class));
+            verify(dataSourceDefinitionService, never()).getByDataSourceType(anyString(), any(UserDetail.class));
+            verify(metadataInstancesService, never()).findAllDto(any(Query.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("Should return early when definition not found")
+        void testLoadPartTablesByName_DefinitionNotFound() {
+            // Given
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(null);
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService).findById(any(ObjectId.class));
+            verify(dataSourceDefinitionService).getByDataSourceType("mysql", userDetail);
+            verify(dataSourceService, never()).getDatabaseModelId(anyString(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("Should return early when database model ID is blank")
+        void testLoadPartTablesByName_DatabaseModelIdBlank() {
+            // Given
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+            when(dataSourceService.getDatabaseModelId(anyString(), any(UserDetail.class))).thenReturn("");
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService).findById(any(ObjectId.class));
+            verify(dataSourceDefinitionService).getByDataSourceType("mysql", userDetail);
+            verify(dataSourceService).getDatabaseModelId(connectionId, userDetail);
+            verify(metadataInstancesService, never()).findAllDto(any(Query.class), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("Should send test connection for all tables when no existing metadata found")
+        void testLoadPartTablesByName_NoExistingMetadata() {
+            // Given
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+            when(dataSourceService.getDatabaseModelId(anyString(), any(UserDetail.class))).thenReturn("databaseModelId123");
+            when(metadataInstancesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+            doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService).findById(any(ObjectId.class));
+            verify(dataSourceDefinitionService).getByDataSourceType("mysql", userDetail);
+            verify(dataSourceService).getDatabaseModelId(connectionId, userDetail);
+            verify(metadataInstancesService).findAllDto(argThat(query -> {
+                Document queryObject = query.getQueryObject();
+                return queryObject.containsKey("source._id") &&
+                       queryObject.get("source._id").equals(connectionId) &&
+                       queryObject.containsKey("sourceType") &&
+                       queryObject.get("sourceType").equals("SOURCE") &&
+                       queryObject.containsKey("original_name");
+            }), eq(userDetail));
+            verify(dataSourceService).sendTestConnection(eq(connectionDto), eq(true), eq(true), eq("table1,table2,table3"), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("Should send test connection only for missing tables when some metadata exists")
+        void testLoadPartTablesByName_PartialExistingMetadata() {
+            // Given
+            List<MetadataInstancesDto> existingMetadata = new ArrayList<>();
+            MetadataInstancesDto existingTable1 = new MetadataInstancesDto();
+            existingTable1.setOriginalName("table1");
+            existingMetadata.add(existingTable1);
+
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+            when(dataSourceService.getDatabaseModelId(anyString(), any(UserDetail.class))).thenReturn("databaseModelId123");
+            when(metadataInstancesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(existingMetadata);
+            doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService).sendTestConnection(eq(connectionDto), eq(true), eq(true), eq("table2,table3"), eq(userDetail));
+        }
+
+        @Test
+        @DisplayName("Should not send test connection when all tables already exist")
+        void testLoadPartTablesByName_AllTablesExist() {
+            // Given
+            List<MetadataInstancesDto> existingMetadata = new ArrayList<>();
+            for (String tableName : tables) {
+                MetadataInstancesDto metadata = new MetadataInstancesDto();
+                metadata.setOriginalName(tableName);
+                existingMetadata.add(metadata);
+            }
+
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+            when(dataSourceService.getDatabaseModelId(anyString(), any(UserDetail.class))).thenReturn("databaseModelId123");
+            when(metadataInstancesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(existingMetadata);
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService, never()).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+        }
+
+        @Test
+        @DisplayName("Should handle empty table list")
+        void testLoadPartTablesByName_EmptyTableList() {
+            // Given
+            List<String> emptyTables = Collections.emptyList();
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+            when(dataSourceService.getDatabaseModelId(anyString(), any(UserDetail.class))).thenReturn("databaseModelId123");
+            when(metadataInstancesService.findAllDto(any(Query.class), any(UserDetail.class))).thenReturn(Collections.emptyList());
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, emptyTables, userDetail);
+
+            // Then
+            verify(metadataInstancesService).findAllDto(any(Query.class), eq(userDetail));
+            verify(dataSourceService, never()).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+        }
+
+
+        @Test
+        @DisplayName("Should handle case where getDatabaseModelId returns null")
+        void testLoadPartTablesByName_DatabaseModelIdNull() {
+            // Given
+            when(dataSourceService.findById(any(ObjectId.class))).thenReturn(connectionDto);
+            when(dataSourceDefinitionService.getByDataSourceType(anyString(), any(UserDetail.class))).thenReturn(definitionDto);
+            when(dataSourceService.getDatabaseModelId(anyString(), any(UserDetail.class))).thenReturn(null);
+
+            // When
+            dataSourceService.loadPartTablesByName(connectionId, tables, userDetail);
+
+            // Then
+            verify(dataSourceService).getDatabaseModelId(connectionId, userDetail);
+            verify(metadataInstancesService, never()).findAllDto(any(Query.class), any(UserDetail.class));
+            verify(dataSourceService, never()).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+        }
+
+
     }
 }

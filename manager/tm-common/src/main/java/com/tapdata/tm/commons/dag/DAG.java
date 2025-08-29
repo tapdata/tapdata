@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import cn.hutool.core.map.MapUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
@@ -16,9 +17,7 @@ import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -1149,6 +1148,9 @@ public class DAG implements Serializable, Cloneable {
         private FieldChangeRuleGroup fieldChangeRules;
         private boolean isIsomorphismTask;
         private boolean preview;
+        private Map<String,List<DifferenceField>> differenceFields;
+        private Map<String,MetadataInstancesDto> targetMetadataInstancesDtos;
+        private List<String> applyRules;
         private Map<String, String> tableRenameRelationMap;
 
         public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
@@ -1162,6 +1164,32 @@ public class DAG implements Serializable, Cloneable {
             for (Field f : dto.getFields()) {
                 fieldChangeRules.process(nodeId, dto.getQualifiedName(), f, map);
             }
+        }
+        public void processDifferenceField(MetadataInstancesDto dto) {
+            List<DifferenceField> differenceFieldList;
+            if(MapUtil.isNotEmpty(differenceFields) && differenceFields.containsKey(dto.getQualifiedName())){
+                differenceFieldList = differenceFields.get(dto.getQualifiedName());
+            }else{
+                differenceFieldList = new ArrayList<>();
+            }
+            if(MapUtil.isNotEmpty(targetMetadataInstancesDtos)){
+                MetadataInstancesDto targetMetadataInstancesDto = targetMetadataInstancesDtos.get(dto.getName());
+                if(CollectionUtils.isNotEmpty(applyRules) && null != targetMetadataInstancesDto && dto.getSource().get_id().equals(targetMetadataInstancesDto.getSource().get_id())){
+                    List<DifferenceField> differenceFieldsRules = SchemaUtils.compareSchema(dto, targetMetadataInstancesDto);
+                    Map<String,Boolean> differenceFieldMap = differenceFieldList.stream().collect(Collectors.toMap(DifferenceField::getColumnName, m -> true));
+                    differenceFieldsRules.forEach(rule -> {
+                        if(!differenceFieldMap.containsKey(rule.getColumnName()) && applyRules.contains(rule.getType().name())){
+                            differenceFieldList.add(rule);
+                        }
+                    });
+
+                }
+            }
+            if (CollectionUtils.isEmpty(differenceFieldList)) return;
+            Map<String,Field> fieldMap = dto.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Function.identity()));
+            differenceFieldList.forEach(differenceField -> {
+                differenceField.getType().processDifferenceField(fieldMap.get(differenceField.getColumnName()), dto.getFields(), differenceField);
+            });
         }
     }
 

@@ -21,6 +21,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.utils.GZIPUtil;
@@ -49,6 +50,7 @@ class TransformSchemaServiceTest {
     private MetadataInstancesService metadataInstancesService;
     private MetadataTransformerService metadataTransformerService;
     private DataSourceDefinitionService definitionService;
+    private MetadataInstancesCompareService metadataInstancesCompareService;
     MessageQueueService messageQueueService;
     AgentGroupService agentGroupService;
     WorkerService workerService;
@@ -74,6 +76,8 @@ class TransformSchemaServiceTest {
         ReflectionTestUtils.setField(transformSchemaService,"workerService",workerService);
         taskService = mock(TaskService.class);
         ReflectionTestUtils.setField(transformSchemaService,"taskService",taskService);
+        metadataInstancesCompareService = mock(MetadataInstancesCompareService.class);
+        ReflectionTestUtils.setField(transformSchemaService,"metadataInstancesCompareService",metadataInstancesCompareService);
         user = mock(UserDetail.class);
     }
 
