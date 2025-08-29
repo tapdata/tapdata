@@ -24,6 +24,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bouncycastle.oer.its.ieee1609dot2.basetypes.SymmAlgorithm;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -57,6 +58,10 @@ public class TaskRestartSchedule {
     private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
+    private long lastCheckTime = 0L;
+
+    // TM启动时间
+    private static final long TM_START_TIME = System.currentTimeMillis();
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -82,10 +87,20 @@ public class TaskRestartSchedule {
         }
     }
 
-    @Scheduled(initialDelay = 150 * 1000, fixedDelay = 5000)
-    @SchedulerLock(name ="engineRestartNeedStartTask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    @Scheduled(initialDelay = 600 * 1000, fixedDelay = 5000)
+    @SchedulerLock(name ="engineRestartNeedStartTask_lock2", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void engineRestartNeedStartTask() {
         Thread.currentThread().setName("taskSchedule-engineRestartNeedStartTask");
+
+        // 检查TM自身启动时间，如果小于10分钟则直接返回
+        long currentTime = System.currentTimeMillis();
+        long tmRunningTime = currentTime - getTmStartTime();
+        if (tmRunningTime < 600000L) { // 10分钟 = 600000毫秒
+            log.debug("TM started less than 10 minutes ago, skipping engineRestartNeedStartTask. TM running time: {} ms ({} minutes)",
+                tmRunningTime, tmRunningTime / 1000 / 60);
+            return;
+        }
+
         //云版不需要这个重新调度的逻辑
         Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
         if (Objects.isNull(buildProfile)) {
@@ -93,6 +108,12 @@ public class TaskRestartSchedule {
         }
         boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
         long heartExpire = getHeartExpire();
+
+        if (System.currentTimeMillis() - lastCheckTime < heartExpire / 2) {
+            return;
+        }
+
+        lastCheckTime = System.currentTimeMillis();
 
         Criteria criteria = Criteria.where("status").is(TaskDto.STATUS_RUNNING)
                 .and("pingTime").lt(System.currentTimeMillis() - heartExpire);
@@ -154,7 +175,7 @@ public class TaskRestartSchedule {
         if (Objects.nonNull(settings) && Objects.nonNull(settings.getValue())) {
             heartExpire = Long.parseLong(settings.getValue().toString());
         } else {
-            heartExpire = 300000L;
+            heartExpire = 1800000L;
         }
         return heartExpire;
     }
@@ -310,5 +331,13 @@ public class TaskRestartSchedule {
         Optional.ofNullable(workers).ifPresent(list -> userWorkerMap.set(list.stream().collect(Collectors.groupingBy(Worker::getUserId))));
 
         return userWorkerMap.get();
+    }
+
+    /**
+     * 获取TM启动时间
+     * @return TM启动时间戳
+     */
+    private long getTmStartTime() {
+        return TM_START_TIME;
     }
 }
