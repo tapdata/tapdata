@@ -186,6 +186,11 @@ public class Field implements Serializable {
 
     private boolean useDefaultValue = true;
 
+    /**
+     * Sensitive Fields - Encryption Rule List
+     * */
+    private List<String> textEncryptionRuleIds;
+
     public boolean getUseDefaultValue() {
         return useDefaultValue;
     }

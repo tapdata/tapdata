@@ -69,6 +69,8 @@ import com.tapdata.tm.modules.vo.ModulesListVo;
 import com.tapdata.tm.modules.vo.PreviewVo;
 import com.tapdata.tm.modules.vo.RankListsVo;
 import com.tapdata.tm.modules.vo.Source;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
@@ -100,6 +102,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -138,6 +141,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApiCallStatsService apiCallStatsService;
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private ApplicationConfig config;
+	private TextEncryptionRuleService textEncryptionRuleService;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -494,7 +498,36 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setConnections(connectionVos);
 			apiDefinitionVo.setApis(apis);
 		}
+		textEncryptionRule(apiDefinitionVo);
 		return apiDefinitionVo;
+	}
+
+	protected void textEncryptionRule(ApiDefinitionVo apiDefinitionVo) {
+		if (CollectionUtils.isEmpty(apiDefinitionVo.getApis())) {
+			return;
+		}
+		final List<ModulesDto> apis = apiDefinitionVo.getApis();
+		final Set<String> ids = new HashSet<>();
+		for (ModulesDto api : apis) {
+			for (Path path : api.getPaths()) {
+				final List<Field> fields = path.getFields();
+				Optional.ofNullable(fields)
+						.ifPresent(value -> value.stream()
+								.filter(Objects::nonNull)
+								.filter(e -> CollectionUtils.isNotEmpty(e.getTextEncryptionRuleIds()))
+								.forEach(e -> ids.addAll(e.getTextEncryptionRuleIds()))
+						);
+			}
+		}
+		if (ids.isEmpty()) {
+			return;
+		}
+		final List<TextEncryptionRuleDto> rules = textEncryptionRuleService.getById(ids);
+		final Map<String, TextEncryptionRuleDto> collect = rules.stream()
+				.filter(Objects::nonNull)
+				.filter(e -> Objects.nonNull(e.getId()))
+				.collect(Collectors.toMap(e -> e.getId().toHexString(), e -> e, (e1, e2) -> e2));
+		apiDefinitionVo.setTextEncryptionRules(collect);
 	}
 
 	public void analyzeApiServerKey(DataSourceConnectionDto dataSourceConnectionDto, LinkedHashMap connection, String parent) {
@@ -1215,23 +1248,38 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			throw new BizException("module.save.check.not-empty");
 		}
 		List<Field> fields = path.getFields();
+		String spiltChars = "@to@";
+		Map<String, List<Field>> collect = fields.stream()
+				.filter(Objects::nonNull)
+				.filter(f -> StringUtils.isNotBlank(f.getFieldName()))
+				.filter(f -> StringUtils.isNotBlank(f.getFieldAlias()))
+				.collect(Collectors.groupingBy(f -> {
+					String[] split = f.getFieldName().split("\\.");
+					if (split.length == 1) {
+						return "";
+					}
+					return split[split.length - 2] + spiltChars;
+				}));
 		Map<String, AtomicInteger> fieldAliasRepeatMap = new HashMap<>();
-		fields.stream()
-				.filter(e -> StringUtils.isNotBlank(e.getFieldAlias()))
-				.forEach(e -> fieldAliasRepeatMap
-						.computeIfAbsent(e.getFieldAlias(), key -> new AtomicInteger(0))
-						.addAndGet(1)
-				);
+		collect.forEach((suffix, aliasList) ->
+			aliasList.forEach(e -> fieldAliasRepeatMap
+							.computeIfAbsent(suffix + e.getFieldAlias(), key -> new AtomicInteger(0))
+							.addAndGet(1)
+					)
+		);
 		StringJoiner joiner = new StringJoiner(", ");
 		fieldAliasRepeatMap.forEach((k, v) -> {
 			if (v.get() > 1) {
-				joiner.add(k);
+				String[] split = k.split(spiltChars);
+				joiner.add(split[split.length - 1]);
 			}
 		});
 		if (joiner.length() > 0) {
 			throw new BizException("module.save.check.repat", joiner.toString());
 		}
 	}
+
+
 
 	private void checkoutInputParamIsValid(ModulesDto modulesDto) {
 		String apiType = modulesDto.getApiType();
