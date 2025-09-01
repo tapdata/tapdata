@@ -583,7 +583,8 @@ public class OpenApiGeneratorService {
 		command.add("--group-id");
 		command.add(request.getGroupId());
 		command.add("--skip-validate-spec");
-		command.add("--inline-schema-options ARRAY_ITEM_SUFFIX=_list");
+		command.add("--inline-schema-options");
+		command.add("ARRAY_ITEM_SUFFIX=_list");
 
 		// Add additional properties to ensure JAR generation with Java 17
 		command.add("--additional-properties");
