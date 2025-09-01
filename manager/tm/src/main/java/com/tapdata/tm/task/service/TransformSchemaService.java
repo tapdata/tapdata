@@ -5,15 +5,11 @@ import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.commons.dag.*;
-import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
-import com.tapdata.tm.commons.dag.process.HuaweiDrsKafkaConvertorNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.py.MigratePyProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
@@ -196,6 +192,12 @@ public class TransformSchemaService {
         dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
 
         List<Node> dagNodes = dag.getNodes();
+        List<String> tableNames = new ArrayList<>();
+        dag.getSourceNode().forEach(node -> {
+            if (node != null) {
+                tableNames.addAll(node.getTableNames());
+            }
+        });
         dagNodes.forEach(node -> {
             node.setService(dagDataService);
             node.getDag().setTaskId(taskDto.getId());
@@ -207,6 +209,10 @@ public class TransformSchemaService {
                     }
                     options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
                 });
+            }
+            if (node instanceof TableRenameProcessNode) {
+                TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
+                options.setTableRenameRelationMap(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
             }
         });
         List<Node> nodes = dagNodes;
