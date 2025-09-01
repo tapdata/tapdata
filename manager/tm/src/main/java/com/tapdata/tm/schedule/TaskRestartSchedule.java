@@ -20,6 +20,7 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import lombok.AccessLevel;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -58,6 +59,8 @@ public class TaskRestartSchedule {
     private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
+
+    @Setter(AccessLevel.NONE)
     private long lastCheckTime = 0L;
 
     // TM启动时间
