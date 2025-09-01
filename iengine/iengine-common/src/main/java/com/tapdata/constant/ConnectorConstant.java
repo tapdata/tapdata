@@ -93,6 +93,7 @@ public class ConnectorConstant {
 	public static final String JOB_DDL_HISTORIES_COLLECTION = "JobDDLHistories";
 	public static final String TYPE_MAPPINGS_COLLECTION = "TypeMappings";
 	public static final String TASK_COLLECTION = "Task";
+	public static final String TASK_ALARM = "alarm";
 	public static final String TASK_NODE = "node";
 	public static final String METRICS_COLLECTION = "Metrics";
 	public static final String CUSTOMNODETEMP_COLLECTION = "customNode";

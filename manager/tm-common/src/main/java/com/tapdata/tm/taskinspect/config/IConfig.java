@@ -10,6 +10,11 @@ import java.io.Serializable;
  */
 public interface IConfig<T extends IConfig<T>> extends Serializable {
 
+    /**
+     * 初始化配置
+     * @param depth 深度（0: 只初始化当前对象属性；小于0: 所有对象属性；）
+     * @return 配置对象
+     */
     T init(int depth);
 
     /**

@@ -15,7 +15,6 @@ import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -93,6 +92,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     private Long tableCount;
     /** 检测时间 */
     private Long testTime;
+    private Map<String, Object> monitorAPI;
     private Integer testCount;
 
     private String database_host;
@@ -336,6 +336,7 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
 	private List<String> namespace;
     private Long timeDifference;
     private String datasourceInstanceTag;
+    private Boolean isInit = false;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

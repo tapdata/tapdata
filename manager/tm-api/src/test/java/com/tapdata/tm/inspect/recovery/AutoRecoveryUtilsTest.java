@@ -48,5 +48,21 @@ class AutoRecoveryUtilsTest {
             errors = AutoRecoveryUtils.checkCanRecovery(inspectDto);
             Assertions.assertFalse(errors.isEmpty());
         }
+
+        @Test
+        void testTrueWhenWaiting() {
+            InspectDto inspectDto = new InspectDto();
+            inspectDto.setInspectMethod(InspectMethod.FIELD.getValue());
+            inspectDto.setStatus(InspectStatusEnum.WAITING.getValue());
+            inspectDto.setResult("failed");
+            inspectDto.setFlowId("test-flow-id");
+
+            List<String> errors = AutoRecoveryUtils.checkCanRecovery(inspectDto);
+            Assertions.assertTrue(errors.isEmpty());
+
+            inspectDto.setInspectMethod(InspectMethod.JOINTFIELD.getValue());
+            errors = AutoRecoveryUtils.checkCanRecovery(inspectDto);
+            Assertions.assertTrue(errors.isEmpty());
+        }
     }
 }

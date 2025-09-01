@@ -54,6 +54,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
+import lombok.Getter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -85,6 +86,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private ClassHandlers ddlEventHandlers;
 	private WritePolicyService writePolicyService;
 	private Map<String, TapTable> partitionTapTables;
+    @Getter
+    private boolean writeGroupByTableEnable = true;
 
 	public HazelcastTargetPdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -105,6 +108,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
 				}
 				updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
+                writeGroupByTableEnable = !Boolean.FALSE.equals(dbNode.getWriteWithGroupByTableEnable());
 			}
 			if (getNode() instanceof DataParentNode) {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
@@ -247,8 +251,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	protected void createForeignKeyConstraints(TapTableMap<String, TapTable> tapTableMap, Set<String> tableIds) {
+		if (!checkSyncForeignKeyOpen()) return;
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || !taskDto.isNormalTask()) {
+		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC) || !taskDto.isNormalTask()) {
 			return;
 		}
 		Optional.ofNullable(getConnectorNode()).ifPresent(connectorNode -> Optional.ofNullable(connectorNode.getConnectorFunctions()).ifPresent(connectorFunctions -> {
@@ -610,6 +615,17 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		return false;
 	}
 
+	protected boolean checkSyncForeignKeyOpen(){
+		Node node = getNode();
+		if (node instanceof DatabaseNode || node instanceof TableNode) {
+			DataParentNode dataParentNode = (DataParentNode) node;
+			if (Boolean.TRUE.equals(dataParentNode.getSyncForeignKeyEnable())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	protected void clearData(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
 		if (SyncTypeEnum.CDC == syncType || existsDataProcessEnum != ExistsDataProcessEnum.REMOVE_DATE) return;
 
@@ -707,7 +723,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	@Override
 	void processEvents(List<TapEvent> tapEvents) {
 		TapEvent foundDDLEvent = tapEvents.stream().filter(e -> e instanceof TapDDLEvent).findFirst().orElse(null);
-		if (null == foundDDLEvent) {
+		if (null == foundDDLEvent && isWriteGroupByTableEnable()) {
 			Map<String, List<TapEvent>> dmlEventsGroupByTableId = new HashMap<>();
 			for (TapEvent tapEvent : tapEvents) {
 				if (tapEvent instanceof TapRecordEvent) {

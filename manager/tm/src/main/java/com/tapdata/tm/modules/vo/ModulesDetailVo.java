@@ -82,5 +82,5 @@ public class ModulesDetailVo extends BaseVo {
     /**
      * 用户自定义的路径最后关键字，没有设置按默认值处理
      * */
-    private List<PathSetting> pathSetting = PathSetting.DEFAULT_PATH_SETTING;
+    private List<PathSetting> pathSetting;
 }

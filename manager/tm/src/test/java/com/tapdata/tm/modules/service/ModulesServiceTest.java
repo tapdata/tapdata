@@ -45,6 +45,7 @@ import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.utils.Lists;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;

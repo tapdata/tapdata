@@ -17,6 +17,7 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.parser.OpenAPIV3Parser;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -126,7 +127,7 @@ public class OpenApiJsonProcessor {
             }
 
             log.info("Successfully parsed OpenAPI JSON into OpenAPI model");
-            log.debug("OpenAPI info: title={}, version={}", 
+            log.debug("OpenAPI info: title={}, version={}",
                 openAPI.getInfo() != null ? openAPI.getInfo().getTitle() : "N/A",
                 openAPI.getInfo() != null ? openAPI.getInfo().getVersion() : "N/A");
 
@@ -169,11 +170,18 @@ public class OpenApiJsonProcessor {
         if (openAPI.getPaths() != null) {
             Paths processedPaths = processPaths(openAPI.getPaths(), request);
 
+            // Remove non-200 responses under all paths to keep only HTTP 200
+            removeNon200ResponsesFromPaths(processedPaths);
+
             // Extract filter schemas from processed GET operations and add to components
             extractAndAddFilterSchemas(processedPaths, processedComponents, request);
 
             // Process response schemas to modify count fields
             processResponseSchemas(processedPaths, processedComponents);
+
+            // Update operation tags: set first tag to artifactId for all operations under paths
+            setArtifactIdTagForAllOperations(processedPaths, request.getArtifactId());
+
 
             processedOpenAPI.setPaths(processedPaths);
         }
@@ -541,7 +549,7 @@ public class OpenApiJsonProcessor {
      */
     private Paths processPaths(Paths paths, CodeGenerationRequest request) {
         Paths processedPaths = new Paths();
-        
+
         if (paths == null || paths.isEmpty()) {
             return processedPaths;
         }
@@ -549,18 +557,18 @@ public class OpenApiJsonProcessor {
         for (Map.Entry<String, PathItem> pathEntry : paths.entrySet()) {
             String pathKey = pathEntry.getKey();
             PathItem pathItem = pathEntry.getValue();
-            
+
             PathItem processedPathItem = processPathItem(pathItem, request);
-            
+
             // Only add path if it has operations after processing
             if (hasOperations(processedPathItem)) {
                 processedPaths.addPathItem(pathKey, processedPathItem);
             }
         }
 
-        log.debug("Processed {} paths, kept {} paths after filtering", 
+        log.debug("Processed {} paths, kept {} paths after filtering",
             paths.size(), processedPaths.size());
-        
+
         return processedPaths;
     }
 
@@ -573,30 +581,23 @@ public class OpenApiJsonProcessor {
      */
     private PathItem processPathItem(PathItem pathItem, CodeGenerationRequest request) {
         PathItem processedPathItem = new PathItem();
-        
+
         // Copy basic properties
         processedPathItem.setSummary(pathItem.getSummary());
         processedPathItem.setDescription(pathItem.getDescription());
         processedPathItem.setServers(pathItem.getServers());
         processedPathItem.setParameters(pathItem.getParameters());
-        
+
         // Process each HTTP method operation
         processOperation(pathItem.getGet(), processedPathItem::setGet, request);
-
-        // Special filtering for POST operations: skip if x-operation-name starts with "customerQuery"
-        if (pathItem.getPost() != null && shouldSkipPostOperation(pathItem.getPost())) {
-            log.debug("Skipping POST operation with x-operation-name starting with 'customerQuery'");
-        } else {
-            processOperation(pathItem.getPost(), processedPathItem::setPost, request);
-        }
-
+        processOperation(pathItem.getPost(), processedPathItem::setPost, request);
         processOperation(pathItem.getPut(), processedPathItem::setPut, request);
         processOperation(pathItem.getDelete(), processedPathItem::setDelete, request);
         processOperation(pathItem.getOptions(), processedPathItem::setOptions, request);
         processOperation(pathItem.getHead(), processedPathItem::setHead, request);
         processOperation(pathItem.getPatch(), processedPathItem::setPatch, request);
         processOperation(pathItem.getTrace(), processedPathItem::setTrace, request);
-        
+
         return processedPathItem;
     }
 
@@ -662,10 +663,8 @@ public class OpenApiJsonProcessor {
 
                             // Set default values: limit=10, page=1
                             if ("limit".equals(param.getName())) {
-                                param.getSchema().setDefault(10);
                                 log.debug("Set default value 10 for limit parameter in operation");
                             } else if ("page".equals(param.getName())) {
-                                param.getSchema().setDefault(1);
                                 log.debug("Set default value 1 for page parameter in operation");
                             }
                         }
@@ -676,7 +675,65 @@ public class OpenApiJsonProcessor {
             operation.setParameters(processedParameters);
         }
 
+        // Process requestBody for POST/PUT/PATCH operations
+        if (operation.getRequestBody() != null && operation.getRequestBody().getContent() != null) {
+            Content content = operation.getRequestBody().getContent();
+            for (MediaType mediaType : content.values()) {
+                if (mediaType.getSchema() != null) {
+                    processSchemaForPageLimit(mediaType.getSchema());
+                }
+            }
+        }
+
         setter.accept(operation);
+    }
+
+    /**
+     * Process schema recursively to modify page and limit fields
+     *
+     * @param schema Schema to process
+     */
+    private void processSchemaForPageLimit(Schema<?> schema) {
+        if (schema == null) {
+            return;
+        }
+
+        // Process properties if this is an object schema
+        if (schema.getProperties() != null) {
+            Map<String, Schema> properties = schema.getProperties();
+            for (Map.Entry<String, Schema> entry : properties.entrySet()) {
+                String propertyName = entry.getKey();
+                Schema propertySchema = entry.getValue();
+
+                // Modify page and limit properties to be integers
+                if (StringUtils.equalsAny(propertyName, "page", "limit")) {
+                    propertySchema.setType("integer");
+                    propertySchema.setFormat("int32");
+
+                    // Set default values: limit=10, page=1
+                    if ("limit".equals(propertyName)) {
+                        propertySchema.setDefault(10);
+                        log.debug("Set default value 10 for limit property in requestBody schema");
+                    } else if ("page".equals(propertyName)) {
+                        propertySchema.setDefault(1);
+                        log.debug("Set default value 1 for page property in requestBody schema");
+                    }
+                } else {
+                    // Recursively process nested schemas
+                    processSchemaForPageLimit(propertySchema);
+                }
+            }
+        }
+
+        // Process array items
+        if (schema.getItems() != null) {
+            processSchemaForPageLimit(schema.getItems());
+        }
+
+        // Process additional properties
+        if (schema.getAdditionalProperties() instanceof Schema) {
+            processSchemaForPageLimit((Schema<?>) schema.getAdditionalProperties());
+        }
     }
 
     /**
@@ -691,6 +748,98 @@ public class OpenApiJsonProcessor {
                pathItem.getOptions() != null || pathItem.getHead() != null ||
                pathItem.getPatch() != null || pathItem.getTrace() != null;
     }
+
+    /**
+     * Set the first tag of all operations under the given paths to the specified artifactId tag
+     *
+     * @param paths          processed paths
+     * @param artifactIdTag  tag value to set as the first tag
+     */
+    private void setArtifactIdTagForAllOperations(Paths paths, String artifactIdTag) {
+        if (paths == null || paths.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, PathItem> pathEntry : paths.entrySet()) {
+            PathItem pathItem = pathEntry.getValue();
+            if (pathItem == null) continue;
+            List<Operation> ops = Arrays.asList(
+                pathItem.getGet(),
+                pathItem.getPost(),
+                pathItem.getPut(),
+                pathItem.getDelete(),
+                pathItem.getOptions(),
+                pathItem.getHead(),
+                pathItem.getPatch(),
+                pathItem.getTrace()
+            );
+            for (Operation op : ops) {
+                if (op == null) continue;
+                List<String> tags = op.getTags();
+                if (tags == null || tags.isEmpty()) {
+                    op.setTags(new ArrayList<>(Collections.singletonList(artifactIdTag)));
+                } else {
+                    tags.set(0, artifactIdTag);
+                }
+            }
+        }
+    }
+
+    /**
+     * Remove all non-200 responses from every operation under all paths
+     *
+     * @param paths processed paths to clean up
+     */
+    private void removeNon200ResponsesFromPaths(Paths paths) {
+        if (paths == null || paths.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, PathItem> pathEntry : paths.entrySet()) {
+            PathItem pathItem = pathEntry.getValue();
+            if (pathItem == null) continue;
+            List<Operation> ops = Arrays.asList(
+                pathItem.getGet(),
+                pathItem.getPost(),
+                pathItem.getPut(),
+                pathItem.getDelete(),
+                pathItem.getOptions(),
+                pathItem.getHead(),
+                pathItem.getPatch(),
+                pathItem.getTrace()
+            );
+            for (Operation op : ops) {
+                if (op == null) continue;
+                removeNon200Responses(op);
+            }
+        }
+        log.debug("Removed non-200 responses from all operations under paths");
+    }
+
+    /**
+     * Keep only HTTP 200 responses in the given operation
+     *
+     * @param operation operation to update
+     */
+    private void removeNon200Responses(Operation operation) {
+        if (operation == null || operation.getResponses() == null) {
+            return;
+        }
+        ApiResponses responses = operation.getResponses();
+        if (responses.isEmpty()) {
+            return;
+        }
+        // Collect keys to remove to avoid concurrent modification
+        List<String> toRemove = new ArrayList<>();
+        for (String code : responses.keySet()) {
+            if (!"200".equals(code)) {
+                toRemove.add(code);
+            }
+        }
+        for (String code : toRemove) {
+            responses.remove(code);
+        }
+    }
+
+
 
     /**
      * Process components with security scheme modifications

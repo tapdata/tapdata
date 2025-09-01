@@ -493,7 +493,46 @@ public class OpenApiGeneratorService {
 			request.setOas(tempOpenapiFile.toString());
 			log.info("Updated OAS from URL '{}' to local file '{}'", originalOas, tempOpenapiFile);
 
-			// Step 3: Execute OpenAPI Generator with processed local file
+			// Step 3: Persist original and processed OpenAPI JSON into the output directory so they are included in the ZIP
+			try {
+				// Ensure RestTemplate is available to fetch the original JSON when needed
+				ensureRestTemplateInitialized();
+
+				Path outputPath = Paths.get(outputDir);
+				Path openapiOutDir = outputPath.resolve("openapi-json");
+				Files.createDirectories(openapiOutDir);
+
+				// Save original JSON
+				String originalJsonContent = null;
+				try {
+					if (originalOas != null && (originalOas.startsWith("http://") || originalOas.startsWith("https://"))) {
+						originalJsonContent = this.restTemplate.getForObject(originalOas, String.class);
+					} else if (originalOas != null) {
+						Path originalPath = Paths.get(originalOas);
+						if (Files.exists(originalPath)) {
+							originalJsonContent = Files.readString(originalPath);
+						}
+					}
+				} catch (Exception e) {
+					log.warn("Failed to fetch original OpenAPI JSON from '{}': {}", originalOas, e.getMessage());
+				}
+				if (originalJsonContent != null) {
+					Path originalJsonFile = openapiOutDir.resolve("openapi-original.json");
+					Files.writeString(originalJsonFile, originalJsonContent);
+					log.info("Saved original OpenAPI JSON to: {}", originalJsonFile);
+				} else {
+					log.warn("Original OpenAPI JSON content is null, skipping save. URL/Path: {}", originalOas);
+				}
+
+				// Save processed JSON (copy from temporary file)
+				Path processedJsonFile = openapiOutDir.resolve("openapi-processed.json");
+				Files.copy(tempOpenapiFile, processedJsonFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				log.info("Saved processed OpenAPI JSON to: {}", processedJsonFile);
+			} catch (Exception e) {
+				log.warn("Failed to save original/processed OpenAPI JSON files into output directory; continuing without embedding JSON files", e);
+			}
+
+			// Step 4: Execute OpenAPI Generator with processed local file
 			executeOpenapiGenerator(request, outputDir);
 
 		} finally {
@@ -544,6 +583,8 @@ public class OpenApiGeneratorService {
 		command.add("--group-id");
 		command.add(request.getGroupId());
 		command.add("--skip-validate-spec");
+		command.add("--inline-schema-options");
+		command.add("ARRAY_ITEM_SUFFIX=_list");
 
 		// Add additional properties to ensure JAR generation with Java 17
 		command.add("--additional-properties");

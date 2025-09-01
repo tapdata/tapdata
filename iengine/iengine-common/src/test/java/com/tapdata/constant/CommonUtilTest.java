@@ -1,6 +1,7 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.values.BooleanNotExist;
+import com.tapdata.exception.CompareException;
 import io.tapdata.entity.schema.value.DateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -9,10 +10,12 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 public class CommonUtilTest {
@@ -237,5 +240,275 @@ public class CommonUtilTest {
         }
 
 
+    }
+
+    @Nested
+    class CompareTest {
+
+        @DisplayName("测试两个null值比较")
+        @Test
+        void testBothNull() throws CompareException {
+            boolean result = CommonUtil.compare(null, null, false, null);
+            assertFalse(result, "两个null值应该相等，返回false");
+        }
+
+        @DisplayName("测试一个null值比较")
+        @Test
+        void testOneNull() throws CompareException {
+            boolean result1 = CommonUtil.compare(null, "test", false, null);
+            assertTrue(result1, "null与非null值应该不相等，返回true");
+
+            boolean result2 = CommonUtil.compare("test", null, false, null);
+            assertTrue(result2, "非null与null值应该不相等，返回true");
+        }
+
+        @DisplayName("测试相同字符串比较")
+        @Test
+        void testEqualStrings() throws CompareException {
+            boolean result = CommonUtil.compare("hello", "hello", false, null);
+            assertFalse(result, "相同字符串应该相等，返回false");
+        }
+
+        @DisplayName("测试不同字符串比较")
+        @Test
+        void testDifferentStrings() throws CompareException {
+            boolean result = CommonUtil.compare("hello", "world", false, null);
+            assertTrue(result, "不同字符串应该不相等，返回true");
+        }
+
+        @DisplayName("测试相同数字比较")
+        @Test
+        void testEqualNumbers() throws CompareException {
+            boolean result1 = CommonUtil.compare(123, 123, false, null);
+            assertFalse(result1, "相同整数应该相等，返回false");
+
+            boolean result2 = CommonUtil.compare(123.45, 123.45, false, null);
+            assertFalse(result2, "相同小数应该相等，返回false");
+
+            boolean result3 = CommonUtil.compare(new BigDecimal("123.45"), new BigDecimal("123.45"), false, null);
+            assertFalse(result3, "相同BigDecimal应该相等，返回false");
+        }
+
+        @DisplayName("测试不同数字比较")
+        @Test
+        void testDifferentNumbers() throws CompareException {
+            boolean result1 = CommonUtil.compare(123, 456, false, null);
+            assertTrue(result1, "不同整数应该不相等，返回true");
+
+            boolean result2 = CommonUtil.compare(123.45, 678.90, false, null);
+            assertTrue(result2, "不同小数应该不相等，返回true");
+        }
+
+        @DisplayName("测试布尔值比较")
+        @Test
+        void testBooleanComparison() throws CompareException {
+            boolean result1 = CommonUtil.compare(true, true, false, null);
+            assertFalse(result1, "相同布尔值应该相等，返回false");
+
+            boolean result2 = CommonUtil.compare(true, false, false, null);
+            assertTrue(result2, "不同布尔值应该不相等，返回true");
+
+            // 测试布尔值与可转换值的比较
+            boolean result3 = CommonUtil.compare(true, "1", false, null);
+            assertFalse(result3, "true与'1'应该相等，返回false");
+
+            boolean result4 = CommonUtil.compare(false, "0", false, null);
+            assertFalse(result4, "false与'0'应该相等，返回false");
+
+            boolean result5 = CommonUtil.compare(true, "true", false, null);
+            assertFalse(result5, "true与'true'应该相等，返回false");
+        }
+
+        @DisplayName("测试布尔值与不可转换值的比较")
+        @Test
+        void testBooleanWithNonConvertible() throws CompareException {
+            boolean result1 = CommonUtil.compare(true, "2", false, null);
+            assertTrue(result1, "true与不可转换的字符串应该不相等，返回true");
+
+            boolean result2 = CommonUtil.compare(false, "invalid", false, null);
+            assertTrue(result2, "false与不可转换的字符串应该不相等，返回true");
+        }
+
+        @DisplayName("测试Map比较")
+        @Test
+        void testMapComparison() throws CompareException {
+            Map<String, Object> map1 = new HashMap<>();
+            map1.put("key1", "value1");
+            map1.put("key2", 123);
+
+            Map<String, Object> map2 = new HashMap<>();
+            map2.put("key1", "value1");
+            map2.put("key2", 123);
+
+            boolean result1 = CommonUtil.compare(map1, map2, false, null);
+            assertFalse(result1, "相同内容的Map应该相等，返回false");
+
+            Map<String, Object> map3 = new HashMap<>();
+            map3.put("key1", "value1");
+            map3.put("key2", 456);
+
+            boolean result2 = CommonUtil.compare(map1, map3, false, null);
+            assertTrue(result2, "不同内容的Map应该不相等，返回true");
+
+            Map<String, Object> map4 = new HashMap<>();
+            map4.put("key1", "value1");
+
+            boolean result3 = CommonUtil.compare(map1, map4, false, null);
+            assertTrue(result3, "不同大小的Map应该不相等，返回true");
+        }
+
+        @DisplayName("测试Collection比较")
+        @Test
+        void testCollectionComparison() throws CompareException {
+            List<Object> list1 = Arrays.asList("a", "b", "c");
+            List<Object> list2 = Arrays.asList("a", "b", "c");
+
+            boolean result1 = CommonUtil.compare(list1, list2, false, null);
+            assertFalse(result1, "相同内容的List应该相等，返回false");
+
+            List<Object> list3 = Arrays.asList("a", "b", "d");
+            boolean result2 = CommonUtil.compare(list1, list3, false, null);
+            assertTrue(result2, "不同内容的List应该不相等，返回true");
+
+            List<Object> list4 = Arrays.asList("a", "b");
+            boolean result3 = CommonUtil.compare(list1, list4, false, null);
+            assertTrue(result3, "不同大小的List应该不相等，返回true");
+
+            Set<Object> set1 = new HashSet<>(Arrays.asList("x", "y", "z"));
+            Set<Object> set2 = new HashSet<>(Arrays.asList("x", "y", "z"));
+            boolean result4 = CommonUtil.compare(set1, set2, false, null);
+            assertFalse(result4, "相同内容的Set应该相等，返回false");
+        }
+
+        @DisplayName("测试DateTime比较 - 不忽略时间精度")
+        @Test
+        void testDateTimeComparisonWithoutIgnorePrecision() throws CompareException {
+            DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
+
+            DateTime dateTime1 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.123456789", formatter1));
+            DateTime dateTime2 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12345", formatter2));
+
+            boolean result = CommonUtil.compare(dateTime1, dateTime2, false, null);
+            assertTrue(result, "不同精度的DateTime在不忽略精度时应该不相等，返回true");
+        }
+
+        @DisplayName("测试DateTime比较 - 忽略时间精度，四舍五入模式")
+        @Test
+        void testDateTimeComparisonWithIgnorePrecisionRoundUp() throws CompareException {
+            DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
+
+            DateTime dateTime1 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.123456789", formatter1));
+            DateTime dateTime2 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12346", formatter2));
+
+            boolean result = CommonUtil.compare(dateTime1, dateTime2, true, "HALF_UP");
+            assertFalse(result, "四舍五入后相等的DateTime应该相等，返回false");
+        }
+
+        @DisplayName("测试DateTime比较 - 忽略时间精度，截断模式")
+        @Test
+        void testDateTimeComparisonWithIgnorePrecisionTruncate() throws CompareException {
+            DateTimeFormatter formatter1 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSSSS");
+            DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
+
+            DateTime dateTime1 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.123456789", formatter1));
+            DateTime dateTime2 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12345", formatter2));
+
+            boolean result = CommonUtil.compare(dateTime1, dateTime2, true, "DOWN");
+            assertFalse(result, "截断后相等的DateTime应该相等，返回false");
+        }
+
+        @DisplayName("测试DateTime比较 - 相同精度")
+        @Test
+        void testDateTimeComparisonSamePrecision() throws CompareException {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSS");
+
+            DateTime dateTime1 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12345", formatter));
+            DateTime dateTime2 = new DateTime(LocalDateTime.parse("2023-05-15 14:30:25.12345", formatter));
+
+            boolean result1 = CommonUtil.compare(dateTime1, dateTime2, true, "HALF_UP");
+            assertFalse(result1, "相同的DateTime应该相等，返回false");
+
+            boolean result2 = CommonUtil.compare(dateTime1, dateTime2, false, null);
+            assertFalse(result2, "相同的DateTime应该相等，返回false");
+        }
+
+        @DisplayName("测试Instant比较")
+        @Test
+        void testInstantComparison() throws CompareException {
+            Instant instant1 = Instant.parse("2023-05-15T14:30:25.123456789Z");
+            Instant instant2 = Instant.parse("2023-05-15T14:30:25.123456789Z");
+
+            boolean result1 = CommonUtil.compare(instant1, instant2, false, null);
+            assertFalse(result1, "相同的Instant应该相等，返回false");
+
+            Instant instant3 = Instant.parse("2023-05-15T14:30:25.123456790Z");
+            boolean result2 = CommonUtil.compare(instant1, instant3, false, null);
+            assertTrue(result2, "不同的Instant应该不相等，返回true");
+        }
+
+        @DisplayName("测试混合类型比较")
+        @Test
+        void testMixedTypeComparison() throws CompareException {
+            // 字符串与数字比较
+            boolean result1 = CommonUtil.compare("123", 123, false, null);
+            assertFalse(result1, "字符串'123'与数字123应该相等，返回false");
+
+            boolean result2 = CommonUtil.compare("123.45", 123.45, false, null);
+            assertFalse(result2, "字符串'123.45'与数字123.45应该相等，返回false");
+
+            boolean result3 = CommonUtil.compare("abc", 123, false, null);
+            assertTrue(result3, "字符串'abc'与数字123应该不相等，返回true");
+        }
+
+
+
+        @DisplayName("测试BigDecimal精度比较")
+        @Test
+        void testBigDecimalPrecisionComparison() throws CompareException {
+            BigDecimal bd1 = new BigDecimal("123.4500");
+            BigDecimal bd2 = new BigDecimal("123.45");
+
+            boolean result1 = CommonUtil.compare(bd1, bd2, false, null);
+            assertFalse(result1, "数值相等的BigDecimal应该相等，返回false");
+
+            BigDecimal bd3 = new BigDecimal("123.4501");
+            boolean result2 = CommonUtil.compare(bd1, bd3, false, null);
+            assertTrue(result2, "数值不等的BigDecimal应该不相等，返回true");
+        }
+
+        @DisplayName("测试异常情况处理")
+        @Test
+        void testExceptionHandling() throws CompareException {
+            // 测试不可比较的对象
+            Object obj1 = new Object();
+            Object obj2 = new Object();
+
+            boolean result = CommonUtil.compare(obj1, obj2, false, null);
+            assertTrue(result, "不同的Object实例应该不相等，返回true");
+
+            // 测试相同的Object实例
+            boolean result2 = CommonUtil.compare(obj1, obj1, false, null);
+            assertFalse(result2, "相同的Object实例应该相等，返回false");
+        }
+
+        @DisplayName("测试嵌套集合比较")
+        @Test
+        void testNestedCollectionComparison() throws CompareException {
+            List<Object> innerList1 = Arrays.asList("a", "b");
+            List<Object> innerList2 = Arrays.asList("a", "b");
+            List<Object> outerList1 = Arrays.asList(innerList1, "c");
+            List<Object> outerList2 = Arrays.asList(innerList2, "c");
+
+            boolean result1 = CommonUtil.compare(outerList1, outerList2, false, null);
+            assertFalse(result1, "相同内容的嵌套List应该相等，返回false");
+
+            List<Object> innerList3 = Arrays.asList("a", "d");
+            List<Object> outerList3 = Arrays.asList(innerList3, "c");
+
+            boolean result2 = CommonUtil.compare(outerList1, outerList3, false, null);
+            assertTrue(result2, "不同内容的嵌套List应该不相等，返回true");
+        }
     }
 }

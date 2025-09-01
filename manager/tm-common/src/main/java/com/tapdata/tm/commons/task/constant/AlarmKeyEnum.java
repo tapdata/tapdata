@@ -23,6 +23,7 @@ public enum AlarmKeyEnum {
 	INSPECT_TASK_ERROR(Constant.TYPE_EVENT),
 	INSPECT_COUNT_ERROR(Constant.TYPE_EVENT),
 	INSPECT_VALUE_ERROR(Constant.TYPE_EVENT),
+    TASK_RETRY_WARN(Constant.TYPE_METRIC),
 	;
 
 

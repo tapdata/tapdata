@@ -1,5 +1,6 @@
 package com.tapdata.validator;
 
+import com.alibaba.fastjson.JSONObject;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.TestConnectionItemConstant;
 import com.tapdata.entity.Connections;
@@ -9,9 +10,11 @@ import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.entity.BaseConnectionValidateResultDetail;
 import io.tapdata.entity.logger.TapLog;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.ExecuteCommandV2Function;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -28,6 +31,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ConnectionValidator {
 	public static final String TAG = ConnectionValidator.class.getSimpleName();
 	protected static Logger logger = LogManager.getLogger(ConnectionValidator.class);
+	private final static String MONITOR_API = "monitorAPI";
 
 	public static ConnectionValidateResult initialValidate(Connections connections) {
 		// initial validate result
@@ -264,6 +272,11 @@ public class ConnectionValidator {
 								notFoundAnySchema.failed("Not found any schema");
 								resultDetails.add(notFoundAnySchema);
 							}
+							JSONObject monitorApi = (JSONObject) connectionNode.getConnectionContext().getSpecification().getConfigOptions().get(MONITOR_API);
+							//利用反射去访问连接器的具体方法
+							if (monitorApi != null) {
+								connectionValidateResult.setMonitorResult(executeMonitorAPIs(connectionNode, monitorApi.clone()));
+							}
 						} catch (Exception e) {
 							ConnectionValidateResultDetail tableCountFailed = new ConnectionValidateResultDetail(TestConnectionItemConstant.LOAD_SCHEMA, "Load Schema", 99, false);
 							tableCountFailed.failed(String.format("Get table count failed %s", e.getMessage()));
@@ -283,4 +296,67 @@ public class ConnectionValidator {
 		}
 		return connectionValidateResult;
 	}
+
+	private static Map<String, Object> executeMonitorAPIs(ConnectionNode connectionNode, JSONObject monitorApi) {
+		Map<String, Object> result = new ConcurrentHashMap<>();
+		CountDownLatch countDownLatch = new CountDownLatch(5);
+		ExecutorService executorService = Executors.newFixedThreadPool(5);
+		try {
+			for (int i = 0; i < 5; i++) {
+				executorService.submit(() -> {
+					try {
+						Map.Entry<String, JSONObject> api;
+						while ((api = takeoutMonitorApi(monitorApi)) != null) {
+							try {
+								if (api.getValue().getString("className") != null) {
+								} else if (api.getValue().getString("method") != null) {
+									String command = api.getValue().getString("method");
+									Object obj = ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), command.substring(command.lastIndexOf("#") + 1), null);
+									result.put(api.getKey(), obj == null ? "" : String.valueOf(obj));
+								} else if (api.getValue().getString("sqlType") != null) {
+									ExecuteCommandV2Function executeCommandV2Function = connectionNode.getConnectionFunctions().getExecuteCommandV2Function();
+									if (executeCommandV2Function == null) {
+										continue;
+									}
+									String key = api.getKey();
+									String value = api.getValue().getString("sql");
+									String type = api.getValue().getString("sqlType");
+									PDKInvocationMonitor.invoke(connectionNode, PDKMethod.EXECUTE_COMMAND, () -> {
+										executeCommandV2Function.execute(connectionNode.getConnectionContext(), type, value, executeResult -> {
+											if (CollectionUtils.isNotEmpty(executeResult)) {
+												DataMap dataMap = executeResult.get(0);
+												dataMap.entrySet().stream().findFirst().ifPresent(entry -> result.put(key, String.valueOf(entry.getValue())));
+											}
+										});
+									}, TAG);
+								}
+							} catch (Exception e) {
+								logger.warn("Execute monitor api {} failed, {}", api.getKey(), e.getMessage());
+							}
+						}
+					} finally {
+						countDownLatch.countDown();
+					}
+				});
+			}
+			try {
+				countDownLatch.await();
+			} catch (InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+		} finally {
+			executorService.shutdown();
+		}
+		return result;
+	}
+
+    private static synchronized Map.Entry<String, JSONObject> takeoutMonitorApi(JSONObject monitorApi) {
+        Iterator<Map.Entry<String, Object>> iterator = monitorApi.entrySet().iterator();
+        if (iterator.hasNext()) {
+            Map.Entry<String, Object> next = iterator.next();
+            iterator.remove();
+            return Map.entry(next.getKey(), (JSONObject) next.getValue());
+        }
+        return null;
+    }
 }

@@ -2,6 +2,7 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.sampler.CounterSampler;
+import io.tapdata.entity.CountResult;
 import io.tapdata.observable.metric.TaskSampleRetriever;
 import lombok.NonNull;
 
@@ -27,14 +28,14 @@ public class TableSampleHandler extends AbstractHandler {
     private TaskSampleHandler taskSampleHandler = null;
     private Boolean isSnapshotDone;
 
-    public TableSampleHandler(TaskDto task, String table, @NonNull Long snapshotRowTotal,
+    public TableSampleHandler(TaskDto task, String table, @NonNull CountResult countResult,
                               @NonNull Map<String, Number> retrievedTableValues, BigDecimal snapshotSyncRate) {
         super(task);
         this.table = table;
-        this.snapshotRowTotal = snapshotRowTotal;
+        this.snapshotRowTotal = countResult.getCount();
         this.retrievedTableValues = retrievedTableValues;
-        this.snapshotSyncRate = snapshotRowTotal == 0 ? BigDecimal.ONE : snapshotSyncRate;
-        this.isSnapshotDone  = snapshotRowTotal == 0;
+        this.snapshotSyncRate = countResult.getCount() == 0 || countResult.getDone() ? BigDecimal.ONE : snapshotSyncRate;
+        this.isSnapshotDone  = countResult.getCount() == 0 || countResult.getDone();
     }
 
     @Override
@@ -72,7 +73,7 @@ public class TableSampleHandler extends AbstractHandler {
                     Objects.nonNull(snapshotRowTotal) && Objects.nonNull(snapshotInsertRowCounter.value())) {
                 BigDecimal decimal = BigDecimal.valueOf(snapshotInsertRowCounter.value().longValue())
                         .divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
-                if (decimal.compareTo(BigDecimal.ONE) >= 0 && isSnapshotDone) {
+                if (isSnapshotDone) {
                     snapshotSyncRate = BigDecimal.ONE;
                 } else if(decimal.compareTo(BigDecimal.ONE) >= 0) {
                     snapshotSyncRate = new BigDecimal("0.99");

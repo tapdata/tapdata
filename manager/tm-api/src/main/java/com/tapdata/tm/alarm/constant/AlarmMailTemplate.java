@@ -70,4 +70,10 @@ public class AlarmMailTemplate {
     public static final String INSPECT_VALUE_ERROR_JOIN_CONTENT = "Hello There,\n" +
             "    The associated field value verification result of your verification task [{0}] is inconsistent. The current difference in table data is: {1}. Please pay attention.\n" +
             "    This mail was sent by Tapdata.";;
+
+    public static final String TASK_RETRY_WARN_TITLE = "【Tapdata Notification: Task retry exceeds expectations】{0}";
+    public static final String TASK_RETRY_WARN_CONTENT = "Your task retry exceeds expectations.\n" +
+            "    Task name: 【{0}】\n" +
+            "    Retry times: {1} \n" +
+            "    Retry threshold: {2}";
 }

@@ -61,11 +61,7 @@ public class Inspect extends BaseEntity implements Serializable {
 
 	private Boolean isExportSql = false;
 
-
 	private Integer checkTableThreadNum;
-
-
-
 
 	public Integer getCheckTableThreadNum() {
 		return checkTableThreadNum;
