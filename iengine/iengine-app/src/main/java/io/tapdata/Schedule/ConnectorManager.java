@@ -5,6 +5,7 @@ import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoDriverInformation;
 import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.internal.MongoClientImpl;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.JSONUtil;
@@ -563,7 +564,7 @@ public class ConnectorManager {
 					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
 					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 				}
-				client = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
+				client = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
 				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
 			}
 			clientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI),restTemplateOperator, configCenter);
@@ -593,7 +594,7 @@ public class ConnectorManager {
 					SSLContext sslContext = SSLUtil.createSSLContext(privateKey, certificates, trustCertificates, "tapdata");
 					builder.applyToSslSettings(sslSettingsBuilder -> {sslSettingsBuilder.context(sslContext).enabled(true).invalidHostNameAllowed(true).build();});
 				}
-				client = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
+				client = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
 				mongoTemplate = new MongoTemplate(client, MongodbUtil.getDatabase(mongoURI));
 			}
 			pingClientMongoOperator = new HttpClientMongoOperator(mongoTemplate, client, new ConnectionString(mongoURI) ,new RestTemplateOperator(
