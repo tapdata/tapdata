@@ -100,6 +100,7 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
 
 	void doInit(Map<String, Number> values) {
 		super.doInit(values);
+		initPrometheusReporter();
 		inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
 		inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
 		inputUpdateCounter = getCounterSampler(values, Constants.INPUT_UPDATE_TOTAL);
@@ -114,16 +115,11 @@ public abstract class AbstractNodeSampleHandler extends AbstractHandler {
 
 		inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
 		outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
-		timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG,
-				timeCostAvgGauge,
-				nodeId, nodeName, "processor", taskId, taskName, taskType
-		);
 
 		Number currentEventTimestampInitial = values.getOrDefault(Constants.CURR_EVENT_TS, null);
 		currentEventTimestamp = collector.getNumberCollector(Constants.CURR_EVENT_TS, Long.class,
 				null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue());
 		replicateLag = collector.getResetSampler(Constants.REPLICATE_LAG);
-		initPrometheusReporter();
 	}
 
 

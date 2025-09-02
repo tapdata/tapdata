@@ -287,6 +287,14 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     private void reportPrometheusTaskRunning() {
         ConnectorConstant.TASK_STATUS_GAUGE.set(0, dataProcessorContext.getTaskDto().getId().toHexString(), dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getSyncType());
+        ConnectorConstant.TASK_ACTIVE_DB_GAUGE.set(
+                0,
+                processorBaseContext.getTaskDto().getId().toHexString(),
+                processorBaseContext.getTaskDto().getName(),
+                processorBaseContext.getTaskDto().getSyncType(),
+                getNode().getId(),
+                getNode().getName()
+        );
     }
 
     private void initTargetDataNodes() {

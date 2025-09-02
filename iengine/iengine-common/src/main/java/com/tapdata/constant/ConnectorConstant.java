@@ -360,5 +360,6 @@ public class ConnectorConstant {
 
 	/* Prometheus metrics */
 	public static final MultiTaggedGauge TASK_STATUS_GAUGE = new MultiTaggedGauge(PrometheusName.TASK_STATUS, Metrics.globalRegistry, "task_id", "task_name", "task_type");
+	public static final MultiTaggedGauge TASK_ACTIVE_DB_GAUGE = new MultiTaggedGauge(PrometheusName.TASK_ACTIVE_DB, Metrics.globalRegistry, "task_id", "task_name", "task_type", "node_id", "node_name");
 
 }

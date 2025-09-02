@@ -8,6 +8,7 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
@@ -99,7 +100,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.EOFException;
-import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.*;
 import java.util.*;
@@ -156,7 +156,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected ExternalStorageDto externalStorageDto;
 	protected TaskPreviewInstance taskPreviewInstance;
 	protected HazelcastTaskNodeOffer hazelcastTaskNodeOffer;
-	protected static final MultiTaggedGauge taskActiveDbGauge = new MultiTaggedGauge(PrometheusName.TASK_ACTIVE_DB, Metrics.globalRegistry, "task_id", "task_name", "task_type", "node_id", "node_name");
 
 	private static Class<? extends Throwable>[] COMMON_NET_EXCEPTION;
 
@@ -761,15 +760,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				value = 2D;
 			}
 		}
-		for (Class<? extends Throwable> aClass : COMMON_NET_EXCEPTION) {
-			matchedThrowable = CommonUtils.matchThrowable(throwable, aClass);
-			if (null != matchedThrowable) {
-				value = 1D;
-				break;
+		if (null == value) {
+			for (Class<? extends Throwable> aClass : COMMON_NET_EXCEPTION) {
+				matchedThrowable = CommonUtils.matchThrowable(throwable, aClass);
+				if (null != matchedThrowable) {
+					value = 1D;
+					break;
+				}
 			}
 		}
 		if (null != value) {
-			taskActiveDbGauge.set(
+			ConnectorConstant.TASK_ACTIVE_DB_GAUGE.set(
 					value,
 					processorBaseContext.getTaskDto().getId().toHexString(),
 					processorBaseContext.getTaskDto().getName(),
