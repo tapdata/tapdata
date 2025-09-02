@@ -47,6 +47,7 @@ import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -592,6 +593,25 @@ public class WorkerServiceImpl extends WorkerService{
         page.setItems(list);
         return page;
 
+    }
+
+    @Override
+    public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
+        final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
+                .and("worker_type").is("api-server")
+                .and("delete").ne(true);
+        final Update update = new Update();
+        final Query query = Query.query(criteria);
+        final Long time = Optional.ofNullable(status.getTime()).orElse(new Date().getTime());
+        Optional.ofNullable(status.getStatus())
+                .ifPresent(s -> update.set("worker_status.status", s));
+        update.set("worker_status.activeTime", time);
+        Optional.ofNullable(status.getWorkerStatus())
+                .ifPresent(ws -> ws.forEach((id,  value) -> {
+                    update.set(String.format("worker_status.workers.%s.worker_status", id), value);
+                    update.set(String.format("worker_status.workers.%s.activeTime", id), time);
+                }));
+        repository.update(query, update);
     }
 
     public void updateAll(Query query, Update update) {

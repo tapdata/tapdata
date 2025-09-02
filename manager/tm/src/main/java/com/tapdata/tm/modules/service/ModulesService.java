@@ -77,6 +77,9 @@ import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.ApiWorkerInfo;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.Setter;
@@ -97,9 +100,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -142,6 +147,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private ApplicationConfig config;
 	private TextEncryptionRuleService textEncryptionRuleService;
+	private WorkerService workerService;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -408,7 +414,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @param userDetail
 	 * @return
 	 */
-	public ApiDefinitionVo apiDefinition(UserDetail userDetail) {
+	public ApiDefinitionVo apiDefinition(String processId, Integer workerCount, UserDetail userDetail) {
 		List<ConnectionVo> connectionVos = new ArrayList<>();
 		ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
 		//查找已发布的api
@@ -499,7 +505,58 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setApis(apis);
 		}
 		textEncryptionRule(apiDefinitionVo);
+		genericWorkInfoIfNeed(apiDefinitionVo, processId, workerCount);
 		return apiDefinitionVo;
+	}
+
+	public List<ApiWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) {
+		if (null == workerCount || workerCount <= 0) {
+			return new ArrayList<>();
+		}
+		Criteria criteria = Criteria.where("deleted").ne(true);
+		criteria.and("worker_type").is("api-server");
+		criteria.and("process_id").is(processId);
+		Query query = Query.query(criteria);
+		query.limit(1);
+		WorkerDto one = workerService.findOne(query);
+		List<ApiWorkerInfo> apiWorkerInfos = new ArrayList<>(Optional.ofNullable(one)
+                .map(WorkerDto::getWorker_status)
+                .filter(Map.class::isInstance)
+                .map(e -> ((Map<Object, Object>) e).get("workers"))
+                .filter(Map.class::isInstance)
+                .map(e -> ((Map<?, ?>) e).values().stream()
+                        .sorted(Comparator.comparing(w -> (Integer) ((Map<?, ?>) w).get("sort")))
+                        .map(w -> {
+                            Map<Object, Object> map = (Map<Object, Object>) w;
+                            ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
+                            apiWorkerInfo.setOid((String) map.get("oid"));
+                            apiWorkerInfo.setName((String) map.get("name"));
+                            apiWorkerInfo.setDescription((String) map.get("description"));
+                            apiWorkerInfo.setId((Integer) map.get("id"));
+                            apiWorkerInfo.setPid((Integer) map.get("pid"));
+                            apiWorkerInfo.setWorkerStatus((String) map.get("workerStatus"));
+                            apiWorkerInfo.setWorkerStartTime((Long) map.get("workerStartTime"));
+                            apiWorkerInfo.setCreatedTime((Long) map.get("createdTime"));
+                            apiWorkerInfo.setUpdatedTime((Long) map.get("updatedTime"));
+                            apiWorkerInfo.setMetricValues((Map<String, Object>) map.get("metricValues"));
+                            apiWorkerInfo.setSort((Integer) map.get("sort"));
+                            return apiWorkerInfo;
+                        }).toList())
+                .orElse(new ArrayList<>()));
+		for (int i = apiWorkerInfos.size(); i < workerCount; i++) {
+			ApiWorkerInfo item = new ApiWorkerInfo();
+			item.setOid(new ObjectId().toHexString());
+			apiWorkerInfos.add(item);
+		}
+		return apiWorkerInfos;
+	}
+
+	protected void genericWorkInfoIfNeed(ApiDefinitionVo apiDefinitionVo, String processId, Integer workerCount) {
+		if (null == apiDefinitionVo || null == workerCount || workerCount <= 0) {
+			return;
+		}
+		List<ApiWorkerInfo> apiWorkerInfo = getApiWorkerInfo(processId, workerCount);
+		apiDefinitionVo.setWorkerInfo(apiWorkerInfo);
 	}
 
 	protected void textEncryptionRule(ApiDefinitionVo apiDefinitionVo) {
