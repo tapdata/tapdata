@@ -98,6 +98,10 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -153,6 +157,22 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected TaskPreviewInstance taskPreviewInstance;
 	protected HazelcastTaskNodeOffer hazelcastTaskNodeOffer;
 	protected static final MultiTaggedGauge taskActiveDbGauge = new MultiTaggedGauge(PrometheusName.TASK_ACTIVE_DB, Metrics.globalRegistry, "task_id", "task_name", "task_type", "node_id", "node_name");
+
+	private static Class<? extends Throwable>[] COMMON_NET_EXCEPTION;
+
+	static {
+		COMMON_NET_EXCEPTION = new Class[]{
+				SocketTimeoutException.class,
+				EOFException.class,
+				InterruptedIOException.class,
+				ConnectException.class,
+				UnknownHostException.class,
+				NoRouteToHostException.class,
+				BindException.class,
+				PortUnreachableException.class,
+				ProtocolException.class
+		};
+	}
 
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
@@ -733,13 +753,19 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			return;
 		}
 		Double value = null;
-		Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
-		if (matchThrowable instanceof TapCodeException) {
-			TapCodeException tapCodeException = (TapCodeException) matchThrowable;
+		Throwable matchedThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+		if (matchedThrowable instanceof TapCodeException tapCodeException) {
 			if (tapCodeException.getCode().equals(PDKExCode_10.TERMINATE_BY_SERVER)) {
 				value = 1D;
 			} else if (tapCodeException.getCode().equals(PDKExCode_10.USERNAME_PASSWORD_INVALID)) {
 				value = 2D;
+			}
+		}
+		for (Class<? extends Throwable> aClass : COMMON_NET_EXCEPTION) {
+			matchedThrowable = CommonUtils.matchThrowable(throwable, aClass);
+			if (null != matchedThrowable) {
+				value = 1D;
+				break;
 			}
 		}
 		if (null != value) {
