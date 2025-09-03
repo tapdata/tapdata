@@ -45,6 +45,9 @@ import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.utils.Lists;
 import jakarta.servlet.http.HttpServletResponse;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.utils.Lists;
 import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -97,9 +100,7 @@ class ModulesServiceTest {
 
     DataSourceService dataSourceService;
     DataSourceDefinitionService dataSourceDefinitionService;
-
     ApplicationConfig config;
-
     @BeforeEach
     void init(){
         textEncryptionRuleService = mock(TextEncryptionRuleService.class);
@@ -988,95 +989,85 @@ class ModulesServiceTest {
         }
     }
 
-    @Nested
-    class ValidCustomWhereIfNeedTest {
+        @Nested
+        class textEncryptionRuleTest {
+            @Test
+            void testEmpty() {
+                ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+                apiDefinitionVo.setApis(new ArrayList<>());
+                doCallRealMethod().when(mService).textEncryptionRule(any(ApiDefinitionVo.class));
+                mService.textEncryptionRule(apiDefinitionVo);
+                Assertions.assertNull(apiDefinitionVo.getTextEncryptionRules());
+            }
+
+            @Test
+            void testIdsEmpty() {
+                ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+                List<ModulesDto> apis = new ArrayList<>();
+                apiDefinitionVo.setApis(apis);
+                List<Path> paths = new ArrayList<>();
+                Path path = new Path();
+                path.setFields(new ArrayList<>());
+                path.getFields().add(new Field());
+                path.getFields().get(0).setTextEncryptionRuleIds(new ArrayList<>());
+                paths.add(path);
+                ModulesDto dto = new ModulesDto();
+                dto.setPaths(paths);
+                apis.add(dto);
+                List<TextEncryptionRuleDto> result = new ArrayList<>();
+                result.add(new TextEncryptionRuleDto());
+                result.get(0).setId(new ObjectId());
+                result.get(0).setName("oid");
+                when(textEncryptionRuleService.getById(anyList())).thenReturn(result);
+                doCallRealMethod().when(mService).textEncryptionRule(any(ApiDefinitionVo.class));
+                mService.textEncryptionRule(apiDefinitionVo);
+                Assertions.assertNull(apiDefinitionVo.getTextEncryptionRules());
+            }
 
         @Test
-        void testNormal() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("{}");
-            p.setFullCustomQuery(true);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(1));
-            }
+        void testRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldName("test");
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldName("test1");
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
         }
 
         @Test
-        void testNullPaths() {
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                                .thenReturn(MongoQueryValidator.ValidationResult.success());
-                modulesService.validCustomWhereIfNeed(null);
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testNullFullCustomQuery() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("{}");
-            p.setFullCustomQuery(null);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testNotFullCustomQuery() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("{}");
-            p.setFullCustomQuery(false);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testNoCustomWhere() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere(null);
-            p.setFullCustomQuery(true);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertDoesNotThrow(() -> modulesService.validCustomWhereIfNeed(allPaths));
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
-        }
-        @Test
-        void testInvalidCustomWhereJSON() {
-            List<Path> allPaths = new ArrayList<>();
-            Path p = new Path();
-            p.setCustomWhere("xxhY>{}}]");
-            p.setFullCustomQuery(true);
-            allPaths.add(p);
-            try (MockedStatic<MongoQueryValidator> mockedStatic = mockStatic(MongoQueryValidator.class)) {
-                mockedStatic.when(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)))
-                        .thenReturn(MongoQueryValidator.ValidationResult.success());
-                Assertions.assertThrows(BizException.class, () -> {
-                    try {
-                        modulesService.validCustomWhereIfNeed(allPaths);
-                    } catch (BizException e) {
-                        Assertions.assertEquals(e.getErrorCode(), "module.save.check.where");
-                        throw e;
-                    }
-                });
-                mockedStatic.verify(() -> MongoQueryValidator.checkWhere(any(JsonNode.class), any(MongoQueryValidator.ValidationContext.class)), times(0));
-            }
+        void testRepeat2() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldName("test.oid");
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldName("test.mid");
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
         }
     }
 
