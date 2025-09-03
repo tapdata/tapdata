@@ -76,6 +76,15 @@ public class ApiServerController extends BaseController {
         return success(apiServerService.updateById(metadataDefinition, getLoginUser()));
     }
 
+    @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
+    @PatchMapping("{id}")
+    public ResponseMessage<ApiServerDto> updateById(@PathVariable("id") String id, @RequestBody ApiServerDto metadataDefinition) {
+        if (metadataDefinition.getId() == null || !metadataDefinition.getId().toHexString().equals(id)) {
+            metadataDefinition.setId(MongoUtils.toObjectId(id));
+        }
+        return success(apiServerService.updateById(metadataDefinition, getLoginUser()));
+    }
+
 
     /**
      * Find a model instance by {{id}} from the data source

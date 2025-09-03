@@ -18,6 +18,7 @@ import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -27,11 +28,15 @@ import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
+import com.tapdata.tm.modules.dto.PathSetting;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
+import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
+import com.tapdata.tm.utils.Lists;
 import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -46,25 +51,47 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @DisplayName("Class ModulesService Test")
 class ModulesServiceTest {
+    TextEncryptionRuleService textEncryptionRuleService;
     ModulesService modulesService;
     ModulesRepository modulesRepository;
 
     DataSourceService dataSourceService;
     DataSourceDefinitionService dataSourceDefinitionService;
-
+    ApplicationConfig config;
     @BeforeEach
     void init(){
+        textEncryptionRuleService = mock(TextEncryptionRuleService.class);
+        config = mock(ApplicationConfig.class);
+        when(config.getApiMaxWhereDeep()).thenReturn(10);
         modulesRepository = mock(ModulesRepository.class);
         modulesService = new ModulesService(modulesRepository);
         dataSourceService = mock(DataSourceService.class);
         dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
         ReflectionTestUtils.setField(modulesService, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(modulesService, "dataSourceDefinitionService", dataSourceDefinitionService);
+        ReflectionTestUtils.setField(modulesService, "config", config);
+        ReflectionTestUtils.setField(modulesService, "textEncryptionRuleService", textEncryptionRuleService);
     }
 
     @Nested
@@ -85,6 +112,39 @@ class ModulesServiceTest {
             assertThrows(BizException.class,()->modulesService.updatePermissions(modulesPermissionsDto,mock(UserDetail.class)));
         }
 
+    }
+
+    @Nested
+    class BatchUpdatePermissionsTest{
+        @Test
+        void test_batchUpdatePermissionsExclusive(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            permissionsDto.setModuleIds(Arrays.asList("module1", "module2"));
+            permissionsDto.setAclName("admin");
+
+            modulesService.updatePermissions(permissionsDto, mock(UserDetail.class));
+            // 验证调用了两次 update：一次移除所有，一次添加指定
+            verify(modulesRepository, times(2)).update(any(), any(), any());
+        }
+
+        @Test
+        void test_singleModuleUpdate(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            permissionsDto.setModuleId("module1");
+            permissionsDto.setAcl(Arrays.asList("admin", "user"));
+
+            modulesService.updatePermissions(permissionsDto, mock(UserDetail.class));
+            verify(modulesRepository, times(1)).updateFirst(any(), any(), any());
+        }
+
+        @Test
+        void test_invalidParams(){
+            ModulesPermissionsDto permissionsDto = new ModulesPermissionsDto();
+            // 既没有设置单个模块参数，也没有设置批量参数
+
+            assertThrows(BizException.class, () ->
+                    modulesService.updatePermissions(permissionsDto, mock(UserDetail.class)));
+        }
     }
 
     @Nested
@@ -595,6 +655,7 @@ class ModulesServiceTest {
             ModulesDto modulesDto = new ModulesDto();
             modulesDto.setConnection(new ObjectId());
             apis.add(modulesDto);
+            doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
             doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
             List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
             DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
@@ -661,6 +722,7 @@ class ModulesServiceTest {
             ModulesDto modulesDto = new ModulesDto();
             modulesDto.setConnection(new ObjectId());
             apis.add(modulesDto);
+            doNothing().when(modulesService).textEncryptionRule(any(ApiDefinitionVo.class));
             doReturn(apis).when(modulesService).findAllActiveApi(ModuleStatusEnum.ACTIVE);
             List<DataSourceConnectionDto> dataSourceConnectionDtoList = new ArrayList<>();
             DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
@@ -689,6 +751,219 @@ class ModulesServiceTest {
             assertEquals(1, actual.getConnections().size());
             assertNull(actual.getConnections().get(0).getSsl());
             assertNull(actual.getConnections().get(0).getSslCA());
+        }
+    }
+
+    @Nested
+    class ServerTest {
+        ModulesService mService;
+        ModulesRepository mRepository;
+
+        DataSourceService dService;
+        DataSourceDefinitionService dDefinitionService;
+
+        @BeforeEach
+        void init() {
+            mService = mock(ModulesService.class);
+            mRepository = mock(ModulesRepository.class);
+            dService = mock(DataSourceService.class);
+            dDefinitionService = mock(DataSourceDefinitionService.class);
+            ReflectionTestUtils.setField(mService, "dataSourceService", dService);
+            ReflectionTestUtils.setField(mService, "dataSourceDefinitionService", dDefinitionService);
+            ReflectionTestUtils.setField(mService, "textEncryptionRuleService", textEncryptionRuleService);
+        }
+
+        @Nested
+        class FindByIdTest {
+            @Test
+            void testWithPathSettingIfNeed() {
+                String id = new ObjectId().toHexString();
+
+                ModulesDto entity = new ModulesDto();
+                entity.setConnection(new ObjectId());
+                when(mService.findById(anyString())).thenCallRealMethod();
+                when(mService.findById(any(ObjectId.class))).thenReturn(entity);
+                when(dService.findById(any(ObjectId.class))).thenReturn(null);
+                ModulesDetailVo byId = mService.findById(id);
+                Assertions.assertNotNull(byId.getPathSetting());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, byId.getPathSetting());
+            }
+
+            @Test
+            void testWithPathSettingIfNeed2() {
+                String id = new ObjectId().toHexString();
+                ModulesDto entity = new ModulesDto();
+                entity.setConnection(new ObjectId());
+                when(mService.findById(anyString())).thenCallRealMethod();
+                when(mService.findById(any(ObjectId.class))).thenReturn(entity);
+                when(dService.findById(any(ObjectId.class))).thenReturn(new DataSourceConnectionDto());
+                ModulesDetailVo byId = mService.findById(id);
+                Assertions.assertNotNull(byId.getPathSetting());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, byId.getPathSetting());
+            }
+        }
+
+
+        @Nested
+        class FindAllActiveApiTest {
+            @Test
+            void testNormal() {
+                List<ModulesDto> apis = new ArrayList<>();
+                ModulesDto dto = new ModulesDto();
+                apis.add(dto);
+                ModuleStatusEnum moduleStatusEnum = ModuleStatusEnum.ACTIVE;
+                when(mService.findAllActiveApi(any())).thenCallRealMethod();
+                when(mService.findAll(any(Query.class))).thenReturn(apis);
+                List<ModulesDto> allActiveApi = mService.findAllActiveApi(moduleStatusEnum);
+                Assertions.assertNotNull(allActiveApi);
+                Assertions.assertEquals(1, allActiveApi.size());
+                Assertions.assertEquals(PathSetting.DEFAULT_PATH_SETTING, allActiveApi.get(0).getPathSetting());
+            }
+            @Test
+            void testNull() {
+                when(mService.findAllActiveApi(null)).thenCallRealMethod();
+                when(mService.findAll(any(Query.class))).thenReturn(null);
+                List<ModulesDto> allActiveApi = mService.findAllActiveApi(null);
+                Assertions.assertNotNull(allActiveApi);
+                Assertions.assertEquals(0, allActiveApi.size());
+                verify(mService, times(0)).findAll(any(Query.class));
+            }
+        }
+
+        @Nested
+        class textEncryptionRuleTest {
+            @Test
+            void testEmpty() {
+                ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+                apiDefinitionVo.setApis(new ArrayList<>());
+                doCallRealMethod().when(mService).textEncryptionRule(any(ApiDefinitionVo.class));
+                mService.textEncryptionRule(apiDefinitionVo);
+                Assertions.assertNull(apiDefinitionVo.getTextEncryptionRules());
+            }
+
+            @Test
+            void testIdsEmpty() {
+                ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+                List<ModulesDto> apis = new ArrayList<>();
+                apiDefinitionVo.setApis(apis);
+                List<Path> paths = new ArrayList<>();
+                Path path = new Path();
+                path.setFields(new ArrayList<>());
+                path.getFields().add(new Field());
+                path.getFields().get(0).setTextEncryptionRuleIds(new ArrayList<>());
+                paths.add(path);
+                ModulesDto dto = new ModulesDto();
+                dto.setPaths(paths);
+                apis.add(dto);
+                List<TextEncryptionRuleDto> result = new ArrayList<>();
+                result.add(new TextEncryptionRuleDto());
+                result.get(0).setId(new ObjectId());
+                result.get(0).setName("oid");
+                when(textEncryptionRuleService.getById(anyList())).thenReturn(result);
+                doCallRealMethod().when(mService).textEncryptionRule(any(ApiDefinitionVo.class));
+                mService.textEncryptionRule(apiDefinitionVo);
+                Assertions.assertNull(apiDefinitionVo.getTextEncryptionRules());
+            }
+
+            @Test
+            void testNormal() {
+                ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
+                List<ModulesDto> apis = new ArrayList<>();
+                apiDefinitionVo.setApis(apis);
+                List<Path> paths = new ArrayList<>();
+                Path path = new Path();
+                path.setFields(new ArrayList<>());
+                path.getFields().add(new Field());
+                path.getFields().get(0).setTextEncryptionRuleIds(Lists.newArrayList(new ObjectId().toHexString()));
+                paths.add(path);
+                ModulesDto dto = new ModulesDto();
+                dto.setPaths(paths);
+                apis.add(dto);
+                List<TextEncryptionRuleDto> result = new ArrayList<>();
+                result.add(new TextEncryptionRuleDto());
+                result.get(0).setId(new ObjectId());
+                result.get(0).setName("oid");
+                when(textEncryptionRuleService.getById(anyList())).thenReturn(result);
+                doCallRealMethod().when(mService).textEncryptionRule(any(ApiDefinitionVo.class));
+                mService.textEncryptionRule(apiDefinitionVo);
+                Assertions.assertNotNull(apiDefinitionVo.getTextEncryptionRules());
+                Assertions.assertTrue(apiDefinitionVo.getTextEncryptionRules().isEmpty());
+            }
+        }
+    }
+
+    @Nested
+    class CheckoutFieldAliasNameIsValidTest {
+        @Test
+        void testNotAnyFields() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.not-empty");
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testNotRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldAlias("test");
+            fields.add(field);
+            Assertions.assertDoesNotThrow(() -> modulesService.checkoutFieldAliasNameIsValid(path));
+        }
+
+        @Test
+        void testRepeat() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldName("test");
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldName("test1");
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testRepeat2() {
+            List<Field> fields = new ArrayList();
+            Path path = new Path();
+            path.setFields(fields);
+            Field field = new Field();
+            field.setFieldName("test.oid");
+            field.setFieldAlias("test");
+            fields.add(field);
+            Field field1 = new Field();
+            field1.setFieldName("test.mid");
+            field1.setFieldAlias("test");
+            fields.add(field1);
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    modulesService.checkoutFieldAliasNameIsValid(path);
+                } catch (BizException e) {
+                    Assertions.assertEquals(e.getErrorCode(), "module.save.check.repat");
+                    throw e;
+                }
+            });
         }
     }
 

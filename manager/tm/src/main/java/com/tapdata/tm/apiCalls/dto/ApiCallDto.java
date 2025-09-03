@@ -68,4 +68,13 @@ public class ApiCallDto extends BaseDto {
 
     @JsonProperty("report_time")
     private Long reportTime;
+
+    @JsonProperty("query")
+    private String query;
+
+    @JsonProperty("body")
+    private String body;
+
+    @JsonProperty("requestHeaders")
+    private String requestHeaders;
 }

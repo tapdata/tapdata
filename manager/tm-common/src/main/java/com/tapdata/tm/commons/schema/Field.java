@@ -57,6 +57,12 @@ public class Field implements Serializable {
     @JsonProperty("field_name")
     @org.springframework.data.mongodb.core.mapping.Field("field_name")
     private String fieldName;
+
+    /** 字段别名 */
+    @JsonProperty("field_alias")
+    @org.springframework.data.mongodb.core.mapping.Field("field_alias")
+    private String fieldAlias;
+
     /** 上一个节点的字段名字 */
     private String previousFieldName;
     @JsonProperty("foreign_key_position")
@@ -179,6 +185,11 @@ public class Field implements Serializable {
     private String changeRuleId; // 如果命中字段变更规则则存在值
 
     private boolean useDefaultValue = true;
+
+    /**
+     * Sensitive Fields - Encryption Rule List
+     * */
+    private List<String> textEncryptionRuleIds;
 
     public boolean getUseDefaultValue() {
         return useDefaultValue;

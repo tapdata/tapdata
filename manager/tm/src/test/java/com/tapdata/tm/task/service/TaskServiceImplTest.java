@@ -1331,7 +1331,6 @@ class TaskServiceImplTest {
     class AfterRenewTest{
         private TaskAutoInspectResultsService taskAutoInspectResultsService;
         private StateMachineService stateMachineService;
-
         @BeforeEach
         void setUp(){
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
@@ -5656,6 +5655,45 @@ class TaskServiceImplTest {
                 taskService.exportTask(taskIds, user);
                 mb.verify(() -> JsonUtil.toJsonUseJackson(any()),new Times(4));
             }
+        }
+    }
+
+    @Nested
+    class UpdateTaskInfoTest {
+        private String taskId = "507f1f77bcf86cd799439011";
+        private ObjectId objectId = new ObjectId(taskId);
+        private UserDetail user = mock(UserDetail.class);
+        private TaskDto existingTaskDto = mock(TaskDto.class);
+        private UpdateResult updateResult = mock(UpdateResult.class);
+
+        @Test
+        @DisplayName("test updateTaskInfo when both name and desc changed")
+        void testUpdateBothChanged() {
+            when(existingTaskDto.getName()).thenReturn("Old Name");
+            when(existingTaskDto.getDesc()).thenReturn("Old Desc");
+            doReturn(existingTaskDto).when(taskService).checkExistById(objectId, user, "name", "desc");
+            doNothing().when(taskService).checkTaskName("New Name", user, objectId);
+            doReturn(updateResult).when(taskService).updateById(eq(objectId), any(Update.class), eq(user));
+
+            doCallRealMethod().when(taskService).updateTaskInfo(taskId, "New Name", "New Desc", user);
+            taskService.updateTaskInfo(taskId, "New Name", "New Desc", user);
+
+            verify(taskService).checkTaskName("New Name", user, objectId);
+            verify(taskService).updateById(eq(objectId), any(Update.class), eq(user));
+        }
+
+        @Test
+        @DisplayName("test updateTaskInfo when no changes")
+        void testNoChanges() {
+            when(existingTaskDto.getName()).thenReturn("Same Name");
+            when(existingTaskDto.getDesc()).thenReturn("Same Desc");
+            doReturn(existingTaskDto).when(taskService).checkExistById(objectId, user, "name", "desc");
+
+            doCallRealMethod().when(taskService).updateTaskInfo(taskId, "Same Name", "Same Desc", user);
+            taskService.updateTaskInfo(taskId, "Same Name", "Same Desc", user);
+
+            verify(taskService, never()).checkTaskName(anyString(), any(UserDetail.class), any(ObjectId.class));
+            verify(taskService, never()).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
         }
     }
 }

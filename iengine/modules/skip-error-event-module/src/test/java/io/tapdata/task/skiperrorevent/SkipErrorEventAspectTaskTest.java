@@ -113,7 +113,7 @@ public class SkipErrorEventAspectTaskTest {
         @BeforeEach
         void setUp() {
             taskId = "test";
-            nextPrintTimes = System.currentTimeMillis();
+            nextPrintTimes = System.currentTimeMillis() - 1000;
             log = mock(Log.class);
             syncAndSkipMap = new ConcurrentHashMap<>();
             syncAndSkipMap.put(taskId, new ConcurrentHashMap<>());

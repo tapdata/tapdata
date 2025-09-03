@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
@@ -120,7 +121,9 @@ public class InspectDto extends SchedulableDto implements IDataPermissionDto {
     private Boolean canRecovery; // 是否可恢复数据（不存库）
     private Integer checkTableThreadNum;
     private Boolean isExportSql;
+    private Integer checkTableThreadNum;
 
 		private List<AlarmSettingVO> alarmSettings;
 		private List<AlarmRuleVO> alarmRules;
+    private List<Tag> listtags;
 }

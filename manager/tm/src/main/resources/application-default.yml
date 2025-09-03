@@ -4,6 +4,7 @@ application:
   commit_version: '@env.GIT_COMMIT_VERSION@'
   description: 'Tapdata Manager'
   build: '@maven.build.timestamp@'
+  admin-account: 'admin@admin.com'
 
 spring:
   servlet:
@@ -106,7 +107,7 @@ server:
     min-spare-threads: 100 #最小工作线程数量
     max-connections: 1000 #一瞬间最大支持的并发的连接数
     accept-count: 20 #等待队列长度
-  max-http-request-header-size: 2MB
+  max-http-header-size: 2MB
 
 mail:
   host: smtp.exmail.qq.com
@@ -125,6 +126,8 @@ management:
   metrics:
     tags:
       application: 'TMApplication'
+
+
 
 access:
   token:
@@ -167,3 +170,5 @@ openapi:
       dir: ${java.io.tmpdir}
     java:
       version: 11
+  setting:
+    where-max-deep: ${openapi.setting.whereMaxDeep:10}

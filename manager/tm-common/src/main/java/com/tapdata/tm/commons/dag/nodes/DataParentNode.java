@@ -101,7 +101,7 @@ public abstract class DataParentNode<S> extends Node<S> {
     private Boolean syncIndexEnable;
 
     /** 是否开启全量同步外键*/
-    private Boolean syncForeignKeyEnable;
+    private Boolean syncForeignKeyEnable = true;
     /** 目标是否开启分区表同步*/
     private Boolean syncTargetPartitionTableEnable;
     /** 源是否开启分区表同步*/

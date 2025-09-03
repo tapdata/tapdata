@@ -13,13 +13,36 @@ import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 public class HttpUtils {
     private static final String UTF_8 ="utf-8";
 
+    public interface DoAfter {
+        void doAfter(CloseableHttpResponse response);
 
+        static void forEach(CloseableHttpResponse response, DoAfter... doAfters) {
+            Optional.ofNullable(response)
+                    .ifPresent(r -> Optional.ofNullable(doAfters)
+                            .ifPresent(es -> new ArrayList<>(Arrays.asList(es)).forEach(e -> {
+                               try {
+                                   e.doAfter(r);
+                               } catch (Exception ex) {
+                                   log.warn("Failed to execute post method：{}", ex.getMessage(), ex);
+                               }
+                            })));
+        }
+    }
+
+
+    public static String sendGetData(String path, Map<String, String> headMap) {
+        return sendGetData(path, headMap, true);
+    }
     /**
      * get请求传输数据
      *
@@ -27,7 +50,7 @@ public class HttpUtils {
      * @throws ClientProtocolException
      * @throws IOException
      */
-    public static String sendGetData(String path, Map<String, String> headMap) {
+    public static String sendGetData(String path, Map<String, String> headMap, boolean ignoreNotNormalResult, DoAfter ... execute) {
         log.info("request tcm, path：{}，headMap：{}  ",path,headMap);
         String result = "";
         CloseableHttpResponse response =null;
@@ -44,10 +67,10 @@ public class HttpUtils {
 
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), UTF_8);
-            } else {
+            if (ignoreNotNormalResult && response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 log.error("get请求传输 异常.url:{}, headMap:{}", path, headMap);
+            } else {
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
         } catch (ClientProtocolException e) {
             log.error("get请求传输 异常 ", e);
@@ -59,6 +82,7 @@ public class HttpUtils {
         finally {
             try {
                 if (null!=response){
+                    DoAfter.forEach(response, execute);
                     response.close();
                 }
             } catch (IOException e) {
@@ -114,6 +138,12 @@ public class HttpUtils {
     }
 
     public static String sendPostData(String path, String bodyJson) {
+        Map<String, String> headMap = new HashMap<>();
+        headMap.put("Token", "cba0125db7a18a32508a4e9e077058f33352c1c9124d2c3cbeb3f426096f100a");
+        return sendPostData(path, bodyJson, headMap, true);
+    }
+
+    public static String sendPostData(String path, String bodyJson, Map<String, String> headMap, boolean ignoreNotNormalResult, DoAfter ... execute) {
         log.info("request tcm, path：{}，bodyJson：{}  ",path,bodyJson);
         String result = "";
         CloseableHttpResponse response =null;
@@ -123,19 +153,20 @@ public class HttpUtils {
             entity.setContentType("application/json");
             // 创建post方式请求对象
             HttpPost httpPost = new HttpPost(path);
-            httpPost.addHeader("Token","cba0125db7a18a32508a4e9e077058f33352c1c9124d2c3cbeb3f426096f100a");
+            if (null != headMap && !headMap.isEmpty()) {
+                headMap.forEach(httpPost::addHeader);
+            }
             httpPost.setEntity(entity);
             // 通过请求对象获取响应对象
             response = httpClient.execute(httpPost);
+
             // 获取结果实体
             // 判断网络连接状态码是否正常(0--200都数正常)
-            if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                result = EntityUtils.toString(response.getEntity(), UTF_8);
-            } else {
+            if (ignoreNotNormalResult && response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
                 log.error("post请求传输 异常.url:{}, bodyJson:{}", path, bodyJson);
+            } else {
+                result = EntityUtils.toString(response.getEntity(), UTF_8);
             }
-
-
         } catch (ClientProtocolException e) {
             log.error("post请求传输 异常 ", e);
             log.error("post请求传输 异常.path:{}, headMap:{}", path, bodyJson);
@@ -147,6 +178,7 @@ public class HttpUtils {
             try {
                 // 释放链接
                 if (null!=response){
+                    DoAfter.forEach(response, execute);
                     response.close();
                 }
             } catch (IOException e) {
@@ -156,5 +188,4 @@ public class HttpUtils {
         log.debug(result);
         return result;
     }
-
 }

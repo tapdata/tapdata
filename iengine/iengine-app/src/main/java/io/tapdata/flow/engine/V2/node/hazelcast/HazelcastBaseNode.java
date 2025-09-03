@@ -1051,7 +1051,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			return after;
 		}
 	}
-	protected boolean isInitialSyncTask() {
+	public boolean isInitialSyncTask() {
 		SyncTypeEnum syncType = SyncTypeEnum.get(processorBaseContext.getTaskDto().getType());
 		if (SyncTypeEnum.INITIAL_SYNC == syncType) {
 			return true;

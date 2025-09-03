@@ -50,7 +50,7 @@ public class ApiCallController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(apiCallService.find(filter,getLoginUser()));
+        return success(apiCallService.find(filter));
     }
 
 

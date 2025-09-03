@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.base.IDataPermissionEntity;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleVO;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.inspect.bean.Limit;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.bean.Timing;
@@ -49,9 +50,7 @@ public class InspectEntity extends SchedulableEntity implements IDataPermissionE
     private String roundingMode;
     private Integer checkTableThreadNum;
 
-
-
-
 		private List<AlarmSettingVO> alarmSettings;
 		private List<AlarmRuleVO> alarmRules;
+    private List<Tag> listtags;
 }

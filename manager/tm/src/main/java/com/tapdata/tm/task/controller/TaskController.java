@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.ResponseEntity;
@@ -587,6 +588,7 @@ public class TaskController extends BaseController {
                 String name = taskDto.getName();
                 log.info("subtask addMessage ,id :{},name :{},status:{}  ", id, name, status);
                 if ("error".equals(status)) {
+
                     messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, userDetail);
                 } else if ("running".equals(status)) {
                     messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, userDetail);
@@ -901,7 +903,11 @@ public class TaskController extends BaseController {
 			try {
 				if (CollectionUtils.isNotEmpty(taskEntityList)) {
 					for (TaskEntity task : taskEntityList) {
-						messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+                        if (SyncType.MIGRATE.getValue().equals(task.getSyncType())) {
+                            messageService.addMigration(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, Level.INFO, getLoginUser());
+                        } else if (SyncType.SYNC.getValue().equals(task.getSyncType())) {
+                            messageService.addSync(task.getName(), task.getId().toString(), MsgTypeEnum.PAUSED, "",Level.INFO, getLoginUser());
+                        }
 					}
 				}
 			} catch (Exception e) {
@@ -1374,6 +1380,15 @@ public class TaskController extends BaseController {
     @PatchMapping("rename/{taskId}")
     public ResponseMessage<Void> rename(@PathVariable("taskId") String taskId, @RequestParam("newName") String newName) {
         taskService.rename(taskId, newName, getLoginUser());
+        return success();
+    }
+
+    @Operation(summary = "修改任务信息（名称和描述）")
+    @PatchMapping("updateInfo/{taskId}")
+    public ResponseMessage<Void> updateTaskInfo(@PathVariable("taskId") String taskId,
+                                               @RequestParam("newName") String newName,
+                                               @RequestParam(value = "desc", required = false) String desc) {
+        taskService.updateTaskInfo(taskId, newName, desc, getLoginUser());
         return success();
     }
 

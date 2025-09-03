@@ -1040,6 +1040,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> instance.initStreamOffsetCDC(dataProcessorContext.getTaskDto(), null));
 			assertEquals(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, tapCodeException.getCode());
 		}
+
 		@Test
 		@DisplayName("test SyncPoint is String Offset")
 		void testStringOffset(){
@@ -1051,7 +1052,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			syncPoints.add(syncPoint);
 			dataProcessorContext.getTaskDto().setSyncPoints(syncPoints);
 			Long actualReturn = instance.initStreamOffsetCDC(dataProcessorContext.getTaskDto(), null);
-            assertNull(actualReturn);
+			assertNull(actualReturn);
 		}
 	}
 	@Nested
