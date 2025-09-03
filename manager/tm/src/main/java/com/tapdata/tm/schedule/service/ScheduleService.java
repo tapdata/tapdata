@@ -2,6 +2,7 @@ package com.tapdata.tm.schedule.service;
 
 
 import cn.hutool.core.bean.BeanUtil;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.entity.TaskEntity;
