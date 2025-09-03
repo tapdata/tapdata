@@ -969,7 +969,7 @@ public class LdpServiceImpl implements LdpService {
 
 		Criteria criteriaCon = Criteria.where("_id").in(conIds);
 		Query queryCon = new Query(criteriaCon);
-		List<DataSourceConnectionDto> connections = dataSourceService.findAllDto(queryCon, user);
+		List<DataSourceConnectionDto> connections = dataSourceService.findAll(queryCon);
 
 		for (DataSourceConnectionDto connection : connections) {
 			fuzzySearchList.add(new LdpFuzzySearchVo(LdpFuzzySearchVo.FuzzyType.connection, connection, connection.getId().toHexString()));

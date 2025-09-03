@@ -11,15 +11,7 @@ import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.TableIndex;
-import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -450,6 +442,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
             /*MetadataInstancesDto result = metadataInstancesService.upsertByWhere(
                     Where.where("qualified_name", metadataInstancesDto.getQualifiedName()), metadataInstancesDto, userDetail);*/
+            options.processDifferenceField(metadataInstancesDto);
 
             options.processRule(metadataInstancesDto, map);
             return metadataInstancesDto;

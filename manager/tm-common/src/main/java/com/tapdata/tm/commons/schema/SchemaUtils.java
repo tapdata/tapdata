@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.schema;
 
 import cn.hutool.core.collection.CollUtil;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
@@ -8,6 +9,7 @@ import io.tapdata.entity.schema.TapConstraint;
 import io.tapdata.entity.schema.type.TapArray;
 import io.tapdata.entity.schema.type.TapMap;
 import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -22,6 +24,9 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static com.tapdata.tm.commons.util.PdkSchemaConvert.getClassByJson;
+import static com.tapdata.tm.commons.util.PdkSchemaConvert.getJsonParser;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -295,5 +300,50 @@ public class SchemaUtils {
         field.setSourceDbType(databaseType);
         field.setPrimaryKey(false);
         schema.getFields().add(field);
+    }
+
+    public static List<DifferenceField> compareSchema(MetadataInstancesDto deductionMetadataInstance, MetadataInstancesDto targetMetadataInstance) {
+        List<DifferenceField> differenceFieldList = new ArrayList<>();
+        if(Objects.isNull(deductionMetadataInstance) || Objects.isNull(targetMetadataInstance)){
+            return differenceFieldList;
+        }
+        Map<String, Field> sourceFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+        Map<String, Field> targetFieldMap = targetMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+
+        sourceFieldMap.keySet().forEach(fieldName -> {
+            if (!targetFieldMap.containsKey(fieldName)) {
+                differenceFieldList.add(DifferenceField.buildMissingField(fieldName,sourceFieldMap.get(fieldName)));
+            }
+        });
+
+        targetFieldMap.forEach((fieldName, targetField) -> {
+            if (!sourceFieldMap.containsKey(fieldName)) {
+                differenceFieldList.add(DifferenceField.buildAdditionalField(fieldName, targetField));
+            } else {
+                Field sourceField = sourceFieldMap.get(fieldName);
+                TapType targetTapType = null;
+                TapType sourceTapType = null;
+                try {
+                    Class<? extends TapType> targetClassByJson = getClassByJson(targetField.getTapType());
+                    targetTapType = getJsonParser().fromJson(targetField.getTapType(), targetClassByJson);
+                    Class<? extends TapType> sourceClassByJson = getClassByJson(sourceField.getTapType());
+                    sourceTapType = getJsonParser().fromJson(sourceField.getTapType(), sourceClassByJson);
+                } catch (Exception e) {
+                    targetTapType = com.tapdata.manager.common.utils.JsonUtil.parseJsonUseJackson(sourceField.getTapType(), new TypeReference<TapType>() {
+                    });
+                    sourceTapType = com.tapdata.manager.common.utils.JsonUtil.parseJsonUseJackson(targetField.getTapType(), new TypeReference<TapType>() {
+                    });
+                }
+                if(null != targetTapType && Boolean.TRUE.equals(targetTapType.getCannotWrite())){
+                    differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField,targetField));
+                } else if (null != targetTapType && null != sourceTapType && !targetTapType.getClass().equals(sourceTapType.getClass())){
+                    differenceFieldList.add(DifferenceField.buildDifferentField(fieldName, sourceField, targetField));
+                } else if (!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
+                    differenceFieldList.add(DifferenceField.buildPrecisionField(fieldName, sourceField, targetField));
+                }
+
+            }
+        });
+        return differenceFieldList;
     }
 }

@@ -23,6 +23,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
@@ -45,6 +46,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -76,6 +78,8 @@ public class TransformSchemaService {
     private static final String QUALIFIED_NAME = "qualified_name";
     @Autowired
     private AgentGroupService agentGroupService;
+    @Autowired
+    private MetadataInstancesCompareService metadataInstancesCompareService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
@@ -209,6 +213,10 @@ public class TransformSchemaService {
                     }
                     options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
                 });
+                Map<String,List<DifferenceField>> differenceFieldMap = metadataInstancesCompareService.getMetadataInstancesComparesByType(node.getId(), ((DataParentNode<?>) node).getApplyCompareRules());
+                if(MapUtils.isNotEmpty(differenceFieldMap)){
+                    options.setDifferenceFields(differenceFieldMap);
+                }
             }
             if (node instanceof TableRenameProcessNode) {
                 TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
