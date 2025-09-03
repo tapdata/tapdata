@@ -77,4 +77,7 @@ public class ApiCallDto extends BaseDto {
 
     @JsonProperty("requestHeaders")
     private String requestHeaders;
+
+    /**The unique identifier of the worker corresponding to the current request*/
+    private String workOid;
 }

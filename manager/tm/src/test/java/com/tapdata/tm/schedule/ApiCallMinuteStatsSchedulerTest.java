@@ -1,6 +1,7 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.apiCalls.service.ApiCallService;
+import com.tapdata.tm.apiCalls.service.WorkerCallService;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
@@ -36,13 +37,15 @@ class ApiCallMinuteStatsSchedulerTest {
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private ApiCallService apiCallService;
 	private ApiCallMinuteStatsScheduler apiCallMinuteStatsScheduler;
+	private WorkerCallService workerCallService;
 
 	@BeforeEach
 	void setUp() {
 		modulesService = mock(ModulesService.class);
 		apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
 		apiCallService = mock(ApiCallService.class);
-		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService);
+		workerCallService = mock(WorkerCallService.class);
+		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallService);
 	}
 
 	@Test
