@@ -1007,4 +1007,21 @@ class ModulesServiceTest {
             verify(fileService, times(1)).viewImg1(anyString(), any(HttpServletResponse.class), anyString());
         }
     }
+
+	@Nested
+	class isBasePathAndVersionRepeatTest {
+		@Test
+		void testNotRepeat() {
+			when(modulesService.count(any(Query.class))).thenReturn(0L);
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat("test", "1.0", "test");
+            assertFalse(basePathAndVersionRepeat);
+		}
+
+		@Test
+		void testRepeat() {
+			when(modulesService.count(any(Query.class))).thenReturn(1L);
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat("test", "1.0", "test");
+			assertTrue(basePathAndVersionRepeat);
+		}
+	}
 }
