@@ -120,6 +120,34 @@ public class ScheduleServiceTest {
                 verify(taskService, new Times(1)).update(any(Query.class),any(TaskDto.class));
             }
         }
+
+        @Test
+        void testExecuteTaskForInitialWaitRun(){
+            scheduleService = spy(scheduleService);
+            final CalculationEngineVo calculationEngineVo=new CalculationEngineVo();
+            calculationEngineVo.setProcessId("632327dd287a904778c0a13c-1gd0l7dvk");
+            calculationEngineVo.setTaskLimit(2);
+            calculationEngineVo.setRunningNum(3);
+            UserService userService = mock(UserService.class);
+            WorkerService workerService = mock(WorkerService.class);
+            TaskService taskService = mock(TaskService.class);
+            try(MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class);){
+                taskDto.setAgentId("632327dd287a904778c0a13c-1gd0l7dvk");
+                taskDto.setType("initial_sync");
+                taskDto.setCrontabExpression("0 */1 * * * ?");
+                taskDto.setCrontabExpressionFlag(true);
+                taskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
+                taskDto.setScheduleDate(1724136420000L);
+                springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(eq(UserService.class))).thenReturn(userService);
+                springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(eq(WorkerService.class))).thenReturn(workerService);
+                springContextHelperMockedStatic.when(()->SpringContextHelper.getBean(eq(TaskService.class))).thenReturn(taskService);
+                when(userService.loadUserById(MongoUtils.toObjectId("6393f084c162f518b18165c3"))).thenReturn(user);
+                when(workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName())).thenReturn(calculationEngineVo);
+                scheduleService.executeTask(taskDto);
+                verify(scheduleService, new Times(0)).createTaskRecordForInitial(taskDto);
+                verify(taskService, new Times(0)).update(any(Query.class),any(TaskDto.class));
+            }
+        }
     }
 
 }
