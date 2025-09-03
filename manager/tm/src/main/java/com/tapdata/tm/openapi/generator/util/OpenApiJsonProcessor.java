@@ -118,6 +118,16 @@ public class OpenApiJsonProcessor {
      */
     private OpenAPI parseJsonToOpenAPI(String jsonContent, String oasUrl) throws CodeGenerationException {
         try {
+            // First, try to validate if it's valid JSON by attempting to parse it
+            try {
+                // Use Jackson ObjectMapper directly to validate JSON format
+                com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                objectMapper.readTree(jsonContent);
+            } catch (Exception jsonParseException) {
+                log.error("Invalid JSON format received from URL: {}", oasUrl, jsonParseException);
+                throw new CodeGenerationException("Invalid JSON format received from OpenAPI URL: " + oasUrl + ". Error: " + jsonParseException.getMessage(), jsonParseException);
+            }
+
             // Use OpenAPIV3Parser to parse JSON content
             OpenAPIV3Parser parser = new OpenAPIV3Parser();
             OpenAPI openAPI = parser.readContents(jsonContent).getOpenAPI();
@@ -230,7 +240,8 @@ public class OpenApiJsonProcessor {
             }
 
             String apiId = (String) apiIdExtension;
-            if (!request.getModuleIds().contains(apiId)) {
+            // If moduleIds is null or empty, include all modules
+            if (request.getModuleIds() != null && !request.getModuleIds().isEmpty() && !request.getModuleIds().contains(apiId)) {
                 continue;
             }
 
@@ -590,7 +601,12 @@ public class OpenApiJsonProcessor {
 
         // Process each HTTP method operation
         processOperation(pathItem.getGet(), processedPathItem::setGet, request);
-        processOperation(pathItem.getPost(), processedPathItem::setPost, request);
+
+        // For POST operations, check if they should be skipped before processing
+        if (pathItem.getPost() != null && !shouldSkipPostOperation(pathItem.getPost())) {
+            processOperation(pathItem.getPost(), processedPathItem::setPost, request);
+        }
+
         processOperation(pathItem.getPut(), processedPathItem::setPut, request);
         processOperation(pathItem.getDelete(), processedPathItem::setDelete, request);
         processOperation(pathItem.getOptions(), processedPathItem::setOptions, request);
@@ -646,7 +662,8 @@ public class OpenApiJsonProcessor {
         }
 
         String apiId = (String) apiIdExtension;
-        if (!request.getModuleIds().contains(apiId)) {
+        // If moduleIds is null or empty, include all modules
+        if (request.getModuleIds() != null && !request.getModuleIds().isEmpty() && !request.getModuleIds().contains(apiId)) {
             return; // Skip operations not in requested modules
         }
 
@@ -855,8 +872,9 @@ public class OpenApiJsonProcessor {
         // Create a new Components object as a copy
         Components processedComponents = new Components();
 
-        // Copy all fields
-        processedComponents.setSchemas(components.getSchemas());
+        // Copy all fields (create new maps to avoid modifying original)
+        processedComponents.setSchemas(components.getSchemas() != null ?
+            new HashMap<>(components.getSchemas()) : null);
         processedComponents.setResponses(components.getResponses());
         processedComponents.setParameters(components.getParameters());
         processedComponents.setExamples(components.getExamples());

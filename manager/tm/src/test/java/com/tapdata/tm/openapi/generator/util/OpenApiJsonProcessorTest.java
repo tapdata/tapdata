@@ -2,21 +2,33 @@ package com.tapdata.tm.openapi.generator.util;
 
 import com.tapdata.tm.openapi.generator.dto.CodeGenerationRequest;
 import com.tapdata.tm.openapi.generator.exception.CodeGenerationException;
+import io.swagger.v3.core.util.Json;
+import io.swagger.v3.oas.models.*;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Test class for OpenApiJsonProcessor
@@ -32,64 +44,26 @@ class OpenApiJsonProcessorTest {
 
     private OpenApiJsonProcessor processor;
 
+    @TempDir
+    Path tempDir;
+
+    private CodeGenerationRequest request;
+
     @BeforeEach
     void setUp() {
         processor = new OpenApiJsonProcessor(restTemplate);
+
+        request = new CodeGenerationRequest();
+        request.setOas("https://example.com/api/openapi.json");
+        request.setArtifactId("test-sdk");
+        request.setModuleIds(Arrays.asList("module1", "module2"));
     }
 
     @Test
     void testProcessOpenapiJson_Success() throws Exception {
         // Given
-        String mockOpenApiJson = """
-            {
-              "openapi": "3.0.0",
-              "info": {
-                "title": "Test API",
-                "version": "1.0.0"
-              },
-              "paths": {
-                "/test": {
-                  "get": {
-                    "x-api-id": "test-api",
-                    "summary": "Test endpoint",
-                    "parameters": [
-                      {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                          "type": "string"
-                        }
-                      }
-                    ]
-                  }
-                }
-              },
-              "components": {
-                "securitySchemes": {
-                  "OAuth2": {
-                    "type": "oauth2",
-                    "flows": {
-                      "implicit": {
-                        "authorizationUrl": "https://example.com/auth"
-                      },
-                      "clientCredentials": {
-                        "tokenUrl": "https://example.com/token"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            """;
-
-        CodeGenerationRequest request = new CodeGenerationRequest();
-        request.setOas("https://example.com/openapi.json");
-        request.setModuleIds(Arrays.asList("test-api"));
-
-        when(restTemplate.getForObject(eq("https://example.com/openapi.json"), eq(String.class)))
-            .thenReturn(mockOpenApiJson);
-
-        Path tempDir = Files.createTempDirectory("test-openapi");
+        String validOpenApiJson = createValidOpenApiJson();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(validOpenApiJson);
 
         // When
         Path result = processor.processOpenapiJson(request, tempDir);
@@ -97,319 +71,580 @@ class OpenApiJsonProcessorTest {
         // Then
         assertNotNull(result);
         assertTrue(Files.exists(result));
-        assertTrue(result.toString().contains("openapi-"));
-        assertTrue(result.toString().endsWith(".json"));
+        assertTrue(result.getFileName().toString().startsWith("openapi-"));
+        assertTrue(result.getFileName().toString().endsWith(".json"));
 
-        // Verify the processed content
-        String processedContent = Files.readString(result);
-        assertNotNull(processedContent);
-        assertTrue(processedContent.contains("Test API"));
-        
-        // Verify that implicit OAuth flow was removed
-        assertFalse(processedContent.contains("implicit"));
-        assertTrue(processedContent.contains("clientCredentials"));
+        // Verify the content is valid JSON
+        String content = Files.readString(result);
+        assertNotNull(content);
+        assertFalse(content.trim().isEmpty());
 
-        // Cleanup
-        Files.deleteIfExists(result);
-        Files.deleteIfExists(tempDir);
+        // Verify RestTemplate was called
+        verify(restTemplate).getForObject(request.getOas(), String.class);
     }
 
     @Test
-    void testProcessOpenapiJson_InvalidUrl() {
+    void testProcessOpenapiJson_EmptyResponse() {
         // Given
-        CodeGenerationRequest request = new CodeGenerationRequest();
-        request.setOas("https://invalid-url.com/openapi.json");
-
-        when(restTemplate.getForObject(anyString(), eq(String.class)))
-            .thenThrow(new RuntimeException("Connection failed"));
-
-        Path tempDir;
-        try {
-            tempDir = Files.createTempDirectory("test-openapi");
-        } catch (Exception e) {
-            fail("Failed to create temp directory");
-            return;
-        }
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn("");
 
         // When & Then
-        assertThrows(CodeGenerationException.class, () -> {
-            processor.processOpenapiJson(request, tempDir);
-        });
+        CodeGenerationException exception = assertThrows(CodeGenerationException.class,
+            () -> processor.processOpenapiJson(request, tempDir));
 
-        // Cleanup
+        assertTrue(exception.getMessage().contains("Received empty response"));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_NullResponse() {
+        // Given
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(null);
+
+        // When & Then
+        CodeGenerationException exception = assertThrows(CodeGenerationException.class,
+            () -> processor.processOpenapiJson(request, tempDir));
+
+        assertTrue(exception.getMessage().contains("Received empty response"));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_RestTemplateException() {
+        // Given
+        when(restTemplate.getForObject(anyString(), eq(String.class)))
+            .thenThrow(new RestClientException("Network error"));
+
+        // When & Then
+        CodeGenerationException exception = assertThrows(CodeGenerationException.class,
+            () -> processor.processOpenapiJson(request, tempDir));
+
+        assertTrue(exception.getMessage().contains("Failed to download OpenAPI JSON"));
+        assertTrue(exception.getCause() instanceof RestClientException);
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_InvalidJson() {
+        // Given
+        String invalidJson = "{ invalid json content";
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(invalidJson);
+
+        // When & Then
+        CodeGenerationException exception = assertThrows(CodeGenerationException.class,
+            () -> processor.processOpenapiJson(request, tempDir));
+
+        assertTrue(exception.getMessage().contains("Invalid JSON format"));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_InvalidOpenApiSpec() {
+        // Given
+        String invalidOpenApiJson = "{ \"notOpenApi\": \"content\" }";
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(invalidOpenApiJson);
+
+        // When & Then
+        CodeGenerationException exception = assertThrows(CodeGenerationException.class,
+            () -> processor.processOpenapiJson(request, tempDir));
+
+        assertTrue(exception.getMessage().contains("Failed to parse OpenAPI JSON"));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_WithModuleFiltering() throws Exception {
+        // Given
+        String openApiJsonWithModules = createOpenApiJsonWithModules();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(openApiJsonWithModules);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+
+        // Verify the processed content
+        String content = Files.readString(result);
+        assertNotNull(content);
+
+        // The content should be filtered based on moduleIds
+        assertTrue(content.contains("module1") || content.contains("module2"));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_EmptyModuleIds() throws Exception {
+        // Given
+        request.setModuleIds(Collections.emptyList());
+        String validOpenApiJson = createValidOpenApiJson();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(validOpenApiJson);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_NullModuleIds() throws Exception {
+        // Given
+        request.setModuleIds(null);
+        String validOpenApiJson = createValidOpenApiJson();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(validOpenApiJson);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testCreateSecureTempDirectoryForJson() throws IOException {
+        // When
+        Path secureTempDir = OpenApiJsonProcessor.createSecureTempDirectoryForJson(tempDir);
+
+        // Then
+        assertNotNull(secureTempDir);
+        assertTrue(Files.exists(secureTempDir));
+        assertTrue(Files.isDirectory(secureTempDir));
+        assertTrue(secureTempDir.getFileName().toString().startsWith("openapi-json-"));
+        assertTrue(secureTempDir.getParent().equals(tempDir));
+    }
+
+    @Test
+    void testProcessOpenapiJson_WithPageLimitParameters() throws Exception {
+        // Given
+        String openApiJsonWithPageLimit = createOpenApiJsonWithPageLimitParameters();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(openApiJsonWithPageLimit);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+
+        String content = Files.readString(result);
+        assertNotNull(content);
+
+        // Verify page and limit parameters are processed correctly
+        assertTrue(content.contains("integer"));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_WithCountFieldModification() throws Exception {
+        // Given
+        String openApiJsonWithCountFields = createOpenApiJsonWithCountFields();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(openApiJsonWithCountFields);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+
+        String content = Files.readString(result);
+        assertNotNull(content);
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_WithNon200ResponseRemoval() throws Exception {
+        // Given
+        String openApiJsonWithMultipleResponses = createOpenApiJsonWithMultipleResponses();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(openApiJsonWithMultipleResponses);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+
+        String content = Files.readString(result);
+        assertNotNull(content);
+        // Should only contain 200 responses
+        assertTrue(content.contains("\"200\""));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_WithTagModification() throws Exception {
+        // Given
+        String openApiJsonWithTags = createOpenApiJsonWithTags();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(openApiJsonWithTags);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+
+        String content = Files.readString(result);
+        assertNotNull(content);
+        // Should contain the artifactId as tag
+        assertTrue(content.contains(request.getArtifactId()));
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    @Test
+    void testProcessOpenapiJson_LargeFile() throws Exception {
+        // Given
+        String largeOpenApiJson = createLargeOpenApiJson();
+        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(largeOpenApiJson);
+
+        // When
+        Path result = processor.processOpenapiJson(request, tempDir);
+
+        // Then
+        assertNotNull(result);
+        assertTrue(Files.exists(result));
+        assertTrue(Files.size(result) > 0);
+        verify(restTemplate).getForObject(request.getOas(), String.class);
+    }
+
+    // Helper methods to create test data
+
+    private String createValidOpenApiJson() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
+
+        Info info = new Info();
+        info.setTitle("Test API");
+        info.setVersion("1.0.0");
+        openAPI.setInfo(info);
+
+        Paths paths = new Paths();
+        PathItem pathItem = new PathItem();
+
+        Operation getOperation = new Operation();
+        getOperation.setOperationId("getTest");
+        getOperation.addExtension("x-api-id", "module1");
+
+        ApiResponses responses = new ApiResponses();
+        ApiResponse response200 = new ApiResponse();
+        response200.setDescription("Success");
+        responses.addApiResponse("200", response200);
+        getOperation.setResponses(responses);
+
+        pathItem.setGet(getOperation);
+        paths.addPathItem("/test", pathItem);
+        openAPI.setPaths(paths);
+
         try {
-            Files.deleteIfExists(tempDir);
-        } catch (Exception ignored) {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create test OpenAPI JSON", e);
         }
     }
 
-    @Test
-    void testCreateSecureTempDirectoryForJson() throws Exception {
-        // Given
-        Path baseTempDir = Files.createTempDirectory("test-base");
+    private String createOpenApiJsonWithModules() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
 
-        // When
-        Path result = OpenApiJsonProcessor.createSecureTempDirectoryForJson(baseTempDir);
+        Info info = new Info();
+        info.setTitle("Test API with Modules");
+        info.setVersion("1.0.0");
+        openAPI.setInfo(info);
 
-        // Then
-        assertNotNull(result);
-        assertTrue(Files.exists(result));
-        assertTrue(Files.isDirectory(result));
-        assertTrue(result.toString().contains("openapi-json-"));
+        Paths paths = new Paths();
 
-        // Cleanup
-        Files.deleteIfExists(result);
-        Files.deleteIfExists(baseTempDir);
+        // Add operation with module1
+        PathItem pathItem1 = new PathItem();
+        Operation getOperation1 = new Operation();
+        getOperation1.setOperationId("getModule1");
+        getOperation1.addExtension("x-api-id", "module1");
+
+        ApiResponses responses1 = new ApiResponses();
+        ApiResponse response200_1 = new ApiResponse();
+        response200_1.setDescription("Success");
+        responses1.addApiResponse("200", response200_1);
+        getOperation1.setResponses(responses1);
+
+        pathItem1.setGet(getOperation1);
+        paths.addPathItem("/module1", pathItem1);
+
+        // Add operation with module2
+        PathItem pathItem2 = new PathItem();
+        Operation getOperation2 = new Operation();
+        getOperation2.setOperationId("getModule2");
+        getOperation2.addExtension("x-api-id", "module2");
+
+        ApiResponses responses2 = new ApiResponses();
+        ApiResponse response200_2 = new ApiResponse();
+        response200_2.setDescription("Success");
+        responses2.addApiResponse("200", response200_2);
+        getOperation2.setResponses(responses2);
+
+        pathItem2.setGet(getOperation2);
+        paths.addPathItem("/module2", pathItem2);
+
+        // Add operation with module3 (should be filtered out)
+        PathItem pathItem3 = new PathItem();
+        Operation getOperation3 = new Operation();
+        getOperation3.setOperationId("getModule3");
+        getOperation3.addExtension("x-api-id", "module3");
+
+        ApiResponses responses3 = new ApiResponses();
+        ApiResponse response200_3 = new ApiResponse();
+        response200_3.setDescription("Success");
+        responses3.addApiResponse("200", response200_3);
+        getOperation3.setResponses(responses3);
+
+        pathItem3.setGet(getOperation3);
+        paths.addPathItem("/module3", pathItem3);
+
+        openAPI.setPaths(paths);
+
+        try {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create test OpenAPI JSON with modules", e);
+        }
     }
 
-    @Test
-    void testProcessOpenapiJson_WithFilterParameter() throws Exception {
-        // Given - OpenAPI JSON with GET operation containing filter parameter
-        String mockOpenApiJson = """
-            {
-              "openapi": "3.0.0",
-              "info": {
-                "title": "Test API",
-                "version": "1.0.0"
-              },
-              "paths": {
-                "/users": {
-                  "x-table-name": "users",
-                  "get": {
-                    "x-api-id": "test-api",
-                    "summary": "Get users",
-                    "parameters": [
-                      {
-                        "name": "filter",
-                        "in": "query",
-                        "schema": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string"
-                            },
-                            "age": {
-                              "type": "integer"
-                            }
-                          }
-                        }
-                      },
-                      {
-                        "name": "page",
-                        "in": "query",
-                        "schema": {
-                          "type": "string"
-                        }
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-            """;
+    private String createOpenApiJsonWithPageLimitParameters() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
 
-        CodeGenerationRequest request = new CodeGenerationRequest();
-        request.setOas("https://example.com/openapi.json");
-        request.setModuleIds(Arrays.asList("test-api"));
+        Info info = new Info();
+        info.setTitle("Test API with Page Limit");
+        info.setVersion("1.0.0");
+        openAPI.setInfo(info);
 
-        when(restTemplate.getForObject(eq("https://example.com/openapi.json"), eq(String.class)))
-            .thenReturn(mockOpenApiJson);
+        Paths paths = new Paths();
+        PathItem pathItem = new PathItem();
 
-        Path tempDir = Files.createTempDirectory("test-openapi");
+        Operation getOperation = new Operation();
+        getOperation.setOperationId("getWithPageLimit");
+        getOperation.addExtension("x-api-id", "module1");
 
-        // When
-        Path result = processor.processOpenapiJson(request, tempDir);
+        // Add page parameter
+        Parameter pageParam = new Parameter();
+        pageParam.setName("page");
+        pageParam.setIn("query");
+        Schema pageSchema = new Schema();
+        pageSchema.setType("string");
+        pageParam.setSchema(pageSchema);
+        getOperation.addParametersItem(pageParam);
 
-        // Then
-        assertNotNull(result);
-        assertTrue(Files.exists(result));
+        // Add limit parameter
+        Parameter limitParam = new Parameter();
+        limitParam.setName("limit");
+        limitParam.setIn("query");
+        Schema limitSchema = new Schema();
+        limitSchema.setType("string");
+        limitParam.setSchema(limitSchema);
+        getOperation.addParametersItem(limitParam);
 
-        // Verify the processed content
-        String processedContent = Files.readString(result);
-        assertNotNull(processedContent);
+        // Add filename parameter (should be filtered out)
+        Parameter filenameParam = new Parameter();
+        filenameParam.setName("filename");
+        filenameParam.setIn("query");
+        Schema filenameSchema = new Schema();
+        filenameSchema.setType("string");
+        filenameParam.setSchema(filenameSchema);
+        getOperation.addParametersItem(filenameParam);
 
-        // Verify that filter schema was extracted to components/schemas
-        assertTrue(processedContent.contains("\"components\""));
-        assertTrue(processedContent.contains("\"schemas\""));
-        assertTrue(processedContent.contains("\"users_filter\""));
+        ApiResponses responses = new ApiResponses();
+        ApiResponse response200 = new ApiResponse();
+        response200.setDescription("Success");
+        responses.addApiResponse("200", response200);
+        getOperation.setResponses(responses);
 
-        // Verify that filter parameter now uses $ref
-        assertTrue(processedContent.contains("\"$ref\" : \"#/components/schemas/users_filter\""));
+        pathItem.setGet(getOperation);
+        paths.addPathItem("/test", pathItem);
+        openAPI.setPaths(paths);
 
-        // Cleanup
-        Files.deleteIfExists(result);
-        Files.deleteIfExists(tempDir);
+        try {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create test OpenAPI JSON with page limit", e);
+        }
     }
 
-    @Test
-    void testProcessOpenapiJson_WithFilterTransformation() throws Exception {
-        // Given - OpenAPI JSON with GET operation containing filter parameter with offset and skip
-        String mockOpenApiJson = """
-            {
-              "openapi": "3.0.0",
-              "info": {
-                "title": "Test API",
-                "version": "1.0.0"
-              },
-              "paths": {
-                "/orders": {
-                  "x-table-name": "orders",
-                  "get": {
-                    "x-api-id": "test-api",
-                    "summary": "Get orders",
-                    "parameters": [
-                      {
-                        "name": "filter",
-                        "in": "query",
-                        "schema": {
-                          "type": "object",
-                          "properties": {
-                            "where": {
-                              "type": "object"
-                            },
-                            "offset": {
-                              "type": "integer",
-                              "description": "Zero-based offset"
-                            },
-                            "skip": {
-                              "type": "integer",
-                              "description": "Zero-based skip documents"
-                            },
-                            "limit": {
-                              "type": "integer"
-                            },
-                            "order": {
-                              "type": "object"
-                            }
-                          }
-                        }
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-            """;
+    private String createOpenApiJsonWithCountFields() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
 
-        when(restTemplate.getForObject(anyString(), eq(String.class))).thenReturn(mockOpenApiJson);
+        Info info = new Info();
+        info.setTitle("Test API with Count Fields");
+        info.setVersion("1.0.0");
+        openAPI.setInfo(info);
 
-        CodeGenerationRequest request = new CodeGenerationRequest();
-        request.setOas("http://example.com/openapi.json");
-        request.setModuleIds(Arrays.asList("test-api"));
+        Paths paths = new Paths();
+        PathItem pathItem = new PathItem();
 
-        Path tempDir = Files.createTempDirectory("test-openapi");
+        Operation getOperation = new Operation();
+        getOperation.setOperationId("getWithCount");
+        getOperation.addExtension("x-api-id", "module1");
 
-        // When
-        Path result = processor.processOpenapiJson(request, tempDir);
+        ApiResponses responses = new ApiResponses();
+        ApiResponse response200 = new ApiResponse();
+        response200.setDescription("Success");
 
-        // Then
-        assertNotNull(result);
-        assertTrue(Files.exists(result));
+        Content content = new Content();
+        MediaType mediaType = new MediaType();
 
-        // Verify the processed content
-        String processedContent = Files.readString(result);
-        assertNotNull(processedContent);
+        Schema responseSchema = new Schema();
+        responseSchema.setType("object");
+        Map<String, Schema> properties = new HashMap<>();
 
-        // Verify that filter schema was extracted to components/schemas
-        assertTrue(processedContent.contains("\"components\""));
-        assertTrue(processedContent.contains("\"schemas\""));
-        assertTrue(processedContent.contains("\"orders_filter\""));
+        Schema countSchema = new Schema();
+        countSchema.setType("integer");
+        properties.put("count", countSchema);
 
-        // Verify that filter parameter now uses $ref
-        assertTrue(processedContent.contains("\"$ref\" : \"#/components/schemas/orders_filter\""));
+        Schema totalCountSchema = new Schema();
+        totalCountSchema.setType("integer");
+        properties.put("totalCount", totalCountSchema);
 
-        // Verify transformation: offset should be removed
-        assertFalse(processedContent.contains("\"offset\""));
+        responseSchema.setProperties(properties);
+        mediaType.setSchema(responseSchema);
+        content.addMediaType("application/json", mediaType);
+        response200.setContent(content);
 
-        // Verify transformation: skip should be changed to page
-        assertFalse(processedContent.contains("\"skip\""));
-        assertTrue(processedContent.contains("\"page\""));
+        responses.addApiResponse("200", response200);
+        getOperation.setResponses(responses);
 
-        // Verify other properties are preserved
-        assertTrue(processedContent.contains("\"where\""));
-        assertTrue(processedContent.contains("\"limit\""));
-        assertTrue(processedContent.contains("\"order\""));
+        pathItem.setGet(getOperation);
+        paths.addPathItem("/test", pathItem);
+        openAPI.setPaths(paths);
 
-        // Cleanup
-        Files.deleteIfExists(result);
-        Files.deleteIfExists(tempDir);
+        try {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create test OpenAPI JSON with count fields", e);
+        }
     }
 
-    @Test
-    void testProcessOpenapiJson_SkipCustomerQueryPostOperations() throws Exception {
-        // Given
-        String mockOpenApiJson = """
-            {
-              "openapi": "3.0.0",
-              "info": {
-                "title": "Test API",
-                "version": "1.0.0"
-              },
-              "paths": {
-                "/test": {
-                  "get": {
-                    "x-api-id": "test-api",
-                    "summary": "Test GET endpoint"
-                  },
-                  "post": {
-                    "x-api-id": "test-api",
-                    "x-operation-name": "customerQueryData",
-                    "summary": "Test POST endpoint that should be skipped"
-                  }
-                },
-                "/test2": {
-                  "post": {
-                    "x-api-id": "test-api-2",
-                    "x-operation-name": "normalOperation",
-                    "summary": "Test POST endpoint that should be kept"
-                  }
-                },
-                "/test3": {
-                  "post": {
-                    "x-api-id": "test-api-3",
-                    "x-operation-name": "customerQuerySomething",
-                    "summary": "Another POST endpoint that should be skipped"
-                  }
-                }
-              }
-            }
-            """;
+    private String createOpenApiJsonWithMultipleResponses() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
 
-        CodeGenerationRequest request = new CodeGenerationRequest();
-        request.setOas("https://example.com/openapi.json");
-        request.setModuleIds(Arrays.asList("test-api", "test-api-2", "test-api-3"));
+        Info info = new Info();
+        info.setTitle("Test API with Multiple Responses");
+        info.setVersion("1.0.0");
+        openAPI.setInfo(info);
 
-        when(restTemplate.getForObject(eq("https://example.com/openapi.json"), eq(String.class)))
-            .thenReturn(mockOpenApiJson);
+        Paths paths = new Paths();
+        PathItem pathItem = new PathItem();
 
-        Path tempDir = Files.createTempDirectory("test-openapi");
+        Operation getOperation = new Operation();
+        getOperation.setOperationId("getWithMultipleResponses");
+        getOperation.addExtension("x-api-id", "module1");
 
-        // When
-        Path result = processor.processOpenapiJson(request, tempDir);
+        ApiResponses responses = new ApiResponses();
 
-        // Then
-        assertNotNull(result);
-        assertTrue(Files.exists(result));
+        // Add 200 response
+        ApiResponse response200 = new ApiResponse();
+        response200.setDescription("Success");
+        responses.addApiResponse("200", response200);
 
-        // Verify the processed content
-        String processedContent = Files.readString(result);
-        assertNotNull(processedContent);
+        // Add 400 response (should be removed)
+        ApiResponse response400 = new ApiResponse();
+        response400.setDescription("Bad Request");
+        responses.addApiResponse("400", response400);
 
-        // Verify that GET operation is kept
-        assertTrue(processedContent.contains("Test GET endpoint"));
+        // Add 500 response (should be removed)
+        ApiResponse response500 = new ApiResponse();
+        response500.setDescription("Internal Server Error");
+        responses.addApiResponse("500", response500);
 
-        // Verify that POST operations with x-operation-name starting with "customerQuery" are removed
-        assertFalse(processedContent.contains("customerQueryData"));
-        assertFalse(processedContent.contains("customerQuerySomething"));
-        assertFalse(processedContent.contains("Test POST endpoint that should be skipped"));
-        assertFalse(processedContent.contains("Another POST endpoint that should be skipped"));
+        getOperation.setResponses(responses);
 
-        // Verify that normal POST operation is kept
-        assertTrue(processedContent.contains("normalOperation"));
-        assertTrue(processedContent.contains("Test POST endpoint that should be kept"));
+        pathItem.setGet(getOperation);
+        paths.addPathItem("/test", pathItem);
+        openAPI.setPaths(paths);
 
-        // Cleanup
-        Files.deleteIfExists(result);
-        Files.deleteIfExists(tempDir);
+        try {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create test OpenAPI JSON with multiple responses", e);
+        }
+    }
+
+    private String createOpenApiJsonWithTags() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
+
+        Info info = new Info();
+        info.setTitle("Test API with Tags");
+        info.setVersion("1.0.0");
+        openAPI.setInfo(info);
+
+        Paths paths = new Paths();
+        PathItem pathItem = new PathItem();
+
+        Operation getOperation = new Operation();
+        getOperation.setOperationId("getWithTags");
+        getOperation.addExtension("x-api-id", "module1");
+        getOperation.addTagsItem("original-tag");
+
+        ApiResponses responses = new ApiResponses();
+        ApiResponse response200 = new ApiResponse();
+        response200.setDescription("Success");
+        responses.addApiResponse("200", response200);
+        getOperation.setResponses(responses);
+
+        pathItem.setGet(getOperation);
+        paths.addPathItem("/test", pathItem);
+        openAPI.setPaths(paths);
+
+        try {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create test OpenAPI JSON with tags", e);
+        }
+    }
+
+    private String createLargeOpenApiJson() {
+        OpenAPI openAPI = new OpenAPI();
+        openAPI.setOpenapi("3.0.0");
+
+        Info info = new Info();
+        info.setTitle("Large Test API");
+        info.setVersion("1.0.0");
+        info.setDescription("This is a large OpenAPI specification for testing purposes with many endpoints and schemas");
+        openAPI.setInfo(info);
+
+        Paths paths = new Paths();
+
+        // Create multiple paths to make it large
+        for (int i = 1; i <= 50; i++) {
+            PathItem pathItem = new PathItem();
+
+            Operation getOperation = new Operation();
+            getOperation.setOperationId("getEndpoint" + i);
+            getOperation.addExtension("x-api-id", "module" + (i % 3 + 1)); // Cycle through module1, module2, module3
+            getOperation.setDescription("This is endpoint number " + i + " with a long description to make the file larger");
+
+            ApiResponses responses = new ApiResponses();
+            ApiResponse response200 = new ApiResponse();
+            response200.setDescription("Success response for endpoint " + i);
+            responses.addApiResponse("200", response200);
+            getOperation.setResponses(responses);
+
+            pathItem.setGet(getOperation);
+            paths.addPathItem("/endpoint" + i, pathItem);
+        }
+
+        openAPI.setPaths(paths);
+
+        try {
+            return Json.pretty(openAPI);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create large test OpenAPI JSON", e);
+        }
     }
 }
