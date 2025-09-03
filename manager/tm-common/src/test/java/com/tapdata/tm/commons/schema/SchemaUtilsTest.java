@@ -399,8 +399,8 @@ class SchemaUtilsTest {
         }
 
         @Test
-        @DisplayName("Should detect different data types")
-        void testCompareSchema_DifferentDataTypes() {
+        @DisplayName("Should detect precision data types")
+        void testCompareSchema_PrecisionDataTypes() {
             // Given
             sourceFields.add(createField("field1", "varchar(255)", "{\"bytes\":8,\"type\":9}"));
             sourceFields.add(createField("field2", "int", "{\"bytes\":8,\"type\":9}"));
@@ -418,7 +418,7 @@ class SchemaUtilsTest {
             assertEquals(3, result.size());
 
             for (DifferenceField diff : result) {
-                assertEquals(DifferenceTypeEnum.Different, diff.getType());
+                assertEquals(DifferenceTypeEnum.Precision, diff.getType());
                 assertNotNull(diff.getSourceField());
                 assertNotNull(diff.getTargetField());
                 assertEquals(diff.getColumnName(), diff.getSourceField().getFieldName());
@@ -483,7 +483,7 @@ class SchemaUtilsTest {
 
             // Check different field
             DifferenceField differentField = result.stream()
-                .filter(df -> "field1".equals(df.getColumnName()) && df.getType() == DifferenceTypeEnum.Different)
+                .filter(df -> "field1".equals(df.getColumnName()) && df.getType() == DifferenceTypeEnum.Precision)
                 .findFirst().orElse(null);
             assertNotNull(differentField);
 
@@ -629,7 +629,7 @@ class SchemaUtilsTest {
             assertEquals(4, result.size());
 
             for (DifferenceField diff : result) {
-                assertEquals(DifferenceTypeEnum.Different, diff.getType());
+                assertEquals(DifferenceTypeEnum.Precision, diff.getType());
                 assertTrue(diff.getColumnName().contains("field"));
             }
         }

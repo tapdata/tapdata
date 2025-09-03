@@ -1,14 +1,14 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import java.util.function.Function;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
-import com.tapdata.tm.commons.schema.DifferenceField;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesCompareDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadataInstancesCompare.param.MetadataInstancesApplyParam;
@@ -16,12 +16,16 @@ import com.tapdata.tm.metadataInstancesCompare.repository.MetadataInstancesCompa
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.vo.MetadataInstancesCompareResult;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaAsyncService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -54,7 +58,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
      */
     private void handleSaveAllApply(String nodeId, UserDetail userDetail) {
         // 查询所有比较数据
-        Query compareQuery = Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE));
+        Query compareQuery = Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE).and("differenceFieldList").ne(new ArrayList<>()));
         List<MetadataInstancesCompareDto> compareDtos = findAll(compareQuery);
 
         if (CollectionUtils.isEmpty(compareDtos)) {
@@ -68,7 +72,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         // 转换为应用配置并保存
         List<MetadataInstancesCompareDto> applyDtos = convertToApplyDtos(compareDtos);
         save(applyDtos, userDetail);
-        getProcessMetadataInstances(applyDtos, true, userDetail);
+        getProcessMetadataInstances(applyDtos, true, userDetail,null);
     }
 
     /**
@@ -92,7 +96,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         mergeWithExistingApplyDtos(convertedApplyDtos, metadataInstancesApplyParams, nodeId, userDetail);
 
         // 处理元数据实例
-        getProcessMetadataInstances(convertedApplyDtos, true, userDetail);
+        getProcessMetadataInstances(convertedApplyDtos, true, userDetail,null);
     }
 
     /**
@@ -208,7 +212,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
         List<MetadataInstancesCompareDto> applyDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
                 .and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
-        List<MetadataInstancesCompareDto> invalidApplyDtos = getInvalidApplyDtos(compareDtos, applyDtos,null);
+        List<MetadataInstancesCompareDto> invalidApplyDtos = getInvalidApplyDtos(compareDtos, applyDtos,null,null);
         if(CollectionUtils.isNotEmpty(invalidApplyDtos)){
             Map<String, List<String>> removeFieldsMap = invalidApplyDtos.stream()
                     .collect(Collectors.toMap(
@@ -237,7 +241,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             throw new BizException("metadatainstances.compare.undo.configuration");
         }
         deleteAll(query);
-        getProcessMetadataInstances(compareDtos, false, userDetail);
+        getProcessMetadataInstances(compareDtos, false, userDetail,getApplyRules(nodeId,compareDtos.get(0).getTaskId()));
     }
 
     /**
@@ -281,7 +285,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
 
         // 处理元数据实例
         if (CollectionUtils.isNotEmpty(processResult.getRemovedCompareDtos())) {
-            getProcessMetadataInstances(processResult.getRemovedCompareDtos(), false, userDetail);
+            getProcessMetadataInstances(processResult.getRemovedCompareDtos(), false, userDetail,getApplyRules(nodeId,processResult.getRemovedCompareDtos().get(0).getTaskId()));
         }
     }
 
@@ -355,7 +359,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
     }
 
     @Override
-    public MetadataInstancesCompareResult getMetadataInstancesCompareResult(String nodeId,String taskId,String tableFilter,int page, int pageSize) {
+    public MetadataInstancesCompareResult getMetadataInstancesCompareResult(String nodeId,String taskId,String tableFilter,int page, int pageSize,List<String> types) {
         Criteria criteria = Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS);
         Query query = Query.query(criteria);
         MetadataInstancesCompareDto metadataInstancesCompareStatus = findOne(query);
@@ -364,24 +368,31 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         metadataInstancesCompareResult.setStatus(metadataInstancesCompareStatus.getStatus());
         if (metadataInstancesCompareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_DONE)) {
             metadataInstancesCompareResult.setFinishTime(metadataInstancesCompareStatus.getLastUpdAt());
-            Criteria where = Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE);
+            Criteria where = Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE).and("differenceFieldList").ne(new ArrayList<>());
             if (StringUtils.isNotBlank(tableFilter)) {
                 Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
                 where.and("tableName").regex(pattern);
             }
-            Query pageQuery = Query.query(where);
-            if (pageSize > 0) {
-                pageQuery.skip((long) (Math.max(1, page) - 1) * pageSize);
-                pageQuery.limit(pageSize);
+            List<MetadataInstancesCompareDto> compareDtos;
+            if(CollectionUtils.isNotEmpty(types)){
+                where.and("differenceFieldList.type").in(types);
+                compareDtos = geMetadataInstancesCompareDtoByType(nodeId,page,pageSize,types,tableFilter);
+            }else{
+                Query pageQuery = Query.query(where);
+                if (pageSize > 0) {
+                    pageQuery.skip((long) (Math.max(1, page) - 1) * pageSize);
+                    pageQuery.limit(pageSize);
+                }
+                compareDtos = findAll(pageQuery);
             }
-            List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>(findAll(pageQuery));
             List<String> applyRules = getApplyRules(nodeId,taskId);
             long totals = count(Query.query(where));
             metadataInstancesCompareResult.setCompareDtos(new Page<>(Math.max(totals, compareDtos.size()), compareDtos));
             List<MetadataInstancesCompareDto> applyDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
+                    .and("qualifiedName").in(compareDtos.stream().map(MetadataInstancesCompareDto::getQualifiedName).collect(Collectors.toList()))
                     .and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
-            List<MetadataInstancesCompareDto> invalidApplyDtos = getInvalidApplyDtos(compareDtos, applyDtos,applyRules);
-            metadataInstancesCompareResult.setInvalidApplyDtos(invalidApplyDtos);
+            getInvalidApplyDtos(compareDtos, applyDtos,applyRules,null);
+            metadataInstancesCompareResult.setInvalidApplyDtos(getAllInvalidApplyDtos(nodeId,applyRules,metadataInstancesCompareResult));
         }
 
         return metadataInstancesCompareResult;
@@ -389,6 +400,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
 
     @Override
     public List<String> getApplyRules(String nodeId, String taskId) {
+        if(StringUtils.isBlank(taskId))return new ArrayList<>();
         Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
         query.fields().include("dag");
         TaskDto taskDto = taskService.findOne(query);
@@ -401,14 +413,399 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         }
     }
 
+    public List<MetadataInstancesCompareDto> geMetadataInstancesCompareDtoByType(String nodeId,Integer page,Integer pageSize,List<String> types,String tableFilter) {
+        Criteria criteria = Criteria.where("nodeId").is(nodeId)
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)
+                .and("differenceFieldList.type").in(types);
+        if(StringUtils.isNotBlank(tableFilter)){
+            Pattern pattern = Pattern.compile(tableFilter, Pattern.CASE_INSENSITIVE);
+            criteria.and("tableName").regex(pattern);
+        }
+        MatchOperation matchOperation = Aggregation.match(criteria);
+        ProjectionOperation projectionOperation = Aggregation.project()
+                .and("nodeId").as("nodeId")
+                .and("tableName").as("tableName")
+                .and("qualifiedName").as("qualifiedName")
+                .and("type").as("type")
+                .and(context -> new Document("$filter", new Document()
+                        .append("input", "$differenceFieldList")
+                        .append("as", "item")
+                        .append("cond", new Document("$in", Arrays.asList("$$item.type", types)))))
+                .as("differenceFieldList");
+        Aggregation aggregation;
+        if(pageSize > 0){
+            long skip = (long) (Math.max(1, page) - 1) * pageSize;
+            SkipOperation skipOperation = Aggregation.skip(skip);
+            LimitOperation limitOperation = Aggregation.limit(pageSize);
+            aggregation = Aggregation.newAggregation(
+                    matchOperation,
+                    projectionOperation,
+                    skipOperation,
+                    limitOperation
+            );
+        }else {
+            aggregation = Aggregation.newAggregation(matchOperation, projectionOperation);
+        }
+        return repository.getMongoOperations()
+                .aggregate(aggregation, "MetadataInstancesCompare", MetadataInstancesCompareDto.class)
+                .getMappedResults();
+    }
+
+    @Override
+    public Map<String,List<DifferenceField>> getMetadataInstancesComparesByType(String nodeId, List<String> types) {
+        List<MetadataInstancesCompareDto> autoApplyDtos = null;
+        if(CollectionUtils.isNotEmpty(types)){
+            autoApplyDtos = geMetadataInstancesCompareDtoByType(nodeId, 0, 0, types,null);
+        }
+        List<MetadataInstancesCompareDto> userApplyDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
+
+        Map<String,List<DifferenceField>> differenceFieldMap;
+        if(CollectionUtils.isNotEmpty(userApplyDtos)){
+            differenceFieldMap = userApplyDtos.stream().collect(Collectors.toMap(MetadataInstancesCompareDto::getQualifiedName, MetadataInstancesCompareDto::getDifferenceFieldList));
+        }else{
+            differenceFieldMap = new HashMap<>();
+        }
+        if(CollectionUtils.isNotEmpty(autoApplyDtos)){
+            autoApplyDtos.forEach(autoApplyDto -> {
+                if(differenceFieldMap.containsKey(autoApplyDto.getQualifiedName())){
+                    Set<DifferenceField> differenceFieldSet = new HashSet<>(differenceFieldMap.get(autoApplyDto.getQualifiedName()));
+                    differenceFieldSet.addAll(autoApplyDto.getDifferenceFieldList());
+                    differenceFieldMap.put(autoApplyDto.getQualifiedName(), new ArrayList<>(differenceFieldSet));
+                }else{
+                    differenceFieldMap.put(autoApplyDto.getQualifiedName(), autoApplyDto.getDifferenceFieldList());
+                }
+            });
+        }
+        return differenceFieldMap;
+    }
+
+    @Override
+    public MetadataInstancesCompareResult compareAndGetMetadataInstancesCompareResult(String nodeId, String taskId, UserDetail userDetail, Boolean isSave) {
+        ComparisonContext context = validateAndPrepareContext(nodeId, taskId, userDetail);
+        if (context == null) {
+            return new MetadataInstancesCompareResult();
+        }
+        if (needsRecomparison(context)) {
+            return performComparison(context, userDetail, isSave);
+        } else if (isComparisonDone(context.getCompareStatus())) {
+            return buildExistingComparisonResult(context);
+        }
+
+        return new MetadataInstancesCompareResult();
+    }
+
+    /**
+     * Validates prerequisites and prepares comparison context
+     */
+    private ComparisonContext validateAndPrepareContext(String nodeId, String taskId, UserDetail userDetail) {
+        // Get comparison status
+        MetadataInstancesCompareDto compareStatus = findOne(
+            Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS))
+        );
+
+        // Get task and validate
+        Query taskQuery = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
+        taskQuery.fields().include("dag");
+        TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
+        if (taskDto == null) {
+            return null;
+        }
+
+        DataParentNode targetNode = (DataParentNode) taskDto.getDag().getNode(nodeId);
+        if (targetNode == null) {
+            return null;
+        }
+
+        if (shouldSkipComparison(targetNode)) {
+            return null;
+        }
+
+        // Get metadata instances
+        List<MetadataInstancesDto> deductionMetadataInstances = metadataInstancesService.findByNodeId(
+            nodeId, userDetail, taskId, "original_name", "fields", "qualified_name", "name", "source._id", "last_updated"
+        );
+        if (CollectionUtils.isEmpty(deductionMetadataInstances)) {
+            return null;
+        }
+
+        // Get apply rules and target schema load time
+        List<String> applyRules = getApplyRules(nodeId, taskId);
+        Long targetSchemaLoadTime = metadataInstancesService.findDatabaseMetadataInstanceLastUpdate(
+            targetNode.getConnectionId(), userDetail
+        );
+
+        // Get apply DTOs
+        List<MetadataInstancesCompareDto> applyDtos = findAll(
+            Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY))
+        );
+
+        return ComparisonContext.builder()
+            .nodeId(nodeId)
+            .taskId(taskId)
+            .taskDto(taskDto)
+            .connectionId(targetNode.getConnectionId())
+            .compareStatus(compareStatus)
+            .deductionMetadataInstances(deductionMetadataInstances)
+            .applyRules(applyRules)
+            .targetSchemaLoadTime(targetSchemaLoadTime)
+            .applyDtos(applyDtos)
+            .build();
+    }
+
+    /**
+     * Checks if comparison should be skipped due to schema-free connection
+     */
+    private boolean shouldSkipComparison(DataParentNode targetNode) {
+        if (null == targetNode.getAttrs()) {
+            return false;
+        }
+        List<String> connectionTags = (List<String>) targetNode.getAttrs().get("connectionTags");
+        return CollectionUtils.isNotEmpty(connectionTags) && connectionTags.contains("schema-free");
+    }
+
+    /**
+     * Determines if recomparison is needed based on schema load time or data changes
+     */
+    private boolean needsRecomparison(ComparisonContext context) {
+        MetadataInstancesCompareDto compareStatus = context.getCompareStatus();
+        Long targetSchemaLoadTime = context.getTargetSchemaLoadTime();
+        List<MetadataInstancesDto> deductionMetadataInstances = context.getDeductionMetadataInstances();
+
+        // No previous comparison status
+        if (compareStatus == null) {
+            return true;
+        }
+
+        // Schema has been updated since last comparison
+        if (isSchemaUpdatedSinceLastComparison(compareStatus, targetSchemaLoadTime)) {
+            return true;
+        }
+
+        // Number of metadata instances has changed
+        return hasMetadataInstanceCountChanged(context.getNodeId(), deductionMetadataInstances);
+    }
+
+    /**
+     * Checks if schema was updated since last comparison
+     */
+    private boolean isSchemaUpdatedSinceLastComparison(MetadataInstancesCompareDto compareStatus, Long targetSchemaLoadTime) {
+        return compareStatus.getTargetSchemaLoadTime() != null &&
+               targetSchemaLoadTime != null &&
+               compareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_DONE) &&
+               targetSchemaLoadTime > compareStatus.getTargetSchemaLoadTime().getTime();
+    }
+
+    /**
+     * Checks if the number of metadata instances has changed
+     */
+    private boolean hasMetadataInstanceCountChanged(String nodeId, List<MetadataInstancesDto> deductionMetadataInstances) {
+        List<String> qualifiedNames = deductionMetadataInstances.stream()
+            .map(MetadataInstancesDto::getQualifiedName)
+            .collect(Collectors.toList());
+
+        long oldCompareDtoSize = count(Query.query(
+            Criteria.where("nodeId").is(nodeId)
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)
+                .and("qualifiedName").in(qualifiedNames)
+        ));
+
+        return deductionMetadataInstances.size() != oldCompareDtoSize;
+    }
+
+    /**
+     * Checks if comparison is already done
+     */
+    private boolean isComparisonDone(MetadataInstancesCompareDto compareStatus) {
+        return compareStatus != null && compareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_DONE);
+    }
+
+    /**
+     * Performs the actual comparison and returns the result
+     */
+    private MetadataInstancesCompareResult performComparison(ComparisonContext context, UserDetail userDetail, Boolean isSave) {
+        // Get apply fields and prepare data structures
+        Map<String, List<DifferenceField>> applyFields = getMetadataInstancesComparesByType(
+            context.getNodeId(), context.getApplyRules()
+        );
+
+        Map<String, MetadataInstancesDto> deductionMap = context.getDeductionMetadataInstances().stream()
+            .collect(Collectors.toMap(MetadataInstancesDto::getName, Function.identity()));
+
+        List<String> tableNames = context.getDeductionMetadataInstances().stream()
+            .map(MetadataInstancesDto::getName)
+            .collect(Collectors.toList());
+
+        // Get target metadata instances
+        List<MetadataInstancesDto> targetMetadataInstances = metadataInstancesService.findSourceSchemaBySourceId(
+            context.getConnectionId(), tableNames, userDetail,
+            "original_name", "fields", "qualified_name", "name", "source._id", "last_updated"
+        );
+
+        if (CollectionUtils.isEmpty(targetMetadataInstances)) {
+            return createEmptyComparisonResult(context.getTargetSchemaLoadTime());
+        }
+
+        // Perform comparison and save results
+        List<MetadataInstancesCompareDto> compareDtos = performMetadataComparison(
+            context, targetMetadataInstances, deductionMap, applyFields
+        );
+
+        // Clean up old comparison data if exists
+        if (context.getCompareStatus() != null) {
+            deleteAll(Query.query(Criteria.where("nodeId").is(context.getNodeId())
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
+        }
+
+        // Save new comparison data
+        if (CollectionUtils.isNotEmpty(compareDtos)) {
+            save(compareDtos, userDetail);
+
+            if (Boolean.TRUE.equals(isSave)) {
+                TransformSchemaAsyncService transformSchemaAsyncService =
+                        SpringContextHelper.getBean(TransformSchemaAsyncService.class);
+                transformSchemaAsyncService.transformSchema(context.getTaskDto().getDag(), userDetail, context.getTaskDto().getId());
+            }
+        }
+
+        // Update comparison status
+        updateComparisonStatus(context.getNodeId(), context.getTargetSchemaLoadTime());
+
+        // Build and return result
+        return buildComparisonResult(context, compareDtos);
+    }
+
+    /**
+     * Creates an empty comparison result when no target metadata instances are found
+     */
+    private MetadataInstancesCompareResult createEmptyComparisonResult(Long targetSchemaLoadTime) {
+        MetadataInstancesCompareResult result = new MetadataInstancesCompareResult();
+        result.setDifferentFieldNumberMap(null);
+        result.setTargetSchemaLoadTime(DateUtil.date(targetSchemaLoadTime));
+        return result;
+    }
+
+    /**
+     * Performs the actual metadata comparison
+     */
+    private List<MetadataInstancesCompareDto> performMetadataComparison(
+            ComparisonContext context,
+            List<MetadataInstancesDto> targetMetadataInstances,
+            Map<String, MetadataInstancesDto> deductionMap,
+            Map<String, List<DifferenceField>> applyFields) {
+
+        List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
+
+        for (MetadataInstancesDto targetMetadata : targetMetadataInstances) {
+            MetadataInstancesDto deductionMetadata = deductionMap.get(targetMetadata.getName());
+            saveMetadataInstancesCompare(
+                context.getTaskId(), context.getNodeId(), deductionMetadata,
+                targetMetadata, compareDtos, applyFields
+            );
+        }
+
+        return compareDtos;
+    }
+
+    /**
+     * Updates the comparison status
+     */
+    private void updateComparisonStatus(String nodeId, Long targetSchemaLoadTime) {
+        MetadataInstancesCompareDto statusDto = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
+        statusDto.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
+        statusDto.setLastUpdAt(new Date());
+        statusDto.setTargetSchemaLoadTime(DateUtil.date(targetSchemaLoadTime));
+
+        upsert(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)),
+               statusDto);
+    }
+
+    /**
+     * Builds comparison result from context and comparison data
+     */
+    private MetadataInstancesCompareResult buildComparisonResult(
+            ComparisonContext context,
+            List<MetadataInstancesCompareDto> compareDtos) {
+
+        MetadataInstancesCompareResult result = new MetadataInstancesCompareResult();
+        result.setFinishTime(new Date());
+        result.setTargetSchemaLoadTime(DateUtil.date(context.getTargetSchemaLoadTime()));
+
+        getInvalidApplyDtos(compareDtos, context.getApplyDtos(), context.getApplyRules(), result);
+
+        return result;
+    }
+
+    /**
+     * Builds result for existing comparison that's already done
+     */
+    private MetadataInstancesCompareResult buildExistingComparisonResult(ComparisonContext context) {
+        MetadataInstancesCompareResult result = new MetadataInstancesCompareResult();
+        result.setFinishTime(context.getCompareStatus().getLastUpdAt());
+        result.setTargetSchemaLoadTime(context.getCompareStatus().getTargetSchemaLoadTime());
+
+        List<MetadataInstancesCompareDto> compareDtos = findAll(
+            Query.query(Criteria.where("nodeId").is(context.getNodeId()).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE))
+        );
+
+        getInvalidApplyDtos(compareDtos, context.getApplyDtos(), context.getApplyRules(), result);
+
+        return result;
+    }
+
+    @lombok.Builder
+    @lombok.Data
+    private static class ComparisonContext {
+        private String nodeId;
+        private String taskId;
+        private TaskDto taskDto;
+        private String connectionId;
+        private MetadataInstancesCompareDto compareStatus;
+        private List<MetadataInstancesDto> deductionMetadataInstances;
+        private List<String> applyRules;
+        private Long targetSchemaLoadTime;
+        private List<MetadataInstancesCompareDto> applyDtos;
+    }
+
+    protected void saveMetadataInstancesCompare(String taskId,String nodeId,MetadataInstancesDto deductionMetadataInstance,MetadataInstancesDto targetMetadataInstance,List<MetadataInstancesCompareDto> compareDtos,Map<String,List<DifferenceField>> applyFields) {
+        if (null != targetMetadataInstance) {
+            Map<String, Field> deductionFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+            List<DifferenceField> applyDifferenceFields =
+                    Optional.ofNullable(applyFields)
+                            .map(m -> m.get(deductionMetadataInstance.getQualifiedName()))
+                            .orElse(Collections.emptyList());
+            if(CollectionUtils.isNotEmpty(applyDifferenceFields)){
+                applyDifferenceFields.forEach(differenceField -> {
+                    differenceField.getType().recoverField(deductionFieldMap.get(differenceField.getColumnName()),deductionMetadataInstance.getFields(),differenceField);
+                });
+            }
+
+            List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance);
+            compareDtos.add(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoCompare(taskId,nodeId,deductionMetadataInstance.getName(),deductionMetadataInstance.getQualifiedName(),differenceFieldList));
+        }
+    }
+
+    protected List<MetadataInstancesCompareDto> getAllInvalidApplyDtos(String nodeId,List<String> applyRules,MetadataInstancesCompareResult metadataInstancesCompareResult) {
+        List<MetadataInstancesCompareDto> compareDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
+                .and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
+        List<MetadataInstancesCompareDto> applyDtos = findAll(Query.query(Criteria.where("nodeId").is(nodeId)
+                .and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
+        List<MetadataInstancesCompareDto> invalidApplyDtos = getInvalidApplyDtos(compareDtos, applyDtos,applyRules,metadataInstancesCompareResult);
+        if(CollectionUtils.isNotEmpty(invalidApplyDtos)){
+            invalidApplyDtos.forEach(invalidApplyDto -> {
+                invalidApplyDto.setDifferenceFieldList(new ArrayList<>());
+            });
+        }
+        return invalidApplyDtos;
+    }
+
+
     /**
      * 获取无效的配置
      * 如果compareDtos的differenceFieldList中不存在applyDtos differenceFieldList中的DifferenceField columnName，
      * 或者columnName存在但是type不一致或者targetColumnType不一致，则代表配置不生效
      */
-    protected List<MetadataInstancesCompareDto> getInvalidApplyDtos(List<MetadataInstancesCompareDto> compareDtos, List<MetadataInstancesCompareDto> applyDtos,List<String> applyRules) {
+    protected List<MetadataInstancesCompareDto> getInvalidApplyDtos(List<MetadataInstancesCompareDto> compareDtos, List<MetadataInstancesCompareDto> applyDtos,List<String> applyRules,MetadataInstancesCompareResult metadataInstancesCompareResult) {
         List<MetadataInstancesCompareDto> invalidApplyDtos = new ArrayList<>();
-
         // 创建compareDtos的字段映射，按表名和字段名分组
         Map<String, Map<String, DifferenceField>> compareFieldsMap = new HashMap<>();
         if (CollectionUtils.isNotEmpty(compareDtos)) {
@@ -417,13 +814,17 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 if (CollectionUtils.isNotEmpty(compareDto.getDifferenceFieldList())) {
                     Map<String, DifferenceField> fieldMap = compareDto.getDifferenceFieldList().stream()
                             .collect(Collectors.toMap(DifferenceField::getColumnName, field -> field));
-                    if(CollectionUtils.isNotEmpty(applyRules)){
-                        fieldMap.values().forEach(differenceField -> {
-                            if(applyRules.contains(differenceField.getType().name())){
-                                differenceField.setApplyType(DifferenceField.APPLY_TYPE_AUTO);
+                    fieldMap.values().forEach(differenceField -> {
+                        if(CollectionUtils.isNotEmpty(applyRules) && applyRules.contains(differenceField.getType().name())){
+                            differenceField.setApplyType(DifferenceField.APPLY_TYPE_AUTO);
+                            if(null != metadataInstancesCompareResult){
+                                metadataInstancesCompareResult.computeApplyDifferentFieldNumber(differenceField.getType());
                             }
-                        });
-                    }
+                        }
+                        if(null != metadataInstancesCompareResult){
+                            metadataInstancesCompareResult.computeDifferentFieldNumber(differenceField.getType());
+                        }
+                    });
                     compareFieldsMap.put(tableName, fieldMap);
                 }
             }
@@ -452,12 +853,14 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                     if(!applyField.equals(compareField)){
                         invalidFields.add(applyField);
                     }else {
+                        if(null != metadataInstancesCompareResult && StringUtils.isBlank(compareField.getApplyType())){
+                            metadataInstancesCompareResult.computeApplyDifferentFieldNumber(compareField.getType());
+                        }
                         compareField.setApplyType(DifferenceField.APPLY_TYPE_MANUAL);
                     }
                 }
             }
 
-            // 如果有无效字段，创建无效的applyDto
             if (CollectionUtils.isNotEmpty(invalidFields)) {
                 MetadataInstancesCompareDto invalidApplyDto = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoApply(applyDto.getNodeId(), applyDto.getTableName(), applyDto.getQualifiedName(), invalidFields);
                 invalidApplyDtos.add(invalidApplyDto);
@@ -467,7 +870,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         return invalidApplyDtos;
     }
 
-    private void getProcessMetadataInstances(List<MetadataInstancesCompareDto> compareDtos,Boolean apply,UserDetail userDetail){
+    private void getProcessMetadataInstances(List<MetadataInstancesCompareDto> compareDtos,Boolean apply,UserDetail userDetail,List<String> applyRules){
         Query query = Query.query(Criteria.where("qualified_name").in(compareDtos.stream().map(MetadataInstancesCompareDto::getQualifiedName).collect(Collectors.toList())));
         query.fields().include("qualified_name","name","fields");
         List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findAll(query);
@@ -480,9 +883,11 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                     if(apply){
                         differenceField.getType().processDifferenceField(deductionFieldMap.get(differenceField.getColumnName()),metadataInstancesDto.getFields(),differenceField);
                     }else{
+                        if(CollectionUtils.isNotEmpty(applyRules) && applyRules.contains(differenceField.getType().name())){
+                            return;
+                        }
                         differenceField.getType().recoverField(deductionFieldMap.get(differenceField.getColumnName()),metadataInstancesDto.getFields(),differenceField);
                     }
-
                 });
             }
         });

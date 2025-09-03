@@ -4161,6 +4161,9 @@ public class TaskServiceImpl extends TaskService{
             }
             throw new BizException("Task.StartStatusInvalid");
         }
+        if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
+            metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
+        }
 
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             for (int i = 1; i < 6; i++) {

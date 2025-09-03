@@ -321,18 +321,25 @@ public class SchemaUtils {
                 differenceFieldList.add(DifferenceField.buildAdditionalField(fieldName, targetField));
             } else {
                 Field sourceField = sourceFieldMap.get(fieldName);
-                TapType tapType = null;
+                TapType targetTapType = null;
+                TapType sourceTapType = null;
                 try {
-                    Class<? extends TapType> classByJson = getClassByJson(targetField.getTapType());
-                    tapType = getJsonParser().fromJson(targetField.getTapType(), classByJson);
+                    Class<? extends TapType> targetClassByJson = getClassByJson(targetField.getTapType());
+                    targetTapType = getJsonParser().fromJson(targetField.getTapType(), targetClassByJson);
+                    Class<? extends TapType> sourceClassByJson = getClassByJson(sourceField.getTapType());
+                    sourceTapType = getJsonParser().fromJson(sourceField.getTapType(), sourceClassByJson);
                 } catch (Exception e) {
-                    tapType = com.tapdata.manager.common.utils.JsonUtil.parseJsonUseJackson(sourceField.getTapType(), new TypeReference<TapType>() {
+                    targetTapType = com.tapdata.manager.common.utils.JsonUtil.parseJsonUseJackson(sourceField.getTapType(), new TypeReference<TapType>() {
+                    });
+                    sourceTapType = com.tapdata.manager.common.utils.JsonUtil.parseJsonUseJackson(targetField.getTapType(), new TypeReference<TapType>() {
                     });
                 }
-                if(null != tapType && Boolean.TRUE.equals(tapType.getCannotWrite())){
-                    differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField));
-                }else if(!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
+                if(null != targetTapType && Boolean.TRUE.equals(targetTapType.getCannotWrite())){
+                    differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField,targetField));
+                } else if (null != targetTapType && null != sourceTapType && !targetTapType.getClass().equals(sourceTapType.getClass())){
                     differenceFieldList.add(DifferenceField.buildDifferentField(fieldName, sourceField, targetField));
+                } else if (!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
+                    differenceFieldList.add(DifferenceField.buildPrecisionField(fieldName, sourceField, targetField));
                 }
 
             }

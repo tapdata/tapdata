@@ -6,7 +6,9 @@ public enum DifferenceTypeEnum {
     Additional{
         @Override
         public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
-            fields.add(differenceField.getTargetField());
+            if(!fields.contains(differenceField.getTargetField())) {
+                fields.add(differenceField.getTargetField());
+            }
         }
         @Override
         public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
@@ -20,10 +22,30 @@ public enum DifferenceTypeEnum {
         }
         @Override
         public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
-            fields.add(differenceField.getSourceField());
+            if(!fields.contains(differenceField.getSourceField())) {
+                fields.add(differenceField.getSourceField());
+            }
+
         }
     },
     Different{
+        @Override
+        public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
+            if(field.getDataType().equals(differenceField.getSourceField().getDataType())) {
+                differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
+                fields.remove(field);
+                fields.add(differenceField.getTargetField());
+            }
+        }
+        @Override
+        public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
+            if(field.getDataType().equals(differenceField.getTargetField().getDataType())) {
+                fields.remove(field);
+                fields.add(differenceField.getSourceField());
+            }
+        }
+    },
+    Precision{
         @Override
         public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
             if(field.getDataType().equals(differenceField.getSourceField().getDataType())) {
@@ -47,7 +69,9 @@ public enum DifferenceTypeEnum {
         }
         @Override
         public void recoverField(Field field, List<Field> fields, DifferenceField differenceField) {
-            fields.add(differenceField.getSourceField());
+            if(!fields.contains(differenceField.getSourceField())) {
+                fields.add(differenceField.getSourceField());
+            }
         }
     };
 

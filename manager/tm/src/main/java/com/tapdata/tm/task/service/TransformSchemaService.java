@@ -197,19 +197,9 @@ public class TransformSchemaService {
 
         List<Node> dagNodes = dag.getNodes();
         List<String> tableNames = new ArrayList<>();
-        dag.getSourceNode().forEach(srcNode -> {
-           tableNames.addAll(srcNode.getTableNames());
-        });
-        dag.getTargetNodes().forEach(targetNode -> {
-            if(targetNode instanceof TableNode){
-                tableNames.add(((TableNode) targetNode).getTableName());
-            }
-        });
-        AtomicReference<Map<String, String>> tableRenameTableMap = new AtomicReference<>();
-        dagNodes.forEach(node -> {
-            if (node instanceof TableRenameProcessNode tableRenameProcessNode) {
-                tableRenameTableMap.set(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
-                options.setTableRenameRelationMap(tableRenameTableMap.get());
+        dag.getSourceNode().forEach(node -> {
+            if (node != null) {
+                tableNames.addAll(node.getTableNames());
             }
         });
         dagNodes.forEach(node -> {
@@ -223,29 +213,14 @@ public class TransformSchemaService {
                     }
                     options.getFieldChangeRules().addAll(node.getId(), fieldChangeRules);
                 });
-                List<MetadataInstancesCompareDto> applyDtos = metadataInstancesCompareService.findAll(Query.query(Criteria.where("nodeId").is(node.getId()).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
-                if (CollectionUtils.isNotEmpty(applyDtos)) {
-                    Map<String,List<DifferenceField>> differenceFieldMap = applyDtos.stream().collect(Collectors.toMap(MetadataInstancesCompareDto::getQualifiedName, MetadataInstancesCompareDto::getDifferenceFieldList));
+                Map<String,List<DifferenceField>> differenceFieldMap = metadataInstancesCompareService.getMetadataInstancesComparesByType(node.getId(), ((DataParentNode<?>) node).getApplyCompareRules());
+                if(MapUtils.isNotEmpty(differenceFieldMap)){
                     options.setDifferenceFields(differenceFieldMap);
                 }
-                if(((DataParentNode<?>) node).getApplyCompareRule() && CollectionUtils.isNotEmpty(tableNames)) {
-                    List<String> newTableNames = new ArrayList<>();
-                    if(tableRenameTableMap.get() != null) {
-                      tableNames.forEach(
-                              tableName -> {
-                                  String newTableName = tableRenameTableMap.get().get(tableName);
-                                  if(StringUtils.isNotBlank(newTableName)) {
-                                      newTableNames.add(newTableName);
-                                  }else{
-                                      newTableNames.add(tableName);
-                                  }
-                              }
-                      );
-                    }
-                    options.setApplyRules(((DataParentNode<?>) node).getApplyCompareRules());
-                    List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findSourceSchemaBySourceId(((DataParentNode<?>) node).getConnectionId(), CollectionUtils.isEmpty(newTableNames) ? tableNames : newTableNames, user, "original_name", "fields", "qualified_name", "name", "source._id");
-                    options.setTargetMetadataInstancesDtos(metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, m -> m, (m1, m2) -> m1)));
-                }
+            }
+            if (node instanceof TableRenameProcessNode) {
+                TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
+                options.setTableRenameRelationMap(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
             }
         });
         List<Node> nodes = dagNodes;

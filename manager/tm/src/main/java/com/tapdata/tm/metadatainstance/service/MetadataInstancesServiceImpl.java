@@ -2610,24 +2610,17 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         if(taskDto == null)return;
         DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
         if(targetNode == null)return;
-        Boolean applyCompareRule = targetNode.getApplyCompareRule();
+        Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
+        MetadataInstancesCompareDto metadataInstancesCompareStatus = metadataInstancesCompareService.findOne(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)));
+        if(null != metadataInstancesCompareStatus && metadataInstancesCompareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_RUNNING))return;
         metadataInstancesCompareService.deleteAll(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
         updateStatus(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId));
         // 异步执行整个分批处理逻辑
-        List<MetadataInstancesCompareDto> applyDtos = metadataInstancesCompareService.findAll(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY)));
-        Map<String,List<DifferenceField>> applyFields;
-        if(CollectionUtils.isNotEmpty(applyDtos)){
-            applyFields = applyDtos.stream().collect(Collectors.toMap(MetadataInstancesCompareDto::getQualifiedName, MetadataInstancesCompareDto::getDifferenceFieldList));
-        } else {
-            applyFields = null;
-        }
         CompletableFuture.runAsync(() -> {
             try {
                 int batchSize = 500;
                 int currentPage = 1;
                 boolean hasMoreData = true;
-                targetNode.setApplyCompareRule(false);
-                transformSchemaService.transformSchema(taskDto.getDag(), user, taskDto.getId());
                 while (hasMoreData) {
                     Page<MetadataInstancesDto> page = findByNodeId(nodeId, Arrays.asList("original_name", "fields", "qualified_name", "name", "source._id"), user, null, null, null, currentPage, batchSize);
                     List<MetadataInstancesDto> metadataInstancesDtos = page.getItems();
@@ -2641,7 +2634,6 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
                     log.info("Processing batch {}, size: {} for nodeId: {}, taskId: {}", currentPage, metadataInstancesDtos.size(), nodeId, taskId);
                     List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
-
                     Map<String, MetadataInstancesDto> map = metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getName, m -> m));
                     List<String> tableNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
                     int timeout = 5 * 1000 * tableNames.size();
@@ -2664,11 +2656,8 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                                     differenceField.getType().recoverField(deductionFieldMap.get(differenceField.getColumnName()),deductionMetadataInstance.getFields(),differenceField);
                                 });
                             }
-
                             List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance);
-                            if(CollectionUtils.isNotEmpty(differenceFieldList)){
-                                compareDtos.add(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoCompare(nodeId,deductionMetadataInstance.getName(),deductionMetadataInstance.getQualifiedName(),differenceFieldList));
-                            }
+                            compareDtos.add(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoCompare(taskId,nodeId,deductionMetadataInstance.getName(),deductionMetadataInstance.getQualifiedName(),differenceFieldList));
                         }
                     };
                     MetadataInstancesCompareDto metadataInstancesStatus =  MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
@@ -2685,10 +2674,10 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                         metadataInstancesCompareService.save(compareDtos,user);
                     }
                     if (isLastBatch) {
-                        targetNode.setApplyCompareRule(applyCompareRule);
                         metadataInstancesStatus.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
-                        transformSchemaService.transformSchema(taskDto.getDag(), user, taskDto.getId());
+                        metadataInstancesStatus.setTargetSchemaLoadTime(new Date());
                         updateStatus(metadataInstancesStatus);
+                        transformSchemaService.transformSchema(taskDto.getDag(), user, taskDto.getId());
                     }
                     currentPage++;
                 }

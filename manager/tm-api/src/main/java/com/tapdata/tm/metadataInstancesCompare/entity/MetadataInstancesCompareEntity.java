@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
@@ -18,4 +19,6 @@ public class MetadataInstancesCompareEntity extends BaseEntity {
     private List<DifferenceField> differenceFieldList;
     private String type;
     private String status;
+    private Date targetSchemaLoadTime;
+    private String taskId;
 }

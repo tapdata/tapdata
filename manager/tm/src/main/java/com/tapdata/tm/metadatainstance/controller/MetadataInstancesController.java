@@ -883,9 +883,16 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage<MetadataInstancesCompareResult> getMetadataInstancesCompareResult(@RequestParam("nodeId") String nodeId,
                                                                                              @RequestParam("taskId") String taskId,
                                                                                              @RequestParam(value = "tableFilter", required = false) String tableFilter,
-                                                                                             @RequestParam(value = "page", defaultValue = "1") Integer page,
-                                                                                             @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize)  {
-        return success(metadataInstancesCompareService.getMetadataInstancesCompareResult(nodeId,taskId,tableFilter,page,pageSize));
+                                                                                             @RequestParam(value = "page", defaultValue = "1") Integer page, @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize,
+                                                                                             @RequestParam(value = "types", required = false) List<String> types
+    )  {
+        return success(metadataInstancesCompareService.getMetadataInstancesCompareResult(nodeId,taskId,tableFilter,page,pageSize,types));
+    }
+
+    @Operation(summary = "获取目标模型对比统计")
+    @GetMapping("compareAndGetMetadataInstancesCompareResult")
+    public ResponseMessage<MetadataInstancesCompareResult> compareAndGetMetadataInstancesCompareResult(@RequestParam("nodeId") String nodeId, @RequestParam("taskId") String taskId){
+        return success(metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(nodeId,taskId,getLoginUser(),true));
     }
 
 

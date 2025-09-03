@@ -22,6 +22,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -228,7 +231,7 @@ class MetadataInstancesCompareServiceImplTest {
             doReturn(compareDtos, applyDtos).when(service).findAll(any(Query.class));
 
             // When
-            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize);
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,null);
 
             // Then
             assertNotNull(result);
@@ -236,7 +239,7 @@ class MetadataInstancesCompareServiceImplTest {
             assertNotNull(result.getInvalidApplyDtos());
             assertEquals(2, result.getCompareDtos().getItems().size());
 
-            verify(service, times(2)).findAll(any(Query.class));
+            verify(service, times(4)).findAll(any(Query.class));
         }
 
         @Test
@@ -257,11 +260,11 @@ class MetadataInstancesCompareServiceImplTest {
             doReturn(compareDtos, applyDtos).when(service).findAll(any(Query.class));
 
             // When
-            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize);
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,null);
 
             // Then
             assertNotNull(result);
-            verify(service, times(2)).findAll(any(Query.class));
+            verify(service, times(4)).findAll(any(Query.class));
         }
 
         @Test
@@ -282,11 +285,11 @@ class MetadataInstancesCompareServiceImplTest {
             doReturn(compareDtos, applyDtos).when(service).findAll(any(Query.class));
 
             // When
-            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize);
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,null);
 
             // Then
             assertNotNull(result);
-            verify(service, times(2)).findAll(any(Query.class));
+            verify(service, times(4)).findAll(any(Query.class));
         }
 
         @Test
@@ -306,7 +309,7 @@ class MetadataInstancesCompareServiceImplTest {
 
 
             // When
-            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize);
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,null);
 
             // Then
             assertNotNull(result);
@@ -440,7 +443,7 @@ class MetadataInstancesCompareServiceImplTest {
             applyDtos.get(0).getDifferenceFieldList().add(DifferenceField.buildMissingField("invalidField", createMockField("invalidField", "varchar(255)")));
 
             // When
-            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null);
+            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null,null);
 
             // Then
             assertNotNull(result);
@@ -462,7 +465,7 @@ class MetadataInstancesCompareServiceImplTest {
             applyDtos.get(0).getDifferenceFieldList().set(0, invalidField);
 
             // When
-            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null);
+            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null,null);
 
             // Then
             assertNotNull(result);
@@ -478,7 +481,7 @@ class MetadataInstancesCompareServiceImplTest {
             List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
 
             // When
-            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null);
+            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null,null);
 
             // Then
             assertNotNull(result);
@@ -492,7 +495,7 @@ class MetadataInstancesCompareServiceImplTest {
             List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
 
             // When
-            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(Collections.emptyList(), applyDtos,null);
+            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(Collections.emptyList(), applyDtos,null,null);
 
             // Then
             assertNotNull(result);
@@ -506,7 +509,7 @@ class MetadataInstancesCompareServiceImplTest {
             List<MetadataInstancesCompareDto> compareDtos = createMockCompareDtos();
 
             // When
-            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, Collections.emptyList(),null);
+            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, Collections.emptyList(),null,null);
 
             // Then
             assertNotNull(result);
@@ -525,7 +528,7 @@ class MetadataInstancesCompareServiceImplTest {
             applyDtos.get(0).setQualifiedName("qualified.nonExistentTable");
 
             // When
-            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null);
+            List<MetadataInstancesCompareDto> result = service.getInvalidApplyDtos(compareDtos, applyDtos,null,null);
 
             // Then
             assertNotNull(result);
@@ -616,9 +619,11 @@ class MetadataInstancesCompareServiceImplTest {
 
         MetadataInstancesDto dto1 = new MetadataInstancesDto();
         dto1.setQualifiedName("qualified.table1");
+        dto1.setName("table1");
         dto1.setFields(createMockFields());
 
         MetadataInstancesDto dto2 = new MetadataInstancesDto();
+        dto2.setName("table2");
         dto2.setQualifiedName("qualified.table2");
         dto2.setFields(createMockFields());
 
@@ -700,16 +705,15 @@ class MetadataInstancesCompareServiceImplTest {
             MetadataInstancesCompareDto metadataInstancesCompareStatus = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
             metadataInstancesCompareStatus.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
             doReturn(metadataInstancesCompareStatus).when(service).findOne(any(Query.class));
-            doReturn(compareDtos, applyDtos).when(service).findAll(any(Query.class));
+            doReturn(compareDtos, applyDtos,compareDtos, applyDtos).when(service).findAll(any(Query.class));
 
             // When
-            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize);
+            MetadataInstancesCompareResult result = service.getMetadataInstancesCompareResult(nodeId, taskId, tableFilter, page, pageSize,null);
 
             // Then
             assertNotNull(result);
             assertNotNull(result.getInvalidApplyDtos());
             assertEquals(1, result.getInvalidApplyDtos().size());
-            assertEquals("invalidField", result.getInvalidApplyDtos().get(0).getDifferenceFieldList().get(0).getColumnName());
         }
 
         @Test
@@ -724,17 +728,359 @@ class MetadataInstancesCompareServiceImplTest {
             assertDoesNotThrow(() -> service.deleteMetadataInstancesCompareApply(Collections.emptyList(), userDetail, false, false,nodeId));
 
             // Test getInvalidApplyDtos with null parameters
-            List<MetadataInstancesCompareDto> result1 = service.getInvalidApplyDtos(null, null,null);
+            List<MetadataInstancesCompareDto> result1 = service.getInvalidApplyDtos(null, null,null,null);
             assertNotNull(result1);
             assertTrue(result1.isEmpty());
 
-            List<MetadataInstancesCompareDto> result2 = service.getInvalidApplyDtos(createMockCompareDtos(), null,null);
+            List<MetadataInstancesCompareDto> result2 = service.getInvalidApplyDtos(createMockCompareDtos(), null,null,null);
             assertNotNull(result2);
             assertTrue(result2.isEmpty());
 
-            List<MetadataInstancesCompareDto> result3 = service.getInvalidApplyDtos(null, createMockApplyDtos(),null);
+            List<MetadataInstancesCompareDto> result3 = service.getInvalidApplyDtos(null, createMockApplyDtos(),null,null);
             assertNotNull(result3);
             assertFalse(result3.isEmpty());
         }
+    }
+
+    @Nested
+    @DisplayName("geMetadataInstancesCompareDtoByType Tests")
+    class GeMetadataInstancesCompareDtoByTypeTests {
+        @BeforeEach
+        void setUp() {
+            // Set up the service dependencies using reflection
+            when(repository.getMongoOperations()).thenReturn(mock(MongoTemplate.class));
+        }
+
+        @Test
+        @DisplayName("Should return filtered results with pagination")
+        void testGeMetadataInstancesCompareDtoByType_WithPagination() {
+            // Given
+            List<String> types = Arrays.asList("Additional", "Missing");
+            String tableFilter = "test";
+            int page = 1;
+            int pageSize = 10;
+
+            List<MetadataInstancesCompareDto> expectedResults = createMockCompareDtos();
+            AggregationResults<MetadataInstancesCompareDto> aggregationResults = mock(AggregationResults.class);
+            when(aggregationResults.getMappedResults()).thenReturn(expectedResults);
+            when(repository.getMongoOperations().aggregate(any(Aggregation.class), eq("MetadataInstancesCompare"), eq(MetadataInstancesCompareDto.class)))
+                    .thenReturn(aggregationResults);
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.geMetadataInstancesCompareDtoByType(nodeId, page, pageSize, types, tableFilter);
+
+            // Then
+            assertNotNull(result);
+            assertEquals(expectedResults.size(), result.size());
+            verify(repository.getMongoOperations()).aggregate(any(Aggregation.class), eq("MetadataInstancesCompare"), eq(MetadataInstancesCompareDto.class));
+        }
+
+        @Test
+        @DisplayName("Should return all results without pagination when pageSize is 0")
+        void testGeMetadataInstancesCompareDtoByType_WithoutPagination() {
+            // Given
+            List<String> types = Arrays.asList("Additional");
+            int page = 1;
+            int pageSize = 0; // No pagination
+
+            List<MetadataInstancesCompareDto> expectedResults = createMockCompareDtos();
+            AggregationResults<MetadataInstancesCompareDto> aggregationResults = mock(AggregationResults.class);
+            when(aggregationResults.getMappedResults()).thenReturn(expectedResults);
+            when(repository.getMongoOperations().aggregate(any(Aggregation.class), eq("MetadataInstancesCompare"), eq(MetadataInstancesCompareDto.class)))
+                    .thenReturn(aggregationResults);
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.geMetadataInstancesCompareDtoByType(nodeId, page, pageSize, types, null);
+
+            // Then
+            assertNotNull(result);
+            assertEquals(expectedResults.size(), result.size());
+        }
+
+        @Test
+        @DisplayName("Should handle empty types list")
+        void testGeMetadataInstancesCompareDtoByType_EmptyTypes() {
+            // Given
+            List<String> types = Collections.emptyList();
+            AggregationResults<MetadataInstancesCompareDto> aggregationResults = mock(AggregationResults.class);
+            when(aggregationResults.getMappedResults()).thenReturn(Collections.emptyList());
+            when(repository.getMongoOperations().aggregate(any(Aggregation.class), eq("MetadataInstancesCompare"), eq(MetadataInstancesCompareDto.class)))
+                    .thenReturn(aggregationResults);
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.geMetadataInstancesCompareDtoByType(nodeId, 1, 10, types, null);
+
+            // Then
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("getMetadataInstancesComparesByType Tests")
+    class GetMetadataInstancesComparesByTypeTests {
+
+        @Test
+        @DisplayName("Should merge auto apply and user apply DTOs correctly")
+        void testGetMetadataInstancesComparesByType_MergeResults() {
+            // Given
+            List<String> types = Arrays.asList("Additional", "Missing");
+            List<MetadataInstancesCompareDto> autoApplyDtos = createMockCompareDtos();
+            List<MetadataInstancesCompareDto> userApplyDtos = createMockApplyDtos();
+
+            // Mock geMetadataInstancesCompareDtoByType call
+            doReturn(autoApplyDtos).when(service).geMetadataInstancesCompareDtoByType(nodeId, 0, 0, types, null);
+            doReturn(userApplyDtos).when(service).findAll(any(Query.class));
+
+            // When
+            Map<String, List<DifferenceField>> result = service.getMetadataInstancesComparesByType(nodeId, types);
+
+            // Then
+            assertNotNull(result);
+            assertFalse(result.isEmpty());
+            verify(service).geMetadataInstancesCompareDtoByType(nodeId, 0, 0, types, null);
+            verify(service).findAll(any(Query.class));
+        }
+
+        @Test
+        @DisplayName("Should handle empty types list")
+        void testGetMetadataInstancesComparesByType_EmptyTypes() {
+            // Given
+            List<String> types = Collections.emptyList();
+            List<MetadataInstancesCompareDto> userApplyDtos = createMockApplyDtos();
+            doReturn(userApplyDtos).when(service).findAll(any(Query.class));
+
+            // When
+            Map<String, List<DifferenceField>> result = service.getMetadataInstancesComparesByType(nodeId, types);
+
+            // Then
+            assertNotNull(result);
+            verify(service, never()).geMetadataInstancesCompareDtoByType(anyString(), anyInt(), anyInt(), anyList(), anyString());
+        }
+
+        @Test
+        @DisplayName("Should handle null types list")
+        void testGetMetadataInstancesComparesByType_NullTypes() {
+            // Given
+            List<MetadataInstancesCompareDto> userApplyDtos = createMockApplyDtos();
+            doReturn(userApplyDtos).when(service).findAll(any(Query.class));
+
+            // When
+            Map<String, List<DifferenceField>> result = service.getMetadataInstancesComparesByType(nodeId, null);
+
+            // Then
+            assertNotNull(result);
+            verify(service, never()).geMetadataInstancesCompareDtoByType(anyString(), anyInt(), anyInt(), anyList(), anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("compareAndGetMetadataInstancesCompareResult Tests")
+    class CompareAndGetMetadataInstancesCompareResultTests {
+
+        @Test
+        @DisplayName("Should return empty result when task not found")
+        void testCompareAndGetMetadataInstancesCompareResult_TaskNotFound() {
+            // Given
+            when(service.findOne(any(Query.class))).thenReturn(null);
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(null);
+
+            // When
+            MetadataInstancesCompareResult result = service.compareAndGetMetadataInstancesCompareResult(nodeId, taskId, userDetail, false);
+
+            // Then
+            assertNotNull(result);
+            // Should return empty result when validation fails
+        }
+
+        @Test
+        @DisplayName("Should skip comparison for schema-free connection")
+        void testCompareAndGetMetadataInstancesCompareResult_SchemaFreeConnection() {
+            // Given
+            TaskDto taskDto = createMockTaskDto();
+            DataParentNode targetNode = new DatabaseNode();
+            targetNode.setConnectionId("connectionId");
+            targetNode.setAttrs(Collections.singletonMap("connectionTags", Arrays.asList("schema-free")));
+
+            when(taskDto.getDag().getNode(nodeId)).thenReturn(targetNode);
+
+
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+
+            // When
+            MetadataInstancesCompareResult result = service.compareAndGetMetadataInstancesCompareResult(nodeId, taskId, userDetail, false);
+
+            // Then
+            assertNotNull(result);
+
+        }
+
+        @Test
+        @DisplayName("Should perform comparison when needed")
+        void testCompareAndGetMetadataInstancesCompareResult_PerformComparison() {
+            // Given
+            TaskDto taskDto = createMockTaskDto();
+            DataParentNode targetNode = new DatabaseNode();
+            targetNode.setConnectionId("connectionId");
+            targetNode.setAttrs(Collections.singletonMap("connectionTags", new ArrayList<>()));
+
+            when(taskDto.getDag().getNode(nodeId)).thenReturn(targetNode);
+            try(MockedStatic<SchemaUtils> schemaUtilsMockedStatic = mockStatic(SchemaUtils.class)) {
+                schemaUtilsMockedStatic.when(() -> SchemaUtils.compareSchema(any(), any())).thenReturn(Arrays.asList(DifferenceField.buildMissingField("field1", createMockField("field1", "varchar(255)"))));
+                when(service.findOne(any(Query.class))).thenReturn(null); // No previous comparison
+                when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+                when(metadataInstancesService.findByNodeId(anyString(), any(UserDetail.class), anyString(), anyString(),anyString(),anyString(),anyString(),anyString(),anyString())).thenReturn(createMockMetadataInstancesDtos());
+                when(metadataInstancesService.findDatabaseMetadataInstanceLastUpdate(anyString(), any(UserDetail.class))).thenReturn(System.currentTimeMillis());
+                when(service.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+                when(service.getApplyRules(anyString(), anyString())).thenReturn(Arrays.asList("Additional", "Missing"));
+                when(service.getMetadataInstancesComparesByType(anyString(), anyList())).thenReturn(new HashMap<>());
+                when(metadataInstancesService.findSourceSchemaBySourceId(anyString(), anyList(), any(UserDetail.class), anyString(), anyString(), anyString(), anyString(), anyString(), anyString())).thenReturn(createMockMetadataInstancesDtos());
+                doReturn(Collections.emptyList()).when(service).save(anyList(), any(UserDetail.class));
+                doReturn(1L).when(service).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+                // When
+                MetadataInstancesCompareResult result = service.compareAndGetMetadataInstancesCompareResult(nodeId, taskId, userDetail, false);
+
+                // Then
+                assertNotNull(result);
+                verify(service).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+            }
+
+
+        }
+    }
+
+    @Nested
+    @DisplayName("saveMetadataInstancesCompare Tests")
+    class SaveMetadataInstancesCompareTests {
+
+        @Test
+        @DisplayName("Should save metadata instances compare successfully")
+        void testSaveMetadataInstancesCompare_Success() {
+            // Given
+            MetadataInstancesDto deductionMetadata = createMockMetadataInstancesDto("table1", "qualified.table1");
+            MetadataInstancesDto targetMetadata = createMockMetadataInstancesDto("table1", "qualified.table1");
+            List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
+            Map<String, List<DifferenceField>> applyFields = new HashMap<>();
+            applyFields.put("qualified.table1", createMockDifferenceFields());
+
+            // When
+            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, targetMetadata, compareDtos, applyFields);
+
+            // Then
+            assertEquals(1, compareDtos.size());
+            assertEquals(nodeId, compareDtos.get(0).getNodeId());
+            assertEquals("table1", compareDtos.get(0).getTableName());
+            assertEquals("qualified.table1", compareDtos.get(0).getQualifiedName());
+        }
+
+        @Test
+        @DisplayName("Should handle null target metadata")
+        void testSaveMetadataInstancesCompare_NullTarget() {
+            // Given
+            MetadataInstancesDto deductionMetadata = createMockMetadataInstancesDto("table1", "qualified.table1");
+            List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
+            Map<String, List<DifferenceField>> applyFields = new HashMap<>();
+
+            // When
+            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, null, compareDtos, applyFields);
+
+            // Then
+            assertTrue(compareDtos.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Should handle empty apply fields")
+        void testSaveMetadataInstancesCompare_EmptyApplyFields() {
+            // Given
+            MetadataInstancesDto deductionMetadata = createMockMetadataInstancesDto("table1", "qualified.table1");
+            MetadataInstancesDto targetMetadata = createMockMetadataInstancesDto("table1", "qualified.table1");
+            List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
+            Map<String, List<DifferenceField>> applyFields = new HashMap<>();
+
+            // When
+            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, targetMetadata, compareDtos, applyFields);
+
+            // Then
+            assertEquals(1, compareDtos.size());
+        }
+    }
+
+    @Nested
+    @DisplayName("getAllInvalidApplyDtos Tests")
+    class GetAllInvalidApplyDtosTests {
+
+        @Test
+        @DisplayName("Should return all invalid apply DTOs with empty difference field list")
+        void testGetAllInvalidApplyDtos_Success() {
+            // Given
+            List<String> applyRules = Arrays.asList("Additional", "Missing");
+            MetadataInstancesCompareResult compareResult = new MetadataInstancesCompareResult();
+
+            List<MetadataInstancesCompareDto> compareDtos = createMockCompareDtos();
+            List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
+            List<MetadataInstancesCompareDto> invalidApplyDtos = createMockApplyDtos();
+
+            when(service.findAll(any(Query.class))).thenReturn(compareDtos, applyDtos);
+            doReturn(invalidApplyDtos).when(service).getInvalidApplyDtos(eq(compareDtos), eq(applyDtos), eq(applyRules), eq(compareResult));
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.getAllInvalidApplyDtos(nodeId, applyRules, compareResult);
+
+            // Then
+            assertNotNull(result);
+            assertEquals(invalidApplyDtos.size(), result.size());
+            // Verify that difference field lists are cleared
+            result.forEach(dto -> assertTrue(dto.getDifferenceFieldList().isEmpty()));
+        }
+
+        @Test
+        @DisplayName("Should handle empty invalid apply DTOs")
+        void testGetAllInvalidApplyDtos_EmptyInvalid() {
+            // Given
+            List<String> applyRules = Arrays.asList("Additional", "Missing");
+            MetadataInstancesCompareResult compareResult = new MetadataInstancesCompareResult();
+
+            List<MetadataInstancesCompareDto> compareDtos = createMockCompareDtos();
+            List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
+
+            when(service.findAll(any(Query.class))).thenReturn(compareDtos, applyDtos);
+            doReturn(Collections.emptyList()).when(service).getInvalidApplyDtos(eq(compareDtos), eq(applyDtos), eq(applyRules), eq(compareResult));
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.getAllInvalidApplyDtos(nodeId, applyRules, compareResult);
+
+            // Then
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("Should handle null apply rules")
+        void testGetAllInvalidApplyDtos_NullApplyRules() {
+            // Given
+            MetadataInstancesCompareResult compareResult = new MetadataInstancesCompareResult();
+
+            List<MetadataInstancesCompareDto> compareDtos = createMockCompareDtos();
+            List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
+
+            when(service.findAll(any(Query.class))).thenReturn(compareDtos, applyDtos);
+            doReturn(Collections.emptyList()).when(service).getInvalidApplyDtos(eq(compareDtos), eq(applyDtos), isNull(), eq(compareResult));
+
+            // When
+            List<MetadataInstancesCompareDto> result = service.getAllInvalidApplyDtos(nodeId, null, compareResult);
+
+            // Then
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
+        }
+    }
+
+    // Helper method to create mock MetadataInstancesDto
+    private MetadataInstancesDto createMockMetadataInstancesDto(String tableName, String qualifiedName) {
+        MetadataInstancesDto dto = new MetadataInstancesDto();
+        dto.setName(tableName);
+        dto.setQualifiedName(qualifiedName);
+        dto.setFields(createMockFields());
+        return dto;
     }
 }

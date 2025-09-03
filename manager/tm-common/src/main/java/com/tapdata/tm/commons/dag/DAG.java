@@ -1149,8 +1149,6 @@ public class DAG implements Serializable, Cloneable {
         private boolean isIsomorphismTask;
         private boolean preview;
         private Map<String,List<DifferenceField>> differenceFields;
-        private Map<String,MetadataInstancesDto> targetMetadataInstancesDtos;
-        private List<String> applyRules;
         private Map<String, String> tableRenameRelationMap;
 
         public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
@@ -1171,19 +1169,6 @@ public class DAG implements Serializable, Cloneable {
                 differenceFieldList = differenceFields.get(dto.getQualifiedName());
             }else{
                 differenceFieldList = new ArrayList<>();
-            }
-            if(MapUtil.isNotEmpty(targetMetadataInstancesDtos)){
-                MetadataInstancesDto targetMetadataInstancesDto = targetMetadataInstancesDtos.get(dto.getName());
-                if(CollectionUtils.isNotEmpty(applyRules) && null != targetMetadataInstancesDto && dto.getSource().get_id().equals(targetMetadataInstancesDto.getSource().get_id())){
-                    List<DifferenceField> differenceFieldsRules = SchemaUtils.compareSchema(dto, targetMetadataInstancesDto);
-                    Map<String,Boolean> differenceFieldMap = differenceFieldList.stream().collect(Collectors.toMap(DifferenceField::getColumnName, m -> true));
-                    differenceFieldsRules.forEach(rule -> {
-                        if(!differenceFieldMap.containsKey(rule.getColumnName()) && applyRules.contains(rule.getType().name())){
-                            differenceFieldList.add(rule);
-                        }
-                    });
-
-                }
             }
             if (CollectionUtils.isEmpty(differenceFieldList)) return;
             Map<String,Field> fieldMap = dto.getFields().stream().collect(Collectors.toMap(Field::getFieldName, Function.identity()));

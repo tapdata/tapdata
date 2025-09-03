@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.schema;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.*;
 
+import java.util.Date;
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
@@ -21,6 +22,7 @@ public class MetadataInstancesCompareDto extends BaseDto {
     private String qualifiedName;
     private String tableName;
     private String nodeId;
+    private String taskId;
     private List<DifferenceField> differenceFieldList;
     /**
      * compare: 差异结果
@@ -28,6 +30,7 @@ public class MetadataInstancesCompareDto extends BaseDto {
      */
     private String type;
     private String status;
+    private Date targetSchemaLoadTime;
 
     public static MetadataInstancesCompareDto createMetadataInstancesCompareDtoStatus(String nodeId) {
         return MetadataInstancesCompareDto.builder()
@@ -37,12 +40,13 @@ public class MetadataInstancesCompareDto extends BaseDto {
                 .build();
     }
 
-    public static MetadataInstancesCompareDto createMetadataInstancesCompareDtoCompare(String nodeId, String tableName, String qualifiedName, List<DifferenceField> differenceFieldList) {
+    public static MetadataInstancesCompareDto createMetadataInstancesCompareDtoCompare(String taskId,String nodeId, String tableName, String qualifiedName, List<DifferenceField> differenceFieldList) {
         return MetadataInstancesCompareDto.builder()
                 .nodeId(nodeId)
                 .tableName(tableName)
                 .qualifiedName(qualifiedName)
                 .differenceFieldList(differenceFieldList)
+                .taskId(taskId)
                 .type(TYPE_COMPARE)
                 .build();
     }
