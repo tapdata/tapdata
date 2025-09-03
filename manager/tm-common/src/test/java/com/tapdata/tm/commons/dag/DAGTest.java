@@ -6,13 +6,17 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import io.github.openlg.graphlib.Graph;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -519,4 +523,5 @@ public class DAGTest {
 			assertNotNull(graph.getEdge(node3.getId(), node2.getId()));
 		}
 	}
+
 }

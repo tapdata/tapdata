@@ -291,7 +291,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			dataProcessorContext = mock(DataProcessorContext.class);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "dataProcessorContext", dataProcessorContext);
 			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "clientMongoOperator", mockClientMongoOperator);
-			doCallRealMethod().when(hazelcastTargetPdkBaseNode).doCreateTable(any(TapTable.class), any(AtomicReference.class), any(Runnable.class));
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).doCreateTable(any(TapTable.class), any(AtomicReference.class), any(Runnable.class),any());
 			doNothing().when(hazelcastTargetPdkBaseNode).masterTableId(any(TapCreateTableEvent.class), any(TapTable.class));
 		}
 
@@ -1894,7 +1894,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Runnable runnable = answer.getArgument(2);
 			runnable.run();
 			return null;
-		}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+		}).when(spyTargetBaseNode).doCreateTable(any(), any(), any(),any());
 
 		ConnectorNode connectorNode = mock(ConnectorNode.class);
 		TapConnectorContext connectorContext = mock(TapConnectorContext.class);
@@ -1953,7 +1953,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				Runnable runnable = answer.getArgument(2);
 				runnable.run();
 				return null;
-			}).when(spyTargetBaseNode).doCreateTable(any(TapTable.class), any(), any());
+			}).when(spyTargetBaseNode).doCreateTable(any(TapTable.class), any(), any(),any());
 
 			doAnswer(answer -> {
 				Callable aspectCallable = answer.getArgument(1) ;
@@ -2022,7 +2022,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				runnable.run();
 
 				return null;
-			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any(),any());
 			doAnswer(answer -> {
 				Callable aspectCallable = answer.getArgument(1) ;
 				aspectCallable.call();
@@ -2105,7 +2105,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				runnable.run();
 
 				return null;
-			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any(),any());
 			doAnswer(answer -> {
 				Callable aspectCallable = answer.getArgument(1) ;
 				aspectCallable.call();
@@ -2202,7 +2202,7 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				runnable.run();
 
 				return null;
-			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any());
+			}).when(spyTargetBaseNode).doCreateTable(any(), any(), any(),any());
 			doAnswer(answer -> {
 				Callable aspectCallable = answer.getArgument(1) ;
 				aspectCallable.call();
