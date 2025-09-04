@@ -35,11 +35,7 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.HazelcastTaskNodeOffer;
 import io.tapdata.PDKExCode_10;
-import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.ProcessorNodeCloseAspect;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -266,6 +262,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				doInitWithDisableNode(context);
 			}
 		} catch (Exception e) {
+			AspectUtils.executeAspect(DataNodeInitErrorAspect.class, () -> new DataNodeInitErrorAspect().dataProcessorContext((DataProcessorContext) processorBaseContext).error(e));
 			errorHandle(e);
 		}
 	}
