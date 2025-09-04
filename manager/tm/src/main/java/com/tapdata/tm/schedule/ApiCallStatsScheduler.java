@@ -6,6 +6,8 @@ import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
@@ -19,14 +21,8 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -41,13 +37,15 @@ public class ApiCallStatsScheduler {
 	private final ApiCallStatsService apiCallStatsService;
 	private final ApiCallService apiCallService;
 	private final WorkerCallService workerCallService;
+	private final WorkerService workerService;
 
 	@Autowired
-	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService, WorkerCallService workerCallService) {
+	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService, WorkerCallService wcs, WorkerService  ws) {
 		this.modulesService = modulesService;
 		this.apiCallStatsService = apiCallStatsService;
 		this.apiCallService = apiCallService;
-		this.workerCallService = workerCallService;
+		this.workerCallService = wcs;
+		this.workerService = ws;
 	}
 
 	/**
@@ -61,6 +59,7 @@ public class ApiCallStatsScheduler {
 			log.debug("Start to aggregate ApiCallStats...");
 		}
 		long startMs = System.currentTimeMillis();
+		collectOnceApiCountOfWorker();
 
 		// Get all Modules, excluding deleted ones
 		Query modulesQuery = new Query();
@@ -99,7 +98,7 @@ public class ApiCallStatsScheduler {
 				}
 			} else {
 				// Get the historical ApiCallStats record based on moduleId, and get the lastApiCallId from it as this offset
-				Query apiCallStatsQuery = Query.query(Criteria.where("moduleId").is(moduleId).and("type").nin(1, 2)).limit(1);
+				Query apiCallStatsQuery = Query.query(Criteria.where("moduleId").is(moduleId)).limit(1);
 				ApiCallStatsDto apiCallStatsDto = apiCallStatsService.findOne(apiCallStatsQuery);
 				String lastApiCallId = null;
 				if (null != apiCallStatsDto) {
@@ -126,71 +125,30 @@ public class ApiCallStatsScheduler {
 					continue;
 				}
 
-				List<ApiCallStatsDto> olds = new ArrayList<>();
-				final Map<String, ApiCallStatsDto> oldMap = new HashMap<>();
-				if (null != lastApiCallId) {
-					Criteria nin = Criteria.where("moduleId").is(moduleId)
-							.and("type").nin(1, 2);
-					olds = apiCallStatsService.findAll(Query.query(nin));
-					if (!olds.isEmpty()) {
-						lastApiCallId = olds.get(0).getLastApiCallId();
-						oldMap.putAll(olds.stream()
-								.filter(Objects::nonNull)
-								.collect(Collectors.toMap(
-										e -> String.format("%s_%s_%s", e.getProcessId(), e.getWorkerOid(), e.getModuleId()),
-										e -> e,
-										(e1, e2) -> e2
-								)));
+				// Calculate accessFailureRate
+				if (newApiCallStatsDto.getCallTotalCount() > 0) {
+					double rate = new BigDecimal(newApiCallStatsDto.getCallAlarmTotalCount()).divide(new BigDecimal(newApiCallStatsDto.getCallTotalCount()), 4, RoundingMode.HALF_UP).doubleValue();
+					newApiCallStatsDto.setAccessFailureRate(rate);
+				}
+
+				// Save the merged ApiCallStats
+				Query upsertQuery = null;
+				try {
+					newApiCallStatsDto.setLastUpdAt(new Date());
+					newApiCallStatsDto.setUserId(modulesDto.getUserId());
+					upsertQuery = Query.query(Criteria.where("moduleId").is(moduleId));
+					apiCallStatsService.upsert(upsertQuery, newApiCallStatsDto);
+					long loopCost = System.currentTimeMillis() - loopStartMs;
+					if (apiCallStatsServiceEmpty) {
+						log.info("Upsert one Api Call Stats completed, filter: {}, cost: {} ms, progress: {}/{}, stats data: {}", upsertQuery.getQueryObject().toJson(), loopCost, traverseStep, modulesList.size(), newApiCallStatsDto);
 					}
+					if (log.isDebugEnabled()) {
+						log.debug("Upsert one Api Call Stats completed, filter: {}, cost: {} ms, progress: {}/{}, stats data: {}", upsertQuery.getQueryObject().toJson(), loopCost, traverseStep, modulesList.size(), newApiCallStatsDto);
+					}
+				} catch (Exception e) {
+					log.error("Upsert one Api Call Stats failed, query: {}, data: {}, will skip it, error: {}",
+							null != upsertQuery ? upsertQuery.getQueryObject().toJson() : "null", newApiCallStatsDto, e.getMessage(), e);
 				}
-				// Aggregate the ApiCall data of the current module, and wrap new ApiCallStats
-				List<ApiCallStatsDto> aggregateWithFacet = workerCallService.aggregateWithFacet(lastApiCallId, newApiCallStatsDto.getLastApiCallId());
-				aggregateWithFacet.stream().collect(Collectors.groupingBy(
-						ApiCallStatsDto::getProcessId, Collectors.collectingAndThen(Collectors.toList(), list -> {
-							ApiCallStatsDto processDto = new ApiCallStatsDto();
-							processDto.setProcessId(list.get(0).getProcessId());
-							processDto.setModuleId(moduleId);
-							processDto.setType(1);
-							list.forEach(e -> apiCallStatsService.merge(e, processDto));
-							processDto.setId(new ObjectId());
-							return processDto;
-						}))).forEach((processId, callStatsDto) -> {
-					String key = String.format("%s_%s_%s", callStatsDto.getProcessId(), callStatsDto.getWorkerOid(), null);
-					ApiCallStatsDto old = oldMap.get(key);
-					apiCallStatsService.merge(old, callStatsDto);
-					upsert(
-							callStatsDto,
-							Query.query(Criteria.where("moduleId").is(moduleId).and("type").is(2)),
-							apiCallStatsServiceEmpty,
-							modulesDto.getUserId(),
-							loopStartMs,
-							-1,
-							modulesList
-					);
-				});
-				for (ApiCallStatsDto callStatsDto : aggregateWithFacet) {
-					String key = String.format("%s_%s_%s", callStatsDto.getProcessId(), callStatsDto.getWorkerOid(), callStatsDto.getModuleId());
-					ApiCallStatsDto old = oldMap.get(key);
-					apiCallStatsService.merge(old, callStatsDto);
-					upsert(
-						callStatsDto,
-						Query.query(Criteria.where("moduleId").is(moduleId).and("type").is(1)),
-						apiCallStatsServiceEmpty,
-						modulesDto.getUserId(),
-						loopStartMs,
-						traverseStep,
-						modulesList
-					);
-				}
-				upsert(
-					newApiCallStatsDto,
-					Query.query(Criteria.where("moduleId").is(moduleId).and("type").nin(1, 2)),
-					apiCallStatsServiceEmpty,
-					modulesDto.getUserId(),
-					loopStartMs,
-					traverseStep,
-					modulesList
-				);
 			}
 		}
 		long cost = System.currentTimeMillis() - startMs;
@@ -199,28 +157,21 @@ public class ApiCallStatsScheduler {
 		}
 	}
 
-	void upsert(ApiCallStatsDto newApiCallStatsDto, Query upsertQuery, boolean apiCallStatsServiceEmpty, String userId, long loopStartMs, int traverseStep, List<ModulesDto> modulesList) {
-		// Calculate accessFailureRate
-		if (newApiCallStatsDto.getCallTotalCount() > 0) {
-			double rate = new BigDecimal(newApiCallStatsDto.getCallAlarmTotalCount()).divide(new BigDecimal(newApiCallStatsDto.getCallTotalCount()), 4, RoundingMode.HALF_UP).doubleValue();
-			newApiCallStatsDto.setAccessFailureRate(rate);
+	void collectOnceApiCountOfWorker() {
+		//query all server
+		List<WorkerDto> all = workerService.findAll(Query.query(
+				Criteria.where("worker_type").is("api-server")
+				.and("delete").ne(true)));
+		if (null == all || all.isEmpty()) {
+			return;
 		}
+		all.forEach(w -> {
+			try {
+				workerCallService.collectApiCallCountGroupByWorker(w.getProcessId());
+			} catch (Exception e) {
+				log.error("Unable to perform Worker level request access data statistics on API servers", e);
+			}
+		});
 
-		// Save the merged ApiCallStats
-		try {
-			newApiCallStatsDto.setLastUpdAt(new Date());
-			newApiCallStatsDto.setUserId(userId);
-			apiCallStatsService.upsert(upsertQuery, newApiCallStatsDto);
-			long loopCost = System.currentTimeMillis() - loopStartMs;
-			if (apiCallStatsServiceEmpty) {
-				log.info("Upsert one Api Call Stats completed, filter: {}, cost: {} ms, progress: {}/{}, stats data: {}", upsertQuery.getQueryObject().toJson(), loopCost, traverseStep, modulesList.size(), newApiCallStatsDto);
-			}
-			if (log.isDebugEnabled()) {
-				log.debug("Upsert one Api Call Stats completed, filter: {}, cost: {} ms, progress: {}/{}, stats data: {}", upsertQuery.getQueryObject().toJson(), loopCost, traverseStep, modulesList.size(), newApiCallStatsDto);
-			}
-		} catch (Exception e) {
-			log.error("Upsert one Api Call Stats failed, query: {}, data: {}, will skip it, error: {}",
-					null != upsertQuery ? upsertQuery.getQueryObject().toJson() : "null", newApiCallStatsDto, e.getMessage(), e);
-		}
 	}
 }
