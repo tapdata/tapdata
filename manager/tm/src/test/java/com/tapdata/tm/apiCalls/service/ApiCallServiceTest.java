@@ -345,7 +345,6 @@ class ApiCallServiceTest {
 
         assertEquals(apiCallEntity, apiCallService.findOne(inputQuery));
     }
-
     @Nested
     @DisplayName("Method GenericFilterCriteria(Query) test")
     class GenericFilterCriteriaTest {
