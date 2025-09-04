@@ -43,21 +43,4 @@ public class ApiCallStatsEntity extends BaseEntity {
 	 * Used to query the last API call record as an offset
 	 */
 	private String lastApiCallId;
-
-	/**
-	 * 0- total's call stats info
-	 * 1- process's call stats info
-	 * 2- worker's call stats info
-	 * */
-	private int type;
-
-	/**
-	 * Associated with {@link com.tapdata.tm.apiCalls.entity.ApiCallEntity}#processId
-	 * */
-	private String processId;
-
-	/**
-	 * Associated with {@link com.tapdata.tm.apiCalls.entity.ApiCallEntity}#workOid
-	 * */
-	private String workerOid;
 }

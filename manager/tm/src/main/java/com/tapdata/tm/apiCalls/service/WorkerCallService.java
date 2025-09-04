@@ -1,30 +1,25 @@
 package com.tapdata.tm.apiCalls.service;
 
 import com.mongodb.bulk.BulkWriteResult;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 import com.mongodb.internal.bulk.WriteRequest;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
+import com.tapdata.tm.apiCalls.entity.WorkerCallStats;
 import com.tapdata.tm.apiCalls.service.compress.Compress;
 import com.tapdata.tm.apiCalls.service.metric.Metric;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
-import com.tapdata.tm.apiCalls.vo.ApiCallStats;
 import com.tapdata.tm.apiCalls.vo.ApiCountMetricVo;
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
-import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
-import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
-import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
-import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.utils.EntityUtils;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.ApiWorkerServer;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -41,12 +36,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +46,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static com.tapdata.tm.utils.DocumentUtils.getLong;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -71,7 +59,7 @@ import static com.tapdata.tm.utils.DocumentUtils.getLong;
 public class WorkerCallService {
     private WorkerService workerService;
     MongoTemplate mongoOperations;
-    ApiCallMinuteStatsService apiCallMinuteStatsService;
+    private ApiWorkerServer apiWorkerServer;
 
     public ApiCallMetricVo find(String processId, Long from, Long to, Integer type, Integer granularity) {
         if (StringUtils.isBlank(processId)) {
@@ -114,251 +102,151 @@ public class WorkerCallService {
         return vo;
     }
 
+    public ApiCountMetricVo findWorkerApiCalls(String processId) {
+        Worker server = apiWorkerServer.getServerInfo(processId);
+        List<WorkerCallStats> apiCallInWorker = apiCallInWorkers(processId);
+        ApiCountMetricVo vo = new ApiCountMetricVo();
+        ApiCountMetricVo.ProcessMetric processMetric = new ApiCountMetricVo.ProcessMetric();
+        processMetric.setProcessId(processId);
+        processMetric.setServerName(server.getHostname());
+        vo.setProcessMetric(processMetric);
+        if (apiCallInWorker.isEmpty()) {
+            return vo;
+        }
+        Map<String, String> workerMap = apiWorkerServer.workerMap(server);
+        Map<String, String> apiMap = apiMap();
+        Map<String, ApiCountMetricVo.ApiItem> processApiCountMap = new HashMap<>(16);
+        Map<String, Map<String, ApiCountMetricVo.ApiItem>> workerApiCountMap = new HashMap<>(16);
+        apiCallInWorker.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(WorkerCallStats::getAllPathId))
+                .forEach((apiId, list) -> {
+                    String apiName = apiMap.get(apiId);
+                    list.forEach(w -> collectApiCall(w, apiName, workerApiCountMap, processApiCountMap));
+                });
+        workerApiCountMap.forEach((workOid, apiCountMap) -> {
+            ApiCountMetricVo.WorkerMetrics workerMetric = new ApiCountMetricVo.WorkerMetrics();
+            workerMetric.setWorkOid(workOid);
+            workerMetric.setWorkerName(workerMap.get(workOid));
+            workerMetric.setWorkerMetric(new ArrayList<>(apiCountMap.values()));
+            vo.getWorkerMetrics().add(workerMetric);
+        });
+        processMetric.setProcessMetric(new ArrayList<>(processApiCountMap.values()));
+        return vo;
+    }
 
-    public Page<ApiCountMetricVo.ProcessMetric> findApiCallsOfServer(String processId, Integer page, Integer size) {
+    Map<String, String> apiMap() {
+        Query query = Query.query(new Criteria());
+        query.fields().include("name", "_id");
+        List<ModulesEntity> modules = mongoOperations.find(query, ModulesEntity.class, "Modules");
+        if (modules.isEmpty()) {
+            return new HashMap<>(0);
+        }
+        return modules.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(e -> e.getId().toHexString(), e -> null == e.getName() ? "-" : e.getName(), (m1, m2) -> m2));
+    }
+
+    void collectApiCall(WorkerCallStats apiCallStats,
+                        String apiName,
+                        Map<String, Map<String, ApiCountMetricVo.ApiItem>> workerApiCountMap,
+                        Map<String, ApiCountMetricVo.ApiItem> processApiCountMap) {
+        collectApiCallOnce(apiCallStats, apiName, processApiCountMap);
+        String workOid = apiCallStats.getWorkOid();
+        Map<String, ApiCountMetricVo.ApiItem> apiItemMap = workerApiCountMap.computeIfAbsent(workOid, key -> new HashMap<>());
+        collectApiCallOnce(apiCallStats, apiName, apiItemMap);
+
+    }
+
+    void collectApiCallOnce(WorkerCallStats apiCallStats,
+                            String apiName,
+                            Map<String, ApiCountMetricVo.ApiItem> apiCountMap) {
+        ApiCountMetricVo.ApiItem ofProcess = apiCountMap.computeIfAbsent(apiCallStats.getAllPathId(), k -> {
+            ApiCountMetricVo.ApiItem apiItem = new ApiCountMetricVo.ApiItem();
+            apiItem.setApiId(apiCallStats.getAllPathId());
+            apiItem.setApiName(apiName);
+            return apiItem;
+        });
+        ofProcess.setCount(ofProcess.getCount() + apiCallStats.getTotalCount());
+        ofProcess.setErrorCount(ofProcess.getErrorCount() + apiCallStats.getNotOkCount());
+    }
+
+    List<WorkerCallStats> apiCallInWorkers(String processId) {
+        return mongoOperations.find(
+                Query.query(Criteria.where(Tag.PROCESS_ID).is(processId).and(Tag.DELETE).ne(true)),
+                WorkerCallStats.class, "WorkerCallStats");
+    }
+
+
+    public void collectApiCallCountGroupByWorker(String processId) {
+        List<WorkerCallStats> apiCallInWorker = apiCallInWorkers(processId);
+        Map<String, WorkerCallStats> collect = apiCallInWorker.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(
+                        e -> String.format("%s_%s_%s", e.getProcessId(), e.getWorkOid(), e.getAllPathId()),
+                        e -> e, (e1, e2) -> e2));
+        String lastApiCallId = collect.isEmpty() ? null : collect.get(0).getLastCallId();
         Criteria criteria = Criteria.where(Tag.WORK_OID).ne(null)
-                .and("allPathId").ne(null);
-        if (StringUtils.isNotBlank(processId)) {
-            criteria.and(Tag.PROCESS_ID).is(processId);
+                .and(Tag.ALL_PATH_ID).ne(null)
+                .and(Tag.PROCESS_ID).is(processId);
+        if (null != lastApiCallId) {
+            criteria.and("id").gt(new ObjectId(lastApiCallId));
         }
         MatchOperation matchStage = Aggregation.match(criteria);
-
-        // 2. 分组阶段 - 按apiId和workOid分组
-        GroupOperation groupStage = Aggregation.group("apiId", Tag.PROCESS_ID, Tag.WORK_OID)
+        Query query = Query.query(criteria).limit(1).with(Sort.by(Sort.Order.desc("_id")));
+        ApiCallEntity topOne = mongoOperations.findOne(query, ApiCallEntity.class);
+        if (null == topOne) {
+            return;
+        }
+        criteria.and("_id").lte(topOne.getId());
+        GroupOperation groupStage = Aggregation.group(Tag.ALL_PATH_ID, Tag.PROCESS_ID, Tag.WORK_OID)
                 .count().as("totalCount")
-                .sum(ConditionalOperators.when(Criteria.where("codeMsg").is("ok")).then(1).otherwise(0)).as("okCount")
                 .sum(ConditionalOperators.when(Criteria.where("codeMsg").ne("ok")).then(1).otherwise(0)).as("notOkCount");
-
-        // 3. 排序阶段 - 按apiId和workOid排序
         SortOperation sortStage = Aggregation.sort(
-                Sort.Direction.ASC, "apiId", Tag.PROCESS_ID, Tag.WORK_OID
+                Sort.Direction.ASC, Tag.ALL_PATH_ID, Tag.PROCESS_ID, Tag.WORK_OID
         );
-
-        // 构建聚合管道
         Aggregation aggregation = Aggregation.newAggregation(
                 matchStage,
                 groupStage,
                 sortStage
         );
-
-        AggregationResults<ApiCallStats> results = mongoOperations.aggregate(
-                aggregation, "ApiCall", ApiCallStats.class
+        AggregationResults<WorkerCallStats> results = mongoOperations.aggregate(
+                aggregation, "ApiCall", WorkerCallStats.class
         );
 
-        List<ApiCallStats> mappedResults = results.getMappedResults();
+        List<WorkerCallStats> mappedResults = results.getMappedResults();
 
-        return null;
-    }
-
-    public ApiCountMetricVo.WorkerMetrics findApiCallsOrWorker(String processId) {
-
-        return null;
-    }
-
-
-    public List<ApiCallStatsDto> aggregateWithFacet(String lastApiCallId, String rightNow) {
-        String apiCallCollectionName;
+        Function<WorkerCallStats, Query> queryBuilder = entity -> {
+            Criteria criteriaBulk = Criteria.where(Tag.ALL_PATH_ID).is(entity.getAllPathId())
+                    .and(Tag.PROCESS_ID).is(entity.getProcessId())
+                    .and(Tag.DELETE).ne(true)
+                    .and(Tag.WORK_OID).is(entity.getWorkOid());
+            return Query.query(criteriaBulk);
+        };
+        Function<WorkerCallStats, Update> updateBuilder = entity -> {
+            Update update = new Update();
+            update.set("totalCount", entity.getTotalCount());
+            update.set("notOkCount", entity.getNotOkCount());
+            update.set("lastCallId", entity.getLastCallId());
+            update.currentDate("updatedAt");
+            return update;
+        };
         try {
-            apiCallCollectionName = EntityUtils.documentAnnotationValue(ApiCallEntity.class);
-        } catch (Exception e) {
-            throw new BizException("Get ApiCallEntity's collection name failed", e);
-        }
-
-        MongoCollection<Document> apiCallCollection = mongoOperations.getCollection(apiCallCollectionName);
-
-        // 构建匹配条件
-        Document match = new Document();
-        if (StringUtils.isNotBlank(lastApiCallId)) {
-            match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
-        }
-        match.append("_id", new Document("$lte", new ObjectId(rightNow)));
-        match.append("allPathId", new Document("$ne", null))
-                .append(Tag.WORK_OID, new Document("$ne", null))
-                .append("api_gateway_uuid", new Document("$ne", null));
-
-        // 构建facet统计
-        Document facet = new Document();
-
-        // 按api_gateway_uuid和workOid分组统计
-        List<Document> byApiGatewayAndWorkOid = Arrays.asList(
-                new Document("$match", match),
-                new Document("$group",
-                        new Document("_id",
-                                new Document("apiGatewayUuid", "$api_gateway_uuid")
-                                        .append("workOid", "$" + Tag.WORK_OID)
-                                        .append("allPathId", "$allPathId")
-                        )
-                                .append("callTotalCount", new Document("$sum", 1L))
-                                .append("transferDataTotalBytes", new Document("$sum", "$req_bytes"))
-                                .append("callAlarmTotalCount", new Document("$sum",
-                                        new Document("$cond", Arrays.asList(
-                                                new Document("$ne", Arrays.asList("$code", "200")),
-                                                1L,
-                                                0L
-                                        ))
-                                ))
-                                .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))
-                                .append("totalResponseTime", new Document("$sum", "$latency"))
-                                .append("maxResponseTime", new Document("$max", "$latency"))
-                                .append("lastApiCallId", new Document("$max", "$_id"))
-                                .append("clientIds", new Document("$addToSet", "$user_info.clientId"))
-                )
-        );
-
-        facet.append("byApiGatewayAndWorkOid", byApiGatewayAndWorkOid);
-
-        List<Document> pipeline = Arrays.asList(
-                new Document("$match", match),
-                new Document("$facet", facet)
-        );
-
-        // 执行查询并处理结果
-        List<ApiCallStatsDto> result = new ArrayList<>();
-
-        try (MongoCursor<Document> iterator = apiCallCollection.aggregate(pipeline, Document.class)
-                .allowDiskUse(true).iterator()) {
-
-            if (iterator.hasNext()) {
-                Document doc = iterator.next();
-                List<Document> statsDocs = doc.getList("byApiGatewayAndWorkOid", Document.class);
-
-                if (statsDocs != null) {
-                    List<ApiCallStatsDto> dtos = statsDocs.stream()
-                            .map(this::convertDocumentToDto)
-                            .map(e -> {
-                                e.setLastApiCallId(rightNow);
-                                return e;
-                            }).toList();
-
-                    // 按apiGatewayUuid分组
-                    result.addAll(dtos);
-                }
+            BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallStats.class);
+            for (WorkerCallStats e : mappedResults) {
+                WorkerCallStats oldStats = collect.get(String.format("%s_%s_%s", e.getProcessId(), e.getWorkOid(), e.getAllPathId()));
+                e.setTotalCount(e.getTotalCount() + Optional.ofNullable(oldStats).map(WorkerCallStats::getTotalCount).orElse(0L));
+                e.setNotOkCount(e.getNotOkCount() + Optional.ofNullable(oldStats).map(WorkerCallStats::getNotOkCount).orElse(0L));
+                e.setLastCallId(topOne.getId().toHexString());
+                Query queryTemp = queryBuilder.apply(e);
+                Update update = updateBuilder.apply(e);
+                bulkOps.upsert(queryTemp, update);
             }
-        }
-
-        return result;
-    }
-
-    private ApiCallStatsDto convertDocumentToDto(Document doc) {
-        ApiCallStatsDto dto = new ApiCallStatsDto();
-
-        // 解析分组ID
-        Document idDoc = doc.get("_id", Document.class);
-        if (idDoc != null) {
-            dto.setProcessId(idDoc.getString("apiGatewayUuid"));
-            dto.setWorkerOid(idDoc.getString("workOid"));
-            dto.setModuleId(idDoc.getString("allPathId"));
-        }
-
-        // 设置统计字段
-        dto.setCallTotalCount(getLong(doc, "callTotalCount"));
-        dto.setTransferDataTotalBytes(getLong(doc, "transferDataTotalBytes"));
-        dto.setCallAlarmTotalCount(getLong(doc, "callAlarmTotalCount"));
-        dto.setResponseDataRowTotalCount(getLong(doc, "responseDataRowTotalCount"));
-        dto.setTotalResponseTime(getLong(doc, "totalResponseTime"));
-        dto.setMaxResponseTime(getLong(doc, "responseDataRowTotalCount"));
-
-        // 处理lastApiCallId
-        ObjectId lastApiCallId = doc.getObjectId("lastApiCallId");
-        if (lastApiCallId != null) {
-            dto.setLastApiCallId(lastApiCallId.toString());
-        }
-
-        // 处理clientIds
-        List<String> clientIds = doc.getList("clientIds", String.class);
-        if (clientIds != null) {
-            dto.getClientIds().addAll(clientIds.stream()
-                    .filter(Objects::nonNull)
-                    .toList());
-        }
-
-        return dto;
-    }
-
-
-    public List<ApiCallMinuteStatsDto> aggregateMinuteByAllPathId(String allPathId, String lastApiCallId, Date startTime) {
-        List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList = new ArrayList<>();
-        String apiCallCollectionName;
-        try {
-            apiCallCollectionName = EntityUtils.documentAnnotationValue(ApiCallEntity.class);
+            bulkOps.execute();
         } catch (Exception e) {
-            throw new BizException("Get ApiCallEntity's collection name failed", e);
+            log.error("bulkUpsert WorkerCallEntity error", e);
         }
-        MongoCollection<Document> apiCallCollection = mongoOperations.getCollection(apiCallCollectionName);
-
-        // Build aggregation pipeline
-        Document match = new Document("allPathId", allPathId);
-        if (StringUtils.isNotBlank(lastApiCallId)) {
-            match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
-        }
-        if (null != startTime) {
-            match.append("createTime", new Document("$gte", startTime));
-        }
-        List<Document> pipeline = new ArrayList<>();
-        pipeline.add(new Document("$match", match));
-        pipeline.add(new Document("$project", new Document("year", new Document("$year", "$createTime"))
-                .append("month", new Document("$month", "$createTime"))
-                .append("day", new Document("$dayOfMonth", "$createTime"))
-                .append("hour", new Document("$hour", "$createTime"))
-                .append("minute", new Document("$minute", "$createTime"))
-                .append("res_rows", 1)
-                .append("latency", 1)
-                .append("req_bytes", 1)
-        ));
-        Document group = new Document("_id", groupByMinute())
-                .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))
-                .append("totalResponseTime", new Document("$sum", "$latency"))
-                .append("transferDataTotalBytes", new Document("$sum", "$req_bytes"))
-                .append("lastApiCallId", new Document("$last", "$_id"));
-        pipeline.add(new Document("$group", group));
-        if (log.isDebugEnabled()) {
-            StringBuilder pipelineString = new StringBuilder();
-            pipeline.forEach(document -> pipelineString.append(document.toJson()).append(System.lineSeparator()));
-            log.debug("ApiCallStatsService.aggregateMinuteByAllPathId pipeline: {}{}", System.lineSeparator(), pipelineString);
-        }
-        // Execute aggregation
-        try (
-                MongoCursor<Document> iterator = apiCallCollection.aggregate(pipeline, Document.class).allowDiskUse(true).iterator()
-        ) {
-            while (iterator.hasNext()) {
-                Document document = iterator.next();
-                ApiCallMinuteStatsDto apiCallMinuteStatsDto = new ApiCallMinuteStatsDto();
-                apiCallMinuteStatsDto.setModuleId(allPathId);
-
-                apiCallMinuteStatsDto.setResponseDataRowTotalCount(getLong(document, "responseDataRowTotalCount"));
-                apiCallMinuteStatsDto.setTotalResponseTime(getLong(document, "totalResponseTime"));
-                apiCallMinuteStatsDto.setTransferDataTotalBytes(getLong(document, "transferDataTotalBytes"));
-                // responseTimePerRow, rowPerSecond
-                apiCallMinuteStatsService.calculate(apiCallMinuteStatsDto);
-                if (null != document.get("lastApiCallId")) {
-                    apiCallMinuteStatsDto.setLastApiCallId(document.getObjectId("lastApiCallId").toString());
-                }
-                // apiCallTime: year, month, day, hour, minute
-                Document id = document.get("_id", Document.class);
-                Instant apiCallTime = LocalDateTime.of(
-                        id.getInteger("year"),
-                        id.getInteger("month"),
-                        id.getInteger("day"),
-                        id.getInteger("hour"),
-                        id.getInteger("minute")
-                ).toInstant(ZoneOffset.UTC);
-                apiCallMinuteStatsDto.setApiCallTime(Date.from(apiCallTime));
-
-                apiCallMinuteStatsDtoList.add(apiCallMinuteStatsDto);
-            }
-        }
-
-        return apiCallMinuteStatsDtoList;
     }
-
-    public Document groupByMinute() {
-        return new Document("year", "$year")
-                .append("month", "$month")
-                .append("day", "$day")
-                .append("hour", "$hour")
-                .append("minute", "$minute");
-    }
-
 
     /**
      * 统计：
@@ -496,5 +384,6 @@ public class WorkerCallService {
 
         public static final String REQ_TIME = "reqTime";
         public static final String RES_TIME = "resTime";
+        public static final String ALL_PATH_ID = "allPathId";
     }
 }

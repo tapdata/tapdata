@@ -2,6 +2,7 @@ package com.tapdata.tm.apiCalls.vo;
 
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -14,27 +15,27 @@ import java.util.List;
 public class ApiCountMetricVo {
     private ProcessMetric processMetric;
 
-    private List<WorkerMetrics> workerMetrics;
+    private List<WorkerMetrics> workerMetrics = new ArrayList<>();
 
     @Data
     public static class ProcessMetric {
         private String processId;
         private String serverName;
-        ApiItem processMetric;
+        private List<ApiItem> processMetric = new ArrayList<>();
     }
 
     @Data
     public static class WorkerMetrics {
         private String workOid;
         private String workerName;
-        private ApiItem workerMetric;
+        private List<ApiItem> workerMetric = new ArrayList<>();
     }
 
     @Data
     public static class ApiItem {
         String apiId;
         String apiName;
-        Long count;
-        Long errorCount;
+        Long count = 0L;
+        Long errorCount = 0L;
     }
 }

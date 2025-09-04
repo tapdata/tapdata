@@ -41,8 +41,4 @@ public class ApiCallStatsDto extends BaseDto {
 	 * Used to query the last API call record as an offset
 	 */
 	private String lastApiCallId;
-
-	private String processId;
-	private String workerOid;
-	private int type;
 }
