@@ -292,11 +292,25 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
 			if (findByName(modulesDto.getName()).size() > 1)
 				throw new BizException("Modules.Name.Existed");
-			if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1)
-				throw new BizException("Modules.BasePathAndVersion.Existed");
+			if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
+				throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 			checkoutInputParamIsValid(modulesDto);
 		}
 		return super.upsertByWhere(where, modulesDto, userDetail);
+	}
+
+	protected String paths(String basePath, String version, String prefix) {
+		StringJoiner joiner = new StringJoiner("/");
+		if (StringUtils.isNotBlank(version)) {
+			joiner.add(version);
+		}
+		if (StringUtils.isNotBlank(prefix)) {
+			joiner.add(prefix);
+		}
+		if (StringUtils.isNotBlank(basePath)) {
+			joiner.add(basePath);
+		}
+		return joiner.toString();
 	}
 
 	public List<ModulesDto> batchUpdateModuleByList(List<ModulesDto> modulesDtos, UserDetail userDetail) {
@@ -914,14 +928,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	}
 
 	/**
-	 * basePath+version 不能重复
+	 * basePath+version+prefix 不能重复
 	 */
-	private List<ModulesDto> isBasePathAndVersionRepeat(String basepath, String apiVersion) {
+	protected boolean isBasePathAndVersionRepeat(String basepath, String apiVersion, String prefix) {
 		Query query = Query.query(Criteria.where("is_deleted").ne(true));
 		query.addCriteria(Criteria.where("basePath").is(basepath));
 		query.addCriteria(Criteria.where("apiVersion").is(apiVersion));
-		List<ModulesDto> modulesDto = findAll(query);
-		return modulesDto;
+		query.addCriteria(Criteria.where("prefix").is(prefix));
+		long count = count(query);
+		return count > 0L;
 	}
 
 	public PreviewVo preview(UserDetail userDetail) {
@@ -1232,8 +1247,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (findByName(modulesDto.getName()).size() > 1) {
 			throw new BizException("Modules.Name.Existed");
 		}
-		if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1) {
-			throw new BizException("Modules.BasePathAndVersion.Existed");
+		if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
+			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 		}
 		checkoutInputParamIsValid(modulesDto);
 		modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());

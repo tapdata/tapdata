@@ -53,6 +53,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1007,4 +1008,76 @@ class ModulesServiceTest {
             verify(fileService, times(1)).viewImg1(anyString(), any(HttpServletResponse.class), anyString());
         }
     }
+
+	@Nested
+	class isBasePathAndVersionRepeatTest {
+		@Test
+		void testNotRepeat() {
+			when(modulesService.count(any(Query.class))).thenReturn(0L);
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat("test", "1.0", "test");
+            assertFalse(basePathAndVersionRepeat);
+		}
+
+		@Test
+		void testRepeat() {
+			when(modulesService.count(any(Query.class))).thenReturn(1L);
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat("test", "1.0", "test");
+			assertTrue(basePathAndVersionRepeat);
+		}
+	}
+
+	@Nested
+	class pathsTest {
+		@Test
+		void testNormal() {
+			String paths = modulesService.paths("test", "1.0", "test");
+			assertEquals("1.0/test/test", paths);
+		}
+		@Test
+		void testNull() {
+			String paths = modulesService.paths(null, null, null);
+			assertEquals("", paths);
+		}
+
+		@Test
+		void testEmpty() {
+			String paths = modulesService.paths("", "", "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty() {
+			String paths = modulesService.paths(null, "", "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty2() {
+			String paths = modulesService.paths("", null, "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty3() {
+			String paths = modulesService.paths("", "", null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty4() {
+			String paths = modulesService.paths(null, null, "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty5() {
+			String paths = modulesService.paths(null, "", null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty6() {
+			String paths = modulesService.paths("", null, null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty7() {
+			String paths = modulesService.paths(null, "", "");
+			assertEquals("", paths);
+		}
+	}
 }
