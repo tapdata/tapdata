@@ -222,6 +222,10 @@ public class TransformSchemaService {
                 TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
                 options.setTableRenameRelationMap(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
             }
+            if (node instanceof TableRenameProcessNode) {
+                TableRenameProcessNode tableRenameProcessNode = (TableRenameProcessNode) node;
+                options.setTableRenameRelationMap(DAG.getConvertTableNameMap(tableRenameProcessNode, tableNames));
+            }
         });
         List<Node> nodes = dagNodes;
 
