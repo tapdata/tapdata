@@ -13,12 +13,12 @@ public class MetricInfo {
     /**
      * unit MB
      * */
-    Long heapMemoryUsage;
+    Double heapMemoryUsage;
 
     /**
      * unit %, such as 0.1 means 10%
      * */
-    Long cpuUsage;
+    Double cpuUsage;
 
     /**
      * timestamp, unit ms
