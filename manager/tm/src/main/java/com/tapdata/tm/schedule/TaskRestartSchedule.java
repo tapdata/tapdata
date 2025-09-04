@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
@@ -57,6 +58,7 @@ public class TaskRestartSchedule {
     private MonitoringLogsService monitoringLogsService;
     private StateMachineService stateMachineService;
     private TransformSchemaService transformSchema;
+    private MetadataDefinitionService metadataDefinitionService;
 
     /**
      * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
@@ -106,7 +108,8 @@ public class TaskRestartSchedule {
 
         Map<String, UserDetail> userDetailMap = getUserDetailMap(all);
         Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
-        for (TaskDto taskDto : all) {
+        List<TaskDto> orderTask = metadataDefinitionService.orderTaskByTagPriority(all);
+        for (TaskDto taskDto : orderTask) {
             if (isCloud) {
                 String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
                 if ("offline".equals(status) ) {

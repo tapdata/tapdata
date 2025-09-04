@@ -26,4 +26,5 @@ public class MetadataDefinitionEntity extends BaseEntity {
     private String desc;
     private String linkId;
     private Boolean readOnly;
+    private Integer priority;
 }
