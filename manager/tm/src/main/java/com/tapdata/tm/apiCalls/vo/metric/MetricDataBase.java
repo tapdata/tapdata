@@ -10,6 +10,10 @@ import lombok.Data;
  */
 @Data
 public class MetricDataBase {
+
+    /**
+     * timestamp (ms)
+     * */
     Long time;
 
     public MetricDataBase time(Long time) {

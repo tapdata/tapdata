@@ -119,19 +119,31 @@ public class PercentileCalculator {
      * 结果封装类
      */
     public static class PercentileResult {
-        public final double p50;
-        public final double p95;
-        public final double p99;
+        public final Long p50;
+        public final Long p95;
+        public final Long p99;
 
-        public PercentileResult(double p50, double p95, double p99) {
+        public PercentileResult(Long p50, Long p95, Long p99) {
             this.p50 = p50;
             this.p95 = p95;
             this.p99 = p99;
         }
 
+        public Long getP50() {
+            return p50;
+        }
+
+        public Long getP95() {
+            return p95;
+        }
+
+        public Long getP99() {
+            return p99;
+        }
+
         @Override
         public String toString() {
-            return String.format("P50: %.2f, P95: %.2f, P99: %.2f", p50, p95, p99);
+            return String.format("P50: %d, P95: %d, P99: %d", p50, p95, p99);
         }
     }
 
