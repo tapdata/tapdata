@@ -1462,7 +1462,8 @@ public class TaskServiceImpl extends TaskService{
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         int index = 1;
-        for (TaskDto task : taskDtos) {
+        List<TaskDto> orderTaskDtos = metadataDefinitionService.orderTaskByTagPriority(taskDtos);
+        for (TaskDto task : orderTaskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
             try {
