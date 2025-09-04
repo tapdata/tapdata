@@ -1061,4 +1061,59 @@ class ModulesServiceTest {
 			assertTrue(basePathAndVersionRepeat);
 		}
 	}
+
+	@Nested
+	class pathsTest {
+		@Test
+		void testNormal() {
+			String paths = modulesService.paths("test", "1.0", "test");
+			assertEquals("1.0/test/test", paths);
+		}
+		@Test
+		void testNull() {
+			String paths = modulesService.paths(null, null, null);
+			assertEquals("", paths);
+		}
+
+		@Test
+		void testEmpty() {
+			String paths = modulesService.paths("", "", "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty() {
+			String paths = modulesService.paths(null, "", "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty2() {
+			String paths = modulesService.paths("", null, "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty3() {
+			String paths = modulesService.paths("", "", null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty4() {
+			String paths = modulesService.paths(null, null, "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty5() {
+			String paths = modulesService.paths(null, "", null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty6() {
+			String paths = modulesService.paths("", null, null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty7() {
+			String paths = modulesService.paths(null, "", "");
+			assertEquals("", paths);
+		}
+	}
 }
