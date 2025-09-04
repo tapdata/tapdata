@@ -2,6 +2,7 @@ package com.tapdata.tm.worker.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.worker.dto.ApiServerInfo;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import lombok.extern.slf4j.Slf4j;
@@ -26,8 +27,19 @@ public class ApiWorkerController extends BaseController {
     @Autowired
     private ApiWorkerServer apiWorkerServer;
 
+    /**
+     * get worker's info by processId
+     * */
     @GetMapping()
-    public ResponseMessage<List<ApiServerWorkerInfo>> getWorkers(@RequestParam(name = "processId", required = true) String processId) {
+    public ResponseMessage<ApiServerInfo> getWorkers(@RequestParam(name = "processId", required = true) String processId) {
         return success(apiWorkerServer.getWorkers(processId));
+    }
+
+    /**
+     * get all api-server's info (cup & memory usage)
+     * */
+    @GetMapping("/cpu-mem")
+    public ResponseMessage<List<ApiServerInfo>> getAllWorkers() {
+        return success(apiWorkerServer.getApiServerWorkerInfo());
     }
 }

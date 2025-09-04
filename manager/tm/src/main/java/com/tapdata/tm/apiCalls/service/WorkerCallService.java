@@ -21,6 +21,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -28,6 +29,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.aggregation.ConditionalOperators;
+import org.springframework.data.mongodb.core.aggregation.Fields;
 import org.springframework.data.mongodb.core.aggregation.GroupOperation;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.aggregation.SortOperation;
@@ -69,10 +71,9 @@ public class WorkerCallService {
         to = Optional.ofNullable(to).orElse(System.currentTimeMillis());
         type = Optional.ofNullable(type).orElse(0);
         Metric<? extends ApiCallMetricVo.MetricBase> metric = Metric.call(type);
-        Criteria criteria = Criteria.where(Tag.TIME_START).gte(from)
-                .and(Tag.TIME_START).lte(to)
-                .and(Tag.TIME_GRANULARITY).is(0)
-                .and(Tag.DELETE).ne(true);
+        Criteria criteria = Criteria.where(Tag.TIME_GRANULARITY).is(1)
+                .and(Tag.DELETE).ne(true)
+                .andOperator(Criteria.where(Tag.TIME_START).gte(from), Criteria.where(Tag.TIME_START).lte(to));
         if (StringUtils.isNotBlank(processId)) {
             criteria.and(Tag.PROCESS_ID).is(processId);
         }
@@ -185,37 +186,26 @@ public class WorkerCallService {
                 .collect(Collectors.toMap(
                         e -> String.format("%s_%s_%s", e.getProcessId(), e.getWorkOid(), e.getAllPathId()),
                         e -> e, (e1, e2) -> e2));
-        String lastApiCallId = collect.isEmpty() ? null : collect.get(0).getLastCallId();
+        String lastApiCallId = collect.isEmpty() ? null : collect.values().stream().map(WorkerCallStats::getLastCallId).findFirst().orElse(null);
         Criteria criteria = Criteria.where(Tag.WORK_OID).ne(null)
                 .and(Tag.ALL_PATH_ID).ne(null)
-                .and(Tag.PROCESS_ID).is(processId);
+                .and("api_gateway_uuid").is(processId);
         if (null != lastApiCallId) {
-            criteria.and("id").gt(new ObjectId(lastApiCallId));
+            criteria.and("_id").gt(new ObjectId(lastApiCallId));
         }
-        MatchOperation matchStage = Aggregation.match(criteria);
+        //MatchOperation matchStage = Aggregation.match(criteria);
         Query query = Query.query(criteria).limit(1).with(Sort.by(Sort.Order.desc("_id")));
         ApiCallEntity topOne = mongoOperations.findOne(query, ApiCallEntity.class);
         if (null == topOne) {
             return;
         }
         criteria.and("_id").lte(topOne.getId());
-        GroupOperation groupStage = Aggregation.group(Tag.ALL_PATH_ID, Tag.PROCESS_ID, Tag.WORK_OID)
-                .count().as("totalCount")
-                .sum(ConditionalOperators.when(Criteria.where("codeMsg").ne("ok")).then(1).otherwise(0)).as("notOkCount");
-        SortOperation sortStage = Aggregation.sort(
-                Sort.Direction.ASC, Tag.ALL_PATH_ID, Tag.PROCESS_ID, Tag.WORK_OID
-        );
-        Aggregation aggregation = Aggregation.newAggregation(
-                matchStage,
-                groupStage,
-                sortStage
-        );
-        AggregationResults<WorkerCallStats> results = mongoOperations.aggregate(
-                aggregation, "ApiCall", WorkerCallStats.class
-        );
-
-        List<WorkerCallStats> mappedResults = results.getMappedResults();
-
+        Query callQuery = Query.query(criteria);
+        callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg");
+        List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, "ApiCall");
+        Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = groupCallResult(processId, apiCalls);
+        List<WorkerCallStats> mappedResults = new ArrayList<>();
+        groupByApiAndWorker.values().forEach(apiMap -> mappedResults.addAll(apiMap.values()));
         Function<WorkerCallStats, Query> queryBuilder = entity -> {
             Criteria criteriaBulk = Criteria.where(Tag.ALL_PATH_ID).is(entity.getAllPathId())
                     .and(Tag.PROCESS_ID).is(entity.getProcessId())
@@ -246,6 +236,25 @@ public class WorkerCallService {
         } catch (Exception e) {
             log.error("bulkUpsert WorkerCallEntity error", e);
         }
+    }
+
+    private static @NotNull Map<String, Map<String, WorkerCallStats>> groupCallResult(String processId, List<ApiCallEntity> apiCalls) {
+        Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new HashMap<>();
+        for (ApiCallEntity apiCall : apiCalls) {
+            Map<String, WorkerCallStats> map = groupByApiAndWorker.computeIfAbsent(apiCall.getWorkOid(), k -> new HashMap<>());
+            WorkerCallStats item = map.computeIfAbsent(apiCall.getAllPathId() , k -> {
+                WorkerCallStats workerCallStats = new WorkerCallStats();
+                workerCallStats.setAllPathId(apiCall.getAllPathId());
+                workerCallStats.setWorkOid(apiCall.getWorkOid());
+                workerCallStats.setProcessId(processId);
+                workerCallStats.setTotalCount(0);
+                workerCallStats.setNotOkCount(0);
+                return workerCallStats;
+            });
+            item.setTotalCount(1 + item.getTotalCount());
+            item.setNotOkCount(("ok".equalsIgnoreCase(apiCall.getCodeMsg()) ? 0 : 1) + item.getNotOkCount());
+        }
+        return groupByApiAndWorker;
     }
 
     /**

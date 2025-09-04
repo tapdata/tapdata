@@ -71,7 +71,6 @@ public class WorkerCallEntity extends Entity {
 
     /**
      * 时间粒度
-     * 0 - second
      * 1 - minute
      * 2 - hour
      * 3 - day

@@ -21,12 +21,11 @@ public class ApiServerWorkerInfo {
 
     Integer pid;
 
-
     String workerStatus;
 
     Long workerStartTime;
 
-    Map<String, Object> metricValues;
+    MetricInfo metricValues;
 
     int sort;
 }
