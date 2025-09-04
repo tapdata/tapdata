@@ -17,7 +17,7 @@ public class ApiCallMetricVo {
 
     private ProcessMetric processMetric;
 
-    private List<WorkerMetrics> workerMetrics;
+    private List<WorkerMetrics> workerMetrics = new ArrayList<>();
 
     @Data
     public static class ProcessMetric {

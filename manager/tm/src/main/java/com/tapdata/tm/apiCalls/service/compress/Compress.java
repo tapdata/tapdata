@@ -29,11 +29,11 @@ public interface Compress {
         return result;
     }
 
-    default  void fixTime(List<MetricDataBase> result, MockItem<? extends MetricDataBase> mockItem) {
+    default void fixTime(List<MetricDataBase> result, MockItem<? extends MetricDataBase> mockItem) {
         List<MetricDataBase> addItem = new ArrayList<>();
         long start = result.get(0).getTime();
         for (MetricDataBase metricDataBase : result) {
-            while (metricDataBase.getTime() < start) {
+            while (metricDataBase.getTime() > start) {
                 addItem.add(mockItem.mock(start));
                 start = plus(start);
             }

@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiCalls.service;
 
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
+import com.tapdata.tm.apiCalls.enums.TimeGranularityType;
 import com.tapdata.tm.apiCalls.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import org.bson.types.ObjectId;
@@ -72,7 +73,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         item.setId(Optional.ofNullable(item.getId()).orElse(new ObjectId()));
         item.setWorkOid(workOid);
         item.setTimeStart(key);
-        item.setTimeGranularity(1);
+        item.setTimeGranularity(TimeGranularityType.MINUTE.getCode());
         item.setDelete(false);
         item.setRps(item.getReqCount() / 60.0d);
         item.setErrorRate(item.getErrorCount() / item.getReqCount() * 1.0D);

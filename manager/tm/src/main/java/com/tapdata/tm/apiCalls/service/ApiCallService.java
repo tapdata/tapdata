@@ -667,15 +667,15 @@ public class ApiCallService {
             throw new BizException("api.call.percentile.time.range.too.large");
         }
         ApiPercentile apiPercentile = new ApiPercentile();
-        ModulesEntity module = mongoOperations.findOne(Query.query(Criteria.where("allPathId").is(apiId)).limit(1), ModulesEntity.class);
-        if (null != module) {
+        ModulesEntity module = mongoOperations.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(apiId))).limit(1), ModulesEntity.class);
+        if (null == module) {
             return apiPercentile;
         }
         Criteria criteria = Criteria.where("allPathId").is(apiId)
                 .and("latency").exists(true)
                 .orOperator(
-                        Criteria.where("reqTime").gte(new Date(from)).and("reqTime").lte(new Date(end)),
-                        Criteria.where("report_time").gte(new Date(from)).and("report_time").lte(new Date(end))
+                        new Criteria().andOperator(Criteria.where("reqTime").gte(from), Criteria.where("reqTime").lte(end)),
+                        new Criteria().andOperator(Criteria.where("report_time").gte(from), Criteria.where("report_time").lte(end))
                 ).and(Tag.DELETE).ne(true);
         Query query = Query.query(criteria);
         query.fields().include("latency");

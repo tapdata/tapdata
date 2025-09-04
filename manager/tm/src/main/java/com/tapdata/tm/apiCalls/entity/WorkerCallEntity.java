@@ -74,6 +74,8 @@ public class WorkerCallEntity extends Entity {
      * 1 - minute
      * 2 - hour
      * 3 - day
+     *
+     * @see com.tapdata.tm.apiCalls.enums.TimeGranularityType
      * */
     private int timeGranularity;
 

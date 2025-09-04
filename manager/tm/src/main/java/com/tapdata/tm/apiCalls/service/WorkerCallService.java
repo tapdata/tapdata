@@ -5,6 +5,7 @@ import com.mongodb.internal.bulk.WriteRequest;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallStats;
+import com.tapdata.tm.apiCalls.enums.TimeGranularityType;
 import com.tapdata.tm.apiCalls.service.compress.Compress;
 import com.tapdata.tm.apiCalls.service.metric.Metric;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
@@ -81,6 +82,9 @@ public class WorkerCallService {
         Query query = Query.query(criteria);
         metric.fields(query);
         List<WorkerCallEntity> items = mongoOperations.find(query, WorkerCallEntity.class, "ApiCallInWorker");
+        if (items.isEmpty()) {
+            return vo;
+        }
         Map<String, List<WorkerCallEntity>> groupByWorker = items.stream().collect(Collectors.groupingBy(WorkerCallEntity::getWorkOid));
         granularity = Optional.ofNullable(granularity).orElse(0);
         Compress compress = Compress.call(granularity);
@@ -348,7 +352,7 @@ public class WorkerCallService {
 
     void metricWorker(String workerOid) {
         Criteria criteria = Criteria.where(Tag.WORK_OID).is(workerOid)
-                .and(Tag.TIME_GRANULARITY).is(0)
+                .and(Tag.TIME_GRANULARITY).is(TimeGranularityType.MINUTE.getCode())
                 .and(Tag.DELETE).ne(true);
         Query query = Query.query(criteria);
         query.limit(1);
@@ -364,9 +368,11 @@ public class WorkerCallService {
         long skip = 0;
         long size = 1000;
         Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid);
-        criteriaCall.and(Tag.RES_TIME).ne(null);
-        Optional.ofNullable(queryFrom).ifPresent(time -> criteriaCall.and(Tag.REQ_TIME).gte(time));
-        criteriaCall.and(Tag.REQ_TIME).lte(queryTo);
+        List<Criteria> timeCriteria = new ArrayList<>();
+        timeCriteria.add(Criteria.where(Tag.REQ_TIME).ne(null));
+        timeCriteria.add(Criteria.where(Tag.REQ_TIME).lte(queryTo));
+        Optional.ofNullable(queryFrom).ifPresent(time -> timeCriteria.add(Criteria.where(Tag.REQ_TIME).gte(time)));
+        criteriaCall.andOperator(timeCriteria);
         try (WorkerCallsInfoGenerator generator = new WorkerCallsInfoGenerator(acceptor)) {
             do {
                 Query queryCall = Query.query(criteriaCall);
