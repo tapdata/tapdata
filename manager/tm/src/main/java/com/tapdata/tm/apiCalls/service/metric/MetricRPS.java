@@ -43,7 +43,7 @@ public class MetricRPS implements Metric<ApiCallMetricVo.MetricRPS>, Initializin
             last = vo;
         }
         ofRPS.setRps(rps / (count * 60d));
-        return null;
+        return ofRPS;
     }
 
     @Override
