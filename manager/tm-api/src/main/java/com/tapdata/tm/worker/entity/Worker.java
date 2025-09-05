@@ -2,6 +2,7 @@ package com.tapdata.tm.worker.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
+import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import com.tapdata.tm.worker.dto.TcmInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
