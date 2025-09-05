@@ -2,7 +2,6 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import base.hazelcast.BaseHazelcastNodeTest;
 import cn.hutool.core.collection.ConcurrentHashSet;
-import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -17,13 +16,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.taskmilestones.RetryLifeCycleAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
@@ -31,7 +27,6 @@ import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.filter.TapRecordSkipDetector;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.TapPdkRunnerUnknownException;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -47,13 +42,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -374,7 +366,7 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				assertEquals(0,taskRetryStartTime);
 				return null;
 			});
-			spyhazelcastPdkBaseNode.cleanFuctionRetry("65aa211475a5ac694df51c69");
+			spyhazelcastPdkBaseNode.cleanFunctionRetry("65aa211475a5ac694df51c69");
 		}
 
 		@Test
