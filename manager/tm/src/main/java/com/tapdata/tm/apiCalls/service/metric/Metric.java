@@ -46,7 +46,7 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
     }
 
     public enum Type {
-        RPS(0), RESPONSE_TIME(1), ERROR_RATE(2), API_CALLS(3);
+        RPS(0), RESPONSE_TIME(1), ERROR_RATE(2);
         int code;
 
         Type(int code) {
