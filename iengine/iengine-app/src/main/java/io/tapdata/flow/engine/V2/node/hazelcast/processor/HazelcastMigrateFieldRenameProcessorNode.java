@@ -250,7 +250,7 @@ public class HazelcastMigrateFieldRenameProcessorNode extends HazelcastProcessor
 		}
 
 		protected <T> boolean applyOperation(String tableName, T operatorParam, MigrateFieldRenameProcessorNode.IOperator<T> operator) {
-			if (fieldsOperation.isEmpty()) {
+			if (null == fieldsOperation || fieldsOperation.isEmpty()) {
 				return false;
 			}
 			Map<String, FieldInfo> fieldInfoMap = null;
