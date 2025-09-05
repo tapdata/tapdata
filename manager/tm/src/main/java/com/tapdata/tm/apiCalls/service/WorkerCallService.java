@@ -194,8 +194,9 @@ public class WorkerCallService {
         Criteria criteria = Criteria.where(Tag.WORK_OID).ne(null)
                 .and(Tag.ALL_PATH_ID).ne(null)
                 .and("api_gateway_uuid").is(processId);
+        List<Criteria> idCriteria = new ArrayList<>();
         if (null != lastApiCallId) {
-            criteria.and("_id").gt(new ObjectId(lastApiCallId));
+            idCriteria.add(Criteria.where("_id").gt(new ObjectId(lastApiCallId)));
         }
         //MatchOperation matchStage = Aggregation.match(criteria);
         Query query = Query.query(criteria).limit(1).with(Sort.by(Sort.Order.desc("_id")));
@@ -203,7 +204,8 @@ public class WorkerCallService {
         if (null == topOne) {
             return;
         }
-        criteria.and("_id").lte(topOne.getId());
+        idCriteria.add(Criteria.where("_id").lte(topOne.getId()));
+        criteria.andOperator(idCriteria);
         Query callQuery = Query.query(criteria);
         callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg");
         List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, "ApiCall");
