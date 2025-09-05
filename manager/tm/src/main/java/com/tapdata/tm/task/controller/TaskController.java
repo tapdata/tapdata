@@ -1383,6 +1383,15 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    @Operation(summary = "修改任务信息（名称和描述）")
+    @PatchMapping("updateInfo/{taskId}")
+    public ResponseMessage<Void> updateTaskInfo(@PathVariable("taskId") String taskId,
+                                               @RequestParam("newName") String newName,
+                                               @RequestParam(value = "desc", required = false) String desc) {
+        taskService.updateTaskInfo(taskId, newName, desc, getLoginUser());
+        return success();
+    }
+
     @PostMapping("/stopTaskByAgentId/{agentId}")
     public ResponseMessage<Void> stopTaskByAgentId(@PathVariable("agentId") String agentId) {
         taskService.stopTaskIfNeedByAgentId(agentId, getLoginUser());

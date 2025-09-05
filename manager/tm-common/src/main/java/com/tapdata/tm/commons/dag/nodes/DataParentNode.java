@@ -7,10 +7,7 @@ import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
@@ -113,6 +110,10 @@ public abstract class DataParentNode<S> extends Node<S> {
     /** 无主键表同步模式， */
     private String noPkSyncMode;
     private boolean ignoreMetrics;
+
+    private Boolean applyCompareRule = false;
+
+    private List<String> applyCompareRules;
     /**
      * constructor for node
      *

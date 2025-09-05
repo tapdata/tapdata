@@ -58,7 +58,12 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		}
 
 		List<Field> fields;
-		ApplyConfig apply = new ApplyConfig(this);
+		ApplyConfig apply;
+		if (null != options) {
+			apply = new ApplyConfig(this, options.getTableRenameRelationMap());
+		} else {
+			apply = new ApplyConfig(this);
+		}
 		IOperator<Field> fieldIOperator = new IOperator<Field>() {
 			@Override
 			public void deleteField(Field field, String originalName) {
@@ -230,9 +235,19 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
 		protected final Map<String, List<String>> targetFieldExistMaps;
 
 		public ApplyConfig(MigrateFieldRenameProcessorNode node) {
+			this(node, null);
+		}
+
+		public ApplyConfig(MigrateFieldRenameProcessorNode node,Map<String, String> tableRenameRelationoMap) {
 			fieldsOperation = node.getFieldsOperation();
 			fieldInfoMaps = new HashMap<>();
 			targetFieldExistMaps = new HashMap<>();
+			if (null != tableRenameRelationoMap) {
+				node.getFieldsMapping().forEach(tableFieldInfo -> {
+					String currentTableName = tableRenameRelationoMap.get(tableFieldInfo.getOriginTableName());
+					tableFieldInfo.setPreviousTableName(currentTableName);
+				});
+			}
 			tableFieldInfoMap = Optional.ofNullable(node.getFieldsMapping()).map(tableFieldInfos -> {
 				Map<String, TableFieldInfo> tableMap = new HashMap<>();
 				for (TableFieldInfo info : tableFieldInfos) {

@@ -20,7 +20,11 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -60,9 +64,11 @@ class ApiCallServiceTest {
     private ApplicationService applicationService;
     private ApiCallStatsService apiCallStatsService;
     ApplicationConfig applicationConfig;
+    TextEncryptionRuleService ruleService;
 
     @BeforeEach
     void setUp() {
+        ruleService = mock(TextEncryptionRuleService.class);
         apiCallService = new ApiCallService();
         apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
         applicationConfig = mock(ApplicationConfig.class);
@@ -77,7 +83,7 @@ class ApiCallServiceTest {
         ReflectionTestUtils.setField(apiCallService, "applicationService", applicationService);
         apiCallStatsService = mock(ApiCallStatsService.class);
         ReflectionTestUtils.setField(apiCallService, "apiCallStatsService", apiCallStatsService);
-
+        ReflectionTestUtils.setField(apiCallService, "ruleService", ruleService);
     }
 
     @Nested
@@ -337,66 +343,8 @@ class ApiCallServiceTest {
             return apiCallEntity;
         });
 
-        assertSame(apiCallEntity, apiCallService.findOne(inputQuery));
+        assertEquals(apiCallEntity, apiCallService.findOne(inputQuery));
     }
-
-    @Nested
-    @DisplayName("Method BuildNameOrIdExpr(Query) test")
-    class BuildNameOrIdExprTest {
-        UserDetail userDetail;
-
-        @BeforeEach
-        void init() {
-            userDetail = mock(UserDetail.class);
-        }
-
-        @Test
-        void testUserIsAdmin() {
-            when(userDetail.getEmail()).thenReturn("admin@admin.com");
-            when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            List<Document> documents = apiCallService.buildNameOrIdExpr(null, null, userDetail);
-            Assertions.assertEquals(2, documents.size());
-            Assertions.assertEquals("{\"$eq\":[\"$_id\",{\"$toObjectId\":\"$$allPathId\"}]}", JSON.toJSONString(documents.get(0)));
-            Assertions.assertEquals("{\"$ne\":[\"$delete\",true]}", JSON.toJSONString(documents.get(1)));
-        }
-
-        @Test
-        void testUserNotAdmin() {
-            when(userDetail.getEmail()).thenReturn("user@admin.com");
-            when(userDetail.getUserId()).thenReturn("user@admin.com");
-            List<Document> documents = apiCallService.buildNameOrIdExpr(null, null, userDetail);
-            Assertions.assertEquals(3, documents.size());
-            Assertions.assertEquals("{\"$eq\":[\"$_id\",{\"$toObjectId\":\"$$allPathId\"}]}", JSON.toJSONString(documents.get(0)));
-            Assertions.assertEquals("{\"$ne\":[\"$delete\",true]}", JSON.toJSONString(documents.get(1)));
-            Assertions.assertEquals("{\"$eq\":[\"$user_id\",\"user@admin.com\"]}", JSON.toJSONString(documents.get(2)));
-        }
-
-        @Test
-        void testObjectId() {
-            when(userDetail.getEmail()).thenReturn("admin@admin.com");
-            when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            ObjectId objectId = new ObjectId();
-            String hexString = objectId.toHexString();
-            List<Document> documents = apiCallService.buildNameOrIdExpr(hexString, hexString, userDetail);
-            Assertions.assertEquals(3, documents.size());
-            Assertions.assertEquals("{\"$eq\":[\"$_id\",{\"$toObjectId\":\"$$allPathId\"}]}", JSON.toJSONString(documents.get(0)));
-            Assertions.assertEquals("{\"$ne\":[\"$delete\",true]}", JSON.toJSONString(documents.get(1)));
-            Assertions.assertEquals("{\"$eq\":[\"$_id\",{\"date\":" + objectId.getDate().getTime() + ",\"timestamp\":" + objectId.getTimestamp() + "}]}", JSON.toJSONString(documents.get(2)));
-        }
-
-        @Test
-        void testNotObjectId() {
-            when(userDetail.getEmail()).thenReturn("admin@admin.com");
-            when(userDetail.getUserId()).thenReturn("admin@admin.com");
-            String hexString = "xxs";
-            List<Document> documents = apiCallService.buildNameOrIdExpr(hexString, hexString, userDetail);
-            Assertions.assertEquals(3, documents.size());
-            Assertions.assertEquals("{\"$eq\":[\"$_id\",{\"$toObjectId\":\"$$allPathId\"}]}", JSON.toJSONString(documents.get(0)));
-            Assertions.assertEquals("{\"$ne\":[\"$delete\",true]}", JSON.toJSONString(documents.get(1)));
-            Assertions.assertEquals("{\"$regexMatch\":{\"input\":\"$name\",\"regex\":\"xxs\"}}", JSON.toJSONString(documents.get(2)));
-        }
-    }
-
     @Nested
     @DisplayName("Method GenericFilterCriteria(Query) test")
     class GenericFilterCriteriaTest {
@@ -434,15 +382,91 @@ class ApiCallServiceTest {
     }
 
     @Nested
+    class startFilterApiNameOrIdTest {
+        @Test
+        void testNormal() {
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testQueryById() {
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"68a7e8decd50c74ff40731f4\"}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":\"68a7e8decd50c74ff40731f4\"}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testEmpty() {
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testNull() {
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":null}},{\"id\": {\"$regex\":null}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testApiNameIsNull() {
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":null}},{\"id\": {\"$regex\":null}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testApiNameIsEmpty() {
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"allPathId\":{\"$nin\":[\"\",null]}}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testApiNameIsLikeButNotAnyApi() {
+            when(modulesService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+        }
+        @Test
+        void testApiNameIsLikeWithOption() {
+            ObjectId objectId = new ObjectId("68a7e8decd50c74ff40731f4");
+            List<ModulesDto> all = new ArrayList<>();
+            ModulesDto dto = new ModulesDto();
+            dto.setId(objectId);
+            all.add(dto);
+            all.add(null);
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{\"or\":[{\"name\": {\"$regex\":\"xxx\"}},{\"id\": {\"$regex\":\"xxx\"}}]}}");
+            Criteria criteria = new Criteria();
+            apiCallService.startFilterApiNameOrId(filter, criteria);
+            Assertions.assertEquals("{\"criteriaObject\":{\"$or\":[{\"allPathId\":{\"$in\":[\"68a7e8decd50c74ff40731f4\"]}},{\"allPathId\":\"xxx\"}]}}", JSON.toJSONString(criteria));
+        }
+    }
+
+    @Nested
     @DisplayName("Method Find(Query) test")
     class FindTest {
-        List<ApiCallDataVo> result = new ArrayList<>();
         @Test
         void testNormal() {
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{}}");
+
+            List<ApiCallDataVo> result = new ArrayList<>();
+
+            List<ApplicationDto> applications = new ArrayList<>();
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
+
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -455,16 +479,22 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
         @Test
         void testCountIsEmpty() {
+            List<ApiCallDataVo> result = new ArrayList<>();
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"skip\":0,\"where\":{}}");
+            List<ApplicationDto> applications = new ArrayList<>();
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -475,17 +505,23 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
 
         @Test
         void testOrderIsNull() {
+            List<ApiCallDataVo> result = new ArrayList<>();
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{}}");
+            List<ApplicationDto> applications = new ArrayList<>();
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -498,17 +534,23 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
 
         @Test
         void testClientName() {
+            List<ApiCallDataVo> result = new ArrayList<>();
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \"name\"}}");
+            List<ApplicationDto> applications = new ArrayList<>();
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -521,17 +563,23 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
 
         @Test
         void testClientNameIsEmpty() {
+            List<ApiCallDataVo> result = new ArrayList<>();
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
+            List<ApplicationDto> applications = new ArrayList<>();
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -544,17 +592,23 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 0L);
         }
 
         @Test
         void testQueryResultNotEmpty() {
+            List<ApiCallDataVo> result = new ArrayList<>();
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\": null,\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
+            List<ApplicationDto> applications = new ArrayList<>();
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
@@ -567,27 +621,48 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 0);
             Assertions.assertEquals(page.getTotal(), 1L);
         }
 
         @Test
         void testQueryResultNotEmpty2() {
-            result.clear();
+            List<ApiCallDataVo> result = new ArrayList<>();
+
+            String apiId = new ObjectId().toHexString();
             result.add(new ApiCallDataVo());
             result.get(0).setId(new ObjectId());
+            result.get(0).setApiId(apiId);
+            result.get(0).setUserInfo(new HashMap<>());
+            result.get(0).getUserInfo().put(ApiCallService.Tag.CLIENT_ID, new ObjectId().toHexString());
+
             result.add(null);
+
             result.add(new ApiCallDataVo());
             result.get(2).setId(new ObjectId());
+
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getEmail()).thenReturn("admin@admin.com");
             when(userDetail.getUserId()).thenReturn("admin@admin.com");
             Filter filter = parseFilter("{\"order\": \"createTime ASC\",\"limit\":20,\"skip\":0,\"where\":{\"clientId\": \" \"}}");
+            List<ApplicationDto> applications = new ArrayList<>();
+            ApplicationDto app = new ApplicationDto();
+            app.setClientId(result.get(0).getUserInfo().get(ApiCallService.Tag.CLIENT_ID).toString());
+            app.setClientName("name");
+            when(applicationService.findByIds(anyList())).thenReturn(applications);
+
+            List<ModulesDto> modules = new ArrayList<>();
+            ModulesDto api = new ModulesDto();
+            api.setId(new ObjectId(apiId));
+            api.setName("apiName");
+            modules.add(api);
+            modules.add(null);
+            when(modulesService.findAllModulesByIds(anyList())).thenReturn(modules);
+
             when(mongoTemplate.aggregate(any(Aggregation.class), any(String.class), any(Class.class))).thenAnswer((answer) -> {
                 Class<?> className = answer.getArgument(2);
                 if (Objects.equals(className.getSimpleName(), ApiCallDataVo.class.getSimpleName())) {
-
                     return new AggregationResults<>(result, new Document());
                 } else if (Objects.equals(className.getSimpleName(), Map.class.getSimpleName())) {
                     Map<String, Number> res = new HashMap<>();
@@ -597,9 +672,182 @@ class ApiCallServiceTest {
                     return null;
                 }
             });
-            Page<ApiCallDetailVo> page = apiCallService.find(filter, userDetail);
+            Page<ApiCallDetailVo> page = apiCallService.find(filter);
             Assertions.assertEquals(page.getItems().size(), 2);
             Assertions.assertEquals(page.getTotal(), 3L);
+        }
+    }
+
+    @Nested
+    class mapToApiCallDetailVoTest {
+        @Test
+        void testNormal() {
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entity.setId(new ObjectId());
+            ApiCallDetailVo apiCallDetailVo = apiCallService.mapToApiCallDetailVo(entity);
+            Assertions.assertNotNull(apiCallDetailVo.getId());
+        }
+    }
+
+    @Nested
+    class afterFindEntityTest {
+        @Test
+        void testNormal() {
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallEntity entity = new ApiCallEntity();
+            ApiCallEntity apiCallEntity = apiCallService.afterFindEntity(entity);
+            Assertions.assertEquals(entity, apiCallEntity);
+        }
+
+        @Test
+        void testBatchNormal() {
+            List<ApiCallEntity> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallEntity entity = new ApiCallEntity();
+            entities.add(entity);
+            entity.setAllPathId(new ObjectId().toHexString());
+            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormal2() {
+            List<ApiCallEntity> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            List<ApiCallEntity> apiCallEntities = apiCallService.afterFindEntity(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDto() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoFalse() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonNotEmpty() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{\"id\": \"xxkdf\"}");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonInvalide() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormalafterFindDtoJsonInvalide2() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(false);
+            ApiCallDataVo entity = new ApiCallDataVo();
+            entities.add(entity);
+            entity.setQuery("{");
+            entity.setApiId(new ObjectId().toHexString());
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+
+        @Test
+        void testBatchNormal2afterFindDto() {
+            List<ApiCallDataVo> entities = new ArrayList<>();
+            when(ruleService.checkAudioSwitchStatus()).thenReturn(true);
+            List<ApiCallDataVo> apiCallEntities = apiCallService.afterFindDto(entities);
+            Assertions.assertEquals(entities, apiCallEntities);
+        }
+    }
+
+    @Nested
+    class findApiParamTypeMapTest {
+        @Test
+        void testEmpty() {
+            List<ModulesDto> all = new ArrayList<>();
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.size());
+        }
+        @Test
+        void testNotApiId() {
+            List<ModulesDto> all = new ArrayList<>();
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId[0]);
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(0, result.size());
+        }
+
+        @Test
+        void testNormal() {
+            List<ModulesDto> all = new ArrayList<>();
+            ModulesDto modulesDto = new ModulesDto();
+            all.add(modulesDto);
+            ModulesDto modulesDto1 = new ModulesDto();
+            all.add(modulesDto1);
+
+            ModulesDto modulesDto2 = new ModulesDto();
+            modulesDto2.setId(new ObjectId());
+            all.add(modulesDto2);
+            all.add(null);
+
+            ModulesDto modulesDto3 = new ModulesDto();
+            modulesDto3.setId(new ObjectId());
+            modulesDto3.setPaths(List.of(new Path()));
+            all.add(modulesDto3);
+
+            ModulesDto modulesDto4 = new ModulesDto();
+            modulesDto4.setId(new ObjectId());
+            Path path = new Path();
+            path.setName("name");
+            Param param = new Param();
+            param.setName("number");
+            path.setParams(List.of(param));
+            modulesDto4.setPaths(List.of(path));
+            all.add(modulesDto4);
+
+            ModulesDto modulesDto5 = new ModulesDto();
+            modulesDto5.setId(new ObjectId());
+            Path path1 = new Path();
+            path1.setName("name");
+            path1.setType("number");
+            Param param1 = new Param();
+            param1.setName("number");
+            param1.setType("number");
+            path1.setParams(List.of(param1));
+            modulesDto5.setPaths(List.of(path1));
+            all.add(modulesDto5);
+
+            when(modulesService.findAll(any(Query.class))).thenReturn(all);
+            Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(2, result.size());
         }
     }
 

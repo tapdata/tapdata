@@ -92,7 +92,7 @@ springdoc:
         - com.tapdata.tm.observability.controller
 
 server:
-  port: 3000
+  port: ${TAPDATA_TM_PORT:3000}
   error:
     path: /error
   compression:
@@ -142,6 +142,11 @@ cache:
   expire: 10 #缓存过期时间，单位分钟
   initialCapacity: 100 #初始化缓存容量
   maximumSize: 500 #最大缓存数
+
+db-lock:
+    owner: "${TAPDATA_TM_ID:}"
+    expire-seconds: 180
+    heartbeat-seconds: 60
 
 # OpenAPI Generator Configuration
 openapi:
