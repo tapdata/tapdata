@@ -44,7 +44,7 @@
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
-        <version.spring>6.2.8</version.spring>
+        <version.spring>6.2.10</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
