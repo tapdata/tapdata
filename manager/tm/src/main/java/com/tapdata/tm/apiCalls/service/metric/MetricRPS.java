@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -31,24 +33,22 @@ public class MetricRPS implements Metric<ApiCallMetricVo.MetricRPS>, Initializin
         OfRPS ofRPS = new OfRPS();
         ofRPS.setTime(timeStart);
         double rps = 0d;
-        vos.sort(Comparator.comparing(WorkerCallEntity::getTimeStart));
+        List<WorkerCallEntity> sorted = vos.stream().filter(Objects::nonNull)
+                .filter(e -> Objects.nonNull(e.getTimeStart()))
+                .sorted(Comparator.comparing(WorkerCallEntity::getTimeStart))
+                .toList();
         WorkerCallEntity last = null;
-        long count = vos.size();
-        for (WorkerCallEntity vo : vos) {
+        long count = sorted.size();
+        for (WorkerCallEntity vo : sorted) {
             if (last != null && (vo.getTimeStart() - last.getTimeStart()) > 60000L ) {
                 long diff = vo.getTimeStart() - last.getTimeStart();
                 count += (diff / 60000L);
             }
-            rps += vo.getRps() * 60d;
+            rps += Optional.ofNullable(vo.getRps()).orElse(0d) * 60d;
             last = vo;
         }
         ofRPS.setRps(rps / (count * 60d));
         return ofRPS;
-    }
-
-    @Override
-    public List<WorkerCallData> merge(List<WorkerCallData> vos) {
-        return List.of();
     }
 
     @Override

@@ -45,11 +45,6 @@ public class MetricResponseTime implements Metric<ApiCallMetricVo.MetricResponse
     }
 
     @Override
-    public List<WorkerCallData> merge(List<WorkerCallData> vos) {
-        return List.of();
-    }
-
-    @Override
     public ApiCallMetricVo.MetricResponseTime toResult(List<MetricDataBase> data) {
         ApiCallMetricVo.MetricResponseTime info = new ApiCallMetricVo.MetricResponseTime();
         data.stream()

@@ -1,7 +1,5 @@
 package com.tapdata.tm.apiCalls.utils;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class PercentileCalculator {
@@ -89,9 +87,9 @@ public class PercentileCalculator {
     /**
      * 带权重的百分位数计算（适用于需要强调某些数据的情况）
      */
-    public static double calculateWeightedPercentile(List<WeightedValue> weightedValues, double percentile) {
+    public static Double calculateWeightedPercentile(List<WeightedValue> weightedValues, double percentile) {
         if (weightedValues == null || weightedValues.isEmpty()) {
-            return 0.0;
+            return null;
         }
 
         // 按值排序
@@ -158,39 +156,5 @@ public class PercentileCalculator {
             this.value = value;
             this.weight = weight;
         }
-    }
-
-    /**
-     * 测试示例
-     */
-    public static void main(String[] args) {
-        // 测试小数据集
-        List<Long> smallDataset = Arrays.asList(10L, 15L, 20L, 25L, 30L);
-        System.out.println("小数据集: " + smallDataset);
-        System.out.println("百分位数: " + calculatePercentiles(smallDataset));
-
-        // 测试单个数据点
-        List<Long> singleValue = Arrays.asList(42L);
-        System.out.println("\n单个数据点: " + singleValue);
-        System.out.println("百分位数: " + calculatePercentiles(singleValue));
-
-        // 测试两个数据点
-        List<Long> twoValues = Arrays.asList(10L, 20L);
-        System.out.println("\n两个数据点: " + twoValues);
-        System.out.println("百分位数: " + calculatePercentiles(twoValues));
-
-        // 测试空数据集
-        List<Long> emptyList = new ArrayList<>();
-        System.out.println("\n空数据集: " + emptyList);
-        System.out.println("百分位数: " + calculatePercentiles(emptyList));
-
-        // 测试带权重的计算
-        List<WeightedValue> weightedValues = Arrays.asList(
-                new WeightedValue(10.0, 1.0),
-                new WeightedValue(20.0, 2.0),
-                new WeightedValue(30.0, 3.0)
-        );
-        double weightedP50 = calculateWeightedPercentile(weightedValues, 0.5);
-        System.out.println("\n带权重的P50: " + weightedP50);
     }
 }

@@ -4,6 +4,7 @@ import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiCalls.vo.WorkerCallData;
 import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
+import lombok.Getter;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.EnumMap;
@@ -21,8 +22,6 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
     void fields(Query query);
 
     MetricDataBase mergeTo(Long timeStart, List<WorkerCallEntity> vos);
-
-    List<WorkerCallData> merge(List<WorkerCallData> vos);
 
     T toResult(List<MetricDataBase> data);
 
@@ -45,16 +44,13 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
         }
     }
 
+    @Getter
     public enum Type {
         RPS(0), RESPONSE_TIME(1), ERROR_RATE(2);
-        int code;
+        final int code;
 
         Type(int code) {
             this.code = code;
-        }
-
-        public int getCode() {
-            return code;
         }
 
         public static Type by(int code) {

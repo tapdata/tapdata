@@ -11,7 +11,7 @@ import lombok.Data;
 @Data
 public class MetricInfo {
     /**
-     * unit MB
+     * unit byte
      * */
     Double heapMemoryUsage;
 
