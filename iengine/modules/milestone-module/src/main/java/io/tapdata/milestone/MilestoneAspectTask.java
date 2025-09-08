@@ -31,6 +31,7 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -83,7 +84,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 
     /* dynamic milestone order for prometheus tag 'order', based on actual creation sequence per task */
     private final Map<String, Integer> milestoneOrder = new ConcurrentHashMap<>();
-    private final java.util.concurrent.atomic.AtomicInteger milestoneOrderSeq = new java.util.concurrent.atomic.AtomicInteger(1);
+    private final AtomicInteger milestoneOrderSeq = new AtomicInteger(1);
 
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
     private final Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
@@ -95,7 +96,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
 	private final AtomicLong snapshotTableCounts = new AtomicLong(0);
 	private final AtomicLong snapshotTableProgress = new AtomicLong(0);
 
-    private String statusTag(io.tapdata.milestone.constants.MilestoneStatus status) {
+    private String statusTag(MilestoneStatus status) {
         return Optional.ofNullable(status).map(s -> s.name().toLowerCase(Locale.ROOT)).orElse("");
     }
 
@@ -104,11 +105,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         return String.valueOf(idx == null ? 999 : idx);
     }
 
-    private void reportMilestoneStatus(String code, MilestoneStatus status) {
+    protected void reportMilestoneStatus(String code, MilestoneStatus status) {
         reportMilestoneStatus(code, status, 1, null);
     }
 
-    private void reportMilestoneStatus(String code, MilestoneStatus status, double value, String order) {
+    protected void reportMilestoneStatus(String code, MilestoneStatus status, double value, String order) {
         try {
             if (null == order) {
                 order = orderOf(code);
@@ -139,11 +140,11 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
     }
 
-    private void reportMilestoneTime(String code, MilestoneStatus status, long durationMs) {
+    protected void reportMilestoneTime(String code, MilestoneStatus status, long durationMs) {
         reportMilestoneTime(code, status, durationMs, null);
     }
 
-    private void reportMilestoneTime(String code, MilestoneStatus status, long durationMs, String order) {
+    protected void reportMilestoneTime(String code, MilestoneStatus status, long durationMs, String order) {
         try {
             if (status != MilestoneStatus.FINISH && status != MilestoneStatus.ERROR) return;
             if (null == order) {
