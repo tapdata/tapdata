@@ -1,7 +1,5 @@
 package com.tapdata.tm.apiCalls.service;
 
-import com.mongodb.bulk.BulkWriteResult;
-import com.mongodb.internal.bulk.WriteRequest;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.entity.WorkerCallStats;
@@ -27,13 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.aggregation.ConditionalOperators;
-import org.springframework.data.mongodb.core.aggregation.Fields;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.MatchOperation;
-import org.springframework.data.mongodb.core.aggregation.SortOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -75,9 +66,7 @@ public class WorkerCallService {
         Criteria criteria = Criteria.where(Tag.TIME_GRANULARITY).is(1)
                 .and(Tag.DELETE).ne(true)
                 .andOperator(Criteria.where(Tag.TIME_START).gte(from), Criteria.where(Tag.TIME_START).lte(to));
-        if (StringUtils.isNotBlank(processId)) {
-            criteria.and(Tag.PROCESS_ID).is(processId);
-        }
+        criteria.and(Tag.PROCESS_ID).is(processId);
         ApiCallMetricVo vo = new ApiCallMetricVo();
         Query query = Query.query(criteria);
         metric.fields(query);
@@ -124,6 +113,7 @@ public class WorkerCallService {
         Map<String, Map<String, ApiCountMetricVo.ApiItem>> workerApiCountMap = new HashMap<>(16);
         apiCallInWorker.stream()
                 .filter(Objects::nonNull)
+                .filter(e -> StringUtils.isNotBlank(e.getAllPathId()))
                 .collect(Collectors.groupingBy(WorkerCallStats::getAllPathId))
                 .forEach((apiId, list) -> {
                     String apiName = apiMap.get(apiId);
@@ -160,7 +150,6 @@ public class WorkerCallService {
         String workOid = apiCallStats.getWorkOid();
         Map<String, ApiCountMetricVo.ApiItem> apiItemMap = workerApiCountMap.computeIfAbsent(workOid, key -> new HashMap<>());
         collectApiCallOnce(apiCallStats, apiName, apiItemMap);
-
     }
 
     void collectApiCallOnce(WorkerCallStats apiCallStats,
@@ -198,7 +187,6 @@ public class WorkerCallService {
         if (null != lastApiCallId) {
             idCriteria.add(Criteria.where("_id").gt(new ObjectId(lastApiCallId)));
         }
-        //MatchOperation matchStage = Aggregation.match(criteria);
         Query query = Query.query(criteria).limit(1).with(Sort.by(Sort.Order.desc("_id")));
         ApiCallEntity topOne = mongoOperations.findOne(query, ApiCallEntity.class);
         if (null == topOne) {
@@ -244,11 +232,14 @@ public class WorkerCallService {
         }
     }
 
-    private static @NotNull Map<String, Map<String, WorkerCallStats>> groupCallResult(String processId, List<ApiCallEntity> apiCalls) {
+    protected Map<String, Map<String, WorkerCallStats>> groupCallResult(String processId, List<ApiCallEntity> apiCalls) {
         Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = new HashMap<>();
         for (ApiCallEntity apiCall : apiCalls) {
+            if (null == apiCall) {
+                continue;
+            }
             Map<String, WorkerCallStats> map = groupByApiAndWorker.computeIfAbsent(apiCall.getWorkOid(), k -> new HashMap<>());
-            WorkerCallStats item = map.computeIfAbsent(apiCall.getAllPathId() , k -> {
+            WorkerCallStats item = map.computeIfAbsent(apiCall.getAllPathId(), k -> {
                 WorkerCallStats workerCallStats = new WorkerCallStats();
                 workerCallStats.setAllPathId(apiCall.getAllPathId());
                 workerCallStats.setWorkOid(apiCall.getWorkOid());
@@ -278,14 +269,16 @@ public class WorkerCallService {
         final List<CompletableFuture<Void>> futures = new ArrayList<>();
         try {
             apiServers.forEach(server -> {
-                if (server.getWorker_status() instanceof Map<?, ?> status) {
-                    if (status.get("workers") instanceof Map<?, ?> workers) {
-                        workers.forEach((k, v) -> {
-                            if (v instanceof Map<?, ?> info && info.get("oid") instanceof String oid) {
-                                futures.add(supplyAsync.thenRunAsync(() -> metricWorker(oid)));
-                            }
-                        });
-                    }
+                if (null == server) {
+                    return;
+                }
+                if (server.getWorker_status() instanceof Map<?, ?> status
+                        && status.get("workers") instanceof Map<?, ?> workers) {
+                    workers.forEach((k, v) -> {
+                        if (v instanceof Map<?, ?> info && info.get("oid") instanceof String oid) {
+                            futures.add(supplyAsync.thenRunAsync(() -> metricWorker(oid)));
+                        }
+                    });
                 }
             });
         } finally {
@@ -304,17 +297,17 @@ public class WorkerCallService {
         }
     }
 
-    public BulkWriteResult bulkUpsert(List<WorkerCallEntity> entities) {
-        return bulkUpsert(entities, this::buildDefaultQuery, this::buildDefaultUpdate);
+    public void bulkUpsert(List<WorkerCallEntity> entities) {
+        bulkUpsert(entities, this::buildDefaultQuery, this::buildDefaultUpdate);
     }
 
 
-    public BulkWriteResult bulkUpsert(List<WorkerCallEntity> entities,
-                                      Function<WorkerCallEntity, Query> queryBuilder,
-                                      Function<WorkerCallEntity, Update> updateBuilder) {
+    public void bulkUpsert(List<WorkerCallEntity> entities,
+                           Function<WorkerCallEntity, Query> queryBuilder,
+                           Function<WorkerCallEntity, Update> updateBuilder) {
         try {
             if (entities == null || entities.isEmpty()) {
-                return BulkWriteResult.acknowledged(WriteRequest.Type.INSERT, 0, 0, null, null);
+                return;
             }
             BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, WorkerCallEntity.class);
             for (WorkerCallEntity entity : entities) {
@@ -322,10 +315,9 @@ public class WorkerCallService {
                 Update update = updateBuilder.apply(entity);
                 bulkOps.upsert(query, update);
             }
-            return bulkOps.execute();
+            bulkOps.execute();
         } catch (Exception e) {
             log.error("bulkUpsert WorkerCallEntity error", e);
-            return BulkWriteResult.acknowledged(WriteRequest.Type.INSERT, 0, 0, null, null);
         }
     }
 

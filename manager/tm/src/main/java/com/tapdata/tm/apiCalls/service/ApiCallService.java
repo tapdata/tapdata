@@ -671,6 +671,8 @@ public class ApiCallService {
         if (null == module) {
             return apiPercentile;
         }
+        apiPercentile.setApiId(apiId);
+        apiPercentile.setName(module.getName());
         Criteria criteria = Criteria.where("allPathId").is(apiId)
                 .and("latency").exists(true)
                 .orOperator(

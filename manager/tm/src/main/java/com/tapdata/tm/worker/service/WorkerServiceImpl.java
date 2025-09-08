@@ -611,7 +611,7 @@ public class WorkerServiceImpl extends WorkerService{
                     update.set(String.format("worker_status.workers.%s.worker_status", id), value);
                     update.set(String.format("worker_status.workers.%s.activeTime", id), time);
                 }));
-        repository.update(query, update);
+        update(query, update);
     }
 
     public void updateAll(Query query, Update update) {

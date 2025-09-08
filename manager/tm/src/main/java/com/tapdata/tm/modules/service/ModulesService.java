@@ -545,7 +545,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                             ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
                             apiWorkerInfo.setOid((String) map.get("oid"));
                             apiWorkerInfo.setName((String) map.get("name"));
-                            apiWorkerInfo.setDescription((String) map.get("description"));
+                            apiWorkerInfo.setDescription((String) map.get(TAG.DESCRIPTION));
                             apiWorkerInfo.setId((Integer) map.get("id"));
                             apiWorkerInfo.setPid((Integer) map.get("pid"));
                             apiWorkerInfo.setWorkerStatus((String) map.get("workerStatus"));
@@ -751,7 +751,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Get record by ID");
+		map.put(TAG.DESCRIPTION, "Get record by ID");
 		Map responseFields = JsonUtil.parseJson("{'field_name':'_id','field_type':'String','required':'否','example':''}", Map.class);
 		map.put("requestFields", "{'field_name':'id','field_type':'String','required':'是','example':'5edf26e662a932388458f153'}");
 		map.put("responseFields", responseFields);
@@ -766,7 +766,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Paging records");
+		map.put(TAG.DESCRIPTION, "Paging records");
 		map.put("requestFields", getFileds(fields, (Path) pathObj.getAvailableQueryField(), (Path) pathObj.getRequiredQueryField()));
 		map.put("responseFields", getFileds(pathObj.getFields(), (Path) pathObj.getAvailableQueryField(), (Path) pathObj.getRequiredQueryField()));
 		map.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "?filter={\"limit\":10,\"skip\"=50，\"where\":{\"property\":{\"operator\":value}}}");
@@ -777,7 +777,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "POST");
 		map1.put("path", pathObj.getPath());
-		map1.put("description", "Paging records");
+		map1.put(TAG.DESCRIPTION, "Paging records");
 		map1.put("requestFields", getFileds(fields, (Path) pathObj.getAvailableQueryField(), (Path) pathObj.getRequiredQueryField()));
 		map1.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "\\nbody:\\n{filter:{\"limit\":10,\"skip\"=50，\"where\":{\"property\":{\"operator\":value}}}}");
 		map1.put("responseExample", "[\\n\" +\n" +
@@ -792,7 +792,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Paging records");
+		map.put(TAG.DESCRIPTION, "Paging records");
 		map.put("requestFields", "{'field_name':'limit','field_type':'int','required':'是','example':'10'},{'field_name':'skip','field_type':'int','required':'是','example':'50'},\n" +
 				"\t\t\t{'field_name':'where','field_type':'Object','required':'否','example':'{\"where\":{\"property\":value}}'");
 		Map responseFields = JsonUtil.parseJson("{'field_name':'_id','field_type':'String','required':'否','example':''}", Map.class);
@@ -805,7 +805,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "POST");
 		map1.put("path", pathObj.getPath() + "/find");
-		map1.put("description", "Paging records");
+		map1.put(TAG.DESCRIPTION, "Paging records");
 		map1.put("requestFields", "{'field_name':'limit','field_type':'int','required':'是','example':'10'},\n" +
 				"\t\t\t{'field_name':'skip','field_type':'int','required':'是','example':'50'},\n" +
 				"\t\t\t{'field_name':'where','field_type':'Object','required':'否','example':'{\"where\":{\"property\":value}}'}");
@@ -823,7 +823,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "POST");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Update by ID");
+		map.put(TAG.DESCRIPTION, "Update by ID");
 		map.put("requestFields", getFileds(fields, null, null));
 		map.put("responseFields", new ArrayList<>());
 		map.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "\n" + "Body:\n" + getExample((List<Field>) map.get("requestFields")));
@@ -832,7 +832,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "PATCH");
 		map1.put("path", pathObj.getPath());
-		map1.put("description", "Update by ID");
+		map1.put(TAG.DESCRIPTION, "Update by ID");
 		map1.put("requestFields", getFileds(fields, null, null));
 		map1.put("responseFields", new ArrayList<>());
 		map1.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "\n" + "Body:\n" + getExample((List<Field>) map1.get("requestFields")));
@@ -841,7 +841,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map2 = new HashMap<>();
 		map2.put("method", "PATCH");
 		map2.put("path", pathObj.getPath().split("\\{", 0));
-		map2.put("description", "update all match document with where");
+		map2.put(TAG.DESCRIPTION, "update all match document with where");
 		map2.put("requestFields", getFileds(fields, null, null));
 		map2.put("responseFields", new ArrayList<>());
 		map2.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath().split("\\{", 0) + "?filter={\"where\":{\"property\":value\")\n" + "Body:\n" + getExample((List<Field>) map1.get("requestFields")));
@@ -859,7 +859,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath() + "/delete");
-		map.put("description", "Delete by ID");
+		map.put(TAG.DESCRIPTION, "Delete by ID");
 		map.put("requestFields", "{'field_name':'id','field_type':'String','required':'是','example':'5edf26e662a932388458f153'}");
 		map.put("responseFields", new ArrayList<>());
 		map.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath());
@@ -872,7 +872,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "DELETE");
 		map1.put("path", pathObj.getPath());
-		map1.put("description", "Delete all match document with where");
+		map1.put(TAG.DESCRIPTION, "Delete all match document with where");
 		map1.put("requestFields", "{'field_name':'id','field_type':'String','required':'是','example':'5edf26e662a932388458f153'}");
 		map1.put("responseFields", new ArrayList<>());
 		map1.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath());
@@ -885,7 +885,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map2 = new HashMap<>();
 		map2.put("method", "DELETE");
 		map2.put("path", pathObj.getPath().split("\\{", 0));
-		map2.put("description", "Delete all match document with where");
+		map2.put(TAG.DESCRIPTION, "Delete all match document with where");
 		map2.put("requestFields", "{'field_name':'where','field_type':'object','required':'是','example':''}");
 		map2.put("responseFields", new ArrayList<>());
 		map2.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath().split("\\{", 0) + "?filter={\"where\":{\"property\":value\")");
@@ -927,7 +927,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "POST");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Use this interface to create new data");
+		map.put(TAG.DESCRIPTION, "Use this interface to create new data");
 		map.put("requestFields", fields);
 		Map responseFields = JsonUtil.parseJson("{'field_name':'_id','field_type':'String','required':'否','example':''}", Map.class);
 		map.put("responseFields", responseFields);
@@ -937,7 +937,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "POST");
 		map1.put("path", pathObj.getPath() + "/batch");
-		map1.put("description", "Batch import excel records");
+		map1.put(TAG.DESCRIPTION, "Batch import excel records");
 		Map<String, Object> objectMap = new HashMap<>();
 		objectMap.put("field_name", "total");
 		objectMap.put("field_type", "int");
@@ -951,7 +951,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map2 = new HashMap<>();
 		map2.put("method", "GET");
 		map2.put("path", pathObj.getPath() + "/batch");
-		map2.put("description", "Download batch import excel template");
+		map2.put(TAG.DESCRIPTION, "Download batch import excel template");
 		map2.put("requestFields", new ArrayList<>());
 		map2.put("responseFields", new ArrayList<>());
 		map2.put("requestExample", "Parameters\nNo parameters");
@@ -1683,5 +1683,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Update update = new Update();
 		update.set("listtags", modulesTagsDto.getListtags());
 		updateById(modulesTagsDto.getModuleId(), update, userDetail);
+	}
+
+	public static class TAG {
+		private TAG() {}
+		public static final String DESCRIPTION = "description";
 	}
 }

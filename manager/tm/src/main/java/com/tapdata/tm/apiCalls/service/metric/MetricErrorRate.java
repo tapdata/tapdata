@@ -35,13 +35,8 @@ public class MetricErrorRate implements Metric<ApiCallMetricVo.MetricErrorRate>,
             reqCount += vo.getReqCount();
             errorCount += vo.getErrorCount();
         }
-        data.setErrorRate(errorCount * 1.0d / reqCount);
+        data.setErrorRate(reqCount == 0L ? 0d : errorCount * 1.0d / reqCount);
         return data;
-    }
-
-    @Override
-    public List<WorkerCallData> merge(List<WorkerCallData> vos) {
-        return List.of();
     }
 
     @Override
