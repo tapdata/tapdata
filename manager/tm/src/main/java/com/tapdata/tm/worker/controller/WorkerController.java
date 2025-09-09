@@ -117,6 +117,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
     public ResponseMessage<WorkerDto> update(@RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.save(worker, getLoginUser()));
     }
 
@@ -178,6 +179,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<WorkerDto> put(@RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.replaceOrInsert(worker, getLoginUser()));
     }
 
@@ -204,6 +206,7 @@ public class WorkerController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<WorkerDto> updateById(@PathVariable("id") String id, @RequestBody WorkerDto worker) {
         worker.setId(MongoUtils.toObjectId(id));
+        updateWorker(worker);
         return success(workerService.save(worker, getLoginUser()));
     }
 
@@ -229,6 +232,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
     public ResponseMessage<WorkerDto> replceById(@PathVariable("id") String id, @RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.replaceById(MongoUtils.toObjectId(id), worker, getLoginUser()));
     }
 
@@ -240,6 +244,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
     public ResponseMessage<WorkerDto> replaceById2(@PathVariable("id") String id, @RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.replaceById(MongoUtils.toObjectId(id), worker, getLoginUser()));
     }
 
@@ -391,10 +396,7 @@ public class WorkerController extends BaseController {
     @PostMapping("upsertWithWhere")
     public ResponseMessage<WorkerDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody WorkerDto worker) {
         Where where = parseWhere(whereJson);
-        if ("api-server".equals(worker.getWorkerType())){
-            Long nowTimeStamp=new Date().getTime();
-            worker.setPingTime(nowTimeStamp);
-        }
+        updateWorker(worker);
         return success(workerService.upsertByWhere(where, worker, getLoginUser()));
     }
     @Operation(summary = "单例启动检测")
@@ -503,5 +505,40 @@ public class WorkerController extends BaseController {
     @PostMapping("/unbindByProcessId")
     public ResponseMessage<Boolean> unbindByProcessId(@RequestParam String processId) {
         return success(workerService.unbindByProcessId(processId));
+    }
+
+    void updateWorker(WorkerDto worker) {
+        if ("api-server".equals(worker.getWorkerType())) {
+            worker.setPingTime(new Date().getTime());
+            if (worker.getWorker_status() instanceof Map<?,?> workerStatus) {
+                WorkerOrServerStatus status = new WorkerOrServerStatus();
+                status.setStatus(String.valueOf(workerStatus.get("status")));
+                status.setProcessId(worker.getProcessId());
+                status.setTime(new Date().getTime());
+                status.setWorkerStatus(new HashMap<>());
+                status.setCpuMemStatus(new HashMap<>());
+                status.setWorkerBaseInfo(new HashMap<>());
+                if (workerStatus.get("workers") instanceof Map<?,?> workers) {
+                    workers.forEach((key, value) -> {
+                        if (value instanceof Map<?,?> workerInfo
+                                && workerInfo.get("oid") instanceof String oid
+                                && workerInfo.get("worker_status") instanceof String wStatus) {
+                            status.getWorkerStatus().put(oid, wStatus);
+                            status.getCpuMemStatus().put(oid, workerInfo.get("metricValues"));
+                            Map<String, Object> map = status.getWorkerBaseInfo().computeIfAbsent(oid, k -> new HashMap<>());
+                            map.put("name", workerInfo.get("name"));
+                            map.put("oid", oid);
+                            map.put("id", workerInfo.get("id"));
+                            map.put("worker_start_time", workerInfo.get("worker_start_time"));
+                            map.put("sort", workerInfo.get("sort"));
+                            map.put("pid", workerInfo.get("pid"));
+                            map.put("worker_status", workerInfo.get("worker_status"));
+                        }
+                    });
+                }
+                workerService.updateWorkerStatus(status, getLoginUser());
+            }
+            worker.setWorker_status(null);
+        }
     }
 }
