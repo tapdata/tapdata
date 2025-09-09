@@ -298,7 +298,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
 			if (findByName(modulesDto.getName()).size() > 1)
 				throw new BizException("Modules.Name.Existed");
-			if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
+			if (isBasePathAndVersionRepeat(id, modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
 				throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 			checkoutInputParamIsValid(modulesDto);
 		}
@@ -523,7 +523,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return apiDefinitionVo;
 	}
 
-	public List<ApiWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) {
+	public List<ApiWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) 	{
 		if (null == workerCount || workerCount <= 0) {
 			return new ArrayList<>();
 		}
@@ -987,11 +987,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	/**
 	 * basePath+version+prefix 不能重复
 	 */
-	protected boolean isBasePathAndVersionRepeat(String basepath, String apiVersion, String prefix) {
+	protected boolean isBasePathAndVersionRepeat(ObjectId id, String basepath, String apiVersion, String prefix) {
 		Query query = Query.query(Criteria.where("is_deleted").ne(true));
 		query.addCriteria(Criteria.where("basePath").is(basepath));
 		query.addCriteria(Criteria.where("apiVersion").is(apiVersion));
 		query.addCriteria(Criteria.where("prefix").is(prefix));
+		Optional.ofNullable(id).ifPresent(oId -> query.addCriteria(Criteria.where("_id").ne(oId)));
 		long count = count(query);
 		return count > 0L;
 	}
@@ -1304,7 +1305,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (findByName(modulesDto.getName()).size() > 1) {
 			throw new BizException("Modules.Name.Existed");
 		}
-		if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
+		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
 			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 		}
 		checkoutInputParamIsValid(modulesDto);

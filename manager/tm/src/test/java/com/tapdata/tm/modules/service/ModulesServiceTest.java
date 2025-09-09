@@ -1020,14 +1020,14 @@ class ModulesServiceTest {
 		@Test
 		void testNotRepeat() {
 			when(modulesService.count(any(Query.class))).thenReturn(0L);
-			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat("test", "1.0", "test");
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat(new ObjectId(), "test", "1.0", "test");
             assertFalse(basePathAndVersionRepeat);
 		}
 
 		@Test
 		void testRepeat() {
 			when(modulesService.count(any(Query.class))).thenReturn(1L);
-			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat("test", "1.0", "test");
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat(null, "test", "1.0", "test");
 			assertTrue(basePathAndVersionRepeat);
 		}
 	}
