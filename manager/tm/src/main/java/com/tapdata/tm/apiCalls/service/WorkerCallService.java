@@ -16,11 +16,11 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import com.tapdata.tm.worker.service.WorkerService;
+import io.tapdata.pdk.core.async.AsyncUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -51,6 +52,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class WorkerCallService {
+    private static final ExecutorService ASYNC_EXECUTOR = AsyncUtils.createThreadPoolExecutor(
+            WorkerCallService.class.getSimpleName() + "-worker-call-service-async-executor", 20, WorkerCallService.class.getSimpleName()
+    );
     private WorkerService workerService;
     MongoTemplate mongoOperations;
     private ApiWorkerServer apiWorkerServer;
@@ -84,12 +88,14 @@ public class WorkerCallService {
         processMetricInfo.setProcessId(processId);
         processMetricInfo.setProcessMetric(processMetric);
         vo.setProcessMetric(processMetricInfo);
-
+        Worker serverInfo = apiWorkerServer.getServerInfo(processId);
+        Map<String, String> workerMap = apiWorkerServer.workerMap(serverInfo);
         vo.setWorkerMetrics(new ArrayList<>());
         groupByWorker.forEach((workerOid, infos) -> {
             ApiCallMetricVo.MetricBase workerMetricInfo = metric.toResult(compressResult);
             ApiCallMetricVo.WorkerMetrics workerMetric = new ApiCallMetricVo.WorkerMetrics();
-            workerMetric.setWorkerName(workerOid);
+            workerMetric.setWorkOid(workerOid);
+            workerMetric.setWorkerName(workerMap.get(workerOid));
             workerMetric.setWorkerMetric(workerMetricInfo);
             vo.getWorkerMetrics().add(workerMetric);
         });
@@ -265,7 +271,7 @@ public class WorkerCallService {
         final Query serverQuery = Query.query(serverCriteria);
         final List<WorkerDto> apiServers = workerService.findAll(serverQuery);
         final CompletableFuture<Void> supplyAsync = CompletableFuture.runAsync(() -> {
-        });
+        }, ASYNC_EXECUTOR);
         final List<CompletableFuture<Void>> futures = new ArrayList<>();
         try {
             apiServers.forEach(server -> {
@@ -276,7 +282,7 @@ public class WorkerCallService {
                         && status.get("workers") instanceof Map<?, ?> workers) {
                     workers.forEach((k, v) -> {
                         if (v instanceof Map<?, ?> info && info.get("oid") instanceof String oid) {
-                            futures.add(supplyAsync.thenRunAsync(() -> metricWorker(oid)));
+                            futures.add(supplyAsync.thenRunAsync(() -> metricWorker(oid), ASYNC_EXECUTOR));
                         }
                     });
                 }

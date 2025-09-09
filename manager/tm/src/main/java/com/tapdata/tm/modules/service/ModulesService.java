@@ -539,7 +539,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 .map(e -> ((Map<Object, Object>) e).get("workers"))
                 .filter(Map.class::isInstance)
                 .map(e -> ((Map<?, ?>) e).values().stream()
-                        .sorted(Comparator.comparing(w -> (Integer) ((Map<?, ?>) w).get("sort")))
+                        .sorted(Comparator.comparing(w -> Optional.ofNullable((Integer) ((Map<?, ?>) w).get("sort")).orElse(0)))
                         .map(w -> {
                             Map<Object, Object> map = (Map<Object, Object>) w;
                             ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
