@@ -85,11 +85,11 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
             // 启动服务器
             server.start();
-            log.info("JDK Actuator HTTP server is started on port: " + port);
-            log.info("Prometheus endpoint: http://localhost:" + port + "/actuator/prometheus");
-            log.info("Health endpoint: http://localhost:" + port + "/actuator/health");
+			log.info("JDK Actuator HTTP server is started on port: {}", port);
+			log.info("Prometheus endpoint: http://localhost:{}/actuator/prometheus", port);
+			log.info("Health endpoint: http://localhost:{}/actuator/health", port);
         } catch (IOException e) {
-            log.error("Failed to start JDK HttpServer on port: " + port, e);
+			log.error("Failed to start JDK HttpServer on port: {}", port, e);
         }
     }
 
@@ -99,7 +99,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     public void stopServer() {
         if (server != null) {
             server.stop(0);
-            log.info("JDK Actuator HTTP server is stopped on port: " + port);
+			log.info("JDK Actuator HTTP server is stopped on port: {}", port);
         }
     }
 
@@ -135,7 +135,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
                 }
 
             } catch (Exception e) {
-                log.error("Error generating Prometheus metrics: " + e.getMessage(), e);
+				log.error("Error generating Prometheus metrics: {}", e.getMessage(), e);
                 String errorResponse = "# Error generating metrics: " + e.getMessage() + "\n";
                 byte[] errorBytes = errorResponse.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
@@ -172,7 +172,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
                 }
 
             } catch (Exception e) {
-                log.error("Error generating health check: " + e.getMessage(), e);
+				log.error("Error generating health check: {}", e.getMessage(), e);
                 String errorResponse = "{\"status\":\"DOWN\",\"error\":\"" + e.getMessage() + "\"}";
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(500, errorResponse.getBytes(StandardCharsets.UTF_8).length);
