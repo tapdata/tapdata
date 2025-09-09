@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.boot.actuate.health.HealthEndpoint;
@@ -25,6 +26,7 @@ import java.util.concurrent.Executors;
  * 通过management.jdk-server.enabled配置开关控制
  */
 @Configuration
+@Slf4j
 public class JdkHttpServerConfig implements ApplicationListener<ApplicationReadyEvent> {
 
     private final HealthEndpoint healthEndpoint;
@@ -62,7 +64,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
         // 检查是否启用
         if (!monitorEnabled) {
-            System.out.println("JDK Actuator HTTP server is disabled by configuration.");
+            log.info("JDK Actuator HTTP server is disabled by configuration.");
             return;
         }
 
@@ -81,13 +83,11 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
             // 启动服务器
             server.start();
-            System.out.println("Actuator HTTP server started on port: " + port);
-            System.out.println("Prometheus endpoint: http://localhost:" + port + "/actuator/prometheus");
-            System.out.println("Health endpoint: http://localhost:" + port + "/actuator/health");
-
+            log.info("JDK Actuator HTTP server is started on port: " + port);
+            log.info("Prometheus endpoint: http://localhost:" + port + "/actuator/prometheus");
+            log.info("Health endpoint: http://localhost:" + port + "/actuator/health");
         } catch (IOException e) {
-            System.err.println("Failed to start JDK HttpServer on port: " + port);
-            e.printStackTrace();
+            log.error("Failed to start JDK HttpServer on port: " + port, e);
         }
     }
 
@@ -97,7 +97,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     public void stopServer() {
         if (server != null) {
             server.stop(0);
-            System.out.println("Actuator HTTP server stopped");
+            log.info("JDK Actuator HTTP server is stopped on port: " + port);
         }
     }
 
@@ -133,7 +133,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
                 }
 
             } catch (Exception e) {
-                System.err.println("Error generating Prometheus metrics: " + e.getMessage());
+                log.error("Error generating Prometheus metrics: " + e.getMessage(), e);
                 String errorResponse = "# Error generating metrics: " + e.getMessage() + "\n";
                 byte[] errorBytes = errorResponse.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
@@ -170,7 +170,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
                 }
 
             } catch (Exception e) {
-                System.err.println("Error generating health check: " + e.getMessage());
+                log.error("Error generating health check: " + e.getMessage(), e);
                 String errorResponse = "{\"status\":\"DOWN\",\"error\":\"" + e.getMessage() + "\"}";
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(500, errorResponse.getBytes(StandardCharsets.UTF_8).length);
