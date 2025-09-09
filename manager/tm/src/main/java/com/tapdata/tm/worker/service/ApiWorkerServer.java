@@ -161,7 +161,8 @@ public class ApiWorkerServer {
     }
 
     public Map<String, String> workerMap(Worker server) {
-        return pullWorkerInfo(server).stream().collect(Collectors.toMap(ApiServerWorkerInfo::getOid, ApiServerWorkerInfo::getName, (s1, s2) -> s2));
+        return pullWorkerInfo(server).stream()
+                .collect(Collectors.toMap(ApiServerWorkerInfo::getOid, e -> Optional.ofNullable(e.getName()).orElse("-"), (s1, s2) -> s2));
     }
 
     public List<ApiServerInfo> getApiServerWorkerInfo() {
