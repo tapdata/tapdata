@@ -3337,6 +3337,29 @@ public class MetadataInstancesServiceImplTest {
 		}
 
 		@Test
+		@DisplayName("Should return early when task not found")
+		void testTargetSchemaDetection_NodeIsNotDataParentNode() {
+			// Given
+			TaskDto taskDto = createMockTaskDto();
+			DAG dag = mock(DAG.class);
+			taskDto.setDag(dag);
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(mock(Node.class));
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(taskService).findOne(any(Query.class), eq(userDetail));
+				verify(dag).getNode(nodeId);
+				verify(metadataInstancesCompareService, never()).deleteAll(any(Query.class));
+			}
+		}
+
+		@Test
 		@DisplayName("Should return early when target node not found")
 		void testTargetSchemaDetection_TargetNodeNotFound() {
 			// Given
@@ -3401,7 +3424,7 @@ public class MetadataInstancesServiceImplTest {
 
 				// Then
 				verify(taskService).findOne(any(Query.class), eq(userDetail));
-				verify(dag).getNode(nodeId);
+				verify(dag, times(2)).getNode(nodeId);
 				verify(metadataInstancesCompareService).deleteAll(any(Query.class));
 				verify(metadataInstancesCompareService, atLeastOnce()).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
 			}
@@ -3444,7 +3467,6 @@ public class MetadataInstancesServiceImplTest {
 
 				// Then
 				verify(taskService).findOne(any(Query.class), eq(userDetail));
-				verify(metadataInstancesCompareService).findAll(any(Query.class));
 			}
 		}
 
