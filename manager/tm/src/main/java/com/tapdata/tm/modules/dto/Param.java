@@ -1,6 +1,6 @@
 package com.tapdata.tm.modules.dto;
 
-import com.tapdata.tm.modules.emuns.ParamType;
+import com.tapdata.tm.modules.constant.ParamTypeEnum;
 import lombok.Data;
 
 @Data
@@ -8,7 +8,7 @@ public class Param {
     private String name;
 
     /**
-     * @see ParamType
+     * @see ParamTypeEnum
      * */
     private String type;
 

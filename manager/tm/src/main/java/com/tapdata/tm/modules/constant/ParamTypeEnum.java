@@ -3,6 +3,7 @@ package com.tapdata.tm.modules.constant;
 
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.util.NumberUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.base.exception.BizException;
 import org.apache.commons.lang3.StringUtils;
 
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collection;
 
 public enum ParamTypeEnum {
 
@@ -20,7 +22,8 @@ public enum ParamTypeEnum {
 
     DATE_TIME("DateTime"),
     TIME("Time"),
-    BOOLEAN("Boolean");
+    BOOLEAN("Boolean"),
+    ARRAY("Array");
 
     public String type;
 
@@ -74,12 +77,25 @@ public enum ParamTypeEnum {
                             throw new BizException(defaultValue+" is not be boolean");
                         }
                         break;
-
+                    case ARRAY:
+                        return checkArray(defaultValue);
                 }
                 return true;
             }
         }
         return false;
+    }
+
+    public static boolean checkArray(String defaultValue) {
+        if (null == defaultValue) {
+            return true;
+        }
+        try {
+            JSON.parseArray(defaultValue);
+            return true;
+        } catch (Exception e) {
+            throw new BizException(defaultValue + " is not be json array, can not parse to array");
+        }
     }
 
     public static void main(String[] args) {
