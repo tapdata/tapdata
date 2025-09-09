@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
-import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.endpoint.web.WebEndpointResponse;
 import org.springframework.boot.actuate.health.HealthEndpoint;
@@ -26,8 +27,9 @@ import java.util.concurrent.Executors;
  * 通过management.jdk-server.enabled配置开关控制
  */
 @Configuration
-@Slf4j
 public class JdkHttpServerConfig implements ApplicationListener<ApplicationReadyEvent> {
+
+    public static Logger log = LogManager.getLogger(JdkHttpServerConfig.class);
 
     private final HealthEndpoint healthEndpoint;
     private final PrometheusScrapeEndpoint prometheusScrapeEndpoint;

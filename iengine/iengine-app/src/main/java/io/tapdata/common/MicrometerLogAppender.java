@@ -2,8 +2,9 @@ package io.tapdata.common;
 
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.firedome.MultiTaggedCounter;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 
@@ -11,8 +12,9 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
  * @Author knight
  * @Date 2025/8/11 17:49
  */
-@Slf4j
 public class MicrometerLogAppender extends AbstractAppender {
+
+    public static Logger log = LogManager.getLogger(MicrometerLogAppender.class);
 
     private final MultiTaggedCounter multiTaggedCounter;
 
