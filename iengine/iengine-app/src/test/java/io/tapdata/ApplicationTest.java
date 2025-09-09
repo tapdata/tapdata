@@ -24,7 +24,7 @@ public class ApplicationTest {
                 Application.addRollingFileAppender("./workDir");
             });
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            assertEquals(2, context.getRootLogger().getAppenders().size());
+            assertEquals(3, context.getRootLogger().getAppenders().size());
         }
 
         @Test

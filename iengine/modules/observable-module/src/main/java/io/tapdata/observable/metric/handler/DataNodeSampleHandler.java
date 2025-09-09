@@ -3,6 +3,7 @@ package io.tapdata.observable.metric.handler;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.SampleCollector;
@@ -12,6 +13,8 @@ import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.WriteCostAvgSampler;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -99,7 +102,6 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	@Override
 	void doInit(Map<String, Number> values) {
 		super.doInit(values);
-
 		// table samples for node
 		collector.addSampler(TABLE_TOTAL, () -> {
 			if (CollectionUtils.isNotEmpty(nodeTables)) {
@@ -115,8 +117,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		snapshotTableCounter = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
 		snapshotRowCounter = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
 		snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
-		snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG);
-		targetWriteTimeCostAvg = collector.getWriteCostAvgSampler(TARGET_WRITE_TIME_COST_AVG);
+		snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG,
+				timeCostAvgGauge,
+				nodeId, nodeName, "source", taskId, taskName, taskType);
+		targetWriteTimeCostAvg = collector.getWriteCostAvgSampler(TARGET_WRITE_TIME_COST_AVG,
+				timeCostAvgGauge,
+				nodeId, nodeName, "target", taskId, taskName, taskType);
 
 		Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
 		if (retrieveSnapshotStartAt != null) {
@@ -222,7 +228,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	private Long streamProcessStartTs;
 
 	public void handleStreamReadStreamStart(List<String> tables, Long startAt) {
-		incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG);
+		incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG,
+				timeCostAvgGauge,
+				nodeId, nodeName, "source", taskId, taskName, taskType);
 		streamAcceptLastTs = startAt;
 		for (String table : tables) {
 			addTable(table);

@@ -65,7 +65,10 @@ class LdpServiceImplTest {
         user = mock(UserDetail.class);
         taskService = mock(TaskService.class);
         ReflectionTestUtils.setField(ldpService,"taskService",taskService);
+        // Ensure protected criteria method returns non-null in tests
+        when(ldpService.fdmTaskCriteria(anyString())).thenCallRealMethod();
     }
+
 
     @Nested
     class FindAgentTest {

@@ -2,7 +2,6 @@ package io.tapdata.milestone;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.BeanUtil;
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.ResponseBody;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -25,28 +24,19 @@ import io.tapdata.exception.TmUnavailableException;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -56,18 +46,8 @@ import static io.tapdata.aspect.DataFunctionAspect.STATE_END;
 import static io.tapdata.aspect.DataFunctionAspect.STATE_START;
 import static io.tapdata.aspect.TableInitFuncAspect.STATE_PROCESS;
 import static io.tapdata.aspect.taskmilestones.EngineDeductionAspect.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -75,10 +55,12 @@ import static org.mockito.Mockito.when;
  */
 class MilestoneAspectTaskTest {
 	MilestoneAspectTask milestoneAspectTask;
+
 	@BeforeEach
 	void init() {
 		milestoneAspectTask = mock(MilestoneAspectTask.class);
 	}
+
 	void setField(MilestoneAspectTask milestoneAspectTask, Class<?> clz, String field, Object value) {
 		try {
 			Field logField = clz.getDeclaredField(field);
@@ -152,6 +134,7 @@ class MilestoneAspectTaskTest {
 
 		MilestoneEntity m;
 		MilestoneEntity tm;
+
 		@BeforeEach
 		void init() {
 			m = mock();
@@ -244,6 +227,7 @@ class MilestoneAspectTaskTest {
 
 			SnapshotReadBeginAspect snapshotReadBeginAspect;
 			List<String> tablesForSnapshotReadBeginAspect;
+
 			void mockSnapshotReadBeginAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotReadBeginAspect = mock(SnapshotReadBeginAspect.class);
 				doNothing().when(m).setProgress(0L);
@@ -257,6 +241,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			SnapshotReadEndAspect snapshotReadEndAspect;
+
 			void mockSnapshotReadEndAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotReadEndAspect = mock(SnapshotReadEndAspect.class);
 				if (classType.getName().equals(SnapshotReadEndAspect.class.getName())
@@ -266,6 +251,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			SnapshotReadErrorAspect snapshotReadErrorAspect;
+
 			void mockSnapshotReadErrorAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotReadErrorAspect = mock();
 				if (classType.getName().equals(SnapshotReadErrorAspect.class.getName())
@@ -275,6 +261,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			SnapshotReadTableEndAspect snapshotReadTableEndAspect;
+
 			void mockSnapshotReadTableEndAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotReadTableEndAspect = mock();
 				doNothing().when(m).addProgress(1);
@@ -285,6 +272,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			Snapshot2CDCAspect snapshot2CDCAspect;
+
 			void mockSnapshot2CDCAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshot2CDCAspect = mock();
 				if (classType.getName().equals(Snapshot2CDCAspect.class.getName())
@@ -294,6 +282,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			CDCReadBeginAspect cdcReadBeginAspect;
+
 			void mockCDCReadBeginAspect(Class classType, String typeName, BiConsumer consumer) {
 				cdcReadBeginAspect = mock();
 				when(milestoneAspectTask.hasSnapshot()).thenReturn(true);
@@ -304,6 +293,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			SnapshotWriteBeginAspect snapshotWriteBeginAspect;
+
 			void mockSnapshotWriteBeginAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotWriteBeginAspect = mock();
 				if (classType.getName().equals(SnapshotWriteBeginAspect.class.getName())
@@ -313,6 +303,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			SnapshotWriteEndAspect snapshotWriteEndAspect;
+
 			void mockSnapshotWriteEndAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotWriteEndAspect = mock();
 				if (classType.getName().equals(SnapshotWriteEndAspect.class.getName())
@@ -322,6 +313,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			CDCReadStartedAspect cdcReadStartedAspect;
+
 			void mockCDCReadStartedAspect(Class classType, BiConsumer consumer) {
 				cdcReadStartedAspect = mock();
 				when(milestoneAspectTask.hasSnapshot()).thenReturn(true);
@@ -331,6 +323,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			CDCReadErrorAspect cdcReadErrorAspect;
+
 			void mockCDCReadErrorAspect(Class classType, BiConsumer consumer) {
 				cdcReadStartedAspect = mock();
 				when(m.getEnd()).thenReturn(1L);
@@ -341,6 +334,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			CDCWriteBeginAspect cdcWriteBeginAspect;
+
 			void mockCDCWriteBeginAspect(Class classType, BiConsumer consumer) {
 				cdcWriteBeginAspect = mock();
 				when(milestoneAspectTask.hasSnapshot()).thenReturn(true);
@@ -350,6 +344,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			WriteErrorAspect writeErrorAspect;
+
 			void mockWriteErrorAspect(Class classType, BiConsumer consumer) {
 				writeErrorAspect = mock();
 				when(m.getEnd()).thenReturn(1L);
@@ -359,6 +354,7 @@ class MilestoneAspectTaskTest {
 			}
 
 			SnapshotWriteFinishAspect snapshotWriteFinishAspect;
+
 			void mockSnapshotWriteFinishAspect(Class classType, String typeName, BiConsumer consumer) {
 				snapshotWriteFinishAspect = mock();
 				when(milestoneAspectTask.hasSnapshot()).thenReturn(true);
@@ -378,11 +374,13 @@ class MilestoneAspectTaskTest {
 				when(milestoneAspectTask.hasSnapshot()).thenReturn(false);
 				Assertions.assertDoesNotThrow(() -> milestoneAspectTask.init());
 			}
+
 			@Test
 			void testCDCReadErrorAspectGetEndIsNull() {
 				when(m.getEnd()).thenReturn(null);
 				Assertions.assertDoesNotThrow(() -> milestoneAspectTask.init());
 			}
+
 			@Test
 			void testSnapshotWriteEndAspect() {
 				snapshotTableProgress.set(-100);
@@ -437,8 +435,9 @@ class MilestoneAspectTaskTest {
 			TaskStartAspect startAspect;
 			ObjectId id;
 			DAG dag;
-			List<Node> nodes ;
+			List<Node> nodes;
 			Node node;
+
 			@BeforeEach
 			void init() {
 				node = mock(Node.class);
@@ -465,12 +464,12 @@ class MilestoneAspectTaskTest {
 			}
 
 			void verifyAssert(int KPI_TABLE_INITTimes, int KPI_SNAPSHOT, int KPI_CDC, int getId) {
-				try(MockedStatic<BeanUtil> bu = mockStatic(BeanUtil.class)) {
+				try (MockedStatic<BeanUtil> bu = mockStatic(BeanUtil.class)) {
 					bu.when(() -> BeanUtil.getBean(ClientMongoOperator.class)).thenReturn(clientMongoOperator);
 					milestoneAspectTask.onStart(startAspect);
 				}
-				verify(task, times(1)).getId();
-				verify(id, times(1)).toHexString();
+				verify(task, times(3)).getId();
+				verify(id, times(3)).toHexString();
 				verify(task, times(1)).getName();
 				verify(log).trace(anyString(), anyString(), anyString());
 				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
@@ -486,25 +485,30 @@ class MilestoneAspectTaskTest {
 				verify(node, times(getId)).getId();
 				verify(executorService).scheduleWithFixedDelay(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class));
 			}
+
 			@Test
 			void testNormal() {
 				verifyAssert(1, 1, 1, 1);
 			}
+
 			@Test
 			void testSYNC_TYPE_LOG_COLLECTOR() {
 				when(task.getSyncType()).thenReturn(TaskDto.SYNC_TYPE_LOG_COLLECTOR);
 				verifyAssert(0, 1, 1, 1);
 			}
+
 			@Test
 			void testNotHasSnapshot() {
 				when(milestoneAspectTask.hasSnapshot()).thenReturn(false);
 				verifyAssert(1, 0, 1, 1);
 			}
+
 			@Test
 			void testNotHasCdc() {
 				when(milestoneAspectTask.hasCdc()).thenReturn(false);
 				verifyAssert(1, 1, 0, 1);
 			}
+
 			@Test
 			void testNotDataNode() {
 				when(node.isDataNode()).thenReturn(false);
@@ -516,6 +520,7 @@ class MilestoneAspectTaskTest {
 		class OnStopTest {
 			TaskStopAspect stopAspect;
 			ObjectId id;
+
 			@BeforeEach
 			void init() {
 				stopAspect = mock(TaskStopAspect.class);
@@ -528,11 +533,12 @@ class MilestoneAspectTaskTest {
 				doNothing().when(milestoneAspectTask).storeMilestone();
 				doCallRealMethod().when(milestoneAspectTask).onStop(stopAspect);
 			}
+
 			@Test
 			void testNormal() {
 				Assertions.assertDoesNotThrow(() -> milestoneAspectTask.onStop(stopAspect));
-				verify(task).getId();
-				verify(id).toHexString();
+				verify(task, times(2)).getId();
+				verify(id, times(2)).toHexString();
 				verify(task).getName();
 				verify(log).trace(anyString(), anyString(), anyString());
 				verify(executorService).shutdown();
@@ -546,6 +552,7 @@ class MilestoneAspectTaskTest {
 			DataProcessorContext dataProcessorContext;
 			Node node;
 			List<? extends Node> predecessors;
+
 			@BeforeEach
 			void init() {
 				predecessors = mock(List.class);
@@ -649,6 +656,7 @@ class MilestoneAspectTaskTest {
 		class HandleDataNodeCloseTest {
 			DataNodeCloseAspect aspect;
 			DataProcessorContext dataProcessorContext;
+
 			@BeforeEach
 			void init() {
 				aspect = mock(DataNodeCloseAspect.class);
@@ -659,6 +667,7 @@ class MilestoneAspectTaskTest {
 
 				when(milestoneAspectTask.handleDataNodeClose(aspect)).thenCallRealMethod();
 			}
+
 			@Test
 			void testNormal() {
 				Assertions.assertNull(milestoneAspectTask.handleDataNodeClose(aspect));
@@ -672,6 +681,7 @@ class MilestoneAspectTaskTest {
 		class HandleProcessNodeInitTest {
 			ProcessorNodeInitAspect aspect;
 			ProcessorBaseContext processorBaseContext;
+
 			@BeforeEach
 			void init() {
 				aspect = mock(ProcessorNodeInitAspect.class);
@@ -681,6 +691,7 @@ class MilestoneAspectTaskTest {
 				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
 				when(milestoneAspectTask.handleProcessNodeInit(aspect)).thenCallRealMethod();
 			}
+
 			@Test
 			void testNormal() {
 				Assertions.assertNull(milestoneAspectTask.handleProcessNodeInit(aspect));
@@ -694,6 +705,7 @@ class MilestoneAspectTaskTest {
 		class HandleProcessNodeCloseTest {
 			ProcessorNodeCloseAspect aspect;
 			ProcessorBaseContext processorBaseContext;
+
 			@BeforeEach
 			void init() {
 				aspect = mock(ProcessorNodeCloseAspect.class);
@@ -703,6 +715,7 @@ class MilestoneAspectTaskTest {
 				doNothing().when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
 				when(milestoneAspectTask.handleProcessNodeClose(aspect)).thenCallRealMethod();
 			}
+
 			@Test
 			void testNormal() {
 				Assertions.assertNull(milestoneAspectTask.handleProcessNodeClose(aspect));
@@ -716,6 +729,7 @@ class MilestoneAspectTaskTest {
 		class HandleTableInitTest {
 			PDKNodeInitAspect aspect;
 			DataProcessorContext processorBaseContext;
+
 			@BeforeEach
 			void init() {
 				aspect = mock(PDKNodeInitAspect.class);
@@ -739,6 +753,7 @@ class MilestoneAspectTaskTest {
 		class HandleTableInit {
 			TableInitFuncAspect aspect;
 			DataProcessorContext processorBaseContext;
+
 			@BeforeEach
 			void init() {
 				aspect = mock(TableInitFuncAspect.class);
@@ -749,6 +764,7 @@ class MilestoneAspectTaskTest {
 
 				when(milestoneAspectTask.handleTableInit(aspect)).thenCallRealMethod();
 			}
+
 			@Test
 			void testSTATE_START() {
 				when(aspect.getTotals()).thenReturn(1L);
@@ -809,6 +825,7 @@ class MilestoneAspectTaskTest {
 				verify(m, times(1)).setTotals(1L);
 				verify(milestoneAspectTask, times(1)).setFinish(m);
 			}
+
 			@Test
 			void testSTATE_ENDWithoutThrowable() {
 				when(aspect.getState()).thenReturn(STATE_END);
@@ -817,7 +834,7 @@ class MilestoneAspectTaskTest {
 				when(aspect.getThrowable()).thenReturn(error);
 
 				when(aspect.getTotals()).thenReturn(1L);
-			    when(milestoneAspectTask.getErrorConsumer("message")).thenReturn(mock());
+				when(milestoneAspectTask.getErrorConsumer("message")).thenReturn(mock());
 				doAnswer(a -> {
 					Consumer argument = a.getArgument(2, Consumer.class);
 					argument.accept(m);
@@ -845,6 +862,7 @@ class MilestoneAspectTaskTest {
 		class StoreMilestoneWhenTargetNodeTableInitTest {
 			MilestoneEntity milestone;
 			AtomicLong totals, completed;
+
 			@BeforeEach
 			void init() {
 				milestone = new MilestoneEntity();
@@ -857,12 +875,13 @@ class MilestoneAspectTaskTest {
 				when(m.getTotals()).thenReturn(1L);
 				when(m.getProgress()).thenReturn(1L);
 				doAnswer(a -> {
-					Consumer<MilestoneEntity> argument = (Consumer<MilestoneEntity>)a.getArgument(2, Consumer.class);
+					Consumer<MilestoneEntity> argument = (Consumer<MilestoneEntity>) a.getArgument(2, Consumer.class);
 					argument.accept(m);
 					return null;
 				}).when(milestoneAspectTask).nodeMilestones(anyString(), anyString(), any(Consumer.class));
 				doCallRealMethod().when(milestoneAspectTask).storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
 			}
+
 			@Test
 			void testNormal() {
 				milestoneAspectTask.storeMilestoneWhenTargetNodeTableInit(milestone, "nodeId", totals, completed);
@@ -873,6 +892,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(MilestoneStatus.ERROR, milestone.getStatus());
 				Assertions.assertEquals("error", milestone.getErrorMessage());
 			}
+
 			@Test
 			void testMGetEndIsNull() {
 				when(m.getEnd()).thenReturn(null);
@@ -885,6 +905,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(MilestoneStatus.ERROR, milestone.getStatus());
 				Assertions.assertEquals("error", milestone.getErrorMessage());
 			}
+
 			@Test
 			void testEntityGetEndIsNotNull() {
 				milestone.setEnd(0L);
@@ -897,6 +918,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(MilestoneStatus.ERROR, milestone.getStatus());
 				Assertions.assertEquals("error", milestone.getErrorMessage());
 			}
+
 			@Test
 			void testErrorMessageIsNull() {
 				when(m.getErrorMessage()).thenReturn(null);
@@ -925,12 +947,13 @@ class MilestoneAspectTaskTest {
 				when(m.getStatus()).thenReturn(MilestoneStatus.WAITING);
 				doNothing().when(m).setStatus(MilestoneStatus.FINISH);
 				doAnswer(a -> {
-					Consumer<MilestoneEntity> argument = (Consumer<MilestoneEntity>)a.getArgument(1, Consumer.class);
+					Consumer<MilestoneEntity> argument = (Consumer<MilestoneEntity>) a.getArgument(1, Consumer.class);
 					argument.accept(m);
 					return null;
 				}).when(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
 				doCallRealMethod().when(milestoneAspectTask).storeMilestoneWhenSyncTypeIsLogCollector();
 			}
+
 			@Test
 			void testNormal() {
 				milestoneAspectTask.storeMilestoneWhenSyncTypeIsLogCollector();
@@ -943,6 +966,7 @@ class MilestoneAspectTaskTest {
 				verify(m).setStatus(MilestoneStatus.FINISH);
 				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
 			}
+
 			@Test
 			void testLongValueNotEquals() {
 				doAnswer(a -> {
@@ -963,6 +987,7 @@ class MilestoneAspectTaskTest {
 				verify(m, times(0)).setStatus(MilestoneStatus.FINISH);
 				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
 			}
+
 			@Test
 			void testStatusIsERROR() {
 				when(m.getStatus()).thenReturn(MilestoneStatus.ERROR);
@@ -976,6 +1001,7 @@ class MilestoneAspectTaskTest {
 				verify(m, times(0)).setStatus(MilestoneStatus.FINISH);
 				verify(milestoneAspectTask).taskMilestone(anyString(), any(Consumer.class));
 			}
+
 			@Test
 			void testNodeSetIsEmpty() {
 				targetNodes.clear();
@@ -989,12 +1015,12 @@ class MilestoneAspectTaskTest {
 				verify(m, times(0)).setStatus(MilestoneStatus.FINISH);
 				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 			}
-
 		}
 
 		@Nested
 		class StoreMilestoneDataNodeInitTest {
 			MilestoneEntity milestoneEntity;
+
 			@BeforeEach
 			void init() {
 				milestoneEntity = new MilestoneEntity();
@@ -1004,6 +1030,7 @@ class MilestoneAspectTaskTest {
 				doNothing().when(milestoneAspectTask).setFinish(milestoneEntity);
 				doCallRealMethod().when(milestoneAspectTask).storeMilestoneDataNodeInit(milestoneEntity);
 			}
+
 			@Test
 			void testNormal() {
 				milestoneAspectTask.storeMilestoneDataNodeInit(milestoneEntity);
@@ -1012,6 +1039,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(MilestoneStatus.RUNNING, milestoneEntity.getStatus());
 				Assertions.assertNotNull(milestoneEntity.getBegin());
 			}
+
 			@Test
 			void testFINISH() {
 				milestoneEntity.setStatus(MilestoneStatus.FINISH);
@@ -1020,6 +1048,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertNull(milestoneEntity.getProgress());
 				Assertions.assertNull(milestoneEntity.getBegin());
 			}
+
 			@Test
 			void testDataNodeInitMapIsEmpty() {
 				dataNodeInitMap.clear();
@@ -1028,6 +1057,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(0L, milestoneEntity.getProgress());
 				Assertions.assertNull(milestoneEntity.getBegin());
 			}
+
 			@Test
 			void testTotalEqualsProgress() {
 				milestoneEntity.setBegin(0L);
@@ -1038,6 +1068,7 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(1L, milestoneEntity.getProgress());
 				Assertions.assertNotNull(milestoneEntity.getBegin());
 			}
+
 			@Test
 			void testProgressIsZero() {
 				milestoneEntity.setBegin(0L);
@@ -1064,6 +1095,7 @@ class MilestoneAspectTaskTest {
 				doNothing().when(log).warn(anyString(), anyString(), any(Exception.class));
 				doCallRealMethod().when(milestoneAspectTask).storeMilestone();
 			}
+
 			@Test
 			void testNormal() {
 				Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
@@ -1073,6 +1105,7 @@ class MilestoneAspectTaskTest {
 				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 				verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
 			}
+
 			@Test
 			void testNotSYNC_TYPE_LOG_COLLECTOR() {
 				when(task.getSyncType()).thenReturn(TaskDto.STATUS_EDIT);
@@ -1083,12 +1116,13 @@ class MilestoneAspectTaskTest {
 				verify(milestoneAspectTask, times(1)).taskMilestone(anyString(), any(Consumer.class));
 				verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
 			}
+
 			@Test
 			void testException() {
 				when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString())).thenAnswer(a -> {
 					throw new Exception("Connection timeout");
 				});
-				try(MockedStatic<TmUnavailableException> tue = mockStatic(TmUnavailableException.class)) {
+				try (MockedStatic<TmUnavailableException> tue = mockStatic(TmUnavailableException.class)) {
 					tue.when(() -> TmUnavailableException.notInstance(any(Exception.class))).thenReturn(false);
 					Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
 					verify(milestoneAspectTask, times(1)).getTaskSyncStatus();
@@ -1096,12 +1130,13 @@ class MilestoneAspectTaskTest {
 					verify(log, times(0)).warn(anyString(), anyString(), any(Exception.class));
 				}
 			}
+
 			@Test
 			void testExceptionWithLogWarn() {
 				when(clientMongoOperator.update(any(Query.class), any(Update.class), anyString())).thenAnswer(a -> {
 					throw new Exception("Connection timeout");
 				});
-				try(MockedStatic<TmUnavailableException> tue = mockStatic(TmUnavailableException.class)) {
+				try (MockedStatic<TmUnavailableException> tue = mockStatic(TmUnavailableException.class)) {
 					tue.when(() -> TmUnavailableException.notInstance(any(Exception.class))).thenReturn(true);
 					Assertions.assertDoesNotThrow(milestoneAspectTask::storeMilestone);
 					verify(milestoneAspectTask, times(1)).getTaskSyncStatus();
@@ -1130,6 +1165,7 @@ class MilestoneAspectTaskTest {
 			SnapshotReadBeginAspect aspect;
 			DataProcessorContext dataProcessorContext;
 			BiConsumer<SnapshotReadBeginAspect, MilestoneEntity> consumer;
+
 			@BeforeEach
 			void init() {
 				consumer = mock(BiConsumer.class);
@@ -1150,6 +1186,7 @@ class MilestoneAspectTaskTest {
 				});
 				doCallRealMethod().when(milestoneAspectTask).nodeRegister(SnapshotReadBeginAspect.class, "code", consumer);
 			}
+
 			@Test
 			void testNormal() {
 				milestoneAspectTask.nodeRegister(SnapshotReadBeginAspect.class, "code", consumer);
@@ -1163,6 +1200,7 @@ class MilestoneAspectTaskTest {
 		class TaskMilestoneTest {
 			MilestoneEntity entity;
 			Consumer<MilestoneEntity> consumer;
+
 			@BeforeEach
 			void init() {
 				entity = new MilestoneEntity("code", MilestoneStatus.FINISH);
@@ -1171,6 +1209,7 @@ class MilestoneAspectTaskTest {
 				doNothing().when(consumer).accept(any(MilestoneEntity.class));
 				doCallRealMethod().when(milestoneAspectTask).taskMilestone("code", consumer);
 			}
+
 			@Test
 			void testNormal() {
 				milestoneAspectTask.taskMilestone("code", consumer);
@@ -1180,9 +1219,12 @@ class MilestoneAspectTaskTest {
 				Assertions.assertEquals(MilestoneStatus.FINISH, code.getStatus());
 				verify(consumer).accept(any(MilestoneEntity.class));
 			}
+
 			@Test
 			void testMilestoneEntityIsNull() {
 				milestones.put("code", null);
+				ReflectionTestUtils.setField(milestoneAspectTask, "milestoneOrder", new ConcurrentHashMap<>());
+				ReflectionTestUtils.setField(milestoneAspectTask, "milestoneOrderSeq", new AtomicInteger(1));
 				milestoneAspectTask.taskMilestone("code", consumer);
 				MilestoneEntity code = milestones.get("code");
 				Assertions.assertNotNull(code);
@@ -1238,10 +1280,12 @@ class MilestoneAspectTaskTest {
 			ReflectionTestUtils.setField(milestoneAspectTask, "milestones", milestonesMap);
 			when(milestoneAspectTask.getTaskSyncStatus()).thenCallRealMethod();
 		}
+
 		@Test
 		void testNormal() {
 			Assertions.assertEquals(MilestoneAspectTask.KPI_TASK, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testMilestonesMapHasNullEntity() {
 			milestonesMap.put("null", null);
@@ -1249,16 +1293,18 @@ class MilestoneAspectTaskTest {
 		}
 
 		@Test
-		void testTaskRunning(){
+		void testTaskRunning() {
 			task.setStatus(MilestoneStatus.RUNNING);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_TASK, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testNode() {
 			task.setStatus(MilestoneStatus.FINISH);
 			node.setStatus(MilestoneStatus.RUNNING);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_DATA_NODE_INIT, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testNodeNullEndTime() {
 			task.setStatus(MilestoneStatus.FINISH);
@@ -1266,6 +1312,7 @@ class MilestoneAspectTaskTest {
 			node.setEnd(null);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_TASK, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testTaskNullEndTime() {
 			task.setStatus(MilestoneStatus.FINISH);
@@ -1283,6 +1330,7 @@ class MilestoneAspectTaskTest {
 			table.setStatus(MilestoneStatus.RUNNING);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_TABLE_INIT, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testSNAPSHOT() {
 			task.setStatus(MilestoneStatus.FINISH);
@@ -1291,6 +1339,7 @@ class MilestoneAspectTaskTest {
 			snapshot.setStatus(MilestoneStatus.RUNNING);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_SNAPSHOT, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testCdcNotEndTime() {
 			task.setStatus(MilestoneStatus.FINISH);
@@ -1300,6 +1349,7 @@ class MilestoneAspectTaskTest {
 			cdc.setStatus(MilestoneStatus.FINISH);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_CDC, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testCdcEqualsEndTime() {
 			task.setStatus(MilestoneStatus.FINISH);
@@ -1323,6 +1373,7 @@ class MilestoneAspectTaskTest {
 			cdc.setStatus(MilestoneStatus.RUNNING);
 			Assertions.assertEquals(MilestoneAspectTask.KPI_CDC, milestoneAspectTask.getTaskSyncStatus());
 		}
+
 		@Test
 		void testCDCFINISH() {
 			task.setStatus(MilestoneStatus.FINISH);
@@ -1333,15 +1384,17 @@ class MilestoneAspectTaskTest {
 			Assertions.assertEquals(MilestoneAspectTask.KPI_CDC, milestoneAspectTask.getTaskSyncStatus());
 		}
 	}
+
 	@Nested
-	class handleEngineDeductionTest{
+	class handleEngineDeductionTest {
 		EngineDeductionAspect aspect;
 		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+
 		@BeforeEach
 		void init() {
+			ReflectionTestUtils.setField(milestoneAspectTask, "log", mock(Log.class));
 			aspect = mock(EngineDeductionAspect.class);
 			when(aspect.getState()).thenReturn(DEDUCTION_START);
-			when(milestoneAspectTask.handleEngineDeduction(aspect)).thenCallRealMethod();
 		}
 
 
@@ -1604,7 +1657,7 @@ class MilestoneAspectTaskTest {
 			Assertions.assertDoesNotThrow(() -> {
 				milestoneAspectTask.taskRetryAlarm(retryTimes);
 			});
-			
+
 			verify(clientMongoOperator, times(1)).update(any(Query.class), any(Update.class), anyString());
 		}
 
@@ -1613,6 +1666,7 @@ class MilestoneAspectTaskTest {
 	@Test
 	void testSetError() {
 		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+		ReflectionTestUtils.setField(milestoneAspectTask, "log", mock(Log.class));
 
 		MilestoneEntity entity = new MilestoneEntity();
 		entity.setStatus(MilestoneStatus.RUNNING);
@@ -1641,6 +1695,7 @@ class MilestoneAspectTaskTest {
 	@Test
 	void testSetError_1() {
 		MilestoneAspectTask milestoneAspectTask = new MilestoneAspectTask();
+		ReflectionTestUtils.setField(milestoneAspectTask, "log", mock(Log.class));
 
 		MilestoneEntity entity = new MilestoneEntity();
 		entity.setStatus(MilestoneStatus.RUNNING);
@@ -1669,6 +1724,201 @@ class MilestoneAspectTaskTest {
 		milestoneAspectTask.setError(aspect, entity);
 		Assertions.assertEquals("1", entity.getErrorCode());
 		Assertions.assertNull(entity.getDynamicDescriptionParameters());
+	}
+
+
+	@Nested
+	class OrderOfTest {
+		@Test
+		void testOrderOf_whenCodeExists() {
+			MilestoneAspectTask instance = new MilestoneAspectTask();
+			// mock log to avoid NPE in constructor initializations
+			ReflectionTestUtils.setField(instance, "log", mock(Log.class));
+			Map<String, Integer> orderMap = new ConcurrentHashMap<>();
+			orderMap.put("SNAPSHOT", 3);
+			orderMap.put("CDC", 7);
+			ReflectionTestUtils.setField(instance, "milestoneOrder", orderMap);
+			String orderSnapshot = ReflectionTestUtils.invokeMethod(instance, "orderOf", "SNAPSHOT");
+			String orderCdc = ReflectionTestUtils.invokeMethod(instance, "orderOf", "CDC");
+			Assertions.assertEquals("3", orderSnapshot);
+			Assertions.assertEquals("7", orderCdc);
+		}
+
+		@Test
+		void testOrderOf_whenCodeNotExists() {
+			MilestoneAspectTask instance = new MilestoneAspectTask();
+			ReflectionTestUtils.setField(instance, "log", mock(Log.class));
+			Map<String, Integer> orderMap = new ConcurrentHashMap<>();
+			orderMap.put("EXISTING", 1);
+			ReflectionTestUtils.setField(instance, "milestoneOrder", orderMap);
+			String orderUnknown = ReflectionTestUtils.invokeMethod(instance, "orderOf", "UNKNOWN");
+			Assertions.assertEquals("999", orderUnknown);
+		}
+	}
+
+	@Nested
+	class ReportMilestoneStatusTest {
+		MilestoneAspectTask instance;
+		TaskDto task;
+		String key;
+		Map<String, List<?>> cache;
+
+		@BeforeEach
+		void setUp() {
+			instance = new MilestoneAspectTask();
+			ReflectionTestUtils.setField(instance, "log", mock(Log.class));
+			task = new TaskDto();
+			task.setId(new ObjectId("507f1f77bcf86cd799439099"));
+			task.setName("t-name");
+			task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			instance.setTask(task);
+			cache = (Map<String, List<?>>) ReflectionTestUtils.getField(MilestoneAspectTask.class, "PROMETHEUS_CACHE_MAP");
+			key = task.getId().toHexString() + "_status";
+			if (cache != null) cache.remove(key);
+			ReflectionTestUtils.setField(instance, "milestoneOrder", new ConcurrentHashMap<>());
+		}
+
+		@AfterEach
+		void tearDown() {
+			if (cache != null && key != null) cache.remove(key);
+		}
+
+		private Object getFieldValue(Object obj, String name) {
+			try {
+				Field f = obj.getClass().getDeclaredField(name);
+				f.setAccessible(true);
+				return f.get(obj);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		@Test
+		void testDefaultOrderAndNaN() {
+			Map<String, Integer> orderMap = new ConcurrentHashMap<>();
+			orderMap.put("UNIT_CODE", 5);
+			ReflectionTestUtils.setField(instance, "milestoneOrder", orderMap);
+			instance.reportMilestoneStatus("UNIT_CODE", MilestoneStatus.RUNNING, Double.NaN, null);
+			List<?> list = (List<?>) cache.get(key);
+			Assertions.assertNotNull(list);
+			Object pc = list.get(list.size() - 1);
+			Assertions.assertEquals("UNIT_CODE", getFieldValue(pc, "code"));
+			Assertions.assertEquals(MilestoneStatus.RUNNING, getFieldValue(pc, "status"));
+			Assertions.assertEquals("5", getFieldValue(pc, "order"));
+		}
+
+		@Test
+		void testMinusOneNotCached() {
+			instance.reportMilestoneStatus("X", MilestoneStatus.FINISH, -1, null);
+			Assertions.assertNull(cache.get(key));
+		}
+
+		@Test
+		void testProvidedOrderUsed() {
+			instance.reportMilestoneStatus("CODE2", MilestoneStatus.FINISH, 1, "42");
+			List<?> list = (List<?>) cache.get(key);
+			Assertions.assertNotNull(list);
+			Object pc = list.get(list.size() - 1);
+			Assertions.assertEquals("CODE2", getFieldValue(pc, "code"));
+			Assertions.assertEquals("42", getFieldValue(pc, "order"));
+		}
+
+		@Test
+		void testExceptionLogged() {
+			MilestoneAspectTask inst2 = new MilestoneAspectTask();
+			Log l = mock(Log.class);
+			ReflectionTestUtils.setField(inst2, "log", l);
+			// task 保持为 null 以触发异常并被捕获
+			Assertions.assertDoesNotThrow(() -> inst2.reportMilestoneStatus("ANY", MilestoneStatus.WAITING, 1d, null));
+			verify(l, times(1)).error(anyString(), any(Throwable.class));
+		}
+	}
+
+	@Nested
+	class ReportMilestoneTimeTest {
+		MilestoneAspectTask instance;
+		TaskDto task;
+		String key;
+		Map<String, List<?>> cache;
+
+		@BeforeEach
+		void setUp() {
+			instance = new MilestoneAspectTask();
+			ReflectionTestUtils.setField(instance, "log", mock(Log.class));
+			task = new TaskDto();
+			task.setId(new ObjectId("507f1f77bcf86cd7994390aa"));
+			task.setName("t-name");
+			task.setSyncType(TaskDto.SYNC_TYPE_SYNC);
+			instance.setTask(task);
+			cache = (Map<String, List<?>>) ReflectionTestUtils.getField(MilestoneAspectTask.class, "PROMETHEUS_CACHE_MAP");
+			key = task.getId().toHexString() + "_time";
+			if (cache != null) cache.remove(key);
+			ReflectionTestUtils.setField(instance, "milestoneOrder", new ConcurrentHashMap<>());
+		}
+
+		@AfterEach
+		void tearDown() {
+			if (cache != null && key != null) cache.remove(key);
+		}
+
+		private Object getFieldValue(Object obj, String name) {
+			try {
+				Field f = obj.getClass().getDeclaredField(name);
+				f.setAccessible(true);
+				return f.get(obj);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		}
+
+		@Test
+		void testNotFinishOrError_noCache() {
+			instance.reportMilestoneTime("UNIT_CODE", MilestoneStatus.RUNNING, 100L, null);
+			Assertions.assertNull(cache.get(key));
+		}
+
+		@Test
+		void testDefaultOrderAndCache_onFinish() {
+			Map<String, Integer> orderMap = new ConcurrentHashMap<>();
+			orderMap.put("UNIT_CODE", 6);
+			ReflectionTestUtils.setField(instance, "milestoneOrder", orderMap);
+			instance.reportMilestoneTime("UNIT_CODE", MilestoneStatus.FINISH, 123L, null);
+			List<?> list = (List<?>) cache.get(key);
+			Assertions.assertNotNull(list);
+			Object pc = list.get(list.size() - 1);
+			Assertions.assertEquals("UNIT_CODE", getFieldValue(pc, "code"));
+			Assertions.assertEquals(MilestoneStatus.FINISH, getFieldValue(pc, "status"));
+			Assertions.assertEquals(123L, getFieldValue(pc, "duration"));
+			Assertions.assertEquals("6", getFieldValue(pc, "order"));
+		}
+
+		@Test
+		void testProvidedOrderUsed_onError() {
+			instance.reportMilestoneTime("CODE2", MilestoneStatus.ERROR, 55L, "77");
+			List<?> list = (List<?>) cache.get(key);
+			Assertions.assertNotNull(list);
+			Object pc = list.get(list.size() - 1);
+			Assertions.assertEquals("CODE2", getFieldValue(pc, "code"));
+			Assertions.assertEquals(MilestoneStatus.ERROR, getFieldValue(pc, "status"));
+			Assertions.assertEquals(55L, getFieldValue(pc, "duration"));
+			Assertions.assertEquals("77", getFieldValue(pc, "order"));
+		}
+
+		@Test
+		void testMinusOneNotCached() {
+			instance.reportMilestoneTime("X", MilestoneStatus.FINISH, -1L, null);
+			Assertions.assertNull(cache.get(key));
+		}
+
+		@Test
+		void testExceptionLogged() {
+			MilestoneAspectTask inst2 = new MilestoneAspectTask();
+			Log l = mock(Log.class);
+			ReflectionTestUtils.setField(inst2, "log", l);
+			// 不设置 task，以触发异常并被捕获
+			Assertions.assertDoesNotThrow(() -> inst2.reportMilestoneTime("ANY", MilestoneStatus.FINISH, 1L, null));
+			verify(l, times(1)).error(anyString(), any(Throwable.class));
+		}
 	}
 
 }

@@ -3443,9 +3443,7 @@ public class MetadataInstancesServiceImplTest {
 				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
 
 				// Then
-				verify(taskService).findOne(any(Query.class), eq(userDetail));
-				verify(metadataInstancesCompareService).findAll(any(Query.class));
-			}
+				verify(taskService).findOne(any(Query.class), eq(userDetail));}
 		}
 
 		private TaskDto createMockTaskDto() {

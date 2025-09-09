@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AbstractAspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
@@ -18,6 +19,8 @@ import io.tapdata.aspect.taskmilestones.*;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TmUnavailableException;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.milestone.constants.MilestoneStatus;
 import io.tapdata.milestone.entity.MilestoneEntity;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -27,10 +30,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -73,6 +74,18 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     protected static final String KPI_TABLE_INIT = "TABLE_INIT";
     protected static final String KPI_DEDUCTION = "DEDUCTION";
 
+    private static final MultiTaggedGauge taskMilestoneStatusGauge = new MultiTaggedGauge(PrometheusName.TASK_MILESTONE_STATUS, Metrics.globalRegistry,
+            "task_id", "task_name", "task_type", "milestone_status", "milestone", "order");
+    private static final MultiTaggedGauge taskMilestoneTimeGauge = new MultiTaggedGauge(PrometheusName.TASK_MILESTONE_TIME, Metrics.globalRegistry,
+            "task_id", "task_name", "task_type", "milestone_status", "milestone", "order");
+    private static final Map<String, List<PrometheusCache>> PROMETHEUS_CACHE_MAP = new ConcurrentHashMap<>();
+    private static final String PROMETHEUS_STATUS_PREFIX = "_status";
+    private static final String PROMETHEUS_TIME_PREFIX = "_time";
+
+    /* dynamic milestone order for prometheus tag 'order', based on actual creation sequence per task */
+    private final Map<String, Integer> milestoneOrder = new ConcurrentHashMap<>();
+    private final AtomicInteger milestoneOrderSeq = new AtomicInteger(1);
+
     private final Map<String, MilestoneEntity> milestones = new ConcurrentHashMap<>();
     private final Map<String, Map<String, MilestoneEntity>> nodeMilestones = new ConcurrentHashMap<>();
 
@@ -82,6 +95,83 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     private final Set<String> targetNodes = new HashSet<>();
 	private final AtomicLong snapshotTableCounts = new AtomicLong(0);
 	private final AtomicLong snapshotTableProgress = new AtomicLong(0);
+
+    private String statusTag(MilestoneStatus status) {
+        return Optional.ofNullable(status).map(s -> s.name().toLowerCase(Locale.ROOT)).orElse("");
+    }
+
+    private String orderOf(String code) {
+        Integer idx = milestoneOrder.get(code);
+        return String.valueOf(idx == null ? 999 : idx);
+    }
+
+    protected void reportMilestoneStatus(String code, MilestoneStatus status) {
+        reportMilestoneStatus(code, status, 1, null);
+    }
+
+    protected void reportMilestoneStatus(String code, MilestoneStatus status, double value, String order) {
+        try {
+            if (null == order) {
+                order = orderOf(code);
+            }
+            if (Double.isNaN(value)) {
+                value = 1;
+            }
+            taskMilestoneStatusGauge.set(value,
+                    task.getId().toHexString(),
+                    task.getName(),
+                    task.getSyncType(),
+                    statusTag(status),
+                    code,
+                    order
+            );
+            if (value != -1) {
+                PROMETHEUS_CACHE_MAP.computeIfAbsent(task.getId().toHexString() + PROMETHEUS_STATUS_PREFIX,
+                        s -> new ArrayList<>());
+                String finalOrder = order;
+                PROMETHEUS_CACHE_MAP.computeIfPresent(task.getId().toHexString() + PROMETHEUS_STATUS_PREFIX,
+                        (k, v) -> {
+                            v.add(new PrometheusCache().code(code).status(status).order(finalOrder));
+                            return v;
+                        });
+            }
+        } catch (Exception e) {
+            log.error("Report milestone status error", e);
+        }
+    }
+
+    protected void reportMilestoneTime(String code, MilestoneStatus status, long durationMs) {
+        reportMilestoneTime(code, status, durationMs, null);
+    }
+
+    protected void reportMilestoneTime(String code, MilestoneStatus status, long durationMs, String order) {
+        try {
+            if (status != MilestoneStatus.FINISH && status != MilestoneStatus.ERROR) return;
+            if (null == order) {
+                order = orderOf(code);
+            }
+            taskMilestoneTimeGauge.set(durationMs,
+                    task.getId().toHexString(),
+                    task.getName(),
+                    task.getSyncType(),
+                    statusTag(status),
+                    code,
+                    order
+            );
+            if (durationMs != -1) {
+                PROMETHEUS_CACHE_MAP.computeIfAbsent(task.getId().toHexString() + PROMETHEUS_TIME_PREFIX,
+                        s -> new ArrayList<>());
+                String finalOrder = order;
+                PROMETHEUS_CACHE_MAP.computeIfPresent(task.getId().toHexString() + PROMETHEUS_TIME_PREFIX,
+                        (k, v) -> {
+                            v.add(new PrometheusCache().code(code).status(status).duration(durationMs).order(finalOrder));
+                            return v;
+                        });
+            }
+        } catch (Exception e) {
+            log.error("Report milestone time error", e);
+        }
+    }
 
     public MilestoneAspectTask() {
         init();
@@ -96,6 +186,9 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         observerHandlers.register(TableInitFuncAspect.class, this::handleTableInit);
         observerHandlers.register(EngineDeductionAspect.class,this::handleEngineDeduction);
         observerHandlers.register(RetryLifeCycleAspect.class, this::handleRetry);
+        nodeRegister(DataNodeInitErrorAspect.class, KPI_DATA_NODE_INIT, (aspect, m) -> {
+            taskMilestone(KPI_DATA_NODE_INIT, m2 -> setError(aspect, m2));
+        });
         nodeRegister(SnapshotReadBeginAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
             m.setProgress(0L);
             m.setTotals((long) aspect.getTables().size());
@@ -103,10 +196,7 @@ public class MilestoneAspectTask extends AbstractAspectTask {
             taskMilestone(KPI_SNAPSHOT, this::setRunning);
         });
         nodeRegister(SnapshotReadEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> setFinish(m));
-        nodeRegister(SnapshotReadErrorAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
-            setError(aspect, m);
-            taskMilestone(KPI_SNAPSHOT, tm -> setError(aspect, tm));
-        });
+        nodeRegister(SnapshotReadErrorAspect.class, KPI_SNAPSHOT_READ, this::setError);
         nodeRegister(SnapshotReadTableEndAspect.class, KPI_SNAPSHOT_READ, (aspect, m) -> {
             m.addProgress(1);
             snapshotTableProgress.addAndGet(1);
@@ -160,9 +250,25 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         });
     }
 
+    private void initPrometheus() {
+		try {
+            PROMETHEUS_CACHE_MAP.computeIfPresent(task.getId().toHexString() + PROMETHEUS_STATUS_PREFIX, (k, v) -> {
+                v.forEach(c -> reportMilestoneStatus(c.code, c.status, -1, c.order));
+                return null;
+            });
+            PROMETHEUS_CACHE_MAP.computeIfPresent(task.getId().toHexString() + PROMETHEUS_TIME_PREFIX, (k, v) -> {
+                v.forEach(c -> reportMilestoneTime(c.code, c.status, -1, c.order));
+                return null;
+            });
+		} catch (Exception e) {
+            log.error("init prometheus error", e);
+		}
+	}
+
     @Override
     public void onStart(TaskStartAspect startAspect) {
         log.trace("Start task milestones: {}({})", task.getId().toHexString(), task.getName());
+        initPrometheus();
         taskMilestone(KPI_TASK, this::setFinish);
         taskMilestone(KPI_DEDUCTION,null);
         if (!TaskDto.SYNC_TYPE_LOG_COLLECTOR.equals(task.getSyncType())) {
@@ -188,10 +294,27 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         try {
             // Release resources
             executorService.shutdown();
+
+            reportPrometheusWhenStop();
         } finally {
             // store last status
             storeMilestone();
         }
+    }
+
+    private void reportPrometheusWhenStop() {
+        PROMETHEUS_CACHE_MAP.computeIfPresent(task.getId().toHexString() + PROMETHEUS_STATUS_PREFIX, (k, v) -> {
+            if (v.stream().noneMatch(c -> c.status == MilestoneStatus.ERROR)) {
+                v.forEach(c -> reportMilestoneStatus(c.code, c.status, -1, c.order));
+                PROMETHEUS_CACHE_MAP.computeIfPresent(task.getId().toHexString() + PROMETHEUS_TIME_PREFIX, (k2, v2) -> {
+                    v2.forEach(c -> reportMilestoneTime(c.code, c.status, -1, c.order));
+                    return null;
+                });
+                return null;
+            } else {
+                return v;
+            }
+        });
     }
 
     protected boolean hasSnapshot() {
@@ -456,6 +579,10 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == entity) {
             synchronized (milestones) {
                 entity = milestones.computeIfAbsent(code, s -> new MilestoneEntity(code, MilestoneStatus.WAITING));
+                // set dynamic order at creation time
+                milestoneOrder.computeIfAbsent(code, k -> milestoneOrderSeq.getAndIncrement());
+                // report milestone creation (waiting)
+                reportMilestoneStatus(code, MilestoneStatus.WAITING);
             }
         }
         if (null != consumer) {
@@ -472,6 +599,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         }
 
         MilestoneEntity entity = nodeMap.computeIfAbsent(code, s -> new MilestoneEntity(code, MilestoneStatus.WAITING));
+        // set dynamic order at creation time
+        milestoneOrder.computeIfAbsent(code, k -> milestoneOrderSeq.getAndIncrement());
         consumer.accept(entity);
     }
 
@@ -502,6 +631,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == milestone.getBegin()) {
             milestone.setBegin(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.RUNNING);
+            // report RUNNING when first time begin
+            reportMilestoneStatus(milestone.getCode(), MilestoneStatus.RUNNING);
         }
         milestone.setEnd(null);
         milestone.setErrorMessage(null);
@@ -514,6 +645,12 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (null == milestone.getEnd()) {
             milestone.setEnd(System.currentTimeMillis());
             milestone.setStatus(MilestoneStatus.FINISH);
+            // report FINISH status and duration
+            reportMilestoneStatus(milestone.getCode(), MilestoneStatus.FINISH);
+            long duration = milestone.getEnd() - milestone.getBegin();
+            if (duration >= 0) {
+                reportMilestoneTime(milestone.getCode(), MilestoneStatus.FINISH, duration);
+            }
         }
     }
 
@@ -525,7 +662,8 @@ public class MilestoneAspectTask extends AbstractAspectTask {
     }
 
     protected void setError(Throwable error, MilestoneEntity m) {
-        m.setEnd(System.currentTimeMillis());
+        long now = System.currentTimeMillis();
+        m.setEnd(now);
         m.setStatus(MilestoneStatus.ERROR);
         m.setErrorMessage(Optional.ofNullable(error).map(Throwable::getMessage).orElse(null));
         if (error != null && m.getErrorCode() == null) {
@@ -538,6 +676,13 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         if (tapCodeError != null) {
             m.setDynamicDescriptionParameters(((TapCodeException) tapCodeError).getDynamicDescriptionParameters());
         }
+        // report ERROR status and duration
+        reportMilestoneStatus(m.getCode(), MilestoneStatus.ERROR);
+        long duration = 0L;
+        if (m.getBegin() != null) {
+            duration = now - m.getBegin();
+        }
+        reportMilestoneTime(m.getCode(), MilestoneStatus.ERROR, duration);
     }
 
     protected Consumer<MilestoneEntity> getErrorConsumer(String errorMessage) {
@@ -548,4 +693,30 @@ public class MilestoneAspectTask extends AbstractAspectTask {
         };
     }
 
+    static class PrometheusCache {
+        String code;
+        Long duration;
+        MilestoneStatus status;
+        String order;
+
+        public PrometheusCache code(String code) {
+            this.code = code;
+            return this;
+        }
+
+        public PrometheusCache duration(long duration) {
+            this.duration = duration;
+            return this;
+        }
+
+        public PrometheusCache status(MilestoneStatus status) {
+            this.status = status;
+            return this;
+        }
+
+        public PrometheusCache order(String order) {
+            this.order = order;
+            return this;
+        }
+    }
 }

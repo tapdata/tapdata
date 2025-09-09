@@ -326,6 +326,13 @@ public class Application {
 		rootLoggerConfig.addAppender(consoleAppender, defaultLogLevel, null);
 		consoleAppender.start();
 
+		// 注册 MicrometerLogAppender
+		io.tapdata.common.MicrometerLogAppender micrometerAppender = new io.tapdata.common.MicrometerLogAppender();
+		micrometerAppender.start();
+		config.addAppender(micrometerAppender);
+		// 监听所有级别（或至少 ERROR）
+		rootLoggerConfig.addAppender(micrometerAppender, Level.ERROR, null);
+
 		ctx.updateLoggers();
 	}
 
