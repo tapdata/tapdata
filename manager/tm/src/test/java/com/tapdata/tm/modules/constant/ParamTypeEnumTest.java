@@ -16,8 +16,8 @@ class ParamTypeEnumTest {
         assertTrue(ParamTypeEnum.isValid("time","00:00:00"));
         assertTrue(ParamTypeEnum.isValid("boolean","true"));
         assertTrue(ParamTypeEnum.isValid("array","[1,2,3]"));
-        assertTrue(ParamTypeEnum.isValid("array",null));
-        assertTrue(ParamTypeEnum.checkArray(null));
-        Assertions.assertThrows(Exception.class, () -> ParamTypeEnum.isValid("array","xxx"))  ;
+        assertTrue(ParamTypeEnum.isValid("array: number",null));
+        assertTrue(ParamTypeEnum.checkArray("array: number", null));
+        Assertions.assertThrows(Exception.class, () -> ParamTypeEnum.isValid("array: number","xxx"))  ;
     }
 }
