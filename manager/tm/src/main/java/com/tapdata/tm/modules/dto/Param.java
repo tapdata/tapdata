@@ -9,4 +9,6 @@ public class Param {
     private String type;
     private String defaultvalue;
     private String description;
+
+    private boolean required;
 }
