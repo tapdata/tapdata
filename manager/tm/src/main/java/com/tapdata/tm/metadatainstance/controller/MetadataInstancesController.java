@@ -911,7 +911,6 @@ public class MetadataInstancesController extends BaseController {
 
         // 基本属性
         map.put("type", tapType.getType());
-        map.put("cannotWrite", tapType.getCannotWrite());
 
         try {
             // 使用反射获取所有字段
