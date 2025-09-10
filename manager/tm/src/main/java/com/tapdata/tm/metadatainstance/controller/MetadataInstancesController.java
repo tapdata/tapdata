@@ -789,8 +789,11 @@ public class MetadataInstancesController extends BaseController {
 
     @Operation(summary = "类型映射检查")
     @PostMapping("dataType2TapType")
-    public ResponseMessage<Map<String, TapType>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
-        return success(metadataInstancesService.dataType2TapType(dto, getLoginUser()));
+    public ResponseMessage<Map<String, Object>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
+        Map<String, TapType> res = metadataInstancesService.dataType2TapType(dto, getLoginUser());
+        // 转换 TapType 中的 bytes 字段为字符串，防止前端数据失精
+        Map<String, Object> convertedRes = convertTapTypeBytesToString(res);
+        return success(convertedRes);
     }
 
 
@@ -895,6 +898,70 @@ public class MetadataInstancesController extends BaseController {
         return success(metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(nodeId,taskId,getLoginUser(),true));
     }
 
+    /**
+     * 转换 TapType 中的 bytes 字段为字符串，防止前端数据失精
+     *
+     * @param tapTypeMap 原始的 TapType Map
+     * @return 转换后的 Map，bytes 字段为字符串
+     */
+    private Map<String, Object> convertTapTypeBytesToString(Map<String, TapType> tapTypeMap) {
+        if (tapTypeMap == null) {
+            return null;
+        }
 
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<String, TapType> entry : tapTypeMap.entrySet()) {
+            String key = entry.getKey();
+            TapType tapType = entry.getValue();
+
+            if (tapType == null) {
+                result.put(key, null);
+                continue;
+            }
+
+            // 将 TapType 转换为 Map，然后处理 bytes 字段
+            Map<String, Object> tapTypeMap1 = convertTapTypeToMap(tapType);
+            result.put(key, tapTypeMap1);
+        }
+
+        return result;
+    }
+
+    /**
+     * 将 TapType 对象转换为 Map，并将 bytes 相关字段转换为字符串
+     *
+     * @param tapType TapType 对象
+     * @return 转换后的 Map
+     */
+    private Map<String, Object> convertTapTypeToMap(TapType tapType) {
+        Map<String, Object> map = new HashMap<>();
+
+        // 基本属性
+        map.put("type", tapType.getType());
+        map.put("cannotWrite", tapType.getCannotWrite());
+
+        try {
+            // 使用反射获取所有字段
+            java.lang.reflect.Field[] fields = tapType.getClass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+                Object value = field.get(tapType);
+
+                // 将 bytes 相关的 Long 字段转换为字符串
+                if (value instanceof Long && (fieldName.contains("bytes") || fieldName.contains("Bytes"))) {
+                    map.put(fieldName, value.toString());
+                } else {
+                    map.put(fieldName, value);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to convert TapType to Map using reflection, fallback to basic conversion", e);
+            // 如果反射失败，至少保证基本功能
+            map.put("tapType", tapType.getClass().getSimpleName());
+        }
+
+        return map;
+    }
 
 }
