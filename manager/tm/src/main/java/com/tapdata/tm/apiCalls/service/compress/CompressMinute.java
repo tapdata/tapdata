@@ -1,6 +1,7 @@
 package com.tapdata.tm.apiCalls.service.compress;
 
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
+import com.tapdata.tm.base.exception.BizException;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Service;
 
@@ -15,13 +16,31 @@ public class CompressMinute implements Compress, InitializingBean {
     public static final long STEP = 60 * 1000L;
 
     @Override
+    public void checkTimeRange(long from, long end) {
+        int days = ((Number) ((end - from) / STEP)).intValue();
+        if (days > 600) {
+            throw new BizException("api.call.chart.minute.time.range.too.large", 600);
+        }
+    }
+
+    @Override
     public void afterPropertiesSet() {
         Compress.Factory.register(Compress.Type.MINUTE, this);
     }
 
     @Override
     public Long compressTime(WorkerCallEntity e) {
-        return (e.getTimeStart() / STEP) * STEP;
+        return fixTme(e.getTimeStart());
+    }
+
+    @Override
+    public long fixTme(long time) {
+        return (time / STEP) * STEP;
+    }
+
+    @Override
+    public long defaultFrom(long end) {
+        return end - 5 * STEP;
     }
 
     @Override

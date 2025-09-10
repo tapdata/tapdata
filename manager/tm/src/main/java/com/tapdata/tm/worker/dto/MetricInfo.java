@@ -13,7 +13,7 @@ public class MetricInfo {
     /**
      * unit byte
      * */
-    Double heapMemoryUsage;
+    Long heapMemoryUsage;
 
     /**
      * unit %, such as 0.1 means 10%

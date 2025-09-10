@@ -4,7 +4,13 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -15,9 +21,16 @@ import java.util.List;
 @Data
 public class ApiCallMetricVo {
 
-    private ProcessMetric processMetric;
+    private ProcessMetric processMetric = new ProcessMetric();
 
     private List<WorkerMetrics> workerMetrics = new ArrayList<>();
+
+    /**
+     * query end time
+     * */
+    private long endAs;
+
+    private long startAs;
 
     @Data
     public static class ProcessMetric {
@@ -42,8 +55,48 @@ public class ApiCallMetricVo {
             this.time = new ArrayList<>();
         }
 
-        protected void add(Long time) {
-            this.time.add(time);
+        public void add(Integer index, Long time, Object... values) {
+            if (index == null) {
+                this.time.add(time);
+                return;
+            }
+            this.time.add(index, time);
+        }
+
+        protected  <T extends Number> void apply(Object[] item, int index, Function<Number, T> to, Consumer<T> setter) {
+            if (item.length > index && item[index] instanceof Number number) {
+                setter.accept(to.apply(number));
+                return;
+            }
+            setter.accept(null);
+        }
+
+       protected <E extends Number> void sortOne(int sortType, List<E> list, Comparator<? super E> c) {
+            if (sortType > 0) {
+                list.sort(c);
+            } else if (sortType < 0) {
+                list.sort(c.reversed());
+            }
+        }
+
+        public void sort(int sortType) {
+            if (sortType > 0) {
+                this.time.sort(Long::compareTo);
+            } else if (sortType < 0) {
+                this.time.sort(Comparator.comparing(Long::longValue).reversed());
+            }
+        }
+
+        protected Map<Long, Object[]> valuesMap() {
+            Map<Long, Object[]> map = new HashMap<>();
+            for (int i = 0; i < this.time.size(); i++) {
+                map.put(this.time.get(i), values(i));
+            }
+            return map;
+        }
+
+        protected Object[] values(int index) {
+            return new Object[]{};
         }
     }
 
@@ -57,9 +110,26 @@ public class ApiCallMetricVo {
             this.rps = new ArrayList<>();
         }
 
-        public void add(Long time, Double rps) {
-            super.add(time);
-            this.rps.add(rps);
+        @Override
+        public void add(Integer index, Long time, Object... values) {
+            super.add(index, time);
+            apply(values, 0, Number::doubleValue, null == index ? this.rps::add : v -> this.rps.add(index, v));
+        }
+
+        @Override
+        public void sort(int sort) {
+            Map<Long, Object[]> valuesMap = this.valuesMap();
+            super.sort(sort);
+            this.rps = new ArrayList<>();
+            for (Long time : this.time) {
+                Object[] values = Optional.ofNullable(valuesMap.get(time)).orElse(new Object[]{null});
+                apply(values, 0, Number::doubleValue, this.rps::add);
+            }
+        }
+
+        @Override
+        protected Object[] values(int index) {
+            return new Object[]{this.rps.get(index)};
         }
     }
 
@@ -77,11 +147,32 @@ public class ApiCallMetricVo {
             this.p99 = new ArrayList<>();
         }
 
-        public void add(Long time, Long p50, Long p95, Long p99) {
-            super.add(time);
-            this.p50.add(p50);
-            this.p95.add(p95);
-            this.p99.add(p99);
+        @Override
+        public void add(Integer index, Long time, Object... values) {
+            super.add(index, time);
+            apply(values, 0, Number::longValue, null == index ? this.p50::add : v -> this.p50.add(index, v));
+            apply(values, 1, Number::longValue, null == index ? this.p95::add : v -> this.p50.add(index, v));
+            apply(values, 2, Number::longValue, null == index ? this.p99::add : v -> this.p50.add(index, v));
+        }
+
+        @Override
+        public void sort(int sort) {
+            Map<Long, Object[]> valuesMap = this.valuesMap();
+            super.sort(sort);
+            this.p50 = new ArrayList<>();
+            this.p95 = new ArrayList<>();
+            this.p99 = new ArrayList<>();
+            for (Long time : this.time) {
+                Object[] values = Optional.ofNullable(valuesMap.get(time)).orElse(new Object[]{null, null, null});
+                apply(values, 0, Number::longValue, this.p50::add);
+                apply(values, 1, Number::longValue, this.p95::add);
+                apply(values, 2, Number::longValue, this.p99::add);
+            }
+        }
+
+        @Override
+        protected Object[] values(int index) {
+            return new Object[]{this.p50.get(index), this.p95.get(index), this.p99.get(index)};
         }
     }
 
@@ -95,9 +186,26 @@ public class ApiCallMetricVo {
             this.errorRate = new ArrayList<>();
         }
 
-        public void add(Long time, Double errorRate) {
-            super.add(time);
-            this.errorRate.add(errorRate);
+        @Override
+        public void add(Integer index, Long time, Object... values) {
+            super.add(index, time);
+            apply(values, 0, Number::doubleValue, null == index ? this.errorRate::add : v -> this.errorRate.add(index, v));
+        }
+
+        @Override
+        public void sort(int sort) {
+            Map<Long, Object[]> valuesMap = this.valuesMap();
+            super.sort(sort);
+            this.errorRate = new ArrayList<>();
+            for (Long time : this.time) {
+                Object[] values = Optional.ofNullable(valuesMap.get(time)).orElse(new Object[]{null});
+                apply(values, 0, Number::doubleValue, this.errorRate::add);
+            }
+        }
+
+        @Override
+        protected Object[] values(int index) {
+            return new Object[]{this.errorRate.get(index)};
         }
     }
 }
