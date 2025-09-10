@@ -1847,11 +1847,12 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				try {
 					if (constructIMap != null) {
 						obsLogger.trace("Destroy merge cache resource: {}", constructIMap.getName());
+						constructIMap.clear();
 						constructIMap.destroy();
 					}
 				} catch (Exception e) {
 					obsLogger.warn("Destroy merge cache failed, name: {}, error message: {}\nStack: {}",
-							constructIMap.getName(),
+							constructIMap != null ? constructIMap.getName() : "null",
 							e.getMessage(), Log4jUtil.getStackString(e));
 				}
 			}
@@ -1869,12 +1870,11 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 				try {
 					if (constructIMap != null) {
 						obsLogger.trace("Destroy check join key update cache resource: {}", constructIMap.getName());
-						constructIMap.clear();
 						constructIMap.destroy();
 					}
 				} catch (Exception e) {
 					obsLogger.warn("Destroy check join key update cache failed, name: {}, error message: {}\nStack: {}",
-							constructIMap != null ? constructIMap.getName() : "null",
+							constructIMap.getName(),
 							e.getMessage(), Log4jUtil.getStackString(e));
 				}
 			}
