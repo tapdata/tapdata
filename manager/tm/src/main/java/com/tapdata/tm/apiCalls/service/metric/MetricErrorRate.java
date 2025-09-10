@@ -2,7 +2,6 @@ package com.tapdata.tm.apiCalls.service.metric;
 
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
-import com.tapdata.tm.apiCalls.vo.WorkerCallData;
 import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
 import com.tapdata.tm.apiCalls.vo.metric.OfErrorRate;
 import org.springframework.beans.factory.InitializingBean;
@@ -44,13 +43,18 @@ public class MetricErrorRate implements Metric<ApiCallMetricVo.MetricErrorRate>,
         ApiCallMetricVo.MetricErrorRate info = new ApiCallMetricVo.MetricErrorRate();
         data.stream()
                 .filter(OfErrorRate.class::isInstance)
-                .forEach(vo -> info.add(vo.getTime(), ((OfErrorRate) vo).getErrorRate()));
+                .forEach(vo -> info.add(0, vo.getTime(), ((OfErrorRate) vo).getErrorRate()));
         return info;
     }
 
     @Override
     public MetricDataBase mock(long time) {
         return new OfErrorRate().time(time);
+    }
+
+    @Override
+    public ApiCallMetricVo.MetricBase mockMetric() {
+        return new ApiCallMetricVo.MetricErrorRate();
     }
 
     @Override

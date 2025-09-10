@@ -20,4 +20,8 @@ public class MetricDataBase {
         this.time = time;
         return this;
     }
+
+    public Object[] values() {
+        return new Object[] {};
+    }
 }

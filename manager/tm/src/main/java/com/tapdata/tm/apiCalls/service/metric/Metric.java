@@ -27,6 +27,8 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
 
     MetricDataBase mock(long time);
 
+    ApiCallMetricVo.MetricBase mockMetric();
+
     static Metric<? extends ApiCallMetricVo.MetricBase> call(int type) {
         return Factory.get(Type.by(type));
     }

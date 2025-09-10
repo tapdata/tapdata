@@ -518,6 +518,7 @@ public class WorkerController extends BaseController {
                 status.setWorkerStatus(new HashMap<>());
                 status.setCpuMemStatus(new HashMap<>());
                 status.setWorkerBaseInfo(new HashMap<>());
+                status.setProcessCpuMemStatus(workerStatus.get("metricValues"));
                 if (workerStatus.get("workers") instanceof Map<?,?> workers) {
                     workers.forEach((key, value) -> {
                         if (value instanceof Map<?,?> workerInfo

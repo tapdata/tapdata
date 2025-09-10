@@ -2,7 +2,6 @@ package com.tapdata.tm.apiCalls.service.metric;
 
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
-import com.tapdata.tm.apiCalls.vo.WorkerCallData;
 import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
 import com.tapdata.tm.apiCalls.vo.metric.OfRPS;
 import org.springframework.beans.factory.InitializingBean;
@@ -40,7 +39,7 @@ public class MetricRPS implements Metric<ApiCallMetricVo.MetricRPS>, Initializin
         WorkerCallEntity last = null;
         long count = sorted.size();
         for (WorkerCallEntity vo : sorted) {
-            if (last != null && (vo.getTimeStart() - last.getTimeStart()) > 60000L ) {
+            if (last != null && (vo.getTimeStart() - last.getTimeStart()) > 60000L) {
                 long diff = vo.getTimeStart() - last.getTimeStart();
                 count += (diff / 60000L);
             }
@@ -56,13 +55,18 @@ public class MetricRPS implements Metric<ApiCallMetricVo.MetricRPS>, Initializin
         ApiCallMetricVo.MetricRPS info = new ApiCallMetricVo.MetricRPS();
         data.stream()
                 .filter(OfRPS.class::isInstance)
-                .forEach(vo -> info.add(vo.getTime(), ((OfRPS) vo).getRps()));
+                .forEach(vo -> info.add(0, vo.getTime(), ((OfRPS) vo).getRps()));
         return info;
     }
 
     @Override
     public MetricDataBase mock(long time) {
         return new OfRPS().time(time);
+    }
+
+    @Override
+    public ApiCallMetricVo.MetricBase mockMetric() {
+        return new ApiCallMetricVo.MetricRPS();
     }
 
     @Override

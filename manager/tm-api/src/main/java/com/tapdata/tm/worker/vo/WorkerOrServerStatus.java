@@ -33,6 +33,8 @@ public class WorkerOrServerStatus {
      * */
     Map<String, String> workerStatus;
 
+    Object processCpuMemStatus;
+
     Map<String, Object> cpuMemStatus;
 
     Map<String, Map<String, Object>> workerBaseInfo;

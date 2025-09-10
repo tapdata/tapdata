@@ -3,9 +3,7 @@ package com.tapdata.tm.apiCalls.service.metric;
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
-import com.tapdata.tm.apiCalls.vo.WorkerCallData;
 import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
-import com.tapdata.tm.apiCalls.vo.metric.OfErrorRate;
 import com.tapdata.tm.apiCalls.vo.metric.OfResponseTime;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.mongodb.core.query.Query;
@@ -49,13 +47,18 @@ public class MetricResponseTime implements Metric<ApiCallMetricVo.MetricResponse
         ApiCallMetricVo.MetricResponseTime info = new ApiCallMetricVo.MetricResponseTime();
         data.stream()
                 .filter(OfResponseTime.class::isInstance)
-                .forEach(vo -> info.add(vo.getTime(), ((OfResponseTime) vo).getP50(), ((OfResponseTime) vo).getP95(), ((OfResponseTime) vo).getP99()));
+                .forEach(vo -> info.add(0, vo.getTime(), ((OfResponseTime) vo).getP50(), ((OfResponseTime) vo).getP95(), ((OfResponseTime) vo).getP99()));
         return info;
     }
 
     @Override
     public MetricDataBase mock(long time) {
         return new OfResponseTime().time(time);
+    }
+
+    @Override
+    public ApiCallMetricVo.MetricBase mockMetric() {
+        return new ApiCallMetricVo.MetricResponseTime();
     }
 
     @Override

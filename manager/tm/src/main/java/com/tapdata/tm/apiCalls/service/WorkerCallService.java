@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -63,43 +64,67 @@ public class WorkerCallService {
         if (StringUtils.isBlank(processId)) {
             throw new BizException("api.call.metric.process.id.required");
         }
-        from = Optional.ofNullable(from).orElse(System.currentTimeMillis() - 5 * 60 * 1000L);
+        granularity = Optional.ofNullable(granularity).orElse(0);
+        Compress compress = Compress.call(granularity);
         to = Optional.ofNullable(to).orElse(System.currentTimeMillis());
+        from = Optional.ofNullable(from).orElse(compress.defaultFrom(compress.fixTme(to)));
+        compress.checkTimeRange(from, to);
         type = Optional.ofNullable(type).orElse(0);
         Metric<? extends ApiCallMetricVo.MetricBase> metric = Metric.call(type);
         Criteria criteria = Criteria.where(Tag.TIME_GRANULARITY).is(1)
                 .and(Tag.DELETE).ne(true)
                 .andOperator(Criteria.where(Tag.TIME_START).gte(from), Criteria.where(Tag.TIME_START).lte(to));
         criteria.and(Tag.PROCESS_ID).is(processId);
-        ApiCallMetricVo vo = new ApiCallMetricVo();
-        Query query = Query.query(criteria);
-        metric.fields(query);
-        List<WorkerCallEntity> items = mongoOperations.find(query, WorkerCallEntity.class, "ApiCallInWorker");
-        if (items.isEmpty()) {
-            return vo;
-        }
-        Map<String, List<WorkerCallEntity>> groupByWorker = items.stream().collect(Collectors.groupingBy(WorkerCallEntity::getWorkOid));
-        granularity = Optional.ofNullable(granularity).orElse(0);
-        Compress compress = Compress.call(granularity);
-
-        List<MetricDataBase> compressResult = compress.compress(items, metric::mergeTo, metric::mock);
-        ApiCallMetricVo.MetricBase processMetric = metric.toResult(compressResult);
-        ApiCallMetricVo.ProcessMetric processMetricInfo = new ApiCallMetricVo.ProcessMetric();
-        processMetricInfo.setProcessId(processId);
-        processMetricInfo.setProcessMetric(processMetric);
-        vo.setProcessMetric(processMetricInfo);
         Worker serverInfo = apiWorkerServer.getServerInfo(processId);
         Map<String, String> workerMap = apiWorkerServer.workerMap(serverInfo);
+        Set<String> workerOIds = workerMap.keySet();
+
+        ApiCallMetricVo vo = new ApiCallMetricVo();
+        vo.setEndAs(to);
+        vo.setStartAs(from);
+        ApiCallMetricVo.ProcessMetric processMetricInit = new ApiCallMetricVo.ProcessMetric();
+        processMetricInit.setProcessId(processId);
+        processMetricInit.setProcessMetric(metric.mockMetric());
+        vo.setProcessMetric(processMetricInit);
         vo.setWorkerMetrics(new ArrayList<>());
-        groupByWorker.forEach((workerOid, infos) -> {
-            ApiCallMetricVo.MetricBase workerMetricInfo = metric.toResult(compressResult);
+        workerMap.forEach((oid, name) -> {
             ApiCallMetricVo.WorkerMetrics workerMetric = new ApiCallMetricVo.WorkerMetrics();
-            workerMetric.setWorkOid(workerOid);
-            workerMetric.setWorkerName(workerMap.get(workerOid));
-            workerMetric.setWorkerMetric(workerMetricInfo);
+            workerMetric.setWorkerMetric(metric.mockMetric());
+            workerMetric.setWorkOid(oid);
+            workerMetric.setWorkerName(name);
             vo.getWorkerMetrics().add(workerMetric);
         });
-        return vo;
+        try {
+            if (workerOIds.isEmpty()) {
+                return vo;
+            }
+            criteria.and(Tag.WORK_OID).in(workerOIds);
+            Query query = Query.query(criteria);
+            metric.fields(query);
+            List<WorkerCallEntity> items = mongoOperations.find(query, WorkerCallEntity.class, "ApiCallInWorker");
+            if (items.isEmpty()) {
+                return vo;
+            }
+            Map<String, List<WorkerCallEntity>> groupByWorker = items.stream().collect(Collectors.groupingBy(WorkerCallEntity::getWorkOid));
+            List<MetricDataBase> compressResult = compress.compress(items, metric::mergeTo, metric::mock);
+            ApiCallMetricVo.MetricBase processMetric = metric.toResult(compressResult);
+            ApiCallMetricVo.ProcessMetric processMetricInfo = new ApiCallMetricVo.ProcessMetric();
+            processMetricInfo.setProcessId(processId);
+            processMetricInfo.setProcessMetric(processMetric);
+            vo.setProcessMetric(processMetricInfo);
+            vo.setWorkerMetrics(new ArrayList<>());
+            groupByWorker.forEach((workerOid, infos) -> {
+                ApiCallMetricVo.MetricBase workerMetricInfo = metric.toResult(compressResult);
+                ApiCallMetricVo.WorkerMetrics workerMetric = new ApiCallMetricVo.WorkerMetrics();
+                workerMetric.setWorkOid(workerOid);
+                workerMetric.setWorkerName(workerMap.get(workerOid));
+                workerMetric.setWorkerMetric(workerMetricInfo);
+                vo.getWorkerMetrics().add(workerMetric);
+            });
+            return vo;
+        } finally {
+            compress.fixTime(vo, metric::mock, compress.fixTme(from), compress.plus(compress.fixTme(to)));
+        }
     }
 
     public ApiCountMetricVo findWorkerApiCalls(String processId) {
@@ -288,19 +313,24 @@ public class WorkerCallService {
                 }
             });
         } finally {
-            if (!futures.isEmpty()) {
-                futures.forEach(future -> {
-                    try {
-                        future.get();
-                    } catch (ExecutionException e) {
-                        log.error("metricWorker error", e);
-                    } catch (InterruptedException e) {
-                        log.error("metricWorker interrupted", e);
-                        Thread.currentThread().interrupt();
-                    }
-                });
-            }
+           closeFeatures(futures);
         }
+    }
+
+    void closeFeatures(List<CompletableFuture<Void>> futures) {
+        if (futures.isEmpty()) {
+            return;
+        }
+        futures.forEach(future -> {
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                log.error("metricWorker error", e);
+            } catch (InterruptedException e) {
+                log.error("metricWorker interrupted", e);
+                Thread.currentThread().interrupt();
+            }
+        });
     }
 
     public void bulkUpsert(List<WorkerCallEntity> entities) {

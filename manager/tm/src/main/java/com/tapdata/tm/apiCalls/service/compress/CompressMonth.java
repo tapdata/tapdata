@@ -25,7 +25,12 @@ public class CompressMonth implements Compress, InitializingBean {
 
     @Override
     public Long compressTime(WorkerCallEntity e) {
-        LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(e.getTimeStart()), ZoneId.systemDefault());
+        return fixTme(e.getTimeStart());
+    }
+
+    @Override
+    public long fixTme(long time) {
+        LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneId.systemDefault());
         return localDateTime.toLocalDate().withDayOfMonth(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
     }
 
@@ -33,5 +38,11 @@ public class CompressMonth implements Compress, InitializingBean {
     public long plus(long time) {
         LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneId.systemDefault());
         return localDateTime.toLocalDate().withDayOfMonth(1).plusMonths(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    @Override
+    public long defaultFrom(long end) {
+        LocalDateTime localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(end), ZoneId.systemDefault());
+        return localDateTime.minusMonths(6).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 }

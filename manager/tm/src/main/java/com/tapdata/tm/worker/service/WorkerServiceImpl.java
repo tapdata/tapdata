@@ -606,6 +606,9 @@ public class WorkerServiceImpl extends WorkerService{
         Optional.ofNullable(status.getStatus())
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
+        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
+            update.set("worker_status.metricValues", s)
+        );
         Optional.ofNullable(status.getWorkerStatus())
                 .ifPresent(ws -> ws.forEach((id,  value) -> {
                     update.set(String.format("worker_status.workers.%s.worker_status", id), value);
@@ -613,7 +616,7 @@ public class WorkerServiceImpl extends WorkerService{
                 }));
         Optional.ofNullable(status.getCpuMemStatus())
                         .ifPresent(ws -> ws.forEach((id,  value) ->
-                    update.set(String.format("worker_status.workers.%s.metricValue", id), value)
+                    update.set(String.format("worker_status.workers.%s.metricValues", id), value)
                 ));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
             workerBaseInfo.forEach((id,  value) -> {

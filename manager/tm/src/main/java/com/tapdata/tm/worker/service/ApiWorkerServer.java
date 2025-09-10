@@ -145,7 +145,7 @@ public class ApiWorkerServer {
         if (value instanceof Map<?, ?> infoMap) {
             Optional.ofNullable(infoMap.get("HeapMemoryUsage"))
                     .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).doubleValue())
+                    .map(e -> ((Number) e).longValue())
                     .ifPresent(info::setHeapMemoryUsage);
             Optional.ofNullable(infoMap.get("CpuUsage"))
                     .filter(Number.class::isInstance)
