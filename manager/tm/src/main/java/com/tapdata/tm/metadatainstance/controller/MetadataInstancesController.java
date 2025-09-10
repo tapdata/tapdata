@@ -904,7 +904,7 @@ public class MetadataInstancesController extends BaseController {
      * @param tapTypeMap 原始的 TapType Map
      * @return 转换后的 Map，bytes 字段为字符串
      */
-    private Map<String, Object> convertTapTypeBytesToString(Map<String, TapType> tapTypeMap) {
+    public Map<String, Object> convertTapTypeBytesToString(Map<String, TapType> tapTypeMap) {
         if (tapTypeMap == null) {
             return null;
         }
