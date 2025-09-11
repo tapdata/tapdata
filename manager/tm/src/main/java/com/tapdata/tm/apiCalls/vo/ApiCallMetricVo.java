@@ -155,8 +155,8 @@ public class ApiCallMetricVo {
         public void add(Integer index, Long time, Object... values) {
             super.add(index, time);
             apply(values, 0, Number::longValue, null == index ? this.p50::add : v -> this.p50.add(index, v));
-            apply(values, 1, Number::longValue, null == index ? this.p95::add : v -> this.p50.add(index, v));
-            apply(values, 2, Number::longValue, null == index ? this.p99::add : v -> this.p50.add(index, v));
+            apply(values, 1, Number::longValue, null == index ? this.p95::add : v -> this.p95.add(index, v));
+            apply(values, 2, Number::longValue, null == index ? this.p99::add : v -> this.p99.add(index, v));
         }
 
         @Override
