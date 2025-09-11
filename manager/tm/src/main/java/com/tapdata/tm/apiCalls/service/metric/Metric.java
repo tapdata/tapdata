@@ -7,6 +7,7 @@ import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
 import lombok.Getter;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,14 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
     MetricDataBase mock(long time);
 
     ApiCallMetricVo.MetricBase mockMetric();
+
+    default Double formatAsPercentage(Number value, int scale) {
+        if (null == value) {
+            return null;
+        }
+        BigDecimal bigDecimal = new BigDecimal(value.doubleValue());
+        return bigDecimal.setScale(scale, BigDecimal.ROUND_HALF_UP).doubleValue();
+    }
 
     static Metric<? extends ApiCallMetricVo.MetricBase> call(int type) {
         return Factory.get(Type.by(type));

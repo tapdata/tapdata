@@ -46,7 +46,7 @@ public class MetricRPS implements Metric<ApiCallMetricVo.MetricRPS>, Initializin
             rps += Optional.ofNullable(vo.getRps()).orElse(0d) * 60d;
             last = vo;
         }
-        ofRPS.setRps(rps / (count * 60d));
+        ofRPS.setRps(formatAsPercentage(rps / (count * 60d), 2));
         return ofRPS;
     }
 
