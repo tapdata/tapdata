@@ -440,7 +440,7 @@ public class ApiCallService {
         applicationDtoList.forEach(applicationDto -> {
             Map<String, String> map = new HashMap<>();
             map.put(Tag.ID, applicationDto.getId().toString());
-            map.put(Tag.NAME, applicationDto.getName());
+            map.put(Tag.NAME, applicationDto.getClientName());
             result.add(map);
         });
 

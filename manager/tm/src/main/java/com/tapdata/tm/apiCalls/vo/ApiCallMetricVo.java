@@ -98,6 +98,10 @@ public class ApiCallMetricVo {
         protected Object[] values(int index) {
             return new Object[]{};
         }
+
+        protected Object get(List<?> list, int index) {
+            return list.size() > index ? list.get(index) : null;
+        }
     }
 
     @EqualsAndHashCode(callSuper = true)
@@ -129,7 +133,7 @@ public class ApiCallMetricVo {
 
         @Override
         protected Object[] values(int index) {
-            return new Object[]{this.rps.get(index)};
+            return new Object[]{get(this.rps, index)};
         }
     }
 
@@ -172,7 +176,7 @@ public class ApiCallMetricVo {
 
         @Override
         protected Object[] values(int index) {
-            return new Object[]{this.p50.get(index), this.p95.get(index), this.p99.get(index)};
+            return new Object[]{get(this.p50, index), get(this.p95, index), get(this.p99, index)};
         }
     }
 
@@ -205,7 +209,7 @@ public class ApiCallMetricVo {
 
         @Override
         protected Object[] values(int index) {
-            return new Object[]{this.errorRate.get(index)};
+            return new Object[]{get(this.errorRate, index)};
         }
     }
 }
