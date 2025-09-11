@@ -30,11 +30,11 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
 
     ApiCallMetricVo.MetricBase mockMetric();
 
-    default Double formatAsPercentage(Number value, int scale) {
+    default Double formatAsPercentage(Number value, int scale, double factor) {
         if (null == value) {
             return null;
         }
-        BigDecimal bigDecimal = new BigDecimal(value.doubleValue());
+        BigDecimal bigDecimal = new BigDecimal(value.doubleValue() * factor);
         return bigDecimal.setScale(scale, BigDecimal.ROUND_HALF_UP).doubleValue();
     }
 

@@ -34,7 +34,7 @@ public class MetricErrorRate implements Metric<ApiCallMetricVo.MetricErrorRate>,
             reqCount += vo.getReqCount();
             errorCount += vo.getErrorCount();
         }
-        data.setErrorRate(reqCount == 0L ? 0d : formatAsPercentage(errorCount * 1.0d / reqCount, 2));
+        data.setErrorRate(reqCount == 0L ? 0d : formatAsPercentage(errorCount * 1.0d / reqCount, 2, 100d));
         return data;
     }
 
