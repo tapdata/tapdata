@@ -196,6 +196,9 @@ public class OpenApiJsonProcessor {
             processedOpenAPI.setPaths(processedPaths);
         }
 
+        // Remove fields with description "SERVER_PSEUDO_KEY" in components/schemas
+        removeServerPseudoKeyFieldsFromComponents(processedComponents);
+
         // Set processed components
         processedOpenAPI.setComponents(processedComponents);
 
@@ -895,6 +898,118 @@ public class OpenApiJsonProcessor {
         log.debug("Processed components successfully");
         return processedComponents;
     }
+
+
+    /**
+     * Remove properties with description "SERVER_PSEUDO_KEY" under components/schemas.
+     * Keep the existing behavior, and once such fields are found and removed, scan all schemas again
+     * to remove properties with the same names even if they don't carry the sentinel description.
+     *
+     * @param components Components containing schemas to sanitize
+     */
+    private void removeServerPseudoKeyFieldsFromComponents(Components components) {
+        if (components == null || components.getSchemas() == null || components.getSchemas().isEmpty()) {
+            return;
+        }
+        // First pass: remove by sentinel and collect field names that should be propagated
+        Set<String> namesToPropagate = new HashSet<>();
+        int totalRemovedBySentinel = 0;
+        for (Map.Entry<String, Schema> entry : components.getSchemas().entrySet()) {
+            Schema<?> schema = entry.getValue();
+            totalRemovedBySentinel += removeServerPseudoKeyFieldsInSchema(schema, namesToPropagate);
+        }
+        log.debug("Removed {} properties with description 'SERVER_PSEUDO_KEY' from components/schemas", totalRemovedBySentinel);
+
+        // Second pass: remove fields by the collected names across all schemas (even without sentinel)
+        if (!namesToPropagate.isEmpty()) {
+            int additionallyRemoved = 0;
+            for (Map.Entry<String, Schema> entry : components.getSchemas().entrySet()) {
+                Schema<?> schema = entry.getValue();
+                additionallyRemoved += removePropertiesByNamesInSchema(schema, namesToPropagate);
+            }
+            log.debug("Propagated removal of fields {} across all component schemas, additional {} properties removed", namesToPropagate, additionallyRemoved);
+        }
+    }
+
+    /**
+     * Recursively remove properties whose schema description == "SERVER_PSEUDO_KEY".
+     * Works for object schemas, nested objects, arrays (via items), and additionalProperties.
+     * Also collects the property names removed so they can be propagated to other models.
+     *
+     * @param schema schema to inspect and sanitize
+     * @param collectedNames set to collect removed property names
+     * @return number of properties removed in this pass
+     */
+    private int removeServerPseudoKeyFieldsInSchema(Schema<?> schema, Set<String> collectedNames) {
+        if (schema == null) {
+            return 0;
+        }
+        int removed = 0;
+
+        Map<String, Schema> properties = schema.getProperties();
+        if (properties != null && !properties.isEmpty()) {
+            Iterator<Map.Entry<String, Schema>> it = properties.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Schema> prop = it.next();
+                String propName = prop.getKey();
+                Schema<?> propSchema = prop.getValue();
+                if (propSchema != null && "SERVER_PSEUDO_KEY".equals(propSchema.getDescription())) {
+                    it.remove();
+                    removed++;
+                    if (collectedNames != null) {
+                        collectedNames.add(propName);
+                    }
+                    continue;
+                }
+                removed += removeServerPseudoKeyFieldsInSchema(propSchema, collectedNames);
+            }
+        }
+
+        if (schema.getItems() != null) {
+            removed += removeServerPseudoKeyFieldsInSchema(schema.getItems(), collectedNames);
+        }
+        if (schema.getAdditionalProperties() instanceof Schema) {
+            removed += removeServerPseudoKeyFieldsInSchema((Schema<?>) schema.getAdditionalProperties(), collectedNames);
+        }
+        return removed;
+    }
+
+    /**
+     * Recursively remove any property whose name is contained in namesToRemove, regardless of description.
+     *
+     * @param schema schema to clean up
+     * @param namesToRemove property names to remove wherever they appear
+     * @return number of properties removed
+     */
+    private int removePropertiesByNamesInSchema(Schema<?> schema, Set<String> namesToRemove) {
+        if (schema == null || namesToRemove == null || namesToRemove.isEmpty()) {
+            return 0;
+        }
+        int removed = 0;
+        Map<String, Schema> properties = schema.getProperties();
+        if (properties != null && !properties.isEmpty()) {
+            Iterator<Map.Entry<String, Schema>> it = properties.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Schema> prop = it.next();
+                String propName = prop.getKey();
+                Schema<?> propSchema = prop.getValue();
+                if (namesToRemove.contains(propName)) {
+                    it.remove();
+                    removed++;
+                    continue;
+                }
+                removed += removePropertiesByNamesInSchema(propSchema, namesToRemove);
+            }
+        }
+        if (schema.getItems() != null) {
+            removed += removePropertiesByNamesInSchema(schema.getItems(), namesToRemove);
+        }
+        if (schema.getAdditionalProperties() instanceof Schema) {
+            removed += removePropertiesByNamesInSchema((Schema<?>) schema.getAdditionalProperties(), namesToRemove);
+        }
+        return removed;
+    }
+
 
     /**
      * Process security schemes, specifically removing implicit OAuth2 flow
