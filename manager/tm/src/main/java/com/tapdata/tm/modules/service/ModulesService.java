@@ -543,7 +543,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                         .map(w -> {
                             Map<Object, Object> map = (Map<Object, Object>) w;
                             ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
-                            apiWorkerInfo.setOid((String) map.get("oid"));
+                            apiWorkerInfo.setOid(Optional.ofNullable(map.get("oid")).map(String::valueOf).orElse(new ObjectId().toHexString()));
                             apiWorkerInfo.setName((String) map.get("name"));
                             apiWorkerInfo.setDescription((String) map.get(TAG.DESCRIPTION));
                             apiWorkerInfo.setId((Integer) map.get("id"));
