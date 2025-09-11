@@ -543,7 +543,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                         .map(w -> {
                             Map<Object, Object> map = (Map<Object, Object>) w;
                             ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
-                            apiWorkerInfo.setOid(Optional.ofNullable(map.get("oid")).map(String::valueOf).orElse(new ObjectId().toHexString()));
+                            apiWorkerInfo.setOid((String) map.get("oid"));
                             apiWorkerInfo.setName((String) map.get("name"));
                             apiWorkerInfo.setDescription((String) map.get(TAG.DESCRIPTION));
                             apiWorkerInfo.setId((Integer) map.get("id"));
@@ -557,8 +557,17 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                             return apiWorkerInfo;
                         }).toList())
                 .orElse(new ArrayList<>()));
-		for (int i = apiWorkerInfos.size(); i < workerCount; i++) {
+		int size = apiWorkerInfos.size();
+		for (int index = 0; index < size; index++) {
+			ApiWorkerInfo worker = apiWorkerInfos.get(index);
+			worker.setName(Optional.ofNullable(worker.getName()).orElse("Worker-" + (index + 1)));
+			worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
+			worker.setSort(Optional.ofNullable(worker.getSort()).orElse(index));
+		}
+		for (int i = size; i < workerCount; i++) {
 			ApiWorkerInfo item = new ApiWorkerInfo();
+			item.setName("Worker-" + (i + 1));
+			item.setSort(i);
 			item.setOid(new ObjectId().toHexString());
 			apiWorkerInfos.add(item);
 		}
