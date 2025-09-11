@@ -115,4 +115,7 @@ public class ApiCallDataVo {
 
     private String clientId;
     private String clientName;
+
+    /**The unique identifier of the worker corresponding to the current request*/
+    private String workOid;
 }

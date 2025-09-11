@@ -27,4 +27,7 @@ public class ApiCallDetailVo extends BaseVo {
     private String query;
     private String body;
     private Map<String, Object> reqHeaders;
+
+    /**The unique identifier of the worker corresponding to the current request*/
+    private String workOid;
 }

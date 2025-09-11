@@ -1,10 +1,13 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.apiCalls.service.ApiCallService;
+import com.tapdata.tm.apiCalls.service.WorkerCallService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections4.CollectionUtils;
@@ -33,12 +36,16 @@ public class ApiCallStatsScheduler {
 	private final ModulesService modulesService;
 	private final ApiCallStatsService apiCallStatsService;
 	private final ApiCallService apiCallService;
+	private final WorkerCallService workerCallService;
+	private final WorkerService workerService;
 
 	@Autowired
-	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService) {
+	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService, WorkerCallService wcs, WorkerService  ws) {
 		this.modulesService = modulesService;
 		this.apiCallStatsService = apiCallStatsService;
 		this.apiCallService = apiCallService;
+		this.workerCallService = wcs;
+		this.workerService = ws;
 	}
 
 	/**
@@ -52,6 +59,7 @@ public class ApiCallStatsScheduler {
 			log.debug("Start to aggregate ApiCallStats...");
 		}
 		long startMs = System.currentTimeMillis();
+		collectOnceApiCountOfWorker();
 
 		// Get all Modules, excluding deleted ones
 		Query modulesQuery = new Query();
@@ -147,5 +155,23 @@ public class ApiCallStatsScheduler {
 		if (apiCallStatsServiceEmpty && !modulesList.isEmpty()) {
 			log.info("Initialize Api Call Stats data for the first time completed, cost: {} ms", cost);
 		}
+	}
+
+	void collectOnceApiCountOfWorker() {
+		//query all server
+		List<WorkerDto> all = workerService.findAll(Query.query(
+				Criteria.where("worker_type").is("api-server")
+				.and("delete").ne(true)));
+		if (null == all || all.isEmpty()) {
+			return;
+		}
+		all.forEach(w -> {
+			try {
+				workerCallService.collectApiCallCountGroupByWorker(w.getProcessId());
+			} catch (Exception e) {
+				log.error("Unable to perform Worker level request access data statistics on API servers", e);
+			}
+		});
+
 	}
 }

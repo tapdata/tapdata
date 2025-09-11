@@ -4,13 +4,26 @@ import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.param.GetClientParam;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
+import com.tapdata.tm.apiCalls.vo.ApiPercentile;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,7 +89,7 @@ public class ApiCallController extends BaseController {
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
     public ResponseMessage<ApiCallDetailVo> findById(@PathVariable("id") String id,
-                                                     @RequestParam(value = "fields",required = false) String fieldsJson) {
+                                                     @RequestParam(value = "fields", required = false) String fieldsJson) {
         Field fields = parseField(fieldsJson);
         return success(apiCallService.findById(id, fields, getLoginUser()));
     }
@@ -94,10 +107,6 @@ public class ApiCallController extends BaseController {
         apiCallService.deleteLogicsById(id);
         return success();
     }
-
-
-
-
 
 
     /**
@@ -130,18 +139,18 @@ public class ApiCallController extends BaseController {
     }
 
     @GetMapping("findClients")
-    public ResponseMessage getClients(@RequestBody(required = false) GetClientParam getClientParam){
-        List<String> moduleIds=new ArrayList<>();
-        if (null!=getClientParam){
-            moduleIds=getClientParam.getModuleIdList();
+    public ResponseMessage getClients(@RequestBody(required = false) GetClientParam getClientParam) {
+        List<String> moduleIds = new ArrayList<>();
+        if (null != getClientParam) {
+            moduleIds = getClientParam.getModuleIdList();
         }
         return success(apiCallService.findClients(moduleIds));
     }
 
 
     @GetMapping("getAllMethod")
-    public ResponseMessage getAllMethod(@RequestBody(required = false) GetClientParam getClientParam){
-        List<String> allMethod=new ArrayList<>();
+    public ResponseMessage getAllMethod(@RequestBody(required = false) GetClientParam getClientParam) {
+        List<String> allMethod = new ArrayList<>();
         allMethod.add("GET");
         allMethod.add("POST");
         allMethod.add("DELETE");
@@ -151,10 +160,23 @@ public class ApiCallController extends BaseController {
     }
 
     @GetMapping("getAllResponseCode")
-    public ResponseMessage getAllResponseCode(@RequestBody(required = false) GetClientParam getClientParam){
-        List<String> allMethod=new ArrayList<>();
+    public ResponseMessage getAllResponseCode(@RequestBody(required = false) GetClientParam getClientParam) {
+        List<String> allMethod = new ArrayList<>();
         allMethod.add("200");
         allMethod.add(" ");
         return success(allMethod);
+    }
+
+    /**
+     * @param apiId 必填
+     * @param from  开始时间(时间戳) 默认1小时前
+     * @param end   结束时间（时间戳）默认当前
+     * @return {p50,p95,p99}
+     */
+    @GetMapping("/percentile/{apiId}")
+    public ResponseMessage<ApiPercentile> getAllApiName(@PathVariable(name = "apiId") String apiId,
+                                                        @RequestParam(name = "from", required = false) Long from,
+                                                        @RequestParam(name = "end", required = false) Long end) {
+        return success(apiCallService.getApiPercentile(apiId, from, end));
     }
 }

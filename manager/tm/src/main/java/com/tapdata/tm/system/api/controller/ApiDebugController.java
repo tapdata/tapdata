@@ -1,6 +1,7 @@
 package com.tapdata.tm.system.api.controller;
 
 import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.apiCalls.service.WorkerCallService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -13,6 +14,7 @@ import com.tapdata.tm.system.api.vo.DebugVo;
 import com.tapdata.tm.utils.HttpUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.pdk.core.async.AsyncUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,7 +41,9 @@ import java.util.concurrent.atomic.AtomicReference;
 @Slf4j
 @RequestMapping(value = {"/api/debug"})
 public class ApiDebugController extends BaseController {
-    private static final ExecutorService ASYNC_EXECUTOR = ThreadPoolManager.getAsyncTaskExecutor();
+    private static final ExecutorService ASYNC_EXECUTOR = AsyncUtils.createThreadPoolExecutor(
+            ApiDebugController.class.getSimpleName() + "-api-debug-async-executor", 10, ApiDebugController.class.getSimpleName()
+    );
 
     @Resource(name = "textEncryptionRuleService")
     TextEncryptionRuleService ruleService;

@@ -2,10 +2,12 @@ package com.tapdata.tm.schedule;
 
 import ch.qos.logback.classic.Logger;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
+import com.tapdata.tm.apiCalls.service.WorkerCallService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.worker.service.WorkerService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -38,13 +40,17 @@ class ApiCallStatsSchedulerTest {
 	private ModulesService modulesService;
 	private ApiCallService apiCallService;
 	private ApiCallStatsService apiCallStatsService;
+	WorkerCallService workerCallService;
+	WorkerService workerService;
 
 	@BeforeEach
 	void setUp() {
 		modulesService = mock(ModulesService.class);
 		apiCallService = mock(ApiCallService.class);
 		apiCallStatsService = mock(ApiCallStatsService.class);
-		apiCallStatsScheduler = new ApiCallStatsScheduler(modulesService, apiCallStatsService, apiCallService);
+		workerCallService = mock(WorkerCallService.class);
+		workerService = mock(WorkerService.class);
+		apiCallStatsScheduler = new ApiCallStatsScheduler(modulesService, apiCallStatsService, apiCallService, workerCallService, workerService);
 	}
 
 	@Test
