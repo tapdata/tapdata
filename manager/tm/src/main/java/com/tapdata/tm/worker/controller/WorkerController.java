@@ -49,6 +49,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -519,6 +520,9 @@ public class WorkerController extends BaseController {
                 status.setCpuMemStatus(new HashMap<>());
                 status.setWorkerBaseInfo(new HashMap<>());
                 status.setProcessCpuMemStatus(workerStatus.get("metricValues"));
+                Optional.ofNullable(workerStatus.get("worker_process_id"))
+                        .filter(Number.class::isInstance)
+                        .map(e -> ((Number) e).intValue()).ifPresent(status::setPid);
                 if (workerStatus.get("workers") instanceof Map<?,?> workers) {
                     workers.forEach((key, value) -> {
                         if (value instanceof Map<?,?> workerInfo

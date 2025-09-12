@@ -14,6 +14,8 @@ import java.util.List;
 public class ApiServerInfo {
     String processId;
 
+    Integer pid;
+
     Integer workerPid;
 
     String name;
@@ -29,4 +31,6 @@ public class ApiServerInfo {
     Object exitCode;
 
     MetricInfo metricValues;
+
+    Long pingTime;
 }

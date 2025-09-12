@@ -17,6 +17,9 @@ public class WorkerCallsInfo {
     @Field("api_gateway_uuid")
     private String apiGatewayUuid;
 
+    @Field("allPathId")
+    private String apiId;
+
     private Long latency;
 
     private String code;

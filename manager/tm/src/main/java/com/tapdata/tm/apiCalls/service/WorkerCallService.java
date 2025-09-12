@@ -362,6 +362,7 @@ public class WorkerCallService {
                 .and(Tag.DELETE).is(entity.getDelete())
                 .and(Tag.TIME_GRANULARITY).is(entity.getTimeGranularity())
                 .and(Tag.PROCESS_ID).is(entity.getProcessId())
+                .and(Tag.API_ID).is(entity.getApiId())
                 .and(Tag.WORK_OID).is(entity.getWorkOid());
         return Query.query(criteria);
     }
@@ -397,7 +398,8 @@ public class WorkerCallService {
         List<WorkerCallsInfo> calls = null;
         long skip = 0;
         long size = 1000;
-        Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid);
+        Criteria criteriaCall = Criteria.where(Tag.WORK_OID).is(workerOid)
+                .and(Tag.ALL_PATH_ID).ne(null);
         List<Criteria> timeCriteria = new ArrayList<>();
         timeCriteria.add(Criteria.where(Tag.REQ_TIME).ne(null));
         timeCriteria.add(Criteria.where(Tag.REQ_TIME).lte(queryTo));
@@ -430,5 +432,6 @@ public class WorkerCallService {
         public static final String REQ_TIME = "reqTime";
         public static final String RES_TIME = "resTime";
         public static final String ALL_PATH_ID = "allPathId";
+        public static final String API_ID = "apiId";
     }
 }

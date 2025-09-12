@@ -23,6 +23,8 @@ public class WorkerOrServerStatus {
      * */
     String status;
 
+    Integer pid;
+
     /**
      * update timestamp
      * */
