@@ -6,6 +6,7 @@ import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.worker.service.WorkerService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,7 @@ class ApiCallMinuteStatsSchedulerTest {
 	private ApiCallService apiCallService;
 	private ApiCallMinuteStatsScheduler apiCallMinuteStatsScheduler;
 	private WorkerCallService workerCallService;
+	WorkerService workerService;
 
 	@BeforeEach
 	void setUp() {
@@ -45,7 +47,8 @@ class ApiCallMinuteStatsSchedulerTest {
 		apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
 		apiCallService = mock(ApiCallService.class);
 		workerCallService = mock(WorkerCallService.class);
-		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallService);
+		workerService = mock(WorkerService.class);
+		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallService, workerService);
 	}
 
 	@Test

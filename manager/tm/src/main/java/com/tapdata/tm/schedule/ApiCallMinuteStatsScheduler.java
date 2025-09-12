@@ -6,6 +6,8 @@ import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.lang3.StringUtils;
@@ -35,13 +37,15 @@ public class ApiCallMinuteStatsScheduler {
 	private final ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private final ApiCallService apiCallService;
 	private final WorkerCallService workerCallService;
+	private final WorkerService workerService;
 
 	@Autowired
-	public ApiCallMinuteStatsScheduler(ModulesService modulesService, ApiCallMinuteStatsService apiCallMinuteStatsService, ApiCallService apiCallService, WorkerCallService workerCallService) {
+	public ApiCallMinuteStatsScheduler(ModulesService modulesService, ApiCallMinuteStatsService apiCallMinuteStatsService, ApiCallService apiCallService, WorkerCallService workerCallService, WorkerService ws) {
 		this.modulesService = modulesService;
 		this.apiCallMinuteStatsService = apiCallMinuteStatsService;
 		this.apiCallService = apiCallService;
 		this.workerCallService = workerCallService;
+		this.workerService = ws;
 	}
 
 	/**
@@ -53,11 +57,6 @@ public class ApiCallMinuteStatsScheduler {
 		Thread.currentThread().setName(getClass().getSimpleName() + "-scheduler");
 		if (log.isDebugEnabled()) {
 			log.debug("Start to aggregate ApiCallMinuteStats...");
-		}
-		try {
-			workerCallService.metric();
-		} catch (Exception e) {
-			log.error("Aggregate ApiCallMinuteStats failed, error: {}", e.getMessage(), e);
 		}
 
 		// Get all Modules, excluding deleted ones
@@ -131,5 +130,38 @@ public class ApiCallMinuteStatsScheduler {
 				log.error("BulkWrite ApiCallMinuteStatsDto failed, will skip it, error: {}", e.getMessage(), e);
 			}
 		}
+	}
+
+	@Scheduled(cron = "0/30 * * * * ?")
+	@SchedulerLock(name = "api_call_worker_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
+	public void scheduleWorkerCall() {
+		try {
+			workerCallService.metric();
+		} catch (Exception e) {
+			log.error("Aggregate ApiCallMinuteStats failed, error: {}", e.getMessage(), e);
+		}
+
+		try {
+			collectOnceApiCountOfWorker();
+		} catch (Exception e) {
+			log.error("Aggregate API call count of worker failed, error: {}", e.getMessage(), e);
+		}
+	}
+
+	void collectOnceApiCountOfWorker() {
+		//query all server
+		List<WorkerDto> all = workerService.findAll(Query.query(
+				Criteria.where("worker_type").is("api-server")
+						.and("delete").ne(true)));
+		if (null == all || all.isEmpty()) {
+			return;
+		}
+		all.forEach(w -> {
+			try {
+				workerCallService.collectApiCallCountGroupByWorker(w.getProcessId());
+			} catch (Exception e) {
+				log.error("Unable to perform Worker level request access data statistics on API servers", e);
+			}
+		});
 	}
 }
