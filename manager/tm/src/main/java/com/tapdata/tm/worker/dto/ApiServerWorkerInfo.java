@@ -27,5 +27,7 @@ public class ApiServerWorkerInfo {
 
     MetricInfo metricValues;
 
+    Long pingTime;
+
     int sort;
 }

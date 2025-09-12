@@ -53,8 +53,13 @@ public class ApiWorkerServer {
     public void withInServer(Worker serverInfo, ApiServerInfo server) {
         Optional.ofNullable(serverInfo).map(Worker::getHostname).ifPresent(server::setName);
         Optional.ofNullable(serverInfo).map(Worker::getProcessId).ifPresent(server::setProcessId);
+        Optional.ofNullable(serverInfo).map(Worker::getPingTime).ifPresent(server::setPingTime);
         if (null != serverInfo && serverInfo.getWorker_status() instanceof Map<?,?> status) {
             server.setMetricValues(toMetricInfo(status.get("metricValues")));
+            Optional.ofNullable(status.get("pid"))
+                    .filter(Number.class::isInstance)
+                    .map(e -> ((Number) e).intValue())
+                    .ifPresent(server::setPid);
             Optional.ofNullable(status.get("worker_process_id"))
                     .filter(Number.class::isInstance)
                     .map(e -> ((Number) e).intValue())
@@ -132,6 +137,10 @@ public class ApiWorkerServer {
                             .map(e -> (Map<String, Object>) e)
                             .map(this::toMetricInfo)
                             .ifPresent(info::setMetricValues);
+                    Optional.ofNullable(infoMap.get("activeTime"))
+                            .filter(Number.class::isInstance)
+                            .map(e -> ((Number) e).longValue())
+                            .ifPresent(info::setPingTime);
                     workerList.add(info);
                 }
 

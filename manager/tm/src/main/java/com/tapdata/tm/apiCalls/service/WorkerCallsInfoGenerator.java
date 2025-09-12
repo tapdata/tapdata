@@ -21,9 +21,9 @@ import java.util.Optional;
  */
 public class WorkerCallsInfoGenerator implements AutoCloseable {
     final Acceptor acceptor;
-    private Map<Long, WorkerCallEntity> calls;
+    private Map<Long, Map<String, WorkerCallEntity>> calls;
     public static final int BATCH_ACCEPT = 100;
-    private WorkerCallEntity last;
+    private final Map<String, WorkerCallEntity> last;
     private Long lastKey;
 
     public WorkerCallsInfoGenerator(Acceptor acceptor) {
@@ -32,6 +32,7 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
             throw new IllegalArgumentException("Acceptor cannot be null");
         }
         this.calls = new HashMap<>();
+        this.last = new HashMap<>();
     }
 
     void append(WorkerCallsInfo info) {
@@ -57,10 +58,12 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         final Long reqTime = info.getReqTime();
         final String processId = info.getApiGatewayUuid();
         final String workOid = info.getWorkOid();
+        final String apiId = info.getApiId();
         final Long latency = info.getLatency();
         final int code = Integer.parseInt(info.getCode());
-        final long key = (reqTime / 60000) * 60000;
-        final WorkerCallEntity item = calls.computeIfAbsent(key, k -> new WorkerCallEntity());
+        final long key = (reqTime / 60000L) * 60000L;
+        final Map<String, WorkerCallEntity> itemMap = calls.computeIfAbsent(key, k -> new HashMap<>());
+        final WorkerCallEntity item = itemMap.computeIfAbsent(apiId, k -> new WorkerCallEntity());
         List<Long> delays = Optional.ofNullable(item.getDelays()).orElse(new ArrayList<>());
         delays.add(latency);
         item.setDelays(delays);
@@ -70,22 +73,27 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         }
         item.setReqCount(Optional.ofNullable(item.getReqCount()).orElse(0L) + 1);
         item.setProcessId(processId);
+        item.setApiId(apiId);
         item.setId(Optional.ofNullable(item.getId()).orElse(new ObjectId()));
         item.setWorkOid(workOid);
         item.setTimeStart(key);
         item.setTimeGranularity(TimeGranularityType.MINUTE.getCode());
         item.setDelete(false);
         item.setRps(item.getReqCount() / 60.0d);
-        item.setErrorRate(item.getErrorCount() / item.getReqCount() * 1.0D);
+        long total = Optional.ofNullable(item.getReqCount()).orElse(0L);
+        long error = Optional.ofNullable(item.getErrorCount()).orElse(0L);
+        item.setErrorRate(total == 0L || error == 0d ? 0d : (1.0d * error / total));
         item.setP50(PercentileCalculator.calculatePercentile(delays, 0.5));
         item.setP95(PercentileCalculator.calculatePercentile(delays, 0.95));
         item.setP99(PercentileCalculator.calculatePercentile(delays, 0.99));
-        this.last = item;
+        this.last.put(apiId, item);
         this.lastKey = key;
     }
 
     void accept() {
-        acceptor.accept(new ArrayList<>(calls.values()));
+        final List<WorkerCallEntity> list = new ArrayList<>();
+        calls.values().stream().map(Map::values).toList().forEach(list::addAll);
+        acceptor.accept(list);
         calls = new HashMap<>();
     }
 

@@ -28,6 +28,8 @@ public class WorkerCallEntity extends Entity {
      * */
     private String workOid;
 
+    private String apiId;
+
     /**
      * 当前时间粒度下的请求数
      * */

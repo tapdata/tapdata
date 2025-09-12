@@ -606,6 +606,7 @@ public class WorkerServiceImpl extends WorkerService{
         Optional.ofNullable(status.getStatus())
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
+        update.set("worker_status.pid", status.getPid());
         Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
             update.set("worker_status.metricValues", s)
         );
@@ -623,6 +624,7 @@ public class WorkerServiceImpl extends WorkerService{
                 Optional.ofNullable(value.get("name")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", id), v));
                 Optional.ofNullable(value.get("oid")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.oid", id), v));
                 Optional.ofNullable(value.get("id")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", id), v));
+                Optional.ofNullable(value.get("pid")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", id), v));
                 Optional.ofNullable(value.get("worker_start_time")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.worker_start_time", id), v));
                 Optional.ofNullable(value.get("sort")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.sort", id), v));
             })
