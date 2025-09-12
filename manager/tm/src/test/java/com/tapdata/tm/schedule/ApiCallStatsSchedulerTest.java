@@ -2,12 +2,10 @@ package com.tapdata.tm.schedule;
 
 import ch.qos.logback.classic.Logger;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
-import com.tapdata.tm.apiCalls.service.WorkerCallService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
-import com.tapdata.tm.worker.service.WorkerService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -24,9 +22,21 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * @author samuel
@@ -40,17 +50,13 @@ class ApiCallStatsSchedulerTest {
 	private ModulesService modulesService;
 	private ApiCallService apiCallService;
 	private ApiCallStatsService apiCallStatsService;
-	WorkerCallService workerCallService;
-	WorkerService workerService;
 
 	@BeforeEach
 	void setUp() {
 		modulesService = mock(ModulesService.class);
 		apiCallService = mock(ApiCallService.class);
 		apiCallStatsService = mock(ApiCallStatsService.class);
-		workerCallService = mock(WorkerCallService.class);
-		workerService = mock(WorkerService.class);
-		apiCallStatsScheduler = new ApiCallStatsScheduler(modulesService, apiCallStatsService, apiCallService, workerCallService, workerService);
+		apiCallStatsScheduler = new ApiCallStatsScheduler(modulesService, apiCallStatsService, apiCallService);
 	}
 
 	@Test

@@ -36,16 +36,12 @@ public class ApiCallStatsScheduler {
 	private final ModulesService modulesService;
 	private final ApiCallStatsService apiCallStatsService;
 	private final ApiCallService apiCallService;
-	private final WorkerCallService workerCallService;
-	private final WorkerService workerService;
 
 	@Autowired
-	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService, WorkerCallService wcs, WorkerService  ws) {
+	public ApiCallStatsScheduler(ModulesService modulesService, ApiCallStatsService apiCallStatsService, ApiCallService apiCallService) {
 		this.modulesService = modulesService;
 		this.apiCallStatsService = apiCallStatsService;
 		this.apiCallService = apiCallService;
-		this.workerCallService = wcs;
-		this.workerService = ws;
 	}
 
 	/**
@@ -59,7 +55,6 @@ public class ApiCallStatsScheduler {
 			log.debug("Start to aggregate ApiCallStats...");
 		}
 		long startMs = System.currentTimeMillis();
-		collectOnceApiCountOfWorker();
 
 		// Get all Modules, excluding deleted ones
 		Query modulesQuery = new Query();
@@ -155,23 +150,5 @@ public class ApiCallStatsScheduler {
 		if (apiCallStatsServiceEmpty && !modulesList.isEmpty()) {
 			log.info("Initialize Api Call Stats data for the first time completed, cost: {} ms", cost);
 		}
-	}
-
-	void collectOnceApiCountOfWorker() {
-		//query all server
-		List<WorkerDto> all = workerService.findAll(Query.query(
-				Criteria.where("worker_type").is("api-server")
-				.and("delete").ne(true)));
-		if (null == all || all.isEmpty()) {
-			return;
-		}
-		all.forEach(w -> {
-			try {
-				workerCallService.collectApiCallCountGroupByWorker(w.getProcessId());
-			} catch (Exception e) {
-				log.error("Unable to perform Worker level request access data statistics on API servers", e);
-			}
-		});
-
 	}
 }
