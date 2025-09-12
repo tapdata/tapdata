@@ -31,6 +31,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -158,6 +159,8 @@ public class WorkerCallService {
             vo.getWorkerMetrics().add(workerMetric);
         });
         processMetric.setProcessMetric(new ArrayList<>(processApiCountMap.values()));
+        processMetric.getProcessMetric().sort(Comparator.comparing(ApiCountMetricVo.ApiItem::getCount).reversed());
+        vo.getWorkerMetrics().forEach(w -> w.getWorkerMetric().sort(Comparator.comparing(ApiCountMetricVo.ApiItem::getCount).reversed()));
         return vo;
     }
 
@@ -231,6 +234,9 @@ public class WorkerCallService {
         Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = groupCallResult(processId, apiCalls);
         List<WorkerCallStats> mappedResults = new ArrayList<>();
         groupByApiAndWorker.values().forEach(apiMap -> mappedResults.addAll(apiMap.values()));
+        if (mappedResults.isEmpty()) {
+            return;
+        }
         Function<WorkerCallStats, Query> queryBuilder = entity -> {
             Criteria criteriaBulk = Criteria.where(Tag.ALL_PATH_ID).is(entity.getAllPathId())
                     .and(Tag.PROCESS_ID).is(entity.getProcessId())
