@@ -13,6 +13,7 @@ import org.springframework.boot.actuate.health.SystemHealth;
 import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusOutputFormat;
 import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusScrapeEndpoint;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Configuration;
 
@@ -32,8 +33,8 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     public static Logger log = LogManager.getLogger(JdkHttpServerConfig.class);
 
     private final HealthEndpoint healthEndpoint;
-    private final PrometheusScrapeEndpoint prometheusScrapeEndpoint;
     private final ObjectMapper objectMapper;
+    private final ApplicationContext applicationContext;
 
     @Value("${tapdata.monitor.enable}")
     private Boolean monitorEnabled;
@@ -47,11 +48,11 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     private HttpServer server;
 
     public JdkHttpServerConfig(HealthEndpoint healthEndpoint,
-                               PrometheusScrapeEndpoint prometheusScrapeEndpoint,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               ApplicationContext applicationContext) {
         this.healthEndpoint = healthEndpoint;
-        this.prometheusScrapeEndpoint = prometheusScrapeEndpoint;
         this.objectMapper = objectMapper;
+        this.applicationContext = applicationContext;
     }
 
     @Override
@@ -77,8 +78,17 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
             // 配置线程池
             server.setExecutor(Executors.newFixedThreadPool(threadPoolSize));
 
+            // 只有监控启用时才添加prometheus端点
+            try {
+                PrometheusScrapeEndpoint prometheusEndpoint = applicationContext.getBean(PrometheusScrapeEndpoint.class);
+                server.createContext("/actuator/prometheus", new PrometheusHandler(prometheusEndpoint));
+                log.info("Prometheus endpoint enabled");
+            } catch (Exception e) {
+                log.error("Prometheus endpoint not available, skipping: {}", e.getMessage());
+                throw new RuntimeException(e);
+            }
+
             // 添加actuator端点
-            server.createContext("/actuator/prometheus", new PrometheusHandler());
             server.createContext("/actuator/health", new HealthHandler());
             server.createContext("/actuator/info", new InfoHandler());
             server.createContext("/actuator", new ActuatorIndexHandler());
@@ -107,6 +117,12 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
      * Prometheus指标端点处理器
      */
     private class PrometheusHandler implements HttpHandler {
+        private final PrometheusScrapeEndpoint prometheusEndpoint;
+
+        public PrometheusHandler(PrometheusScrapeEndpoint prometheusEndpoint) {
+            this.prometheusEndpoint = prometheusEndpoint;
+        }
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             if (!"GET".equals(exchange.getRequestMethod())) {
@@ -116,7 +132,7 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
             try {
                 // 调用官方端点获取Prometheus格式数据
-                WebEndpointResponse<byte[]> endpointResponse = prometheusScrapeEndpoint.scrape(
+                WebEndpointResponse<byte[]> endpointResponse = prometheusEndpoint.scrape(
                         PrometheusOutputFormat.CONTENT_TYPE_004,
                         null // 包含所有指标
                 );
