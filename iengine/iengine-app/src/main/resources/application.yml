@@ -16,11 +16,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: "prometheus, info"
+        include: "prometheus, info, health"
 
 tapdata:
   monitor:
-    enable: true
+    enable: false
     EFPort: 3035
   cloud:
     accessCode: <ACCESS_CODE>

@@ -36,10 +36,10 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
     private final ObjectMapper objectMapper;
     private final ApplicationContext applicationContext;
 
-    @Value("${tapdata.monitor.enable}")
+    @Value("${tapdata.monitor.enable:false}")
     private Boolean monitorEnabled;
 
-    @Value("${tapdata.monitor.EFPort}")
+    @Value("${tapdata.monitor.EFPort:3035}")
     private Integer port;
 
     //是否开启monitor监控
@@ -57,12 +57,11 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-
-        if (monitorEnabled == null) {
+        if (Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE") != null)) {
             monitorEnabled = Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE"));
         }
-        if (port == null) {
-            port = Integer.valueOf(System.getenv("TAPDATA_EF_MONITOR_PORT"));
+        if (Integer.valueOf(System.getenv("TAPDATA_FE_MONITOR_PORT")) != null) {
+            port = Integer.valueOf(System.getenv("TAPDATA_FE_MONITOR_PORT"));
         }
 
         // 检查是否启用

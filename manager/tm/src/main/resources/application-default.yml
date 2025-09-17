@@ -170,4 +170,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: "info, prometheus"
+        include: "prometheus, info, health"
