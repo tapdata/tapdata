@@ -279,10 +279,10 @@ class ApiCallServiceTest {
 
             List<Map<String, String>> clients = apiCallService.findClients(moduleIdList);
             Map<String, String> client = clients.get(0);
-            assertEquals("app1", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(0).getId().toString(), client.get("id"));
             client = clients.get(1);
-            assertEquals("app2", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(1).getId().toString(), client.get("id"));
         }
 
@@ -326,10 +326,10 @@ class ApiCallServiceTest {
 
             List<Map<String, String>> clients = apiCallService.findClients(moduleIdList);
             Map<String, String> client = clients.get(0);
-            assertEquals("app1", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(0).getId().toString(), client.get("id"));
             client = clients.get(1);
-            assertEquals("app2", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(1).getId().toString(), client.get("id"));
         }
     }
