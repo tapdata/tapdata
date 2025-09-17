@@ -13,7 +13,6 @@ import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
-import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
