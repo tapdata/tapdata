@@ -69,6 +69,9 @@ public interface Compress {
         }
     }
 
+    /**
+     * 补充左右边界缺失的点
+     * */
     static void fixBoundTime(ApiCallMetricVo.MetricBase metric,
                              MockItem<? extends MetricDataBase> mockItem,
                              long from, long end,
