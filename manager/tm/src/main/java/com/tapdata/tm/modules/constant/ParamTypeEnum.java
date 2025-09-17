@@ -44,7 +44,7 @@ public enum ParamTypeEnum {
             throw new BizException("params's type can't be null");
         if (StringUtils.isBlank(defaultValue)) {
             long count = Arrays.stream(values()).filter(p -> p.type.equalsIgnoreCase(type)).count();
-            if(count<1) throw new BizException(type + " type is nonsupport");
+            if(count<1 && !type.matches(ARRAY.regex)) throw new BizException(type + " type is nonsupport");
             return true;
         }
         defaultValue=defaultValue.trim();

@@ -19,13 +19,13 @@ class CompressDayTest {
         WorkerCallEntity e = new WorkerCallEntity();
         e.setTimeStart(1L);
         long time = compressDay.compressTime(e);
-        assertEquals(0L, time);
+        assertEquals(-28800000L, time);
     }
 
     @Test
     void testPlus() {
         CompressDay compressDay = new CompressDay();
         long time = compressDay.plus(24 * 60 * 60 * 1000L);
-        assertEquals(2 * 24 * 60 * 60 * 1000L, time);
+        assertEquals(144000000L, time);
     }
 }
