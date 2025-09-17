@@ -2,12 +2,12 @@ package com.tapdata.tm.apiCalls.service.metric;
 
 import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
-import com.tapdata.tm.apiCalls.vo.WorkerCallData;
 import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
 import lombok.Getter;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +34,8 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
         if (null == value) {
             return null;
         }
-        BigDecimal bigDecimal = new BigDecimal(value.doubleValue() * factor);
-        return bigDecimal.setScale(scale, BigDecimal.ROUND_HALF_UP).doubleValue();
+        BigDecimal bigDecimal = BigDecimal.valueOf(value.doubleValue() * factor);
+        return bigDecimal.setScale(scale, RoundingMode.HALF_UP).doubleValue();
     }
 
     static Metric<? extends ApiCallMetricVo.MetricBase> call(int type) {
@@ -56,7 +56,7 @@ public interface Metric<T extends ApiCallMetricVo.MetricBase> {
     }
 
     @Getter
-    public enum Type {
+    enum Type {
         RPS(0), RESPONSE_TIME(1), ERROR_RATE(2);
         final int code;
 
