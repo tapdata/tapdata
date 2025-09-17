@@ -98,8 +98,6 @@ public class UserController extends BaseController {
     @Autowired
     @Qualifier("caffeineCache")
     private CaffeineCacheManager userCache;
-    @Autowired
-    private MetadataDefinitionService metadataDefinitionService;
 
 
     private static final String RC4_KEY = "Gotapd8";
