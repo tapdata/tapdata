@@ -2608,6 +2608,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         query.fields().include("dag");
         TaskDto taskDto = taskService.findOne(query,user);
         if(taskDto == null)return;
+        if (!(taskDto.getDag().getNode(nodeId) instanceof DataParentNode<?>)) {
+            return;
+        }
         DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
         if(targetNode == null)return;
         Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
