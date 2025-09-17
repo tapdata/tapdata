@@ -57,10 +57,10 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
     @Override
     public void onApplicationEvent(ApplicationReadyEvent event) {
-        if (Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE") != null)) {
+        if (System.getenv("TAPDATA_MONITOR_ENABLE") != null) {
             monitorEnabled = Boolean.valueOf(System.getenv("TAPDATA_MONITOR_ENABLE"));
         }
-        if (Integer.valueOf(System.getenv("TAPDATA_FE_MONITOR_PORT")) != null) {
+        if (System.getenv("TAPDATA_FE_MONITOR_PORT") != null) {
             port = Integer.valueOf(System.getenv("TAPDATA_FE_MONITOR_PORT"));
         }
 
