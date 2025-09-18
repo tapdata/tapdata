@@ -1462,7 +1462,8 @@ public class TaskServiceImpl extends TaskService{
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         int index = 1;
-        for (TaskDto task : taskDtos) {
+        List<TaskDto> orderTaskDtos = metadataDefinitionService.orderTaskByTagPriority(taskDtos);
+        for (TaskDto task : orderTaskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
             try {
@@ -1899,40 +1900,27 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public Node getSourceNode(TaskDto taskDto) {
-        DAG dag = taskDto.getDag();
-        if (dag == null) {
-            return null;
-        }
-
-        List<Edge> edges = dag.getEdges();
-        if (CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = edges.get(0);
-            String source = edge.getSource();
-            List<Node> nodeList = taskDto.getDag().getNodes();
-            if (CollectionUtils.isNotEmpty(nodeList)) {
-                List<Node> sourceList = nodeList.stream().filter(Node -> null != Node && null != Node.getId() && source.equals(Node.getId())).collect(Collectors.toList());
-                if (CollectionUtils.isNotEmpty(sourceList) && null != sourceList.get(0)) {
-                    return sourceList.get(0);
+        return Optional.ofNullable(taskDto.getDag())
+            .map(DAG::getSourceNode)
+            .map(nodes -> {
+                if (nodes.isEmpty()) {
+                    return null;
                 }
-            }
-        }
-        return null;
+                return nodes.getFirst();
+            })
+            .orElse(null);
     }
 
     public Node getTargetNode(TaskDto taskDto) {
-        List<Edge> edges = taskDto.getDag().getEdges();
-        if (CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = edges.get(0);
-            String target = edge.getTarget();
-            List<Node> nodeList = taskDto.getDag().getNodes();
-            if (CollectionUtils.isNotEmpty(nodeList)) {
-                List<Node> sourceList = nodeList.stream().filter(Node -> null != Node && null != Node.getId() && target.equals(Node.getId())).collect(Collectors.toList());
-                if (CollectionUtils.isNotEmpty(sourceList) && null != sourceList.get(0)) {
-                    return sourceList.get(0);
+        return Optional.ofNullable(taskDto.getDag())
+            .map(DAG::getTargetNode)
+            .map(nodes -> {
+                if (nodes.isEmpty()) {
+                    return null;
                 }
-            }
-        }
-        return null;
+                return nodes.getFirst();
+            })
+            .orElse(null);
     }
 
     public static String printInfos(DAG dag) {

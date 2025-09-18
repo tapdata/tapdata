@@ -1,6 +1,7 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.*;
@@ -354,6 +355,25 @@ class MetadataInstancesCompareServiceImplTest {
             try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
                 mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
                 when(taskService.findOne(any(Query.class))).thenReturn(null);
+
+                // When
+                List<String> result = service.getApplyRules(nodeId, taskId);
+
+                // Then
+                assertEquals(0,result.size());
+            }
+        }
+
+        @Test
+        @DisplayName("Should return null when target node is not a DataParentNode")
+        void testGetApplyRules_TargetNotDataParentNode() {
+            // Given
+            TaskDto taskDto = createMockTaskDto();
+            Node node = mock(Node.class);
+            try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
+                mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+                when(taskService.findOne(any(Query.class))).thenReturn(taskDto);
+                when(taskDto.getDag().getNode(nodeId)).thenReturn(node);
 
                 // When
                 List<String> result = service.getApplyRules(nodeId, taskId);
@@ -894,6 +914,21 @@ class MetadataInstancesCompareServiceImplTest {
         }
 
         @Test
+        @DisplayName("Should return empty result when target node is not a DataParentNode")
+        void testCompareAndGetMetadataInstancesCompareResult_TargetNodeIsNotDataParentNode() {
+            TaskDto taskDto = createMockTaskDto();
+            Node targetNode = mock(Node.class);
+            when(taskDto.getDag().getNode(nodeId)).thenReturn(targetNode);
+            when(taskService.findOne(any(Query.class), any(UserDetail.class))).thenReturn(taskDto);
+
+            // When
+            MetadataInstancesCompareResult result = service.compareAndGetMetadataInstancesCompareResult(nodeId, taskId, userDetail, false);
+
+            // Then
+            assertNotNull(result);
+        }
+
+        @Test
         @DisplayName("Should skip comparison for schema-free connection")
         void testCompareAndGetMetadataInstancesCompareResult_SchemaFreeConnection() {
             // Given
@@ -1073,6 +1108,29 @@ class MetadataInstancesCompareServiceImplTest {
             assertNotNull(result);
             assertTrue(result.isEmpty());
         }
+    }
+    @Nested
+    @DisplayName("CreateEmptyComparisonResult Tests")
+    class CreateEmptyComparisonResultTest{
+        @Test
+        @DisplayName("Should create empty comparison result with target schema load time")
+        void testCreateEmptyComparisonResult_WithTargetSchemaLoadTime() {
+            // Given
+            Long targetSchemaLoadTime = System.currentTimeMillis();
+            MetadataInstancesCompareResult result = service.createEmptyComparisonResult(targetSchemaLoadTime);
+            assertNotNull(result);
+            assertEquals(targetSchemaLoadTime, result.getTargetSchemaLoadTime().getTime());
+        }
+
+        @Test
+        @DisplayName("Should create empty comparison result with null target schema load time")
+        void testCreateEmptyComparisonResult_WithNullTargetSchemaLoadTime() {
+            // Given
+            MetadataInstancesCompareResult result = service.createEmptyComparisonResult(null);
+            assertNotNull(result);
+            assertNull(result.getTargetSchemaLoadTime());
+        }
+
     }
 
     // Helper method to create mock MetadataInstancesDto

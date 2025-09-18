@@ -77,4 +77,6 @@ public class ApiCallEntity extends BaseEntity {
     @Field("report_time")
     private Long reportTime;
 
+    /**The unique identifier of the worker corresponding to the current request*/
+    private String workOid;
 }

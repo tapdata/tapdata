@@ -9,6 +9,7 @@ import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import java.util.concurrent.CompletableFuture;
 import com.tapdata.tm.commons.task.dto.TaskOpRespDto;
 import com.tapdata.tm.sdk.available.TmStatusService;
 import io.tapdata.common.SettingService;
@@ -56,6 +57,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -196,6 +198,17 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		scheduledFutureMap.remove(name);
 		logger.info("Stop schedule task: " + name);
 	}
+
+	protected TaskDto safeQueryTaskById(String taskId) {
+		Query query = Query.query(where("_id").is(taskId));
+		query.fields().include("status").include("_id").include("name");
+		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>();
+		CompletableFuture.runAsync(() -> {
+			taskDtoAtomicReference.set(clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class));
+		}).join();
+		return taskDtoAtomicReference.get();
+	}
+
 
 	protected Runnable getHandleTaskOperationRunnable(TaskOperation taskOperation) {
 		return () -> {
@@ -448,9 +461,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 								if (taskRetryResult.isCanRetry()) {
 									boolean stop = taskClient.stop();
 									if (stop) {
+										TaskDto taskDto = safeQueryTaskById(taskId);
 										ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
 										clearTaskCacheAfterStopped(taskClient);
-										TaskDto taskDto = clientMongoOperator.findOne(Query.query(where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
 										sendStartTask(taskDto);

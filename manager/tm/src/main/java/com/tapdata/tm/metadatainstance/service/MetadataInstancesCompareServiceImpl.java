@@ -405,6 +405,9 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         query.fields().include("dag");
         TaskDto taskDto = taskService.findOne(query);
         if(taskDto == null)return new ArrayList<>();
+        if (!(taskDto.getDag().getNode(nodeId) instanceof DataParentNode<?>)) {
+            return new ArrayList<>();
+        }
         DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
         if(targetNode.getApplyCompareRule()){
             return targetNode.getApplyCompareRules();
@@ -511,10 +514,10 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             return null;
         }
 
-        DataParentNode targetNode = (DataParentNode) taskDto.getDag().getNode(nodeId);
-        if (targetNode == null) {
+        if (!(taskDto.getDag().getNode(nodeId) instanceof DataParentNode<?>)) {
             return null;
         }
+        DataParentNode targetNode = (DataParentNode) taskDto.getDag().getNode(nodeId);
 
         if (shouldSkipComparison(targetNode)) {
             return null;
@@ -677,10 +680,12 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
     /**
      * Creates an empty comparison result when no target metadata instances are found
      */
-    private MetadataInstancesCompareResult createEmptyComparisonResult(Long targetSchemaLoadTime) {
+    protected MetadataInstancesCompareResult createEmptyComparisonResult(Long targetSchemaLoadTime) {
         MetadataInstancesCompareResult result = new MetadataInstancesCompareResult();
         result.setDifferentFieldNumberMap(null);
-        result.setTargetSchemaLoadTime(DateUtil.date(targetSchemaLoadTime));
+        if(null != targetSchemaLoadTime){
+            result.setTargetSchemaLoadTime(DateUtil.date(targetSchemaLoadTime));
+        }
         return result;
     }
 
