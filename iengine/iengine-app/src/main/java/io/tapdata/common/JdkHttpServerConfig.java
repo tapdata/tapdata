@@ -32,7 +32,6 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
     public static Logger log = LogManager.getLogger(JdkHttpServerConfig.class);
 
-    private final HealthEndpoint healthEndpoint;
     private final ObjectMapper objectMapper;
     private final ApplicationContext applicationContext;
 
@@ -47,10 +46,8 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
 
     private HttpServer server;
 
-    public JdkHttpServerConfig(HealthEndpoint healthEndpoint,
-                               ObjectMapper objectMapper,
+    public JdkHttpServerConfig(ObjectMapper objectMapper,
                                ApplicationContext applicationContext) {
-        this.healthEndpoint = healthEndpoint;
         this.objectMapper = objectMapper;
         this.applicationContext = applicationContext;
     }
@@ -87,8 +84,16 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
                 throw new RuntimeException(e);
             }
 
+            try {
+                HealthEndpoint healthEndpoint = applicationContext.getBean(HealthEndpoint.class);
+                server.createContext("/actuator/health", new HealthHandler(healthEndpoint));
+                log.info("Prometheus health endpoint enabled");
+            } catch (Exception e) {
+                log.error("Prometheus health endpoint not available, skipping: {}", e.getMessage());
+                throw new RuntimeException(e);
+            }
+
             // 添加actuator端点
-            server.createContext("/actuator/health", new HealthHandler());
             server.createContext("/actuator/info", new InfoHandler());
             server.createContext("/actuator", new ActuatorIndexHandler());
 
@@ -166,6 +171,12 @@ public class JdkHttpServerConfig implements ApplicationListener<ApplicationReady
      * 健康检查端点处理器
      */
     private class HealthHandler implements HttpHandler {
+        private final HealthEndpoint healthEndpoint;
+
+        public HealthHandler(HealthEndpoint healthEndpoint) {
+            this.healthEndpoint = healthEndpoint;
+        }
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             if (!"GET".equals(exchange.getRequestMethod())) {
