@@ -1,6 +1,7 @@
 package com.tapdata.tm.modules.vo;
 
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import lombok.Data;
 
@@ -12,7 +13,7 @@ public class ApiDefinitionVo {
     List apis;
     List<ConnectionVo> connections;
 
-    List<ApiWorkerInfo> workerInfo;
+    List<ApiServerWorkerInfo> workerInfo;
 
     /**
      * api所使用到的文本加密规则配置

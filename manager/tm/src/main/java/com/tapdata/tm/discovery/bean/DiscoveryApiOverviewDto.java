@@ -1,7 +1,7 @@
 package com.tapdata.tm.discovery.bean;
 
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import lombok.Data;
 
 import java.util.List;

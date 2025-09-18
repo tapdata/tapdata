@@ -17,6 +17,8 @@ import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
@@ -28,6 +30,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -511,39 +514,41 @@ public class WorkerController extends BaseController {
     void updateWorker(WorkerDto worker) {
         if ("api-server".equals(worker.getWorkerType())) {
             worker.setPingTime(new Date().getTime());
-            if (worker.getWorker_status() instanceof Map<?,?> workerStatus) {
+            ApiServerStatus workerStatus = worker.getWorkerStatus();
+            if (null != workerStatus) {
                 WorkerOrServerStatus status = new WorkerOrServerStatus();
-                status.setStatus(String.valueOf(workerStatus.get("status")));
+                status.setStatus(String.valueOf(workerStatus.getStatus()));
                 status.setProcessId(worker.getProcessId());
                 status.setTime(new Date().getTime());
                 status.setWorkerStatus(new HashMap<>());
                 status.setCpuMemStatus(new HashMap<>());
                 status.setWorkerBaseInfo(new HashMap<>());
-                status.setProcessCpuMemStatus(workerStatus.get("metricValues"));
-                Optional.ofNullable(workerStatus.get("worker_process_id"))
-                        .filter(Number.class::isInstance)
-                        .map(e -> ((Number) e).intValue()).ifPresent(status::setPid);
-                if (workerStatus.get("workers") instanceof Map<?,?> workers) {
-                    workers.forEach((key, value) -> {
-                        if (value instanceof Map<?,?> workerInfo
-                                && workerInfo.get("oid") instanceof String oid
-                                && workerInfo.get("worker_status") instanceof String wStatus) {
+                status.setProcessCpuMemStatus(workerStatus.getMetricValues());
+                Optional.ofNullable(workerStatus.getWorkerProcessId())
+                        .ifPresent(status::setPid);
+                Map<String, ApiServerWorkerInfo> workers = workerStatus.getWorkers();
+                if (null != workers && !workers.isEmpty()) {
+                    workers.forEach((key, workerInfo) -> {
+                        String oid = workerInfo.getOid();
+                        String wStatus = workerInfo.getWorkerStatus();
+                        if (null != oid
+                                && StringUtils.isNotBlank(wStatus)) {
                             status.getWorkerStatus().put(oid, wStatus);
-                            status.getCpuMemStatus().put(oid, workerInfo.get("metricValues"));
+                            status.getCpuMemStatus().put(oid, workerInfo.getMetricValues());
                             Map<String, Object> map = status.getWorkerBaseInfo().computeIfAbsent(oid, k -> new HashMap<>());
-                            map.put("name", workerInfo.get("name"));
+                            map.put("name", workerInfo.getName());
                             map.put("oid", oid);
-                            map.put("id", workerInfo.get("id"));
-                            map.put("worker_start_time", workerInfo.get("worker_start_time"));
-                            map.put("sort", workerInfo.get("sort"));
-                            map.put("pid", workerInfo.get("pid"));
-                            map.put("worker_status", workerInfo.get("worker_status"));
+                            map.put("id", workerInfo.getId());
+                            map.put("worker_start_time", workerInfo.getWorkerStartTime());
+                            map.put("sort", workerInfo.getSort());
+                            map.put("pid", workerInfo.getPid());
+                            map.put("worker_status", workerInfo.getWorkerStatus());
                         }
                     });
                 }
                 workerService.updateWorkerStatus(status, getLoginUser());
             }
-            worker.setWorker_status(null);
+            worker.setWorkerStatus(null);
         }
     }
 }

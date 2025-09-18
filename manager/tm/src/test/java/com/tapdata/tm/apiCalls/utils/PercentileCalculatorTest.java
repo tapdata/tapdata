@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiCalls.utils;
 
+import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

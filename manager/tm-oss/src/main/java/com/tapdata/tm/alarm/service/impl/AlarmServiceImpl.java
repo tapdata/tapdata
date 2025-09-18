@@ -95,11 +95,6 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public void notifyAlarm() {
-
-    }
-
-    @Override
     public void close(String[] ids, UserDetail userDetail) {
         throw new BizException(ERROR);
     }

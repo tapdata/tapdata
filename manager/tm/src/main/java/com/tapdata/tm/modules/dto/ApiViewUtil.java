@@ -1,13 +1,11 @@
 package com.tapdata.tm.modules.dto;
 
-import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.deepoove.poi.plugin.highlight.HighlightRenderData;
-import com.deepoove.poi.plugin.highlight.HighlightStyle;
-import com.google.gson.Gson;
 import com.tapdata.tm.commons.util.ThrowableUtils;
+import com.tapdata.tm.module.dto.ModulesDto;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.http.HttpEntity;
@@ -16,17 +14,12 @@ import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.jsoup.internal.StringUtil;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +31,7 @@ public class ApiViewUtil {
     public static final String ACCESS_TOKEN="eyJraWQiOiJjOWVmMmVkMS0xYTYxLTQ4ODQtYWJmYS01YjVjMzZiMWYwNjYiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbGllbnRJZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsInJvbGVzIjpbIiRldmVyeW9uZSIsImFkbWluIl0sImlzcyI6Imh0dHA6XC9cLzEyNy4wLjAuMTozMDAwIiwiZXhwaXJlZGF0ZSI6MTY5MDI1MjAzMjA5MiwiYXVkIjoiNWMwZTc1MGI3YTVjZDQyNDY0YTUwOTlkIiwiY3JlYXRlZEF0IjoxNjg5MDQyNDMyMDkyLCJuYmYiOjE2ODkwNDI0MzIsInNjb3BlIjpbIjViOWEwYTM4M2ZjYmEwMjY0OTUyNGJmMSJdLCJleHAiOjE2OTAyNTIwMzIsImlhdCI6MTY4OTA0MjQzMiwianRpIjoiZjcwY2E1NDktYzg0Zi00YTI2LWJkOWItM2IyMjNkMzAxNGZjIn0.NZhs9U6WaebP0GTwH3vBc4VrndzS9Abtko3nV61y5Tvw6AdI3nMvzeYZ10MNSdRUU2E1Tm5Vq-KMkzCtoa360KXgg-BC-yH7vS8aKl6RjXIfV5RNEpPUo6sTEWS4MqJJWxikWxq8jrUABGF8xcBu4ptvfh9TOu3K3VuTtZeYEVcwEn3sk5xMqqd0Z1j9-EuZpFcHG2pBm30YzNVbHcwycSMqDdRn--6Rn-eUhk8ifhroFdZBgcLAlOcZJEuQ7oEnG7sNNAxqxSkubPL9sg-X1w80NdydKtvnpotXs19gIhxaMXq7WL6bI1_19ECTnelUDWft4neNm01yO7KR_wWeqw";
     public static final String PARAMS="&limit=1&page=1";
     public static final String PREFIX_ACCESS_TOKEN="?access_token=";
-    public static ApiView convert(Map<String, List<ModulesDto>> modules,String ip){
+    public static ApiView convert(Map<String, List<ModulesDto>> modules, String ip){
         ApiView apiView = new ApiView();
         List<ApiType> apiTypes = new ArrayList<>();
         AtomicInteger index= new AtomicInteger();

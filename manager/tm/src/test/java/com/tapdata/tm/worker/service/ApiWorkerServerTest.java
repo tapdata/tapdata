@@ -1,8 +1,8 @@
 package com.tapdata.tm.worker.service;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.tapdata.tm.worker.dto.ApiServerInfo;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.entity.Worker;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -191,10 +191,10 @@ class ApiWorkerServerTest {
     class getWorkersTest {
         @Test
         void testNormal() {
-            JSONObject jsonObject = JSON.parseObject(workerInfoJson);
+            ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
             Worker serverInfo = new Worker();
             serverInfo.setProcessId(new ObjectId().toHexString());
-            serverInfo.setWorker_status(jsonObject);
+            serverInfo.setWorkerStatus(jsonObject);
             when(mongoOperations.findOne(any(Query.class), any(Class.class), anyString())).thenReturn(serverInfo);
             ApiServerInfo id = apiWorkerServer.getWorkers("id");
             Assertions.assertNotNull(id);
@@ -202,21 +202,21 @@ class ApiWorkerServerTest {
 
         @Test
         void testWorkerMap() {
-            JSONObject jsonObject = JSON.parseObject(workerInfoJson);
+            ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
             Worker serverInfo = new Worker();
             serverInfo.setProcessId(new ObjectId().toHexString());
-            serverInfo.setWorker_status(jsonObject);
+            serverInfo.setWorkerStatus(jsonObject);
             Map<String, String> stringStringMap = apiWorkerServer.workerMap(serverInfo);
             Assertions.assertNotNull(stringStringMap);
         }
 
         @Test
         void testGetApiServerWorkerInfo() {
-            JSONObject jsonObject = JSON.parseObject(workerInfoJson);
+            ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
             List<Worker> server = new ArrayList<>();
             Worker serverInfo = new Worker();
             serverInfo.setProcessId(new ObjectId().toHexString());
-            serverInfo.setWorker_status(jsonObject);
+            serverInfo.setWorkerStatus(jsonObject);
             server.add(serverInfo);
             server.add(null);
             when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(server);

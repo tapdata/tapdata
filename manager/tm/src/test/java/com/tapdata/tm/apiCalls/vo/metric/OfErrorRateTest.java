@@ -1,8 +1,9 @@
 package com.tapdata.tm.apiCalls.vo.metric;
 
+import com.tapdata.tm.apiServer.vo.metric.OfErrorRate;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class OfErrorRateTest {
     @Test

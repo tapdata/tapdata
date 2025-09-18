@@ -2,7 +2,7 @@ package com.tapdata.tm.system.api.utils;
 
 import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.vo.DebugVo;
@@ -15,9 +15,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -45,7 +43,7 @@ public class TextEncryptionUtil {
                 try {
                     dataMap.put(key, Integer.parseInt(page));
                 } catch (Exception e) {
-                    log.warn("{} not a number: {}", key, page, e);
+                    log.warn("{} not a number: {}", key, page);
                 }
             }
         });
@@ -75,7 +73,7 @@ public class TextEncryptionUtil {
                 try {
                     dataMap.put(key, JSON.parseObject(json, Map.class));
                 } catch (Exception e) {
-                    log.warn("{} not a json: {}", key, json, e);
+                    log.warn("{} not a json: {}", key, json);
                 }
             }
         });

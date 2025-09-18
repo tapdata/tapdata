@@ -16,7 +16,6 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
@@ -41,7 +40,11 @@ import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import com.tapdata.tm.worker.dto.*;
+import com.tapdata.tm.worker.dto.WorkSchedule;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
+import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.MetricInfoEntity;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
@@ -67,7 +70,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -583,7 +594,7 @@ public class WorkerServiceImpl extends WorkerService{
         List<ApiWorkerStatusVo> list = Lists.newArrayList();
         if (null != worker) {
             ApiWorkerStatusVo workerStatusVo = new ApiWorkerStatusVo();
-            workerStatusVo.setWorkerStatus(worker.getWorker_status());
+            workerStatusVo.setWorkerStatus(worker.getWorkerStatus());
             workerStatusVo.setServerDate(System.currentTimeMillis());
             list.add(workerStatusVo);
         } else {
@@ -596,7 +607,13 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     @Override
+    public void saveMetricValues(List<MetricInfoEntity> status) {
+        mongoTemplate.insert(status, MetricInfoEntity.class);
+    }
+
+    @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
+        List<MetricInfoEntity> statMetric = new ArrayList<>();
         final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
                 .and("worker_type").is("api-server")
                 .and("delete").ne(true);
@@ -607,18 +624,20 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
-        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
-            update.set("worker_status.metricValues", s)
-        );
+        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s -> {
+            update.set("worker_status.metricValues", s);
+            statMetric.add(metricInfoEntity(status.getProcessId(), "api-server", s));
+        });
         Optional.ofNullable(status.getWorkerStatus())
                 .ifPresent(ws -> ws.forEach((id,  value) -> {
                     update.set(String.format("worker_status.workers.%s.worker_status", id), value);
                     update.set(String.format("worker_status.workers.%s.activeTime", id), time);
                 }));
         Optional.ofNullable(status.getCpuMemStatus())
-                        .ifPresent(ws -> ws.forEach((id,  value) ->
-                    update.set(String.format("worker_status.workers.%s.metricValues", id), value)
-                ));
+                        .ifPresent(ws -> ws.forEach((id,  value) -> {
+                            update.set(String.format("worker_status.workers.%s.metricValues", id), value);
+                            statMetric.add(metricInfoEntity(id, "worker", value));
+                        }));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
             workerBaseInfo.forEach((id,  value) -> {
                 Optional.ofNullable(value.get("name")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", id), v));
@@ -630,6 +649,23 @@ public class WorkerServiceImpl extends WorkerService{
             })
         );
         update(query, update);
+        saveMetricValues(statMetric);
+    }
+
+    MetricInfoEntity metricInfoEntity(String id, String type, Object item) {
+        MetricInfoEntity entity = new MetricInfoEntity();
+        entity.setNodeId(id);
+        entity.setType(type);
+        entity.setId(new ObjectId());
+        if (item instanceof Map<?,?> map) {
+            Optional.ofNullable(map.get("HeapMemoryUsage")).filter(Number.class::isInstance)
+                    .map(e -> ((Number) e).longValue())
+                    .ifPresent(entity::setHeapMemoryUsage);
+            Optional.ofNullable(map.get("CpuUsage")).filter(Number.class::isInstance)
+                    .map(e -> ((Number) e).doubleValue())
+                    .ifPresent(entity::setCpuUsage);
+        }
+        return entity;
     }
 
     public void updateAll(Query query, Update update) {

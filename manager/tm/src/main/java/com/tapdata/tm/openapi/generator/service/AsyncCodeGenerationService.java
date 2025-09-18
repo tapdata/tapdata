@@ -2,7 +2,7 @@ package com.tapdata.tm.openapi.generator.service;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.openapi.generator.dto.CodeGenerationRequest;
 import com.tapdata.tm.sdk.dto.SDKDto;
