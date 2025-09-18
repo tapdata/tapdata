@@ -12,6 +12,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.role.dto.RoleDto;
 import com.tapdata.tm.role.service.RoleService;
@@ -544,5 +545,15 @@ public class UserController extends BaseController {
     @PostMapping("refreshAccessCode")
     public ResponseMessage<String> refreshAccessCode() {
         return success(userService.refreshAccessCode(getLoginUser()));
+    }
+
+    @Operation(summary = " 批量修改所属类别")
+    @PatchMapping("batchUpdateListtags")
+    public ResponseMessage<String> batchUpdateListTags( @RequestBody BatchUpdateParam batchUpdateParam) {
+        List<String> idList = batchUpdateParam.getId();
+        List<com.tapdata.tm.commons.schema.Tag> listTags = batchUpdateParam.getListtags();
+        Update update = new Update().set("listtags", listTags);
+        userService.update(new Query(Criteria.where("id").in(idList)), update, getLoginUser());
+        return success();
     }
 }
