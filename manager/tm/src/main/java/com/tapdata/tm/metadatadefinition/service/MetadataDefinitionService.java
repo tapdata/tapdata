@@ -27,6 +27,7 @@ import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
+import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
@@ -61,6 +62,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             "Task", TaskEntity.class,
             "Modules", ModulesEntity.class,
             "Inspect", InspectEntity.class,
+            "User", User.class,
 
             "dataflow", TaskEntity.class,
             "database", DataSourceEntity.class,
