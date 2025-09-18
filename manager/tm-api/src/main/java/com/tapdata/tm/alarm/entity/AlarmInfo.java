@@ -30,7 +30,7 @@ public class AlarmInfo extends BaseEntity {
     private Level level;
     @Schema(description = "引擎告警组件固定为引擎")
     private AlarmComponentEnum component;
-    @Schema(description = "告警类型 同步任务告警、共享缓存告警、共享挖掘告警、数据校验告警、精准延迟告警")
+    @Schema(description = "告警类型 同步任务告警、共享缓存告警、共享挖掘告警、数据校验告警、精准延迟告警、APIServer告警")
     private AlarmTypeEnum type;
     @Schema(description = "所属引擎")
     private String agentId;
@@ -40,6 +40,14 @@ public class AlarmInfo extends BaseEntity {
     private String nodeId;
     @Schema(description = "产生告警的节点名，无节点时为空;当为任务告警时，节点直接放任务名")
     private String node;
+
+    @Schema(description = "产生告警的APIServer ID，非APIServer相关时为空")
+    private String serverId;
+    @Schema(description = "产生告警的APIServer Worker节点ID，非APIServer相关时为空")
+    private String workerOid;
+    @Schema(description = "产生告警的APIServer API ID，非APIServer相关时为空")
+    private String apiId;
+
     @Schema(description = "AlarmKeyEnum key 值")
     private AlarmKeyEnum metric;
     @Schema(description = "触发告警的指标值")

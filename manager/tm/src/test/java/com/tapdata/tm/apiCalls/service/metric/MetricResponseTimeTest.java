@@ -1,8 +1,10 @@
 package com.tapdata.tm.apiCalls.service.metric;
 
-import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
-import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
-import com.tapdata.tm.apiCalls.vo.metric.MetricDataBase;
+import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
+import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
+import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
+import com.tapdata.tm.apiServer.service.metric.Metric;
+import com.tapdata.tm.apiServer.service.metric.MetricResponseTime;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Query;

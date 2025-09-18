@@ -1,10 +1,10 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.apiCalls.service.ApiCallService;
-import com.tapdata.tm.apiCalls.service.WorkerCallService;
+import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -36,15 +36,15 @@ public class ApiCallMinuteStatsScheduler {
 	private final ModulesService modulesService;
 	private final ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private final ApiCallService apiCallService;
-	private final WorkerCallService workerCallService;
+	private final WorkerCallServiceImpl workerCallServiceImpl;
 	private final WorkerService workerService;
 
 	@Autowired
-	public ApiCallMinuteStatsScheduler(ModulesService modulesService, ApiCallMinuteStatsService apiCallMinuteStatsService, ApiCallService apiCallService, WorkerCallService workerCallService, WorkerService ws) {
+	public ApiCallMinuteStatsScheduler(ModulesService modulesService, ApiCallMinuteStatsService apiCallMinuteStatsService, ApiCallService apiCallService, WorkerCallServiceImpl workerCallServiceImpl, WorkerService ws) {
 		this.modulesService = modulesService;
 		this.apiCallMinuteStatsService = apiCallMinuteStatsService;
 		this.apiCallService = apiCallService;
-		this.workerCallService = workerCallService;
+		this.workerCallServiceImpl = workerCallServiceImpl;
 		this.workerService = ws;
 	}
 
@@ -136,7 +136,7 @@ public class ApiCallMinuteStatsScheduler {
 	@SchedulerLock(name = "api_call_worker_minute_stats_scheduler", lockAtMostFor = "30m", lockAtLeastFor = "5s")
 	public void scheduleWorkerCall() {
 		try {
-			workerCallService.metric();
+			workerCallServiceImpl.metric();
 		} catch (Exception e) {
 			log.error("Aggregate ApiCallMinuteStats failed, error: {}", e.getMessage(), e);
 		}
@@ -158,7 +158,7 @@ public class ApiCallMinuteStatsScheduler {
 		}
 		all.forEach(w -> {
 			try {
-				workerCallService.collectApiCallCountGroupByWorker(w.getProcessId());
+				workerCallServiceImpl.collectApiCallCountGroupByWorker(w.getProcessId());
 			} catch (Exception e) {
 				log.error("Unable to perform Worker level request access data statistics on API servers", e);
 			}

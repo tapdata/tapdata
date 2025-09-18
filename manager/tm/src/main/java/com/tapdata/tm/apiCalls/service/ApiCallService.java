@@ -6,7 +6,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
-import com.tapdata.tm.apiCalls.utils.PercentileCalculator;
+import com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter;
+import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apiCalls.vo.ApiPercentile;
@@ -23,10 +24,10 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.modules.dto.ModulesDto;
-import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
@@ -86,6 +87,7 @@ public class ApiCallService {
     ApiCallStatsService apiCallStatsService;
     protected ApplicationConfig applicationConfig;
     protected TextEncryptionRuleService ruleService;
+    private RealTimeOfApiResponseSizeAlter realTimeOfApiResponseSizeAlter;
 
     public ApiCallService() {
     }
@@ -378,7 +380,7 @@ public class ApiCallService {
         return item;
     }
 
-    public List<ApiCallDto> save(List<ApiCallDto> saveApiCallParamList) {
+    public List<ApiCallDto> save(List<ApiCallDto> saveApiCallParamList, UserDetail user) {
         List<ApiCallEntity> apiCallEntityList = new ArrayList<>();
         saveApiCallParamList.forEach(saveApiCallParam -> {
             ApiCallEntity apiCallEntity = BeanUtil.copyProperties(saveApiCallParam, ApiCallEntity.class);
@@ -386,8 +388,15 @@ public class ApiCallService {
             apiCallEntityList.add(apiCallEntity);
         });
         mongoOperations.insert(apiCallEntityList, "ApiCall");
+        realTimeOfApiResponseSizeAlter.check(
+                user.getUserId(),
+                apiCallEntityList.stream()
+                        .filter(Objects::nonNull)
+                        .filter(e -> Objects.nonNull(e.getAllPathId()))
+                        .map(e -> Map.of(e.getAllPathId(), e.getReqBytes()))
+                        .toList()
+        );
         return Optional.of(apiCallEntityList)
-                .map(this::afterFindEntity)
                 .map(e -> com.tapdata.tm.utils.BeanUtil.deepCloneList(apiCallEntityList, ApiCallDto.class))
                 .orElse(new ArrayList<>());
     }

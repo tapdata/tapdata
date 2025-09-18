@@ -1,6 +1,6 @@
 package com.tapdata.tm.metadatadefinition.dto;
 
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

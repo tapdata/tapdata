@@ -7,7 +7,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
