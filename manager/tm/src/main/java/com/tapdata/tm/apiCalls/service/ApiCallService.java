@@ -6,14 +6,15 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
+import com.tapdata.tm.apiCalls.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
+import com.tapdata.tm.apiCalls.vo.ApiPercentile;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
 import com.tapdata.tm.application.dto.ApplicationDto;
-import com.tapdata.tm.application.entity.ApplicationEntity;
 import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
@@ -24,6 +25,7 @@ import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
@@ -438,7 +440,7 @@ public class ApiCallService {
         applicationDtoList.forEach(applicationDto -> {
             Map<String, String> map = new HashMap<>();
             map.put(Tag.ID, applicationDto.getId().toString());
-            map.put(Tag.NAME, applicationDto.getName());
+            map.put(Tag.NAME, applicationDto.getClientName());
             result.add(map);
         });
 
@@ -652,6 +654,49 @@ public class ApiCallService {
         return apiCallMinuteStatsDtoList;
     }
 
+    public ApiPercentile getApiPercentile(String apiId, Long from, Long end) {
+        if (StringUtils.isBlank(apiId)) {
+            throw new BizException("api.call.api.id.required");
+        }
+        long now = System.currentTimeMillis();
+        end = Optional.ofNullable(end).orElse(now);
+        end = Math.min(end, now);
+        from = Optional.ofNullable(from).orElse(end - 60 * 60 * 1000L);
+        from = Math.min(from, end);
+        if (end - from > 7 * 24 * 60 * 60 * 1000L) {
+            throw new BizException("api.call.percentile.time.range.too.large");
+        }
+        ApiPercentile apiPercentile = new ApiPercentile();
+        ModulesEntity module = mongoOperations.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(apiId))).limit(1), ModulesEntity.class);
+        if (null == module) {
+            return apiPercentile;
+        }
+        apiPercentile.setApiId(apiId);
+        apiPercentile.setName(module.getName());
+        Criteria criteria = Criteria.where("allPathId").is(apiId)
+                .and("latency").exists(true)
+                .orOperator(
+                        new Criteria().andOperator(Criteria.where("reqTime").gte(from), Criteria.where("reqTime").lte(end)),
+                        new Criteria().andOperator(Criteria.where("report_time").gte(from), Criteria.where("report_time").lte(end))
+                ).and(Tag.DELETE).ne(true);
+        Query query = Query.query(criteria);
+        query.fields().include("latency");
+        List<ApiCallEntity> apiCalls = mongoOperations.find(query, ApiCallEntity.class, "ApiCall");
+        List<Long> latencies = apiCalls.stream()
+                .filter(Objects::nonNull)
+                .map(ApiCallEntity::getLatency)
+                .filter(Objects::nonNull)
+                .toList();
+        if (latencies.isEmpty()) {
+            return apiPercentile;
+        }
+        PercentileCalculator.PercentileResult percentileResult = PercentileCalculator.calculatePercentiles(latencies);
+        apiPercentile.setP50(percentileResult.getP50());
+        apiPercentile.setP95(percentileResult.getP95());
+        apiPercentile.setP99(percentileResult.getP99());
+        return apiPercentile;
+    }
+
     public Document groupByMinute() {
         return new Document("year", "$year")
                 .append("month", "$month")
@@ -775,5 +820,6 @@ public class ApiCallService {
         public static final String LATENCY = "latency";
         public static final String NAME = "name";
         public static final String ID = "id";
+        public static final String DELETE = "delete";
     }
 }

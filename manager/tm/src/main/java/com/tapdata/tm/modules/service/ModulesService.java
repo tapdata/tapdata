@@ -77,6 +77,9 @@ import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.ApiWorkerInfo;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.Setter;
@@ -97,9 +100,11 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -142,6 +147,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private ApplicationConfig config;
 	private TextEncryptionRuleService textEncryptionRuleService;
+	private WorkerService workerService;
 
 	public ModulesService(@NonNull ModulesRepository repository) {
 		super(repository, ModulesDto.class, ModulesEntity.class);
@@ -292,7 +298,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
 			if (findByName(modulesDto.getName()).size() > 1)
 				throw new BizException("Modules.Name.Existed");
-			if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
+			if (isBasePathAndVersionRepeat(id, modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()))
 				throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 			checkoutInputParamIsValid(modulesDto);
 		}
@@ -422,7 +428,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @param userDetail
 	 * @return
 	 */
-	public ApiDefinitionVo apiDefinition(UserDetail userDetail) {
+	public ApiDefinitionVo apiDefinition(String processId, Integer workerCount, UserDetail userDetail) {
 		List<ConnectionVo> connectionVos = new ArrayList<>();
 		ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
 		//查找已发布的api
@@ -513,7 +519,67 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setApis(apis);
 		}
 		textEncryptionRule(apiDefinitionVo);
+		genericWorkInfoIfNeed(apiDefinitionVo, processId, workerCount);
 		return apiDefinitionVo;
+	}
+
+	public List<ApiWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) 	{
+		if (null == workerCount || workerCount <= 0) {
+			return new ArrayList<>();
+		}
+		Criteria criteria = Criteria.where("deleted").ne(true);
+		criteria.and("worker_type").is("api-server");
+		criteria.and("process_id").is(processId);
+		Query query = Query.query(criteria);
+		query.limit(1);
+		WorkerDto one = workerService.findOne(query);
+		List<ApiWorkerInfo> apiWorkerInfos = new ArrayList<>(Optional.ofNullable(one)
+                .map(WorkerDto::getWorker_status)
+                .filter(Map.class::isInstance)
+                .map(e -> ((Map<Object, Object>) e).get("workers"))
+                .filter(Map.class::isInstance)
+                .map(e -> ((Map<?, ?>) e).values().stream()
+                        .sorted(Comparator.comparing(w -> Optional.ofNullable((Integer) ((Map<?, ?>) w).get("sort")).orElse(0)))
+                        .map(w -> {
+                            Map<Object, Object> map = (Map<Object, Object>) w;
+                            ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
+                            apiWorkerInfo.setOid((String) map.get("oid"));
+                            apiWorkerInfo.setName((String) map.get("name"));
+                            apiWorkerInfo.setDescription((String) map.get(TAG.DESCRIPTION));
+                            apiWorkerInfo.setId((Integer) map.get("id"));
+                            apiWorkerInfo.setPid((Integer) map.get("pid"));
+                            apiWorkerInfo.setWorkerStatus((String) map.get("workerStatus"));
+                            apiWorkerInfo.setWorkerStartTime((Long) map.get("workerStartTime"));
+                            apiWorkerInfo.setCreatedTime((Long) map.get("createdTime"));
+                            apiWorkerInfo.setUpdatedTime((Long) map.get("updatedTime"));
+                            apiWorkerInfo.setMetricValues((Map<String, Object>) map.get("metricValues"));
+                            apiWorkerInfo.setSort((Integer) map.get("sort"));
+                            return apiWorkerInfo;
+                        }).toList())
+                .orElse(new ArrayList<>()));
+		int size = apiWorkerInfos.size();
+		for (int index = 0; index < size; index++) {
+			ApiWorkerInfo worker = apiWorkerInfos.get(index);
+			worker.setName(Optional.ofNullable(worker.getName()).orElse("Worker-" + (index + 1)));
+			worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
+			worker.setSort(Optional.ofNullable(worker.getSort()).orElse(index));
+		}
+		for (int i = size; i < workerCount; i++) {
+			ApiWorkerInfo item = new ApiWorkerInfo();
+			item.setName("Worker-" + (i + 1));
+			item.setSort(i);
+			item.setOid(new ObjectId().toHexString());
+			apiWorkerInfos.add(item);
+		}
+		return apiWorkerInfos;
+	}
+
+	protected void genericWorkInfoIfNeed(ApiDefinitionVo apiDefinitionVo, String processId, Integer workerCount) {
+		if (null == apiDefinitionVo || null == workerCount || workerCount <= 0) {
+			return;
+		}
+		List<ApiWorkerInfo> apiWorkerInfo = getApiWorkerInfo(processId, workerCount);
+		apiDefinitionVo.setWorkerInfo(apiWorkerInfo);
 	}
 
 	protected void textEncryptionRule(ApiDefinitionVo apiDefinitionVo) {
@@ -694,7 +760,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Get record by ID");
+		map.put(TAG.DESCRIPTION, "Get record by ID");
 		Map responseFields = JsonUtil.parseJson("{'field_name':'_id','field_type':'String','required':'否','example':''}", Map.class);
 		map.put("requestFields", "{'field_name':'id','field_type':'String','required':'是','example':'5edf26e662a932388458f153'}");
 		map.put("responseFields", responseFields);
@@ -709,7 +775,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Paging records");
+		map.put(TAG.DESCRIPTION, "Paging records");
 		map.put("requestFields", getFileds(fields, (Path) pathObj.getAvailableQueryField(), (Path) pathObj.getRequiredQueryField()));
 		map.put("responseFields", getFileds(pathObj.getFields(), (Path) pathObj.getAvailableQueryField(), (Path) pathObj.getRequiredQueryField()));
 		map.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "?filter={\"limit\":10,\"skip\"=50，\"where\":{\"property\":{\"operator\":value}}}");
@@ -720,7 +786,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "POST");
 		map1.put("path", pathObj.getPath());
-		map1.put("description", "Paging records");
+		map1.put(TAG.DESCRIPTION, "Paging records");
 		map1.put("requestFields", getFileds(fields, (Path) pathObj.getAvailableQueryField(), (Path) pathObj.getRequiredQueryField()));
 		map1.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "\\nbody:\\n{filter:{\"limit\":10,\"skip\"=50，\"where\":{\"property\":{\"operator\":value}}}}");
 		map1.put("responseExample", "[\\n\" +\n" +
@@ -735,7 +801,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Paging records");
+		map.put(TAG.DESCRIPTION, "Paging records");
 		map.put("requestFields", "{'field_name':'limit','field_type':'int','required':'是','example':'10'},{'field_name':'skip','field_type':'int','required':'是','example':'50'},\n" +
 				"\t\t\t{'field_name':'where','field_type':'Object','required':'否','example':'{\"where\":{\"property\":value}}'");
 		Map responseFields = JsonUtil.parseJson("{'field_name':'_id','field_type':'String','required':'否','example':''}", Map.class);
@@ -748,7 +814,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "POST");
 		map1.put("path", pathObj.getPath() + "/find");
-		map1.put("description", "Paging records");
+		map1.put(TAG.DESCRIPTION, "Paging records");
 		map1.put("requestFields", "{'field_name':'limit','field_type':'int','required':'是','example':'10'},\n" +
 				"\t\t\t{'field_name':'skip','field_type':'int','required':'是','example':'50'},\n" +
 				"\t\t\t{'field_name':'where','field_type':'Object','required':'否','example':'{\"where\":{\"property\":value}}'}");
@@ -766,7 +832,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "POST");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Update by ID");
+		map.put(TAG.DESCRIPTION, "Update by ID");
 		map.put("requestFields", getFileds(fields, null, null));
 		map.put("responseFields", new ArrayList<>());
 		map.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "\n" + "Body:\n" + getExample((List<Field>) map.get("requestFields")));
@@ -775,7 +841,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "PATCH");
 		map1.put("path", pathObj.getPath());
-		map1.put("description", "Update by ID");
+		map1.put(TAG.DESCRIPTION, "Update by ID");
 		map1.put("requestFields", getFileds(fields, null, null));
 		map1.put("responseFields", new ArrayList<>());
 		map1.put("requestExample", "URL:http://127.0.0.1:3080" + pathObj.getPath() + "\n" + "Body:\n" + getExample((List<Field>) map1.get("requestFields")));
@@ -784,7 +850,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map2 = new HashMap<>();
 		map2.put("method", "PATCH");
 		map2.put("path", pathObj.getPath().split("\\{", 0));
-		map2.put("description", "update all match document with where");
+		map2.put(TAG.DESCRIPTION, "update all match document with where");
 		map2.put("requestFields", getFileds(fields, null, null));
 		map2.put("responseFields", new ArrayList<>());
 		map2.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath().split("\\{", 0) + "?filter={\"where\":{\"property\":value\")\n" + "Body:\n" + getExample((List<Field>) map1.get("requestFields")));
@@ -802,7 +868,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "GET");
 		map.put("path", pathObj.getPath() + "/delete");
-		map.put("description", "Delete by ID");
+		map.put(TAG.DESCRIPTION, "Delete by ID");
 		map.put("requestFields", "{'field_name':'id','field_type':'String','required':'是','example':'5edf26e662a932388458f153'}");
 		map.put("responseFields", new ArrayList<>());
 		map.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath());
@@ -815,7 +881,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "DELETE");
 		map1.put("path", pathObj.getPath());
-		map1.put("description", "Delete all match document with where");
+		map1.put(TAG.DESCRIPTION, "Delete all match document with where");
 		map1.put("requestFields", "{'field_name':'id','field_type':'String','required':'是','example':'5edf26e662a932388458f153'}");
 		map1.put("responseFields", new ArrayList<>());
 		map1.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath());
@@ -828,7 +894,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map2 = new HashMap<>();
 		map2.put("method", "DELETE");
 		map2.put("path", pathObj.getPath().split("\\{", 0));
-		map2.put("description", "Delete all match document with where");
+		map2.put(TAG.DESCRIPTION, "Delete all match document with where");
 		map2.put("requestFields", "{'field_name':'where','field_type':'object','required':'是','example':''}");
 		map2.put("responseFields", new ArrayList<>());
 		map2.put("requestExample", "http://127.0.0.1:3080" + pathObj.getPath().split("\\{", 0) + "?filter={\"where\":{\"property\":value\")");
@@ -870,7 +936,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map = new HashMap<>();
 		map.put("method", "POST");
 		map.put("path", pathObj.getPath());
-		map.put("description", "Use this interface to create new data");
+		map.put(TAG.DESCRIPTION, "Use this interface to create new data");
 		map.put("requestFields", fields);
 		Map responseFields = JsonUtil.parseJson("{'field_name':'_id','field_type':'String','required':'否','example':''}", Map.class);
 		map.put("responseFields", responseFields);
@@ -880,7 +946,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map1 = new HashMap<>();
 		map1.put("method", "POST");
 		map1.put("path", pathObj.getPath() + "/batch");
-		map1.put("description", "Batch import excel records");
+		map1.put(TAG.DESCRIPTION, "Batch import excel records");
 		Map<String, Object> objectMap = new HashMap<>();
 		objectMap.put("field_name", "total");
 		objectMap.put("field_type", "int");
@@ -894,7 +960,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Map<String, Object> map2 = new HashMap<>();
 		map2.put("method", "GET");
 		map2.put("path", pathObj.getPath() + "/batch");
-		map2.put("description", "Download batch import excel template");
+		map2.put(TAG.DESCRIPTION, "Download batch import excel template");
 		map2.put("requestFields", new ArrayList<>());
 		map2.put("responseFields", new ArrayList<>());
 		map2.put("requestExample", "Parameters\nNo parameters");
@@ -930,11 +996,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	/**
 	 * basePath+version+prefix 不能重复
 	 */
-	protected boolean isBasePathAndVersionRepeat(String basepath, String apiVersion, String prefix) {
+	protected boolean isBasePathAndVersionRepeat(ObjectId id, String basepath, String apiVersion, String prefix) {
 		Query query = Query.query(Criteria.where("is_deleted").ne(true));
 		query.addCriteria(Criteria.where("basePath").is(basepath));
 		query.addCriteria(Criteria.where("apiVersion").is(apiVersion));
 		query.addCriteria(Criteria.where("prefix").is(prefix));
+		Optional.ofNullable(id).ifPresent(oId -> query.addCriteria(Criteria.where("_id").ne(oId)));
 		long count = count(query);
 		return count > 0L;
 	}
@@ -1247,7 +1314,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (findByName(modulesDto.getName()).size() > 1) {
 			throw new BizException("Modules.Name.Existed");
 		}
-		if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
+		if (isBasePathAndVersionRepeat(modulesDto.getId(), modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix())) {
 			throw new BizException("Modules.BasePathAndVersion.Existed", paths(modulesDto.getBasePath(), modulesDto.getApiVersion(), modulesDto.getPrefix()));
 		}
 		checkoutInputParamIsValid(modulesDto);
@@ -1626,5 +1693,10 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Update update = new Update();
 		update.set("listtags", modulesTagsDto.getListtags());
 		updateById(modulesTagsDto.getModuleId(), update, userDetail);
+	}
+
+	public static class TAG {
+		private TAG() {}
+		public static final String DESCRIPTION = "description";
 	}
 }

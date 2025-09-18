@@ -6,11 +6,13 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.MongoUtils;
@@ -21,6 +23,7 @@ import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -30,9 +33,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -101,6 +118,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
     public ResponseMessage<WorkerDto> update(@RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.save(worker, getLoginUser()));
     }
 
@@ -146,6 +164,13 @@ public class WorkerController extends BaseController {
         return success(workerService.findApiWorkerStatus(getLoginUser()));
     }
 
+    @Operation(summary = "Update api-worker or api-server status")
+    @PostMapping("update-status")
+    public ResponseMessage<Void> updateWorkerStatus(@RequestBody WorkerOrServerStatus status) {
+        workerService.updateWorkerStatus(status, getLoginUser());
+        return success();
+    }
+
 
     /**
      *  Replace an existing model instance or insert a new one into the data source
@@ -155,6 +180,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace an existing model instance or insert a new one into the data source")
     @PutMapping
     public ResponseMessage<WorkerDto> put(@RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.replaceOrInsert(worker, getLoginUser()));
     }
 
@@ -181,6 +207,7 @@ public class WorkerController extends BaseController {
     @PatchMapping("{id}")
     public ResponseMessage<WorkerDto> updateById(@PathVariable("id") String id, @RequestBody WorkerDto worker) {
         worker.setId(MongoUtils.toObjectId(id));
+        updateWorker(worker);
         return success(workerService.save(worker, getLoginUser()));
     }
 
@@ -206,6 +233,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PutMapping("{id}")
     public ResponseMessage<WorkerDto> replceById(@PathVariable("id") String id, @RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.replaceById(MongoUtils.toObjectId(id), worker, getLoginUser()));
     }
 
@@ -217,6 +245,7 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
     @PostMapping("{id}/replace")
     public ResponseMessage<WorkerDto> replaceById2(@PathVariable("id") String id, @RequestBody WorkerDto worker) {
+        updateWorker(worker);
         return success(workerService.replaceById(MongoUtils.toObjectId(id), worker, getLoginUser()));
     }
 
@@ -368,10 +397,7 @@ public class WorkerController extends BaseController {
     @PostMapping("upsertWithWhere")
     public ResponseMessage<WorkerDto> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody WorkerDto worker) {
         Where where = parseWhere(whereJson);
-        if ("api-server".equals(worker.getWorkerType())){
-            Long nowTimeStamp=new Date().getTime();
-            worker.setPingTime(nowTimeStamp);
-        }
+        updateWorker(worker);
         return success(workerService.upsertByWhere(where, worker, getLoginUser()));
     }
     @Operation(summary = "单例启动检测")
@@ -480,5 +506,44 @@ public class WorkerController extends BaseController {
     @PostMapping("/unbindByProcessId")
     public ResponseMessage<Boolean> unbindByProcessId(@RequestParam String processId) {
         return success(workerService.unbindByProcessId(processId));
+    }
+
+    void updateWorker(WorkerDto worker) {
+        if ("api-server".equals(worker.getWorkerType())) {
+            worker.setPingTime(new Date().getTime());
+            if (worker.getWorker_status() instanceof Map<?,?> workerStatus) {
+                WorkerOrServerStatus status = new WorkerOrServerStatus();
+                status.setStatus(String.valueOf(workerStatus.get("status")));
+                status.setProcessId(worker.getProcessId());
+                status.setTime(new Date().getTime());
+                status.setWorkerStatus(new HashMap<>());
+                status.setCpuMemStatus(new HashMap<>());
+                status.setWorkerBaseInfo(new HashMap<>());
+                status.setProcessCpuMemStatus(workerStatus.get("metricValues"));
+                Optional.ofNullable(workerStatus.get("worker_process_id"))
+                        .filter(Number.class::isInstance)
+                        .map(e -> ((Number) e).intValue()).ifPresent(status::setPid);
+                if (workerStatus.get("workers") instanceof Map<?,?> workers) {
+                    workers.forEach((key, value) -> {
+                        if (value instanceof Map<?,?> workerInfo
+                                && workerInfo.get("oid") instanceof String oid
+                                && workerInfo.get("worker_status") instanceof String wStatus) {
+                            status.getWorkerStatus().put(oid, wStatus);
+                            status.getCpuMemStatus().put(oid, workerInfo.get("metricValues"));
+                            Map<String, Object> map = status.getWorkerBaseInfo().computeIfAbsent(oid, k -> new HashMap<>());
+                            map.put("name", workerInfo.get("name"));
+                            map.put("oid", oid);
+                            map.put("id", workerInfo.get("id"));
+                            map.put("worker_start_time", workerInfo.get("worker_start_time"));
+                            map.put("sort", workerInfo.get("sort"));
+                            map.put("pid", workerInfo.get("pid"));
+                            map.put("worker_status", workerInfo.get("worker_status"));
+                        }
+                    });
+                }
+                workerService.updateWorkerStatus(status, getLoginUser());
+            }
+            worker.setWorker_status(null);
+        }
     }
 }
