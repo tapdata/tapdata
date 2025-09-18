@@ -1109,6 +1109,29 @@ class MetadataInstancesCompareServiceImplTest {
             assertTrue(result.isEmpty());
         }
     }
+    @Nested
+    @DisplayName("CreateEmptyComparisonResult Tests")
+    class CreateEmptyComparisonResultTest{
+        @Test
+        @DisplayName("Should create empty comparison result with target schema load time")
+        void testCreateEmptyComparisonResult_WithTargetSchemaLoadTime() {
+            // Given
+            Long targetSchemaLoadTime = System.currentTimeMillis();
+            MetadataInstancesCompareResult result = service.createEmptyComparisonResult(targetSchemaLoadTime);
+            assertNotNull(result);
+            assertEquals(targetSchemaLoadTime, result.getTargetSchemaLoadTime().getTime());
+        }
+
+        @Test
+        @DisplayName("Should create empty comparison result with null target schema load time")
+        void testCreateEmptyComparisonResult_WithNullTargetSchemaLoadTime() {
+            // Given
+            MetadataInstancesCompareResult result = service.createEmptyComparisonResult(null);
+            assertNotNull(result);
+            assertNull(result.getTargetSchemaLoadTime());
+        }
+
+    }
 
     // Helper method to create mock MetadataInstancesDto
     private MetadataInstancesDto createMockMetadataInstancesDto(String tableName, String qualifiedName) {
