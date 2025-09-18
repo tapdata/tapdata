@@ -27,18 +27,20 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
-import com.tapdata.tm.modules.dto.PathSetting;
+import com.tapdata.tm.module.dto.PathSetting;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -1131,7 +1133,7 @@ class ModulesServiceTest {
 		void testNormal() {
 			WorkerDto one = new WorkerDto();
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 1);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 1);
 			assertEquals(1, apiWorkerInfo.size());
 		}
 
@@ -1139,7 +1141,7 @@ class ModulesServiceTest {
 		void testNullWorkerCount() {
 			WorkerDto one = new WorkerDto();
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), null);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), null);
 			assertEquals(0, apiWorkerInfo.size());
 		}
 
@@ -1147,7 +1149,7 @@ class ModulesServiceTest {
 		void testLessZeroWorkerCount() {
 			WorkerDto one = new WorkerDto();
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), -1);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), -1);
 			assertEquals(0, apiWorkerInfo.size());
 		}
 
@@ -1155,7 +1157,7 @@ class ModulesServiceTest {
 		void testEqualsZeroWorkerCount() {
 			WorkerDto one = new WorkerDto();
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 0);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 0);
 			assertEquals(0, apiWorkerInfo.size());
 		}
 
@@ -1315,11 +1317,11 @@ class ModulesServiceTest {
 					"        \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
 					"      }\n" +
 					"    }";
-			JSONObject jsonObject = JSON.parseObject(workerInfoJson);
+			ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
 			WorkerDto one = new WorkerDto();
-			one.setWorker_status(jsonObject);
+			one.setWorkerStatus(jsonObject);
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 10);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 10);
 			assertEquals(10, apiWorkerInfo.size());
 		}
 	}

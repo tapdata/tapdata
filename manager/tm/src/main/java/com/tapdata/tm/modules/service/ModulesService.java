@@ -47,16 +47,16 @@ import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
-import com.tapdata.tm.modules.constant.ParamTypeEnum;
+import com.tapdata.tm.module.enums.ParamTypeEnum;
 import com.tapdata.tm.modules.dto.ApiView;
 import com.tapdata.tm.modules.dto.ApiViewUtil;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
-import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
@@ -77,6 +77,8 @@ import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -100,7 +102,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -523,7 +524,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return apiDefinitionVo;
 	}
 
-	public List<ApiWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) 	{
+	public List<ApiServerWorkerInfo> getApiWorkerInfo(String processId, Integer workerCount) 	{
 		if (null == workerCount || workerCount <= 0) {
 			return new ArrayList<>();
 		}
@@ -533,39 +534,23 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Query query = Query.query(criteria);
 		query.limit(1);
 		WorkerDto one = workerService.findOne(query);
-		List<ApiWorkerInfo> apiWorkerInfos = new ArrayList<>(Optional.ofNullable(one)
-                .map(WorkerDto::getWorker_status)
-                .filter(Map.class::isInstance)
-                .map(e -> ((Map<Object, Object>) e).get("workers"))
-                .filter(Map.class::isInstance)
-                .map(e -> ((Map<?, ?>) e).values().stream()
-                        .sorted(Comparator.comparing(w -> Optional.ofNullable((Integer) ((Map<?, ?>) w).get("sort")).orElse(0)))
-                        .map(w -> {
-                            Map<Object, Object> map = (Map<Object, Object>) w;
-                            ApiWorkerInfo apiWorkerInfo = new ApiWorkerInfo();
-                            apiWorkerInfo.setOid((String) map.get("oid"));
-                            apiWorkerInfo.setName((String) map.get("name"));
-                            apiWorkerInfo.setDescription((String) map.get(TAG.DESCRIPTION));
-                            apiWorkerInfo.setId((Integer) map.get("id"));
-                            apiWorkerInfo.setPid((Integer) map.get("pid"));
-                            apiWorkerInfo.setWorkerStatus((String) map.get("workerStatus"));
-                            apiWorkerInfo.setWorkerStartTime((Long) map.get("workerStartTime"));
-                            apiWorkerInfo.setCreatedTime((Long) map.get("createdTime"));
-                            apiWorkerInfo.setUpdatedTime((Long) map.get("updatedTime"));
-                            apiWorkerInfo.setMetricValues((Map<String, Object>) map.get("metricValues"));
-                            apiWorkerInfo.setSort((Integer) map.get("sort"));
-                            return apiWorkerInfo;
-                        }).toList())
-                .orElse(new ArrayList<>()));
+		List<ApiServerWorkerInfo> apiWorkerInfos = Optional.ofNullable(one)
+				.map(WorkerDto::getWorkerStatus)
+				.map(ApiServerStatus::getWorkers)
+				.map(Map::values)
+				.orElse(new ArrayList<>())
+				.stream()
+				.sorted(Comparator.comparing(ApiServerWorkerInfo::getSort))
+				.toList();
 		int size = apiWorkerInfos.size();
 		for (int index = 0; index < size; index++) {
-			ApiWorkerInfo worker = apiWorkerInfos.get(index);
+			ApiServerWorkerInfo worker = apiWorkerInfos.get(index);
 			worker.setName(Optional.ofNullable(worker.getName()).orElse("Worker-" + (index + 1)));
 			worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
 			worker.setSort(Optional.ofNullable(worker.getSort()).orElse(index));
 		}
 		for (int i = size; i < workerCount; i++) {
-			ApiWorkerInfo item = new ApiWorkerInfo();
+			ApiServerWorkerInfo item = new ApiServerWorkerInfo();
 			item.setName("Worker-" + (i + 1));
 			item.setSort(i);
 			item.setOid(new ObjectId().toHexString());
@@ -578,7 +563,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		if (null == apiDefinitionVo || null == workerCount || workerCount <= 0) {
 			return;
 		}
-		List<ApiWorkerInfo> apiWorkerInfo = getApiWorkerInfo(processId, workerCount);
+		List<ApiServerWorkerInfo> apiWorkerInfo = getApiWorkerInfo(processId, workerCount);
 		apiDefinitionVo.setWorkerInfo(apiWorkerInfo);
 	}
 

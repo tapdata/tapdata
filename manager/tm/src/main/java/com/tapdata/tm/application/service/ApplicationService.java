@@ -10,7 +10,6 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.role.entity.RoleEntity;
 import com.tapdata.tm.role.repository.RoleRepository;
@@ -25,7 +24,6 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

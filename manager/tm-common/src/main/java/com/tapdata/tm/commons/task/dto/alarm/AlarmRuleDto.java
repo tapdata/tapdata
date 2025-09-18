@@ -27,4 +27,32 @@ public class AlarmRuleDto extends BaseDto implements Serializable {
     private int ms;
     //连续次数
     private int times;
+
+    /**
+     * 对比值，double/int/long...
+     * */
+    private Number value;
+
+    /**
+     * 对比值单位：ms、%、MB
+     */
+    private String unit;
+
+    String type;
+
+    public void setKey(AlarmKeyEnum key) {
+        this.key = key;
+        this.type = key.getType();
+    }
+
+    public String toEqualsFlag() {
+        if (equalsFlag == 0) {
+            return "=";
+        }
+        if (equalsFlag > 0) {
+            return ">=";
+        } else {
+            return "<=";
+        }
+    }
 }

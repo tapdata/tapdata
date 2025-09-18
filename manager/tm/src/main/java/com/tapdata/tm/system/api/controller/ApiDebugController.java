@@ -1,7 +1,6 @@
 package com.tapdata.tm.system.api.controller;
 
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.apiCalls.service.WorkerCallService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -9,7 +8,6 @@ import com.tapdata.tm.system.api.dto.DebugDto;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.system.api.utils.TextEncryptionUtil;
-import com.tapdata.tm.system.api.utils.ThreadPoolManager;
 import com.tapdata.tm.system.api.vo.DebugVo;
 import com.tapdata.tm.utils.HttpUtils;
 import io.swagger.v3.oas.annotations.Operation;

@@ -29,5 +29,5 @@ public class ApiServerWorkerInfo {
 
     Long pingTime;
 
-    int sort;
+    Integer sort;
 }
