@@ -253,6 +253,7 @@ public class TapdataTaskSchedulerTest {
 				TaskDto taskDto = new TaskDto();
 				taskDto.setName("test-task");
 				taskDto.setId(taskId);
+				taskDto.setSyncType("test");
 
 				Logger logger = mock(Logger.class);
 				TapdataTaskScheduler instance = new TapdataTaskScheduler();

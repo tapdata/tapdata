@@ -2,6 +2,9 @@ package io.tapdata.flow.engine.V2.schedule;
 
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
+import io.micrometer.core.instrument.Metrics;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.utils.AppType;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -378,6 +381,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 				ObsLoggerFactory.getInstance().getObsLogger(taskDto).error( "Start task failed: " + e.getMessage(), e);
 			}
 			ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(taskDto);
+			Optional.of(taskDto).ifPresent(task -> ConnectorConstant.TASK_STATUS_GAUGE.set(1, task.getId().toHexString(), task.getName(), task.getSyncType()));
 		} finally {
 			ThreadContext.clearAll();
 		}
@@ -458,6 +462,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 									boolean stop = taskClient.stop();
 									if (stop) {
 										TaskDto taskDto = safeQueryTaskById(taskId);
+										ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, taskClient.getTask().getName(), taskClient.getTask().getSyncType());
 										clearTaskCacheAfterStopped(taskClient);
 										ObsLoggerFactory.getInstance().getObsLogger(taskClient.getTask()).info("Resume task[{}]", taskClient.getTask().getName());
 										long retryStartTime = System.currentTimeMillis();
@@ -609,6 +614,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		}
 		final boolean stop = taskClient.stop();
 		if (stop) {
+			if (stopTaskResource.equals(StopTaskResource.RUN_ERROR)) {
+				ConnectorConstant.TASK_STATUS_GAUGE.set(1, taskClient.getTask().getId().toHexString(), taskClient.getTask().getName(), taskClient.getTask().getSyncType());
+			}
 			final TaskDto task = taskClient.getTask();
 			final String taskName = task.getName();
 			final String taskId = task.getId().toHexString();

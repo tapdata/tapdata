@@ -456,7 +456,11 @@
             <version>5.4.4</version>
         </dependency>
 
-
+        <!-- Prometheus metrics -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
 
     </dependencies>
 
