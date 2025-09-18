@@ -455,8 +455,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -500,8 +505,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -545,8 +555,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -590,8 +605,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -635,8 +655,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -675,8 +700,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -720,8 +750,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -765,8 +800,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -810,8 +850,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -855,8 +900,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
@@ -900,8 +950,13 @@
             "icon": "IconLucideFileText"
           },
           {
-            "name": "minute",
+            "name": "minutes",
             "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
             "icon": "IconLucideFileText"
           }
         ]
