@@ -42,8 +42,12 @@
 		<tapdata-pdk-runner.version>2.2-SNAPSHOT</tapdata-pdk-runner.version>
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
-		<netty.version>4.1.124.Final</netty.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
+
+		<!-- Override spring boot version -->
+		<netty.version>4.1.127.Final</netty.version>
+		<spring-framework.version>6.2.11</spring-framework.version>
+		<spring-security.version>6.5.4</spring-security.version>
 	</properties>
 
 	<modules>
