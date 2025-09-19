@@ -3,6 +3,7 @@ package com.tapdata.tm.worker.service;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.worker.dto.ApiServerInfo;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.entity.Worker;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
@@ -11,15 +12,19 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ApiWorkerServerTest {
@@ -230,6 +235,96 @@ class ApiWorkerServerTest {
             List<ApiServerInfo> apiServerWorkerInfo = apiWorkerServer.getApiServerWorkerInfo();
             Assertions.assertNotNull(apiServerWorkerInfo);
             Assertions.assertEquals(0, apiServerWorkerInfo.size());
+        }
+    }
+
+    @Nested
+    class deleteTest {
+        @Test
+        void testNormal() {
+            List<Worker> serverInfo = new ArrayList<>();
+            Worker w1 = new Worker();
+            Worker w2 = new Worker();
+            Worker w3 = new Worker();
+            serverInfo.add(w1);
+            serverInfo.add(null);
+            serverInfo.add(w2);
+            serverInfo.add(w3);
+            ApiServerStatus status = new ApiServerStatus();
+            w3.setWorkerStatus(status);
+            status.setWorkers(new HashMap<>());
+            ApiServerStatus s2 = new ApiServerStatus();
+            w2.setWorkerStatus(s2);
+            ApiServerWorkerInfo info1 = new ApiServerWorkerInfo();
+            info1.setOid("oid");
+            status.getWorkers().put("oid", info1);
+            ApiServerWorkerInfo info2 = new ApiServerWorkerInfo();
+            status.getWorkers().put("oid1", info2);
+            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
+            apiWorkerServer.delete("processId", "oid");
+            verify(mongoOperations, times(1)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(1)).find(any(Query.class), any(Class.class));
+        }
+        @Test
+        void testNotDeleteWorker() {
+            List<Worker> serverInfo = new ArrayList<>();
+            Worker w1 = new Worker();
+            Worker w2 = new Worker();
+            Worker w3 = new Worker();
+            serverInfo.add(w1);
+            serverInfo.add(null);
+            serverInfo.add(w2);
+            serverInfo.add(w3);
+            ApiServerStatus status = new ApiServerStatus();
+            w3.setWorkerStatus(status);
+            status.setWorkers(new HashMap<>());
+            ApiServerStatus s2 = new ApiServerStatus();
+            w2.setWorkerStatus(s2);
+            ApiServerWorkerInfo info1 = new ApiServerWorkerInfo();
+            info1.setOid("oid");
+            status.getWorkers().put("oid", info1);
+            ApiServerWorkerInfo info2 = new ApiServerWorkerInfo();
+            status.getWorkers().put("oid1", info2);
+            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
+            apiWorkerServer.delete("processId", null);
+            verify(mongoOperations, times(1)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(0)).find(any(Query.class), any(Class.class));
+        }
+        @Test
+        void testNotDeleteAny() {
+            List<Worker> serverInfo = new ArrayList<>();
+            Worker w1 = new Worker();
+            Worker w2 = new Worker();
+            Worker w3 = new Worker();
+            serverInfo.add(w1);
+            serverInfo.add(null);
+            serverInfo.add(w2);
+            serverInfo.add(w3);
+            ApiServerStatus status = new ApiServerStatus();
+            w3.setWorkerStatus(status);
+            status.setWorkers(new HashMap<>());
+            ApiServerStatus s2 = new ApiServerStatus();
+            w2.setWorkerStatus(s2);
+            ApiServerWorkerInfo info1 = new ApiServerWorkerInfo();
+            info1.setOid("oid");
+            status.getWorkers().put("oid", info1);
+            ApiServerWorkerInfo info2 = new ApiServerWorkerInfo();
+            status.getWorkers().put("oid1", info2);
+            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(serverInfo);
+            apiWorkerServer.delete("", null);
+            verify(mongoOperations, times(0)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(0)).find(any(Query.class), any(Class.class));
+        }
+        @Test
+        void testNotDeleteWorkerAny() {
+            when(mongoOperations.updateFirst(any(Query.class), any(Update.class), anyString())).thenReturn(null);
+            when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(new ArrayList());
+            apiWorkerServer.delete("pid", "oid");
+            verify(mongoOperations, times(0)).updateFirst(any(Query.class), any(Update.class), anyString());
+            verify(mongoOperations, times(1)).find(any(Query.class), any(Class.class));
         }
     }
 }

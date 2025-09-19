@@ -39,6 +39,9 @@ public class ApiWorkerServer {
     MongoTemplate mongoOperations;
 
     public void delete(String processId, String workerOid) {
+        if (StringUtils.isBlank(processId)) {
+            return;
+        }
         if (StringUtils.isBlank(workerOid)) {
             mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
                     new org.springframework.data.mongodb.core.query.Update().set("delete", true),
@@ -50,18 +53,19 @@ public class ApiWorkerServer {
             return;
         }
         Set<String> deleteItem = new HashSet<>();
-        serverInfo.forEach(worker -> {
-            if (null == worker.getWorkerStatus() || null == worker.getWorkerStatus().getWorkers()) {
-                return;
-            }
-            worker.getWorkerStatus()
-                    .getWorkers()
-                    .forEach((k, v) -> {
-                if (Objects.equals(v.getOid(), workerOid)) {
-                    deleteItem.add(k);
-                }
-            });
-        });
+        serverInfo.stream()
+                .filter(Objects::nonNull)
+                .map(Worker::getWorkerStatus)
+                .filter(Objects::nonNull)
+                .map(ApiServerStatus::getWorkers)
+                .filter(Objects::nonNull)
+                .forEach(es ->
+                        es.forEach((k, v) -> {
+                            if (Objects.equals(v.getOid(), workerOid)) {
+                                deleteItem.add(k);
+                            }
+                        })
+                );
         deleteItem.forEach(item -> {
             try {
                 mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
