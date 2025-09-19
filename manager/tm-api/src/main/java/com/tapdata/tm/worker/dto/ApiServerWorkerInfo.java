@@ -12,6 +12,8 @@ import lombok.Data;
 public class ApiServerWorkerInfo {
     Long activeTime;
 
+    Long pingTime;
+
     Integer id;
 
     Integer pid;

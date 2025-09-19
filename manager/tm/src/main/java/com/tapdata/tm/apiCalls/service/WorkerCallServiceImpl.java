@@ -14,7 +14,6 @@ import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
-import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.ApiWorkerServer;

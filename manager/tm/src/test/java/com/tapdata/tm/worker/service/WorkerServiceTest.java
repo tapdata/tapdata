@@ -458,43 +458,4 @@ class WorkerServiceTest {
             verify(mongoTemplate, never()).insert(any(WorkerExpire.class));
         }
     }
-
-    @Test
-    void test1() {
-        String token =
-"eyJraWQiOiIwYTJmMDgzZS1lMzZkLTQ0NjctYmFiYi1mMGM2MmVhN2M5ZjIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJhdWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjcmVhdGVkQXQiOjE3NTc2Njc1OTQwODksIm5iZiI6MTc1NzY2NzU5NCwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxNzU3NjY3ODk0MDg5LCJleHAiOjE3NTc2Njc4OTQsImlhdCI6MTc1NzY2NzU5NCwianRpIjoiNzY0ZGI1N2MtYmU3Ni00YmJmLTlmNDgtMmQ4N2ViMmQ4ZmFjIn0.IvVzcmDFWDJBwxgDBMTYJ-DEmNEHf2Gq77BRbd3zrfuTRiBUboKUhGMLqDVfC2E7i9WQdKaiaDa0uY2BS7huO586O3rt4dntlMcE334X1rMlIzf0i1DhJb-Ihz8b9E0_Dfqu93XVluO8L77KCaqyKLyIZTUzxK9YmFlCSbmeIRofEqOibLpFeRY6uxUOK5MwutVkqe_zOahgTdnklx7ClyzwFSsKrTpMPanJVjPS1oSWdP29t3zKhyoJkCpAhUPTkxu3ET7mFUgwOpQa1HAC749luN2aAju15GhKGIcBMUiMQoQKUwNPQV292A8VZGfUe4vYJIi7kirBfPFeRAL67A"
-
-        ;
-        while(true) {
-            String s = HttpUtils.sendGetData("http://127.0.0.1:3080/api/no/id?access_token=" + token, new HashMap<>());
-            JSONObject jsonObject = JSON.parseObject(s);
-            if (null != jsonObject.get("error")) {
-                break;
-            }
-            try {
-                Thread.sleep(100);
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
-            }
-        }
-    }
-    @Test
-    void test2() {
-        String token =
-"eyJraWQiOiIwYTJmMDgzZS1lMzZkLTQ0NjctYmFiYi1mMGM2MmVhN2M5ZjIiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJhdWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjcmVhdGVkQXQiOjE3NTc2Njc1OTQwODksIm5iZiI6MTc1NzY2NzU5NCwiY2xpZW50SWQiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJyb2xlcyI6WyIkZXZlcnlvbmUiLCJhZG1pbiJdLCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjMwMDAiLCJleHBpcmVkYXRlIjoxNzU3NjY3ODk0MDg5LCJleHAiOjE3NTc2Njc4OTQsImlhdCI6MTc1NzY2NzU5NCwianRpIjoiNzY0ZGI1N2MtYmU3Ni00YmJmLTlmNDgtMmQ4N2ViMmQ4ZmFjIn0.IvVzcmDFWDJBwxgDBMTYJ-DEmNEHf2Gq77BRbd3zrfuTRiBUboKUhGMLqDVfC2E7i9WQdKaiaDa0uY2BS7huO586O3rt4dntlMcE334X1rMlIzf0i1DhJb-Ihz8b9E0_Dfqu93XVluO8L77KCaqyKLyIZTUzxK9YmFlCSbmeIRofEqOibLpFeRY6uxUOK5MwutVkqe_zOahgTdnklx7ClyzwFSsKrTpMPanJVjPS1oSWdP29t3zKhyoJkCpAhUPTkxu3ET7mFUgwOpQa1HAC749luN2aAju15GhKGIcBMUiMQoQKUwNPQV292A8VZGfUe4vYJIi7kirBfPFeRAL67A"
-
-                ;
-        while(true) {
-            String s = HttpUtils.sendGetData("http://127.0.0.1:3080/api/x999/o9?access_token=" + token, new HashMap<>());
-            JSONObject jsonObject = JSON.parseObject(s);
-            if (null != jsonObject.get("error")) {
-                break;
-            }
-            try {
-                Thread.sleep(100);
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
-            }
-        }
-    }
 }

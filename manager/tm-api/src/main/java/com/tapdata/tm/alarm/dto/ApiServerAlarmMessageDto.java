@@ -21,7 +21,7 @@ public class ApiServerAlarmMessageDto {
 
     String userId;
     /**
-     * 是否发送消息
+     * Do you want to send a message
      */
     private boolean systemOpen;
     private boolean emailOpen;

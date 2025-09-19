@@ -17,7 +17,7 @@ public class RealTimeOfApiServerCpuUsageAlter implements CheckCPUMemoryBase {
 
     @Override
     public void check(UsageInfo usageInfo) {
-
+        //do nothing
     }
 
     @Override

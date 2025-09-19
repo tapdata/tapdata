@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiServer.check;
 
+import com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import org.springframework.stereotype.Service;
 
@@ -13,10 +14,11 @@ import java.util.Map;
  * @description
  */
 @Service
-public class RealTimeOfApiResponseSizeAlter implements com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter {
-    @Override
-    public void check(List<Map<String, Long>> apiReqBytesList) {
+public class RealTimeOfApiResponseSizeAlterImpl implements RealTimeOfApiResponseSizeAlter {
 
+    @Override
+    public void check(String userId, List<Map<String, Long>> apiReqBytesList) {
+        //do nothing
     }
 
     @Override
