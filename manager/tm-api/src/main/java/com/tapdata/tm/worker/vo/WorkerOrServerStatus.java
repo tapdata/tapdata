@@ -1,5 +1,7 @@
 package com.tapdata.tm.worker.vo;
 
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
+import com.tapdata.tm.worker.dto.MetricInfo;
 import lombok.Data;
 
 import java.util.Map;
@@ -35,9 +37,9 @@ public class WorkerOrServerStatus {
      * */
     Map<String, String> workerStatus;
 
-    Object processCpuMemStatus;
+    MetricInfo processCpuMemStatus;
 
-    Map<String, Object> cpuMemStatus;
+    Map<String, MetricInfo> cpuMemStatus;
 
-    Map<String, Map<String, Object>> workerBaseInfo;
+    Map<String, ApiServerWorkerInfo> workerBaseInfo;
 }

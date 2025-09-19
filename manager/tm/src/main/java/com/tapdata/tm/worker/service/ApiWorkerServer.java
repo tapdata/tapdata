@@ -16,10 +16,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -32,7 +34,44 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiWorkerServer {
+    public static final String WORKERS = "Workers";
+    public static final String PROCESS_ID = "process_id";
     MongoTemplate mongoOperations;
+
+    public void delete(String processId, String workerOid) {
+        if (StringUtils.isBlank(workerOid)) {
+            mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
+                    new org.springframework.data.mongodb.core.query.Update().set("delete", true),
+                    WORKERS);
+            return;
+        }
+        List<Worker> serverInfo = mongoOperations.find(Query.query(Criteria.where(PROCESS_ID).is(processId)), Worker.class);
+        if (serverInfo.isEmpty()) {
+            return;
+        }
+        Set<String> deleteItem = new HashSet<>();
+        serverInfo.forEach(worker -> {
+            if (null == worker.getWorkerStatus() || null == worker.getWorkerStatus().getWorkers()) {
+                return;
+            }
+            worker.getWorkerStatus()
+                    .getWorkers()
+                    .forEach((k, v) -> {
+                if (Objects.equals(v.getOid(), workerOid)) {
+                    deleteItem.add(k);
+                }
+            });
+        });
+        deleteItem.forEach(item -> {
+            try {
+                mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
+                        new org.springframework.data.mongodb.core.query.Update().unset("worker_status.workers." + item),
+                        WORKERS);
+            } catch (Exception e) {
+                log.error("Unable to remove worker from api server: {}, msg: {}", item, e.getMessage());
+            }
+        });
+    }
 
     public ApiServerInfo getWorkers(String processId) {
         ApiServerInfo server = new ApiServerInfo();
@@ -77,11 +116,11 @@ public class ApiWorkerServer {
         if (StringUtils.isBlank(processId)) {
             throw new BizException("api.call.metric.process.id.required");
         }
-        Criteria cWorker = Criteria.where("process_id").is(processId)
+        Criteria cWorker = Criteria.where(PROCESS_ID).is(processId)
                 .and("worker_type").is("api-server")
                 .and(WorkerCallServiceImpl.Tag.DELETE).ne(true);
         Query qWorker = Query.query(cWorker).limit(1);
-        Worker server = mongoOperations.findOne(qWorker, Worker.class, "Workers");
+        Worker server = mongoOperations.findOne(qWorker, Worker.class, WORKERS);
         if (server == null) {
             throw new BizException("api.call.metric.server.not.found", processId);
         }
@@ -107,7 +146,7 @@ public class ApiWorkerServer {
         Criteria cWorker = Criteria.where("worker_type").is("api-server")
                 .and(WorkerCallServiceImpl.Tag.DELETE).ne(true);
         Query qWorker = Query.query(cWorker);
-        List<Worker> server = mongoOperations.find(qWorker, Worker.class, "Workers");
+        List<Worker> server = mongoOperations.find(qWorker, Worker.class, WORKERS);
         if (server.isEmpty()) {
             return new ArrayList<>();
         }

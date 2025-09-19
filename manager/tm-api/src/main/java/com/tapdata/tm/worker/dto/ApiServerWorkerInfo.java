@@ -1,8 +1,6 @@
 package com.tapdata.tm.worker.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
@@ -22,12 +20,8 @@ public class ApiServerWorkerInfo {
 
     String name;
 
-    @Field("worker_status")
-    @JsonProperty("worker_status")
     String workerStatus;
 
-    @Field("worker_start_time")
-    @JsonProperty("worker_start_time")
     Long workerStartTime;
 
     MetricInfo metricValues;
