@@ -69,4 +69,6 @@ public class SaveInspectResultParam {
     private String firstCheckId;
 
     private boolean partStats;   // 标识是否只上报了一部分 stats 信息
+
+    private boolean judgeAutomaticCheck;
 }
