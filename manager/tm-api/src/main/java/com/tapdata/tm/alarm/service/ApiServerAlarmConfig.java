@@ -12,7 +12,5 @@ public interface ApiServerAlarmConfig {
 
     default void remove(String apiId, AlarmKeyEnum alarmKeyEnum) {}
 
-    default void update(String apiId, AlarmKeyEnum alarmKeyEnum) {}
-
     AlarmRuleDto config(String apiId, AlarmKeyEnum alarmKeyEnum);
 }

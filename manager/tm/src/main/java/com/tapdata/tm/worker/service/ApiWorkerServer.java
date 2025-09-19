@@ -132,6 +132,17 @@ public class ApiWorkerServer {
         List<ApiServerWorkerInfo> workerList = new ArrayList<>();
         Map<String, ApiServerWorkerInfo> workers = workerStatus.getWorkers();
         if (null != workers && !workers.isEmpty()) {
+            workers.values().forEach(v -> {
+                v.setPingTime(v.getActiveTime());
+                Optional.ofNullable(v.getMetricValues()).ifPresent(m -> {
+                    if (null != m.getCpuUsage() && m.getCpuUsage() < 0D) {
+                        m.setCpuUsage(null);
+                    }
+                    if (null != m.getHeapMemoryUsage() && m.getHeapMemoryUsage() < 0L) {
+                        m.setHeapMemoryUsage(null);
+                    }
+                });
+            });
             workerList.addAll(workers.values());
         }
         return workerList;

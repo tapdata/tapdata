@@ -45,18 +45,18 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.module.entity.Path;
+import com.tapdata.tm.module.enums.ParamTypeEnum;
 import com.tapdata.tm.modules.constant.ApiTypeEnum;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
-import com.tapdata.tm.module.enums.ParamTypeEnum;
 import com.tapdata.tm.modules.dto.ApiView;
 import com.tapdata.tm.modules.dto.ApiViewUtil;
-import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
 import com.tapdata.tm.modules.dto.ModulesUpAndLoadDto;
-import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.modules.entity.ModulesEntity;
-import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.util.MongoQueryValidator;
@@ -79,7 +79,6 @@ import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
-import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -534,20 +533,20 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Query query = Query.query(criteria);
 		query.limit(1);
 		WorkerDto one = workerService.findOne(query);
-		List<ApiServerWorkerInfo> apiWorkerInfos = Optional.ofNullable(one)
-				.map(WorkerDto::getWorkerStatus)
-				.map(ApiServerStatus::getWorkers)
-				.map(Map::values)
-				.orElse(new ArrayList<>())
-				.stream()
-				.sorted(Comparator.comparing(ApiServerWorkerInfo::getSort))
-				.toList();
+		List<ApiServerWorkerInfo> apiWorkerInfos = new ArrayList<>(Optional.ofNullable(one)
+                .map(WorkerDto::getWorkerStatus)
+                .map(ApiServerStatus::getWorkers)
+                .map(Map::values)
+                .orElse(new ArrayList<>())
+                .stream()
+                .sorted(Comparator.comparing(ApiServerWorkerInfo::getSort))
+                .toList());
 		int size = apiWorkerInfos.size();
 		for (int index = 0; index < size; index++) {
 			ApiServerWorkerInfo worker = apiWorkerInfos.get(index);
 			worker.setName(Optional.ofNullable(worker.getName()).orElse("Worker-" + (index + 1)));
 			worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
-			worker.setSort(Optional.ofNullable(worker.getSort()).orElse(index));
+			worker.setSort(worker.getSort());
 		}
 		for (int i = size; i < workerCount; i++) {
 			ApiServerWorkerInfo item = new ApiServerWorkerInfo();

@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -393,6 +394,23 @@ class WorkerCallServiceImplTest {
             doCallRealMethod().when(callService).metric();
             Assertions.assertDoesNotThrow(() -> callService.metric());
         }
+        @Test
+        void testNotOid() {
+            List<WorkerDto> apiServers = new ArrayList<>();
+            WorkerDto d4 = new WorkerDto();
+            ApiServerStatus map1 = new ApiServerStatus();
+            Map<String, ApiServerWorkerInfo> info = new HashMap<>();
+            map1.setWorkers(info);
+            ApiServerWorkerInfo workerInfo = new ApiServerWorkerInfo();
+            info.put("1", workerInfo);
+            d4.setWorkerStatus(map1);
+            apiServers.add(d4);
+
+            when(workerService.findAll(any(Query.class))).thenReturn(apiServers);
+            doNothing().when(callService).metricWorker(anyString());
+            doCallRealMethod().when(callService).metric();
+            Assertions.assertDoesNotThrow(() -> callService.metric());
+        }
 
         @Test
         void testNull() {
@@ -489,6 +507,17 @@ class WorkerCallServiceImplTest {
             when(mongoOperations.findOne(any(Query.class), any(Class.class))).thenReturn(null);
             doNothing().when(callService).bulkUpsert(anyList());
             Assertions.assertDoesNotThrow(() -> callService.metricWorker("id"));
+        }
+    }
+
+    @Nested
+    class findDataTest {
+        @Test
+        void testNormal() {
+            when(callService.findData(any(Query.class))).thenCallRealMethod();
+            when(mongoOperations.find(any(Query.class), any(Class.class))).thenReturn(new ArrayList<>());
+            List<WorkerCallEntity> data = callService.findData(Query.query(Criteria.where("workOid").is("id")));
+            Assertions.assertNotNull(data);
         }
     }
 }

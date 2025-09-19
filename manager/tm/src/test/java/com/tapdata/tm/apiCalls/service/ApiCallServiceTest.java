@@ -4,10 +4,12 @@ import com.alibaba.fastjson.JSON;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
 import com.tapdata.tm.apiCalls.vo.ApiPercentile;
+import com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
@@ -68,6 +70,7 @@ class ApiCallServiceTest {
     private ApiCallStatsService apiCallStatsService;
     ApplicationConfig applicationConfig;
     TextEncryptionRuleService ruleService;
+    private RealTimeOfApiResponseSizeAlter realTimeOfApiResponseSizeAlter;
 
     @BeforeEach
     void setUp() {
@@ -87,6 +90,8 @@ class ApiCallServiceTest {
         apiCallStatsService = mock(ApiCallStatsService.class);
         ReflectionTestUtils.setField(apiCallService, "apiCallStatsService", apiCallStatsService);
         ReflectionTestUtils.setField(apiCallService, "ruleService", ruleService);
+        realTimeOfApiResponseSizeAlter = mock(RealTimeOfApiResponseSizeAlter.class);
+        ReflectionTestUtils.setField(apiCallService, "realTimeOfApiResponseSizeAlter", realTimeOfApiResponseSizeAlter);
     }
 
     @Nested
@@ -940,6 +945,21 @@ class ApiCallServiceTest {
             Assertions.assertNull(apiPercentile.getP50());
             Assertions.assertNull(apiPercentile.getP95());
             Assertions.assertNull(apiPercentile.getP99());
+        }
+    }
+
+    @Nested
+    class saveTest {
+        @Test
+        void testNormal() {
+            List<ApiCallDto> saveApiCallParamList = new ArrayList<>();
+            ApiCallDto dto = new ApiCallDto();
+            saveApiCallParamList.add(dto);
+            UserDetail userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("userId");
+            when(mongoTemplate.insert(anyList(), anyString())).thenReturn(new ArrayList<>());
+            doNothing().when(realTimeOfApiResponseSizeAlter).check(anyString(), anyList());
+            apiCallService.save(saveApiCallParamList, userDetail);
         }
     }
 

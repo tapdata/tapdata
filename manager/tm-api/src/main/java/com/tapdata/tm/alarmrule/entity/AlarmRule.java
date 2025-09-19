@@ -28,8 +28,8 @@ public class AlarmRule extends BaseEntity {
     @Schema(description = "连续次数")
     private int times;
 
-    @Schema(description = "对比值，单位：double/int/long...")
+    @Schema(description = "Comparison value, type: double/int/long...")
     private Number value;
-    @Schema(description = "对比值单位：ms、%、MB")
+    @Schema(description = "Comparison value unit: ms、%、MB")
     private String unit;
 }

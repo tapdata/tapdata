@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service;
 public class RealTimeOfApiServerCpuUsageWarn implements CheckCPUMemoryBase {
     @Override
     public void check(UsageInfo usageInfo) {
-
+        //do nothing
     }
 
     @Override

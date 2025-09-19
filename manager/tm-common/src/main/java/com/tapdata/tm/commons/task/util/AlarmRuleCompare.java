@@ -4,7 +4,6 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,7 +41,7 @@ public final class AlarmRuleCompare {
         }
         Number current = alarmRule.getValue();
         int compareResult = compare.compareTo(value, current);
-        return alarmRule.getEqualsFlag() == compareResult;
+        return alarmRule.getEqualsFlag() == compareResult || compareResult == 0;
     }
 
     public boolean allCompare(Collection<Number> value) {
@@ -60,8 +59,8 @@ public final class AlarmRuleCompare {
         default int compareTo(Number value, Number current) {
             T left = compare(value);
             T right = compare(current);
-            if (left instanceof Comparable c1) {
-                return c1.compareTo(right);
+            if (left instanceof Comparable<?> c1) {
+                return ((Comparable<T>) c1).compareTo(right);
             }
             throw new IllegalArgumentException("Not comparable: " + value.getClass());
         }

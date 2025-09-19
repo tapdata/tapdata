@@ -74,16 +74,6 @@ public class ApiServerAlarmConfigImpl implements ApiServerAlarmConfig, Initializ
     }
 
     @Override
-    public void update(String apiId, AlarmKeyEnum alarmKeyEnum) {
-        if (null != apiId) {
-
-        } else {
-            Map<AlarmKeyEnum, AlarmRuleDto> info = CONFIG.get(SYSTEM);
-
-        }
-    }
-
-    @Override
     public AlarmRuleDto config(String apiId, AlarmKeyEnum alarmKeyEnum) {
         synchronized (CONFIG) {
             return Optional.ofNullable(alarmKeyEnum)
