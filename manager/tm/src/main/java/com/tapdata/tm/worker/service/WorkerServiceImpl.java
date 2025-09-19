@@ -608,11 +608,6 @@ public class WorkerServiceImpl extends WorkerService{
     }
 
     @Override
-    public void saveMetricValues(List<MetricInfoEntity> status) {
-        mongoTemplate.insert(status, MetricInfoEntity.class);
-    }
-
-    @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
         List<MetricInfoEntity> statMetric = new ArrayList<>();
         final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
@@ -650,7 +645,6 @@ public class WorkerServiceImpl extends WorkerService{
             })
         );
         update(query, update);
-        saveMetricValues(statMetric);
     }
 
     MetricInfoEntity metricInfoEntity(String id, String type, MetricInfo item) {

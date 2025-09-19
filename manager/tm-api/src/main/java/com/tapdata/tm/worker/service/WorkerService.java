@@ -12,7 +12,6 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
-import com.tapdata.tm.worker.entity.MetricInfoEntity;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
@@ -66,8 +65,6 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
     public abstract void updateMsg(Map map);
 
     public abstract Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail);
-
-    public abstract void saveMetricValues(List<MetricInfoEntity> status);
 
     public abstract void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail);
 

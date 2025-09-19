@@ -5,10 +5,13 @@ import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.HashMap;
 
@@ -18,7 +21,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class WorkerServiceImplTest {
-
+    WorkerServiceImpl workerService;
+    MongoTemplate mongoTemplate;
+    @BeforeEach
+    void init() {
+        mongoTemplate = mock(MongoTemplate.class);
+        workerService = mock(WorkerServiceImpl.class);
+        ReflectionTestUtils.setField(workerService, "mongoTemplate", mongoTemplate);
+    }
 
     @Nested
     class updateWorkerStatusTest {
@@ -40,7 +50,6 @@ class WorkerServiceImplTest {
             status.getWorkerBaseInfo().get("id").setSort(1);
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getUsername()).thenReturn("username");
-            WorkerServiceImpl workerService = mock(WorkerServiceImpl.class);
             when(workerService.update(any(Query.class), any(Update.class))).thenReturn(null);
             doCallRealMethod().when(workerService).updateWorkerStatus(status, userDetail);
             Assertions.assertDoesNotThrow(() -> workerService.updateWorkerStatus(status, userDetail));
