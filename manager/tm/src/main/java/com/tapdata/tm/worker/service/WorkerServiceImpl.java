@@ -659,10 +659,12 @@ public class WorkerServiceImpl extends WorkerService{
         entity.setNodeId(id);
         entity.setType(type);
         entity.setId(new ObjectId());
-        Optional.ofNullable(item.getHeapMemoryUsage())
-                .ifPresent(entity::setHeapMemoryUsage);
-        Optional.ofNullable(item.getCpuUsage())
-                .ifPresent(entity::setCpuUsage);
+        Optional.ofNullable(item).ifPresent(i -> {
+            Optional.ofNullable(i.getHeapMemoryUsage())
+                    .ifPresent(entity::setHeapMemoryUsage);
+            Optional.ofNullable(i.getCpuUsage())
+                    .ifPresent(entity::setCpuUsage);
+        });
         return entity;
     }
 
