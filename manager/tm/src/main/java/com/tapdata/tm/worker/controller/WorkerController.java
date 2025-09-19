@@ -535,14 +535,7 @@ public class WorkerController extends BaseController {
                                 && StringUtils.isNotBlank(wStatus)) {
                             status.getWorkerStatus().put(oid, wStatus);
                             status.getCpuMemStatus().put(oid, workerInfo.getMetricValues());
-                            Map<String, Object> map = status.getWorkerBaseInfo().computeIfAbsent(oid, k -> new HashMap<>());
-                            map.put("name", workerInfo.getName());
-                            map.put("oid", oid);
-                            map.put("id", workerInfo.getId());
-                            map.put("worker_start_time", workerInfo.getWorkerStartTime());
-                            map.put("sort", workerInfo.getSort());
-                            map.put("pid", workerInfo.getPid());
-                            map.put("worker_status", workerInfo.getWorkerStatus());
+                            status.getWorkerBaseInfo().put(oid, workerInfo);
                         }
                     });
                 }

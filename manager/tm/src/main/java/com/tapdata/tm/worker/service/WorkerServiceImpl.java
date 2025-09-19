@@ -40,6 +40,7 @@ import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
+import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.dto.WorkSchedule;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerExpireDto;
@@ -630,7 +631,7 @@ public class WorkerServiceImpl extends WorkerService{
         });
         Optional.ofNullable(status.getWorkerStatus())
                 .ifPresent(ws -> ws.forEach((id,  value) -> {
-                    update.set(String.format("worker_status.workers.%s.worker_status", id), value);
+                    update.set(String.format("worker_status.workers.%s.workerStatus", id), value);
                     update.set(String.format("worker_status.workers.%s.activeTime", id), time);
                 }));
         Optional.ofNullable(status.getCpuMemStatus())
@@ -639,32 +640,29 @@ public class WorkerServiceImpl extends WorkerService{
                             statMetric.add(metricInfoEntity(id, "worker", value));
                         }));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
-            workerBaseInfo.forEach((id,  value) -> {
-                Optional.ofNullable(value.get("name")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", id), v));
-                Optional.ofNullable(value.get("oid")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.oid", id), v));
-                Optional.ofNullable(value.get("id")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", id), v));
-                Optional.ofNullable(value.get("pid")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", id), v));
-                Optional.ofNullable(value.get("worker_start_time")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.worker_start_time", id), v));
-                Optional.ofNullable(value.get("sort")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.sort", id), v));
+            workerBaseInfo.forEach((oid,  worker) -> {
+                Optional.ofNullable(worker.getName()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", oid), v));
+                Optional.ofNullable(worker.getId()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", oid), v));
+                Optional.ofNullable(worker.getPid()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", oid), v));
+                Optional.ofNullable(worker.getWorkerStartTime()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.workerStartTime", oid), v));
+                Optional.ofNullable(worker.getWorkerStatus()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.workerStatus", oid), v));
+                update.set(String.format("worker_status.workers.%s.sort", oid), worker.getSort());
+                update.set(String.format("worker_status.workers.%s.oid", oid), oid);
             })
         );
         update(query, update);
         saveMetricValues(statMetric);
     }
 
-    MetricInfoEntity metricInfoEntity(String id, String type, Object item) {
+    MetricInfoEntity metricInfoEntity(String id, String type, MetricInfo item) {
         MetricInfoEntity entity = new MetricInfoEntity();
         entity.setNodeId(id);
         entity.setType(type);
         entity.setId(new ObjectId());
-        if (item instanceof Map<?,?> map) {
-            Optional.ofNullable(map.get("HeapMemoryUsage")).filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).longValue())
-                    .ifPresent(entity::setHeapMemoryUsage);
-            Optional.ofNullable(map.get("CpuUsage")).filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).doubleValue())
-                    .ifPresent(entity::setCpuUsage);
-        }
+        Optional.ofNullable(item.getHeapMemoryUsage())
+                .ifPresent(entity::setHeapMemoryUsage);
+        Optional.ofNullable(item.getCpuUsage())
+                .ifPresent(entity::setCpuUsage);
         return entity;
     }
 
