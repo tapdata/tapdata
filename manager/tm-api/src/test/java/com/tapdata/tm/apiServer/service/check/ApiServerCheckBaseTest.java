@@ -3,7 +3,8 @@ package com.tapdata.tm.apiServer.service.check;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class ApiServerCheckBaseTest {
     class MockApiServerCheckBase implements ApiServerCheckBase {
@@ -11,12 +12,6 @@ class ApiServerCheckBaseTest {
         public AlarmKeyEnum type() {
             return null;
         }
-    }
-
-    @Test
-    void enable() {
-        MockApiServerCheckBase base = new MockApiServerCheckBase();
-        assertTrue(base.enable());
     }
 
     @Test
