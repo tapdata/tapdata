@@ -1,10 +1,9 @@
-package com.tapdata.tm.apiCalls.service.metric;
-
+package com.tapdata.tm.apiServer.service.metric;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.apiServer.service.metric.Metric;
-import com.tapdata.tm.apiServer.service.metric.MetricResponseTime;
+import com.tapdata.tm.apiServer.service.metric.MetricErrorRate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.query.Query;
@@ -13,18 +12,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-class MetricResponseTimeTest {
+class MetricErrorRateTest {
+
     @Test
     void testFields() {
         Query query = new Query();
-        MetricResponseTime metric = new MetricResponseTime();
+        MetricErrorRate metric = new MetricErrorRate();
         metric.fields(query);
         Set<String> fields = query.fields().getFieldsObject().keySet();
-        Assertions.assertEquals(7, fields.size());
-        Assertions.assertTrue(fields.contains("delays"));
-        Assertions.assertTrue(fields.contains("p50"));
-        Assertions.assertTrue(fields.contains("p95"));
-        Assertions.assertTrue(fields.contains("p99"));
+        Assertions.assertEquals(6, fields.size());
+        Assertions.assertTrue(fields.contains("errorRate"));
+        Assertions.assertTrue(fields.contains("errorCount"));
+        Assertions.assertTrue(fields.contains("reqCount"));
         Assertions.assertTrue(fields.contains("workOid"));
         Assertions.assertTrue(fields.contains("timeStart"));
         Assertions.assertTrue(fields.contains("processId"));
@@ -32,7 +31,7 @@ class MetricResponseTimeTest {
 
     @Test
     void testMergeTo() {
-        MetricResponseTime metric = new MetricResponseTime();
+        MetricErrorRate metric = new MetricErrorRate();
         MetricDataBase metricDataBase = metric.mergeTo(0L, new ArrayList<>());
         Assertions.assertNotNull(metricDataBase);
     }
@@ -40,32 +39,27 @@ class MetricResponseTimeTest {
     void testMergeTo1() {
         List<WorkerCallEntity> vos = new ArrayList<>();
         WorkerCallEntity entity = new WorkerCallEntity();
-        entity.setDelays(List.of(2L, 4L));
+        entity.setReqCount(1L);
+        entity.setErrorCount(1L);
         vos.add(entity);
-        WorkerCallEntity e1 = new WorkerCallEntity();
-        e1.setDelays(null);
-        vos.add(e1);
-        WorkerCallEntity e2 = new WorkerCallEntity();
-        e2.setDelays(new ArrayList<>());
-        vos.add(e2);
-        MetricResponseTime metric = new MetricResponseTime();
+        MetricErrorRate metric = new MetricErrorRate();
         MetricDataBase metricDataBase = metric.mergeTo(0L, vos);
         Assertions.assertNotNull(metricDataBase);
     }
     @Test
     void testToResult() {
-        MetricResponseTime metric = new MetricResponseTime();
+        MetricErrorRate metric = new MetricErrorRate();
         List<MetricDataBase> data = new ArrayList<>();
         data.add(null);
         data.add(metric.mock(0L));
-        ApiCallMetricVo.MetricResponseTime result = metric.toResult(data);
+        ApiCallMetricVo.MetricErrorRate result = metric.toResult(data);
         Assertions.assertNotNull(result);
     }
 
     @Test
     void testAfterPropertiesSet() {
-        MetricResponseTime metric = new MetricResponseTime();
+        MetricErrorRate metric = new MetricErrorRate();
         metric.afterPropertiesSet();
-        Assertions.assertNotNull(Metric.Factory.get(Metric.Type.RESPONSE_TIME));
+        Assertions.assertNotNull(Metric.Factory.get(Metric.Type.ERROR_RATE));
     }
 }
