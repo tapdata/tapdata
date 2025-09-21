@@ -1,5 +1,7 @@
 package com.tapdata.tm.apiServer.utils;
 
+import lombok.Getter;
+
 import java.util.List;
 
 public class PercentileCalculator {
@@ -9,14 +11,14 @@ public class PercentileCalculator {
     }
 
     /**
-     * 计算百分位数 - 自动处理小数据集
+     * Calculate percentiles - automatic processing of small datasets
      */
     public static Long calculatePercentile(List<Long> values, double percentile) {
         if (values == null || values.isEmpty()) {
             return null;
         }
 
-        // 转换为数组并排序
+        // Convert to array and sort
         long[] sortedValues = values.stream()
                 .mapToLong(Long::longValue)
                 .sorted()
@@ -24,7 +26,7 @@ public class PercentileCalculator {
 
         int n = sortedValues.length;
 
-        // 小数据集处理策略
+        // Small dataset processing strategy
         if (n <= 5) {
             return handleSmallDataset(sortedValues, percentile);
         } else {
@@ -33,21 +35,21 @@ public class PercentileCalculator {
     }
 
     /**
-     * 处理小数据集（≤5个数据点）
+     * Processing small datasets (≤ 5 data points)
      */
     private static Long handleSmallDataset(long[] sortedValues, double percentile) {
         int n = sortedValues.length;
 
-        // 单个数据点
+        // Single data point
         if (n == 1) {
             return sortedValues[0];
         }
 
-        // 使用最近秩方法
+        // Use the nearest rank method
         double position = percentile * (n + 1);
         int index = (int) Math.round(position) - 1;
 
-        // 边界检查
+        // Bound checking
         if (index < 0) {
             return sortedValues[0];
         } else if (index >= n) {
@@ -58,7 +60,7 @@ public class PercentileCalculator {
     }
 
     /**
-     * 处理大数据集（>5个数据点）
+     * Processing large datasets (>5 data points)
      */
     private static Long handleLargeDataset(long[] sortedValues, double percentile) {
         int n = sortedValues.length;
@@ -74,7 +76,7 @@ public class PercentileCalculator {
     }
 
     /**
-     * 计算多个百分位数
+     * Calculate multiple percentiles
      */
     public static PercentileResult calculatePercentiles(List<Long> values) {
         return new PercentileResult(
@@ -85,17 +87,17 @@ public class PercentileCalculator {
     }
 
     /**
-     * 带权重的百分位数计算（适用于需要强调某些数据的情况）
+     * Weighted percentile calculation (applicable to situations where certain data needs to be emphasized)
      */
     public static Double calculateWeightedPercentile(List<WeightedValue> weightedValues, double percentile) {
         if (weightedValues == null || weightedValues.isEmpty()) {
             return null;
         }
 
-        // 按值排序
+        // Sort by value
         weightedValues.sort((a, b) -> Double.compare(a.value, b.value));
 
-        // 计算累计权重
+        // Calculate cumulative weight
         double totalWeight = weightedValues.stream()
                 .mapToDouble(wv -> wv.weight)
                 .sum();
@@ -114,8 +116,9 @@ public class PercentileCalculator {
     }
 
     /**
-     * 结果封装类
+     * Result encapsulation class
      */
+    @Getter
     public static class PercentileResult {
         public final Long p50;
         public final Long p95;
@@ -127,18 +130,6 @@ public class PercentileCalculator {
             this.p99 = p99;
         }
 
-        public Long getP50() {
-            return p50;
-        }
-
-        public Long getP95() {
-            return p95;
-        }
-
-        public Long getP99() {
-            return p99;
-        }
-
         @Override
         public String toString() {
             return String.format("P50: %d, P95: %d, P99: %d", p50, p95, p99);
@@ -146,7 +137,7 @@ public class PercentileCalculator {
     }
 
     /**
-     * 带权重的值
+     * Weighted values
      */
     public static class WeightedValue {
         public final double value;

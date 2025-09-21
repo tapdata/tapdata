@@ -1,5 +1,8 @@
 package com.tapdata.tm.apiServer.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum TimeGranularityType {
     MINUTE(1, "minute"),
     HOUR(2, "hour"),
@@ -11,13 +14,5 @@ public enum TimeGranularityType {
     TimeGranularityType(int code, String msg) {
         this.code = code;
         this.msg = msg;
-    }
-
-    public int getCode() {
-        return code;
-    }
-
-    public String getMsg() {
-        return msg;
     }
 }

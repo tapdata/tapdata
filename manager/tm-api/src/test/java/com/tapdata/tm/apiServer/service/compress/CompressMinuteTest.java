@@ -1,5 +1,4 @@
-package com.tapdata.tm.apiCalls.service.compress;
-
+package com.tapdata.tm.apiServer.service.compress;
 import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
 import com.tapdata.tm.apiServer.service.compress.Compress;
 import com.tapdata.tm.apiServer.service.compress.CompressMinute;
