@@ -1,6 +1,5 @@
 package com.tapdata.tm.task.service;
 
-import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.Settings.service.SettingsServiceImpl;
@@ -12,6 +11,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.DataPermissionHelperImpl;
@@ -29,6 +29,7 @@ import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.chart.ChartViewService;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -36,7 +37,11 @@ import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import org.bson.BsonValue;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -50,16 +55,37 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
-import static org.springframework.beans.BeanUtils.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.beans.BeanUtils.copyProperties;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskServiceTest {
@@ -180,6 +206,7 @@ public class TaskServiceTest {
         Query query;
         TaskEntity taskEntity;
         TaskScheduleService taskScheduleService;
+        MetadataDefinitionService metadataDefinitionService;
 
 
         @BeforeEach
@@ -199,6 +226,8 @@ public class TaskServiceTest {
             taskEntities.add(taskEntity);
             taskScheduleService = mock(TaskScheduleService.class);
             taskService.setTaskScheduleService(taskScheduleService);
+            metadataDefinitionService = mock(MetadataDefinitionService.class);
+            taskService.setMetadataDefinitionService(metadataDefinitionService);
             when(repository.findAll(query)).thenReturn(taskEntities);
         }
 
@@ -208,11 +237,12 @@ public class TaskServiceTest {
                 Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
                 query.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
-                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                List<TaskDto> taskDtos = BeanUtil.deepCloneList(taskEntities, TaskDto.class);
                 CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
@@ -228,12 +258,13 @@ public class TaskServiceTest {
                 Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
                 query.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
-                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                List<TaskDto> taskDtos = BeanUtil.deepCloneList(taskEntities, TaskDto.class);
                 CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setTotalLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);

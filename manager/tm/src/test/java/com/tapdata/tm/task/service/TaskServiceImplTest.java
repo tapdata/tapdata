@@ -53,6 +53,7 @@ import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageServiceImpl;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
@@ -88,6 +89,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
@@ -3107,6 +3109,7 @@ class TaskServiceImplTest {
         Query query;
         TaskEntity taskEntity;
         TaskScheduleService taskScheduleService;
+        MetadataDefinitionService metadataDefinitionService;
 
 
         @BeforeEach
@@ -3127,6 +3130,8 @@ class TaskServiceImplTest {
             taskScheduleService = mock(TaskScheduleService.class);
             taskService.setTaskScheduleService(taskScheduleService);
             when(repository.findAll(query)).thenReturn(taskEntities);
+            metadataDefinitionService = mock(MetadataDefinitionService.class);
+            taskService.setMetadataDefinitionService(metadataDefinitionService);
         }
 
         @Test
@@ -3140,6 +3145,7 @@ class TaskServiceImplTest {
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
@@ -3161,6 +3167,7 @@ class TaskServiceImplTest {
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setTotalLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
@@ -3175,12 +3182,13 @@ class TaskServiceImplTest {
                 Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
                 query.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
-                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                List<TaskDto> taskDtos = BeanUtil.deepCloneList(taskEntities, TaskDto.class);
                 CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setTotalLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
