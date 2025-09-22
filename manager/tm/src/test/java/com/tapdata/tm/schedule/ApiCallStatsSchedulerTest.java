@@ -4,7 +4,7 @@ import ch.qos.logback.classic.Logger;
 import com.tapdata.tm.apiCalls.service.ApiCallService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
 import com.tapdata.tm.apicallstats.service.ApiCallStatsService;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.bson.Document;

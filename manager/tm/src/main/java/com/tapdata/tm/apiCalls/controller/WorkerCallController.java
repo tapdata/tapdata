@@ -1,7 +1,7 @@
 package com.tapdata.tm.apiCalls.controller;
 
-import com.tapdata.tm.apiCalls.service.WorkerCallService;
-import com.tapdata.tm.apiCalls.vo.ApiCallMetricVo;
+import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
+import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiCalls.vo.ApiCountMetricVo;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping(value = {"/api/worker-call"})
 public class WorkerCallController extends BaseController {
     @Autowired
-    private WorkerCallService workerCallService;
+    private WorkerCallServiceImpl workerCallServiceImpl;
 
     /**
      * 查询worker的api调用详情
@@ -50,7 +50,7 @@ public class WorkerCallController extends BaseController {
             @RequestParam(name = "type", required = false, defaultValue = "0") Integer type,
             @RequestParam(name = "granularity", required = false, defaultValue = "0") Integer granularity
     ) {
-        return success(workerCallService.find(processId, from, to, type, granularity));
+        return success(workerCallServiceImpl.find(processId, from, to, type, granularity));
     }
 
     /**
@@ -60,6 +60,6 @@ public class WorkerCallController extends BaseController {
      */
     @GetMapping("/api-calls/{processId}")
     public ResponseMessage<ApiCountMetricVo> findWorkerApiCalls(@PathVariable("processId") String processId) {
-        return success(workerCallService.findWorkerApiCalls(processId));
+        return success(workerCallServiceImpl.findWorkerApiCalls(processId));
     }
 }

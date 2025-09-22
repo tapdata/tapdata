@@ -4,9 +4,13 @@ import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 
 public interface ApiServerAlarmConfig {
-    void updateConfig();
+    String SYSTEM = "system";
 
-    void clean();
+    default void updateConfig() {}
+
+    default void clean() {}
+
+    default void remove(String apiId, AlarmKeyEnum alarmKeyEnum) {}
 
     AlarmRuleDto config(String apiId, AlarmKeyEnum alarmKeyEnum);
 }

@@ -1,5 +1,6 @@
 package com.tapdata.tm.modules.constant;
 
+import com.tapdata.tm.module.enums.ParamTypeEnum;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

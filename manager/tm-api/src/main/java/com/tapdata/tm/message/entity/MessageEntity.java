@@ -54,4 +54,16 @@ public class MessageEntity extends BaseEntity {
 
     private String template;
     private Map<String, Object> param;
+
+    private ApiInfo apiInfo;
+
+    @Data
+    public static class ApiInfo {
+        String apiId;
+        String apiName;
+        String serverId;
+        String serverName;
+        String workerId;
+        String workerName;
+    }
 }

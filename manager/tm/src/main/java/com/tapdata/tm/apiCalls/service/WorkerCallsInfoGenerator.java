@@ -1,8 +1,8 @@
 package com.tapdata.tm.apiCalls.service;
 
-import com.tapdata.tm.apiCalls.entity.WorkerCallEntity;
-import com.tapdata.tm.apiCalls.enums.TimeGranularityType;
-import com.tapdata.tm.apiCalls.utils.PercentileCalculator;
+import com.tapdata.tm.apiServer.entity.WorkerCallEntity;
+import com.tapdata.tm.apiServer.enums.TimeGranularityType;
+import com.tapdata.tm.apiServer.utils.PercentileCalculator;
 import com.tapdata.tm.apiCalls.vo.WorkerCallsInfo;
 import org.bson.types.ObjectId;
 

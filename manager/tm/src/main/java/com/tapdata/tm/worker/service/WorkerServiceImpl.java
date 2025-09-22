@@ -16,7 +16,6 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
@@ -41,7 +40,12 @@ import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import com.tapdata.tm.worker.dto.*;
+import com.tapdata.tm.worker.dto.MetricInfo;
+import com.tapdata.tm.worker.dto.WorkSchedule;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
+import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.MetricInfoEntity;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
@@ -67,7 +71,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -583,7 +595,7 @@ public class WorkerServiceImpl extends WorkerService{
         List<ApiWorkerStatusVo> list = Lists.newArrayList();
         if (null != worker) {
             ApiWorkerStatusVo workerStatusVo = new ApiWorkerStatusVo();
-            workerStatusVo.setWorkerStatus(worker.getWorker_status());
+            workerStatusVo.setWorkerStatus(worker.getWorkerStatus());
             workerStatusVo.setServerDate(System.currentTimeMillis());
             list.add(workerStatusVo);
         } else {
@@ -597,6 +609,7 @@ public class WorkerServiceImpl extends WorkerService{
 
     @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
+        List<MetricInfoEntity> statMetric = new ArrayList<>();
         final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
                 .and("worker_type").is("api-server")
                 .and("delete").ne(true);
@@ -607,29 +620,45 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
-        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
-            update.set("worker_status.metricValues", s)
-        );
+        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s -> {
+            update.set("worker_status.metricValues", s);
+            statMetric.add(metricInfoEntity(status.getProcessId(), "api-server", s));
+        });
         Optional.ofNullable(status.getWorkerStatus())
                 .ifPresent(ws -> ws.forEach((id,  value) -> {
-                    update.set(String.format("worker_status.workers.%s.worker_status", id), value);
-                    update.set(String.format("worker_status.workers.%s.activeTime", id), time);
+                    update.set(String.format("worker_status.workers.%s.workerStatus", id), value);
                 }));
         Optional.ofNullable(status.getCpuMemStatus())
-                        .ifPresent(ws -> ws.forEach((id,  value) ->
-                    update.set(String.format("worker_status.workers.%s.metricValues", id), value)
-                ));
+                        .ifPresent(ws -> ws.forEach((id,  value) -> {
+                            update.set(String.format("worker_status.workers.%s.metricValues", id), value);
+                            statMetric.add(metricInfoEntity(id, "worker", value));
+                        }));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
-            workerBaseInfo.forEach((id,  value) -> {
-                Optional.ofNullable(value.get("name")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", id), v));
-                Optional.ofNullable(value.get("oid")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.oid", id), v));
-                Optional.ofNullable(value.get("id")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", id), v));
-                Optional.ofNullable(value.get("pid")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", id), v));
-                Optional.ofNullable(value.get("worker_start_time")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.worker_start_time", id), v));
-                Optional.ofNullable(value.get("sort")).ifPresent(v -> update.set(String.format("worker_status.workers.%s.sort", id), v));
+            workerBaseInfo.forEach((oid,  worker) -> {
+                Optional.ofNullable(worker.getName()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", oid), v));
+                Optional.ofNullable(worker.getId()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", oid), v));
+                Optional.ofNullable(worker.getPid()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", oid), v));
+                Optional.ofNullable(worker.getWorkerStartTime()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.workerStartTime", oid), v));
+                Optional.ofNullable(worker.getWorkerStatus()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.workerStatus", oid), v));
+                update.set(String.format("worker_status.workers.%s.sort", oid), worker.getSort());
+                Optional.ofNullable(worker.getActiveTime()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.activeTime", oid), v));
             })
         );
         update(query, update);
+    }
+
+    MetricInfoEntity metricInfoEntity(String id, String type, MetricInfo item) {
+        MetricInfoEntity entity = new MetricInfoEntity();
+        entity.setNodeId(id);
+        entity.setType(type);
+        entity.setId(new ObjectId());
+        Optional.ofNullable(item).ifPresent(i -> {
+            Optional.ofNullable(i.getHeapMemoryUsage())
+                    .ifPresent(entity::setHeapMemoryUsage);
+            Optional.ofNullable(i.getCpuUsage())
+                    .ifPresent(entity::setCpuUsage);
+        });
+        return entity;
     }
 
     public void updateAll(Query query, Update update) {

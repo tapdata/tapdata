@@ -1,10 +1,10 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.apiCalls.service.ApiCallService;
-import com.tapdata.tm.apiCalls.service.WorkerCallService;
+import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -40,7 +40,7 @@ class ApiCallMinuteStatsSchedulerTest {
 	private ApiCallMinuteStatsService apiCallMinuteStatsService;
 	private ApiCallService apiCallService;
 	private ApiCallMinuteStatsScheduler apiCallMinuteStatsScheduler;
-	private WorkerCallService workerCallService;
+	private WorkerCallServiceImpl workerCallServiceImpl;
 	WorkerService workerService;
 
 	@BeforeEach
@@ -48,9 +48,9 @@ class ApiCallMinuteStatsSchedulerTest {
 		modulesService = mock(ModulesService.class);
 		apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
 		apiCallService = mock(ApiCallService.class);
-		workerCallService = mock(WorkerCallService.class);
+		workerCallServiceImpl = mock(WorkerCallServiceImpl.class);
 		workerService = mock(WorkerService.class);
-		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallService, workerService);
+		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallServiceImpl, workerService);
 	}
 
 	@Test
@@ -186,38 +186,38 @@ class ApiCallMinuteStatsSchedulerTest {
 		@Test
 		@DisplayName("test schedule worker call")
 		void test1() {
-			doNothing().when(workerCallService).metric();
+			doNothing().when(workerCallServiceImpl).metric();
 			when(workerService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
-			doNothing().when(workerCallService).collectApiCallCountGroupByWorker(anyString());
+			doNothing().when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
 			Assertions.assertDoesNotThrow(apiCallMinuteStatsScheduler::scheduleWorkerCall);
-			verify(workerCallService, times(0)).collectApiCallCountGroupByWorker(anyString());
+			verify(workerCallServiceImpl, times(0)).collectApiCallCountGroupByWorker(anyString());
 		}
 		@Test
 		@DisplayName("test schedule worker call")
 		void testNull() {
-			doNothing().when(workerCallService).metric();
+			doNothing().when(workerCallServiceImpl).metric();
 			when(workerService.findAll(any(Query.class))).thenReturn(null);
-			doNothing().when(workerCallService).collectApiCallCountGroupByWorker(anyString());
+			doNothing().when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
 			Assertions.assertDoesNotThrow(apiCallMinuteStatsScheduler::scheduleWorkerCall);
-			verify(workerCallService, times(0)).collectApiCallCountGroupByWorker(anyString());
+			verify(workerCallServiceImpl, times(0)).collectApiCallCountGroupByWorker(anyString());
 		}
 
 		@Test
 		void testException() {
-			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallService).metric();
+			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallServiceImpl).metric();
 			when(workerService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
-			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallService).collectApiCallCountGroupByWorker(anyString());
+			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
 			Assertions.assertDoesNotThrow(apiCallMinuteStatsScheduler::scheduleWorkerCall);
-			verify(workerCallService, times(0)).collectApiCallCountGroupByWorker(anyString());
+			verify(workerCallServiceImpl, times(0)).collectApiCallCountGroupByWorker(anyString());
 		}
 
 		@Test
 		void testException1() {
-			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallService).metric();
+			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallServiceImpl).metric();
 			when(workerService.findAll(any(Query.class))).thenAnswer(a -> {throw new RuntimeException("test");});
-			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallService).collectApiCallCountGroupByWorker(anyString());
+			doAnswer(a -> {throw new RuntimeException("test");}).when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
 			Assertions.assertDoesNotThrow(apiCallMinuteStatsScheduler::scheduleWorkerCall);
-			verify(workerCallService, times(0)).collectApiCallCountGroupByWorker(anyString());
+			verify(workerCallServiceImpl, times(0)).collectApiCallCountGroupByWorker(anyString());
 		}
 
 		@Test
@@ -226,11 +226,11 @@ class ApiCallMinuteStatsSchedulerTest {
 			WorkerDto dto = new WorkerDto();
 			dto.setProcessId("1");
 			objects.add(dto);
-			doThrow(new RuntimeException("test")).when(workerCallService).metric();
+			doThrow(new RuntimeException("test")).when(workerCallServiceImpl).metric();
 			when(workerService.findAll(any(Query.class))).thenReturn(objects);
-			doThrow(new RuntimeException("test")).when(workerCallService).collectApiCallCountGroupByWorker(anyString());
+			doThrow(new RuntimeException("test")).when(workerCallServiceImpl).collectApiCallCountGroupByWorker(anyString());
 			Assertions.assertDoesNotThrow(apiCallMinuteStatsScheduler::scheduleWorkerCall);
-			verify(workerCallService, times(objects.size())).collectApiCallCountGroupByWorker(anyString());
+			verify(workerCallServiceImpl, times(objects.size())).collectApiCallCountGroupByWorker(anyString());
 		}
 	}
 }
