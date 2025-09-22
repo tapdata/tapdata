@@ -98,9 +98,9 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		// 将 ExternalStorage 配置转换成 Connections 配置
 		String externalStorageId = (String) externalStorageConfig.get("id");
 		ExternalStorageService externalStorageService = SpringContextHelper.getBean(ExternalStorageService.class);
-		ExternalStorageDto dto = externalStorageService.findNotCheckById(externalStorageId);
+		ExternalStorageDto dto;
 		Map<String, Object> testConnectionConfig = new HashMap<>();
-		if (ExternalStorageType.mongodb.name().equals(dto.getType())) {
+		if (ExternalStorageType.mongodb.name().equals(externalStorageConfig.get("type"))) {
 			testConnectionConfig = newMongoDBConnections(userDetail);
 			if (null == testConnectionConfig) {
 				throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
@@ -126,6 +126,10 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			externalStorageConfig.compute("checkServerIdentity", boolSetter);
 		} else {
 			// 已存在配置
+			dto = externalStorageService.findNotCheckById(externalStorageId);
+			if (dto == null) {
+				throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
+			}
 			fillString(connectorConfig, externalStorageConfig, "id", dto::getId);
 			fillString(connectorConfig, externalStorageConfig, "uri", dto::getUri);
 			fillBoolean(connectorConfig, externalStorageConfig, "ssl", dto::isSsl);
@@ -138,7 +142,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 
 		}
 		connectorConfig.put("__connectionType", testConnectionConfig.get("connection_type"));
-		testConnectionConfig.put("testType",dto.getType());
+		testConnectionConfig.put("testType", externalStorageConfig.get("type"));
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
 		testConnectionMessageInfo.setType(testConnectionType.getType());
 		testConnectionConfig.put("externalStorageId", externalStorageId);

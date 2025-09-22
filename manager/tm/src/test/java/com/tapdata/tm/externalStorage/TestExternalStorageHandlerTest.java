@@ -68,6 +68,7 @@ public class TestExternalStorageHandlerTest {
         ExternalStorageService externalStorageService = Mockito.mock(ExternalStorageService.class);
         Map<String, Object> externalStorageConfig = new HashMap<>();
         externalStorageConfig.put("id", "test1234");
+        externalStorageConfig.put("type", "mongodb");
         try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class)) {
             springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(eq(ExternalStorageService.class))).thenReturn(externalStorageService);
             ExternalStorageDto externalStorageDto = new ExternalStorageDto();
@@ -99,6 +100,7 @@ public class TestExternalStorageHandlerTest {
         ExternalStorageService externalStorageService = Mockito.mock(ExternalStorageService.class);
         Map<String, Object> externalStorageConfig = new HashMap<>();
         externalStorageConfig.put("id", "test1234");
+        externalStorageConfig.put("type", "rocksdb");
         try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class)) {
             springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(eq(ExternalStorageService.class))).thenReturn(externalStorageService);
             ExternalStorageDto externalStorageDto = new ExternalStorageDto();
