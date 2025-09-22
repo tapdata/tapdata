@@ -2,6 +2,7 @@ package com.tapdata.tm.schedule.service;
 
 
 import cn.hutool.core.bean.BeanUtil;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.entity.TaskEntity;
@@ -90,7 +91,7 @@ public class ScheduleService {
 
             return;
         }
-        if (TaskDto.STATUS_SCHEDULING.equals(status) || (TaskDto.STATUS_RUNNING.equals(status) && TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()))) {
+        if (TaskDto.STATUS_SCHEDULING.equals(status) || TaskDto.STATUS_WAIT_RUN.equals(status) || (TaskDto.STATUS_RUNNING.equals(status) && ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType()))) {
             log.info("taskId {},status:{}  不用在进行全量任务", taskId, status);
             return;
         }

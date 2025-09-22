@@ -7,6 +7,7 @@ import com.mongodb.client.MongoCursor;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
+import com.tapdata.tm.apiCalls.vo.ApiPercentile;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
@@ -17,11 +18,13 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.modules.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
@@ -276,10 +279,10 @@ class ApiCallServiceTest {
 
             List<Map<String, String>> clients = apiCallService.findClients(moduleIdList);
             Map<String, String> client = clients.get(0);
-            assertEquals("app1", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(0).getId().toString(), client.get("id"));
             client = clients.get(1);
-            assertEquals("app2", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(1).getId().toString(), client.get("id"));
         }
 
@@ -323,10 +326,10 @@ class ApiCallServiceTest {
 
             List<Map<String, String>> clients = apiCallService.findClients(moduleIdList);
             Map<String, String> client = clients.get(0);
-            assertEquals("app1", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(0).getId().toString(), client.get("id"));
             client = clients.get(1);
-            assertEquals("app2", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(1).getId().toString(), client.get("id"));
         }
     }
@@ -848,6 +851,95 @@ class ApiCallServiceTest {
             Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
             Assertions.assertNotNull(result);
             Assertions.assertEquals(2, result.size());
+        }
+    }
+
+    @Nested
+    class getApiPercentileTest {
+        ApiCallService call;
+        private MongoTemplate mt;
+        @BeforeEach
+        void setUp() {
+            call = mock(ApiCallService.class);
+            mt = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(call, "mongoOperations", mt);
+            when(call.getApiPercentile(anyString(), anyLong(), anyLong())).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            List<ApiCallEntity> apiCalls = new ArrayList<>();
+            ApiCallEntity e1 = new ApiCallEntity();
+            e1.setLatency(1000L);
+            apiCalls.add(e1);
+            apiCalls.add(null);
+            ApiCallEntity e2 = new ApiCallEntity();
+            apiCalls.add(e2);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(apiCalls);
+            ApiPercentile apiPercentile = call.getApiPercentile(new ObjectId().toHexString(), 1L, 1L);
+            Assertions.assertNotNull(apiPercentile);
+            Assertions.assertNotNull(apiPercentile.getP50());
+            Assertions.assertNotNull(apiPercentile.getP95());
+            Assertions.assertNotNull(apiPercentile.getP99());
+        }
+
+        @Test
+        void testResultIsEmpty() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            ApiPercentile apiPercentile = call.getApiPercentile(new ObjectId().toHexString(), 1L, 1L);
+            Assertions.assertNotNull(apiPercentile);
+            Assertions.assertNull(apiPercentile.getP50());
+            Assertions.assertNull(apiPercentile.getP95());
+            Assertions.assertNull(apiPercentile.getP99());
+        }
+
+        @Test
+        void testApiIdIsBlank() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    call.getApiPercentile("", 1L, 1L);
+                } catch (BizException e) {
+                    Assertions.assertEquals("api.call.api.id.required", e.getErrorCode());
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testQueryRangeTooLarge() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    call.getApiPercentile(new ObjectId().toHexString(), 1L, 14 * 24 * 60 * 60 * 1000L);
+                } catch (BizException e) {
+                    Assertions.assertEquals("api.call.percentile.time.range.too.large", e.getErrorCode());
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testModuleNotExists() {
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(null);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            ApiPercentile apiPercentile = call.getApiPercentile(new ObjectId().toHexString(), 1L, 1L);
+            Assertions.assertNotNull(apiPercentile);
+            Assertions.assertNull(apiPercentile.getP50());
+            Assertions.assertNull(apiPercentile.getP95());
+            Assertions.assertNull(apiPercentile.getP99());
         }
     }
 

@@ -634,6 +634,20 @@ public class DataSourceController extends BaseController {
 
     }
 
+    @Operation(summary = "加载部分表")
+    @PostMapping("load/part/tablesByName/{connectionId}")
+    public ResponseMessage<Void> loadPartTablesByName(@PathVariable("connectionId") String connectionId,@RequestBody List<String> param) {
+
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(connectionId));
+        Assert.notNull(connectionDto, "connection is empty");
+
+        UserDetail userDetail = userService.loadUserById(new ObjectId(connectionDto.getUserId()));
+
+        dataSourceService.loadPartTablesByName(connectionId, param, userDetail);
+        return success();
+
+    }
+
     @Operation(summary = "Get connection heartbeat task")
     @GetMapping("/{id}/heartbeat-task")
     public ResponseMessage<Set<String>> getConnectionHeartbeatTask(@PathVariable("id") String connectionId) {

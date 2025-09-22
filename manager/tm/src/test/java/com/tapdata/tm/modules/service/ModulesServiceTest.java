@@ -1,5 +1,7 @@
 package com.tapdata.tm.modules.service;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
@@ -37,6 +39,9 @@ import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.worker.dto.ApiWorkerInfo;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.service.WorkerService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -53,6 +58,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,7 +85,7 @@ class ModulesServiceTest {
     DataSourceService dataSourceService;
     DataSourceDefinitionService dataSourceDefinitionService;
     ApplicationConfig config;
-    @BeforeEach
+    WorkerService workerService;@BeforeEach
     void init(){
         textEncryptionRuleService = mock(TextEncryptionRuleService.class);
         config = mock(ApplicationConfig.class);
@@ -87,12 +93,13 @@ class ModulesServiceTest {
         modulesRepository = mock(ModulesRepository.class);
         modulesService = new ModulesService(modulesRepository);
         dataSourceService = mock(DataSourceService.class);
-        dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+        dataSourceDefinitionService = mock(DataSourceDefinitionService.class);workerService = mock(WorkerService.class);
         ReflectionTestUtils.setField(modulesService, "dataSourceService", dataSourceService);
         ReflectionTestUtils.setField(modulesService, "dataSourceDefinitionService", dataSourceDefinitionService);
         ReflectionTestUtils.setField(modulesService, "config", config);
         ReflectionTestUtils.setField(modulesService, "textEncryptionRuleService", textEncryptionRuleService);
-    }
+    ReflectionTestUtils.setField(modulesService, "workerService", workerService);
+	}
 
     @Nested
     class UpdatePermissionsTest{
@@ -710,7 +717,7 @@ class ModulesServiceTest {
             properties.put("connection", connection);
             definitionDto.setProperties(properties);
             when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
-            ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
+            ApiDefinitionVo actual = modulesService.apiDefinition("", null, userDetail);
             assertEquals(1, actual.getConnections().size());
             assertTrue(actual.getConnections().get(0).getSsl());
             assertEquals("----test ca----", actual.getConnections().get(0).getSslCA());
@@ -747,7 +754,7 @@ class ModulesServiceTest {
             properties.put("connection", connection);
             definitionDto.setProperties(properties);
             when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
-            ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
+            ApiDefinitionVo actual = modulesService.apiDefinition("", null, userDetail);
             assertEquals(1, actual.getConnections().size());
             assertNull(actual.getConnections().get(0).getSsl());
             assertNull(actual.getConnections().get(0).getSslCA());
@@ -1007,4 +1014,275 @@ class ModulesServiceTest {
             verify(fileService, times(1)).viewImg1(anyString(), any(HttpServletResponse.class), anyString());
         }
     }
+
+	@Nested
+	class isBasePathAndVersionRepeatTest {
+		@Test
+		void testNotRepeat() {
+			when(modulesService.count(any(Query.class))).thenReturn(0L);
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat(new ObjectId(), "test", "1.0", "test");
+            assertFalse(basePathAndVersionRepeat);
+		}
+
+		@Test
+		void testRepeat() {
+			when(modulesService.count(any(Query.class))).thenReturn(1L);
+			boolean basePathAndVersionRepeat = modulesService.isBasePathAndVersionRepeat(null, "test", "1.0", "test");
+			assertTrue(basePathAndVersionRepeat);
+		}
+	}
+
+	@Nested
+	class pathsTest {
+		@Test
+		void testNormal() {
+			String paths = modulesService.paths("test", "1.0", "test");
+			assertEquals("1.0/test/test", paths);
+		}
+		@Test
+		void testNull() {
+			String paths = modulesService.paths(null, null, null);
+			assertEquals("", paths);
+		}
+
+		@Test
+		void testEmpty() {
+			String paths = modulesService.paths("", "", "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty() {
+			String paths = modulesService.paths(null, "", "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty2() {
+			String paths = modulesService.paths("", null, "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty3() {
+			String paths = modulesService.paths("", "", null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty4() {
+			String paths = modulesService.paths(null, null, "");
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty5() {
+			String paths = modulesService.paths(null, "", null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty6() {
+			String paths = modulesService.paths("", null, null);
+			assertEquals("", paths);
+		}
+		@Test
+		void testNullAndEmpty7() {
+			String paths = modulesService.paths(null, "", "");
+			assertEquals("", paths);
+		}
+	}
+
+	@Nested
+	class getApiWorkerInfoTest {
+		@Test
+		void testNormal() {
+			WorkerDto one = new WorkerDto();
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 1);
+			assertEquals(1, apiWorkerInfo.size());
+		}
+
+		@Test
+		void testNullWorkerCount() {
+			WorkerDto one = new WorkerDto();
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), null);
+			assertEquals(0, apiWorkerInfo.size());
+		}
+
+		@Test
+		void testLessZeroWorkerCount() {
+			WorkerDto one = new WorkerDto();
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), -1);
+			assertEquals(0, apiWorkerInfo.size());
+		}
+
+		@Test
+		void testEqualsZeroWorkerCount() {
+			WorkerDto one = new WorkerDto();
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 0);
+			assertEquals(0, apiWorkerInfo.size());
+		}
+
+		@Test
+		void testWorkerInfo() {
+			String workerInfoJson = "{\n" +
+					"      \"workers\": {\n" +
+					"        \"11\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6b\",\n" +
+					"          \"id\": 11,\n" +
+					"          \"pid\": 39097,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323402512,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 41549824,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-1\",\n" +
+					"          \"sort\": 0\n" +
+					"        },\n" +
+					"        \"12\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6e\",\n" +
+					"          \"id\": 12,\n" +
+					"          \"pid\": 39125,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323403013,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 41566208,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-2\",\n" +
+					"          \"sort\": 1\n" +
+					"        },\n" +
+					"        \"13\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6f\",\n" +
+					"          \"id\": 13,\n" +
+					"          \"pid\": 39154,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323403510,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43630592,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-3\",\n" +
+					"          \"sort\": 2\n" +
+					"        },\n" +
+					"        \"14\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a70\",\n" +
+					"          \"id\": 14,\n" +
+					"          \"pid\": 39186,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323404023,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43728896,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-4\",\n" +
+					"          \"sort\": 3\n" +
+					"        },\n" +
+					"        \"15\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a71\",\n" +
+					"          \"id\": 15,\n" +
+					"          \"pid\": 39449,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323404571,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43794432,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-5\",\n" +
+					"          \"sort\": 4\n" +
+					"        },\n" +
+					"        \"16\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a72\",\n" +
+					"          \"id\": 16,\n" +
+					"          \"pid\": 39474,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323405085,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43646976,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-6\",\n" +
+					"          \"sort\": 5\n" +
+					"        },\n" +
+					"        \"17\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a73\",\n" +
+					"          \"id\": 17,\n" +
+					"          \"pid\": 39499,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323405588,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43237376,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-7\",\n" +
+					"          \"sort\": 6\n" +
+					"        },\n" +
+					"        \"18\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a74\",\n" +
+					"          \"id\": 18,\n" +
+					"          \"pid\": 39524,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323406093,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43433984,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-8\",\n" +
+					"          \"sort\": 7\n" +
+					"        },\n" +
+					"        \"19\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a75\",\n" +
+					"          \"id\": 19,\n" +
+					"          \"pid\": 39549,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323406599,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43270144,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-9\",\n" +
+					"          \"sort\": 8\n" +
+					"        },\n" +
+					"        \"20\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a76\",\n" +
+					"          \"id\": 20,\n" +
+					"          \"pid\": 39574,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323407111,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43319296,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-10\",\n" +
+					"          \"sort\": 9\n" +
+					"        }\n" +
+					"      },\n" +
+					"      \"worker_process_id\": 38486,\n" +
+					"      \"worker_process_start_time\": 1757323393373,\n" +
+					"      \"worker_process_end_time\": null,\n" +
+					"      \"status\": \"running\",\n" +
+					"      \"exit_code\": null,\n" +
+					"      \"metricValues\": {\n" +
+					"        \"HeapMemoryUsage\": 1144.875,\n" +
+					"        \"CpuUsage\": 2.8,\n" +
+					"        \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"      }\n" +
+					"    }";
+			JSONObject jsonObject = JSON.parseObject(workerInfoJson);
+			WorkerDto one = new WorkerDto();
+			one.setWorker_status(jsonObject);
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 10);
+			assertEquals(10, apiWorkerInfo.size());
+		}
+	}
 }

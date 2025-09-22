@@ -1,0 +1,17 @@
+[
+  {
+    "update": "ExternalStorage",
+    "updates": [
+      {
+        "q": {
+          "canEdit": false
+        },
+        "u": {
+          "$set": {
+            "canEdit": true
+          }
+        }
+      }
+    ]
+  }
+]

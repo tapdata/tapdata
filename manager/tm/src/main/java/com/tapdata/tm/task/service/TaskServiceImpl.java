@@ -28,6 +28,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
@@ -379,6 +380,7 @@ public class TaskServiceImpl extends TaskService{
     private BatchService batchService;
     private ShareCdcTableMappingService shareCdcTableMappingService;
     private ILicenseService iLicenseService;
+    private MetadataInstancesCompareService metadataInstancesCompareService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -1085,6 +1087,12 @@ public class TaskServiceImpl extends TaskService{
 
         }
 
+        if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
+            taskDto.getDag().getTargetNodes().forEach(node -> {
+                metadataInstancesCompareService.deleteAll(Query.query(Criteria.where("nodeId").is(node.getId())));
+            });
+        }
+
         return taskDto;
     }
 
@@ -1454,7 +1462,8 @@ public class TaskServiceImpl extends TaskService{
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         int index = 1;
-        for (TaskDto task : taskDtos) {
+        List<TaskDto> orderTaskDtos = metadataDefinitionService.orderTaskByTagPriority(taskDtos);
+        for (TaskDto task : orderTaskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
             try {
@@ -1891,40 +1900,27 @@ public class TaskServiceImpl extends TaskService{
     }
 
     public Node getSourceNode(TaskDto taskDto) {
-        DAG dag = taskDto.getDag();
-        if (dag == null) {
-            return null;
-        }
-
-        List<Edge> edges = dag.getEdges();
-        if (CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = edges.get(0);
-            String source = edge.getSource();
-            List<Node> nodeList = taskDto.getDag().getNodes();
-            if (CollectionUtils.isNotEmpty(nodeList)) {
-                List<Node> sourceList = nodeList.stream().filter(Node -> null != Node && null != Node.getId() && source.equals(Node.getId())).collect(Collectors.toList());
-                if (CollectionUtils.isNotEmpty(sourceList) && null != sourceList.get(0)) {
-                    return sourceList.get(0);
+        return Optional.ofNullable(taskDto.getDag())
+            .map(DAG::getSourceNode)
+            .map(nodes -> {
+                if (nodes.isEmpty()) {
+                    return null;
                 }
-            }
-        }
-        return null;
+                return nodes.getFirst();
+            })
+            .orElse(null);
     }
 
     public Node getTargetNode(TaskDto taskDto) {
-        List<Edge> edges = taskDto.getDag().getEdges();
-        if (CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = edges.get(0);
-            String target = edge.getTarget();
-            List<Node> nodeList = taskDto.getDag().getNodes();
-            if (CollectionUtils.isNotEmpty(nodeList)) {
-                List<Node> sourceList = nodeList.stream().filter(Node -> null != Node && null != Node.getId() && target.equals(Node.getId())).collect(Collectors.toList());
-                if (CollectionUtils.isNotEmpty(sourceList) && null != sourceList.get(0)) {
-                    return sourceList.get(0);
+        return Optional.ofNullable(taskDto.getDag())
+            .map(DAG::getTargetNode)
+            .map(nodes -> {
+                if (nodes.isEmpty()) {
+                    return null;
                 }
-            }
-        }
-        return null;
+                return nodes.getFirst();
+            })
+            .orElse(null);
     }
 
     public static String printInfos(DAG dag) {
@@ -4153,6 +4149,9 @@ public class TaskServiceImpl extends TaskService{
             }
             throw new BizException("Task.StartStatusInvalid");
         }
+        if(null != taskDto.getDag() && CollectionUtils.isNotEmpty(taskDto.getDag().getTargetNodes())) {
+            metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(taskDto.getDag().getTargetNodes().get(0).getId(), taskDto.getId().toHexString(), user,false);
+        }
 
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
             for (int i = 1; i < 6; i++) {
@@ -4872,7 +4871,7 @@ public class TaskServiceImpl extends TaskService{
             );
         }
         Query query = Query.query(criteria);
-        return findAllDto(query,userDetail);
+        return findAll(query);
     }
 
     public TableStatusInfoDto getTableStatus(String connectionId, String tableName, UserDetail userDetail) {
@@ -5225,8 +5224,13 @@ public class TaskServiceImpl extends TaskService{
         // 执行推演
         transformSchemaService.transformSchema(taskDto, userDetail);
     }
+    @Override
+    public void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail) {
+        wait2ConnectionsLoadFinished(taskId, connId, beginTime, timeout, userDetail,null);
+    }
 
-    protected void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail) {
+    @Override
+    public void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail, MetadataInstancesCompareDto metadataInstancesCompareDto) {
         Field fields = new Field();
         fields.put(DataSourceConnectionDto.FIELD_LOAD_FIELDS_STATUS, 1);
         fields.put(DataSourceConnectionDto.FIELD_LAST_UPDATE, 1);
@@ -5238,10 +5242,13 @@ public class TaskServiceImpl extends TaskService{
                 return;
             }
             if (null != newConn.getLastUpdate() && beginTime < newConn.getLastUpdate()) {
-                if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_FINISHED.equals(newConn.getLoadFieldsStatus())) {
+                if (!DataSourceConnectionDto.LOAD_FIELD_STATUS_LOADING.equals(newConn.getLoadFieldsStatus())) {
                     log.info("Task '{}' connection '{}' refresh failed, status={}", taskId, connId, newConn.getStatus());
+                    if(metadataInstancesCompareDto != null && DataSourceConnectionDto.LOAD_FIELD_STATUS_ERROR.equals(newConn.getLoadFieldsStatus())){
+                        metadataInstancesCompareDto.setStatus(MetadataInstancesCompareDto.STATUS_ERROR);
+                    }
+                    return;
                 }
-                return;
             }
             try {
                 Thread.sleep(1000);
@@ -5251,5 +5258,7 @@ public class TaskServiceImpl extends TaskService{
             }
         } while (System.currentTimeMillis() - beginTime < timeout); // 30秒超时
         log.info("Task '{}' connection '{}' refresh timeout", taskId, connId);
+        if(metadataInstancesCompareDto != null)metadataInstancesCompareDto.setStatus(MetadataInstancesCompareDto.STATUS_TIMEOUT);
+
     }
 }
