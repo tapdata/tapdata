@@ -14,7 +14,9 @@ public enum SystemEnum {
     //数据校验
     INSPECT("inspect"),
 
-    AGENT("agent");
+    AGENT("agent"),
+
+    API_SERVER("api-server");
 
     // 成员变量
     private String value;

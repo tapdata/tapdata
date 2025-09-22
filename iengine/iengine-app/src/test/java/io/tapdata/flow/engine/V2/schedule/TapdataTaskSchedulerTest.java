@@ -172,6 +172,7 @@ public class TapdataTaskSchedulerTest {
 		@BeforeEach
 		void setUp() {
 			taskScheduler = mock(TapdataTaskScheduler.class);
+			ReflectionTestUtils.setField(taskScheduler, "startTaskLock", new Object());
 		}
 
 		@Test

@@ -3,10 +3,10 @@ package com.tapdata.tm.worker.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.worker.dto.ApiServerInfo;
-import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,5 +41,18 @@ public class ApiWorkerController extends BaseController {
     @GetMapping("/cpu-mem")
     public ResponseMessage<List<ApiServerInfo>> getAllWorkers() {
         return success(apiWorkerServer.getApiServerWorkerInfo());
+    }
+
+    @DeleteMapping("/delete")
+    public ResponseMessage<Void> delete(@RequestParam(name = "processId", required = true) String processId) {
+        apiWorkerServer.delete(processId, null);
+        return success();
+    }
+
+    @DeleteMapping("/delete-worker")
+    public ResponseMessage<Void> deleteWorker(@RequestParam(name = "processId", required = true) String processId,
+                                           @RequestParam(name = "processId", required = true) String workerOid) {
+        apiWorkerServer.delete(processId, workerOid);
+        return success();
     }
 }
