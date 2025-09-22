@@ -181,7 +181,11 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         }
         Criteria newCriteria = new Criteria();
         if (StringUtils.isNotEmpty(param.getNodeId())) {
-            criteria.and("nodeId").is(param.getNodeId());
+            if (CollectionUtils.isNotEmpty(param.getIncludeLogTags()) && param.getIncludeLogTags().contains("src=user_script")) {
+                criteria.and("nodeId").is(String.format("%s.script", param.getNodeId()));
+            } else {
+                criteria.and("nodeId").is(param.getNodeId());
+            }
             newCriteria.orOperator(criteria,Criteria.where("taskId").is(taskId).and("nodeId").is(param.getNodeId()).and("level").is("INFO").and("timestamp").gte(start));
         }
         Query query = new Query();
