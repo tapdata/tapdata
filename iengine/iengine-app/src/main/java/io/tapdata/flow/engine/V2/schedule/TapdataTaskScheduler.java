@@ -53,6 +53,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -102,6 +103,16 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	private static final Map<String, Long> taskRetryTimeMap = new ConcurrentHashMap<>();
 	private static final ScheduledExecutorService taskResetRetryServiceScheduledThreadPool = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Task-Reset-Retry-Service-Scheduled-Runner"));
 	//private ThreadPoolExecutorEx threadPoolExecutorEx;
+
+	// 引擎启动时任务接管的频率控制
+	private final LinkedBlockingQueue<TaskDto> engineStartTaskQueue = new LinkedBlockingQueue<>();
+	private final ScheduledExecutorService engineStartTaskScheduler = new ScheduledThreadPoolExecutor(1, r -> new Thread(r, "Engine-Start-Task-Scheduler"));
+	private volatile boolean engineStartTaskSchedulerStarted = false;
+
+	// startTask 方法的限流控制
+	private final Object startTaskLock = new Object();
+	private volatile long lastStartTaskTime = 0L;
+	private static final long START_TASK_RATE_LIMIT_MILLIS = 5000L; // 5秒限流间隔
 
 	@Bean(name = "taskControlScheduler")
 	public TaskScheduler taskControlScheduler() {
@@ -324,21 +335,103 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	/**
 	 * Will run when engine start in cloud mode
 	 * Run task(s) already started, find clause: status=running and agentID={@link TapdataTaskScheduler#instanceNo}
+	 * Tasks will be started with rate limiting: one task every 10 seconds
 	 */
 	public void runTaskIfNeedWhenEngineStart() {
-		if (!AppType.currentType().isCloud()) return;
 		Query query = new Query(
 				new Criteria("agentId").is(instanceNo)
 						.and(DataFlow.STATUS_FIELD).is(TaskDto.STATUS_RUNNING)
 		);
 		List<TaskDto> tasks = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 		if (CollectionUtils.isNotEmpty(tasks)) {
-			logger.info("Found task(s) already running before engine start, will run these task(s) immediately\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
-			tasks.forEach(this::sendStartTask);
+			logger.info("Found task(s) already running before engine start, will queue these task(s) for rate-limited startup\n  {}", tasks.stream().map(TaskDto::getName).collect(Collectors.joining("\n  ")));
+
+			// 将任务加入队列
+			for (TaskDto task : tasks) {
+				try {
+					engineStartTaskQueue.offer(task);
+					logger.info("Queued task for rate-limited startup: {} ({})", task.getName(), task.getId().toHexString());
+				} catch (Exception e) {
+					logger.error("Failed to queue task for startup: {} ({}), error: {}", task.getName(), task.getId().toHexString(), e.getMessage(), e);
+				}
+			}
+
+			// 启动调度器（如果还没启动）
+			startEngineStartTaskScheduler();
+		} else {
+            logger.info("No task(s) found to start");
+        }
+	}
+
+	/**
+	 * 启动引擎启动任务调度器
+	 */
+	private synchronized void startEngineStartTaskScheduler() {
+		if (engineStartTaskSchedulerStarted) {
+			return;
+		}
+
+		logger.info("Starting engine start task scheduler with 10-second rate limiting");
+		engineStartTaskScheduler.scheduleWithFixedDelay(this::processEngineStartTaskQueue, 0, 10, TimeUnit.SECONDS);
+		engineStartTaskSchedulerStarted = true;
+	}
+
+	/**
+	 * 处理引擎启动任务队列，每10秒处理一个任务
+	 */
+	private void processEngineStartTaskQueue() {
+		try {
+			TaskDto task = engineStartTaskQueue.poll();
+			if (task != null) {
+				logger.info("Processing rate-limited task startup: {} ({})", task.getName(), task.getId().toHexString());
+				sendStartTask(task);
+				logger.info("Successfully started task: {} ({})", task.getName(), task.getId().toHexString());
+			} else {
+				// 队列为空时，可以考虑停止调度器以节省资源
+				if (engineStartTaskQueue.isEmpty()) {
+					logger.debug("Engine start task queue is empty, scheduler will continue checking every 10 seconds");
+				}
+			}
+		} catch (Exception e) {
+			logger.error("Error processing engine start task queue: {}", e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * 应用 startTask 方法的限流控制
+	 * 确保任何调用 startTask 的方法都不会超过 5 秒一个的频率
+	 */
+	private void applyStartTaskRateLimit(TaskDto taskDto) {
+		synchronized (startTaskLock) {
+			long currentTime = System.currentTimeMillis();
+			long timeSinceLastStart = currentTime - lastStartTaskTime;
+
+			if (timeSinceLastStart < START_TASK_RATE_LIMIT_MILLIS) {
+				long waitTime = START_TASK_RATE_LIMIT_MILLIS - timeSinceLastStart;
+				logger.info("Rate limiting startTask for task {} ({}), waiting {}ms to maintain 5-second interval",
+					taskDto.getName(), taskDto.getId().toHexString(), waitTime);
+
+				try {
+					Thread.sleep(waitTime);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					logger.warn("Rate limit wait interrupted for task {} ({})",
+						taskDto.getName(), taskDto.getId().toHexString());
+					throw new RuntimeException("Rate limit wait interrupted", e);
+				}
+			}
+
+			// 更新最后执行时间
+			lastStartTaskTime = System.currentTimeMillis();
+			logger.debug("StartTask rate limit applied for task {} ({}), last execution time updated to {}",
+				taskDto.getName(), taskDto.getId().toHexString(), lastStartTaskTime);
 		}
 	}
 
 	protected void startTask(TaskDto taskDto) {
+		// 应用限流控制
+		applyStartTaskRateLimit(taskDto);
+
 		ObsLoggerFactory.getInstance().removeTaskLoggerClearMark(taskDto);
 		final String taskId = taskDto.getId().toHexString();
 		AtomicBoolean isReturn = new AtomicBoolean(false);
@@ -743,5 +836,37 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 		public String getResource() {
 			return resource;
 		}
+	}
+
+	/**
+	 * 清理资源
+	 */
+	@PreDestroy
+	public void destroy() {
+		logger.info("Shutting down TapdataTaskScheduler resources");
+
+		// 关闭引擎启动任务调度器
+		if (engineStartTaskScheduler != null && !engineStartTaskScheduler.isShutdown()) {
+			logger.info("Shutting down engine start task scheduler");
+			engineStartTaskScheduler.shutdown();
+			try {
+				if (!engineStartTaskScheduler.awaitTermination(30, TimeUnit.SECONDS)) {
+					logger.warn("Engine start task scheduler did not terminate gracefully, forcing shutdown");
+					engineStartTaskScheduler.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				logger.warn("Interrupted while waiting for engine start task scheduler to terminate");
+				engineStartTaskScheduler.shutdownNow();
+				Thread.currentThread().interrupt();
+			}
+		}
+
+		// 清空队列
+		if (!engineStartTaskQueue.isEmpty()) {
+			logger.info("Clearing {} remaining tasks from engine start task queue", engineStartTaskQueue.size());
+			engineStartTaskQueue.clear();
+		}
+
+		logger.info("TapdataTaskScheduler resources cleanup completed");
 	}
 }
