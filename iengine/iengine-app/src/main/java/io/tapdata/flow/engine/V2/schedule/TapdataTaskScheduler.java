@@ -401,7 +401,7 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	 * 应用 startTask 方法的限流控制
 	 * 确保任何调用 startTask 的方法都不会超过 5 秒一个的频率
 	 */
-	private void applyStartTaskRateLimit(TaskDto taskDto) {
+	public void applyStartTaskRateLimit(TaskDto taskDto) {
 		synchronized (startTaskLock) {
 			long currentTime = System.currentTimeMillis();
 			long timeSinceLastStart = currentTime - lastStartTaskTime;
