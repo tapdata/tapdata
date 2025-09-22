@@ -154,7 +154,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
                 if (failedStartTime == 0) {
                     failedStartTime = System.currentTimeMillis();
                 }
-                if (System.currentTimeMillis() - failedStartTime > (heartExpire - 10000L)) {
+                if (System.currentTimeMillis() - failedStartTime > (heartExpire - onHeartExpire())) {
                     logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
                     taskMonitor.accept(TerminalMode.INTERNAL_STOP);
                     stopTask.get();
@@ -163,6 +163,10 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
                 }
 			}
 		}
+	}
+
+	protected long onHeartExpire() {
+		return 10000L;
 	}
 
 	@Override

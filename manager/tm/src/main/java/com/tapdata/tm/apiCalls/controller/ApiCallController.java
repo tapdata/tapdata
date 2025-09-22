@@ -48,7 +48,7 @@ public class ApiCallController extends BaseController {
     @Operation(summary = "api 没发送一次调用，都会调用该接口，网apicalls表新增一条记录")
     @PostMapping
     public ResponseMessage save(@RequestBody List<ApiCallDto> saveApiCallParamList) {
-        return success(apiCallService.save(saveApiCallParamList));
+        return success(apiCallService.save(saveApiCallParamList, getLoginUser()));
     }
 
     /**

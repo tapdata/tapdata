@@ -26,8 +26,6 @@ public interface AlarmService {
 
     Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto);
 
-    void notifyAlarm();
-
     void close(String[] ids, UserDetail userDetail);
 
     Page<AlarmListInfoVo> list(String status,

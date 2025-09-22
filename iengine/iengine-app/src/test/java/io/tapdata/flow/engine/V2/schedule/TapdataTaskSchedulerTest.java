@@ -172,7 +172,7 @@ public class TapdataTaskSchedulerTest {
 		@BeforeEach
 		void setUp() {
 			taskScheduler = mock(TapdataTaskScheduler.class);
-			doNothing().when(taskScheduler).applyStartTaskRateLimit(any(TaskDto.class));
+			ReflectionTestUtils.setField(taskScheduler, "startTaskLock", new Object());
 		}
 
 		@Test

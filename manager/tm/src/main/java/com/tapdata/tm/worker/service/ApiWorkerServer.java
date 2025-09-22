@@ -1,10 +1,10 @@
 package com.tapdata.tm.worker.service;
 
-import com.tapdata.tm.apiCalls.service.WorkerCallService;
+import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.worker.dto.ApiServerInfo;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
-import com.tapdata.tm.worker.dto.MetricInfo;
 import com.tapdata.tm.worker.entity.Worker;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -16,10 +16,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -32,7 +34,48 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class ApiWorkerServer {
+    public static final String WORKERS = "Workers";
+    public static final String PROCESS_ID = "process_id";
     MongoTemplate mongoOperations;
+
+    public void delete(String processId, String workerOid) {
+        if (StringUtils.isBlank(processId)) {
+            return;
+        }
+        if (StringUtils.isBlank(workerOid)) {
+            mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
+                    new org.springframework.data.mongodb.core.query.Update().set("delete", true),
+                    WORKERS);
+            return;
+        }
+        List<Worker> serverInfo = mongoOperations.find(Query.query(Criteria.where(PROCESS_ID).is(processId)), Worker.class);
+        if (serverInfo.isEmpty()) {
+            return;
+        }
+        Set<String> deleteItem = new HashSet<>();
+        serverInfo.stream()
+                .filter(Objects::nonNull)
+                .map(Worker::getWorkerStatus)
+                .filter(Objects::nonNull)
+                .map(ApiServerStatus::getWorkers)
+                .filter(Objects::nonNull)
+                .forEach(es ->
+                        es.forEach((k, v) -> {
+                            if (Objects.equals(v.getOid(), workerOid)) {
+                                deleteItem.add(k);
+                            }
+                        })
+                );
+        deleteItem.forEach(item -> {
+            try {
+                mongoOperations.updateFirst(Query.query(Criteria.where(PROCESS_ID).is(processId)),
+                        new org.springframework.data.mongodb.core.query.Update().unset("worker_status.workers." + item),
+                        WORKERS);
+            } catch (Exception e) {
+                log.error("Unable to remove worker from api server: {}, msg: {}", item, e.getMessage());
+            }
+        });
+    }
 
     public ApiServerInfo getWorkers(String processId) {
         ApiServerInfo server = new ApiServerInfo();
@@ -54,31 +97,22 @@ public class ApiWorkerServer {
         Optional.ofNullable(serverInfo).map(Worker::getHostname).ifPresent(server::setName);
         Optional.ofNullable(serverInfo).map(Worker::getProcessId).ifPresent(server::setProcessId);
         Optional.ofNullable(serverInfo).map(Worker::getPingTime).ifPresent(server::setPingTime);
-        if (null != serverInfo && serverInfo.getWorker_status() instanceof Map<?,?> status) {
-            server.setMetricValues(toMetricInfo(status.get("metricValues")));
-            Optional.ofNullable(status.get("pid"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).intValue())
-                    .ifPresent(server::setPid);
-            Optional.ofNullable(status.get("worker_process_id"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).intValue())
-                    .ifPresent(server::setWorkerPid);
-            Optional.ofNullable(status.get("status"))
-                    .filter(String.class::isInstance)
-                    .map(e -> (String) e)
-                    .ifPresent(server::setStatus);
-            Optional.ofNullable(status.get("worker_process_start_time"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).longValue())
-                    .ifPresent(server::setWorkerProcessStartTime);
-            Optional.ofNullable(status.get("worker_process_end_time"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).longValue())
-                    .ifPresent(server::setWorkerProcessEndTime);
-            Optional.ofNullable(status.get("exit_code"))
-                    .ifPresent(server::setExitCode);
-        }
+        Optional.ofNullable(serverInfo).map(Worker::getWorkerStatus)
+                .ifPresent(status -> {
+                    server.setMetricValues(status.getMetricValues());
+                    Optional.ofNullable(status.getPid())
+                            .ifPresent(server::setPid);
+                    Optional.ofNullable(status.getWorkerProcessId())
+                            .ifPresent(server::setWorkerPid);
+                    Optional.ofNullable(status.getStatus())
+                            .ifPresent(server::setStatus);
+                    Optional.ofNullable(status.getWorkerProcessStartTime())
+                            .ifPresent(server::setWorkerProcessStartTime);
+                    Optional.ofNullable(status.getWorkerProcessEndTime())
+                            .ifPresent(server::setWorkerProcessEndTime);
+                    Optional.ofNullable(status.getExitCode())
+                            .ifPresent(server::setExitCode);
+                });
     }
 
 
@@ -86,11 +120,11 @@ public class ApiWorkerServer {
         if (StringUtils.isBlank(processId)) {
             throw new BizException("api.call.metric.process.id.required");
         }
-        Criteria cWorker = Criteria.where("process_id").is(processId)
+        Criteria cWorker = Criteria.where(PROCESS_ID).is(processId)
                 .and("worker_type").is("api-server")
-                .and(WorkerCallService.Tag.DELETE).ne(true);
+                .and(WorkerCallServiceImpl.Tag.DELETE).ne(true);
         Query qWorker = Query.query(cWorker).limit(1);
-        Worker server = mongoOperations.findOne(qWorker, Worker.class, "Workers");
+        Worker server = mongoOperations.findOne(qWorker, Worker.class, WORKERS);
         if (server == null) {
             throw new BizException("api.call.metric.server.not.found", processId);
         }
@@ -98,75 +132,24 @@ public class ApiWorkerServer {
     }
 
     List<ApiServerWorkerInfo> pullWorkerInfo(Worker server) {
-        Object workerStatus = server.getWorker_status();
+        ApiServerStatus workerStatus = server.getWorkerStatus();
         List<ApiServerWorkerInfo> workerList = new ArrayList<>();
-        if (workerStatus instanceof Map<?, ?> status && status.get("workers") instanceof Map<?, ?> workers) {
-            workers.forEach((k, v) -> {
-                if (v instanceof Map<?, ?> infoMap) {
-                    ApiServerWorkerInfo info = new ApiServerWorkerInfo();
-                    Optional.ofNullable(infoMap.get("id"))
-                            .filter(Integer.class::isInstance)
-                            .map(e -> (Integer) e)
-                            .ifPresent(info::setId);
-                    Optional.ofNullable(infoMap.get("pid"))
-                            .filter(Integer.class::isInstance)
-                            .map(e -> (Integer) e)
-                            .ifPresent(info::setPid);
-                    Optional.ofNullable(infoMap.get("oid"))
-                            .filter(String.class::isInstance)
-                            .map(e -> (String) e)
-                            .ifPresent(info::setOid);
-                    Optional.ofNullable(infoMap.get("name"))
-                            .filter(String.class::isInstance)
-                            .map(e -> (String) e)
-                            .ifPresent(info::setName);
-                    Optional.ofNullable(infoMap.get("worker_status"))
-                            .filter(String.class::isInstance)
-                            .map(e -> (String) e)
-                            .ifPresent(info::setWorkerStatus);
-                    Optional.ofNullable(infoMap.get("worker_start_time"))
-                            .filter(Number.class::isInstance)
-                            .map(e -> ((Number) e).longValue())
-                            .ifPresent(info::setWorkerStartTime);
-                    Optional.ofNullable(infoMap.get("sort"))
-                            .filter(Number.class::isInstance)
-                            .map(e -> ((Number) e).intValue())
-                            .ifPresent(info::setSort);
-                    Optional.ofNullable(infoMap.get("metricValues"))
-                            .filter(Map.class::isInstance)
-                            .map(e -> (Map<String, Object>) e)
-                            .map(this::toMetricInfo)
-                            .ifPresent(info::setMetricValues);
-                    Optional.ofNullable(infoMap.get("activeTime"))
-                            .filter(Number.class::isInstance)
-                            .map(e -> ((Number) e).longValue())
-                            .ifPresent(info::setPingTime);
-                    workerList.add(info);
-                }
-
+        Map<String, ApiServerWorkerInfo> workers = workerStatus.getWorkers();
+        if (null != workers && !workers.isEmpty()) {
+            workers.values().forEach(v -> {
+                v.setPingTime(v.getActiveTime());
+                Optional.ofNullable(v.getMetricValues()).ifPresent(m -> {
+                    if (null != m.getCpuUsage() && m.getCpuUsage() < 0D) {
+                        m.setCpuUsage(null);
+                    }
+                    if (null != m.getHeapMemoryUsage() && m.getHeapMemoryUsage() < 0L) {
+                        m.setHeapMemoryUsage(null);
+                    }
+                });
             });
+            workerList.addAll(workers.values());
         }
         return workerList;
-    }
-
-    public MetricInfo toMetricInfo(Object value) {
-        MetricInfo info = new MetricInfo();
-        if (value instanceof Map<?, ?> infoMap) {
-            Optional.ofNullable(infoMap.get("HeapMemoryUsage"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).longValue())
-                    .ifPresent(info::setHeapMemoryUsage);
-            Optional.ofNullable(infoMap.get("CpuUsage"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).doubleValue())
-                    .ifPresent(info::setCpuUsage);
-            Optional.ofNullable(infoMap.get("lastUpdateTime"))
-                    .filter(Number.class::isInstance)
-                    .map(e -> ((Number) e).longValue())
-                    .ifPresent(info::setLastUpdateTime);
-        }
-
-        return info;
     }
 
     public Map<String, String> workerMap(Worker server) {
@@ -176,9 +159,9 @@ public class ApiWorkerServer {
 
     public List<ApiServerInfo> getApiServerWorkerInfo() {
         Criteria cWorker = Criteria.where("worker_type").is("api-server")
-                .and(WorkerCallService.Tag.DELETE).ne(true);
+                .and(WorkerCallServiceImpl.Tag.DELETE).ne(true);
         Query qWorker = Query.query(cWorker);
-        List<Worker> server = mongoOperations.find(qWorker, Worker.class, "Workers");
+        List<Worker> server = mongoOperations.find(qWorker, Worker.class, WORKERS);
         if (server.isEmpty()) {
             return new ArrayList<>();
         }

@@ -3,13 +3,13 @@ package com.tapdata.tm.commons.task.dto.alarm;
 import cn.hutool.core.date.DateUnit;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmSettingGroup;
 import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.bson.types.ObjectId;
 
 import java.io.Serializable;
 import java.util.List;
@@ -32,4 +32,6 @@ public class AlarmSettingDto extends BaseDto implements Serializable {
     private DateUnit unit;
     private String emailAlarmTitle;
     private String emailAlarmContent;
+    private List<AlarmContentVariable> variables;
+    private AlarmSettingGroup group;
 }

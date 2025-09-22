@@ -2,7 +2,7 @@ package com.tapdata.tm.system.api.utils;
 
 
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.enums.OutputType;
 import com.tapdata.tm.system.api.vo.DebugVo;
