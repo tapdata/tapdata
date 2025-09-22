@@ -181,8 +181,7 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         }
         Criteria newCriteria = new Criteria();
         if (StringUtils.isNotEmpty(param.getNodeId())) {
-            if (CollectionUtils.isNotEmpty(param.getIncludeLogTags())) {
-                param.getIncludeLogTags().contains("src=user_script");
+            if (CollectionUtils.isNotEmpty(param.getIncludeLogTags()) && param.getIncludeLogTags().contains("src=user_script")) {
                 criteria.and("nodeId").is(String.format("%s.script", param.getNodeId()));
             } else {
                 criteria.and("nodeId").is(param.getNodeId());
