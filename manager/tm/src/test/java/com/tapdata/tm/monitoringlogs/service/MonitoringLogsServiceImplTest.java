@@ -90,5 +90,20 @@ public class MonitoringLogsServiceImplTest {
             Assertions.assertTrue(query.getItems().isEmpty());
 
         }
+
+        @Test
+        void testScriptNodeIdIsNotEmpty() {
+            MonitoringLogQueryParam param = new MonitoringLogQueryParam();
+            param.setTaskId(new ObjectId().toHexString());
+            param.setNodeId(new ObjectId().toHexString());
+            param.setType("testRun");
+            param.setStart(System.currentTimeMillis());
+            param.setOrder(MonitoringLogQueryParam.ORDER_ASC);
+            param.setIncludeLogTags(Arrays.asList("src=user_script"));
+            Page<MonitoringLogsDto> query = monitoringLogsService.query(param);
+            Assertions.assertEquals(0L, query.getTotal());
+            Assertions.assertTrue(query.getItems().isEmpty());
+
+        }
     }
 }
