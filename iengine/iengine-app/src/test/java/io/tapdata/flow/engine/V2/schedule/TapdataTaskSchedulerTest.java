@@ -26,6 +26,7 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -40,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.argThat;
 
 public class TapdataTaskSchedulerTest {
 	private TapdataTaskScheduler tapdataTaskScheduler;
@@ -428,6 +430,115 @@ public class TapdataTaskSchedulerTest {
 		TaskOperation taskOperation = mock(TaskOperation.class);
 		TapdataTaskScheduler instance = new TapdataTaskScheduler();
 		instance.handleTaskOperation(taskOperation);
+	}
+
+	@Nested
+	@DisplayName("SafeQueryTaskById Test")
+	class SafeQueryTaskByIdTest {
+		private TapdataTaskScheduler taskScheduler;
+		private ClientMongoOperator clientMongoOperator;
+
+		@BeforeEach
+		void setUp() {
+			taskScheduler = mock(TapdataTaskScheduler.class);
+			clientMongoOperator = mock(ClientMongoOperator.class);
+			ReflectionTestUtils.setField(taskScheduler, "clientMongoOperator", clientMongoOperator);
+		}
+
+		@Test
+		@DisplayName("Should return TaskDto when task exists")
+		void testSafeQueryTaskByIdWhenTaskExists() {
+			// Given
+			String taskId = "507f1f77bcf86cd799439011";
+			TaskDto expectedTaskDto = new TaskDto();
+			expectedTaskDto.setId(new ObjectId(taskId));
+			expectedTaskDto.setName("test-task");
+			expectedTaskDto.setStatus(TaskDto.STATUS_RUNNING);
+
+			when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class)))
+					.thenReturn(expectedTaskDto);
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			// When
+			TaskDto result = taskScheduler.safeQueryTaskById(taskId);
+
+			// Then
+			assertNotNull(result);
+			assertEquals(expectedTaskDto.getId(), result.getId());
+			assertEquals(expectedTaskDto.getName(), result.getName());
+			assertEquals(expectedTaskDto.getStatus(), result.getStatus());
+
+			// Verify the query was constructed correctly
+			verify(clientMongoOperator).findOne(any(Query.class), any(), any());
+		}
+
+		@Test
+		@DisplayName("Should return null when task does not exist")
+		void testSafeQueryTaskByIdWhenTaskNotExists() {
+			// Given
+			String taskId = "507f1f77bcf86cd799439011";
+
+			when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class)))
+					.thenReturn(null);
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			// When
+			TaskDto result = taskScheduler.safeQueryTaskById(taskId);
+
+			// Then
+			assertNull(result);
+			verify(clientMongoOperator).findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class));
+		}
+
+		@Test
+		@DisplayName("Should handle exception from clientMongoOperator gracefully")
+		void testSafeQueryTaskByIdWhenExceptionThrown() {
+			// Given
+			String taskId = "507f1f77bcf86cd799439011";
+
+			when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class)))
+					.thenThrow(new RuntimeException("Database connection error"));
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			// When & Then
+			assertThrows(RuntimeException.class, () -> taskScheduler.safeQueryTaskById(taskId));
+			verify(clientMongoOperator).findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class));
+		}
+
+		@Test
+		@DisplayName("Should handle null taskId parameter")
+		void testSafeQueryTaskByIdWithNullTaskId() {
+			// Given
+			String taskId = null;
+
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			// When
+			TaskDto result = taskScheduler.safeQueryTaskById(taskId);
+
+			// Then
+			assertNull(result);
+			verify(clientMongoOperator).findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class));
+		}
+
+		@Test
+		@DisplayName("Should handle empty taskId parameter")
+		void testSafeQueryTaskByIdWithEmptyTaskId() {
+			// Given
+			String taskId = "";
+
+			when(clientMongoOperator.findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class)))
+					.thenReturn(null);
+			when(taskScheduler.safeQueryTaskById(taskId)).thenCallRealMethod();
+
+			// When
+			TaskDto result = taskScheduler.safeQueryTaskById(taskId);
+
+			// Then
+			assertNull(result);
+			verify(clientMongoOperator).findOne(any(Query.class), eq(ConnectorConstant.TASK_COLLECTION), eq(TaskDto.class));
+		}
+
 	}
 
 	@Nested

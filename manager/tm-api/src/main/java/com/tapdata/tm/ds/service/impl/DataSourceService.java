@@ -108,6 +108,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract void loadPartTables(String connectionId, List<TapTable> tables, UserDetail user);
 
+    public abstract void loadPartTablesByName(String connectionId, List<String> tables, UserDetail user);
+
     public abstract void batchEncryptConfig();
 
     public abstract DataSourceConnectionDto importEntity(DataSourceConnectionDto dto, UserDetail userDetail);
