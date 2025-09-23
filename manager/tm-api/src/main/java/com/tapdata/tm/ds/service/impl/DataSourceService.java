@@ -128,6 +128,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract List<Map<String, String>> getDatabaseTypes(UserDetail user);
 
+    public abstract void startDatasourceCronMonitor();
+
     @Data
     public static class Part {
         private String _id;
