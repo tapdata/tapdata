@@ -5,5 +5,6 @@ public enum AlarmSettingTypeEnum {
     DATANODE,
     PROCESSNODE,
     SYSTEM,
-		INSPECT
+		INSPECT,
+    API_SERVER;
 }

@@ -22,6 +22,13 @@
             <artifactId>error-code-scanner</artifactId>
         </dependency>
 
+        <!-- prometheus metrics -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -2,6 +2,7 @@ package com.tapdata.tm.modules.dto;
 
 import com.deepoove.poi.plugin.highlight.HighlightRenderData;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.module.dto.Param;
 import lombok.Data;
 
 import java.util.List;

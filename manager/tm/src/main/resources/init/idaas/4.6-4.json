@@ -1,0 +1,1059 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {
+          "key": "TASK_STATUS_ERROR"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "errorTime",
+                "label": "public_error_time",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "errorLog",
+                "label": "public_error_log",
+                "icon": "IconLucideTriangleAlert"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_INSPECT_ERROR"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_FULL_COMPLETE"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "completeTime",
+                "label": "public_complete_time",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_INCREMENT_START"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "cdcTime",
+                "label": "public_cdc_time",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_STATUS_STOP"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_stop_time",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "stopTime",
+                "label": "public_task_name",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_INCREMENT_DELAY"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "delayTime",
+                "label": "public_delay_time",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "DATANODE_CANNOT_CONNECT"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "DATANODE_HTTP_CONNECT_CONSUME"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "DATANODE_TCP_CONNECT_CONSUME"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "DATANODE_AVERAGE_HANDLE_CONSUME"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "nodeName",
+                "label": "public_node_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "costTime",
+                "label": "public_current_cost_time",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "threshold",
+                "label": "public_threshold",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "occurredTime",
+                "label": "public_occurred_time",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "nodeName",
+                "label": "public_node_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "costTime",
+                "label": "public_current_cost_time",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "threshold",
+                "label": "public_threshold",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "occurredTime",
+                "label": "public_occurred_time",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "INSPECT_TASK_ERROR"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "errorTime",
+                "label": "public_error_time",
+                "icon": "IconLucideClock"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "INSPECT_COUNT_ERROR"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "count",
+                "label": "public_difference_line_count",
+                "icon": "IconLucideHash"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "INSPECT_VALUE_ERROR"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "count",
+                "label": "public_difference_line_count",
+                "icon": "IconLucideHash"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "SYSTEM_FLOW_EGINGE_DOWN"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "SYSTEM_FLOW_EGINGE_UP"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_INSPECT_DIFFERENCE"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "TASK_RETRY_WARN"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "taskName",
+                "label": "public_task_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "retryTimes",
+                "label": "public_retry_times",
+                "icon": "IconLucideClock"
+              },
+              {
+                "name": "retryThreshold",
+                "label": "public_retry_threshold",
+                "icon": "IconLucideHash"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "license_alarm_template"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "level",
+                "label": "packages_dag_components_alert_gaojingjibie",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "remainingDays",
+                "label": "public_remaining_days",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "remainingDaysThreshold",
+                "label": "public_remaining_days_threshold",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "insert": "Settings_Alarm",
+    "documents": [
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P50 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求延迟P50<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"mimutes\" variablename=\"mimutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{mimutes}</span>分钟</p><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0; margin-top: 16px;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: P50 requested for execution in the worker of API service is too high】{serverName} {workerName}",
+        "interval": 300,
+        "key": "API_SERVER_WORKER_DELAY_P50_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.709Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P95 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求延迟P95<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: P95 requested for execution in the worker of API service is too high】{serverName} {workerName}",
+        "interval": 300,
+        "key": "API_SERVER_WORKER_DELAY_P95_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.717Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P99 too high of worker</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求延迟P99<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: P99 requested for execution in the worker of API service is too high】{serverName} {workerName}",
+        "interval": 300,
+        "key": "API_SERVER_WORKER_DELAY_P99_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.726Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Error rate of API Server worker exceeds alarm threshold</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求错误率<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: Error rate of API Server worker requests per minute exceeds alarm threshold】{serverName} {workerName}",
+        "interval": 300,
+        "key": "API_SERVER_WORKER_ERROR_RATE_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.732Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Error rate of API Server worker exceeds alarm threshold</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求错误率<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: Error rate of API Server worker requests per minute exceeds notify threshold】{serverName} {workerName}",
+        "interval": 300,
+        "key": "API_SERVER_WORKER_ERROR_RATE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.738Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>API average request latency exception</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Task Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"taskName\" variablename=\"taskName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{taskName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Delay Times</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"delayTime\" variablename=\"delayTime\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{delayTime}</span> ms</p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">API $<span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span>的平均请求延时$<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: API average request latency exception】{apiName}",
+        "interval": 300,
+        "key": "API_SERVER_API_DELAY_AVG_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.745Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "apiName",
+            "label": "public_api_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P95 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span>的每分钟请求延迟P95<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: P95 requested for execution in the worker of API is too high】{apiName}",
+        "interval": 300,
+        "key": "API_SERVER_API_DELAY_P95_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.752Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P99 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span>的每分钟请求延迟P99$<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: P99 requested for execution in the worker of API is too high】{serverName} {workerName}",
+        "interval": 300,
+        "key": "API_SERVER_API_DELAY_P99_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.758Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Error rate for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求错误率<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: Error rate of API service is too high】{apiName}",
+        "interval": 300,
+        "key": "API_SERVER_API_ERROR_RATE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.764Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Error rate of all API is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px;\">Error rate of all API is too high， error rate <span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: Error rate of all API is too high】",
+        "interval": 300,
+        "key": "API_SERVER_ALL_API_ERROR_RATE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.771Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Response result size of API is too bigger</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiname\" variablename=\"apiname\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiname}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">请求响应结果超出可控范围，响应大小<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span></p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification: Response result size of API is too bigger】{apiName}",
+        "interval": 300,
+        "key": "API_SERVER_API_RESPONSE_SIZE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-18T09:14:18.787Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "API_SERVER",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "serverName",
+            "label": "public_api_server_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "workerName",
+            "label": "public_api_worker_name",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "threshold",
+            "label": "public_api_threshold",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "unit",
+            "label": "public_api_threshold_unit",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "equalsFlag",
+            "label": "public_api_threshold_equalsFlag",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "minutes",
+            "label": "public_api_minute",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "alarmDate",
+            "label": "public_api_alarmDate",
+            "icon": "IconLucideFileText"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "insert": "Settings_Alarm_Rule",
+    "documents": [
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_WORKER_DELAY_P50_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "ms",
+        "value": 100
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_WORKER_DELAY_P95_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "ms",
+        "value": 100
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_WORKER_DELAY_P99_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "ms",
+        "value": 100
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_WORKER_ERROR_RATE_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "%",
+        "value": 50
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_WORKER_ERROR_RATE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "%",
+        "value": 50
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_API_DELAY_AVG_WARN",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "ms",
+        "value": 100
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_API_DELAY_P95_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "ms",
+        "value": 100
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_API_DELAY_P99_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "ms",
+        "value": 100
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_API_ERROR_RATE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "%",
+        "value": 50
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_ALL_API_ERROR_RATE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "%",
+        "value": 50
+      },
+      {
+        "equalsFlag": 1,
+        "key": "API_SERVER_API_RESPONSE_SIZE_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "point": 60,
+        "unit": "MB",
+        "value": 5
+      }
+    ]
+  }
+]

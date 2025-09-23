@@ -1,5 +1,6 @@
 package com.tapdata.tm.modules.dto;
 
+import com.tapdata.tm.module.dto.PathSetting;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

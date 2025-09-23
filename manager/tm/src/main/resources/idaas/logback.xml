@@ -39,10 +39,13 @@
 		<appender-ref ref="APP_LOG_FILE"/>
 	</appender>
 
+	<appender name="MICROMETER" class="com.tapdata.tm.config.micrometer.MicrometerLogAppender" />
+
 	<jmxConfigurator />
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="APP_LOG_FILE" />
+		<appender-ref ref="MICROMETER" />
 	</root>
 
 	<logger name="com.tapdata" level="INFO" />

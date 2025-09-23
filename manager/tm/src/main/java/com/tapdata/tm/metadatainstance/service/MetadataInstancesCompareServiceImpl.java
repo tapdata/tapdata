@@ -680,10 +680,12 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
     /**
      * Creates an empty comparison result when no target metadata instances are found
      */
-    private MetadataInstancesCompareResult createEmptyComparisonResult(Long targetSchemaLoadTime) {
+    protected MetadataInstancesCompareResult createEmptyComparisonResult(Long targetSchemaLoadTime) {
         MetadataInstancesCompareResult result = new MetadataInstancesCompareResult();
         result.setDifferentFieldNumberMap(null);
-        result.setTargetSchemaLoadTime(DateUtil.date(targetSchemaLoadTime));
+        if(null != targetSchemaLoadTime){
+            result.setTargetSchemaLoadTime(DateUtil.date(targetSchemaLoadTime));
+        }
         return result;
     }
 

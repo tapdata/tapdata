@@ -35,4 +35,6 @@ public class MetadataDefinitionDto extends BaseDto {
     private int apiCount;
     private int publishedApiCount;
 
+    private Integer priority;
+
 }

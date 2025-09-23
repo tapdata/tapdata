@@ -1,10 +1,8 @@
 package com.tapdata.tm.commons.task.dto.alarm;
 
-import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
@@ -25,4 +23,14 @@ public class AlarmRuleVO implements Serializable {
     private int ms;
 
     private int times;
+
+    /***
+     * 对比值，单位：double/int/long...
+     */
+    private Number value;
+
+    /**
+     * 对比值单位：ms、%、MB
+     * */
+    private String unit;
 }

@@ -2,6 +2,7 @@ package com.tapdata.tm;
 
 import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
+import com.tapdata.tm.listener.MonitorConfigListener;
 import com.tapdata.tm.listener.StartupListener;
 import com.tapdata.tm.report.dto.RunsNumBatch;
 import com.tapdata.tm.report.service.UserDataReportService;
@@ -56,6 +57,7 @@ public class TMApplication {
 
 		ConfigurableApplicationContext applicationContext = new SpringApplicationBuilder(TMApplication.class)
 				.listeners(new StartupListener())
+				.listeners(new MonitorConfigListener())
 				.allowCircularReferences(true)
 				.build().run(args);
 		SpringContextHelper.applicationContext = applicationContext;
