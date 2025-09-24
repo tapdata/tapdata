@@ -26,6 +26,16 @@ public interface AlarmService {
 
     Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto);
 
+    /**
+     * @deprecated
+     * @description use com.tapdata.tm.alarm.service.impl.Notifier to implement your notify logic
+     *              and AlarmNotifyServiceImpl will auto register it to notify service info
+     * */
+    @Deprecated(since = "release-v4.9.0", forRemoval = true)
+    default void notifyAlarm() {
+        //do nothing
+    }
+
     void close(String[] ids, UserDetail userDetail);
 
     Page<AlarmListInfoVo> list(String status,
