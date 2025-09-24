@@ -609,7 +609,6 @@ public class WorkerServiceImpl extends WorkerService{
 
     @Override
     public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
-        List<MetricInfoEntity> statMetric = new ArrayList<>();
         final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
                 .and("worker_type").is("api-server")
                 .and("delete").ne(true);
@@ -620,19 +619,17 @@ public class WorkerServiceImpl extends WorkerService{
                 .ifPresent(s -> update.set("worker_status.status", s));
         update.set("worker_status.activeTime", time);
         update.set("worker_status.pid", status.getPid());
-        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s -> {
-            update.set("worker_status.metricValues", s);
-            statMetric.add(metricInfoEntity(status.getProcessId(), "api-server", s));
-        });
+        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
+            update.set("worker_status.metricValues", s)
+        );
         Optional.ofNullable(status.getWorkerStatus())
-                .ifPresent(ws -> ws.forEach((id,  value) -> {
-                    update.set(String.format("worker_status.workers.%s.workerStatus", id), value);
-                }));
+                .ifPresent(ws -> ws.forEach((id,  value) ->
+                    update.set(String.format("worker_status.workers.%s.workerStatus", id), value)
+                ));
         Optional.ofNullable(status.getCpuMemStatus())
-                        .ifPresent(ws -> ws.forEach((id,  value) -> {
-                            update.set(String.format("worker_status.workers.%s.metricValues", id), value);
-                            statMetric.add(metricInfoEntity(id, "worker", value));
-                        }));
+                        .ifPresent(ws -> ws.forEach((id,  value) ->
+                            update.set(String.format("worker_status.workers.%s.metricValues", id), value)
+                        ));
         Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
             workerBaseInfo.forEach((oid,  worker) -> {
                 Optional.ofNullable(worker.getName()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", oid), v));
@@ -645,20 +642,6 @@ public class WorkerServiceImpl extends WorkerService{
             })
         );
         update(query, update);
-    }
-
-    MetricInfoEntity metricInfoEntity(String id, String type, MetricInfo item) {
-        MetricInfoEntity entity = new MetricInfoEntity();
-        entity.setNodeId(id);
-        entity.setType(type);
-        entity.setId(new ObjectId());
-        Optional.ofNullable(item).ifPresent(i -> {
-            Optional.ofNullable(i.getHeapMemoryUsage())
-                    .ifPresent(entity::setHeapMemoryUsage);
-            Optional.ofNullable(i.getCpuUsage())
-                    .ifPresent(entity::setCpuUsage);
-        });
-        return entity;
     }
 
     public void updateAll(Query query, Update update) {

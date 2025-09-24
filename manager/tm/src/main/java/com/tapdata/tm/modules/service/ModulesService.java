@@ -544,6 +544,17 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		Query query = Query.query(criteria);
 		query.limit(1);
 		WorkerDto one = workerService.findOne(query);
+		List<String> existsNames = new ArrayList<>(Optional.ofNullable(one)
+				.map(WorkerDto::getWorkerStatus)
+				.map(ApiServerStatus::getWorkers)
+				.map(Map::values)
+				.orElse(new ArrayList<>())
+				.stream()
+				.filter(Objects::nonNull)
+				.map(ApiServerWorkerInfo::getName)
+				.filter(StringUtils::isNotBlank)
+				.distinct()
+				.toList());
 		List<ApiServerWorkerInfo> apiWorkerInfos = new ArrayList<>(Optional.ofNullable(one)
                 .map(WorkerDto::getWorkerStatus)
                 .map(ApiServerStatus::getWorkers)
@@ -555,18 +566,54 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		int size = apiWorkerInfos.size();
 		for (int index = 0; index < size; index++) {
 			ApiServerWorkerInfo worker = apiWorkerInfos.get(index);
-			worker.setName(Optional.ofNullable(worker.getName()).orElse("Worker-" + (index + 1)));
-			worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
-			worker.setSort(worker.getSort());
-		}
+			if (StringUtils.isNotBlank(worker.getName())) {
+				//Check if the name is duplicated
+				for (int each = 0; each < index; each++) {
+					ApiServerWorkerInfo eachOne = apiWorkerInfos.get(each);
+					if (Objects.equals(eachOne.getName(), worker.getName())) {
+						worker.setName(genericName(existsNames));
+						break;
+					}
+				}
+			} else {
+                worker.setName(genericName(existsNames));
+            }
+            worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
+            worker.setSort(worker.getSort());
+        }
 		for (int i = size; i < workerCount; i++) {
 			ApiServerWorkerInfo item = new ApiServerWorkerInfo();
-			item.setName("Worker-" + (i + 1));
+			item.setName(genericName(existsNames));
 			item.setSort(i);
 			item.setOid(new ObjectId().toHexString());
 			apiWorkerInfos.add(item);
 		}
+		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
 		return apiWorkerInfos;
+	}
+
+	String genericName(List<String> existsNames) {
+		String name = "Worker-1";
+		int index = 1;
+		if (existsNames.isEmpty()) {
+			return name;
+		}
+		while (existsNames.contains(name)) {
+			name = "Worker-" + index;
+			index++;
+		}
+		existsNames.add(name);
+		return name;
+	}
+
+	void reUpdateWorkerInfo(WorkerDto one, List<ApiServerWorkerInfo> apiWorkerInfos) {
+		Update update = new Update();
+		Map<String, ApiServerWorkerInfo> infos = apiWorkerInfos.stream()
+				.collect(Collectors.toMap(ApiServerWorkerInfo::getOid, e -> e, (e1, e2) -> e2));
+		update.set("worker_status.workers", infos);
+		workerService.update(
+				Query.query(Criteria.where("id").is(one.getId())),
+				update);
 	}
 
 	protected void genericWorkInfoIfNeed(ApiDefinitionVo apiDefinitionVo, String processId, Integer workerCount) {

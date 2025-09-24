@@ -1180,7 +1180,7 @@ class ModulesServiceTest {
 					"            \"HeapMemoryUsage\": 43728896,\n" +
 					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
 					"          },\n" +
-					"          \"name\": \"Worker-4\",\n" +
+					"          \"name\": \"Worker-2\",\n" +
 					"          \"sort\": 3\n" +
 					"        },\n" +
 					"        \"15\": {\n" +
@@ -1208,7 +1208,6 @@ class ModulesServiceTest {
 					"            \"HeapMemoryUsage\": 43646976,\n" +
 					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
 					"          },\n" +
-					"          \"name\": \"Worker-6\",\n" +
 					"          \"sort\": 5\n" +
 					"        },\n" +
 					"        \"17\": {\n" +
