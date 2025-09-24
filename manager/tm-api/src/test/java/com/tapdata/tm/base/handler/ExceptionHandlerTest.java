@@ -5,12 +5,15 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.MessageUtil;
 import com.tapdata.tm.utils.WebUtils;
 import org.apache.http.HttpStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Locale;
 
@@ -58,6 +61,30 @@ public class ExceptionHandlerTest {
             doNothing().when(httpServletResponse).setStatus(HttpStatus.SC_UNAUTHORIZED);
             ResponseMessage<?> responseMessage = exceptionHandler.handlerException(notAuthorized, httpServletRequest, httpServletResponse);
             assertEquals("NotLogin", responseMessage.getMessage());
+        }
+    }
+
+    @DisplayName("test not actuator/prometheus")
+    @Test
+    void test3(){
+        try (MockedStatic<MessageUtil> messageUtilMockedStatic = mockStatic(MessageUtil.class);
+             MockedStatic<WebUtils> webUtilsMockedStatic = mockStatic(WebUtils.class);) {
+            final NoResourceFoundException mock = mock(NoResourceFoundException.class);
+            when(mock.getMessage()).thenReturn("actuator/prometheus");
+            HttpServletRequest httpServletRequest = mock(HttpServletRequest.class);
+            HttpServletResponse httpServletResponse = mock(HttpServletResponse.class);
+            webUtilsMockedStatic.when(() -> {
+                WebUtils.getLocale(httpServletRequest);
+            }).thenReturn(Locale.CHINA);
+            messageUtilMockedStatic.when(() -> {
+                MessageUtil.getMessage(any(Locale.class), anyString(), eq(null));
+            }).thenReturn("NotLogin");
+            ExceptionHandler exceptionHandler = new ExceptionHandler();
+            doNothing().when(httpServletResponse).setStatus(HttpStatus.SC_UNAUTHORIZED);
+            ResponseMessage<?> responseMessage = exceptionHandler.handlerException(mock, httpServletRequest, httpServletResponse);
+            assertEquals("No static resource actuator/prometheus", responseMessage.getMessage());
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
         }
     }
 }
