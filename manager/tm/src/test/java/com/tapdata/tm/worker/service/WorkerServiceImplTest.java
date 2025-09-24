@@ -48,6 +48,7 @@ class WorkerServiceImplTest {
             status.getWorkerBaseInfo().get("id").setId(1);
             status.getWorkerBaseInfo().get("id").setWorkerStartTime(1L);
             status.getWorkerBaseInfo().get("id").setSort(1);
+            status.setProcessCpuMemStatus(new MetricInfo());
             UserDetail userDetail = mock(UserDetail.class);
             when(userDetail.getUsername()).thenReturn("username");
             when(workerService.update(any(Query.class), any(Update.class))).thenReturn(null);

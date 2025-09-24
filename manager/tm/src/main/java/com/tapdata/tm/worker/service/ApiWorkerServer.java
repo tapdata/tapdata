@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +150,12 @@ public class ApiWorkerServer {
             });
             workerList.addAll(workers.values());
         }
+        //Sort by active time first,
+        // with the same active time, then sort by name length,
+        // with the same name length, and finally sort by name
+        workerList.sort(Comparator.comparing(e -> Optional.ofNullable(((ApiServerWorkerInfo)e).getPingTime()).orElse(Long.MAX_VALUE)).reversed()
+                .thenComparing(e -> Optional.ofNullable(((ApiServerWorkerInfo) e).getName()).map(String::length).orElse(Integer.MAX_VALUE))
+                .thenComparing(e -> Optional.ofNullable(((ApiServerWorkerInfo) e).getName()).orElse("-")));
         return workerList;
     }
 
