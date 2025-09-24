@@ -182,44 +182,55 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		return modulesDetailVo;
 	}
 
-	public Page findModules(Filter filter, UserDetail userDetail) {
-		//不需要设定fields
-		filter.setFields(null);
-		Map where = filter.getWhere();
-		Map notDeleteMap = new HashMap();
-		notDeleteMap.put("$ne", true);
-		where.put("is_deleted", notDeleteMap);
+    public Page findModules(Filter filter, UserDetail userDetail) {
+        // 不需要设定 fields
+        filter.setFields(null);
+        Map<String, Object> where = filter.getWhere();
+        Map<String, Object> notDeleteMap = new HashMap<>();
+        notDeleteMap.put("$ne", true);
+        where.put("is_deleted", notDeleteMap);
 
+        String status = (String) where.getOrDefault("status", "");
+        if ("all".equals(status)) {
+            where.remove("status");
+        }
 
-		String status = (String) where.getOrDefault("status", "");
-		if ("all".equals(status)) {
-			where.remove("status");
-		}
+        Page page = find(filter, userDetail);
+        Optional.ofNullable(page.getItems())
+                .ifPresent(items -> items.stream()
+                        .filter(e -> e instanceof ModulesDto)
+                        .forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
 
-		Page page = find(filter, userDetail);
-		Optional.ofNullable(page.getItems())
-				.ifPresent(value -> value.stream()
-						.filter(e -> e instanceof ModulesDto)
-						.forEach(e -> ((ModulesDto) e).withPathSettingIfNeed()));
-		String createUser = "";
-		List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
-		if (CollectionUtils.isNotEmpty(modulesListVoList)) {
-			for (ModulesListVo modulesListVo : modulesListVoList) {
-				String connectionId = modulesListVo.getConnection();
-				if (null != connectionId) {
-					DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-					if (null != dataSourceConnectionDto) {
-						Source source = new Source(dataSourceConnectionDto.getDatabase_type(), dataSourceConnectionDto.getId().toString(), dataSourceConnectionDto.getName(), dataSourceConnectionDto.getStatus());
-						modulesListVo.setSource(source);
-					}
-				}
-				createUser = modulesListVo.getCreateUser() == null ? userDetail.getEmail() : modulesListVo.getCreateUser();
-				modulesListVo.setUser(createUser);
-			}
-		}
-		page.setItems(modulesListVoList);
-		return page;
-	}
+        String createUser = "";
+        List<ModulesListVo> modulesListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(page.getItems(), ModulesListVo.class);
+        if (CollectionUtils.isNotEmpty(modulesListVoList)) {
+            Set<ObjectId> connectionIds = modulesListVoList.stream()
+                    .map(vo -> MongoUtils.toObjectId(vo.getConnectionId()))
+                    .collect(Collectors.toSet());
+            Map<String, DataSourceConnectionDto> connectionMap = new HashMap<>();
+            if (!connectionIds.isEmpty()) {
+                Query query = Query.query(Criteria.where("id").in(connectionIds));
+                List<DataSourceConnectionDto> dataSourceConnectionDtoList = dataSourceService.findAll(query);
+                connectionMap = dataSourceConnectionDtoList.stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toMap(dto -> dto.getId().toString(), dto -> dto));
+            }
+
+            // 遍历设置 source 信息
+            for (ModulesListVo modulesListVo : modulesListVoList) {
+                String connectionId = modulesListVo.getConnectionId();
+                DataSourceConnectionDto dataSourceConnectionDto = connectionMap.get(connectionId);
+                if (connectionId != null && dataSourceConnectionDto != null) {
+                    Source source = new Source(dataSourceConnectionDto.getDatabase_type(), dataSourceConnectionDto.getId().toString(), dataSourceConnectionDto.getName(), dataSourceConnectionDto.getStatus(), dataSourceConnectionDto.getPdkHash());
+                    modulesListVo.setSource(source);
+                }
+                createUser = modulesListVo.getCreateUser() == null ? userDetail.getEmail() : modulesListVo.getCreateUser();
+                modulesListVo.setUser(createUser);
+            }
+        }
+        page.setItems(modulesListVoList);
+        return page;
+    }
 
 
 	/**

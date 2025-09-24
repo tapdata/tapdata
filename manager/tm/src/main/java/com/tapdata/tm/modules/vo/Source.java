@@ -19,6 +19,7 @@ public class Source {
     String id;
     String name;
     String status;
+    String pdkHash;
 
 
 }
