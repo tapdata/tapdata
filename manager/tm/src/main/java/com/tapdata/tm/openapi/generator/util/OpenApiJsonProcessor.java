@@ -186,12 +186,14 @@ public class OpenApiJsonProcessor {
 			// Update operation tags: set first tag to artifactId for all operations under paths
 			setArtifactIdTagForAllOperations(processedPaths, request.getArtifactId());
 
-
 			processedOpenAPI.setPaths(processedPaths);
 		}
 
 		// Remove fields with description "SERVER_PSEUDO_KEY" in components/schemas
 		removeServerPseudoKeyFieldsFromComponents(processedComponents);
+
+		// Remove unreferenced schemas from components
+		removeUnreferencedSchemas(processedOpenAPI, processedComponents);
 
 		// Set processed components
 		processedOpenAPI.setComponents(processedComponents);
@@ -202,6 +204,262 @@ public class OpenApiJsonProcessor {
 
 		log.debug("Processed OpenAPI model successfully");
 		return processedOpenAPI;
+	}
+
+	/**
+	 * Remove unreferenced schemas from components/schemas using reachability from paths.
+	 * A schema is kept only if it is reachable from any schema reference that appears under paths
+	 * (parameters/requestBodies/responses). References that originate solely from other component
+	 * schemas do not count as roots. This ensures that if schema A is not referenced by any path
+	 * but A references schema B, both A and B will be removed.
+	 *
+	 * @param openAPI    The OpenAPI object
+	 * @param components Components containing schemas to check
+	 */
+	private void removeUnreferencedSchemas(OpenAPI openAPI, Components components) {
+		if (components == null || components.getSchemas() == null || components.getSchemas().isEmpty()) {
+			return;
+		}
+
+		log.debug("Starting to remove unreferenced schemas from components (reachability from paths)");
+
+		// Compute reachable schema names starting from refs found under paths
+		Set<String> reachable = computeReachableSchemaNames(openAPI, components);
+
+		// Determine unreferenced = all schemas - reachable
+		Set<String> unreferencedSchemas = new HashSet<>(components.getSchemas().keySet());
+		unreferencedSchemas.removeAll(reachable);
+
+		int removed = 0;
+		for (String schemaName : unreferencedSchemas) {
+			components.getSchemas().remove(schemaName);
+			removed++;
+			log.debug("Removed unreferenced schema: {}", schemaName);
+		}
+
+		log.debug("Removed {} unreferenced schemas from components", removed);
+	}
+
+	/**
+	 * Compute the set of component schema names reachable from any schema reference that
+	 * appears under paths. This performs a worklist/BFS over component schemas following
+	 * nested references (properties/items/allOf/oneOf/anyOf/additionalProperties).
+	 */
+	private Set<String> computeReachableSchemaNames(OpenAPI openAPI, Components components) {
+		Set<String> reachable = new HashSet<>();
+		if (openAPI == null || openAPI.getPaths() == null) {
+			return reachable;
+		}
+
+		// Seed from paths only
+		Set<String> seedRefs = new HashSet<>();
+		collectRefsFromPaths(openAPI.getPaths(), seedRefs);
+
+		Deque<String> worklist = new ArrayDeque<>();
+		for (String ref : seedRefs) {
+			if (ref != null && ref.startsWith("#/components/schemas/")) {
+				String name = ref.substring("#/components/schemas/".length());
+				if (!name.isEmpty()) {
+					worklist.add(name);
+				}
+			}
+		}
+
+		// BFS over component schemas
+		while (!worklist.isEmpty()) {
+			String name = worklist.poll();
+			if (!reachable.add(name)) {
+				continue;
+			}
+			Map<String, Schema> schemas = components.getSchemas();
+			if (schemas == null) continue;
+			Schema<?> schema = schemas.get(name);
+			if (schema == null) continue;
+
+			Set<String> nestedRefs = new HashSet<>();
+			collectRefsFromSchema(schema, nestedRefs);
+			for (String nref : nestedRefs) {
+				if (nref != null && nref.startsWith("#/components/schemas/")) {
+					String child = nref.substring("#/components/schemas/".length());
+					if (!child.isEmpty() && !reachable.contains(child)) {
+						worklist.add(child);
+					}
+				}
+			}
+		}
+
+		return reachable;
+	}
+
+	/**
+	 * Collect all schema references from the entire OpenAPI document
+	 *
+	 * @param openAPI The OpenAPI object to search
+	 * @return Set of all $ref values found
+	 */
+	private Set<String> collectAllSchemaReferences(OpenAPI openAPI, Components components) {
+		Set<String> refs = new HashSet<>();
+
+		// Search in paths
+		if (openAPI.getPaths() != null) {
+			collectRefsFromPaths(openAPI.getPaths(), refs);
+		}
+
+		// Search in components
+		if (components != null) {
+			collectRefsFromComponents(components, refs);
+		}
+
+		return refs;
+	}
+
+	/**
+	 * Collect schema references from paths
+	 */
+	private void collectRefsFromPaths(Paths paths, Set<String> refs) {
+		for (PathItem pathItem : paths.values()) {
+			collectRefsFromPathItem(pathItem, refs);
+		}
+	}
+
+	/**
+	 * Collect schema references from a single path item
+	 */
+	private void collectRefsFromPathItem(PathItem pathItem, Set<String> refs) {
+		if (pathItem.getGet() != null) collectRefsFromOperation(pathItem.getGet(), refs);
+		if (pathItem.getPost() != null) collectRefsFromOperation(pathItem.getPost(), refs);
+		if (pathItem.getPut() != null) collectRefsFromOperation(pathItem.getPut(), refs);
+		if (pathItem.getDelete() != null) collectRefsFromOperation(pathItem.getDelete(), refs);
+		if (pathItem.getPatch() != null) collectRefsFromOperation(pathItem.getPatch(), refs);
+		if (pathItem.getHead() != null) collectRefsFromOperation(pathItem.getHead(), refs);
+		if (pathItem.getOptions() != null) collectRefsFromOperation(pathItem.getOptions(), refs);
+		if (pathItem.getTrace() != null) collectRefsFromOperation(pathItem.getTrace(), refs);
+	}
+
+	/**
+	 * Collect schema references from an operation
+	 */
+	private void collectRefsFromOperation(Operation operation, Set<String> refs) {
+		// Check parameters
+		if (operation.getParameters() != null) {
+			for (Parameter parameter : operation.getParameters()) {
+				collectRefsFromSchema(parameter.getSchema(), refs);
+			}
+		}
+
+		// Check request body
+		if (operation.getRequestBody() != null) {
+			collectRefsFromRequestBody(operation.getRequestBody(), refs);
+		}
+
+		// Check responses
+		if (operation.getResponses() != null) {
+			collectRefsFromApiResponses(operation.getResponses(), refs);
+		}
+	}
+
+	/**
+	 * Collect schema references from components
+	 */
+	private void collectRefsFromComponents(Components components, Set<String> refs) {
+		// Check schemas
+		if (components.getSchemas() != null) {
+			for (Schema<?> schema : components.getSchemas().values()) {
+				collectRefsFromSchema(schema, refs);
+			}
+		}
+
+		// Check request bodies
+		if (components.getRequestBodies() != null) {
+			for (RequestBody requestBody : components.getRequestBodies().values()) {
+				collectRefsFromRequestBody(requestBody, refs);
+			}
+		}
+
+		// Check responses
+		if (components.getResponses() != null) {
+			for (io.swagger.v3.oas.models.responses.ApiResponse response : components.getResponses().values()) {
+				collectRefsFromApiResponse(response, refs);
+			}
+		}
+	}
+
+	/**
+	 * Collect schema references from a schema object recursively
+	 */
+	private void collectRefsFromSchema(Schema<?> schema, Set<String> refs) {
+		if (schema == null) return;
+
+		// Check direct $ref
+		if (StringUtils.isNotBlank(schema.get$ref())) {
+			refs.add(schema.get$ref());
+			return; // If it's a $ref, no need to check further
+		}
+
+		// Check array items
+		if (schema.getItems() != null) {
+			collectRefsFromSchema(schema.getItems(), refs);
+		}
+
+		// Check object properties
+		if (schema.getProperties() != null) {
+			for (Schema<?> propertySchema : schema.getProperties().values()) {
+				collectRefsFromSchema(propertySchema, refs);
+			}
+		}
+
+		// Check allOf, oneOf, anyOf
+		if (schema.getAllOf() != null) {
+			for (Schema<?> subSchema : schema.getAllOf()) {
+				collectRefsFromSchema(subSchema, refs);
+			}
+		}
+		if (schema.getOneOf() != null) {
+			for (Schema<?> subSchema : schema.getOneOf()) {
+				collectRefsFromSchema(subSchema, refs);
+			}
+		}
+		if (schema.getAnyOf() != null) {
+			for (Schema<?> subSchema : schema.getAnyOf()) {
+				collectRefsFromSchema(subSchema, refs);
+			}
+		}
+
+		// Check additionalProperties
+		if (schema.getAdditionalProperties() instanceof Schema) {
+			collectRefsFromSchema((Schema<?>) schema.getAdditionalProperties(), refs);
+		}
+	}
+
+	/**
+	 * Collect schema references from request body
+	 */
+	private void collectRefsFromRequestBody(RequestBody requestBody, Set<String> refs) {
+		if (requestBody.getContent() != null) {
+			for (MediaType mediaType : requestBody.getContent().values()) {
+				collectRefsFromSchema(mediaType.getSchema(), refs);
+			}
+		}
+	}
+
+	/**
+	 * Collect schema references from API responses
+	 */
+	private void collectRefsFromApiResponses(ApiResponses responses, Set<String> refs) {
+		for (io.swagger.v3.oas.models.responses.ApiResponse response : responses.values()) {
+			collectRefsFromApiResponse(response, refs);
+		}
+	}
+
+	/**
+	 * Collect schema references from a single API response
+	 */
+	private void collectRefsFromApiResponse(io.swagger.v3.oas.models.responses.ApiResponse response, Set<String> refs) {
+		if (response.getContent() != null) {
+			for (MediaType mediaType : response.getContent().values()) {
+				collectRefsFromSchema(mediaType.getSchema(), refs);
+			}
+		}
 	}
 
 	/**
