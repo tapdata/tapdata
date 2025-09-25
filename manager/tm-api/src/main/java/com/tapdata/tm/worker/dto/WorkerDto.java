@@ -22,6 +22,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class WorkerDto extends BaseDto {
     @JsonProperty("process_id")
+    @Field("process_id")
     private String processId;
     @JsonProperty("worker_type")
     private String workerType;

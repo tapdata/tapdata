@@ -10,4 +10,8 @@ public interface ApiServerAlarmService {
 
     default void saveAlarmInfo(AlarmInfo alarmInfo) {
     }
+
+    default void releaseAlarmInfo(AlarmInfo alarmInfo) {
+
+    }
 }

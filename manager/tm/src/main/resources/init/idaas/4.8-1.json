@@ -1,0 +1,268 @@
+[
+  {
+    "update": "Settings_Alarm",
+    "updates": [
+      {
+        "q": {
+          "key": "API_SERVER_API_RESPONSE_SIZE_ALTER"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Response result size of API is too bigger</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">请求响应结果超出可控范围，响应大小<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span></p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "apiName",
+                "label": "public_api_server_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "threshold",
+                "label": "public_api_threshold",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "unit",
+                "label": "public_api_threshold_unit",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "equalsFlag",
+                "label": "public_api_threshold_equalsFlag",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_api_alarmDate",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_ALL_API_ERROR_RATE_ALTER"
+        },
+        "u": {
+          "$set": {
+            "variables": [
+              {
+                "name": "threshold",
+                "label": "public_api_threshold",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "unit",
+                "label": "public_api_threshold_unit",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "equalsFlag",
+                "label": "public_api_threshold_equalsFlag",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "minutes",
+                "label": "public_api_minute",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_api_alarmDate",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_API_ERROR_RATE_ALTER"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>Error rate for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求错误率<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "apiName",
+                "label": "public_api_server_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "threshold",
+                "label": "public_api_threshold",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "unit",
+                "label": "public_api_threshold_unit",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "minutes",
+                "label": "public_api_minute",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "equalsFlag",
+                "label": "public_api_threshold_equalsFlag",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_api_alarmDate",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_API_DELAY_P99_ALTER"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P99 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span>的每分钟请求延迟P99$<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "apiName",
+                "label": "public_api_server_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "threshold",
+                "label": "public_api_threshold",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "unit",
+                "label": "public_api_threshold_unit",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "minutes",
+                "label": "public_api_minute",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "equalsFlag",
+                "label": "public_api_threshold_equalsFlag",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_api_alarmDate",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_API_DELAY_P95_ALTER"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P95 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span>的每分钟请求延迟P95<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p></div><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "apiName",
+                "label": "public_api_server_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "threshold",
+                "label": "public_api_threshold",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "unit",
+                "label": "public_api_threshold_unit",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "minutes",
+                "label": "public_api_minute",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "equalsFlag",
+                "label": "public_api_threshold_equalsFlag",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_api_alarmDate",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_API_DELAY_AVG_WARN"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>API average request latency exception</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Api Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">API $<span data-variable=\"apiName\" variablename=\"apiName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{apiName}</span>的平均请求延时$<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+            "variables": [
+              {
+                "name": "apiName",
+                "label": "public_api_server_name",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "threshold",
+                "label": "public_api_threshold",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "unit",
+                "label": "public_api_threshold_unit",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "minutes",
+                "label": "public_api_minute",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "equalsFlag",
+                "label": "public_api_threshold_equalsFlag",
+                "icon": "IconLucideFileText"
+              },
+              {
+                "name": "alarmDate",
+                "label": "public_api_alarmDate",
+                "icon": "IconLucideFileText"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_WORKER_DELAY_P50_WARN"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>P50 requested for execution is too high</strong></h1><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">API Server Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"serverName\" variablename=\"serverName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{serverName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Worker NAME</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"workerName\" variablename=\"workerName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{workerName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">DETAIL</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\">每分钟请求延迟P50<span data-variable=\"equalsFlag\" variablename=\"equalsFlag\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{equalsFlag}</span><span data-variable=\"threshold\" variablename=\"threshold\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{threshold}</span><span data-variable=\"unit\" variablename=\"unit\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{unit}</span>并持续了<span data-variable=\"minutes\" variablename=\"minutes\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{minutes}</span>分钟</p><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0; margin-top: 16px;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>"
+          }
+        }
+      },
+      {
+        "q": {
+          "key": "API_SERVER_API_DELAY_P99_ALTER"
+        },
+        "u": {
+          "$set": {
+            "emailAlarmTitle": "【TapData Notification: P99 requested for execution in the worker of API is too high】{apiName}"
+          }
+        }
+      }
+    ]
+  }
+]
