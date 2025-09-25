@@ -36,8 +36,7 @@ public class AlarmSchedule implements InitializingBean {
         apiServerAlarmService.scanMetricData();
     }
 
-    @Scheduled(cron = "0 0/5 * * * ?")
-    @SchedulerLock(name ="api_server_alarm_config_update", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    @Scheduled(initialDelay = 10, fixedDelay = 30000)
     public void taskRetryAlarm() {
         Thread.currentThread().setName(getClass().getSimpleName() + "api-server-alarm-config-update-schedule");
         apiServerAlarmConfig.updateConfig();
