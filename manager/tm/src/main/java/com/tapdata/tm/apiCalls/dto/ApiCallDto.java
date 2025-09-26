@@ -14,7 +14,6 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiCallDto extends BaseDto {
-    @JsonProperty("req_params")
     private String reqParams;
 
     @JsonProperty("res_rows")
