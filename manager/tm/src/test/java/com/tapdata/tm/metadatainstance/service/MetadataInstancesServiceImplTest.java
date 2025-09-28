@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
@@ -35,6 +36,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionServiceImpl;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.DataTypeCheckMultipleVo;
@@ -49,6 +51,7 @@ import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.permissions.IDataPermissionHelper;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MetadataUtil;
@@ -77,6 +80,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.internal.verification.Times;
@@ -90,6 +94,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import static org.junit.jupiter.api.Assertions.*;
@@ -3288,4 +3293,426 @@ public class MetadataInstancesServiceImplTest {
 			}
 		}
 	}
+
+	@Nested
+	@DisplayName("TargetSchemaDetection Tests")
+	class TargetSchemaDetectionTest {
+		private String nodeId;
+		private String taskId;
+		private TaskService taskService;
+		private MetadataInstancesCompareService metadataInstancesCompareService;
+		private TransformSchemaService transformSchemaService;
+		private DataSourceServiceImpl dataSourceService;
+
+		@BeforeEach
+		void beforeEach() {
+			nodeId = "testNodeId";
+			taskId = "507f1f77bcf86cd799439011";
+			taskService = mock(TaskService.class);
+			metadataInstancesCompareService = mock(MetadataInstancesCompareService.class);
+			transformSchemaService = mock(TransformSchemaService.class);
+			dataSourceService = mock(DataSourceServiceImpl.class);
+
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "metadataInstancesCompareService", metadataInstancesCompareService);
+			ReflectionTestUtils.setField(metadataInstancesService, "transformSchemaService", transformSchemaService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+		}
+
+		@Test
+		@DisplayName("Should return early when task not found")
+		void testTargetSchemaDetection_TaskNotFound() {
+			// Given
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(null);
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(taskService).findOne(any(Query.class), eq(userDetail));
+				verify(metadataInstancesCompareService, never()).deleteAll(any(Query.class));
+			}
+		}
+
+		@Test
+		@DisplayName("Should return early when task not found")
+		void testTargetSchemaDetection_NodeIsNotDataParentNode() {
+			// Given
+			TaskDto taskDto = createMockTaskDto();
+			DAG dag = mock(DAG.class);
+			taskDto.setDag(dag);
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(mock(Node.class));
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(taskService).findOne(any(Query.class), eq(userDetail));
+				verify(dag).getNode(nodeId);
+				verify(metadataInstancesCompareService, never()).deleteAll(any(Query.class));
+			}
+		}
+
+		@Test
+		@DisplayName("Should return early when target node not found")
+		void testTargetSchemaDetection_TargetNodeNotFound() {
+			// Given
+			TaskDto taskDto = createMockTaskDto();
+			DAG dag = mock(DAG.class);
+			taskDto.setDag(dag);
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class)) {
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(null);
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(taskService).findOne(any(Query.class), eq(userDetail));
+				verify(dag).getNode(nodeId);
+				verify(metadataInstancesCompareService, never()).deleteAll(any(Query.class));
+			}
+		}
+
+		@Test
+		@DisplayName("Should execute async processing when task and node exist")
+		void testTargetSchemaDetection_Success() throws InterruptedException {
+			// Given
+			TaskDto taskDto = createMockTaskDto();
+			DAG dag = mock(DAG.class);
+			DataParentNode targetNode = mock(DataParentNode.class);
+			taskDto.setDag(dag);
+
+			List<MetadataInstancesCompareDto> applyDtos = createMockApplyDtos();
+			doReturn(new Page<>(0L, Collections.emptyList())).when(metadataInstancesService).findByNodeId(anyString(), any(), any(UserDetail.class), any(), any(), any(), anyInt(), anyInt());
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class);
+				 MockedStatic<CompletableFuture> completableFutureMock = mockStatic(CompletableFuture.class)) {
+
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(anyString())).thenReturn(new ObjectId());
+
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(targetNode);
+				when(targetNode.getApplyCompareRule()).thenReturn(true);
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
+
+				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(applyDtos);
+				doReturn(1L).when(metadataInstancesCompareService).deleteAll(any(Query.class));
+				doReturn(1L).when(metadataInstancesCompareService).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+
+				// Mock the async execution to run synchronously for testing
+				completableFutureMock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
+					.thenAnswer(invocation -> {
+						Runnable runnable = invocation.getArgument(0);
+						runnable.run();
+						return CompletableFuture.completedFuture(null);
+					});
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(taskService).findOne(any(Query.class), eq(userDetail));
+				verify(dag, times(2)).getNode(nodeId);
+				verify(metadataInstancesCompareService).deleteAll(any(Query.class));
+				verify(metadataInstancesCompareService, atLeastOnce()).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+			}
+		}
+
+		@Test
+		@DisplayName("Should handle empty apply dtos")
+		void testTargetSchemaDetection_EmptyApplyDtos() {
+			// Given
+			TaskDto taskDto = createMockTaskDto();
+			DAG dag = mock(DAG.class);
+			DataParentNode targetNode = mock(DataParentNode.class);
+			taskDto.setDag(dag);
+			doReturn(Page.empty()).when(metadataInstancesService).findByNodeId(anyString(), any(), any(UserDetail.class), any(), any(), any(), anyInt(), anyInt());
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class);
+				 MockedStatic<CompletableFuture> completableFutureMock = mockStatic(CompletableFuture.class)) {
+
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(targetNode);
+				when(targetNode.getApplyCompareRule()).thenReturn(false);
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
+
+				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
+
+				// Mock the async execution to run synchronously for testing
+				completableFutureMock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
+					.thenAnswer(invocation -> {
+						Runnable runnable = invocation.getArgument(0);
+						runnable.run();
+						return CompletableFuture.completedFuture(null);
+					});
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(taskService).findOne(any(Query.class), eq(userDetail));
+			}
+		}
+
+		private TaskDto createMockTaskDto() {
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId(taskId));
+			return taskDto;
+		}
+
+		private List<MetadataInstancesCompareDto> createMockApplyDtos() {
+			List<MetadataInstancesCompareDto> dtos = new ArrayList<>();
+			MetadataInstancesCompareDto dto = new MetadataInstancesCompareDto();
+			dto.setQualifiedName("test.table1");
+			dto.setDifferenceFieldList(new ArrayList<>());
+			dtos.add(dto);
+			return dtos;
+		}
+
+	}
+
+
+
+	@Nested
+	@DisplayName("Integration Tests for TargetSchemaDetection and UpdateStatus")
+	class TargetSchemaDetectionIntegrationTest {
+		private TaskService taskService;
+		private MetadataInstancesCompareService metadataInstancesCompareService;
+		private TransformSchemaService transformSchemaService;
+		private DataSourceServiceImpl dataSourceService;
+
+		@BeforeEach
+		void beforeEach() {
+			taskService = mock(TaskService.class);
+			metadataInstancesCompareService = mock(MetadataInstancesCompareService.class);
+			transformSchemaService = mock(TransformSchemaService.class);
+			dataSourceService = mock(DataSourceServiceImpl.class);
+
+			ReflectionTestUtils.setField(metadataInstancesService, "taskService", taskService);
+			ReflectionTestUtils.setField(metadataInstancesService, "metadataInstancesCompareService", metadataInstancesCompareService);
+			ReflectionTestUtils.setField(metadataInstancesService, "transformSchemaService", transformSchemaService);
+			ReflectionTestUtils.setField(metadataInstancesService, "dataSourceService", dataSourceService);
+		}
+
+		@Test
+		@DisplayName("Should call updateStatus multiple times during targetSchemaDetection")
+		void testTargetSchemaDetection_UpdateStatusCalls() {
+			// Given
+			String nodeId = "testNodeId";
+			String taskId = "507f1f77bcf86cd799439011";
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId(taskId));
+			DAG dag = mock(DAG.class);
+			DataParentNode targetNode = mock(DataParentNode.class);
+			taskDto.setDag(dag);
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class);
+				 MockedStatic<CompletableFuture> completableFutureMock = mockStatic(CompletableFuture.class)) {
+
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(targetNode);
+				when(targetNode.getApplyCompareRule()).thenReturn(true);
+				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+
+				doReturn(1L).when(metadataInstancesCompareService).deleteAll(any(Query.class));
+				doReturn(1L).when(metadataInstancesCompareService).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
+
+				// Mock the async execution to run synchronously for testing
+				completableFutureMock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
+					.thenAnswer(invocation -> {
+						Runnable runnable = invocation.getArgument(0);
+						runnable.run();
+						return CompletableFuture.completedFuture(null);
+					});
+
+				// When
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				// Verify that updateStatus is called (through upsert)
+				verify(metadataInstancesCompareService, atLeastOnce()).upsert(
+					argThat(query -> {
+						Document queryObject = query.getQueryObject();
+						return queryObject.containsKey("nodeId") &&
+							   queryObject.get("nodeId").equals(nodeId) &&
+							   queryObject.containsKey("type") &&
+							   queryObject.get("type").equals(MetadataInstancesCompareDto.TYPE_STATUS);
+					}),
+					any(MetadataInstancesCompareDto.class)
+				);
+			}
+		}
+
+
+		@Test
+		@DisplayName("Should handle batch processing correctly")
+		void testTargetSchemaDetection_BatchProcessing() {
+			// Given
+			String nodeId = "testNodeId";
+			String taskId = "507f1f77bcf86cd799439011";
+
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId(taskId));
+			DAG dag = mock(DAG.class);
+			DataParentNode targetNode = mock(DataParentNode.class);
+			taskDto.setDag(dag);
+
+			// Mock empty metadata instances to trigger completion
+			Page<MetadataInstancesDto> page = new Page<>();
+			page.setItems(createMockMetadataInstancesDtos());
+			page.setTotal(2L);
+
+			try (MockedStatic<MongoUtils> mongoUtilsMock = mockStatic(MongoUtils.class);
+				 MockedStatic<CompletableFuture> completableFutureMock = mockStatic(CompletableFuture.class)) {
+
+				mongoUtilsMock.when(() -> MongoUtils.toObjectId(taskId)).thenReturn(new ObjectId(taskId));
+
+				when(taskService.findOne(any(Query.class), eq(userDetail))).thenReturn(taskDto);
+				when(dag.getNode(nodeId)).thenReturn(targetNode);
+				when(targetNode.getApplyCompareRule()).thenReturn(true);
+				when(metadataInstancesCompareService.findAll(any(Query.class))).thenReturn(Collections.emptyList());
+
+				// Mock findByNodeId to return empty page to trigger completion
+				doReturn(page).when(metadataInstancesService).findByNodeId(
+					eq(nodeId),
+					any(List.class),
+					eq(userDetail),
+					isNull(),
+					isNull(),
+					isNull(),
+					anyInt(),
+					anyInt()
+				);
+
+				doReturn(1L).when(metadataInstancesCompareService).deleteAll(any(Query.class));
+				doReturn(1L).when(metadataInstancesCompareService).upsert(any(Query.class), any(MetadataInstancesCompareDto.class));
+				doNothing().when(transformSchemaService).transformSchema(any(DAG.class), eq(userDetail), any(ObjectId.class));
+
+				when(dataSourceService.findById(any())).thenReturn(new DataSourceConnectionDto());
+				doNothing().when(dataSourceService).sendTestConnection(any(DataSourceConnectionDto.class), anyBoolean(), anyBoolean(), anyString(), any(UserDetail.class));
+				doNothing().when(taskService).wait2ConnectionsLoadFinished(anyString(), any(ObjectId.class), anyLong(), anyInt(), any(UserDetail.class), any(MetadataInstancesCompareDto.class));
+				doReturn(mockCompareFields(createMockMetadataInstancesDtos())).when(metadataInstancesService)
+						.findSourceSchemaBySourceId(anyString(), anyList(), any(UserDetail.class), anyString(),anyString(),anyString(),anyString(),anyString());
+				// Mock the async execution to run synchronously for testing
+				completableFutureMock.when(() -> CompletableFuture.runAsync(any(Runnable.class)))
+					.thenAnswer(invocation -> {
+						Runnable runnable = invocation.getArgument(0);
+						runnable.run();
+						return CompletableFuture.completedFuture(null);
+					});
+
+				// When
+
+				doAnswer(invocationOnMock -> {
+					List<MetadataInstancesCompareDto> list = invocationOnMock.getArgument(0);
+					assertEquals(2, list.size());
+					assertEquals(4, list.get(0).getDifferenceFieldList().size());
+					return list;
+				}).when(metadataInstancesCompareService).save(any(List.class),any(UserDetail.class));
+
+				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
+
+				// Then
+				verify(metadataInstancesService).findByNodeId(
+					eq(nodeId),
+					any(List.class),
+					eq(userDetail),
+					isNull(),
+					isNull(),
+					isNull(),
+					eq(1),
+					eq(500)
+				);
+
+				// Verify that status is updated to DONE when no metadata instances found
+				verify(metadataInstancesCompareService, atLeastOnce()).upsert(
+					any(Query.class),
+					any()
+				);
+
+
+
+
+			}
+		}
+	}
+
+	private List<MetadataInstancesDto> createMockMetadataInstancesDtos() {
+		List<MetadataInstancesDto> dtos = new ArrayList<>();
+
+		MetadataInstancesDto dto1 = new MetadataInstancesDto();
+		dto1.setName("table1");
+		dto1.setQualifiedName("qualified.table1");
+		dto1.setFields(createMockFields());
+		SourceDto sourceDto = new SourceDto();
+		sourceDto.set_id(new ObjectId().toHexString());
+		dto1.setSource(sourceDto);
+
+		MetadataInstancesDto dto2 = new MetadataInstancesDto();
+		dto2.setName("table2");
+		dto2.setQualifiedName("qualified.table2");
+		dto2.setFields(createMockFields());
+		dto2.setSource(sourceDto);
+
+		dtos.add(dto1);
+		dtos.add(dto2);
+		return dtos;
+	}
+
+	private List<Field> createMockFields() {
+		List<Field> fields = new ArrayList<>();
+
+		Field field1 = createMockField("field1", "varchar(255)");
+		Field field2 = createMockField("field2", "int");
+		Field field3 = createMockField("field3", "datetime");
+
+		fields.add(field1);
+		fields.add(field2);
+		fields.add(field3);
+		return fields;
+	}
+
+	private Field createMockField(String fieldName, String dataType) {
+		Field field = new Field();
+		field.setFieldName(fieldName);
+		field.setDataType(dataType);
+		field.setTapType("{\"bytes\":8,\"type\":9}");
+		return field;
+	}
+
+	private List<MetadataInstancesDto>  mockCompareFields(List<MetadataInstancesDto> metadataInstancesDtos) {
+		List<MetadataInstancesDto> targetMetadataInstancesDtos = BeanUtil.copyToList(metadataInstancesDtos, MetadataInstancesDto.class);
+		targetMetadataInstancesDtos.forEach(metadataInstancesDto -> {
+			List<Field> fields = metadataInstancesDto.getFields();
+			fields.remove(0);
+			fields.add(0, createMockField("field4", "varchar(255)"));
+			fields.get(1).setDataType("varchar(10)");
+			fields.get(2).setTapType("{\"bytes\":8,\"cannotWrite\":true,\"type\":9}");
+		});
+		return targetMetadataInstancesDtos;
+	}
+
+
 }

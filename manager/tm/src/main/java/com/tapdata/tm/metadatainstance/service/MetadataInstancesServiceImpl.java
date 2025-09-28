@@ -1,6 +1,7 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.map.MapUtil;
 import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
@@ -15,6 +16,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollecotrConnConfig;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
@@ -25,6 +27,7 @@ import com.tapdata.tm.commons.dag.vo.FieldChangeRule;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -42,6 +45,7 @@ import com.tapdata.tm.dag.service.DAGService;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionServiceImpl;
 import com.tapdata.tm.ds.service.impl.DataSourceServiceImpl;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.dto.DataType2TapTypeDto;
 import com.tapdata.tm.metadatainstance.dto.DataTypeCheckMultipleVo;
@@ -56,6 +60,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.metadatainstance.vo.TableListVo;
 import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.service.TransformSchemaService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
@@ -80,17 +85,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.MongoExpression;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.AggregationExpression;
-import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
-import org.springframework.data.mongodb.core.aggregation.AggregationResults;
-import org.springframework.data.mongodb.core.aggregation.ComparisonOperators;
-import org.springframework.data.mongodb.core.aggregation.ConditionalOperators;
-import org.springframework.data.mongodb.core.aggregation.GraphLookupOperation;
-import org.springframework.data.mongodb.core.aggregation.LimitOperation;
-import org.springframework.data.mongodb.core.aggregation.LookupOperation;
+import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
-import org.springframework.data.mongodb.core.aggregation.SkipOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -98,12 +94,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.tapdata.tm.task.service.TaskServiceImpl.EX_TASK_NOT_FOUND_DS;
 import static com.tapdata.tm.utils.MongoUtils.applyField;
 import static com.tapdata.tm.utils.MongoUtils.applySort;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -116,7 +115,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class MetadataInstancesServiceImpl extends MetadataInstancesService{
+public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     private DataSourceServiceImpl dataSourceService;
     private DataSourceDefinitionServiceImpl dataSourceDefinitionService;
     private UserService userService;
@@ -124,6 +123,8 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
     private DAGService dagService;
     private MetaDataHistoryService metaDataHistoryService;
     private MongoTemplate mongoTemplate;
+    private MetadataInstancesCompareService metadataInstancesCompareService;
+    private TransformSchemaService transformSchemaService;
     public static final String IS_DELETED = "is_deleted";
     public static final String IS_DELETE = "is_delete";
     public static final String SOURCE_ID = "source._id";
@@ -1736,7 +1737,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
                 .and(NODE_ID).is(nodeId)
                 .and(TASK_ID).is(taskId);
 
-        return findAllDto(Query.query(criteria), userDetail);
+        Query query = new Query(criteria);
+        query.fields().include(fields);
+        return findAllDto(query, userDetail);
     }
 
     public List<MetadataInstancesDto> findByTaskId(String taskId, UserDetail userDetail) {
@@ -2597,5 +2600,103 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService{
         MetadataInstancesDto metedata = findOne(query);
         if(metedata == null)throw new BizException("metadataInstances is null");
         return metedata.getLastUpdate();
+    }
+
+    @Override
+    public void targetSchemaDetection(String nodeId, String taskId, UserDetail user) {
+        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
+        query.fields().include("dag");
+        TaskDto taskDto = taskService.findOne(query,user);
+        if(taskDto == null)return;
+        if (!(taskDto.getDag().getNode(nodeId) instanceof DataParentNode<?>)) {
+            return;
+        }
+        DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
+        if(targetNode == null)return;
+        Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
+        MetadataInstancesCompareDto metadataInstancesCompareStatus = metadataInstancesCompareService.findOne(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)));
+        if(null != metadataInstancesCompareStatus && metadataInstancesCompareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_RUNNING))return;
+        metadataInstancesCompareService.deleteAll(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
+        updateStatus(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId));
+        // 异步执行整个分批处理逻辑
+        CompletableFuture.runAsync(() -> {
+            try {
+                int batchSize = 500;
+                int currentPage = 1;
+                boolean hasMoreData = true;
+                while (hasMoreData) {
+                    Page<MetadataInstancesDto> page = findByNodeId(nodeId, Arrays.asList("original_name", "fields", "qualified_name", "name", "source._id"), user, null, null, null, currentPage, batchSize);
+                    List<MetadataInstancesDto> metadataInstancesDtos = page.getItems();
+
+                    if (CollectionUtils.isEmpty(metadataInstancesDtos)) {
+                        MetadataInstancesCompareDto metadataInstancesStatus = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
+                        metadataInstancesStatus.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
+                        updateStatus(metadataInstancesStatus);
+                        break;
+                    }
+
+                    log.info("Processing batch {}, size: {} for nodeId: {}, taskId: {}", currentPage, metadataInstancesDtos.size(), nodeId, taskId);
+                    List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
+                    Map<String, MetadataInstancesDto> map = metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getName, m -> m));
+                    List<String> tableNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+                    int timeout = 5 * 1000 * tableNames.size();
+                    long beginTime = System.currentTimeMillis();
+                    String connectionId = metadataInstancesDtos.get(0).getSource().get_id();
+                    DataSourceConnectionDto connDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
+                    if (null == connDto) throw new BizException(EX_TASK_NOT_FOUND_DS, connectionId);
+                    dataSourceService.sendTestConnection(connDto, true, true, String.join(",", tableNames), user);
+                    Consumer<MetadataInstancesDto> tableConsumer = (MetadataInstancesDto targetMetadataInstance) -> {
+                        if (null != targetMetadataInstance) {
+                            MetadataInstancesDto deductionMetadataInstance = map.get(targetMetadataInstance.getName());
+                            // Create field maps for comparison
+                            Map<String, Field> deductionFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+                            List<DifferenceField> applyDifferenceFields =
+                                    Optional.ofNullable(applyFields)
+                                            .map(m -> m.get(deductionMetadataInstance.getQualifiedName()))
+                                            .orElse(Collections.emptyList());
+                            if(CollectionUtils.isNotEmpty(applyDifferenceFields)){
+                                applyDifferenceFields.forEach(differenceField -> {
+                                    differenceField.getType().recoverField(deductionFieldMap.get(differenceField.getColumnName()),deductionMetadataInstance.getFields(),differenceField);
+                                });
+                            }
+                            List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance);
+                            compareDtos.add(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoCompare(taskId,nodeId,deductionMetadataInstance.getName(),deductionMetadataInstance.getQualifiedName(),differenceFieldList));
+                        }
+                    };
+                    MetadataInstancesCompareDto metadataInstancesStatus =  MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
+                    taskService.wait2ConnectionsLoadFinished(taskId, MongoUtils.toObjectId(connectionId), beginTime, timeout, user,metadataInstancesStatus);
+                    if(!metadataInstancesStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_RUNNING)){
+                        updateStatus(metadataInstancesStatus);
+                        break;
+                    }
+                    findSourceSchemaBySourceId(connectionId, tableNames, user, "original_name", "fields", "qualified_name", "name", "source._id").forEach(tableConsumer);
+                    hasMoreData = page.getTotal() > (long) currentPage * batchSize;
+                    boolean isLastBatch = !hasMoreData;
+
+                    if(CollectionUtils.isNotEmpty(compareDtos)){
+                        metadataInstancesCompareService.save(compareDtos,user);
+                    }
+                    if (isLastBatch) {
+                        metadataInstancesStatus.setStatus(MetadataInstancesCompareDto.STATUS_DONE);
+                        metadataInstancesStatus.setTargetSchemaLoadTime(new Date());
+                        updateStatus(metadataInstancesStatus);
+                        transformSchemaService.transformSchema(taskDto.getDag(), user, taskDto.getId());
+                    }
+                    currentPage++;
+                }
+
+                log.info("All batches completed for nodeId: {}, taskId: {}", nodeId, taskId);
+            } catch (Exception e) {
+                MetadataInstancesCompareDto metadataInstancesStatus = MetadataInstancesCompareDto.createMetadataInstancesCompareDtoStatus(nodeId);
+                metadataInstancesStatus.setStatus(MetadataInstancesCompareDto.STATUS_ERROR);
+                updateStatus(metadataInstancesStatus);
+                log.error("Target schema detection failed for nodeId: {}, taskId: {}", nodeId, taskId, e);
+            }
+        });
+    }
+
+    protected void updateStatus(MetadataInstancesCompareDto metadataInstancesCompareDto) {
+        metadataInstancesCompareDto.setLastUpdAt(new Date());
+        metadataInstancesCompareService.upsert(Query.query(Criteria.where("nodeId").is(metadataInstancesCompareDto.getNodeId()).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)),metadataInstancesCompareDto);
     }
 }

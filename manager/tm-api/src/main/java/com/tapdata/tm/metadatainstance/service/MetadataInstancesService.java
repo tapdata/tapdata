@@ -219,4 +219,6 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
     public abstract void checkSetLastUpdate(List<MetadataInstancesDto> insertMetaDataDtos,UserDetail user);
 
     public abstract Long findDatabaseMetadataInstanceLastUpdate(String connectionId,UserDetail user);
+
+    public abstract void targetSchemaDetection(String nodeId,String taskId,UserDetail user);
 }

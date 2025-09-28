@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesCompareDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -301,6 +302,8 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;
     public abstract Node getSourceNode(TaskDto taskDto);
     public abstract Node getTargetNode(TaskDto taskDto);
+    public abstract void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail);
+    public abstract void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail, MetadataInstancesCompareDto metadataInstancesCompareDto);
 
     @Data
     @AllArgsConstructor

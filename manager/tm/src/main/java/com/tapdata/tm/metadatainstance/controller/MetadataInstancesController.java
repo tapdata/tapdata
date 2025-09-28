@@ -8,14 +8,14 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.commons.schema.FindMetadataDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TapTableDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.DiscoveryFieldDto;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadataInstancesCompare.param.MetadataInstancesApplyParam;
+import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.metadatainstance.bean.MultiPleTransformReq;
 import com.tapdata.tm.metadatainstance.bean.NodeInfoPage;
 import com.tapdata.tm.metadatainstance.dto.*;
@@ -26,12 +26,7 @@ import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.metadatainstance.vo.ExportModulesVo;
-import com.tapdata.tm.metadatainstance.vo.MetaTableCheckVo;
-import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
-import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
-import com.tapdata.tm.metadatainstance.vo.TableListVo;
-import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
+import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.GZIPUtil;
@@ -52,18 +47,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
@@ -92,6 +76,7 @@ public class MetadataInstancesController extends BaseController {
     private ModulesService modulesService;
     private InspectService inspectService;
     private MetaMigrateService metaMigrateService;
+    private MetadataInstancesCompareService metadataInstancesCompareService;
 
     /**
      * 新增元数据
@@ -804,8 +789,11 @@ public class MetadataInstancesController extends BaseController {
 
     @Operation(summary = "类型映射检查")
     @PostMapping("dataType2TapType")
-    public ResponseMessage<Map<String, TapType>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
-        return success(metadataInstancesService.dataType2TapType(dto, getLoginUser()));
+    public ResponseMessage<Map<String, Object>> dataType2TapType(@RequestBody DataType2TapTypeDto dto) {
+        Map<String, TapType> res = metadataInstancesService.dataType2TapType(dto, getLoginUser());
+        // 转换 TapType 中的 bytes 字段为字符串，防止前端数据失精
+        Map<String, Object> convertedRes = convertTapTypeBytesToString(res);
+        return success(convertedRes);
     }
 
 
@@ -866,4 +854,114 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage<Boolean> checkMetadataInstancesIndex(@RequestParam("cacheKeys") String cacheKeys,@RequestParam("id") String id){
         return success(metadataInstancesService.checkMetadataInstancesIndex(cacheKeys,id));
     }
+
+    @Operation(summary = "目标模型探测")
+    @GetMapping("targetSchemaDetection")
+    public ResponseMessage<Void> targetSchemaDetection(@RequestParam("nodeId") String nodeId,@RequestParam("taskId") String taskId) {
+        metadataInstancesService.targetSchemaDetection(nodeId,taskId,getLoginUser());
+        return success();
+    }
+
+    @Operation(summary = "应用配置")
+    @PostMapping("saveMetadataInstancesCompareApply")
+    public ResponseMessage<Void> saveMetadataInstancesCompareApply(@RequestParam(value = "all") Boolean all,
+                                                                                         @RequestParam(value = "nodeId") String nodeId,
+                                                                                         @RequestBody(required = false) List<MetadataInstancesApplyParam> metadataInstancesApplyParams) {
+        metadataInstancesCompareService.saveMetadataInstancesCompareApply(metadataInstancesApplyParams,getLoginUser(),all,nodeId);
+        return success();
+    }
+
+    @Operation(summary = "删除配置")
+    @DeleteMapping("deleteMetadataInstancesCompareApply")
+    public ResponseMessage<Void> deleteMetadataInstancesCompareApply(@RequestParam(value = "all") Boolean all,
+                                                                                           @RequestParam(value = "nodeId") String nodeId,
+                                                                                           @RequestParam(value = "invalid",required = false) Boolean invalid,
+                                                                                           @RequestBody(required = false) List<MetadataInstancesApplyParam> metadataInstancesApplyParams) {
+        metadataInstancesCompareService.deleteMetadataInstancesCompareApply(metadataInstancesApplyParams,getLoginUser(),all,invalid,nodeId);
+        return success();
+    }
+
+    @Operation(summary = "获取目标模型对比结果")
+    @GetMapping("getMetadataInstancesCompareResult")
+    public ResponseMessage<MetadataInstancesCompareResult> getMetadataInstancesCompareResult(@RequestParam("nodeId") String nodeId,
+                                                                                             @RequestParam("taskId") String taskId,
+                                                                                             @RequestParam(value = "tableFilter", required = false) String tableFilter,
+                                                                                             @RequestParam(value = "page", defaultValue = "1") Integer page, @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize,
+                                                                                             @RequestParam(value = "types", required = false) List<String> types
+    )  {
+        return success(metadataInstancesCompareService.getMetadataInstancesCompareResult(nodeId,taskId,tableFilter,page,pageSize,types));
+    }
+
+    @Operation(summary = "获取目标模型对比统计")
+    @GetMapping("compareAndGetMetadataInstancesCompareResult")
+    public ResponseMessage<MetadataInstancesCompareResult> compareAndGetMetadataInstancesCompareResult(@RequestParam("nodeId") String nodeId, @RequestParam("taskId") String taskId){
+        return success(metadataInstancesCompareService.compareAndGetMetadataInstancesCompareResult(nodeId,taskId,getLoginUser(),true));
+    }
+
+    /**
+     * 转换 TapType 中的 bytes 字段为字符串，防止前端数据失精
+     *
+     * @param tapTypeMap 原始的 TapType Map
+     * @return 转换后的 Map，bytes 字段为字符串
+     */
+    public Map<String, Object> convertTapTypeBytesToString(Map<String, TapType> tapTypeMap) {
+        if (tapTypeMap == null) {
+            return null;
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<String, TapType> entry : tapTypeMap.entrySet()) {
+            String key = entry.getKey();
+            TapType tapType = entry.getValue();
+
+            if (tapType == null) {
+                result.put(key, null);
+                continue;
+            }
+
+            // 将 TapType 转换为 Map，然后处理 bytes 字段
+            Map<String, Object> tapTypeMap1 = convertTapTypeToMap(tapType);
+            result.put(key, tapTypeMap1);
+        }
+
+        return result;
+    }
+
+    /**
+     * 将 TapType 对象转换为 Map，并将 bytes 相关字段转换为字符串
+     *
+     * @param tapType TapType 对象
+     * @return 转换后的 Map
+     */
+    private Map<String, Object> convertTapTypeToMap(TapType tapType) {
+        Map<String, Object> map = new HashMap<>();
+
+        // 基本属性
+        map.put("type", tapType.getType());
+        map.put("cannotWrite", tapType.getCannotWrite());
+
+        try {
+            // 使用反射获取所有字段
+            java.lang.reflect.Field[] fields = tapType.getClass().getDeclaredFields();
+            for (java.lang.reflect.Field field : fields) {
+                field.setAccessible(true);
+                String fieldName = field.getName();
+                Object value = field.get(tapType);
+
+                // 将 bytes 相关的 Long 字段转换为字符串
+                if (value instanceof Long && (fieldName.contains("bytes") || fieldName.contains("Bytes"))) {
+                    map.put(fieldName, value.toString());
+                } else {
+                    map.put(fieldName, value);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to convert TapType to Map using reflection, fallback to basic conversion", e);
+            // 如果反射失败，至少保证基本功能
+            map.put("tapType", tapType.getClass().getSimpleName());
+        }
+
+        return map;
+    }
+
 }

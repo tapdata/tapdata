@@ -185,19 +185,22 @@ public class LdpServiceImpl implements LdpService {
 
 
 			String initType = task.getType();String initCrontabExpression = task.getCrontabExpression();
-            Boolean initCrontabExpressionFlag = task.getCrontabExpressionFlag();if (StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
+            Boolean initCrontabExpressionFlag = task.getCrontabExpressionFlag();
+			if (databaseNode.getMigrateTableSelectType().equals("expression") && StringUtils.isNotBlank(oldSourceNode.getTableExpression())) {
 				mergeAllTable(user, connectionId, oldTask, oldTableNames);
 				task = oldTask;
 
-			} else if ((StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
+			} else if ((databaseNode.getMigrateTableSelectType().equals("expression") && StringUtils.isNotBlank(databaseNode.getTableExpression()))) {
 				mergeAllTable(user, connectionId, task, oldTableNames);
 				oldTask.setDag(task.getDag());
 				task = oldTask;
 			} else {
 				task = createNew(task, dag, oldTask);
 			}
-		task.setType(initType);task.setCrontabExpression(initCrontabExpression);
-            task.setCrontabExpressionFlag(initCrontabExpressionFlag);} else if (StringUtils.isNotBlank(databaseNode.getTableExpression())) {
+		    task.setType(initType);
+			task.setCrontabExpression(initCrontabExpression);
+            task.setCrontabExpressionFlag(initCrontabExpressionFlag);
+		} else if (databaseNode.getMigrateTableSelectType().equals("expression") && StringUtils.isNotBlank(databaseNode.getTableExpression())) {
 			mergeAllTable(user, connectionId, task, null);
 		} else {
 			task = createNew(task, dag, null);
@@ -275,7 +278,7 @@ public class LdpServiceImpl implements LdpService {
         return ParentTaskDto.TYPE_INITIAL_SYNC;
     }
 
-    private Criteria fdmTaskCriteria(String connectionId) {
+    protected Criteria fdmTaskCriteria(String connectionId) {
         return  Criteria.where("ldpType").is(TaskDto.LDP_TYPE_FDM)
                 .and("dag.nodes.connectionId").is(connectionId)
                 .and("is_deleted").ne(true)
@@ -289,7 +292,7 @@ public class LdpServiceImpl implements LdpService {
 		}
 	}
 
-	private void flushPrefix(DAG dag, DAG dag1) {
+	protected void flushPrefix(DAG dag, DAG dag1) {
 		if (dag == null) {
 			return;
 		}
@@ -319,7 +322,7 @@ public class LdpServiceImpl implements LdpService {
 	}
 
 	@NotNull
-	private TaskDto createNew(TaskDto task, DAG dag, TaskDto oldTask) {
+	protected TaskDto createNew(TaskDto task, DAG dag, TaskDto oldTask) {
 		task = mergeSameSourceTask(task, oldTask);
 		//add fmd type
 
@@ -356,7 +359,7 @@ public class LdpServiceImpl implements LdpService {
 		return task;
 	}
 
-	private void mergeAllTable(UserDetail user, String connectionId, TaskDto oldTask, List<String> oldTableNames) {
+	protected void mergeAllTable(UserDetail user, String connectionId, TaskDto oldTask, List<String> oldTableNames) {
 		Criteria criteria1 = Criteria.where("source._id").is(connectionId)
 				.and("taskId").exists(false)
 				.and("is_deleted").ne(true)
@@ -373,7 +376,7 @@ public class LdpServiceImpl implements LdpService {
 		mergeTable(oldTask.getDag(), sourceNodeId, tableNames);
 	}
 
-	private void createFdmTags(TaskDto taskDto, UserDetail user) {
+	protected void createFdmTags(TaskDto taskDto, UserDetail user) {
 		//查询是否存在fdm下面这个数据源的分类。没有则创建。
 		DAG dag = taskDto.getDag();
 		List<Node> sources = dag.getSources();
@@ -450,7 +453,7 @@ public class LdpServiceImpl implements LdpService {
 		}
 	}
 
-	private String checkFdmTask(TaskDto task, UserDetail user) {
+	protected String checkFdmTask(TaskDto task, UserDetail user) {
 		//syncType is migrate
 		if (!TaskDto.SYNC_TYPE_MIGRATE.equals(task.getSyncType())) {
 			log.warn("Create fdm task, but the sync type not is migrate, sync type = {}", task.getSyncType());
@@ -966,7 +969,7 @@ public class LdpServiceImpl implements LdpService {
 
 		Criteria criteriaCon = Criteria.where("_id").in(conIds);
 		Query queryCon = new Query(criteriaCon);
-		List<DataSourceConnectionDto> connections = dataSourceService.findAllDto(queryCon, user);
+		List<DataSourceConnectionDto> connections = dataSourceService.findAll(queryCon);
 
 		for (DataSourceConnectionDto connection : connections) {
 			fuzzySearchList.add(new LdpFuzzySearchVo(LdpFuzzySearchVo.FuzzyType.connection, connection, connection.getId().toHexString()));
