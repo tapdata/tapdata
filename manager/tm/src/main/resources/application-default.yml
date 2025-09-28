@@ -9,8 +9,8 @@ application:
 spring:
   servlet:
     multipart:
-      max-file-size: 200MB
-      max-request-size: 200MB
+      max-file-size: ${SERVER_UPLOAD_FILE_MAX_SIZE:300MB}
+      max-request-size: ${SERVER_UPLOAD_REQUEST_MAX_SIZE:300MB}
       enabled: true
   application:
     name: TCMApplication
