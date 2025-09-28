@@ -25,21 +25,27 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
     public static final int BATCH_ACCEPT = 100;
     private final Map<String, WorkerCallEntity> last;
     private Long lastKey;
+    private final int batchSize;
 
     public WorkerCallsInfoGenerator(Acceptor acceptor) {
+        this(acceptor, null);
+    }
+
+    public WorkerCallsInfoGenerator(Acceptor acceptor, Integer batchSize) {
         this.acceptor = acceptor;
         if (null == this.acceptor) {
             throw new IllegalArgumentException("Acceptor cannot be null");
         }
         this.calls = new HashMap<>();
         this.last = new HashMap<>();
+        this.batchSize = Optional.ofNullable(batchSize).orElse(BATCH_ACCEPT);
     }
 
     void append(WorkerCallsInfo info) {
         try {
             this.map(info);
         } finally {
-            if (calls != null && !calls.isEmpty() && BATCH_ACCEPT >= calls.size()) {
+            if (calls != null && !calls.isEmpty() && batchSize >= calls.size()) {
                 calls.remove(lastKey);
                 accept();
                 calls.put(lastKey, last);
@@ -59,7 +65,10 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
         final String processId = info.getApiGatewayUuid();
         final String workOid = info.getWorkOid();
         final String apiId = info.getApiId();
-        final Long latency = info.getLatency();
+        long latency = Optional.ofNullable(info.getLatency()).orElse(0L);
+        if (latency < 0L) {
+            latency = 0L;
+        }
         final int code = Integer.parseInt(info.getCode());
         final long key = (reqTime / 60000L) * 60000L;
         final Map<String, WorkerCallEntity> itemMap = calls.computeIfAbsent(key, k -> new HashMap<>());
@@ -93,7 +102,9 @@ public class WorkerCallsInfoGenerator implements AutoCloseable {
     void accept() {
         final List<WorkerCallEntity> list = new ArrayList<>();
         calls.values().stream().map(Map::values).toList().forEach(list::addAll);
-        acceptor.accept(list);
+        if (!list.isEmpty()) {
+            acceptor.accept(list);
+        }
         calls = new HashMap<>();
     }
 

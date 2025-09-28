@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -68,6 +67,11 @@ public class ApiCallMinuteStatsService extends BaseService<ApiCallMinuteStatsDto
 		apiCallMinuteStatsDto.setTransferBytePerSecond(rowPerSecond.doubleValue());
 	}
 
+	/**
+	 * @deprecated
+	 * @description use bulkWrite(List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList, Class<ApiCallMinuteStatsEntity> entityClass, Function<ApiCallMinuteStatsDto, Query> queryFunction)
+	 * */
+	@Deprecated(since = "release-v4.9.0", forRemoval = true)
 	public void bulkWrite(List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList) {
 		if (null == apiCallMinuteStatsDtoList || apiCallMinuteStatsDtoList.isEmpty()) {
 			return;
