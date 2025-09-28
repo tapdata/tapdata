@@ -1,8 +1,10 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.apiCalls.service.ApiCallService;
+import com.tapdata.tm.apiCalls.service.SupplementApiCallServer;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
+import com.tapdata.tm.apicallminutestats.entity.ApiCallMinuteStatsEntity;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
@@ -38,14 +40,21 @@ public class ApiCallMinuteStatsScheduler {
 	private final ApiCallService apiCallService;
 	private final WorkerCallServiceImpl workerCallServiceImpl;
 	private final WorkerService workerService;
+	private final SupplementApiCallServer supplementApiCallServer;
 
 	@Autowired
-	public ApiCallMinuteStatsScheduler(ModulesService modulesService, ApiCallMinuteStatsService apiCallMinuteStatsService, ApiCallService apiCallService, WorkerCallServiceImpl workerCallServiceImpl, WorkerService ws) {
+	public ApiCallMinuteStatsScheduler(ModulesService modulesService,
+									   ApiCallMinuteStatsService apiCallMinuteStatsService,
+									   ApiCallService apiCallService,
+									   WorkerCallServiceImpl workerCallServiceImpl,
+									   WorkerService ws,
+									   SupplementApiCallServer sas) {
 		this.modulesService = modulesService;
 		this.apiCallMinuteStatsService = apiCallMinuteStatsService;
 		this.apiCallService = apiCallService;
 		this.workerCallServiceImpl = workerCallServiceImpl;
 		this.workerService = ws;
+		this.supplementApiCallServer = sas;
 	}
 
 	/**
@@ -117,7 +126,10 @@ public class ApiCallMinuteStatsScheduler {
 				}
 			});
 			try {
-				apiCallMinuteStatsService.bulkWrite(apiCallMinuteStatsDtoList);
+				apiCallMinuteStatsService.bulkWrite(apiCallMinuteStatsDtoList, ApiCallMinuteStatsEntity.class, entity -> {
+					Criteria criteria = Criteria.where("id").is(entity.getId());
+					return Query.query(criteria);
+				});
 				long loopCost = System.currentTimeMillis() - loopStartMs;
 				if (log.isDebugEnabled()) {
 					StringBuilder sb = new StringBuilder();
@@ -146,6 +158,7 @@ public class ApiCallMinuteStatsScheduler {
 		} catch (Exception e) {
 			log.error("Aggregate API call count of worker failed, error: {}", e.getMessage(), e);
 		}
+		supplement();
 	}
 
 	void collectOnceApiCountOfWorker() {
@@ -163,5 +176,13 @@ public class ApiCallMinuteStatsScheduler {
 				log.error("Unable to perform Worker level request access data statistics on API servers", e);
 			}
 		});
+	}
+
+	void supplement() {
+		try {
+			supplementApiCallServer.supplementOnce();
+		} catch (Exception e) {
+			log.error("Abnormal historical supplementary data statistics, error: {}", e.getMessage(), e);
+		}
 	}
 }

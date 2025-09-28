@@ -2,6 +2,8 @@ package com.tapdata.tm.utils;
 
 import com.tapdata.manager.common.utils.DateUtil;
 import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.base.exception.BizException;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -26,10 +28,19 @@ import static com.tapdata.manager.common.utils.ReflectionUtils.getAllFieldType;
  * @description
  */
 public class MongoUtils {
+    private MongoUtils() {}
 
     private static final Logger logger = LoggerFactory.getLogger(MongoUtils.class);
 
     private static final String[] REGEX_CHAR = {"\\", "^", "*", "+", "?", "(", ")", "{", "}", "[", "]", ".", "|", "/"};
+
+    public static <T extends BaseEntity> String getCollectionName(Class<T> entityClass) {
+        try {
+            return EntityUtils.documentAnnotationValue(entityClass);
+        } catch (Exception e) {
+            throw new BizException("Get Collection name by entity class failed, class: " + entityClass.getName(), e);
+        }
+    }
 
     /**
      * Compile query conditions according to the request

@@ -1,6 +1,7 @@
 package com.tapdata.tm.schedule;
 
 import com.tapdata.tm.apiCalls.service.ApiCallService;
+import com.tapdata.tm.apiCalls.service.SupplementApiCallServer;
 import com.tapdata.tm.apiCalls.service.WorkerCallServiceImpl;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
@@ -42,15 +43,18 @@ class ApiCallMinuteStatsSchedulerTest {
 	private ApiCallMinuteStatsScheduler apiCallMinuteStatsScheduler;
 	private WorkerCallServiceImpl workerCallServiceImpl;
 	WorkerService workerService;
+	SupplementApiCallServer supplementApiCallServer;
 
 	@BeforeEach
 	void setUp() {
+		supplementApiCallServer = mock(SupplementApiCallServer.class);
+		doNothing().when(supplementApiCallServer).supplementOnce();
 		modulesService = mock(ModulesService.class);
 		apiCallMinuteStatsService = mock(ApiCallMinuteStatsService.class);
 		apiCallService = mock(ApiCallService.class);
 		workerCallServiceImpl = mock(WorkerCallServiceImpl.class);
 		workerService = mock(WorkerService.class);
-		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallServiceImpl, workerService);
+		apiCallMinuteStatsScheduler = new ApiCallMinuteStatsScheduler(modulesService, apiCallMinuteStatsService, apiCallService, workerCallServiceImpl, workerService, supplementApiCallServer);
 	}
 
 	@Test
@@ -121,7 +125,7 @@ class ApiCallMinuteStatsSchedulerTest {
 				assertEquals(modulesList.get(0).getUserId(), list.get(0).getUserId());
 				assertNotNull(list.get(0).getCreateAt());
 				return null;
-			}).when(apiCallMinuteStatsService).bulkWrite(any(List.class));
+			}).when(apiCallMinuteStatsService).bulkWrite(any(List.class), any(Class.class), any());
 
 			apiCallMinuteStatsScheduler.schedule();
 		}
