@@ -1,4 +1,4 @@
-package com.tapdata.tm.modules.dto;
+package com.tapdata.tm.module.dto;
 
 import lombok.Data;
 import lombok.Getter;

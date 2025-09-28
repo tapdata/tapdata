@@ -1,9 +1,8 @@
 package com.tapdata.tm.metadatainstance.vo;
 
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import lombok.Data;
-import org.bson.types.ObjectId;
 
 import java.util.Date;
 import java.util.List;

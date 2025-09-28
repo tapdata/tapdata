@@ -73,9 +73,7 @@ import java.util.concurrent.CompletableFuture;
 {{#returnSuccessCode}}
 import java.util.concurrent.atomic.AtomicInteger;
 {{/returnSuccessCode}}
-import {{javaxPackage}}.annotation.Generated;
 
-{{>generatedAnnotation}}
 {{#useBeanValidation}}{{^useSpringBuiltInValidation}}@Validated{{/useSpringBuiltInValidation}}{{/useBeanValidation}}
 {{#useSpringController}}
 {{#useResponseEntity}}

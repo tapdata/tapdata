@@ -2,15 +2,16 @@ package com.tapdata.tm.openapi.generator.service;
 
 import com.tapdata.tm.application.dto.ApplicationDto;
 import com.tapdata.tm.application.service.ApplicationService;
-import com.tapdata.tm.commons.util.JsonUtil;
+
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.openapi.generator.config.OpenApiGeneratorProperties;
 import com.tapdata.tm.openapi.generator.dto.CodeGenerationRequest;
 import com.tapdata.tm.openapi.generator.exception.CodeGenerationException;
 import com.tapdata.tm.openapi.generator.util.GridFSUploadUtil;
 import com.tapdata.tm.openapi.generator.util.MavenPackagingUtil;
+import com.tapdata.tm.openapi.generator.util.OpenApiJsonProcessor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.MapUtils;
+
 import org.bson.types.ObjectId;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
@@ -50,10 +51,84 @@ public class OpenApiGeneratorService {
 	// Cached paths resolved during initialization
 	private String resolvedJarPath;
 	private String resolvedTemplatePath;
+	private Path resolvedTempDir;
 
 	// Cached RestTemplate for HTTP requests
 	private RestTemplate restTemplate;
 
+	// OpenAPI JSON processor utility
+	private OpenApiJsonProcessor openApiJsonProcessor;
+
+	/**
+	 * Ensure JAR path is initialized, initialize on demand if null
+	 */
+	private void ensureJarPathInitialized() throws CodeGenerationException {
+		if (resolvedJarPath == null) {
+			log.warn("JAR path not initialized during startup, attempting to initialize now");
+			try {
+				resolvedJarPath = resolveJarPath();
+				log.info("Successfully initialized JAR path on demand: {}", resolvedJarPath);
+			} catch (IOException e) {
+				log.error("Failed to initialize JAR path on demand", e);
+				throw new CodeGenerationException("JAR path initialization failed: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Ensure template path is initialized, initialize on demand if null
+	 */
+	private void ensureTemplatePathInitialized() throws CodeGenerationException {
+		if (resolvedTemplatePath == null) {
+			log.warn("Template path not initialized during startup, attempting to initialize now");
+			try {
+				resolvedTemplatePath = resolveTemplatePath();
+				log.info("Successfully initialized template path on demand: {}", resolvedTemplatePath);
+			} catch (IOException e) {
+				log.error("Failed to initialize template path on demand", e);
+				throw new CodeGenerationException("Template path initialization failed: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Ensure temp directory is initialized, initialize on demand if null
+	 */
+	private void ensureTempDirInitialized() throws CodeGenerationException {
+		if (resolvedTempDir == null) {
+			log.warn("Temp directory not initialized during startup, attempting to initialize now");
+			try {
+				resolvedTempDir = initializeTempDirectory();
+				log.info("Successfully initialized temp directory on demand: {}", resolvedTempDir);
+			} catch (IOException e) {
+				log.error("Failed to initialize temp directory on demand", e);
+				throw new CodeGenerationException("Temp directory initialization failed: " + e.getMessage(), e);
+			}
+		}
+	}
+
+	/**
+	 * Ensure RestTemplate is initialized, initialize on demand if null
+	 */
+	private void ensureRestTemplateInitialized() {
+		if (restTemplate == null) {
+			log.warn("RestTemplate not initialized during startup, creating new instance");
+			restTemplate = createRestTemplate();
+			log.info("Successfully created RestTemplate on demand");
+		}
+	}
+
+	/**
+	 * Ensure OpenApiJsonProcessor is initialized, initialize on demand if null
+	 */
+	private void ensureOpenApiJsonProcessorInitialized() {
+		if (openApiJsonProcessor == null) {
+			log.warn("OpenApiJsonProcessor not initialized during startup, creating new instance");
+			ensureRestTemplateInitialized(); // Ensure RestTemplate is available first
+			openApiJsonProcessor = new OpenApiJsonProcessor(this.restTemplate);
+			log.info("Successfully created OpenApiJsonProcessor on demand");
+		}
+	}
 
 	public OpenApiGeneratorService(OpenApiGeneratorProperties properties, ApplicationService applicationService, FileService fileService) {
 		this.properties = properties;
@@ -76,13 +151,27 @@ public class OpenApiGeneratorService {
 			this.resolvedTemplatePath = resolveTemplatePath();
 			log.info("✓ Template path resolved and cached: {}", this.resolvedTemplatePath);
 
+			// Initialize and validate temporary directory
+			this.resolvedTempDir = initializeTempDirectory();
+			log.info("✓ Temp directory initialized and cached: {}", this.resolvedTempDir);
+
 			// Initialize and cache RestTemplate for HTTP requests
 			this.restTemplate = createRestTemplate();
 			log.info("✓ RestTemplate initialized and cached");
 
+			// Initialize OpenAPI JSON processor
+			this.openApiJsonProcessor = new OpenApiJsonProcessor(this.restTemplate);
+			log.info("✓ OpenAPI JSON processor initialized");
+
 			log.info("OpenAPI Generator Service initialization completed successfully");
 		} catch (IOException e) {
-			log.warn("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
+			log.error("Failed to initialize OpenAPI Generator Service: {}", e.getMessage(), e);
+			// Set fields to null to indicate initialization failure
+			this.resolvedJarPath = null;
+			this.resolvedTemplatePath = null;
+			this.resolvedTempDir = null;
+			this.restTemplate = null;
+			this.openApiJsonProcessor = null;
 		}
 	}
 
@@ -103,6 +192,77 @@ public class OpenApiGeneratorService {
 
 		log.debug("RestTemplate created and configured for OpenAPI JSON downloads");
 		return template;
+	}
+
+	/**
+	 * Initialize and validate temporary directory during service startup
+	 * This method finds the best available temporary directory and creates necessary subdirectories
+	 *
+	 * @return Path to the validated temporary directory base
+	 * @throws IOException if no suitable temporary directory can be created
+	 */
+	private Path initializeTempDirectory() throws IOException {
+		String[] tempDirCandidates = {
+				properties.getTemp().getDir(),
+				System.getProperty("java.io.tmpdir"),
+				System.getProperty("user.home") + File.separator + ".tapdata" + File.separator + "temp",
+				"." + File.separator + "temp"
+		};
+
+		for (String tempDirBase : tempDirCandidates) {
+			try {
+				Path baseDir = Paths.get(tempDirBase);
+
+				// Check if base directory exists or can be created
+				if (!Files.exists(baseDir)) {
+					try {
+						Files.createDirectories(baseDir);
+						log.debug("Created base temp directory: {}", baseDir);
+					} catch (IOException e) {
+						log.debug("Cannot create base temp directory: {}, trying next option", baseDir);
+						continue;
+					}
+				}
+
+				// Verify the directory is writable
+				if (!Files.isWritable(baseDir)) {
+					log.debug("Base temp directory is not writable: {}, trying next option", baseDir);
+					continue;
+				}
+
+				// Pre-create the openapi-generator and openapi-json subdirectories
+				Path openapiGenDir = baseDir.resolve("openapi-generator");
+				Path openapiJsonDir = baseDir.resolve("openapi-json");
+
+				try {
+					Files.createDirectories(openapiGenDir);
+					Files.createDirectories(openapiJsonDir);
+
+					// Verify both subdirectories are writable
+					if (Files.exists(openapiGenDir) && Files.isWritable(openapiGenDir) &&
+						Files.exists(openapiJsonDir) && Files.isWritable(openapiJsonDir)) {
+
+						log.info("Successfully initialized temp directory structure at: {}", baseDir);
+						log.debug("  - OpenAPI Generator dir: {}", openapiGenDir);
+						log.debug("  - OpenAPI JSON dir: {}", openapiJsonDir);
+						return baseDir;
+					}
+				} catch (IOException e) {
+					log.debug("Failed to create subdirectories in: {}, error: {}", baseDir, e.getMessage());
+					continue;
+				}
+
+			} catch (Exception e) {
+				log.debug("Error with temp directory candidate: {}, error: {}", tempDirBase, e.getMessage());
+				continue;
+			}
+		}
+
+		// If all candidates failed, throw exception
+		throw new IOException(
+				"Failed to initialize temporary directory. Tried locations: " + String.join(", ", tempDirCandidates) +
+				". Please check directory permissions or configure a writable temporary directory."
+		);
 	}
 
 	private void validateOas(CodeGenerationRequest request) {
@@ -333,7 +493,46 @@ public class OpenApiGeneratorService {
 			request.setOas(tempOpenapiFile.toString());
 			log.info("Updated OAS from URL '{}' to local file '{}'", originalOas, tempOpenapiFile);
 
-			// Step 3: Execute OpenAPI Generator with processed local file
+			// Step 3: Persist original and processed OpenAPI JSON into the output directory so they are included in the ZIP
+			try {
+				// Ensure RestTemplate is available to fetch the original JSON when needed
+				ensureRestTemplateInitialized();
+
+				Path outputPath = Paths.get(outputDir);
+				Path openapiOutDir = outputPath.resolve("openapi-json");
+				Files.createDirectories(openapiOutDir);
+
+				// Save original JSON
+				String originalJsonContent = null;
+				try {
+					if (originalOas != null && (originalOas.startsWith("http://") || originalOas.startsWith("https://"))) {
+						originalJsonContent = this.restTemplate.getForObject(originalOas, String.class);
+					} else if (originalOas != null) {
+						Path originalPath = Paths.get(originalOas);
+						if (Files.exists(originalPath)) {
+							originalJsonContent = Files.readString(originalPath);
+						}
+					}
+				} catch (Exception e) {
+					log.warn("Failed to fetch original OpenAPI JSON from '{}': {}", originalOas, e.getMessage());
+				}
+				if (originalJsonContent != null) {
+					Path originalJsonFile = openapiOutDir.resolve("openapi-original.json");
+					Files.writeString(originalJsonFile, originalJsonContent);
+					log.info("Saved original OpenAPI JSON to: {}", originalJsonFile);
+				} else {
+					log.warn("Original OpenAPI JSON content is null, skipping save. URL/Path: {}", originalOas);
+				}
+
+				// Save processed JSON (copy from temporary file)
+				Path processedJsonFile = openapiOutDir.resolve("openapi-processed.json");
+				Files.copy(tempOpenapiFile, processedJsonFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+				log.info("Saved processed OpenAPI JSON to: {}", processedJsonFile);
+			} catch (Exception e) {
+				log.warn("Failed to save original/processed OpenAPI JSON files into output directory; continuing without embedding JSON files", e);
+			}
+
+			// Step 4: Execute OpenAPI Generator with processed local file
 			executeOpenapiGenerator(request, outputDir);
 
 		} finally {
@@ -356,6 +555,9 @@ public class OpenApiGeneratorService {
 	 * Execute OpenAPI Generator CLI with the provided request and output directory
 	 */
 	private void executeOpenapiGenerator(CodeGenerationRequest request, String outputDir) throws Exception {
+		// Ensure JAR path is initialized
+		ensureJarPathInitialized();
+
 		// Use cached JAR path (resolved during initialization)
 		log.debug("Using cached JAR path: {}", this.resolvedJarPath);
 
@@ -381,6 +583,8 @@ public class OpenApiGeneratorService {
 		command.add("--group-id");
 		command.add(request.getGroupId());
 		command.add("--skip-validate-spec");
+		command.add("--inline-schema-options");
+		command.add("ARRAY_ITEM_SUFFIX=_list");
 
 		// Add additional properties to ensure JAR generation with Java 17
 		command.add("--additional-properties");
@@ -390,6 +594,9 @@ public class OpenApiGeneratorService {
 		command.add(additionalProps);
 
 		// Add template parameters if available
+		// Ensure template path is initialized
+		ensureTemplatePathInitialized();
+
 		String languageTemplatePath = this.resolvedTemplatePath + File.separator + request.getLan();
 		log.info("Template path from config: {}", properties.getTemplate().getPath());
 		log.info("Using cached template path: {}", languageTemplatePath);
@@ -458,10 +665,16 @@ public class OpenApiGeneratorService {
 	}
 
 	private String getAdditionalProps(CodeGenerationRequest request, int javaVersion, ApplicationDto applicationDto) {
-		return String.format(
+		String additionalProps = String.format(
 				"javaVersion=%s,artifactVersion=%s,tapTokenUrl=%s,tapClientId=%s,tapClientSecret=%s",
 				javaVersion, request.getVersion(), request.getRequestAddress() + "/oauth/token", applicationDto.getClientId(), applicationDto.getClientSecret()
 		);
+		if (Boolean.TRUE.equals(request.getInterfaceOnly())) {
+			additionalProps += ",interfaceOnly=true";
+		} else {
+			additionalProps += ",interfaceOnly=false";
+		}
+		return additionalProps;
 	}
 
 	/**
@@ -712,7 +925,43 @@ public class OpenApiGeneratorService {
 	}
 
 	/**
+	 * Create a secure temporary directory using the pre-initialized temp directory
+	 *
+	 * @param sessionId Unique session identifier for the directory
+	 * @return Path to the created temporary directory
+	 * @throws CodeGenerationException if directory creation fails
+	 */
+	private Path createSecureTempDirectory(String sessionId) throws CodeGenerationException {
+		try {
+			// Ensure temp directory is initialized
+			ensureTempDirInitialized();
+
+			// Use the pre-initialized and validated temp directory
+			Path outputDir = resolvedTempDir.resolve("openapi-generator").resolve(sessionId);
+
+			// Create the session-specific directory
+			Files.createDirectories(outputDir);
+
+			// Verify the directory was created and is writable
+			if (Files.exists(outputDir) && Files.isWritable(outputDir)) {
+				log.debug("Successfully created session temp directory: {}", outputDir);
+				return outputDir;
+			} else {
+				throw new CodeGenerationException("Created directory is not writable: " + outputDir);
+			}
+
+		} catch (IOException e) {
+			log.error("Failed to create session temp directory using resolved path: {}", resolvedTempDir, e);
+			throw new CodeGenerationException(
+					"Failed to create temporary directory for session: " + sessionId +
+					". Base temp directory: " + resolvedTempDir + ". Error: " + e.getMessage(), e
+			);
+		}
+	}
+
+	/**
 	 * Handle OpenAPI JSON by downloading from URL and saving to temporary file
+	 * Now uses OpenApiJsonProcessor utility for enhanced processing with Swagger Models
 	 *
 	 * @param request CodeGenerationRequest containing the OAS URL
 	 * @return Path to the temporary file containing the OpenAPI JSON
@@ -720,218 +969,30 @@ public class OpenApiGeneratorService {
 	 */
 	private Path handleOpenapiJson(CodeGenerationRequest request) throws CodeGenerationException {
 		String oasUrl = request.getOas();
-		log.info("Starting to handle OpenAPI JSON from URL: {}", oasUrl);
+		log.info("Starting to handle OpenAPI JSON from URL using OpenApiJsonProcessor: {}", oasUrl);
 
 		try {
-			// Step 1: Download OpenAPI JSON content from URL
-			String jsonContent = downloadOpenapiJson(oasUrl);
+			// Ensure temp directory is initialized
+			ensureTempDirInitialized();
 
-			// Step 2: Parse JSON into Map
-			Map<String, Object> openapiMap = parseJsonToMap(jsonContent, oasUrl);
+			// Ensure OpenApiJsonProcessor is initialized
+			ensureOpenApiJsonProcessorInitialized();
 
-			// Step 3: Process the OpenAPI Map (custom processing logic)
-			Map<String, Object> processedMap = processOpenapiMap(openapiMap, request);
+			// Create secure temporary directory for JSON processing
+			Path tempDir = OpenApiJsonProcessor.createSecureTempDirectoryForJson(this.resolvedTempDir);
 
-			// Step 4: Write processed Map to temporary file
-			Path tempFile = writeMapToTempFile(processedMap);
+			// Use OpenApiJsonProcessor to handle all OpenAPI JSON processing
+			Path tempFile = this.openApiJsonProcessor.processOpenapiJson(request, tempDir);
 
-			log.info("Successfully handled OpenAPI JSON and created temporary file: {}", tempFile);
+			log.info("Successfully handled OpenAPI JSON using OpenApiJsonProcessor and created temporary file: {}", tempFile);
 			return tempFile;
 
 		} catch (Exception e) {
 			if (e instanceof CodeGenerationException) {
-				throw e;
+				throw (CodeGenerationException) e;
 			}
-			log.error("Unexpected error while handling OpenAPI JSON from URL: {}", oasUrl, e);
+			log.error("Unexpected error while handling OpenAPI JSON from URL using OpenApiJsonProcessor: {}", oasUrl, e);
 			throw new CodeGenerationException("Failed to download or process OpenAPI JSON from URL: " + oasUrl + ". Error: " + e.getMessage(), e);
-		}
-	}
-
-	/**
-	 * Download OpenAPI JSON content from the specified URL
-	 *
-	 * @param oasUrl The URL to download OpenAPI JSON from
-	 * @return The JSON content as string
-	 * @throws CodeGenerationException if download fails
-	 */
-	private String downloadOpenapiJson(String oasUrl) throws CodeGenerationException {
-		log.debug("Making HTTP GET request to: {}", oasUrl);
-
-		try {
-			// Use cached RestTemplate instance instead of creating new one
-			String jsonResponse = this.restTemplate.getForObject(oasUrl, String.class);
-
-			if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
-				throw new CodeGenerationException("Received empty response from OpenAPI URL: " + oasUrl);
-			}
-
-			log.info("Successfully downloaded OpenAPI JSON, content length: {} characters", jsonResponse.length());
-			return jsonResponse;
-
-		} catch (Exception e) {
-			if (e instanceof CodeGenerationException) {
-				throw e;
-			}
-			log.error("Failed to download OpenAPI JSON from URL: {}", oasUrl, e);
-			throw new CodeGenerationException("Failed to download OpenAPI JSON from URL: " + oasUrl + ". Error: " + e.getMessage(), e);
-		}
-	}
-
-	/**
-	 * Parse JSON string into Map object
-	 *
-	 * @param jsonContent The JSON content to parse
-	 * @param oasUrl      The original URL (for error reporting)
-	 * @return Parsed Map object
-	 * @throws CodeGenerationException if parsing fails
-	 */
-	private Map<String, Object> parseJsonToMap(String jsonContent, String oasUrl) throws CodeGenerationException {
-		try {
-			@SuppressWarnings("unchecked")
-			Map<String, Object> parsedMap = JsonUtil.parseJsonUseJackson(jsonContent, Map.class);
-
-			if (parsedMap == null || parsedMap.isEmpty()) {
-				throw new CodeGenerationException("Failed to parse OpenAPI JSON or received empty content from: " + oasUrl);
-			}
-
-			log.info("Successfully parsed OpenAPI JSON into Map with {} top-level keys", parsedMap.size());
-			log.debug("OpenAPI Map keys: {}", parsedMap.keySet());
-
-			return parsedMap;
-
-		} catch (Exception e) {
-			if (e instanceof CodeGenerationException) {
-				throw e;
-			}
-			log.error("Failed to parse JSON response from URL: {}", oasUrl, e);
-			throw new CodeGenerationException("Invalid JSON format received from OpenAPI URL: " + oasUrl + ". Error: " + e.getMessage(), e);
-		}
-	}
-
-	/**
-	 * Process the OpenAPI Map with custom logic
-	 * This method can be extended to add custom processing logic for the OpenAPI specification
-	 *
-	 * @param openapiMap The OpenAPI Map to process
-	 * @return A new processed Map (currently returns a copy of the original map)
-	 */
-	private Map<String, Object> processOpenapiMap(Map<String, Object> openapiMap, CodeGenerationRequest request) {
-		log.debug("Processing OpenAPI Map with {} keys (custom processing not implemented)", openapiMap.size());
-
-		// Create a new map as a copy of the original
-		Map<String, Object> processedMap = new HashMap<>();
-
-		for (String key : openapiMap.keySet()) {
-			Object value = openapiMap.get(key);
-			if (key.equals("paths")) {
-				value = processPaths(value, request);
-			}
-			if (key.equals("components")) {
-				value = processComponents(value);
-			}
-			processedMap.put(key, value);
-		}
-
-		log.debug("Processed OpenAPI Map, returning new map with {} keys", processedMap.size());
-		return processedMap;
-	}
-
-	private Object processComponents(Object value) {
-		if (value instanceof Map<?, ?>) {
-			@SuppressWarnings("unchecked")
-			Map<String, Object> componentsMap = (Map<String, Object>) value;
-			@SuppressWarnings("unchecked")
-			Map<String, Object> securitySchemes = (Map<String, Object>) componentsMap.get("securitySchemes");
-			@SuppressWarnings("unchecked")
-			Map<String, Object> oAuth2 = (Map<String, Object>) securitySchemes.get("OAuth2");
-			@SuppressWarnings("unchecked")
-			Map<String, Object> flows = (Map<String, Object>) oAuth2.get("flows");
-			flows.remove("implicit");
-			return componentsMap;
-		}
-		return value;
-	}
-
-	private Object processPaths(Object value, CodeGenerationRequest request) {
-		if (value instanceof Map<?, ?>) {
-			@SuppressWarnings("unchecked")
-			Map<String, Object> pathsMap = (Map<String, Object>) value;
-			Map<String, Object> newMap = new HashMap<>();
-			for (String key : pathsMap.keySet()) {
-				Object pathValue = pathsMap.get(key);
-
-				if (pathValue instanceof Map<?, ?>) {
-					@SuppressWarnings("unchecked")
-					Map<String, Object> pathValueMap = (Map<String, Object>) pathValue;
-					Map<String, Object> newPathValueMap = new HashMap<>();
-					for (Map.Entry<String, Object> entry : pathValueMap.entrySet()) {
-						String method = entry.getKey();
-						Object methodValue = entry.getValue();
-						if (methodValue instanceof Map<?, ?>) {
-							@SuppressWarnings("unchecked")
-							Map<String, Object> methodValueMap = (Map<String, Object>) methodValue;
-							if (!methodValueMap.containsKey("x-api-id")) {
-								continue;
-							}
-							Object apiId = methodValueMap.get("x-api-id");
-							if (!(apiId instanceof String) || !request.getModuleIds().contains((String) apiId)) {
-								continue;
-							}
-							if (method.equals("get") && methodValueMap.containsKey("parameters")) {
-								@SuppressWarnings("unchecked")
-								List<Map<String, Object>> parametersList = (List<Map<String, Object>>) methodValueMap.get("parameters");
-								parametersList = parametersList.stream().filter(p -> !p.get("name").equals("filename"))
-										.peek(p -> {
-											if (org.apache.commons.lang3.StringUtils.equalsAny(p.get("name").toString(), "page", "limit")) {
-												((Map<String, Object>) p.get("schema")).put("type", "integer");
-												((Map<String, Object>) p.get("schema")).put("format", "int32");
-											}
-										})
-										.collect(Collectors.toCollection(ArrayList::new));
-								methodValueMap.put("parameters", parametersList);
-							}
-						}
-						newPathValueMap.put(method, methodValue);
-					}
-					if (MapUtils.isNotEmpty(newPathValueMap)) {
-						newMap.put(key, newPathValueMap);
-					}
-				}
-			}
-			return newMap;
-		}
-		return value;
-	}
-
-	/**
-	 * Write the OpenAPI Map to a temporary file
-	 *
-	 * @param openapiMap The OpenAPI Map to write
-	 * @return Path to the created temporary file
-	 * @throws CodeGenerationException if file operations fail
-	 */
-	private Path writeMapToTempFile(Map<String, Object> openapiMap) throws CodeGenerationException {
-		try {
-			// Serialize Map to JSON
-			String serializedJson = JsonUtil.toJsonUseJackson(openapiMap);
-			log.debug("Successfully serialized Map back to JSON, length: {} characters", serializedJson.length());
-
-			// Create temporary file
-			String tempFileName = "openapi-" + UUID.randomUUID().toString() + ".json";
-			Path tempDir = Paths.get(properties.getTemp().getDir(), "openapi-json");
-			Files.createDirectories(tempDir);
-			Path tempFile = tempDir.resolve(tempFileName);
-
-			// Write JSON content to temporary file
-			Files.writeString(tempFile, serializedJson);
-			log.info("Successfully wrote OpenAPI JSON to temporary file: {}", tempFile);
-			log.debug("Temporary file size: {} bytes", Files.size(tempFile));
-
-			return tempFile;
-
-		} catch (Exception e) {
-			log.error("Failed to write OpenAPI Map to temporary file", e);
-			throw new CodeGenerationException("Failed to write OpenAPI data to temporary file: " + e.getMessage(), e);
 		}
 	}
 
@@ -943,7 +1004,7 @@ public class OpenApiGeneratorService {
 		log.info("Starting enhanced code generation with request parameters: {}", request);
 
 		String sessionId = UUID.randomUUID().toString();
-		Path outputDir = Paths.get(properties.getTemp().getDir(), "openapi-generator", sessionId);
+		Path outputDir = createSecureTempDirectory(sessionId);
 
 		try {
 			// Validate language support - only Java is supported
@@ -956,9 +1017,6 @@ public class OpenApiGeneratorService {
 			// Validate Java runtime version - requires Java 11+
 			validateJavaVersion();
 			validateOas(request);
-
-			// Create temporary directory
-			Files.createDirectories(outputDir);
 
 			// Execute code generation
 			log.info("Generator parameters: {}, output dir: {}", request, outputDir);

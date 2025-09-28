@@ -48,4 +48,7 @@ public class CodeGenerationRequest {
 
     @Schema(description = "Module ids")
     private List<String> moduleIds;
+
+    @Schema(description = "Whether to generate FeignClient file, true: only generate interface, false: generate interface and FeignClient file", example = "true")
+    private Boolean interfaceOnly = true;
 }

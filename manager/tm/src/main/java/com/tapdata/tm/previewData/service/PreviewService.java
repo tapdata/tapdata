@@ -5,7 +5,7 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.previewData.param.PreviewParam;
 import com.tapdata.tm.utils.MongoUtils;

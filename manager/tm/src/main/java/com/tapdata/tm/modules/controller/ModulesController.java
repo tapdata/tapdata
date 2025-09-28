@@ -7,12 +7,14 @@ import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.modules.dto.ModulesPermissionsDto;
 import com.tapdata.tm.modules.dto.ModulesTagsDto;
-import com.tapdata.tm.modules.dto.Param;
+import com.tapdata.tm.module.dto.Param;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
+import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -218,8 +220,15 @@ public class ModulesController extends BaseController {
    * @return
    */
   @GetMapping("apiDefinition")
-  public ResponseMessage apiDefinition() {
-    return success(modulesService.apiDefinition(getLoginUser()));
+  public ResponseMessage apiDefinition(@RequestParam(value = "workerCount", required = false) Integer workerCount,
+                                       @RequestParam(value = "processId", required = true) String processId) {
+    return success(modulesService.apiDefinition(processId, workerCount, getLoginUser()));
+  }
+
+  @GetMapping("worker-info")
+  public ResponseMessage<List<ApiServerWorkerInfo>> getApiWorkerInfo(@RequestParam(value = "workerCount", required = false) Integer workerCount,
+                                                                     @RequestParam(value = "processId", required = true) String processId) {
+    return success(modulesService.getApiWorkerInfo(processId, workerCount));
   }
 
   @GetMapping("api/getByCollectionName")

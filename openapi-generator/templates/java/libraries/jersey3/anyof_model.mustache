@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import {{invokerPackage}}.JSON;
 
-{{>additionalModelTypeAnnotations}}{{>generatedAnnotation}}{{>xmlAnnotation}}
+{{>additionalModelTypeAnnotations}}{{>xmlAnnotation}}
 @JsonDeserialize(using={{classname}}.{{classname}}Deserializer.class)
 @JsonSerialize(using = {{classname}}.{{classname}}Serializer.class)
 public class {{classname}} extends AbstractOpenApiSchema{{#vendorExtensions.x-implements}} implements {{{.}}}{{^-last}}, {{/-last}}{{/vendorExtensions.x-implements}} {

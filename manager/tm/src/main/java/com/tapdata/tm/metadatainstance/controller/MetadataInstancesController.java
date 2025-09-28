@@ -32,7 +32,7 @@ import com.tapdata.tm.metadatainstance.vo.MetaTableVo;
 import com.tapdata.tm.metadatainstance.vo.MetadataInstancesVo;
 import com.tapdata.tm.metadatainstance.vo.TableListVo;
 import com.tapdata.tm.metadatainstance.vo.TableSupportInspectVo;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MetadataUtil;

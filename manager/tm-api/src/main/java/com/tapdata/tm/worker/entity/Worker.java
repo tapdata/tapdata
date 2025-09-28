@@ -1,7 +1,9 @@
 package com.tapdata.tm.worker.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
+import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.TcmInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -80,8 +82,9 @@ public class Worker extends BaseEntity {
     private String progres;
 
 
+    @JsonProperty("worker_status")
     @Field("worker_status")
-    private Object worker_status;
+    private ApiServerStatus workerStatus;
 
     private String singletonLock; // 单例锁标记，每次启动都会更新
     private Boolean licenseBind;

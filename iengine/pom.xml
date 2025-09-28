@@ -44,7 +44,7 @@
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
-        <version.spring>6.2.10</version.spring>
+        <version.spring>6.2.8</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -179,8 +179,12 @@
         <async-tools-module.version>2.2-SNAPSHOT</async-tools-module.version>
         <script-engine-module.version>2.2-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
-        <netty.version>4.1.124.Final</netty.version>
         <httpclient5.version>5.4.4</httpclient5.version>
+
+        <!-- Override spring boot version -->
+        <netty.version>4.1.127.Final</netty.version>
+        <spring-framework.version>6.2.11</spring-framework.version>
+        <spring-security.version>6.5.4</spring-security.version>
     </properties>
 
     <modules>

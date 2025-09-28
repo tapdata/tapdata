@@ -1,9 +1,10 @@
-package com.tapdata.tm.modules.dto;
+package com.tapdata.tm.module.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Tag;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.ApiAlarmConfig;
+import com.tapdata.tm.module.entity.Path;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -105,6 +106,8 @@ public class ModulesDto extends BaseDto {
      * 用户可以自定义路径最后关键字，没有设置按默认值处理
      * */
     private List<PathSetting> pathSetting;
+
+    ApiAlarmConfig apiAlarmConfig;
 
     public void withPathSettingIfNeed() {
         if (null == pathSetting) {

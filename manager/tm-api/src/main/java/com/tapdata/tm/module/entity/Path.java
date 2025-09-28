@@ -1,14 +1,13 @@
-package com.tapdata.tm.modules.entity;
+package com.tapdata.tm.module.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.modules.dto.Param;
-import com.tapdata.tm.modules.dto.Sort;
-import com.tapdata.tm.modules.dto.Where;
+import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.module.dto.Sort;
+import com.tapdata.tm.module.dto.Where;
 import lombok.Data;
 
 import java.util.List;
-import java.util.Map;
 
 @Data
 public class Path {

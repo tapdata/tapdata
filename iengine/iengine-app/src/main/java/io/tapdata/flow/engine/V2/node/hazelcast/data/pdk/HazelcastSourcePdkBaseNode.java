@@ -713,30 +713,30 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 syncPoint = syncPoints.stream().filter(sp -> dataProcessorContext.getNode().getId().equals(sp.getNodeId())).findFirst().orElse(null);
             }
             if(null != syncPoint && syncPoint.getIsStreamOffset() && StringUtils.isNotBlank(syncPoint.getStreamOffsetString())){
-                initStreamOffsetFromString(syncPoint.getStreamOffsetString());
-            }else{
-                String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
-                if (StringUtils.isBlank(pointType)) {
-                    throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY);
-                }
-                switch (pointType) {
-                    case "localTZ":
-                    case "connTZ":
-                        if(null != syncPoint){
+				initStreamOffsetFromString(syncPoint.getStreamOffsetString());
+			}else{
+				String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
+				if (StringUtils.isBlank(pointType)) {
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_SYNC_POINT_TYPE_IS_EMPTY);
+				}
+				switch (pointType) {
+					case "localTZ":
+					case "connTZ":
+						if(null != syncPoint){
                             offsetStartTimeMs = syncPoint.getDateTime();
                         }
-                        break;
-                    case "current":
-                        break;
-                    default:
-                        throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, "Unknown start point type: " + pointType);
+						break;
+					case "current":
+						break;
+					default:
+						throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_UNKNOWN_POINT_TYPE, "Unknown start point type: " + pointType);
 
-                }
-                initStreamOffsetFromTime(offsetStartTimeMs);
-            }
-        }
-        return offsetStartTimeMs;
-    }
+				}
+				initStreamOffsetFromTime(offsetStartTimeMs);
+			}
+		}
+		return offsetStartTimeMs;
+	}
 
     protected void initStreamOffsetInitial() {
         syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
@@ -775,24 +775,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     }
 
     protected void initStreamOffsetFromString(String streamOffset){
-        AtomicReference<Object> tapStreamOffset = new AtomicReference<>();
-        GetStreamOffsetFunction getStreamOffsetFunction = getConnectorNode().getConnectorFunctions().getGetStreamOffsetFunction();
-        if (null != getStreamOffsetFunction) {
-            PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.GET_STREAM_OFFSET, () -> {
-                try {
-                    tapStreamOffset.set(getStreamOffsetFunction.getStreamOffset(getConnectorNode().getConnectorContext(), streamOffset));
-                }catch (Throwable e) {
-                    throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: "  + e.getMessage());
-                }
-                if(null == tapStreamOffset.get()){
-                    throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: " + streamOffset);
-                }
-                syncProgress.setStreamOffsetObj(tapStreamOffset.get());
-            }, TAG);
-        } else {
-            obsLogger.warn("Pdk connector does not support string to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
-        }
-    }
+		AtomicReference<Object> tapStreamOffset = new AtomicReference<>();
+		GetStreamOffsetFunction getStreamOffsetFunction = getConnectorNode().getConnectorFunctions().getGetStreamOffsetFunction();
+		if (null != getStreamOffsetFunction) {
+			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.GET_STREAM_OFFSET, () -> {
+				try {
+					tapStreamOffset.set(getStreamOffsetFunction.getStreamOffset(getConnectorNode().getConnectorContext(), streamOffset));
+				}catch (Throwable e) {
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: "  + e.getMessage());
+				}
+				if(null == tapStreamOffset.get()){
+					throw new TapCodeException(TaskProcessorExCode_11.INIT_STREAM_OFFSET_FAILED, "Failed to parse stream offset string: " + streamOffset);
+				}
+				syncProgress.setStreamOffsetObj(tapStreamOffset.get());
+			}, TAG);
+		} else {
+			obsLogger.warn("Pdk connector does not support string to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
+		}
+	}
 
     @Override
     public boolean complete() {

@@ -14,7 +14,6 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiCallDto extends BaseDto {
-    @JsonProperty("req_params")
     private String reqParams;
 
     @JsonProperty("res_rows")
@@ -77,4 +76,7 @@ public class ApiCallDto extends BaseDto {
 
     @JsonProperty("requestHeaders")
     private String requestHeaders;
+
+    /**The unique identifier of the worker corresponding to the current request*/
+    private String workOid;
 }

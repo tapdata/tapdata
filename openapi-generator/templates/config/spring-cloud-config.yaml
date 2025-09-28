@@ -8,11 +8,15 @@ additionalProperties:
     documentationProvider: none
     useSwaggerUI: false
     useTags: true
-    interfaceOnly: true
     snapshotVersion: false
     useFeignClientContextId: false
     useFeignClientUrl: false
     useOneOfInterfaces: false
+    useResponseEntity: false
+    useBeanValidation: false
+    useSealed: true
+    useVersion: false
+    parentOverridden: false
     disallowAdditionalPropertiesIfNotPresent: false
     generateGenericResponseEntity: false
     developerEmail: ""
@@ -20,6 +24,8 @@ additionalProperties:
     developerOrganization: ""
     developerOrganizationUrl: ""
     configPackage: io.tapdata.configuration
+    enableResponseGeneric: true
+    removeRequestPrefix: "get,find"
 files:
     jackson/JacksonConfig.mustache:
         templateType: SupportingFiles

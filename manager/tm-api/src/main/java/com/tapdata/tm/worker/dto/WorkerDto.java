@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class WorkerDto extends BaseDto {
     @JsonProperty("process_id")
+    @Field("process_id")
     private String processId;
     @JsonProperty("worker_type")
     private String workerType;
@@ -78,7 +80,9 @@ public class WorkerDto extends BaseDto {
 
     private String progres;
 
-    private Object worker_status;
+    @JsonProperty("worker_status")
+    @Field("worker_status")
+    private ApiServerStatus workerStatus;
 
     @JsonProperty("start_time")
     private Long startTime;
