@@ -794,28 +794,28 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	@Override
-	public boolean complete() {
-		try {
-			if (firstComplete) {
-				Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
-				firstComplete = false;
-			}
-			List<TapdataEvent> tapdataEvents = new ArrayList<>();
-			if (!isRunning()) {
-				return true;
-			}
-			if (getNode().disabledNode()) {
-				return true;
-			}
-			if (null != pendingEvents) {
-				tapdataEvents = pendingEvents;
-				pendingEvents = null;
-			} else {
-				if (Boolean.TRUE.equals(toTapValueConcurrent)) {
-					try {
-						tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
-					} catch (ConcurrentProcessorApplyException e) {
+    @Override
+    public boolean complete() {
+        try {
+            if (firstComplete) {
+                Thread.currentThread().setName(String.format("Source-Complete-%s[%s]", getNode().getName(), getNode().getId()));
+                firstComplete = false;
+            }
+            List<TapdataEvent> tapdataEvents = new ArrayList<>();
+            if (!isRunning()) {
+                return true;
+            }
+            if (getNode().disabledNode()) {
+                return true;
+            }
+            if (null != pendingEvents) {
+                tapdataEvents = pendingEvents;
+                pendingEvents = null;
+            } else {
+                if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+                    try {
+                        tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
+                    } catch (ConcurrentProcessorApplyException e) {
 						// throw exception not include original events, local log file will include it
 						logger.error("Concurrent transform to tap value failed, original events: {}", e.getOriginValue(), e.getCause());
 						throw new Exception("Concurrent transform to tap value failed", e.getCause());
@@ -824,7 +824,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (null != eventQueue) {
 						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
 						if (drain > 0) {
-							batchTransformToTapValue(tapdataEvents);
+                            batchTransformToTapValue(tapdataEvents);
+                            accpetCdcEventIfHasInspect(tapdataEvents);
 						}
 					}
 				}
@@ -856,6 +857,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
 
         return false;
+    }
+
+    private void accpetCdcEventIfHasInspect(List<TapdataEvent> tapdataEvents) {
+        if (null != taskInspect) {
+            if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+                for (TapdataEvent event : tapdataEvents) {
+                    if (SyncStage.CDC.equals(event.getSyncStage())) {
+                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
+                    }
+                }
+            }
+        }
     }
 
     private boolean checkAllTargetNodesFinishInitial() {

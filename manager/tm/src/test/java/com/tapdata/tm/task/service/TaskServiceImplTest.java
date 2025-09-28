@@ -1331,7 +1331,6 @@ class TaskServiceImplTest {
     class AfterRenewTest{
         private TaskAutoInspectResultsService taskAutoInspectResultsService;
         private StateMachineService stateMachineService;
-
         @BeforeEach
         void setUp(){
             taskAutoInspectResultsService = mock(TaskAutoInspectResultsService.class);
@@ -1797,22 +1796,18 @@ class TaskServiceImplTest {
         }
         @Test
         @DisplayName("test getSourceNode method normal")
-        void test2(){
-            DAG dag = mock(DAG.class);
-            LinkedList<Edge> edges = new LinkedList();
-            Edge edge = mock(Edge.class);
-            edges.add(edge);
-            when(edge.getSource()).thenReturn("111");
-            when(dag.getEdges()).thenReturn(edges);
-            List<Node> nodeList = new ArrayList<>();
+        void test2() {
+            // mock data
             Node node = mock(Node.class);
-            nodeList.add(node);
-            when(node.getId()).thenReturn("111");
-            when(dag.getNodes()).thenReturn(nodeList);
-            when(taskDto.getDag()).thenReturn(dag);
+            DAG dag = mock(DAG.class);
+
+            // mock method
+            doReturn(Arrays.asList(node)).when(dag).getSourceNode();
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
+
+            // call method
             Node actual = taskService.getSourceNode(taskDto);
-            assertEquals(nodeList.get(0),actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getSourceNode method when edges is empty")
@@ -1836,21 +1831,17 @@ class TaskServiceImplTest {
         @Test
         @DisplayName("test getTargetNode method normal")
         void test1(){
-            DAG dag = mock(DAG.class);
-            LinkedList<Edge> edges = new LinkedList();
-            Edge edge = mock(Edge.class);
-            edges.add(edge);
-            when(edge.getTarget()).thenReturn("111");
-            when(dag.getEdges()).thenReturn(edges);
-            List<Node> nodeList = new ArrayList<>();
+            // mock data
             Node node = mock(Node.class);
-            nodeList.add(node);
-            when(node.getId()).thenReturn("111");
-            when(dag.getNodes()).thenReturn(nodeList);
-            when(taskDto.getDag()).thenReturn(dag);
+            DAG dag = mock(DAG.class);
+
+            // mock method
+            doReturn(Arrays.asList(node)).when(dag).getTargetNode();
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
+
+            // call method
             Node actual = taskService.getTargetNode(taskDto);
-            assertEquals(nodeList.get(0),actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getTargetNode method when edges is empty")
