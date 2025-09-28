@@ -77,7 +77,7 @@ public class ApiCallStatsService extends BaseService<ApiCallStatsDto, ApiCallSta
 		MongoCollection<org.bson.Document> collection = repository.getMongoOperations().getCollection(collectionName);
 		List<Document> pipeline = new ArrayList<>();
 		if (StringUtils.isNotBlank(userId)) {
-			pipeline.add(new Document("$match", new Document("user_id", userId)));
+			pipeline.add(new Document("$match", new Document("$and", List.of(new Document("user_id", userId), new Document("supplement", new Document("$ne", true))))));
 		}
 		pipeline.addAll(Arrays.asList(new Document("$facet",
 				new Document("callTotalCount", Arrays.asList(new Document("$group", new Document("_id", null).append("data", new Document("$sum", "$callTotalCount")))))

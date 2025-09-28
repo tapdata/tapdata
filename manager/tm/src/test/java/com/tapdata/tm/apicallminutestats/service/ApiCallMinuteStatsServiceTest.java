@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.mongodb.core.BulkOperations;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -129,7 +130,10 @@ class ApiCallMinuteStatsServiceTest {
 			});
 			when(repository.buildUpdateSet(any(ApiCallMinuteStatsEntity.class))).thenReturn(Update.update("test", "test"));
 
-			apiCallMinuteStatsService.bulkWrite(apiCallMinuteStatsDtoList);
+			apiCallMinuteStatsService.bulkWrite(apiCallMinuteStatsDtoList, ApiCallMinuteStatsEntity.class, entity -> {
+				Query query = Query.query(Criteria.where("id").is(entity.getId()));
+				return query;
+			});
 
 			verify(bulkOperations).execute();
 		}
@@ -139,8 +143,12 @@ class ApiCallMinuteStatsServiceTest {
 		void test2() {
 			BulkOperations bulkOperations = mock(BulkOperations.class);
 			when(repository.bulkOperations(any())).thenReturn(bulkOperations);
-			assertDoesNotThrow(() -> apiCallMinuteStatsService.bulkWrite(null));
-			assertDoesNotThrow(() -> apiCallMinuteStatsService.bulkWrite(new ArrayList<>()));
+			assertDoesNotThrow(() -> apiCallMinuteStatsService.bulkWrite(null, ApiCallMinuteStatsEntity.class, entity -> {
+				return Query.query(Criteria.where("id").is(entity.getId()));
+			}));
+			assertDoesNotThrow(() -> apiCallMinuteStatsService.bulkWrite(new ArrayList<>(), ApiCallMinuteStatsEntity.class, entity -> {
+				return Query.query(Criteria.where("id").is(entity.getId()));
+			}));
 			verify(bulkOperations, never()).upsert(any(Query.class), any(Update.class));
 			verify(bulkOperations, never()).execute();
 		}
