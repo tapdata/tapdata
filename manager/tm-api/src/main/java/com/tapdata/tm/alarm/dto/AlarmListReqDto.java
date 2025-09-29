@@ -1,7 +1,7 @@
 package com.tapdata.tm.alarm.dto;
 
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.Level;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

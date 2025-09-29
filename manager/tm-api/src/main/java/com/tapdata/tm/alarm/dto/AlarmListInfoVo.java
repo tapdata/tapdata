@@ -1,8 +1,8 @@
 package com.tapdata.tm.alarm.dto;
 
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;

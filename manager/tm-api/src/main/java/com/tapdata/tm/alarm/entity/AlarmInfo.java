@@ -1,11 +1,11 @@
 package com.tapdata.tm.alarm.entity;
 
-import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
-import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
+import com.tapdata.tm.commons.alarm.AlarmComponentEnum;
+import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.AlarmTypeEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -35,6 +35,7 @@ public class AlarmInfo extends BaseEntity {
     @Schema(description = "所属引擎")
     private String agentId;
     private String taskId;
+    private String connectionId;
     @Schema(description = "具体的任务名")
     private String name;
     private String nodeId;

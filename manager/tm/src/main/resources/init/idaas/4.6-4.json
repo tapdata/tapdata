@@ -960,6 +960,36 @@
             "icon": "IconLucideFileText"
           }
         ]
+      },
+      {
+        "emailAlarmContent": "<div style=\"max-width: 600px; margin: 20px auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #374151; line-height: 1.6; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);\" class=\"email-content-root\"><div style=\"text-align: center; margin-bottom: 16px;\" class=\"email-root-header\"><div style=\"display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: #fef2f2; border-radius: 50%; font-size: 24px;\" class=\"email-root-header-icon\"><p class=\"ace-line\" style=\"margin: 0; font-size: inherit;\">⚠\uFE0F</p></div></div><h1 style=\"font-size: 20px; font-weight: 600; color: #111827; text-align: center; margin: 0 0 8px 0;\"><strong>System Alert Notification</strong></h1><p class=\"ace-line\" style=\"color: #6b7280; font-size: 14px; text-align: center; margin: 0 0 32px 0;\">A warning occurred in your connection</p><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">CONNECTION Name</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"connectionName\" variablename=\"connectionName\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{connectionName}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">WARNING Time</strong></p><p class=\"ace-line\" style=\"margin: 8px 0; font-size: 14px; margin-top: 16px;\"><span data-variable=\"warningTime\" variablename=\"warningTime\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{warningTime}</span></p><p class=\"ace-line\" style=\"font-size: 14px; margin: 16px 0 4px 0; margin-top: 16px;\"><strong style=\"font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;\">Details</strong></p><pre style=\"background-color: rgba(56, 56, 56, 0.04); color: rgba(30, 32, 36, 0.95); border: 1px solid rgba(37, 39, 45, 0.1); margin-top: 1rem; margin-bottom: 1rem; padding: 1em; font-size: 1rem; border-radius: 12px; white-space: pre-wrap;\"><code style=\"font-family: JetBrains Mono NL,\n        monospace; font-size: 0.875em; line-height: 1.4; padding: 0.1em 0.2em; background-color: rgba(0, 0, 0, 0); border: none; border-radius: 0; -webkit-text-fill-color: inherit; color: inherit;\"><span data-variable=\"warningLog\" variablename=\"warningLog\" data-system-variable=\"true\" class=\"system-variable\" contenteditable=\"false\">{warningLog}</span></code></pre><hr style=\"height: 1px; background: #f3f4f6; border: none; margin: 24px 0;\"><p class=\"ace-line\" style=\"color: #9ca3af; font-size: 12px; line-height: 1.4; text-align: center; margin: 16px 0 0 0;\"><em style=\"font-style: normal;\">This email is sent by TapData</em></p></div>",
+        "emailAlarmTitle": "【TapData Notification:Datasource Monitor Warning】{connectionName}",
+        "interval": 300,
+        "key": "DATASOURCE_MONITOR_ALTER",
+        "lastUpdBy": "62bc5008d4958d013d97c7a6",
+        "last_updated": {"$date": "2025-09-23T09:14:18.787Z"},
+        "notify": ["SYSTEM", "EMAIL"],
+        "open": true,
+        "sort": 6,
+        "type": "CONNECTION",
+        "unit": "SECOND",
+        "variables": [
+          {
+            "name": "connectionName",
+            "label": "public_connectionName",
+            "icon": "IconLucideFileText"
+          },
+          {
+            "name": "warningTime",
+            "label": "public_warningTime",
+            "icon": "IconLucideClock"
+          },
+          {
+            "name": "warningLog",
+            "label": "public_warningLog",
+            "icon": "IconLucideFileText"
+          }
+        ]
       }
     ]
   },
