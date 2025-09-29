@@ -2,6 +2,9 @@ package com.tapdata.tm.commons.task.constant;
 
 import lombok.Getter;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 public enum AlarmKeyEnum {
     TASK_STATUS_ERROR(Constant.TYPE_EVENT),
@@ -36,5 +39,13 @@ public enum AlarmKeyEnum {
     public static class Constant {
         public static final String TYPE_EVENT = "event";
         public static final String TYPE_METRIC = "metric";
+    }
+
+    public static List<String> getTaskAlarmKeys() {
+        List<String> keys = new ArrayList<>();
+        for (AlarmKeyEnum value : AlarmKeyEnum.values()) {
+            keys.add(value.name());
+        }
+        return keys;
     }
 }
