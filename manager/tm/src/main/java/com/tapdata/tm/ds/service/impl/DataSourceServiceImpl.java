@@ -2260,6 +2260,9 @@ public class DataSourceServiceImpl extends DataSourceService{
 
     public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {
         log.info("send schedule monitor, connection = {}, user = {}", connectionDto.getName(), user == null ? null : user.getUserId());
+        if (StringUtils.isBlank(connectionDto.getMonitorCron())) {
+            connectionDto.setMonitorCron("0 0 */1 * * ?");
+        }
         CronTrigger cronTrigger = TriggerBuilder.newTrigger().withIdentity("Datasource Monitor Date")
                 .withSchedule(CronScheduleBuilder.cronSchedule(connectionDto.getMonitorCron())).build();
         Date startTime = cronTrigger.getStartTime();
