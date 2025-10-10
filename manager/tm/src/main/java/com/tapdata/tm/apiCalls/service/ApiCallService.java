@@ -597,6 +597,7 @@ public class ApiCallService {
         // Build aggregation pipeline
         Document match = new Document("allPathId", allPathId);
         match.append("supplement", new Document("$ne", true));
+        match.append("reqTime", new Document("$ne", null));
         if (StringUtils.isNotBlank(lastApiCallId)) {
             match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
         }
@@ -613,6 +614,7 @@ public class ApiCallService {
                 .append("res_rows", 1)
                 .append("latency", 1)
                 .append("req_bytes", 1)
+                .append("reqTime", 1)
         ));
         Document group = new Document("_id", groupByMinute())
                 .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))
