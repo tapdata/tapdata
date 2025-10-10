@@ -34,6 +34,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.script.ScriptExecutorsManager;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.observable.metric.handler.HandlerUtil;
@@ -310,6 +311,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 				Map<String, Object> recordMap = new HashMap<>();
 				MapUtil.copyToNewMap((Map<String, Object>) o, recordMap);
 				TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
+				CpuMemoryCollector.listening(getNode().getId(), cloneTapdataEvent);
 				TapEvent returnTapEvent = getTapEvent(cloneTapdataEvent.getTapEvent(), op);
 				setRecordMap(returnTapEvent, op, recordMap);
 				flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, beforeIndex);
@@ -321,6 +323,7 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			Map<String, Object> recordMap = new HashMap<>();
 			MapUtil.copyToNewMap((Map<String, Object>) scriptInvokeResult.get(), recordMap);
 			TapEvent returnTapEvent = getTapEvent(tapEvent, op);
+			CpuMemoryCollector.listening(getNode().getId(), returnTapEvent);
 			setRecordMap(returnTapEvent, op, recordMap);
 			flushBeforeIfNeed(scriptInvokeBeforeResult.get(), returnTapEvent, null);
 			tapdataEvent.setTapEvent(returnTapEvent);

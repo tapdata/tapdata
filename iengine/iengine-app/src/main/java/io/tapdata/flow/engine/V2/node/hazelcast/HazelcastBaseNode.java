@@ -32,7 +32,6 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
-import io.micrometer.core.instrument.Metrics;
 import io.tapdata.HazelcastTaskNodeOffer;
 import io.tapdata.PDKExCode_10;
 import io.tapdata.aspect.*;
@@ -56,8 +55,6 @@ import io.tapdata.error.TapProcessorUnknownException;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.exception.TapPdkBaseException;
-import io.tapdata.firedome.MultiTaggedGauge;
-import io.tapdata.firedome.PrometheusName;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.entity.TaskEnvMap;
 import io.tapdata.flow.engine.V2.exception.ErrorHandleException;
@@ -65,6 +62,7 @@ import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
@@ -486,6 +484,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected boolean offer(TapdataEvent dataEvent) {
 		if (dataEvent != null) {
+			CpuMemoryCollector.listening(getNode().getId(), dataEvent);
 			if (obsLogger != null && obsLogger.isDebugEnabled() && dataEvent.isDML())
 				catchData(dataEvent);
 			if (processorBaseContext.getNode() != null) {
@@ -585,6 +584,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws TapCodeException {
+		CommonUtils.handleAnyError(() ->
+			CpuMemoryCollector.unregisterTask(getNode().getTaskId())
+		, e -> obsLogger.warn(String.format("Unregister task %s from cpu memory collector failed: %s", getNode().getTaskId(), e.getMessage())));
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
 			obsLogger.trace(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
