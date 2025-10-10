@@ -5,7 +5,6 @@ import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import lombok.Setter;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -26,15 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 @Setter(onMethod_ = {@Autowired})
-public class ApiServerAlarmConfigImpl implements ApiServerAlarmConfig, InitializingBean {
+public class ApiServerAlarmConfigImpl implements ApiServerAlarmConfig {
     static final Map<String, Map<AlarmKeyEnum, AlarmRuleDto>> CONFIG = new ConcurrentHashMap<>();
 
     private AlarmRuleService alarmRuleService;
-
-    @Override
-    public void afterPropertiesSet() throws Exception {
-        updateConfig();
-    }
 
     @Override
     public void updateConfig() {
