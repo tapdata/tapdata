@@ -999,7 +999,7 @@ class MetadataInstancesCompareServiceImplTest {
             applyFields.put("qualified.table1", createMockDifferenceFields());
 
             // When
-            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, targetMetadata, compareDtos, applyFields);
+            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, targetMetadata, compareDtos, applyFields,false);
 
             // Then
             assertEquals(1, compareDtos.size());
@@ -1017,7 +1017,7 @@ class MetadataInstancesCompareServiceImplTest {
             Map<String, List<DifferenceField>> applyFields = new HashMap<>();
 
             // When
-            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, null, compareDtos, applyFields);
+            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, null, compareDtos, applyFields,false);
 
             // Then
             assertTrue(compareDtos.isEmpty());
@@ -1033,7 +1033,7 @@ class MetadataInstancesCompareServiceImplTest {
             Map<String, List<DifferenceField>> applyFields = new HashMap<>();
 
             // When
-            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, targetMetadata, compareDtos, applyFields);
+            service.saveMetadataInstancesCompare(taskId, nodeId, deductionMetadata, targetMetadata, compareDtos, applyFields,false);
 
             // Then
             assertEquals(1, compareDtos.size());
