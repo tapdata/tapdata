@@ -7,6 +7,7 @@ import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.springframework.util.CollectionUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -29,10 +30,10 @@ import java.util.function.LongConsumer;
 public final class CpuMemoryCollector {
     public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
     public static final CpuMemoryCollector COLLECTOR = new CpuMemoryCollector();
-    Map<String, String> taskWithNode = new HashMap<>(16);
-    Map<String, WeakReference<TaskDto>> taskDtoMap = new HashMap<>(16);
-    Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
-    Map<String, List<WeakReference<ThreadFactory>>> threadGroupMap = new HashMap<>(16);
+    final Map<String, String> taskWithNode = new HashMap<>(16);
+    final Map<String, WeakReference<TaskDto>> taskDtoMap = new HashMap<>(16);
+    final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
+    final Map<String, List<WeakReference<ThreadFactory>>> threadGroupMap = new HashMap<>(16);
 
     private CpuMemoryCollector() {
 
@@ -92,11 +93,14 @@ public final class CpuMemoryCollector {
         weakReferences.add(reference);
     }
 
-    void collectMemoryUsage(Map<String, Usage> usageMap) {
+    void collectMemoryUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
         List<String> taskIds = new ArrayList<>(weakReferenceMap.keySet());
-        taskIds.forEach(taskId -> {
+        taskIds.stream()
+                .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
+                .forEach(taskId -> {
             Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
             Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
+                    .map(WeakReference::get)
                     .ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + RamUsageEstimator.sizeOfObject(info)));
             List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
             if (null == weakReferences) {
@@ -109,13 +113,17 @@ public final class CpuMemoryCollector {
                 return;
             }
             List<WeakReference<Object>> useless = new ArrayList<>();
-            for (WeakReference<Object> weakReference : weakReferences) {
-                Object object = weakReference.get();
-                if (null != object) {
-                    usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + RamUsageEstimator.sizeOfObject(object));
-                } else {
-                    useless.add(weakReference);
-                }
+            for (int i = weakReferences.size() - 1; i >= 0 ; i--) {
+                final int index = i;
+                ignore(() -> {
+                    WeakReference<Object> weakReference = weakReferences.get(index);
+                    Object object = weakReference.get();
+                    if (null != object) {
+                        usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + RamUsageEstimator.sizeOfObject(object));
+                    } else {
+                        useless.add(weakReference);
+                    }
+                }, "Calculate memory usage failed, {}");
             }
             if (!useless.isEmpty()) {
                 useless.forEach(weakReferences::remove);
@@ -124,8 +132,11 @@ public final class CpuMemoryCollector {
     }
 
 
-    void collectCpuUsage(Map<String, Usage> usageMap) {
-        List<String> taskIds = new ArrayList<>(threadGroupMap.keySet());
+    void collectCpuUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
+        List<String> taskIds = new ArrayList<>(threadGroupMap.keySet())
+                .stream()
+                .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
+                .toList();
         for (String taskId : taskIds) {
             Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
             eachOneTask(taskId, usage);
@@ -133,19 +144,23 @@ public final class CpuMemoryCollector {
     }
 
     void eachThreadGroup(List<WeakReference<ThreadFactory>> weakReferences, List<WeakReference<ThreadFactory>> useless, LongConsumer runnable) {
-        for (WeakReference<ThreadFactory> weakReference : weakReferences) {
-            ThreadFactory threadGroup = weakReference.get();
-            if (null == threadGroup) {
-                useless.add(weakReference);
-            } else {
-                for (Thread thread : ThreadGroupUtil.groupThreads(threadGroup.getThreadGroup())) {
-                    if (null == thread) {
-                        continue;
+        for (int i = weakReferences.size() - 1; i >= 0; i--) {
+            final int index = i;
+            ignore(() -> {
+                WeakReference<ThreadFactory> weakReference = weakReferences.get(index);
+                ThreadFactory threadGroup = weakReference.get();
+                if (null == threadGroup) {
+                    useless.add(weakReference);
+                } else {
+                    for (Thread thread : ThreadGroupUtil.groupThreads(threadGroup.getThreadGroup())) {
+                        if (null == thread) {
+                            continue;
+                        }
+                        long threadId = thread.getId();
+                        runnable.accept(threadId);
                     }
-                    long threadId = thread.getId();
-                    runnable.accept(threadId);
                 }
-            }
+            }, "Calculate cpu usage failed, {}");
         }
     }
 
@@ -186,10 +201,10 @@ public final class CpuMemoryCollector {
         }
     }
 
-    public static Map<String, Usage> collectOnce() {
+    public static Map<String, Usage> collectOnce(List<String> taskIds) {
         Map<String, Usage> usageMap = new HashMap<>();
-        CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(usageMap));
-        CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(usageMap));
+        CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
+        CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
         try {
             CompletableFuture.allOf(futureCpu, futureMemory).get();
         } catch (InterruptedException e) {
@@ -199,5 +214,14 @@ public final class CpuMemoryCollector {
             log.error("Collect cpu and memory usage failed ExecutionException, {}", ex.getMessage(), ex);
         }
         return usageMap;
+    }
+
+
+    void ignore(Runnable runnable, String msg) {
+        try {
+            runnable.run();
+        } catch (Exception e) {
+            log.warn(msg, e.getMessage(), e);
+        }
     }
 }

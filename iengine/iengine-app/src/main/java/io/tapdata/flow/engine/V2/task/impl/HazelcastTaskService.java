@@ -77,6 +77,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
+import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -141,6 +142,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Autowired
 	private MessageDao messageDao;
 
+	@Autowired
+	private CpuMemoryScheduler cpuMemoryScheduler;
+
 	private static ICacheService cacheService;
 
 	public HazelcastTaskService(ClientMongoOperator clientMongoOperator) {
@@ -197,6 +201,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		Job job;
 		try {
 			final JetDag jetDag = task2HazelcastDAG(taskDto, true);
+			cpuMemoryScheduler.reportOnce(List.of(taskDto.getId().toHexString()));
 			obsLogger.trace("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			job = jet.newJob(jetDag.getDag(), jobConfig);
 		} catch (Exception e) {
@@ -359,7 +364,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
-				CpuMemoryCollector.listening(taskDto.getId().toHexString(), node);
+				CpuMemoryCollector.addNode(taskDto.getId().toHexString(), node.getId());
+				CpuMemoryCollector.listening(node.getId(), node);
 				Connections connection = null;
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
@@ -438,12 +444,11 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalTapTableMap,
 								taskConfig
 						);
-						CpuMemoryCollector.listening(taskDto.getId().toHexString(), hazelcastBaseNode);
+						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
 								String.format("Failed to create processor based on node information, node: %s[%s], error msg: %s", node.getName(), node.getId(), e.getMessage()), e);
 					}
-					CpuMemoryCollector.addNode(taskDto.getId().toHexString(), node.getId());
 					return hazelcastBaseNode;
 				});
 				vertexMap.put(node.getId(), vertex);
