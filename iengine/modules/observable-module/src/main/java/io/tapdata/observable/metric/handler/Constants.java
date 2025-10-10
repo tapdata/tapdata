@@ -29,4 +29,7 @@ public class Constants {
     static final String OUTPUT_SIZE_QPS     = "outputSizeQps";
     static final String OUTPUT_SIZE_QPS_MAX = "outputSizeQpsMax";
     static final String OUTPUT_SIZE_QPS_AVG = "outputSizeQpsAvg";
+
+    static final String CPU_USAGE           = "cpuUsage";
+    static final String MEMORY_USAGE        = "memoryUsage";
 }

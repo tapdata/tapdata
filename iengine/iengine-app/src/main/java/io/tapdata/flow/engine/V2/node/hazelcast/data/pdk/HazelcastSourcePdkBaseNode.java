@@ -91,6 +91,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
@@ -107,6 +108,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
+import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -256,6 +258,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
         this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s-%s[%s]", dataProcessorContext.getTaskDto().getId().toString(), getNode().getName(), getNode().getId()), 3, connectorOnTaskThreadGroup, TAG);
         initSyncPartitionTableEnable();
+        CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) sourceRunner.getThreadFactory());
         this.sourceRunner.submitSync(() -> {
             super.doInit(context);
             try {
@@ -385,6 +388,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         if (connectorOnTaskThreadGroup == null)
             connectorOnTaskThreadGroup = new ConnectorOnTaskThreadGroup(dataProcessorContext);
         this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+        CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) sourceRunner.getThreadFactory());
         this.sourceRunner.submitSync(() -> {
             super.doInitWithDisableNode(context);
             try {
@@ -1222,6 +1226,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 ((TableMonitor) monitor).setAssociateId(this.associateId);
             }
             this.sourceRunner = AsyncUtils.createThreadPoolExecutor(String.format("Source-Runner-table-changed-%s[%s]", getNode().getName(), getNode().getId()), 2, connectorOnTaskThreadGroup, TAG);
+            CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) sourceRunner.getThreadFactory());
             initAndStartSourceRunner();
         } else {
             String error = "Connector node is null";

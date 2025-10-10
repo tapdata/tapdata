@@ -64,6 +64,7 @@ import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
@@ -465,6 +466,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected boolean offer(TapdataEvent dataEvent) {
 		if (dataEvent != null) {
+			CpuMemoryCollector.listening(getNode().getId(), dataEvent);
 			if (obsLogger != null && obsLogger.isDebugEnabled() && dataEvent.isDML())
 				catchData(dataEvent);
 			if (processorBaseContext.getNode() != null) {
@@ -564,6 +566,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws TapCodeException {
+		CommonUtils.handleAnyError(() ->
+			CpuMemoryCollector.unregisterTask(getNode().getTaskId())
+		, e -> obsLogger.warn(String.format("Unregister task %s from cpu memory collector failed: %s", getNode().getTaskId(), e.getMessage())));
 		CommonUtils.handleAnyError(() -> {
 			Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset);
 			obsLogger.trace(String.format("Node %s[%s] schema data cleaned", getNode().getName(), getNode().getId()));
