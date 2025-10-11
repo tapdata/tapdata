@@ -2,6 +2,9 @@ package com.tapdata.tm.commons.task.constant;
 
 import lombok.Getter;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 public enum AlarmKeyEnum {
 
@@ -70,5 +73,13 @@ public enum AlarmKeyEnum {
         public static final String TYPE_EVENT = "event";
         public static final String TYPE_METRIC = "metric";
         public static final String TYPE_API_SERVER = "api-server";
+    }
+
+    public static List<String> getTaskAlarmKeys() {
+        List<String> keys = new ArrayList<>();
+        for (AlarmKeyEnum value : AlarmKeyEnum.values()) {
+            keys.add(value.name());
+        }
+        return keys;
     }
 }
