@@ -597,7 +597,6 @@ public class ApiCallService {
         // Build aggregation pipeline
         Document match = new Document("allPathId", allPathId);
         match.append("supplement", new Document("$ne", true));
-        match.append("reqTime", new Document("$ne", null));
         if (StringUtils.isNotBlank(lastApiCallId)) {
             match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
         }
@@ -614,7 +613,6 @@ public class ApiCallService {
                 .append("res_rows", 1)
                 .append("latency", 1)
                 .append("req_bytes", 1)
-                .append("reqTime", 1)
         ));
         Document group = new Document("_id", groupByMinute())
                 .append("responseDataRowTotalCount", new Document("$sum", "$res_rows"))
@@ -645,8 +643,15 @@ public class ApiCallService {
 					apiCallMinuteStatsDto.setLastApiCallId(document.getObjectId("lastApiCallId").toString());
 				}
                 // apiCallTime: year, month, day, hour, minute
-                Number reqTime = document.get("reqTime", Number.class);
-                apiCallMinuteStatsDto.setApiCallTime(new Date(reqTime.longValue() / 60000L * 60000L));
+                Document id = document.get("_id", Document.class);
+                Instant apiCallTime = LocalDateTime.of(
+                        id.getInteger("year"),
+                        id.getInteger("month"),
+                        id.getInteger("day"),
+                        id.getInteger("hour"),
+                        id.getInteger("minute")
+                ).toInstant(ZoneOffset.UTC);
+                apiCallMinuteStatsDto.setApiCallTime(Date.from(apiCallTime));
 
                 apiCallMinuteStatsDtoList.add(apiCallMinuteStatsDto);
             }
