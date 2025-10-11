@@ -216,7 +216,7 @@ public class DatasourceMonitorHandler implements WebSocketEventHandler {
                                                         break;
                                                     default:
                                                         if (a.contains("#")) {
-                                                            ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), command.substring(a.lastIndexOf("#") + 1), null);
+                                                            ReflectionUtil.invokeDeclaredMethod(connectionNode.getConnector(), a.substring(a.lastIndexOf("#") + 1), null);
                                                         }
                                                         break;
                                                 }
