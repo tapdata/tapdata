@@ -37,7 +37,7 @@ spring:
     format:
       date-time: yyyyMM-dd HH:mm:ss
     async:
-      request-timeout: 1000
+      request-timeout: 30000
   jackson:
     default-property-inclusion: non_null
 
