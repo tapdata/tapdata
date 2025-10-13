@@ -2,12 +2,14 @@ package io.tapdata.observable.metric.handler;
 
 import io.tapdata.common.sample.sampler.CounterSampler;
 import org.junit.Assert;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -59,5 +61,39 @@ public class TaskSampleHandlerTest {
         handler.handleTableCountAccept(table, -1L);
         handler.handleTableCountAccept(table, 10L);
         assertEquals(10L, currentSnapshotTableRowTotalMap.get(table));
+    }
+
+    @Nested
+    class GetTaskMemTest {
+        @Test
+        void testGetTaskMem() {
+            TaskSampleHandler handler = mock(TaskSampleHandler.class);
+            AtomicLong taskMemUsage = new AtomicLong(-1);
+            ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
+            doCallRealMethod().when(handler).getTaskMem();
+            Long mem = handler.getTaskMem();
+            assertEquals(null, mem);
+            taskMemUsage.set(100L);
+            mem = handler.getTaskMem();
+            assertEquals(100L, mem);
+        }
+        @Test
+        void testGetTaskMem3() {
+            TaskSampleHandler handler = mock(TaskSampleHandler.class);
+            AtomicLong taskMemUsage = new AtomicLong(0);
+            ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
+            doCallRealMethod().when(handler).getTaskMem();
+            Long mem = handler.getTaskMem();
+            assertEquals(0L, mem);
+        }
+        @Test
+        void testGetTaskMem4() {
+            TaskSampleHandler handler = mock(TaskSampleHandler.class);
+            AtomicLong taskMemUsage = new AtomicLong(100L);
+            ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
+            doCallRealMethod().when(handler).getTaskMem();
+            Long mem = handler.getTaskMem();
+            assertEquals(100L, mem);
+        }
     }
 }

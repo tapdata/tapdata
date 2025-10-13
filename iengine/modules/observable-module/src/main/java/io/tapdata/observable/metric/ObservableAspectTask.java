@@ -41,7 +41,7 @@ public class ObservableAspectTask extends AspectTask {
 	public static final int TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_DEFAULT_VALUE = 500000;
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
-	private TaskSampleHandler taskSampleHandler;
+	protected TaskSampleHandler taskSampleHandler;
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;

@@ -265,7 +265,12 @@ public class TaskSampleHandler extends AbstractHandler {
             return outputQpsAvg;
         });
         collector.addSampler(Constants.CPU_USAGE, () -> taskCpuUsage.get());
-        collector.addSampler(Constants.MEMORY_USAGE, () -> taskMemUsage.get());
+        collector.addSampler(Constants.MEMORY_USAGE, this::getTaskMem);
+    }
+
+    protected Long getTaskMem() {
+        long mem = taskMemUsage.get();
+        return mem < 0L ? null : mem;
     }
 
     public void close() {
