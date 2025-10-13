@@ -40,7 +40,9 @@ public class CpuMemoryService {
                 .getMappedResults();
         Map<String, Map<String, Object>> info = new HashMap<>();
         mappedResults.forEach(item -> {
-            if (item.get("firstRecord") instanceof Map map && map.get("tags") instanceof Map tags && null != tags.get("taskId")) {
+            if (item.get("firstRecord") instanceof Map map
+                    && map.get("tags") instanceof Map tags
+                    && null != tags.get("taskId")) {
                 Map<String, Object> metricInfo = info.computeIfAbsent(String.valueOf(tags.get("taskId")), k -> new HashMap<>());
                 if (map.get("ss") instanceof Collection<?> samples) {
                     samples.stream()
@@ -48,8 +50,9 @@ public class CpuMemoryService {
                             .filter(s -> Objects.nonNull(((Map) s).get("date")))
                             .findFirst()
                             .ifPresent(s -> {
-                                metricInfo.put("lastUpdateTime", Objects.nonNull(((Map) s).get("date")));
-                                if (s instanceof Map sInfo && sInfo.get("vs") instanceof Map sInfoVs) {
+                                metricInfo.put("lastUpdateTime", ((Map) s).get("date"));
+                                if (s instanceof Map sInfo
+                                        && sInfo.get("vs") instanceof Map sInfoVs) {
                                     Optional.ofNullable(sInfoVs.get("cpuUsage")).ifPresent(e -> metricInfo.put("cpuUsage", e));
                                     Optional.ofNullable(sInfoVs.get("memoryUsage")).ifPresent(e -> metricInfo.put("memoryUsage", e));
                                 }
