@@ -74,10 +74,8 @@ public final class CpuMemoryCollector {
             return;
         }
         List<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new ArrayList<>());
+        weakReferences.removeIf(weakReference -> null == weakReference.get());
         for (WeakReference<ThreadFactory> weakReference : weakReferences) {
-            if (null == weakReference.get()) {
-                weakReferences.remove(weakReference);
-            }
             if (weakReference.get() == threadGroup) {
                 return;
             }
@@ -109,7 +107,7 @@ public final class CpuMemoryCollector {
 
     void eachTaskOnce(List<WeakReference<Object>> weakReferences, List<WeakReference<Object>> remove, Usage usage) {
         weakReferences.stream()
-                .filter(e -> Objects.nonNull(e.get()))
+                .filter(Objects::nonNull)
                 .forEach(weakReference -> {
                     if (null == weakReference.get()) {
                         remove.add(weakReference);
