@@ -10,6 +10,8 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +34,7 @@ public class CpuMemoryService {
                 Aggregation.match(Criteria.where("tags.taskId").in(taskIds)
                         .and("grnty").is("minute")
                         .and("tags.type").is("task")),
-                Aggregation.sort(Sort.Direction.ASC, "date"),
+                Aggregation.sort(Sort.Direction.DESC, "date"),
                 Aggregation.group("tags.taskId")
                         .first("$$ROOT").as("firstRecord")
         );
@@ -48,7 +50,7 @@ public class CpuMemoryService {
                     samples.stream()
                             .filter(Objects::nonNull)
                             .filter(s -> Objects.nonNull(((Map) s).get("date")))
-                            .findFirst()
+                            .max(Comparator.comparing(s -> (Date) ((Map) s).get("date")))
                             .ifPresent(s -> {
                                 metricInfo.put("lastUpdateTime", ((Map) s).get("date"));
                                 if (s instanceof Map sInfo
