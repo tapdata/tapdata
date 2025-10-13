@@ -218,7 +218,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
                         }
                     }
                     timeline = getTimeline(start, end, timelineInterval);
-                    Map<String, List<Sample>> continuousSamples = getContinuousSamples(querySample, start, end);
+                    Map<String, List<Sample>> continuousSamples = getContinuousSamples(querySample, start, end, granularity);
 
                     // calculate the last point value
                     if (!granularity.equals(Granularity.GRANULARITY_MINUTE)) {
@@ -534,7 +534,7 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         return data;
     }
 
-    private Map<String, List<Sample>> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
+    protected Map<String, List<Sample>> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end,String granularity) {
         Map<String, List<Sample>> data = new HashMap<>();
         if (!StringUtils.equalsAny(querySample.getType(),
                 MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS)) {
@@ -552,6 +552,12 @@ public class MeasurementServiceV2Impl implements MeasurementServiceV2 {
         List<String> includedFields = new ArrayList<>();
         includedFields.add(MeasurementEntity.FIELD_TAGS);
         includedFields.add(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE));
+        if (!granularity.equals(Granularity.GRANULARITY_MINUTE)) {
+            querySample.getFields().add(MeasurementEntity.MAX_INPUT_QPS);
+            querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_QPS);
+            querySample.getFields().add(MeasurementEntity.MAX_INPUT_SIZE_QPS);
+            querySample.getFields().add(MeasurementEntity.MAX_OUTPUT_SIZE_QPS);
+        }
         for (String field : querySample.getFields()) {
             includedFields.add(String.format(FIELD_FORMAT, field));
         }
