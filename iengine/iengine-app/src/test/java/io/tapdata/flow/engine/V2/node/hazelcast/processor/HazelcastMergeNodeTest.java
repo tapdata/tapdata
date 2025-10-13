@@ -82,9 +82,11 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 
 	HazelcastMergeNode hazelcastMergeNode;
 	MergeTableNode mergeTableNode;
+	ProcessorBaseContext processorBaseContext;
 
 	@BeforeEach
 	void beforeEach() {
+		processorBaseContext = mock(ProcessorBaseContext.class);
 		super.allSetup();
 		mergeTableNode = new MergeTableNode();
 		mergeTableNode.setMergeProperties(new ArrayList<>());
@@ -93,6 +95,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 		hazelcastMergeNode = new HazelcastMergeNode(dataProcessorContext);
 		ReflectionTestUtils.setField(hazelcastMergeNode, "obsLogger", mockObsLogger);
 		ReflectionTestUtils.setField(hazelcastMergeNode, "clientMongoOperator", mockClientMongoOperator);
+		ReflectionTestUtils.setField(hazelcastMergeNode, "processorBaseContext", processorBaseContext);
 	}
 
 	@Nested
@@ -2994,6 +2997,9 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			doReturn(preNode).when(hazelcastMergeNode).getPreNode("1");
 			doReturn(fatherPreNode).when(hazelcastMergeNode).getPreNode("2");
 			doReturn(constructIMap).when(hazelcastMergeNode).getHazelcastConstruct(anyString());
+			TapTableMap<String, TapTable> tableMap = mock(TapTableMap.class);
+			when(processorBaseContext.getTapTableMap()).thenReturn(tableMap);
+			when(tableMap.get(anyString())).thenReturn(new TapTable());
 			TapCodeException tapCodeException = assertThrows(TapCodeException.class, () -> {
 				hazelcastMergeNode.recursiveLookup(mergeTableProperties1, data, true);
 			});
