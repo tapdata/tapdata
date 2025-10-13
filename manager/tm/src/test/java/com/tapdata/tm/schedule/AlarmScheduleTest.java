@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doNothing;
 
@@ -27,6 +29,7 @@ class AlarmScheduleTest {
         ReflectionTestUtils.setField(alarmSchedule, "apiServerAlarmService", apiServerAlarmService);
         ReflectionTestUtils.setField(alarmSchedule, "apiServerAlarmConfig", apiServerAlarmConfig);
         ReflectionTestUtils.setField(alarmSchedule, "alarmNotifyService", alarmNotifyService);
+        ReflectionTestUtils.setField(alarmSchedule, "init", new AtomicBoolean(false));
         doNothing().when(alarmNotifyService).notifyAlarm();
         doNothing().when(apiServerAlarmService).scanMetricData();
         doNothing().when(apiServerAlarmConfig).updateConfig();
