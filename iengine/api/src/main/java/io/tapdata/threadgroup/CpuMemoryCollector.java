@@ -7,17 +7,24 @@ import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -28,6 +35,13 @@ import java.util.function.LongConsumer;
  */
 @Slf4j
 public final class CpuMemoryCollector {
+    private static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
+            50,
+            200,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new SynchronousQueue<>(),
+            r -> new Thread(r, "CpuMemoryCollector"));
     public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
     public static final CpuMemoryCollector COLLECTOR = new CpuMemoryCollector();
     final Map<String, String> taskWithNode = new HashMap<>(16);
@@ -88,47 +102,66 @@ public final class CpuMemoryCollector {
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
+        List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new LinkedList<>());
         WeakReference<Object> reference = new WeakReference<>(info);
         weakReferences.add(reference);
     }
 
+    void eachTaskOnce(List<WeakReference<Object>> weakReferences, List<WeakReference<Object>> remove, Usage usage) {
+        weakReferences.stream()
+                .filter(e -> Objects.nonNull(e.get()))
+                .forEach(weakReference -> {
+                    if (null == weakReference.get()) {
+                        remove.add(weakReference);
+                        return;
+                    }
+                    ignore(() -> {
+                        Object object = weakReference.get();
+                        if (null != object) {
+                            long sizeOf;
+                            try {
+                                sizeOf = GraphLayout.parseInstance(object).totalSize();
+                            } catch (Exception e) {
+                                sizeOf = RamUsageEstimator.sizeOfObject(object);
+                            }
+                            usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + sizeOf);
+                        } else {
+                            remove.add(weakReference);
+                        }
+                    }, "Calculate memory usage failed, {}");
+                });
+    }
+
     void collectMemoryUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
         List<String> taskIds = new ArrayList<>(weakReferenceMap.keySet());
-        taskIds.stream()
-                .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
-                .forEach(taskId -> {
-            Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
-            Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
-                    .map(WeakReference::get)
-                    .ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + RamUsageEstimator.sizeOfObject(info)));
-            List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
-            if (null == weakReferences) {
-                weakReferenceMap.remove(taskId);
-                return;
-            }
-            weakReferences.removeIf(weakReference -> null == weakReference.get());
-            if (weakReferences.isEmpty()) {
-                weakReferenceMap.remove(taskId);
-                return;
-            }
-            List<WeakReference<Object>> useless = new ArrayList<>();
-            for (int i = weakReferences.size() - 1; i >= 0 ; i--) {
-                final int index = i;
-                ignore(() -> {
-                    WeakReference<Object> weakReference = weakReferences.get(index);
-                    Object object = weakReference.get();
-                    if (null != object) {
-                        usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + RamUsageEstimator.sizeOfObject(object));
-                    } else {
-                        useless.add(weakReference);
-                    }
-                }, "Calculate memory usage failed, {}");
-            }
-            if (!useless.isEmpty()) {
-                useless.forEach(weakReferences::remove);
-            }
-        });
+        asyncCollect(tasks ->
+                taskIds.stream()
+                        .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
+                        .forEach(taskId -> {
+                            CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
+                                Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
+                                Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
+                                        .map(WeakReference::get)
+                                        .ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + GraphLayout.parseInstance(info).totalSize()));
+                                List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
+                                if (null == weakReferences) {
+                                    weakReferenceMap.remove(taskId);
+                                    return;
+                                }
+                                if (weakReferences.isEmpty()) {
+                                    weakReferenceMap.remove(taskId);
+                                    return;
+                                }
+                                List<WeakReference<Object>> remove = new ArrayList<>();
+                                eachTaskOnce(weakReferences, remove, usage);
+                                if (!CollectionUtils.isEmpty(remove)) {
+                                    CompletableFuture<Void> removeFuture = CompletableFuture.runAsync(() -> remove.forEach(weakReferences::remove), EXECUTOR_SERVICE);
+                                    tasks.add(removeFuture);
+                                }
+                            }, EXECUTOR_SERVICE);
+                            tasks.add(futureItem);
+                        })
+        );
     }
 
 
@@ -206,7 +239,8 @@ public final class CpuMemoryCollector {
         CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
         CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
         try {
-            CompletableFuture.allOf(futureCpu, futureMemory).get();
+            futureCpu.get();
+            futureMemory.get();
         } catch (InterruptedException e) {
             log.error("Collect cpu and memory usage failed InterruptedException, {}", e.getMessage(), e);
             Thread.currentThread().interrupt();
@@ -222,6 +256,24 @@ public final class CpuMemoryCollector {
             runnable.run();
         } catch (Exception e) {
             log.warn(msg, e.getMessage(), e);
+        }
+    }
+
+    static void asyncCollect(Consumer<List<CompletableFuture<Void>>> runnable) {
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        try {
+            runnable.accept(futures);
+        } finally {
+            for (CompletableFuture<Void> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    log.error("Collect cpu and memory usage failed ExecutionException, {}", e.getMessage(), e);
+                } catch (InterruptedException e) {
+                    log.error("Collect cpu and memory usage failed InterruptedException, {}", e.getMessage(), e);
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
     }
 }
