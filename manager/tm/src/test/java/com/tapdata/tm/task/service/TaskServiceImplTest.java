@@ -1799,22 +1799,24 @@ class TaskServiceImplTest {
         void test1(){
             when(taskDto.getDag()).thenReturn(null);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(null,actual);
         }
         @Test
         @DisplayName("test getSourceNode method normal")
         void test2() {
             // mock data
-            Node node = mock(Node.class);
+            DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
-
+            LinkedList<DatabaseNode> nodes = new LinkedList<>();
+            nodes.add(node);
             // mock method
-            doReturn(Arrays.asList(node)).when(dag).getSourceNode();
+            when(dag.getSourceNode()).thenReturn(nodes);
+            when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
 
             // call method
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(node, actual);
         }
         @Test
@@ -1825,7 +1827,7 @@ class TaskServiceImplTest {
             when(dag.getEdges()).thenReturn(edges);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(null,actual);
         }
     }
@@ -1841,15 +1843,18 @@ class TaskServiceImplTest {
         @DisplayName("test getTargetNode method normal")
         void test1(){
             // mock data
-            Node node = mock(Node.class);
+            DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
 
             // mock method
-            doReturn(Arrays.asList(node)).when(dag).getTargetNode();
+            LinkedList<DatabaseNode> objects = new LinkedList<>();
+            objects.add(node);
+            when(dag.getTargetNode()).thenReturn(objects);
+            when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
 
             // call method
-            Node actual = taskService.getTargetNode(taskDto);
+            Object actual = taskService.getTargetNode(taskDto);
             assertEquals(node, actual);
         }
         @Test
@@ -1860,7 +1865,7 @@ class TaskServiceImplTest {
             when(dag.getEdges()).thenReturn(edges);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
-            Node actual = taskService.getTargetNode(taskDto);
+            Object actual = taskService.getTargetNode(taskDto);
             assertEquals(null,actual);
         }
 
