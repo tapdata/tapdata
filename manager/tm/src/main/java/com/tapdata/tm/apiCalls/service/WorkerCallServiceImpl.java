@@ -13,6 +13,7 @@ import com.tapdata.tm.apiServer.vo.ApiCallMetricVo;
 import com.tapdata.tm.apiServer.vo.metric.MetricDataBase;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerStatus;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -230,9 +231,10 @@ public class WorkerCallServiceImpl implements WorkerCallService {
         }
         idCriteria.add(Criteria.where("_id").lte(topOne.getId()));
         criteria.andOperator(idCriteria);
+        criteria.and("supplement").ne(true);
         Query callQuery = Query.query(criteria);
         callQuery.fields().include(Tag.ALL_PATH_ID, Tag.WORK_OID, "codeMsg");
-        List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, "ApiCall");
+        List<ApiCallEntity> apiCalls = mongoOperations.find(callQuery, ApiCallEntity.class, MongoUtils.getCollectionName(ApiCallEntity.class));
         Map<String, Map<String, WorkerCallStats>> groupByApiAndWorker = groupCallResult(processId, apiCalls);
         List<WorkerCallStats> mappedResults = new ArrayList<>();
         groupByApiAndWorker.values().forEach(apiMap -> mappedResults.addAll(apiMap.values()));

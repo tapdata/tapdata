@@ -88,7 +88,7 @@ public class TextEncryptionUtil {
         }
         paramTypeMap.forEach((key, p) -> {
             final String type = p.getType();
-            final String defaultValue = p.getDefaultvalue();
+            final String defaultValue = StringUtils.isBlank(p.getDefaultvalue()) ? null : p.getDefaultvalue().trim();
             Optional.ofNullable(parseRuleMap.get(type))
                     .ifPresent(handler -> {
                         item.putIfAbsent(key, defaultValue);

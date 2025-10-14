@@ -14,10 +14,11 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ApiCallDto extends BaseDto {
-    @JsonProperty("req_params")
+    @Field("req_params")
     private String reqParams;
 
     @JsonProperty("res_rows")
+    @Field("res_rows")
     private Long resRows;
 
     private Long latency;
@@ -61,6 +62,7 @@ public class ApiCallDto extends BaseDto {
     private Map reqHeaders;
 
     @JsonProperty("req_bytes")
+    @Field("req_bytes")
     private Long reqBytes;
 
     private String code;
@@ -80,4 +82,6 @@ public class ApiCallDto extends BaseDto {
 
     /**The unique identifier of the worker corresponding to the current request*/
     private String workOid;
+
+    private Boolean supplement;
 }

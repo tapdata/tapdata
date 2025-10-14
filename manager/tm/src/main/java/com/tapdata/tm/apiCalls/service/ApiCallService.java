@@ -52,6 +52,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -590,16 +591,12 @@ public class ApiCallService {
 
     public List<ApiCallMinuteStatsDto> aggregateMinuteByAllPathId(String allPathId, String lastApiCallId, Date startTime) {
         List<ApiCallMinuteStatsDto> apiCallMinuteStatsDtoList = new ArrayList<>();
-        String apiCallCollectionName;
-        try {
-            apiCallCollectionName = EntityUtils.documentAnnotationValue(ApiCallEntity.class);
-        } catch (Exception e) {
-            throw new BizException("Get ApiCallEntity's collection name failed", e);
-        }
+        String apiCallCollectionName = MongoUtils.getCollectionName(ApiCallEntity.class);
         MongoCollection<Document> apiCallCollection = mongoOperations.getCollection(apiCallCollectionName);
 
         // Build aggregation pipeline
         Document match = new Document("allPathId", allPathId);
+        match.append("supplement", new Document("$ne", true));
         if (StringUtils.isNotBlank(lastApiCallId)) {
             match.append("_id", new Document("$gt", new ObjectId(lastApiCallId)));
         }
@@ -648,12 +645,12 @@ public class ApiCallService {
                 // apiCallTime: year, month, day, hour, minute
                 Document id = document.get("_id", Document.class);
                 Instant apiCallTime = LocalDateTime.of(
-						id.getInteger("year"),
-						id.getInteger("month"),
-						id.getInteger("day"),
-						id.getInteger("hour"),
-						id.getInteger("minute")
-				).toInstant(ZoneOffset.UTC);
+                        id.getInteger("year"),
+                        id.getInteger("month"),
+                        id.getInteger("day"),
+                        id.getInteger("hour"),
+                        id.getInteger("minute")
+                ).toInstant(ZoneOffset.UTC);
                 apiCallMinuteStatsDto.setApiCallTime(Date.from(apiCallTime));
 
                 apiCallMinuteStatsDtoList.add(apiCallMinuteStatsDto);

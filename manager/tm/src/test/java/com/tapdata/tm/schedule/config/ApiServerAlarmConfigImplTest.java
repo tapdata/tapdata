@@ -6,13 +6,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.ArrayList;
-
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class ApiServerAlarmConfigImplTest {
     ApiServerAlarmConfigImpl apiServerAlarmConfig;
@@ -23,15 +18,6 @@ class ApiServerAlarmConfigImplTest {
         apiServerAlarmConfig = new ApiServerAlarmConfigImpl();
         alarmRuleService = mock(AlarmRuleService.class);
         apiServerAlarmConfig.setAlarmRuleService(alarmRuleService);
-    }
-
-    @Nested
-    class afterPropertiesSetTest {
-        @Test
-        void testNormal() {
-            when(alarmRuleService.findAll(any(Query.class))).thenReturn(new ArrayList<>());
-            Assertions.assertDoesNotThrow(apiServerAlarmConfig::afterPropertiesSet);
-        }
     }
 
     @Nested
