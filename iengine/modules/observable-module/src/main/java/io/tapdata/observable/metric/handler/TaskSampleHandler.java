@@ -1,11 +1,14 @@
 package io.tapdata.observable.metric.handler;
 
+import com.google.common.util.concurrent.AtomicDouble;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.micrometer.core.instrument.Metrics;
+import io.tapdata.aspect.CpuMemUsageAspect;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SamplerPrometheus;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
+import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -17,6 +20,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -85,6 +89,9 @@ public class TaskSampleHandler extends AbstractHandler {
     private String taskId;
     private String taskName;
 
+    protected AtomicDouble taskCpuUsage = new AtomicDouble(0d);
+    protected AtomicLong taskMemUsage = new AtomicLong(0L);
+
     public TaskSampleHandler(TaskDto task) {
         super(task);
     }
@@ -134,7 +141,9 @@ public class TaskSampleHandler extends AbstractHandler {
                 Constants.OUTPUT_SIZE_QPS,
                 Constants.QPS_TYPE,
                 Constants.OUTPUT_SIZE_QPS_MAX,
-                Constants.OUTPUT_SIZE_QPS_AVG
+                Constants.OUTPUT_SIZE_QPS_AVG,
+                Constants.CPU_USAGE,
+                Constants.MEMORY_USAGE
         );
 	}
 
@@ -292,6 +301,13 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return outputQpsAvg;
         });
+        collector.addSampler(Constants.CPU_USAGE, () -> taskCpuUsage.get());
+        collector.addSampler(Constants.MEMORY_USAGE, this::getTaskMem);
+    }
+
+    protected Long getTaskMem() {
+        long mem = taskMemUsage.get();
+        return mem < 0L ? null : mem;
     }
 
     public void close() {
@@ -439,5 +455,13 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public Long getSnapshotDone() {
         return snapshotDoneAt;
+    }
+
+    public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
+        taskCpuUsage.set(aspect.getUsage().getCpuUsage());
+        if (null != aspect.getUsage().getHeapMemoryUsage() && aspect.getUsage().getHeapMemoryUsage() > 0L) {
+            taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
+        }
+        return null;
     }
 }

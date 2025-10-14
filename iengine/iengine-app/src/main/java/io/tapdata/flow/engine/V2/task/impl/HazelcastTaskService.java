@@ -77,6 +77,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
+import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.task.preview.TaskPreviewInstance;
@@ -90,7 +92,6 @@ import io.tapdata.flow.engine.util.TaskDtoUtil;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -140,6 +141,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	@Autowired
 	private MessageDao messageDao;
+
+	@Autowired
+	private CpuMemoryScheduler cpuMemoryScheduler;
 
 	private static ICacheService cacheService;
 
@@ -197,6 +201,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		Job job;
 		try {
 			final JetDag jetDag = task2HazelcastDAG(taskDto, true);
+			cpuMemoryScheduler.reportOnce(List.of(taskDto.getId().toHexString()));
 			obsLogger.trace("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			job = jet.newJob(jetDag.getDag(), jobConfig);
 		} catch (Exception e) {
@@ -300,6 +305,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	@SneakyThrows
 	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce) {
+		CpuMemoryCollector.startTask(taskDto);
 		handleDagWhenProcessAfterMerge(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
 		if (deduce) {
@@ -358,10 +364,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 			AtomicBoolean needFilterEvent = new AtomicBoolean(true);
 			for (Node node : nodes) {
+				CpuMemoryCollector.addNode(taskDto.getId().toHexString(), node.getId());
+				CpuMemoryCollector.listening(node.getId(), node);
 				Connections connection = null;
 				TableNode tableNode = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node, tapTableMapHashMap);
+				CpuMemoryCollector.listening(node.getId(), tapTableMap);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -435,6 +444,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalTapTableMap,
 								taskConfig
 						);
+						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
 						throw new TapCodeException(TaskProcessorExCode_11.CREATE_PROCESSOR_FAILED,
 								String.format("Failed to create processor based on node information, node: %s[%s], error msg: %s", node.getName(), node.getId(), e.getMessage()), e);

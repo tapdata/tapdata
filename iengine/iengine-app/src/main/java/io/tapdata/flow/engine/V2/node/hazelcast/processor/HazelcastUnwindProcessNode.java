@@ -1,21 +1,17 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.tm.commons.dag.ArrayModel;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.UnwindModel;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.EventHandel;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.unwind.UnWindNodeUtil;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
@@ -65,6 +61,7 @@ public class HazelcastUnwindProcessNode extends HazelcastProcessorBaseNode {
         if (CollectionUtils.isNotEmpty(eventList)) {
             for (TapEvent e : eventList) {
                 TapdataEvent cloneTapdataEvent = (TapdataEvent) tapdataEvent.clone();
+                CpuMemoryCollector.listening(getNode().getId(), cloneTapdataEvent);
                 cloneTapdataEvent.setTapEvent(e);
                 consumer.accept(cloneTapdataEvent, processResult);
             }

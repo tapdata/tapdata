@@ -1,9 +1,12 @@
 package io.tapdata.threadgroup.utils;
 
+import org.springframework.util.ReflectionUtils;
+
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -106,6 +109,7 @@ public class ThreadGroupUtil {
         try {
             Class<ThreadGroup> groupClass = ThreadGroup.class;
             Field threads = groupClass.getDeclaredField("threads");
+            ReflectionUtils.makeAccessible(threads);
             return (Thread[]) Optional.ofNullable(threads.get(threadGroup)).orElse(new Thread[0]);
         } catch (Exception e) {
             return new Thread[0];
@@ -116,6 +120,7 @@ public class ThreadGroupUtil {
         try {
             Class<ThreadGroup> groupClass = ThreadGroup.class;
             Field threads = groupClass.getDeclaredField("groups");
+            ReflectionUtils.makeAccessible(threads);
             return (ThreadGroup[]) Optional.ofNullable(threads.get(threadGroup)).orElse(new ThreadGroup[0]);
         } catch (Exception e) {
             return new ThreadGroup[0];

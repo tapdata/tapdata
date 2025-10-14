@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.aspect.taskmilestones.CDCHeartbeatWriteAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.entity.aspect.Aspect;
@@ -40,13 +41,15 @@ public class ObservableAspectTask extends AspectTask {
 	public static final int TAPCOMPLETABLEFUTUREEX_JOIN_WATERMARK_DEFAULT_VALUE = 500000;
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
-	private TaskSampleHandler taskSampleHandler;
+	protected TaskSampleHandler taskSampleHandler;
 	private Map<String, TableSampleHandler> tableSampleHandlers;
 	private Map<String, DataNodeSampleHandler> dataNodeSampleHandlers;
 	private Map<String, ProcessorNodeSampleHandler> processorNodeSampleHandlers;
 	private static final String TAG = ObservableAspectTask.class.getSimpleName();
 
 	public ObservableAspectTask() {
+		// data node aspects
+		observerClassHandlers.register(CpuMemUsageAspect.class, this::handleCpuMemUsage);
 		// data node aspects
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
 		observerClassHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
@@ -91,6 +94,11 @@ public class ObservableAspectTask extends AspectTask {
 		taskSampleHandler = new TaskSampleHandler(task);
 		taskSampleHandler.init();
 		initCompletableFuture();
+		TaskAspectManager.register(task.getId().toHexString(), this);
+	}
+
+	public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
+		return taskSampleHandler.handleCpuMemUsage(aspect);
 	}
 
 	protected void initCompletableFuture() {
