@@ -136,7 +136,7 @@
         <jna.version>5.10.0</jna.version>
         <log4j.version>2.17.1</log4j.version>
 
-        <hutool.version>5.8.36</hutool.version>
+        <hutool.version>5.8.40</hutool.version>
 
         <!-- 依赖关系：compile,provided,runtime,test -->
         <scope.libs.db2>compile</scope.libs.db2>

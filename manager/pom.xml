@@ -48,6 +48,7 @@
 		<netty.version>4.1.127.Final</netty.version>
 		<spring-framework.version>6.2.11</spring-framework.version>
 		<spring-security.version>6.5.4</spring-security.version>
+		<hutool.version>5.8.40</hutool.version>
 	</properties>
 
 	<modules>
@@ -180,6 +181,26 @@
 				<groupId>org.apache.commons</groupId>
 				<artifactId>commons-collections4</artifactId>
 				<version>${commons-collections4.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-core</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-crypto</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-json</artifactId>
+				<version>${hutool.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>cn.hutool</groupId>
+				<artifactId>hutool-extra</artifactId>
+				<version>${hutool.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
