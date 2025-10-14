@@ -1075,12 +1075,18 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		@Test
 		void testOfferWhenTryEmitReturnTrue() {
 			when(mockHazelcastBaseNode.tryEmit(tapdataEvent, 1)).thenReturn(true);
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(new ObjectId().toHexString());
+			when(mockHazelcastBaseNode.getNode()).thenReturn(node);
 			boolean actual = mockHazelcastBaseNode.offer(tapdataEvent);
 			assertTrue(actual);
 		}
 
 		@Test
 		void testOfferWhenTryEmitReturnFalse() {
+			Node node = mock(Node.class);
+			when(node.getId()).thenReturn(new ObjectId().toHexString());
+			when(mockHazelcastBaseNode.getNode()).thenReturn(node);
 			when(mockHazelcastBaseNode.tryEmit(tapdataEvent, 1)).thenReturn(false);
 			boolean actual = mockHazelcastBaseNode.offer(tapdataEvent);
 			assertFalse(actual);

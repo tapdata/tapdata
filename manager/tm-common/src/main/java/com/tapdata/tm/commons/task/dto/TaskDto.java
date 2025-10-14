@@ -229,6 +229,14 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private Map<String, String> env;
 
+    /**
+     * 任务指标信息
+     * cpu: cpuUsage<Double>
+     * mem: memoryUsage<Long>
+     * time: lastUpdateTime<Long>
+     */
+    private Map<String, Object> metricInfo;
+
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());

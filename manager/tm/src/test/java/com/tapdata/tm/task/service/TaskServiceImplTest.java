@@ -80,6 +80,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.chart.ChartViewService;
@@ -145,6 +146,7 @@ import static org.springframework.beans.BeanUtils.copyProperties;
 
 
 class TaskServiceImplTest {
+    CpuMemoryService cpuMemoryService;
     TaskServiceImpl taskService;
     TaskRecordService taskRecordService;
     BatchService batchService;
@@ -158,6 +160,8 @@ class TaskServiceImplTest {
     UserLogService userLogService;
     @BeforeEach
     void init() {
+        cpuMemoryService = mock(CpuMemoryService.class);
+        when(cpuMemoryService.cpuMemoryUsageOfTask(anyList())).thenReturn(new HashMap<>());
         taskService = mock(TaskServiceImpl.class);
         taskRecordService = mock(TaskRecordService.class);
         monitoringLogsService = mock(MonitoringLogsService.class);
@@ -174,6 +178,7 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
         userLogService = mock(UserLogService.class);
         ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
+        ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
     }
 
     @Nested
@@ -1581,6 +1586,7 @@ class TaskServiceImplTest {
             user = mock(UserDetail.class);
             repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             when(repository.getMongoOperations()).thenReturn(mock(MongoTemplate.class));
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             transformerService = mock(MetadataTransformerService.class);
@@ -1590,6 +1596,7 @@ class TaskServiceImplTest {
         @DisplayName("test find method when is agent request")
         void test1(){
             taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             try (MockedStatic<RequestContextHolder> mb = Mockito
                     .mockStatic(RequestContextHolder.class)) {
                 ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
@@ -1606,6 +1613,7 @@ class TaskServiceImplTest {
         void test2(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             try (MockedStatic<RequestContextHolder> mb = Mockito
                     .mockStatic(RequestContextHolder.class)) {
                 ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
@@ -1791,22 +1799,24 @@ class TaskServiceImplTest {
         void test1(){
             when(taskDto.getDag()).thenReturn(null);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(null,actual);
         }
         @Test
         @DisplayName("test getSourceNode method normal")
         void test2() {
             // mock data
-            Node node = mock(Node.class);
+            DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
-
+            LinkedList<DatabaseNode> nodes = new LinkedList<>();
+            nodes.add(node);
             // mock method
-            doReturn(Arrays.asList(node)).when(dag).getSourceNode();
+            when(dag.getSourceNode()).thenReturn(nodes);
+            when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
 
             // call method
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(node, actual);
         }
         @Test
@@ -1817,7 +1827,7 @@ class TaskServiceImplTest {
             when(dag.getEdges()).thenReturn(edges);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(null,actual);
         }
     }
@@ -1827,20 +1837,24 @@ class TaskServiceImplTest {
         void beforeEach(){
             taskDto = mock(TaskDto.class);
             taskService = mock(TaskServiceImpl.class);
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
         }
         @Test
         @DisplayName("test getTargetNode method normal")
         void test1(){
             // mock data
-            Node node = mock(Node.class);
+            DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
 
             // mock method
-            doReturn(Arrays.asList(node)).when(dag).getTargetNode();
+            LinkedList<DatabaseNode> objects = new LinkedList<>();
+            objects.add(node);
+            when(dag.getTargetNode()).thenReturn(objects);
+            when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
 
             // call method
-            Node actual = taskService.getTargetNode(taskDto);
+            Object actual = taskService.getTargetNode(taskDto);
             assertEquals(node, actual);
         }
         @Test
@@ -1851,7 +1865,7 @@ class TaskServiceImplTest {
             when(dag.getEdges()).thenReturn(edges);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
-            Node actual = taskService.getTargetNode(taskDto);
+            Object actual = taskService.getTargetNode(taskDto);
             assertEquals(null,actual);
         }
 
@@ -1900,6 +1914,7 @@ class TaskServiceImplTest {
         void beforeEach(){
             repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             user = mock(UserDetail.class);
             filter = new Filter();
             dataSourceService = mock(DataSourceServiceImpl.class);
@@ -2122,6 +2137,7 @@ class TaskServiceImplTest {
         void testFindByIdsNormal(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             List<ObjectId> idList = new ArrayList<>();
             ObjectId id = mock(ObjectId.class);
             idList.add(id);

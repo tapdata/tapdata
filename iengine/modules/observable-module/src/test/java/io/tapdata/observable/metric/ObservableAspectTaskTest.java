@@ -16,6 +16,7 @@ import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.aspect.*;
 import io.tapdata.entity.CountResult;
+import io.tapdata.entity.Usage;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -571,4 +572,19 @@ public class ObservableAspectTaskTest {
 
     }
 
+
+    @Nested
+    class handleCpuMemUsageTest {
+        @Test
+        void testHandleCpuMemUsage_Success() {
+            Usage usage = new Usage();
+            usage.setCpuUsage(10.5);
+            usage.setHeapMemoryUsage(1024L);
+            observableAspectTask.taskSampleHandler = mock(TaskSampleHandler.class);
+            CpuMemUsageAspect aspect = new CpuMemUsageAspect(usage);
+            doNothing().when(observableAspectTask.taskSampleHandler).handleCpuMemUsage(aspect);
+            observableAspectTask.handleCpuMemUsage(aspect);
+            verify(observableAspectTask.taskSampleHandler, times(1)).handleCpuMemUsage(aspect);
+        }
+    }
 }
