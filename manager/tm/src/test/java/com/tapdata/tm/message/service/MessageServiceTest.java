@@ -12,6 +12,7 @@ import com.tapdata.tm.alarmMail.dto.AlarmMailDto;
 import com.tapdata.tm.alarmMail.service.AlarmMailService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.service.EventsService;

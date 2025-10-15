@@ -2,7 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.service.TaskExtendService;
 import com.tapdata.tm.task.service.TaskService;
@@ -14,7 +14,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

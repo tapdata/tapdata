@@ -2,7 +2,7 @@ package com.tapdata.tm.task.entity;
 
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
 

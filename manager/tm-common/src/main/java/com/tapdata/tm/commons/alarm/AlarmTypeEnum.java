@@ -1,4 +1,4 @@
-package com.tapdata.tm.alarm.constant;
+package com.tapdata.tm.commons.alarm;
 
 import lombok.Getter;
 
@@ -13,7 +13,8 @@ public enum AlarmTypeEnum {
     DATA_VERIFICATION_ALARM("TASK","数据校验告警"),
     ACCURATE_DELAY_ALARM("TASK","精准延迟告警"),
 	INSPECT_ALARM("TASK","校验任务出错"),
-    API_SERVER_ALARM("API_SERVER","API Server Alarm");
+    API_SERVER_ALARM("API_SERVER","API Server Alarm"),
+    DATASOURCE_MONITOR_ALARM("CONNECTION", "Datasource Monitor Alarm");
 
 
     private final String type;

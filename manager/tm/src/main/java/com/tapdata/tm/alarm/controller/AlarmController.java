@@ -5,11 +5,13 @@ import com.tapdata.tm.alarm.dto.AlarmChannelDto;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
+import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmDatasourceDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmVO;
 import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.utils.WebUtils;
@@ -17,6 +19,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -79,6 +82,16 @@ public class AlarmController extends BaseController {
         log.info("接收到新增信息请求  ,  messageDto:{}", JSON.toJSONString(messageDto));
         MessageDto messageDtoRet = alarmService.add(messageDto,getLoginUser());
         return success(messageDtoRet);
+    }
+
+    @Operation(summary = "新增数据源监控消息")
+    @PostMapping("addDatasourceMsg")
+    public ResponseMessage<MessageDto> addMsg(@RequestBody AlarmDatasourceDto alarmDatasourceDto) {
+        log.info("接收到新增信息请求  ,  alarmDatasourceDto:{}", JSON.toJSONString(alarmDatasourceDto));
+        AlarmInfo alarmInfo = new AlarmInfo();
+        BeanUtils.copyProperties(alarmDatasourceDto, alarmInfo);
+        alarmService.save(alarmInfo);
+        return success();
     }
 
     @Operation(summary = "Get available notification channels")
