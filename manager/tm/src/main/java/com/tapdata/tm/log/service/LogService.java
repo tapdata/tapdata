@@ -44,7 +44,7 @@ public class LogService {
      * Process logDto to ensure date field is properly formatted
      * Convert long timestamp to Date object if needed
      */
-    private void processLogDto(LogDto logDto) {
+    protected void processLogDto(LogDto logDto) {
         if (logDto != null && logDto.getDate() != null) {
             Object dateObj = logDto.getDate();
 
