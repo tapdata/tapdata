@@ -25,6 +25,12 @@ public class MessageEntity implements Serializable, Cloneable {
 
 	private Map<String, Object> after;
 
+	private List<String> beforeIllegalDateFieldName;
+
+	private List<String> afterIllegalDateFieldName;
+
+	private boolean containsIllegalDate;
+
 	private Map<String, Object> info;
 
 	private List<Map<String, Object>> targetBefore;
@@ -390,6 +396,8 @@ public class MessageEntity implements Serializable, Cloneable {
 				"op='" + op + '\'' +
 				", before=" + before +
 				", after=" + after +
+				", beforeIllegalDateFieldName=" + beforeIllegalDateFieldName +
+				", afterIllegalDateFieldName=" + afterIllegalDateFieldName +
 				", targetBefore=" + targetBefore +
 				", tableName='" + tableName + '\'' +
 				", opExpression=" + opExpression +
@@ -462,6 +470,18 @@ public class MessageEntity implements Serializable, Cloneable {
 				MapUtil.deepCloneMap(after, newAfter);
 				newMSG.setAfter(newAfter);
 			}
+
+			if (beforeIllegalDateFieldName != null) {
+				List newBeforeIllegalDateFieldName = beforeIllegalDateFieldName.getClass().newInstance();
+				ListUtil.serialCloneList(beforeIllegalDateFieldName, newBeforeIllegalDateFieldName);
+				newMSG.setBeforeIllegalDateFieldName(newBeforeIllegalDateFieldName);
+			}
+
+			if (afterIllegalDateFieldName != null) {
+				List newAfterIllegalDateFieldName = afterIllegalDateFieldName.getClass().newInstance();
+				ListUtil.serialCloneList(afterIllegalDateFieldName, newAfterIllegalDateFieldName);
+				newMSG.setBeforeIllegalDateFieldName(newAfterIllegalDateFieldName);
+			}
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -478,4 +498,28 @@ public class MessageEntity implements Serializable, Cloneable {
 		}
 		return false;
 	}
+
+    public List<String> getBeforeIllegalDateFieldName() {
+        return beforeIllegalDateFieldName;
+    }
+
+    public void setBeforeIllegalDateFieldName(List<String> beforeIllegalDateFieldName) {
+        this.beforeIllegalDateFieldName = beforeIllegalDateFieldName;
+    }
+
+    public List<String> getAfterIllegalDateFieldName() {
+        return afterIllegalDateFieldName;
+    }
+
+    public void setAfterIllegalDateFieldName(List<String> afterIllegalDateFieldName) {
+        this.afterIllegalDateFieldName = afterIllegalDateFieldName;
+    }
+
+    public boolean isContainsIllegalDate() {
+        return containsIllegalDate;
+    }
+
+    public void setContainsIllegalDate(boolean containsIllegalDate) {
+        this.containsIllegalDate = containsIllegalDate;
+    }
 }
