@@ -81,6 +81,9 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 	@Autowired
 	private ClientMongoOperator clientMongoOperator;
 	@Autowired
+	@Qualifier("pingClientMongoOperator")
+	private ClientMongoOperator pingClientMongoOperator;
+	@Autowired
 	private ConfigurationCenter configCenter;
 	@Autowired
 	private SettingService settingService;

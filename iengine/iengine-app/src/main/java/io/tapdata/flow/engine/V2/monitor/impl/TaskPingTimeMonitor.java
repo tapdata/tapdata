@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
@@ -9,7 +10,6 @@ import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.utils.AppType;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -133,10 +133,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
         if (System.currentTimeMillis() - lastPingTime < heartExpire / 2 && failedStartTime == 0) {
             return;
         }
-        heartExpire = getHeartExpire();
-
-        lastPingTime = System.currentTimeMillis();
 		try {
+			heartExpire = getHeartExpire();
+			lastPingTime = System.currentTimeMillis();
 			UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 			// 任务状态异常，应该将任务停止
 			if (updateResult.getModifiedCount() == 0) {
@@ -154,10 +153,11 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
                 if (failedStartTime == 0) {
                     failedStartTime = System.currentTimeMillis();
                 }
-                if (System.currentTimeMillis() - failedStartTime > (heartExpire - onHeartExpire())) {
+                if (System.currentTimeMillis() - failedStartTime > TimeUnit.MINUTES.toMillis(1)) {
                     logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
                     taskMonitor.accept(TerminalMode.INTERNAL_STOP);
                     stopTask.get();
+					ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
                 } else {
                     logger.warn("Send task ping time failed for {}ms, heartbeat expire is {}ms, will retry", System.currentTimeMillis() - failedStartTime, heartExpire);
                 }
