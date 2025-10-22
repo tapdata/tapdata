@@ -371,6 +371,10 @@ public class MessageServiceImpl extends MessageService{
                     update(Query.query(Criteria.where("_id").is(saveMessage.getId())),Update.update("isSend",true));
                 }
             }, () -> {
+                if (MsgTypeEnum.DELETED.equals(msgTypeEnum) || MsgTypeEnum.PAUSED.equals(msgTypeEnum)) {
+                    log.info("任务删除或停止，不用发邮件短信");
+                    return;
+                }
                 MailAccountDto mailAccount = settingsService.getMailAccount(userDetail.getUserId());
                 String mailTitle = getMailTitle(msgTypeEnum);
                 MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), mailTitle, serverName + mailTitle);
