@@ -6,6 +6,7 @@ import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.dto.TestResponseDto;
+import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
@@ -32,11 +33,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 
@@ -456,8 +454,17 @@ public class MailUtils {
             log.error("mail account info empty, params:{}", JSON.toJSONString(parms));
             return new TestResponseDto(false,"Please check your configuration, mail account information cannot be empty.");
         } else {
+            title = addTitlePrefix(title);
             return sendEmailForProxy(parms, adressees, title, content, flag);
         }
+    }
+
+    public static String addTitlePrefix(String title) {
+        SettingsService settingsService = SpringContextHelper.getBean(SettingsService.class);
+        Settings prefix = settingsService.getByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
+        AtomicReference<String> mailTitle = new AtomicReference<>(title);
+        Optional.ofNullable(prefix).ifPresent(pre -> mailTitle.updateAndGet(v -> pre.getValue() + v));
+        return mailTitle.get();
     }
 
     @Nullable
