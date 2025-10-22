@@ -220,7 +220,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
     }
 
-    private boolean checkRepeatNameBool(UserDetail user, String name, ObjectId id) {
+    protected boolean checkRepeatNameBool(UserDetail user, String name, ObjectId id) {
         log.debug("check connection repeat name, name = {}, id = {}, user = {}", name, id, user == null ? null : user.getUserId());
         Criteria criteria = Criteria.where("name").is(name);
         if (id != null) {
@@ -1816,6 +1816,99 @@ public class DataSourceServiceImpl extends DataSourceService{
 
         }
         return conMap;
+    }
+
+    /**
+     * 优化的批量导入方法，支持基于名称的匹配和导入模式
+     */
+    public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user,
+                                                            com.tapdata.tm.commons.task.dto.ImportModeEnum importMode) {
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+
+        for (DataSourceConnectionDto connectionDto : connectionDtos) {
+            String connId = connectionDto.getId().toString();
+            connectionDto.setListtags(null);
+
+            // 基于名称查找现有连接
+            Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
+            nameQuery.fields().include("_id", "name");
+            DataSourceConnectionDto existingConnectionByName = findOne(nameQuery, user);
+
+            DataSourceConnectionDto resultConnection = null;
+
+            switch (importMode) {
+                case REPLACE:
+                    if (existingConnectionByName != null) {
+                        // 替换模式：保留现有ID，使用导入数据覆盖
+                        ObjectId existingId = existingConnectionByName.getId();
+                        connectionDto.setId(existingId);
+
+                        if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
+                            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+                            if (externalStorageDto == null) {
+                                Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+                                ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+                                connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+                            }
+                        }
+
+                        agentGroupService.importAgentInfo(connectionDto);
+                        resultConnection = save(connectionDto, user);
+                    } else {
+                        // 不存在同名连接，作为新连接导入
+                        resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    }
+                    break;
+
+                case IMPORT_AS_COPY:
+                    resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    break;
+
+                case CANCEL_IMPORT:
+                    // 取消导入，使用原有连接（如果存在）
+                    if (existingConnectionByName == null) {
+                        resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    }
+                    break;
+
+                default:
+                    // 默认使用IMPORT_AS_COPY
+                    resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    break;
+            }
+            conMap.put(connId, resultConnection);
+        }
+
+        return conMap;
+    }
+
+    /**
+     * 处理复制模式的连接导入
+     */
+    protected DataSourceConnectionDto handleImportAsCopyConnection(DataSourceConnectionDto connectionDto, UserDetail user) {
+        Query idQuery = new Query(Criteria.where("_id").is(connectionDto.getId()).and("is_deleted").ne(true));
+        idQuery.fields().include("_id", "name");
+        DataSourceConnectionDto existingConnectionById = findOne(idQuery);
+        // 检查名称冲突并重命名
+        while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
+            connectionDto.setName(connectionDto.getName() + "_import");
+        }
+        if(null != existingConnectionById){
+            // 分配新ID
+            connectionDto.setId(null);
+        }
+
+        if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
+            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+            if (externalStorageDto == null) {
+                Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+                ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+                connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+            }
+        }
+
+        agentGroupService.importAgentInfo(connectionDto);
+        return importEntity(connectionDto, user);
     }
 
     public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {

@@ -21,6 +21,10 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
+
+import com.tapdata.tm.commons.task.dto.Message;
+
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -90,6 +94,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -146,6 +151,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.beans.BeanUtils.copyProperties;
 
 
+
 class TaskServiceImplTest {
     CpuMemoryService cpuMemoryService;
     TaskServiceImpl taskService;
@@ -159,6 +165,7 @@ class TaskServiceImplTest {
     ChartViewService chartViewService;
     DataSourceService dataSourceService;
     UserLogService userLogService;
+    MetadataDefinitionService metadataDefinitionService;
     @BeforeEach
     void init() {
         cpuMemoryService = mock(CpuMemoryService.class);
@@ -180,6 +187,8 @@ class TaskServiceImplTest {
         userLogService = mock(UserLogService.class);
         ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
         ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
+        metadataDefinitionService = mock(MetadataDefinitionService.class);
+        ReflectionTestUtils.setField(taskService,"metadataDefinitionService",metadataDefinitionService);
     }
 
     @Nested
@@ -869,6 +878,741 @@ class TaskServiceImplTest {
             verify(taskService,new Times(1)).updateById(any(TaskDto.class),any(UserDetail.class));
         }
     }
+
+    @Nested
+    class BatchImportTest {
+        private List<TaskDto> taskDtos;
+        private ImportModeEnum importMode;
+        private List<String> tags;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private Map<String, String> taskMap;
+        private Map<String, String> nodeMap;
+        private TaskDto taskDto;
+        private TaskDto existingTask;
+        private DAG dag;
+        private List<Node> nodes;
+        private DatabaseNode databaseNode;
+
+        @BeforeEach
+        void setUp() {
+            taskDtos = new ArrayList<>();
+            taskDto = mock(TaskDto.class);
+            existingTask = mock(TaskDto.class);
+            taskDtos.add(taskDto);
+
+            importMode = ImportModeEnum.REPLACE;
+            tags = Arrays.asList("tag1", "tag2");
+            conMap = new HashMap<>();
+            taskMap = new HashMap<>();
+            nodeMap = new HashMap<>();
+
+            dag = mock(DAG.class);
+            nodes = new ArrayList<>();
+            databaseNode = mock(DatabaseNode.class);
+            nodes.add(databaseNode);
+
+            when(taskDto.getName()).thenReturn("testTask");
+            when(taskDto.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+            when(databaseNode.getConnectionId()).thenReturn("conn1");
+
+            user = mock(UserDetail.class);
+        }
+
+        @Test
+        @DisplayName("test batchImport with REPLACE mode - existing task")
+        void testBatchImportReplaceMode() {
+            // Setup
+            when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify
+            verify(taskService, times(1)).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with IMPORT_AS_COPY mode")
+        void testBatchImportCopyMode() {
+            // Setup
+            importMode = ImportModeEnum.IMPORT_AS_COPY;
+            when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify
+            verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - existing task")
+        void testBatchImportCancelModeWithExistingTask() {
+            // Setup
+            importMode = ImportModeEnum.CANCEL_IMPORT;
+            when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(existingTask);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify - should return early without calling any handle methods
+            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - no existing task but connection duplicate")
+        void testBatchImportCancelModeWithConnectionDuplicate() {
+            // Setup
+            importMode = ImportModeEnum.CANCEL_IMPORT;
+            Query nameQuery = new Query(Criteria.where("name").is("testTask").and("is_deleted").ne(true));
+            nameQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(nameQuery)).thenReturn(null);
+            when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(true);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify - should return early without calling handle methods
+            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+        }
+    }
+
+    @Nested
+    class HandleReplaceModeTest {
+        private TaskDto taskDto;
+        private TaskDto existingTask;
+        private UserDetail user;
+        private List<Tag> tagList;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private Map<String, String> nodeMap;
+        private Map<String, String> taskMap;
+        private DAG dag;
+        private TaskRepository repository;
+        private MongoTemplate mongoTemplate;
+
+        @BeforeEach
+        void setUp() {
+            taskDto = mock(TaskDto.class);
+            existingTask = mock(TaskDto.class);
+            user = mock(UserDetail.class);
+            tagList = Arrays.asList(new Tag("tag1","tag1Value"), new Tag("tag2","tag2Value"));
+            conMap = new HashMap<>();
+            nodeMap = new HashMap<>();
+            taskMap = new HashMap<>();
+            dag = mock(DAG.class);
+            repository = mock(TaskRepository.class);
+            mongoTemplate = mock(MongoTemplate.class);
+
+            ReflectionTestUtils.setField(taskService, "repository", repository);
+            when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+            when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class))).thenReturn(mock(UpdateResult.class));
+        }
+
+        @Test
+        @DisplayName("test handleReplaceMode with existing task")
+        void testHandleReplaceModeWithExistingTask() {
+            // Setup
+            ObjectId existingId = new ObjectId();
+            when(existingTask.getId()).thenReturn(existingId);
+            when(taskDto.getDag()).thenReturn(dag);
+            when(dag.validate()).thenReturn(new HashMap<>());
+
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
+            doReturn(taskDto).when(taskService).confirmById(taskDto, user, true, true);
+
+            // Execute
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+
+            // Verify
+            verify(taskDto, times(1)).setId(existingId);
+            verify(taskService, times(1)).updateConnectionIds(taskDto, conMap);
+            verify(taskService, times(1)).confirmById(taskDto, user, true, true);
+        }
+
+        @Test
+        @DisplayName("test handleReplaceMode with DAG validation errors")
+        void testHandleReplaceModeWithValidationErrors() {
+            // Setup
+            ObjectId existingId = new ObjectId();
+            when(existingTask.getId()).thenReturn(existingId);
+            when(taskDto.getDag()).thenReturn(dag);
+            Map<String, List<Message>> validationErrors = new HashMap<>();
+            validationErrors.put("error", Arrays.asList(new Message()));
+            when(dag.validate()).thenReturn(validationErrors);
+
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+            doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
+            doReturn(taskDto).when(taskService).updateById(taskDto, user);
+
+            // Execute
+            taskService.handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
+
+            // Verify
+            verify(taskService, times(1)).updateById(taskDto, user);
+            verify(taskService, never()).confirmById(any(), any(), anyBoolean(), anyBoolean());
+        }
+
+        @Test
+        @DisplayName("test handleReplaceMode without existing task")
+        void testHandleReplaceModeWithoutExistingTask() {
+            // Setup
+            doCallRealMethod().when(taskService).handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+            doNothing().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            // Execute
+            taskService.handleReplaceMode(taskDto, null, user, tagList, conMap, nodeMap, taskMap);
+
+            // Verify
+            verify(taskService, times(1)).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+        }
+    }
+
+    @Nested
+    class HandleImportAsCopyModeTest {
+        private TaskDto taskDto;
+        private TaskDto existingTaskById;
+        private UserDetail user;
+        private List<Tag> tagList;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private Map<String, String> nodeMap;
+        private Map<String, String> taskMap;
+        private DAG dag;
+        private List<Node> nodes;
+        private LinkedList<Edge> edges;
+        private TaskRepository repository;
+        private MongoTemplate mongoTemplate;
+        private TaskEntity taskEntity;
+
+        @BeforeEach
+        void setUp() {
+            taskDto = mock(TaskDto.class);
+            existingTaskById = mock(TaskDto.class);
+            user = mock(UserDetail.class);
+            tagList = Arrays.asList(new Tag("tag1","tag1"), new Tag("tag2","tag2"));
+            conMap = new HashMap<>();
+            nodeMap = new HashMap<>();
+            taskMap = new HashMap<>();
+            dag = mock(DAG.class);
+            nodes = new ArrayList<>();
+            edges = new LinkedList<>();
+            repository = mock(TaskRepository.class);
+            mongoTemplate = mock(MongoTemplate.class);
+            taskEntity = mock(TaskEntity.class);
+
+            // Setup nodes and edges
+            Node node1 = mock(Node.class);
+            Node node2 = mock(Node.class);
+            when(node1.getId()).thenReturn("node1");
+            when(node2.getId()).thenReturn("node2");
+            nodes.add(node1);
+            nodes.add(node2);
+
+            Edge edge1 = mock(Edge.class);
+            when(edge1.getSource()).thenReturn("node1");
+            when(edge1.getTarget()).thenReturn("node2");
+            edges.add(edge1);
+
+            when(dag.getNodes()).thenReturn(nodes);
+            when(dag.getEdges()).thenReturn(edges);
+            when(taskDto.getDag()).thenReturn(dag);
+            when(taskDto.getName()).thenReturn("testTask");
+
+            ReflectionTestUtils.setField(taskService, "repository", repository);
+            when(repository.getMongoOperations()).thenReturn(mongoTemplate);
+            when(repository.importEntity(any(TaskEntity.class), eq(user))).thenReturn(taskEntity);
+            when(mongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(TaskEntity.class))).thenReturn(mock(UpdateResult.class));
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with existing task by ID")
+        void testHandleImportAsCopyModeWithExistingTaskById() {
+            // Setup
+            ObjectId taskId = new ObjectId();
+            ObjectId existingId = new ObjectId();
+            when(taskDto.getId()).thenReturn(taskId);
+            when(existingTaskById.getId()).thenReturn(existingId);
+
+            Query idQuery = new Query(Criteria.where("_id").is(taskId).and("is_deleted").ne(true));
+            idQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(idQuery)).thenReturn(existingTaskById);
+            when(taskService.checkTaskNameNotError("testTask", user, null)).thenReturn(false);
+            when(taskService.convertToEntity(TaskEntity.class, taskDto)).thenReturn(taskEntity);
+            when(taskService.convertToDto(taskEntity, TaskDto.class)).thenReturn(taskDto);
+            when(dag.validate()).thenReturn(new HashMap<>());
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+            doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
+            doReturn(taskDto).when(taskService).confirmById(taskDto, user, true, true);
+
+            // Execute
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            // Verify
+            verify(taskDto, times(1)).setListtags(tagList);
+            verify(taskService, times(1)).updateConnectionIds(taskDto, conMap);
+            verify(repository, times(1)).importEntity(any(TaskEntity.class), eq(user));
+            verify(taskService, times(1)).confirmById(taskDto, user, true, true);
+            // Verify that new IDs were assigned
+            assertTrue(taskMap.containsKey(existingId.toHexString()));
+            assertEquals(2, nodeMap.size()); // Two nodes should have new IDs
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with name conflict")
+        void testHandleImportAsCopyModeWithNameConflict() {
+            // Setup
+            when(taskService.findOne(any(Query.class))).thenReturn(null);
+            when(taskService.checkTaskNameNotError(anyString(), any(), any())).thenReturn(true).thenReturn(false);
+            when(taskService.convertToEntity(TaskEntity.class, taskDto)).thenReturn(taskEntity);
+            when(taskService.convertToDto(taskEntity, TaskDto.class)).thenReturn(taskDto);
+            when(dag.validate()).thenReturn(new HashMap<>());
+            when(taskService.confirmById(any(),any(),anyBoolean(),anyBoolean())).thenReturn(taskDto);
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+            doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
+
+            // Execute
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            // Verify
+            verify(taskDto, times(1)).setName("testTask_import");
+            verify(taskService, times(1)).confirmById(taskDto, user, true, true);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with DAG validation errors")
+        void testHandleImportAsCopyModeWithValidationErrors() {
+            // Setup
+            when(taskService.findOne(any(Query.class))).thenReturn(null);
+            when(taskService.checkTaskNameNotError(anyString(), any(), any())).thenReturn(false);
+            when(taskService.convertToEntity(TaskEntity.class, taskDto)).thenReturn(taskEntity);
+            when(taskService.convertToDto(taskEntity, TaskDto.class)).thenReturn(taskDto);
+
+            Map<String, List<Message>> validationErrors = new HashMap<>();
+            validationErrors.put("error", Arrays.asList(new Message()));
+            when(dag.validate()).thenReturn(validationErrors);
+
+            doCallRealMethod().when(taskService).handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+            doNothing().when(taskService).updateConnectionIds(taskDto, conMap);
+            doReturn(taskDto).when(taskService).updateById(taskDto, user);
+
+            // Execute
+            taskService.handleImportAsCopyMode(taskDto, user, tagList, conMap, nodeMap, taskMap);
+
+            // Verify
+            verify(taskService, times(1)).updateById(taskDto, user);
+            verify(taskService, never()).confirmById(any(), any(), anyBoolean(), anyBoolean());
+        }
+    }
+
+    @Nested
+    class CheckConnectionIdDuplicateTest {
+        private TaskDto taskDto;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private DAG dag;
+        private List<Node> nodes;
+        private DatabaseNode databaseNode1;
+        private DatabaseNode databaseNode2;
+        private Node nonDatabaseNode;
+
+        @BeforeEach
+        void setUp() {
+            taskDto = mock(TaskDto.class);
+            conMap = new HashMap<>();
+            dag = mock(DAG.class);
+            nodes = new ArrayList<>();
+            databaseNode1 = mock(DatabaseNode.class);
+            databaseNode2 = mock(DatabaseNode.class);
+            nonDatabaseNode = mock(Node.class);
+
+            when(taskDto.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with null DAG")
+        void testCheckConnectionIdDuplicateWithNullDag() {
+            // Setup
+            when(taskDto.getDag()).thenReturn(null);
+            doCallRealMethod().when(taskService).checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Execute
+            boolean result = taskService.checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with null nodes")
+        void testCheckConnectionIdDuplicateWithNullNodes() {
+            // Setup
+            when(dag.getNodes()).thenReturn(null);
+            doCallRealMethod().when(taskService).checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Execute
+            boolean result = taskService.checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with no database nodes")
+        void testCheckConnectionIdDuplicateWithNoDatabaseNodes() {
+            // Setup
+            nodes.add(nonDatabaseNode);
+            doCallRealMethod().when(taskService).checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Execute
+            boolean result = taskService.checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with existing connections")
+        void testCheckConnectionIdDuplicateWithExistingConnections() {
+            // Setup
+            when(databaseNode1.getConnectionId()).thenReturn("conn1");
+            when(databaseNode2.getConnectionId()).thenReturn("conn2");
+            nodes.add(databaseNode1);
+            nodes.add(databaseNode2);
+
+            DataSourceConnectionDto conn1 = mock(DataSourceConnectionDto.class);
+            DataSourceConnectionDto conn2 = mock(DataSourceConnectionDto.class);
+            conMap.put("conn1", conn1);
+            conMap.put("conn2", conn2);
+
+            doCallRealMethod().when(taskService).checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Execute
+            boolean result = taskService.checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with missing connections")
+        void testCheckConnectionIdDuplicateWithMissingConnections() {
+            // Setup
+            when(databaseNode1.getConnectionId()).thenReturn("conn1");
+            when(databaseNode2.getConnectionId()).thenReturn("conn2");
+            nodes.add(databaseNode1);
+            nodes.add(databaseNode2);
+
+            // Only add one connection to the map
+            DataSourceConnectionDto conn1 = mock(DataSourceConnectionDto.class);
+            conMap.put("conn1", conn1);
+
+            doCallRealMethod().when(taskService).checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Execute
+            boolean result = taskService.checkConnectionIdDuplicate(taskDto, conMap);
+
+            // Verify
+            assertTrue(result);
+        }
+    }
+
+    @Nested
+    class UpdateConnectionIdsTest {
+        private TaskDto taskDto;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private DAG dag;
+        private List<Node> nodes;
+        private DatabaseNode databaseNode1;
+        private DatabaseNode databaseNode2;
+        private Node nonDatabaseNode;
+        private DataSourceConnectionDto connection1;
+        private DataSourceConnectionDto connection2;
+
+        @BeforeEach
+        void setUp() {
+            taskDto = mock(TaskDto.class);
+            conMap = new HashMap<>();
+            dag = mock(DAG.class);
+            nodes = new ArrayList<>();
+            databaseNode1 = mock(DatabaseNode.class);
+            databaseNode2 = mock(DatabaseNode.class);
+            nonDatabaseNode = mock(Node.class);
+            connection1 = mock(DataSourceConnectionDto.class);
+            connection2 = mock(DataSourceConnectionDto.class);
+
+            when(taskDto.getDag()).thenReturn(dag);
+            when(dag.getNodes()).thenReturn(nodes);
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with null DAG")
+        void testUpdateConnectionIdsWithNullDag() {
+            // Setup
+            when(taskDto.getDag()).thenReturn(null);
+            doCallRealMethod().when(taskService).updateConnectionIds(taskDto, conMap);
+
+            // Execute
+            taskService.updateConnectionIds(taskDto, conMap);
+
+            // Verify - should not throw exception
+            verify(taskDto, times(1)).getDag();
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with null nodes")
+        void testUpdateConnectionIdsWithNullNodes() {
+            // Setup
+            when(dag.getNodes()).thenReturn(null);
+            doCallRealMethod().when(taskService).updateConnectionIds(taskDto, conMap);
+
+            // Execute
+            taskService.updateConnectionIds(taskDto, conMap);
+
+            // Verify - should not throw exception
+            verify(dag, times(1)).getNodes();
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with database nodes")
+        void testUpdateConnectionIdsWithDatabaseNodes() {
+            // Setup
+            ObjectId newConnId1 = new ObjectId();
+            ObjectId newConnId2 = new ObjectId();
+
+            when(databaseNode1.getConnectionId()).thenReturn("oldConn1");
+            when(databaseNode2.getConnectionId()).thenReturn("oldConn2");
+            when(connection1.getId()).thenReturn(newConnId1);
+            when(connection2.getId()).thenReturn(newConnId2);
+
+            nodes.add(databaseNode1);
+            nodes.add(nonDatabaseNode);
+            nodes.add(databaseNode2);
+
+            conMap.put("oldConn1", connection1);
+            conMap.put("oldConn2", connection2);
+
+            doCallRealMethod().when(taskService).updateConnectionIds(taskDto, conMap);
+
+            // Execute
+            taskService.updateConnectionIds(taskDto, conMap);
+
+            // Verify
+            verify(databaseNode1, times(1)).setConnectionId(newConnId1.toString());
+            verify(databaseNode2, times(1)).setConnectionId(newConnId2.toString());
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with missing connection mapping")
+        void testUpdateConnectionIdsWithMissingMapping() {
+            // Setup
+            when(databaseNode1.getConnectionId()).thenReturn("oldConn1");
+            when(databaseNode2.getConnectionId()).thenReturn("oldConn2");
+
+            nodes.add(databaseNode1);
+            nodes.add(databaseNode2);
+
+            // Only add one connection to the map
+            ObjectId newConnId1 = new ObjectId();
+            when(connection1.getId()).thenReturn(newConnId1);
+            conMap.put("oldConn1", connection1);
+
+            doCallRealMethod().when(taskService).updateConnectionIds(taskDto, conMap);
+
+            // Execute
+            taskService.updateConnectionIds(taskDto, conMap);
+
+            // Verify
+            verify(databaseNode1, times(1)).setConnectionId(newConnId1.toString());
+            verify(databaseNode2, never()).setConnectionId(anyString());
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with mixed node types")
+        void testUpdateConnectionIdsWithMixedNodeTypes() {
+            // Setup
+            ObjectId newConnId1 = new ObjectId();
+            when(databaseNode1.getConnectionId()).thenReturn("oldConn1");
+            when(connection1.getId()).thenReturn(newConnId1);
+
+            nodes.add(nonDatabaseNode);
+            nodes.add(databaseNode1);
+
+            conMap.put("oldConn1", connection1);
+
+            doCallRealMethod().when(taskService).updateConnectionIds(taskDto, conMap);
+
+            // Execute
+            taskService.updateConnectionIds(taskDto, conMap);
+
+            // Verify
+            verify(databaseNode1, times(1)).setConnectionId(newConnId1.toString());
+            // Non-database node should not be affected
+        }
+    }
+
+
+    @Nested
+    class BatchImportEdgeCasesTest {
+        private List<TaskDto> taskDtos;
+        private UserDetail user;
+        private ImportModeEnum importMode;
+        private List<String> tags;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private Map<String, String> taskMap;
+        private Map<String, String> nodeMap;
+
+        @BeforeEach
+        void setUp() {
+            taskDtos = new ArrayList<>();
+            user = mock(UserDetail.class);
+            importMode = ImportModeEnum.REPLACE;
+            tags = Arrays.asList("tag1", "tag2");
+            conMap = new HashMap<>();
+            taskMap = new HashMap<>();
+            nodeMap = new HashMap<>();
+        }
+
+        @Test
+        @DisplayName("test batchImport with empty task list")
+        void testBatchImportWithEmptyTaskList() {
+            // Setup
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify - should complete without errors
+            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+            verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with null task name")
+        void testBatchImportWithNullTaskName() {
+            // Setup
+            TaskDto taskDto = mock(TaskDto.class);
+            when(taskDto.getName()).thenReturn(null);
+            taskDtos.add(taskDto);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify - should skip processing this task
+            verify(taskService, never()).findOne(any(Query.class));
+        }
+
+        @Test
+        @DisplayName("test batchImport with empty task name")
+        void testBatchImportWithEmptyTaskName() {
+            // Setup
+            TaskDto taskDto = mock(TaskDto.class);
+            when(taskDto.getName()).thenReturn("");
+            taskDtos.add(taskDto);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify - should skip processing this task
+            verify(taskService, never()).findOne(any(Query.class));
+        }
+
+        @Test
+        @DisplayName("test batchImport with null tags")
+        void testBatchImportWithNullTags() {
+            // Setup
+            TaskDto taskDto = mock(TaskDto.class);
+            when(taskDto.getName()).thenReturn("testTask");
+            taskDtos.add(taskDto);
+
+            Query nameQuery = new Query(Criteria.where("name").is("testTask").and("is_deleted").ne(true));
+            nameQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(nameQuery)).thenReturn(null);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
+            doNothing().when(taskService).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, null, conMap, taskMap, nodeMap);
+
+            // Verify
+            verify(taskService, times(1)).handleReplaceMode(eq(taskDto), eq(null), eq(user), eq(new ArrayList<>()), eq(conMap), eq(nodeMap), eq(taskMap));
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode and no connection duplicate")
+        void testBatchImportCancelModeNoConnectionDuplicate() {
+            // Setup
+            importMode = ImportModeEnum.CANCEL_IMPORT;
+            TaskDto taskDto = mock(TaskDto.class);
+            when(taskDto.getName()).thenReturn("testTask");
+            taskDtos.add(taskDto);
+
+            when(taskService.findOne(any(Query.class),any(UserDetail.class))).thenReturn(null);
+            when(taskService.checkConnectionIdDuplicate(taskDto, conMap)).thenReturn(false);
+
+            doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+
+            // Execute
+            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+
+            // Verify
+            verify(taskService, times(1)).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with default case fallback")
+        void testBatchImportDefaultCaseFallback() {
+            // Setup - use an unknown import mode that falls to default
+            TaskDto taskDto = mock(TaskDto.class);
+            when(taskDto.getName()).thenReturn("testTask");
+            taskDtos.add(taskDto);
+
+            Query nameQuery = new Query(Criteria.where("name").is("testTask").and("is_deleted").ne(true));
+            nameQuery.fields().include("_id", "user_id", "name");
+            when(taskService.findOne(nameQuery)).thenReturn(null);
+
+            // Mock the method to test default case
+            doAnswer(invocation -> {
+                ImportModeEnum mode = invocation.getArgument(2);
+                // Simulate unknown mode by setting to null
+                if (mode == null) {
+                    // Default case should call handleImportAsCopyMode
+                    taskService.handleImportAsCopyMode(taskDto, user, new ArrayList<>(), conMap, nodeMap, taskMap);
+                }
+                return null;
+            }).when(taskService).batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+
+            doNothing().when(taskService).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+
+            // Execute
+            taskService.batchImport(taskDtos, user, null, tags, conMap, taskMap, nodeMap);
+
+            // Verify
+            verify(taskService, times(1)).handleImportAsCopyMode(eq(taskDto), eq(user), any(), eq(conMap), eq(nodeMap), eq(taskMap));
+        }
+    }
+
+
     @Nested
     class CheckTaskNameTest{
         private String newName ;

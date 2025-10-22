@@ -22,6 +22,7 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
@@ -1110,6 +1111,7 @@ public class TaskController extends BaseController {
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
+                                        @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode,
                                         @RequestParam(value = "listtags", required = false) String listtags,
                                         @RequestParam(value = "source", required = false, defaultValue = "") String source,
                                         @RequestParam(value = "sink", required = false, defaultValue = "") String sink) throws IOException {
@@ -1117,8 +1119,11 @@ public class TaskController extends BaseController {
         if (StringUtils.isNoneBlank(listtags)) {
             tags = JSON.parseArray(listtags, String.class);
         }
+
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("json.gz")) {
-            taskService.batchUpTask(file, getLoginUser(), cover, tags);
+            taskService.batchUpTask(file, getLoginUser(), cover, importModeEnum, tags);
         }
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("relmig")) {
             taskService.importRmProject(file, getLoginUser(), cover, tags, source, sink);

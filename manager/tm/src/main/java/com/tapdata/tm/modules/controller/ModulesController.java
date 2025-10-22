@@ -279,11 +279,12 @@ public class ModulesController extends BaseController {
 
 	@Operation(summary = "api导入")
 	@PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
-                                        @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
-		modulesService.batchUpTask(file, getLoginUser(), cover);
-		return success();
-	}
+    public ResponseMessage<Void> uploadWithMode(@RequestParam(value = "file") MultipartFile file,
+                                                @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode) {
+      com.tapdata.tm.commons.task.dto.ImportModeEnum mode = com.tapdata.tm.commons.task.dto.ImportModeEnum.fromValue(importMode);
+      modulesService.batchUpTask(file, getLoginUser(), mode);
+      return success();
+    }
 
   @Operation(summary = "api文档导出")
   @GetMapping("api/export")

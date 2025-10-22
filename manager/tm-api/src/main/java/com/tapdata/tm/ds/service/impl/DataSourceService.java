@@ -86,6 +86,8 @@ public abstract class DataSourceService extends BaseService<DataSourceConnection
 
     public abstract Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, boolean cover);
 
+    public abstract Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode);
+
     public abstract List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser);
 
     public abstract List<String> findIdByName(String name);

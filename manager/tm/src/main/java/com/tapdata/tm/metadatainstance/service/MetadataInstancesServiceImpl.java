@@ -2096,34 +2096,90 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     }
 
 
-    public Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap) {
+    public Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, Map<String, DataSourceConnectionDto> conMap,Map<String,String> taskMap,Map<String,String> nodeMap) {
         Map<String, MetadataInstancesDto> collect = metadataInstancesDtos.stream().collect(Collectors.toMap(k -> k.getQualifiedName(), v -> v, (k1, k2) -> k1));
 
         metadataInstancesDtos = new ArrayList<>(collect.values());
         Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
-        for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
-            String connectionId = null;
-            if (metadataInstancesDto.getSource() != null) {
-                connectionId = metadataInstancesDto.getSource().get_id();
-                if (connectionId == null && metadataInstancesDto.getSource().getId() != null) {
-                    connectionId = metadataInstancesDto.getSource().getId().toHexString();
-                }
-            }
+        Map<String,String> databaseIdMap = new HashMap<>();
+        metadataInstancesDtos.stream().filter(metadataInstancesDto -> metadataInstancesDto.getMetaType().equals("database"))
+                .forEach(metadataInstancesDto -> {
+                    String connectionId = null;
+                    if (metadataInstancesDto.getSource() != null) {
+                        connectionId = metadataInstancesDto.getSource().get_id();
+                        if (connectionId == null && metadataInstancesDto.getSource().getId() != null) {
+                            connectionId = metadataInstancesDto.getSource().getId().toHexString();
+                        }
+                    }
+                    String oldDatabaseId = metadataInstancesDto.getId().toHexString();
 
-            if (connectionId != null) {
-                DataSourceConnectionDto connectionDto = conMap.get(connectionId);
-                if (connectionDto != null) {
-                    SourceDto sourceDto = new SourceDto();
-                    BeanUtils.copyProperties(connectionDto, sourceDto);
-                    sourceDto.set_id(connectionDto.getId().toHexString());
-                    metadataInstancesDto.setSource(sourceDto);
-                }
-            }
-            MetadataInstancesDto newMeta = null;
-            metadataInstancesDto.setListtags(null);
-            newMeta = importEntity(metadataInstancesDto, user);
-            metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
-        }
+                    if (connectionId != null) {
+                        DataSourceConnectionDto connectionDto = conMap.get(connectionId);
+                        if (connectionDto != null) {
+                            SourceDto sourceDto = new SourceDto();
+                            BeanUtils.copyProperties(connectionDto, sourceDto);
+                            sourceDto.set_id(connectionDto.getId().toHexString());
+                            metadataInstancesDto.setSource(sourceDto);
+                            MetadataInstancesDto newMeta = null;
+                            metadataInstancesDto.setListtags(null);
+                            if(!connectionId.equals(connectionDto.getId().toHexString())) {
+                                metadataInstancesDto.setId(new ObjectId());
+                                metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName().replace(connectionId, connectionDto.getId().toHexString()));
+                                metadataInstancesDto.setOriginalName(connectionDto.getName());
+                                metadataInstancesDto.setAncestorsName(connectionDto.getName());
+                            }
+                            newMeta = importEntity(metadataInstancesDto, user);
+                            databaseIdMap.put(oldDatabaseId,newMeta.getId().toHexString());
+                            metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
+                        }
+                    }
+                });
+        metadataInstancesDtos.stream().filter(metadataInstancesDto -> !metadataInstancesDto.getMetaType().equals("database"))
+                .forEach(metadataInstancesDto -> {
+                    String connectionId = null;
+                    if (metadataInstancesDto.getSource() != null) {
+                        connectionId = metadataInstancesDto.getSource().get_id();
+                        if (connectionId == null && metadataInstancesDto.getSource().getId() != null) {
+                            connectionId = metadataInstancesDto.getSource().getId().toHexString();
+                        }
+                    }
+                    if (connectionId != null) {
+                        DataSourceConnectionDto connectionDto = conMap.get(connectionId);
+                        String oldDatabaseId = metadataInstancesDto.getDatabaseId();
+                        String oldTaskId = metadataInstancesDto.getTaskId();
+                        String oldQualifiedName = metadataInstancesDto.getQualifiedName();
+                        String oldNodeId = metadataInstancesDto.getNodeId();
+                        if (connectionDto != null) {
+                            SourceDto sourceDto = new SourceDto();
+                            BeanUtils.copyProperties(connectionDto, sourceDto);
+                            sourceDto.set_id(connectionDto.getId().toHexString());
+                            if(org.apache.commons.lang3.StringUtils.isNotBlank(oldDatabaseId) && databaseIdMap.containsKey(oldDatabaseId)){
+                                metadataInstancesDto.setDatabaseId(databaseIdMap.get(oldDatabaseId));
+                            }
+                            if(org.apache.commons.lang3.StringUtils.isNotBlank(oldTaskId) && null != taskMap && taskMap.containsKey(oldTaskId)){
+                                metadataInstancesDto.setTaskId(taskMap.get(oldTaskId));
+                                if(oldQualifiedName.contains(oldTaskId)){
+                                    String newQualifiedName = oldQualifiedName.replace(connectionId, connectionDto.getId().toHexString()).replace(oldTaskId, taskMap.get(oldTaskId));
+                                    metadataInstancesDto.setQualifiedName(newQualifiedName);
+                                    metadataInstancesDto.setId(new ObjectId());
+                                }
+                            }
+                            if(org.apache.commons.lang3.StringUtils.isNotBlank(oldNodeId) && null != nodeMap && nodeMap.containsKey(oldNodeId)){
+                                metadataInstancesDto.setNodeId(nodeMap.get(oldNodeId));
+                                if(oldQualifiedName.contains(oldNodeId)){
+                                    String newQualifiedName = oldQualifiedName.replace(oldNodeId, nodeMap.get(oldNodeId));
+                                    metadataInstancesDto.setQualifiedName(newQualifiedName);
+                                    metadataInstancesDto.setId(new ObjectId());
+                                }
+                            }
+                            metadataInstancesDto.setSource(sourceDto);
+                            MetadataInstancesDto newMeta = null;
+                            metadataInstancesDto.setListtags(null);
+                            newMeta = importEntity(metadataInstancesDto, user);
+                            metaMap.put(newMeta.getId().toHexString(), metadataInstancesDto);
+                        }
+                    }
+                });
         return metaMap;
     }
 
