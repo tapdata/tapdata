@@ -1809,10 +1809,10 @@ class TaskServiceImplTest {
             // mock data
             DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
-            LinkedList<DatabaseNode> nodes = new LinkedList<>();
+            LinkedList<DataParentNode> nodes = new LinkedList<>();
             nodes.add(node);
             // mock method
-            when(dag.getSourceNode()).thenReturn(nodes);
+            when(dag.getSourceDataParentNode()).thenReturn(nodes);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
 
@@ -1848,9 +1848,9 @@ class TaskServiceImplTest {
             DAG dag = mock(DAG.class);
 
             // mock method
-            LinkedList<DatabaseNode> objects = new LinkedList<>();
+            LinkedList<DataParentNode> objects = new LinkedList<>();
             objects.add(node);
-            when(dag.getTargetNode()).thenReturn(objects);
+            when(dag.getTargetDataParentNode()).thenReturn(objects);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
 

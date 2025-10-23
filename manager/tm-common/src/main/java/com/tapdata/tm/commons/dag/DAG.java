@@ -1066,6 +1066,16 @@ public class DAG implements Serializable, Cloneable {
                 .map(node -> (DatabaseNode) node).collect(Collectors.toCollection(LinkedList::new));
     }
 
+    public LinkedList<DataParentNode> getSourceDataParentNode() {
+        return graph.getNodes()
+                .stream()
+                .map(graph::getNode)
+                .collect(Collectors.toList())
+                .stream()
+                .filter(node -> node instanceof DataParentNode && graph.getSources().contains(node.getId()))
+                .map(node -> (DataParentNode) node).collect(Collectors.toCollection(LinkedList::new));
+    }
+
     public DatabaseNode getSourceNode(String nodeId) {
         String sourceNodeId = getSourceNodeIdByNode(nodeId);
         Node<?> node = graph.getNode(sourceNodeId);
@@ -1098,6 +1108,16 @@ public class DAG implements Serializable, Cloneable {
                 .stream()
                 .filter(node -> node instanceof DatabaseNode && graph.getSinks().contains(node.getId()))
                 .map(node -> (DatabaseNode) node).collect(Collectors.toCollection(LinkedList::new));
+    }
+
+    public LinkedList<DataParentNode> getTargetDataParentNode() {
+        return graph.getNodes()
+                .stream()
+                .map(graph::getNode)
+                .collect(Collectors.toList())
+                .stream()
+                .filter(node -> node instanceof DataParentNode && graph.getSinks().contains(node.getId()))
+                .map(node -> (DataParentNode) node).collect(Collectors.toCollection(LinkedList::new));
     }
 
     public DatabaseNode getTargetNode(String nodeId) {

@@ -1914,7 +1914,7 @@ public class TaskServiceImpl extends TaskService{
 
     public Node getSourceNode(TaskDto taskDto) {
         return Optional.ofNullable(taskDto.getDag())
-            .map(DAG::getSourceNode)
+            .map(DAG::getSourceDataParentNode)
             .map(nodes -> {
                 if (nodes.isEmpty()) {
                     return null;
@@ -1926,7 +1926,7 @@ public class TaskServiceImpl extends TaskService{
 
     public Node getTargetNode(TaskDto taskDto) {
         return Optional.ofNullable(taskDto.getDag())
-            .map(DAG::getTargetNode)
+            .map(DAG::getTargetDataParentNode)
             .map(nodes -> {
                 if (nodes.isEmpty()) {
                     return null;
