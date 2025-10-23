@@ -4902,7 +4902,7 @@ class TaskServiceImplTest {
                 MongoTemplate mongoTemplate = mock(MongoTemplate.class);
                 when(taskRepository.getMongoOperations()).thenReturn(mongoTemplate);
                 assertThrows(BizException.class, () -> {
-                    taskService.importRmProject(mockMultipartFile, userDetail, false, new ArrayList<>(), "123", "123");
+                    taskService.importRmProject(mockMultipartFile, userDetail, ImportModeEnum.CANCEL_IMPORT, new ArrayList<>(), "123", "123");
                 });
             }
         }

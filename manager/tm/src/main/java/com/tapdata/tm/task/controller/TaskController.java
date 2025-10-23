@@ -1126,7 +1126,7 @@ public class TaskController extends BaseController {
             taskService.batchUpTask(file, getLoginUser(), cover, importModeEnum, tags);
         }
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("relmig")) {
-            taskService.importRmProject(file, getLoginUser(), cover, tags, source, sink);
+            taskService.importRmProject(file, getLoginUser(), importModeEnum, tags, source, sink);
         }
         return success();
     }

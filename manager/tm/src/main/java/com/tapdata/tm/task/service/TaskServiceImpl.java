@@ -3542,7 +3542,7 @@ public class TaskServiceImpl extends TaskService{
     }
 
     @Override
-    public void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException {
+    public void importRmProject(MultipartFile multipartFile, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, String source, String sink) throws IOException {
         ParseParam param = new ParseParam()
                 .withMultipartFile(multipartFile)
                 .withSink(sink)
@@ -3550,7 +3550,7 @@ public class TaskServiceImpl extends TaskService{
                 .withUser(user);
         ParseRelMig<TaskDto> redirect = (ParseRelMig<TaskDto>)ParseRelMig.redirect(param);
         List<TaskDto> tpTasks = redirect.parse();
-        batchImport(tpTasks, user, cover, tags, new HashMap<>(), new HashMap<>());
+        batchImport(tpTasks, user, importMode, tags, new HashMap<>(), new HashMap<>(),new HashMap<>());
         checkJsProcessorTestRun(user, tpTasks);
     }
 
@@ -3663,97 +3663,6 @@ public class TaskServiceImpl extends TaskService{
     }
 
     /**
-     *
-     * @param taskDtos
-     * @param user
-     * @param cover
-     * @param tags
-     * @param conMap 为后续多租户的调整做准备
-     * @param metaMap 为后续多租户的调整做准备
-     */
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
-
-        List<Tag> tagList = new ArrayList<>();
-
-        if (CollectionUtils.isNotEmpty(tags)) {
-            Criteria criteriaTags = Criteria.where("_id").in(tags);
-            Query query = new Query(criteriaTags);
-            query.fields().include("_id", "value");
-            List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(query, user);
-            if (CollectionUtils.isNotEmpty(allDto)) {
-                tagList = allDto.stream().map(m -> new Tag(m.getId().toHexString(), m.getValue())).collect(Collectors.toList());
-            }
-        }
-
-        for (TaskDto taskDto : taskDtos) {
-            Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true));
-            query.fields().include("_id", USER_ID);
-            TaskDto one = findOne(query, user);
-
-            taskDto.setListtags(null);
-            taskDto.setStatus(TaskDto.STATUS_EDIT);
-            taskDto.setSyncStatus(SyncStatus.NORMAL);
-            taskDto.setTaskRecordId(new ObjectId().toHexString()); // 导入后不读旧指标数据
-
-            Map<String, Object> attrs = taskDto.getAttrs();
-            if (attrs != null) {
-                attrs.remove(EDGE_MILESTONES);
-                attrs.remove(SYNC_PROGRESS);
-            }
-
-            if (one == null) {
-                TaskDto one1 = findOne(new Query(Criteria.where("_id").is(taskDto.getId()).and(IS_DELETED).ne(true)));
-                if (one1 != null) {
-                    taskDto.setId(null);
-                    taskDto.getDag().getNodes().forEach(node -> {
-                        if(node instanceof DatabaseNode){
-                            DatabaseNode databaseNode = (DatabaseNode) node;
-                            if(conMap.containsKey(databaseNode.getConnectionId())){
-                                DataSourceConnectionDto dataSourceCon = conMap.get(databaseNode.getConnectionId());
-                                databaseNode.setConnectionId(dataSourceCon.getId().toString());
-                            }
-                        }
-                    });
-                }
-            }
-
-            if (one == null || cover) {
-                ObjectId objectId = null;
-                if (one != null) {
-                    objectId = one.getId();
-                }
-
-                while (checkTaskNameNotError(taskDto.getName(), user, objectId)) {
-                    taskDto.setName(taskDto.getName() + "_import");
-                }
-
-                if (CollectionUtils.isNotEmpty(tagList)) {
-                    taskDto.setListtags(tagList);
-                }
-                if (one == null) {
-                    if (taskDto.getId() == null) {
-                        taskDto.setId(new ObjectId());
-                    }
-                    //taskDto.setId(null);
-                    TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
-                    taskDto = convertToDto(taskEntity, TaskDto.class);
-                }
-
-                DAG dag = taskDto.getDag();
-                if (dag != null) {
-                    Map<String, List<Message>> validate = dag.validate();
-                    if (validate != null && validate.size() != 0) {
-                        updateById(taskDto, user);
-                        continue;
-                    }
-                }
-                repository.getMongoOperations().updateFirst(new Query(Criteria.where("_id").is(taskDto.getId())), Update.update(STATUS, TaskDto.STATUS_EDIT), TaskEntity.class);
-                confirmById(taskDto, user, true, true);
-            }
-        }
-    }
-
-    /**
      * 优化的批量导入方法，支持基于名称的匹配和三种导入模式
      *
      * @param taskDtos 任务列表
@@ -3827,6 +3736,7 @@ public class TaskServiceImpl extends TaskService{
         if (existingTask != null) {
             // 保留现有任务的ID，使用导入数据覆盖
             ObjectId existingId = existingTask.getId();
+            taskMap.put(taskDto.getId().toHexString(),existingId.toHexString());
             taskDto.setId(existingId);
 
             // 更新连接ID映射

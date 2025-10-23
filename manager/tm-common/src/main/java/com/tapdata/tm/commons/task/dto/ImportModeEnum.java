@@ -35,7 +35,7 @@ public enum ImportModeEnum {
     
     public static ImportModeEnum fromValue(String value) {
         if (value == null) {
-            return REPLACE; // 默认为替换模式，保持向后兼容
+            return IMPORT_AS_COPY;
         }
         
         for (ImportModeEnum mode : values()) {
@@ -44,6 +44,6 @@ public enum ImportModeEnum {
             }
         }
         
-        return REPLACE; // 默认为替换模式
+        return IMPORT_AS_COPY;
     }
 }
