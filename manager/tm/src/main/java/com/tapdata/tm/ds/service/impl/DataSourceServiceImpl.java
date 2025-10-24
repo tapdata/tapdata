@@ -26,6 +26,7 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
@@ -1824,6 +1825,15 @@ public class DataSourceServiceImpl extends DataSourceService{
     public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user,
                                                             com.tapdata.tm.commons.task.dto.ImportModeEnum importMode) {
         Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+
+        if(importMode.equals(ImportModeEnum.CANCEL_IMPORT)){
+            List<String> nameList = connectionDtos.stream().map(DataSourceConnectionDto::getName).collect(Collectors.toList());
+            Query nameQuery = new Query(Criteria.where("name").in(nameList).and("is_deleted").ne(true));
+            long count = count(nameQuery, user);
+            if(count > 0){
+                throw new BizException("Datasource.RepeatName");
+            }
+        }
 
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
             String connId = connectionDto.getId().toString();

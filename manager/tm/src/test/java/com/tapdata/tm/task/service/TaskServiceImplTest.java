@@ -962,11 +962,9 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
-
-            // Verify - should return early without calling any handle methods
-            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
-            verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+            assertThrows(BizException.class, () -> {
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            });
         }
 
         @Test
@@ -982,11 +980,9 @@ class TaskServiceImplTest {
             doCallRealMethod().when(taskService).batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
 
             // Execute
-            taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
-
-            // Verify - should return early without calling handle methods
-            verify(taskService, never()).handleReplaceMode(any(), any(), any(), any(), any(), any(), any());
-            verify(taskService, never()).handleImportAsCopyMode(any(), any(), any(), any(), any(), any());
+            assertThrows(BizException.class, () -> {
+                taskService.batchImport(taskDtos, user, importMode, tags, conMap, taskMap, nodeMap);
+            });
         }
     }
 
@@ -1028,6 +1024,7 @@ class TaskServiceImplTest {
             ObjectId existingId = new ObjectId();
             when(existingTask.getId()).thenReturn(existingId);
             when(taskDto.getDag()).thenReturn(dag);
+            when(taskDto.getId()).thenReturn(new ObjectId());
             when(dag.validate()).thenReturn(new HashMap<>());
 
             doCallRealMethod().when(taskService).handleReplaceMode(taskDto, existingTask, user, tagList, conMap, nodeMap, taskMap);
@@ -1049,6 +1046,7 @@ class TaskServiceImplTest {
             // Setup
             ObjectId existingId = new ObjectId();
             when(existingTask.getId()).thenReturn(existingId);
+            when(taskDto.getId()).thenReturn(new ObjectId());
             when(taskDto.getDag()).thenReturn(dag);
             Map<String, List<Message>> validationErrors = new HashMap<>();
             validationErrors.put("error", Arrays.asList(new Message()));

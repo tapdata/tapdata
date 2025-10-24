@@ -3649,6 +3649,9 @@ public class TaskServiceImpl extends TaskService{
             customNodeMap = customNodeService.batchImport(customNodeDtos, user, importMode == ImportModeEnum.REPLACE);
             conMap = dataSourceService.batchImport(connections, user, importMode);
         } catch (Exception e) {
+            if (e instanceof BizException) {
+                throw (BizException) e;
+            }
             log.error("metadataInstancesService.batchImport error", e);
         }
 
@@ -3658,6 +3661,9 @@ public class TaskServiceImpl extends TaskService{
             batchImport(tasks, user, importMode, tags, conMap,taskMap,nodeMap);
             metadataInstancesService.batchImport(metadataInstancess, user, conMap,taskMap,nodeMap);
         } catch (Exception e) {
+            if (e instanceof BizException) {
+                throw (BizException) e;
+            }
             log.error("tasks.batchImport error", e);
         }
     }
@@ -3711,10 +3717,10 @@ public class TaskServiceImpl extends TaskService{
                     break;
                 case CANCEL_IMPORT:
                     if(null != existingTaskByName){
-                        return;
+                        throw new BizException("Task.RepeatName");
                     }else{
                         if(checkConnectionIdDuplicate(taskDto, conMap)){
-                            return;
+                            throw new BizException("Datasource.RepeatName");
                         }else{
                            handleImportAsCopyMode(taskDto, user, tagList, conMap,nodeMap,taskMap);
                         }
