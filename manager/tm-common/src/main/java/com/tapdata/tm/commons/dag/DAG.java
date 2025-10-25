@@ -7,6 +7,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
+import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
@@ -1118,6 +1119,16 @@ public class DAG implements Serializable, Cloneable {
                 .stream()
                 .filter(node -> node instanceof DataParentNode && graph.getSinks().contains(node.getId()))
                 .map(node -> (DataParentNode) node).collect(Collectors.toCollection(LinkedList::new));
+    }
+
+    public LinkedList<CacheNode> getCacheNode() {
+        return graph.getNodes()
+                .stream()
+                .map(graph::getNode)
+                .collect(Collectors.toList())
+                .stream()
+                .filter(node -> node instanceof CacheNode && graph.getSinks().contains(node.getId()))
+                .map(node -> (CacheNode) node).collect(Collectors.toCollection(LinkedList::new));
     }
 
     public DatabaseNode getTargetNode(String nodeId) {
