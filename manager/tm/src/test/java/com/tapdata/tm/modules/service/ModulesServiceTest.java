@@ -1191,6 +1191,7 @@ class ModulesServiceTest {
 					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
 					"          },\n" +
 					"          \"name\": \"Worker-2\",\n" +
+					"          \"tag\": 1,\n" +
 					"          \"sort\": 1\n" +
 					"        },\n" +
 					"        \"13\": {\n" +
@@ -1322,6 +1323,334 @@ class ModulesServiceTest {
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
 			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 10);
 			assertEquals(10, apiWorkerInfo.size());
+		}
+
+		@Test
+		void testWorkerInfo1() {
+			String workerInfoJson = "{\n" +
+					"      \"workers\": {\n" +
+					"        \"11\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6b\",\n" +
+					"          \"id\": 11,\n" +
+					"          \"pid\": 39097,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323402512,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 41549824,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-1\",\n" +
+					"          \"sort\": 0\n" +
+					"        },\n" +
+					"        \"12\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6e\",\n" +
+					"          \"id\": 12,\n" +
+					"          \"pid\": 39125,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323403013,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 41566208,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-2\",\n" +
+					"          \"tag\": 1,\n" +
+					"          \"sort\": 1\n" +
+					"        },\n" +
+					"        \"13\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6f\",\n" +
+					"          \"id\": 13,\n" +
+					"          \"pid\": 39154,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323403510,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43630592,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-3\",\n" +
+					"          \"sort\": 2\n" +
+					"        },\n" +
+					"        \"14\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a70\",\n" +
+					"          \"id\": 14,\n" +
+					"          \"pid\": 39186,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323404023,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43728896,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-2\",\n" +
+					"          \"sort\": 3\n" +
+					"        },\n" +
+					"        \"15\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a71\",\n" +
+					"          \"id\": 15,\n" +
+					"          \"pid\": 39449,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323404571,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43794432,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-5\",\n" +
+					"          \"sort\": 4\n" +
+					"        },\n" +
+					"        \"16\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a72\",\n" +
+					"          \"id\": 16,\n" +
+					"          \"pid\": 39474,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323405085,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43646976,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"sort\": 5\n" +
+					"        },\n" +
+					"        \"17\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a73\",\n" +
+					"          \"id\": 17,\n" +
+					"          \"pid\": 39499,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323405588,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43237376,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-7\",\n" +
+					"          \"sort\": 6\n" +
+					"        },\n" +
+					"        \"18\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a74\",\n" +
+					"          \"id\": 18,\n" +
+					"          \"pid\": 39524,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323406093,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43433984,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-8\",\n" +
+					"          \"sort\": 7\n" +
+					"        },\n" +
+					"        \"19\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a75\",\n" +
+					"          \"id\": 19,\n" +
+					"          \"pid\": 39549,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323406599,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43270144,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-9\",\n" +
+					"          \"sort\": 8\n" +
+					"        },\n" +
+					"        \"20\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a76\",\n" +
+					"          \"id\": 20,\n" +
+					"          \"pid\": 39574,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323407111,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43319296,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-10\",\n" +
+					"          \"sort\": 9\n" +
+					"        }\n" +
+					"      },\n" +
+					"      \"worker_process_id\": 38486,\n" +
+					"      \"worker_process_start_time\": 1757323393373,\n" +
+					"      \"worker_process_end_time\": null,\n" +
+					"      \"status\": \"running\",\n" +
+					"      \"exit_code\": null,\n" +
+					"      \"metricValues\": {\n" +
+					"        \"HeapMemoryUsage\": 1144.875,\n" +
+					"        \"CpuUsage\": 2.8,\n" +
+					"        \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"      }\n" +
+					"    }";
+			ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
+			WorkerDto one = new WorkerDto();
+			one.setWorkerStatus(jsonObject);
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 100);
+			assertEquals(100, apiWorkerInfo.size());
+		}
+
+		@Test
+		void testWorkerInfo2() {
+			String workerInfoJson = "{\n" +
+					"      \"workers\": {\n" +
+					"        \"11\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6b\",\n" +
+					"          \"id\": 11,\n" +
+					"          \"pid\": 39097,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323402512,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 41549824,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-1\",\n" +
+					"          \"sort\": 0\n" +
+					"        },\n" +
+					"        \"12\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6e\",\n" +
+					"          \"id\": 12,\n" +
+					"          \"pid\": 39125,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323403013,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 41566208,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-2\",\n" +
+					"          \"tag\": 1,\n" +
+					"          \"sort\": 1\n" +
+					"        },\n" +
+					"        \"13\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a6f\",\n" +
+					"          \"id\": 13,\n" +
+					"          \"pid\": 39154,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323403510,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43630592,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-3\",\n" +
+					"          \"sort\": 2\n" +
+					"        },\n" +
+					"        \"14\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a70\",\n" +
+					"          \"id\": 14,\n" +
+					"          \"pid\": 39186,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323404023,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43728896,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-2\",\n" +
+					"          \"sort\": 3\n" +
+					"        },\n" +
+					"        \"15\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a71\",\n" +
+					"          \"id\": 15,\n" +
+					"          \"pid\": 39449,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323404571,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43794432,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-5\",\n" +
+					"          \"sort\": 4\n" +
+					"        },\n" +
+					"        \"16\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a72\",\n" +
+					"          \"id\": 16,\n" +
+					"          \"pid\": 39474,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323405085,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43646976,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"sort\": 5\n" +
+					"        },\n" +
+					"        \"17\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a73\",\n" +
+					"          \"id\": 17,\n" +
+					"          \"pid\": 39499,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323405588,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43237376,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-7\",\n" +
+					"          \"sort\": 6\n" +
+					"        },\n" +
+					"        \"18\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a74\",\n" +
+					"          \"id\": 18,\n" +
+					"          \"pid\": 39524,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323406093,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43433984,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-8\",\n" +
+					"          \"sort\": 7\n" +
+					"        },\n" +
+					"        \"19\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a75\",\n" +
+					"          \"id\": 19,\n" +
+					"          \"pid\": 39549,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323406599,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43270144,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-9\",\n" +
+					"          \"sort\": 8\n" +
+					"        },\n" +
+					"        \"20\": {\n" +
+					"          \"oid\": \"68bb9330661d7713deee3a76\",\n" +
+					"          \"id\": 20,\n" +
+					"          \"pid\": 39574,\n" +
+					"          \"worker_status\": \"listening\",\n" +
+					"          \"worker_start_time\": 1757323407111,\n" +
+					"          \"metricValues\": {\n" +
+					"            \"CpuUsage\": 0,\n" +
+					"            \"HeapMemoryUsage\": 43319296,\n" +
+					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"          },\n" +
+					"          \"name\": \"Worker-10\",\n" +
+					"          \"sort\": 9\n" +
+					"        }\n" +
+					"      },\n" +
+					"      \"worker_process_id\": 38486,\n" +
+					"      \"worker_process_start_time\": 1757323393373,\n" +
+					"      \"worker_process_end_time\": null,\n" +
+					"      \"status\": \"running\",\n" +
+					"      \"exit_code\": null,\n" +
+					"      \"metricValues\": {\n" +
+					"        \"HeapMemoryUsage\": 1144.875,\n" +
+					"        \"CpuUsage\": 2.8,\n" +
+					"        \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
+					"      }\n" +
+					"    }";
+			ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
+			WorkerDto one = new WorkerDto();
+			one.setWorkerStatus(jsonObject);
+			when(workerService.findOne(any(Query.class))).thenReturn(one);
+			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 1);
+			assertEquals(1, apiWorkerInfo.size());
 		}
 	}
 }
