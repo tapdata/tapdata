@@ -580,12 +580,18 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
             }
             worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
             worker.setSort(worker.getSort());
+			if (index < workerCount || worker.getTag() == 1) {
+				worker.setTag(1);
+			} else {
+				worker.setTag(0);
+			}
         }
 		for (int i = size; i < workerCount; i++) {
 			ApiServerWorkerInfo item = new ApiServerWorkerInfo();
 			item.setName(genericName(existsNames));
 			item.setSort(i);
 			item.setOid(new ObjectId().toHexString());
+			item.setTag(1);
 			apiWorkerInfos.add(item);
 		}
 		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
@@ -609,6 +615,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	void reUpdateWorkerInfo(WorkerDto one, List<ApiServerWorkerInfo> apiWorkerInfos) {
 		Update update = new Update();
 		Map<String, ApiServerWorkerInfo> infos = apiWorkerInfos.stream()
+				.filter(e -> e.getTag() == 1)
 				.collect(Collectors.toMap(ApiServerWorkerInfo::getOid, e -> e, (e1, e2) -> e2));
 		update.set("worker_status.workers", infos);
 		workerService.update(

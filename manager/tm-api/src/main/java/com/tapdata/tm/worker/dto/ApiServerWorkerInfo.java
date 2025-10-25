@@ -29,4 +29,10 @@ public class ApiServerWorkerInfo {
     MetricInfo metricValues;
 
     int sort;
+
+    /**
+     * 1: be used
+     * 0: not used
+     * */
+    int tag;
 }
