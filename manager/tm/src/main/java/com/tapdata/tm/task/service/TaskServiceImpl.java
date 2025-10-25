@@ -1936,6 +1936,18 @@ public class TaskServiceImpl extends TaskService{
             .orElse(null);
     }
 
+    public Node getCacheNode(TaskDto taskDto) {
+        return Optional.ofNullable(taskDto.getDag())
+                .map(DAG::getCacheNode)
+                .map(nodes -> {
+                    if (nodes.isEmpty()) {
+                        return null;
+                    }
+                    return nodes.getFirst();
+                })
+                .orElse(null);
+    }
+
     public static String printInfos(DAG dag) {
         try {
             StringBuilder sb = new StringBuilder();
@@ -2056,7 +2068,7 @@ public class TaskServiceImpl extends TaskService{
     public ShareCacheDetailVo findShareCacheById(String id) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
         Node sourceNode = getSourceNode(taskDto);
-        CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
+        CacheNode targetNode = (CacheNode) getCacheNode(taskDto);
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
         shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());
