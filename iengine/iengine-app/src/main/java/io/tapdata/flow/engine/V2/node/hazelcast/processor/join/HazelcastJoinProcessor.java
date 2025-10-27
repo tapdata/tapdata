@@ -27,6 +27,7 @@ import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -283,6 +284,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 					final TapRecordEvent deleteEvent = generateDeleteEventForModifyJoinKey(joinEvent);
 					if (deleteEvent != null) {
 						TapdataEvent deleteTapdataEvent = new TapdataEvent();
+						CpuMemoryCollector.listening(getNode().getId(), deleteTapdataEvent);
 						deleteTapdataEvent.setTapEvent(deleteEvent);
 						deleteTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
 						tapdataEvents.add(deleteTapdataEvent);
@@ -290,6 +292,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 				}
 
 				TapdataEvent joinTapdataEvent = new TapdataEvent();
+				CpuMemoryCollector.listening(getNode().getId(), joinTapdataEvent);
 				joinTapdataEvent.setTapEvent(joinEvent);
 				joinTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
 				tapdataEvents.add(joinTapdataEvent);

@@ -16,6 +16,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
@@ -64,6 +65,8 @@ public abstract class WorkerService extends BaseService<WorkerDto, Worker, Objec
     public abstract void updateMsg(Map map);
 
     public abstract Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail);
+
+    public abstract void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail);
 
     public abstract void updateAll(Query query, Update update);
 

@@ -93,6 +93,9 @@ public class DataSourceEntity extends BaseEntity implements IDataPermissionEntit
     /** 检测时间 */
     private Long testTime;
     private Map<String, Object> monitorAPI;
+    private Boolean dataSourceMonitor;
+    private String monitorCron;
+    private Long nextMonitorDate;
     private Integer testCount;
 
     private String database_host;

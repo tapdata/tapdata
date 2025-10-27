@@ -16,7 +16,6 @@ import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
@@ -41,12 +40,18 @@ import com.tapdata.tm.utils.EngineVersionUtil;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.WorkerSingletonLock;
-import com.tapdata.tm.worker.dto.*;
+import com.tapdata.tm.worker.dto.MetricInfo;
+import com.tapdata.tm.worker.dto.WorkSchedule;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerExpireDto;
+import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.MetricInfoEntity;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.entity.WorkerExpire;
 import com.tapdata.tm.worker.repository.WorkerRepository;
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import com.tapdata.tm.worker.vo.WorkerOrServerStatus;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -66,7 +71,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigInteger;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -582,7 +595,7 @@ public class WorkerServiceImpl extends WorkerService{
         List<ApiWorkerStatusVo> list = Lists.newArrayList();
         if (null != worker) {
             ApiWorkerStatusVo workerStatusVo = new ApiWorkerStatusVo();
-            workerStatusVo.setWorkerStatus(worker.getWorker_status());
+            workerStatusVo.setWorkerStatus(worker.getWorkerStatus());
             workerStatusVo.setServerDate(System.currentTimeMillis());
             list.add(workerStatusVo);
         } else {
@@ -592,6 +605,43 @@ public class WorkerServiceImpl extends WorkerService{
         page.setItems(list);
         return page;
 
+    }
+
+    @Override
+    public void updateWorkerStatus(WorkerOrServerStatus status, UserDetail userDetail) {
+        final Criteria criteria = Criteria.where("process_id").is(status.getProcessId())
+                .and("worker_type").is("api-server")
+                .and("delete").ne(true);
+        final Update update = new Update();
+        final Query query = Query.query(criteria);
+        final Long time = Optional.ofNullable(status.getTime()).orElse(new Date().getTime());
+        Optional.ofNullable(status.getStatus())
+                .ifPresent(s -> update.set("worker_status.status", s));
+        update.set("worker_status.activeTime", time);
+        update.set("worker_status.pid", status.getPid());
+        Optional.ofNullable(status.getProcessCpuMemStatus()).ifPresent(s ->
+            update.set("worker_status.metricValues", s)
+        );
+        Optional.ofNullable(status.getWorkerStatus())
+                .ifPresent(ws -> ws.forEach((id,  value) ->
+                    update.set(String.format("worker_status.workers.%s.workerStatus", id), value)
+                ));
+        Optional.ofNullable(status.getCpuMemStatus())
+                        .ifPresent(ws -> ws.forEach((id,  value) ->
+                            update.set(String.format("worker_status.workers.%s.metricValues", id), value)
+                        ));
+        Optional.ofNullable(status.getWorkerBaseInfo()).ifPresent(workerBaseInfo ->
+            workerBaseInfo.forEach((oid,  worker) -> {
+                Optional.ofNullable(worker.getName()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.name", oid), v));
+                Optional.ofNullable(worker.getId()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.id", oid), v));
+                Optional.ofNullable(worker.getPid()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.pid", oid), v));
+                Optional.ofNullable(worker.getWorkerStartTime()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.workerStartTime", oid), v));
+                Optional.ofNullable(worker.getWorkerStatus()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.workerStatus", oid), v));
+                update.set(String.format("worker_status.workers.%s.sort", oid), worker.getSort());
+                Optional.ofNullable(worker.getActiveTime()).ifPresent(v -> update.set(String.format("worker_status.workers.%s.activeTime", oid), v));
+            })
+        );
+        update(query, update);
     }
 
     public void updateAll(Query query, Update update) {

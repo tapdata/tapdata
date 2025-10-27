@@ -98,9 +98,9 @@ class InspectCronJobTest {
                 verify(jobDetail, times(1)).getKey();
                 verify(inspectService, times(1)).findById(any(ObjectId.class));
                 verify(inspectDto, times(1)).getStatus();
-                verify(inspectDto, times(1)).getUserId();
-                verify(userService, times(1)).loadUserById(any(ObjectId.class));
-                verify(inspectTaskService, times(1)).executeInspect(any(Where.class), any(InspectDto.class), any(UserDetail.class));
+                verify(inspectDto, times(0)).getUserId();
+                verify(userService, times(0)).loadUserById(any(ObjectId.class));
+                verify(inspectTaskService, times(0)).executeInspect(any(Where.class), any(InspectDto.class), any(UserDetail.class));
             }
         }
 

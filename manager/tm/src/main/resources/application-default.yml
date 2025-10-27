@@ -9,8 +9,8 @@ application:
 spring:
   servlet:
     multipart:
-      max-file-size: 200MB
-      max-request-size: 200MB
+      max-file-size: ${SERVER_UPLOAD_FILE_MAX_SIZE:300MB}
+      max-request-size: ${SERVER_UPLOAD_REQUEST_MAX_SIZE:300MB}
       enabled: true
   application:
     name: TCMApplication
@@ -118,17 +118,6 @@ jasypt:
   encryptor:
     password: nmyswls
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health, info"
-  metrics:
-    tags:
-      application: 'TMApplication'
-
-
-
 access:
   token:
     ttl: 1209600
@@ -172,3 +161,13 @@ openapi:
       version: 11
   setting:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
+
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus, info, health"

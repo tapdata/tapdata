@@ -1,6 +1,6 @@
 package com.tapdata.tm.webhook.dto;
 
-import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
+import com.tapdata.tm.commons.alarm.AlarmComponentEnum;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

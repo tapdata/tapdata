@@ -48,11 +48,12 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.lock.service.LockControlService;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageServiceImpl;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueServiceImpl;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesServiceImpl;
@@ -80,6 +81,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.service.batchin.ParseRelMigFile;
 import com.tapdata.tm.task.service.batchin.entity.ParseParam;
 import com.tapdata.tm.task.service.chart.ChartViewService;
@@ -88,6 +90,7 @@ import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.worker.entity.Worker;
@@ -131,7 +134,6 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -145,6 +147,7 @@ import static org.springframework.beans.BeanUtils.copyProperties;
 
 
 class TaskServiceImplTest {
+    CpuMemoryService cpuMemoryService;
     TaskServiceImpl taskService;
     TaskRecordService taskRecordService;
     BatchService batchService;
@@ -158,6 +161,8 @@ class TaskServiceImplTest {
     UserLogService userLogService;
     @BeforeEach
     void init() {
+        cpuMemoryService = mock(CpuMemoryService.class);
+        when(cpuMemoryService.cpuMemoryUsageOfTask(anyList())).thenReturn(new HashMap<>());
         taskService = mock(TaskServiceImpl.class);
         taskRecordService = mock(TaskRecordService.class);
         monitoringLogsService = mock(MonitoringLogsService.class);
@@ -174,6 +179,7 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
         userLogService = mock(UserLogService.class);
         ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
+        ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
     }
 
     @Nested
@@ -1581,6 +1587,7 @@ class TaskServiceImplTest {
             user = mock(UserDetail.class);
             repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             when(repository.getMongoOperations()).thenReturn(mock(MongoTemplate.class));
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             transformerService = mock(MetadataTransformerService.class);
@@ -1590,6 +1597,7 @@ class TaskServiceImplTest {
         @DisplayName("test find method when is agent request")
         void test1(){
             taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             try (MockedStatic<RequestContextHolder> mb = Mockito
                     .mockStatic(RequestContextHolder.class)) {
                 ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
@@ -1606,6 +1614,7 @@ class TaskServiceImplTest {
         void test2(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             try (MockedStatic<RequestContextHolder> mb = Mockito
                     .mockStatic(RequestContextHolder.class)) {
                 ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
@@ -1791,22 +1800,24 @@ class TaskServiceImplTest {
         void test1(){
             when(taskDto.getDag()).thenReturn(null);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(null,actual);
         }
         @Test
         @DisplayName("test getSourceNode method normal")
         void test2() {
             // mock data
-            Node node = mock(Node.class);
+            DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
-
+            LinkedList<DatabaseNode> nodes = new LinkedList<>();
+            nodes.add(node);
             // mock method
-            doReturn(Arrays.asList(node)).when(dag).getSourceNode();
+            when(dag.getSourceNode()).thenReturn(nodes);
+            when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
 
             // call method
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(node, actual);
         }
         @Test
@@ -1817,7 +1828,7 @@ class TaskServiceImplTest {
             when(dag.getEdges()).thenReturn(edges);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
-            Node actual = taskService.getSourceNode(taskDto);
+            Object actual = taskService.getSourceNode(taskDto);
             assertEquals(null,actual);
         }
     }
@@ -1827,20 +1838,24 @@ class TaskServiceImplTest {
         void beforeEach(){
             taskDto = mock(TaskDto.class);
             taskService = mock(TaskServiceImpl.class);
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
         }
         @Test
         @DisplayName("test getTargetNode method normal")
         void test1(){
             // mock data
-            Node node = mock(Node.class);
+            DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
 
             // mock method
-            doReturn(Arrays.asList(node)).when(dag).getTargetNode();
+            LinkedList<DatabaseNode> objects = new LinkedList<>();
+            objects.add(node);
+            when(dag.getTargetNode()).thenReturn(objects);
+            when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
 
             // call method
-            Node actual = taskService.getTargetNode(taskDto);
+            Object actual = taskService.getTargetNode(taskDto);
             assertEquals(node, actual);
         }
         @Test
@@ -1851,7 +1866,7 @@ class TaskServiceImplTest {
             when(dag.getEdges()).thenReturn(edges);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
-            Node actual = taskService.getTargetNode(taskDto);
+            Object actual = taskService.getTargetNode(taskDto);
             assertEquals(null,actual);
         }
 
@@ -1900,6 +1915,7 @@ class TaskServiceImplTest {
         void beforeEach(){
             repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             user = mock(UserDetail.class);
             filter = new Filter();
             dataSourceService = mock(DataSourceServiceImpl.class);
@@ -2122,6 +2138,7 @@ class TaskServiceImplTest {
         void testFindByIdsNormal(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
+            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             List<ObjectId> idList = new ArrayList<>();
             ObjectId id = mock(ObjectId.class);
             idList.add(id);
@@ -3107,6 +3124,7 @@ class TaskServiceImplTest {
         Query query;
         TaskEntity taskEntity;
         TaskScheduleService taskScheduleService;
+        MetadataDefinitionService metadataDefinitionService;
 
 
         @BeforeEach
@@ -3127,6 +3145,8 @@ class TaskServiceImplTest {
             taskScheduleService = mock(TaskScheduleService.class);
             taskService.setTaskScheduleService(taskScheduleService);
             when(repository.findAll(query)).thenReturn(taskEntities);
+            metadataDefinitionService = mock(MetadataDefinitionService.class);
+            taskService.setMetadataDefinitionService(metadataDefinitionService);
         }
 
         @Test
@@ -3140,6 +3160,7 @@ class TaskServiceImplTest {
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
@@ -3161,6 +3182,7 @@ class TaskServiceImplTest {
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setTotalLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);
@@ -3175,12 +3197,13 @@ class TaskServiceImplTest {
                 Query query = new Query(Criteria.where("_id").is(taskEntity.getId()));
                 query.fields().include("planStartDateFlag", "crontabExpressionFlag");
                 when(repository.findOne(query)).thenReturn(Optional.ofNullable(taskEntity));
-                List<TaskDto> taskDtos = CglibUtil.copyList(taskEntities, TaskDto::new);
+                List<TaskDto> taskDtos = BeanUtil.deepCloneList(taskEntities, TaskDto.class);
                 CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setRunningNum(2);
                 calculationEngineVo.setTaskLimit(2);
                 calculationEngineVo.setTotalLimit(2);
+                when(metadataDefinitionService.orderTaskByTagPriority(anyList())).thenReturn(taskDtos);
                 when(taskScheduleService.cloudTaskLimitNum(taskDtos.get(0), user, true)).thenReturn(calculationEngineVo);
                 MonitoringLogsService monitoringLogsService = mock(MonitoringLogsService.class);
                 taskService.setMonitoringLogsService(monitoringLogsService);

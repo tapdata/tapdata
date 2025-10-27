@@ -15,6 +15,7 @@ import io.tapdata.aspect.LoggerInitAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.JetExceptionFilter;
+import io.tapdata.common.MonitorConfigListener;
 import io.tapdata.constant.AgentRuntime;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -128,7 +129,7 @@ public class Application {
 			logger.info("Starting application, code version {}", formatVersion);
 			AgentRuntime.version = (configurationCenter == null || configurationCenter.getConfig("version") == null) ? "-" : configurationCenter.getConfig("version").toString();
 			initTimeZoneInfo();
-			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).build();
+			SpringApplication springApplication = new SpringApplicationBuilder(Application.class).allowCircularReferences(true).listeners(new MonitorConfigListener()).build();
 			springApplication.setWebApplicationType(WebApplicationType.NONE);
 			ConfigurableApplicationContext run = springApplication.run(args);
 
@@ -325,6 +326,13 @@ public class Application {
 				.build();
 		rootLoggerConfig.addAppender(consoleAppender, defaultLogLevel, null);
 		consoleAppender.start();
+
+		// 注册 MicrometerLogAppender
+		io.tapdata.common.MicrometerLogAppender micrometerAppender = new io.tapdata.common.MicrometerLogAppender();
+		micrometerAppender.start();
+		config.addAppender(micrometerAppender);
+		// 监听所有级别（或至少 ERROR）
+		rootLoggerConfig.addAppender(micrometerAppender, Level.ERROR, null);
 
 		ctx.updateLoggers();
 	}

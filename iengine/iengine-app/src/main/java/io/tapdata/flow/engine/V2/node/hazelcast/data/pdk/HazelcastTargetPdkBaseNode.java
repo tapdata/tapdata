@@ -73,6 +73,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.Par
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -95,6 +96,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.async.AsyncUtils;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
+import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
@@ -299,7 +301,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         ConcurrentHashSet<TaskNodeInfo> taskNodeInfos = taskResourceSupervisorManager.getTaskNodeInfos();
         ThreadGroup connectorOnTaskThreadGroup = getReuseOrNewThreadGroup(taskNodeInfos);
         queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
-    }
+		CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) queueConsumerThreadPool.getThreadFactory());
+	}
 
     protected void initExactlyOnceWriteIfNeed() {
         checkExactlyOnceWriteEnableResult = enableExactlyOnceWrite();
@@ -1114,7 +1117,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                         if (this.queueConsumerThreadPool.isShutdown()) {
                             ThreadGroup connectorOnTaskThreadGroup = Thread.currentThread().getThreadGroup();
                             queueConsumerThreadPool = AsyncUtils.createThreadPoolExecutor(String.format("Target-Queue-Consumer-%s[%s]@task-%s", getNode().getName(), getNode().getId(), dataProcessorContext.getTaskDto().getName()), 2, connectorOnTaskThreadGroup, TAG);
-                            initTargetQueueConsumer();
+							CpuMemoryCollector.registerTask(getNode().getId(), (ThreadFactory) queueConsumerThreadPool.getThreadFactory());
+							initTargetQueueConsumer();
                         }
                         obsLogger.trace("{}Target queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.writeQueueCapacity, newQueueSize);
                         this.writeQueueCapacity = newQueueSize;

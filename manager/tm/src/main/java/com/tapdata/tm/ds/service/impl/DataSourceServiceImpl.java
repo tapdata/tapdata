@@ -54,7 +54,7 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.permissions.constants.DataPermissionActionEnums;
 import com.tapdata.tm.permissions.constants.DataPermissionMenuEnums;
@@ -86,6 +86,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.quartz.CronScheduleBuilder;
+import org.quartz.CronTrigger;
+import org.quartz.TriggerBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -2234,6 +2237,82 @@ public class DataSourceServiceImpl extends DataSourceService{
             
             return databaseTypes;
         });
+    }
+
+    @Override
+    public void startDatasourceCronMonitor() {
+        Criteria criteria = Criteria.where("dataSourceMonitor").is(true)
+                .and("status").is("ready");
+        Query dataSourceQuery = new Query(criteria);
+        List<DataSourceConnectionDto> dataSourceConnectionDtoList = findAll(dataSourceQuery);
+        List<String> userList = dataSourceConnectionDtoList.stream().map(BaseDto::getUserId).toList();
+        if (CollectionUtils.isEmpty(userList)) {
+            return;
+        }
+        Map<String, UserDetail> userDetailMap = userService.getUserMapByIdList(userList);
+        if (userDetailMap == null || userDetailMap.isEmpty()) {
+            return;
+        }
+        if (CollectionUtils.isNotEmpty(dataSourceConnectionDtoList)) {
+            dataSourceConnectionDtoList.forEach(v -> sendScheduleMonitor(v, userDetailMap.get(v.getUserId())));
+        }
+    }
+
+    public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {
+        log.info("send schedule monitor, connection = {}, user = {}", connectionDto.getName(), user == null ? null : user.getUserId());
+        if (StringUtils.isBlank(connectionDto.getMonitorCron())) {
+            connectionDto.setMonitorCron("0 0 */1 * * ?");
+        }
+        CronTrigger cronTrigger = TriggerBuilder.newTrigger().withIdentity("Datasource Monitor Date")
+                .withSchedule(CronScheduleBuilder.cronSchedule(connectionDto.getMonitorCron())).build();
+        Date startTime = cronTrigger.getStartTime();
+        Long newScheduleDate = cronTrigger.getFireTimeAfter(startTime).getTime();
+        Long scheduleDate = connectionDto.getNextMonitorDate();
+        if (scheduleDate == null || newScheduleDate < scheduleDate) {
+            connectionDto.setNextMonitorDate(newScheduleDate);
+            save(connectionDto, user);
+            return;
+        }
+        if (scheduleDate < new Date().getTime()) {
+            List<Worker> availableAgent;
+            if (StringUtils.isNotEmpty(connectionDto.getAccessNodeType())
+                    && AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
+                availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto, user));
+                List<String> processIds = availableAgent.stream().map(Worker::getProcessId).toList();
+                if(StringUtils.isNotEmpty(connectionDto.getPriorityProcessId()) && processIds.contains(connectionDto.getPriorityProcessId())){
+                    availableAgent = availableAgent.stream().filter(worker -> worker.getProcessId().equals(connectionDto.getPriorityProcessId())).collect(Collectors.toList());
+                }
+            } else {
+                availableAgent = workerService.findAvailableAgent(user);
+            }
+            if (CollectionUtils.isEmpty(availableAgent)) {
+                log.info("send datasource monitor, agent not found");
+                return;
+
+            }
+
+            String processId = availableAgent.get(0).getProcessId();
+            ObjectMapper objectMapper = new ObjectMapper();
+            String json;
+            Map<String, Object> data;
+            try {
+                json = objectMapper.writeValueAsString(connectionDto);
+                data = objectMapper.readValue(json, Map.class);
+            } catch (JsonProcessingException e) {
+                log.warn("json parser failed");
+                throw new BizException("SystemError");
+            }
+            data.put("type", "datasourceMonitor");
+            MessageQueueDto queueDto = new MessageQueueDto();
+            queueDto.setReceiver(processId);
+            queueDto.setData(data);
+            queueDto.setType("datasourceMonitor");
+
+            log.info("build send datasource monitor websocket context, processId = {}, userId = {}", processId, user == null ? null : user.getUserId());
+            messageQueueService.sendMessage(queueDto);
+            connectionDto.setNextMonitorDate(newScheduleDate);
+            save(connectionDto, user);
+        }
     }
 
 }

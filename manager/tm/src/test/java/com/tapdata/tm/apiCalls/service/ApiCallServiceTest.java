@@ -4,9 +4,12 @@ import com.alibaba.fastjson.JSON;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.tapdata.tm.apiCalls.dto.ApiCallDto;
 import com.tapdata.tm.apiCalls.entity.ApiCallEntity;
 import com.tapdata.tm.apiCalls.vo.ApiCallDataVo;
 import com.tapdata.tm.apiCalls.vo.ApiCallDetailVo;
+import com.tapdata.tm.apiCalls.vo.ApiPercentile;
+import com.tapdata.tm.apiServer.service.check.RealTimeOfApiResponseSizeAlter;
 import com.tapdata.tm.apicallminutestats.dto.ApiCallMinuteStatsDto;
 import com.tapdata.tm.apicallminutestats.service.ApiCallMinuteStatsService;
 import com.tapdata.tm.apicallstats.dto.ApiCallStatsDto;
@@ -17,12 +20,14 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.modules.dto.ModulesDto;
-import com.tapdata.tm.modules.dto.Param;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.dto.ModulesDto;
+import com.tapdata.tm.module.dto.Param;
+import com.tapdata.tm.modules.entity.ModulesEntity;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import org.bson.Document;
@@ -65,6 +70,7 @@ class ApiCallServiceTest {
     private ApiCallStatsService apiCallStatsService;
     ApplicationConfig applicationConfig;
     TextEncryptionRuleService ruleService;
+    private RealTimeOfApiResponseSizeAlter realTimeOfApiResponseSizeAlter;
 
     @BeforeEach
     void setUp() {
@@ -84,6 +90,8 @@ class ApiCallServiceTest {
         apiCallStatsService = mock(ApiCallStatsService.class);
         ReflectionTestUtils.setField(apiCallService, "apiCallStatsService", apiCallStatsService);
         ReflectionTestUtils.setField(apiCallService, "ruleService", ruleService);
+        realTimeOfApiResponseSizeAlter = mock(RealTimeOfApiResponseSizeAlter.class);
+        ReflectionTestUtils.setField(apiCallService, "realTimeOfApiResponseSizeAlter", realTimeOfApiResponseSizeAlter);
     }
 
     @Nested
@@ -173,7 +181,7 @@ class ApiCallServiceTest {
             when(mongoCollection.aggregate(anyList(), any(Class.class))).thenAnswer(invocationOnMock -> {
                 List<Document> pipeline = invocationOnMock.getArgument(0);
                 System.out.println(pipeline.get(1).toJson());
-                assertEquals("{\"$match\": {\"allPathId\": \"" + allPathId + "\", \"_id\": {\"$gt\": {\"$oid\": \"" + lastApiCallId + "\"}}, \"createTime\": {\"$gte\": {\"$date\": \"" + startTime.toInstant().toString() + "\"}}}}", pipeline.get(0).toJson());
+                assertEquals("{\"$match\": {\"allPathId\": \"" + allPathId + "\", \"supplement\": {\"$ne\": true}, \"_id\": {\"$gt\": {\"$oid\": \"" + lastApiCallId + "\"}}, \"createTime\": {\"$gte\": {\"$date\": \"" + startTime.toInstant().toString() + "\"}}}}", pipeline.get(0).toJson());
                 assertEquals("{\"$project\": {\"year\": {\"$year\": \"$createTime\"}, \"month\": {\"$month\": \"$createTime\"}, \"day\": {\"$dayOfMonth\": \"$createTime\"}, \"hour\": {\"$hour\": \"$createTime\"}, \"minute\": {\"$minute\": \"$createTime\"}, \"res_rows\": 1, \"latency\": 1, \"req_bytes\": 1}}", pipeline.get(1).toJson());
                 assertEquals("{\"$group\": {\"_id\": {\"year\": \"$year\", \"month\": \"$month\", \"day\": \"$day\", \"hour\": \"$hour\", \"minute\": \"$minute\"}, \"responseDataRowTotalCount\": {\"$sum\": \"$res_rows\"}, \"totalResponseTime\": {\"$sum\": \"$latency\"}, \"transferDataTotalBytes\": {\"$sum\": \"$req_bytes\"}, \"lastApiCallId\": {\"$last\": \"$_id\"}}}", pipeline.get(2).toJson());
                 assertEquals(Document.class, invocationOnMock.getArgument(1));
@@ -276,10 +284,10 @@ class ApiCallServiceTest {
 
             List<Map<String, String>> clients = apiCallService.findClients(moduleIdList);
             Map<String, String> client = clients.get(0);
-            assertEquals("app1", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(0).getId().toString(), client.get("id"));
             client = clients.get(1);
-            assertEquals("app2", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(1).getId().toString(), client.get("id"));
         }
 
@@ -323,10 +331,10 @@ class ApiCallServiceTest {
 
             List<Map<String, String>> clients = apiCallService.findClients(moduleIdList);
             Map<String, String> client = clients.get(0);
-            assertEquals("app1", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(0).getId().toString(), client.get("id"));
             client = clients.get(1);
-            assertEquals("app2", client.get("name"));
+            assertNull(client.get("name"));
             assertEquals(applicationDtoList.get(1).getId().toString(), client.get("id"));
         }
     }
@@ -848,6 +856,110 @@ class ApiCallServiceTest {
             Map<String, Map<String, Param>> result = apiCallService.findApiParamTypeMap(new ObjectId());
             Assertions.assertNotNull(result);
             Assertions.assertEquals(2, result.size());
+        }
+    }
+
+    @Nested
+    class getApiPercentileTest {
+        ApiCallService call;
+        private MongoTemplate mt;
+        @BeforeEach
+        void setUp() {
+            call = mock(ApiCallService.class);
+            mt = mock(MongoTemplate.class);
+            ReflectionTestUtils.setField(call, "mongoOperations", mt);
+            when(call.getApiPercentile(anyString(), anyLong(), anyLong())).thenCallRealMethod();
+        }
+
+        @Test
+        void testNormal() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            List<ApiCallEntity> apiCalls = new ArrayList<>();
+            ApiCallEntity e1 = new ApiCallEntity();
+            e1.setLatency(1000L);
+            apiCalls.add(e1);
+            apiCalls.add(null);
+            ApiCallEntity e2 = new ApiCallEntity();
+            apiCalls.add(e2);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(apiCalls);
+            ApiPercentile apiPercentile = call.getApiPercentile(new ObjectId().toHexString(), 1L, 1L);
+            Assertions.assertNotNull(apiPercentile);
+            Assertions.assertNotNull(apiPercentile.getP50());
+            Assertions.assertNotNull(apiPercentile.getP95());
+            Assertions.assertNotNull(apiPercentile.getP99());
+        }
+
+        @Test
+        void testResultIsEmpty() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            ApiPercentile apiPercentile = call.getApiPercentile(new ObjectId().toHexString(), 1L, 1L);
+            Assertions.assertNotNull(apiPercentile);
+            Assertions.assertNull(apiPercentile.getP50());
+            Assertions.assertNull(apiPercentile.getP95());
+            Assertions.assertNull(apiPercentile.getP99());
+        }
+
+        @Test
+        void testApiIdIsBlank() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    call.getApiPercentile("", 1L, 1L);
+                } catch (BizException e) {
+                    Assertions.assertEquals("api.call.api.id.required", e.getErrorCode());
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testQueryRangeTooLarge() {
+            ModulesEntity entity = new ModulesEntity();
+            entity.setName("module");
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            Assertions.assertThrows(BizException.class, () -> {
+                try {
+                    call.getApiPercentile(new ObjectId().toHexString(), 1L, 14 * 24 * 60 * 60 * 1000L);
+                } catch (BizException e) {
+                    Assertions.assertEquals("api.call.percentile.time.range.too.large", e.getErrorCode());
+                    throw e;
+                }
+            });
+        }
+
+        @Test
+        void testModuleNotExists() {
+            when(mt.findOne(any(Query.class), any(Class.class))).thenReturn(null);
+            when(mt.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            ApiPercentile apiPercentile = call.getApiPercentile(new ObjectId().toHexString(), 1L, 1L);
+            Assertions.assertNotNull(apiPercentile);
+            Assertions.assertNull(apiPercentile.getP50());
+            Assertions.assertNull(apiPercentile.getP95());
+            Assertions.assertNull(apiPercentile.getP99());
+        }
+    }
+
+    @Nested
+    class saveTest {
+        @Test
+        void testNormal() {
+            List<ApiCallDto> saveApiCallParamList = new ArrayList<>();
+            ApiCallDto dto = new ApiCallDto();
+            saveApiCallParamList.add(dto);
+            UserDetail userDetail = mock(UserDetail.class);
+            when(userDetail.getUserId()).thenReturn("userId");
+            when(mongoTemplate.insert(anyList(), anyString())).thenReturn(new ArrayList<>());
+            doNothing().when(realTimeOfApiResponseSizeAlter).check(anyString(), anyList());
+            apiCallService.save(saveApiCallParamList, userDetail);
         }
     }
 

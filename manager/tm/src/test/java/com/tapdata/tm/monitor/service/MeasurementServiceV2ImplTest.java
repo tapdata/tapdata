@@ -16,9 +16,11 @@ import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.monitor.constant.Granularity;
 import com.tapdata.tm.monitor.constant.KeyWords;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.param.SyncStatusStatisticsParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.bean.TableStatusInfoDto;
@@ -49,6 +51,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static com.tapdata.tm.monitor.param.MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -60,9 +63,12 @@ import static org.mockito.Mockito.when;
 
 class MeasurementServiceV2ImplTest {
     MeasurementServiceV2Impl measurementServiceV2;
+    MongoTemplate mongoOperations;
     @BeforeEach
     void init() {
         measurementServiceV2 = mock(MeasurementServiceV2Impl.class);
+        mongoOperations = mock(MongoTemplate.class);
+        ReflectionTestUtils.setField(measurementServiceV2, "mongoOperations", mongoOperations);
     }
     @Test
     void testParams() {
@@ -842,5 +848,22 @@ class MeasurementServiceV2ImplTest {
             measurementServiceV2.queryTableSyncStatusStatistics(param);
             verify(mongoOperations, new Times(1)).aggregate(any(Aggregation.class), anyString(), any(Class.class));
         }
+    }
+
+    @Nested
+    class getContinuousSamplesTest{
+        @Test
+        void testGetContinuousSamplesNormal(){
+            MeasurementQueryParam.MeasurementQuerySample querySample = new MeasurementQueryParam.MeasurementQuerySample();
+            querySample.setType(MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS);
+            querySample.setTags(new HashMap<>());
+            querySample.setFields(new ArrayList<>());
+            when(mongoOperations.find(any(Query.class), any(Class.class), anyString())).thenReturn(new ArrayList<>());
+            doCallRealMethod().when(measurementServiceV2).getContinuousSamples(any(), anyLong(), anyLong(), any());
+            measurementServiceV2.getContinuousSamples(querySample, new Date().getTime(), new Date().getTime() + 1000 * 60 * 5, Granularity.GRANULARITY_HOUR);
+            verify(mongoOperations, new Times(1)).find(any(Query.class), any(Class.class), anyString());
+            assertEquals(4, querySample.getFields().size());
+        }
+
     }
 }

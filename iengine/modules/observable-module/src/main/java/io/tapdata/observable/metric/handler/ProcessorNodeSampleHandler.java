@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -12,6 +13,14 @@ import java.util.Optional;
 public class ProcessorNodeSampleHandler extends AbstractNodeSampleHandler {
     public ProcessorNodeSampleHandler(TaskDto task, Node<?> node) {
         super(task, node);
+    }
+
+    @Override
+    void doInit(Map<String, Number> values) {
+        super.doInit(values);
+        timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG,
+                timeCostAvgGauge,
+                nodeId, nodeName, "processor", taskId, taskName, taskType);
     }
 
     public void handleProcessStart(HandlerUtil.EventTypeRecorder recorder) {

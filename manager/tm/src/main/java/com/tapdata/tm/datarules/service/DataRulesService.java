@@ -10,7 +10,7 @@ import com.tapdata.tm.datarules.entity.DataRulesEntity;
 import com.tapdata.tm.datarules.repository.DataRulesRepository;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.modules.dto.ModulesDto;
+import com.tapdata.tm.module.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;

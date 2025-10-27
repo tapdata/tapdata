@@ -1,13 +1,11 @@
 package com.tapdata.tm.apiCalls.vo;
 
-import com.tapdata.tm.modules.entity.Path;
-import com.tapdata.tm.vo.BaseVo;
+import com.tapdata.tm.module.entity.Path;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.bson.types.ObjectId;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.Date;
 import java.util.List;
@@ -115,4 +113,7 @@ public class ApiCallDataVo {
 
     private String clientId;
     private String clientName;
+
+    /**The unique identifier of the worker corresponding to the current request*/
+    private String workOid;
 }

@@ -3,7 +3,6 @@ package com.tapdata.tm.monitoringlogs.service;
 import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
@@ -11,7 +10,7 @@ import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ErrorUtil;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
@@ -41,7 +40,6 @@ import org.springframework.data.mongodb.core.aggregation.GroupOperation;
 import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -181,7 +179,11 @@ public class MonitoringLogsServiceImpl extends BaseService<MonitoringLogsDto, Mo
         }
         Criteria newCriteria = new Criteria();
         if (StringUtils.isNotEmpty(param.getNodeId())) {
-            criteria.and("nodeId").is(param.getNodeId());
+            if ((CollectionUtils.isNotEmpty(param.getIncludeLogTags()) && param.getIncludeLogTags().contains("src=user_script")) || "testRun".equals(type)) {
+                criteria.and("nodeId").is(String.format("%s.script", param.getNodeId()));
+            } else {
+                criteria.and("nodeId").is(param.getNodeId());
+            }
             newCriteria.orOperator(criteria,Criteria.where("taskId").is(taskId).and("nodeId").is(param.getNodeId()).and("level").is("INFO").and("timestamp").gte(start));
         }
         Query query = new Query();

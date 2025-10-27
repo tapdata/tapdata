@@ -32,6 +32,7 @@ import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareS
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
+import com.tapdata.tm.task.res.CpuMemoryService;
 import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.userLog.constant.Operation;
 import io.tapdata.entity.utils.ObjectSerializable;
@@ -100,7 +101,7 @@ import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.lock.service.LockControlService;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageServiceImpl;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
@@ -381,6 +382,7 @@ public class TaskServiceImpl extends TaskService{
     private ShareCdcTableMappingService shareCdcTableMappingService;
     private ILicenseService iLicenseService;
     private MetadataInstancesCompareService metadataInstancesCompareService;
+    private CpuMemoryService cpuMemoryService;
 
     public TaskServiceImpl(@NonNull TaskRepository repository) {
         super(repository);
@@ -1462,7 +1464,8 @@ public class TaskServiceImpl extends TaskService{
         List<MutiResponseMessage> responseMessages = new ArrayList<>();
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         int index = 1;
-        for (TaskDto task : taskDtos) {
+        List<TaskDto> orderTaskDtos = metadataDefinitionService.orderTaskByTagPriority(taskDtos);
+        for (TaskDto task : orderTaskDtos) {
             MutiResponseMessage mutiResponseMessage = new MutiResponseMessage();
             mutiResponseMessage.setId(task.getId().toHexString());
             try {
@@ -1634,6 +1637,11 @@ public class TaskServiceImpl extends TaskService{
             Page<TaskDto>  page = super.find(filter, userDetail);
             deleteNotifyEnumData(page.getItems());
             log.debug("page{}", JSON.toJSONString(page));
+            Map<String, Map<String, Object>> cpuMemoryUsageOfTask = cpuMemoryService.cpuMemoryUsageOfTask(page.getItems().stream().map(b -> b.getId().toHexString()).toList());
+            page.getItems().forEach(b -> {
+                Optional.ofNullable(cpuMemoryUsageOfTask.get(b.getId().toHexString()))
+                        .ifPresent(b::setMetricInfo);
+            });
             return page;
         }
         Where where = filter.getWhere();
@@ -1686,8 +1694,12 @@ public class TaskServiceImpl extends TaskService{
 
 
         if (CollectionUtils.isNotEmpty(items)) {
+
             //添加上推演进度情况
             List<String> taskIds = items.stream().map(b -> b.getId().toHexString()).collect(Collectors.toList());
+            //添加上cpu内存使用情况
+            Map<String, Map<String, Object>> cpuMemoryUsageOfTask = cpuMemoryService.cpuMemoryUsageOfTask(taskIds);
+
             Criteria criteria = Criteria.where("dataFlowId").in(taskIds);
             Query query = new Query(criteria);
             List<MetadataTransformerDto> transformerDtos = transformerService.findAll(query);
@@ -1750,6 +1762,8 @@ public class TaskServiceImpl extends TaskService{
 
             // Internationalized Shared Mining Warning Messages
             for (TaskDto item : items) {
+                Optional.ofNullable(cpuMemoryUsageOfTask.get(item.getId().toHexString()))
+                        .ifPresent(item::setMetricInfo);
                 if (StringUtils.isNotBlank(item.getShareCdcStopMessage())) {
                     item.setShareCdcStopMessage(MessageUtil.getMessage(item.getShareCdcStopMessage()));
                 }

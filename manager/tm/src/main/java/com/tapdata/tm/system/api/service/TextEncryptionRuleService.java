@@ -8,7 +8,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.modules.entity.Path;
+import com.tapdata.tm.module.entity.Path;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
@@ -43,7 +43,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>

@@ -2,7 +2,7 @@ package com.tapdata.tm.base.aop;
 
 import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.commons.alarm.AlarmStatusEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;

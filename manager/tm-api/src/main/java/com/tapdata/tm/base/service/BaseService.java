@@ -19,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -408,6 +410,20 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
 
         return dtoList.stream().map(dto -> convertToEntity(entityClass, dto, ignoreProperties))
                 .collect(Collectors.toList());
+    }
+
+    public <T extends BaseDto> void bulkWrite(List<T> dto, Class<Entity> entityClass, Function<Entity, Query> queryBuilder) {
+        if (null == dto || dto.isEmpty()) {
+            return;
+        }
+        BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
+        List<Entity> apiCallMinuteStatsEntities = convertToEntity(entityClass, dto);
+        for (Entity entity : apiCallMinuteStatsEntities) {
+            Update update = repository.buildUpdateSet(entity);
+            Query query = queryBuilder.apply(entity);
+            bulkOperations.upsert(query, update);
+        }
+        bulkOperations.execute();
     }
 
     /**
