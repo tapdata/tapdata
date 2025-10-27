@@ -7,8 +7,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.concurrent.*;
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -123,6 +130,42 @@ class TaskInspectUtilsTest {
             assertNotNull(future);
             future.get(); // This will block until the task is complete
             verify(runnable).run();
+        }
+    }
+
+    @Test
+    void testKeysEncodeDecode() {
+        long timeMillis = System.currentTimeMillis();
+        LinkedHashMap<String, Object> keys = new LinkedHashMap<>();
+        Consumer<Object> addType = (v) -> keys.put(v.getClass().getName(), v);
+
+        // 数字检查
+        keys.put("null", null);
+        addType.accept(1);
+        addType.accept(1.1f);
+        addType.accept(1.1d);
+        addType.accept(new BigDecimal("1.1"));
+
+        // 时间检查
+        addType.accept(timeMillis);
+        addType.accept(Instant.now());
+        addType.accept(new Timestamp(timeMillis));
+        addType.accept(new Date(timeMillis));
+        addType.accept(new java.sql.Date(timeMillis));
+
+        // 字符串检查
+        addType.accept("中文");
+        addType.accept("中文".getBytes());
+
+        // 逻辑验证
+        String encodeStr = assertDoesNotThrow(() -> TaskInspectUtils.encodeKeys(keys), "encodeKeys failed");
+        LinkedHashMap<String, Object> decodeKeys = assertDoesNotThrow(() -> TaskInspectUtils.decodeKeys(encodeStr), "decodeKeys failed");
+        for (String key : keys.keySet()) {
+            if (key.equals(byte[].class.getName())) {
+                assertArrayEquals((byte[]) keys.get(key), (byte[]) decodeKeys.get(key), String.format("the key '%s' value type is failed", key));
+            } else {
+                assertEquals(keys.get(key), decodeKeys.get(key), String.format("the key '%s' value type is failed", key));
+            }
         }
     }
 }
