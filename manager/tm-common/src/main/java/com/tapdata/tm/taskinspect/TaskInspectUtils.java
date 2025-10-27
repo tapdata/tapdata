@@ -2,6 +2,8 @@ package com.tapdata.tm.taskinspect;
 
 import com.tapdata.tm.utils.MD5Utils;
 
+import java.io.*;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -65,5 +67,24 @@ public interface TaskInspectUtils {
             buf.append("|").append(v);
         }
         return MD5Utils.toLowerHex(buf.toString());
+    }
+
+    static String encodeKeys(Object obj) throws IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            try (ObjectOutputStream odos = new ObjectOutputStream(baos)) {
+                odos.writeObject(obj);
+            }
+            byte[] bytes = baos.toByteArray();
+            return Base64.getEncoder().encodeToString(bytes);
+        }
+    }
+
+    static <T> T decodeKeys(String keysStr) throws IOException, ClassNotFoundException {
+        byte[] bytes = Base64.getDecoder().decode(keysStr);
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes)) {
+            try (ObjectInputStream ois = new ObjectInputStream(bais)) {
+                return (T) ois.readObject();
+            }
+        }
     }
 }

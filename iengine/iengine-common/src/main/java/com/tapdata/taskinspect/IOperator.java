@@ -3,6 +3,7 @@ package com.tapdata.taskinspect;
 import com.tapdata.tm.taskinspect.TaskInspectConfig;
 import com.tapdata.tm.taskinspect.cons.JobTypeEnum;
 import com.tapdata.tm.taskinspect.dto.TaskInspectHistoriesDto;
+import com.tapdata.tm.taskinspect.vo.CheckItemInfo;
 import com.tapdata.tm.taskinspect.vo.JobReportVo;
 
 import java.io.Serializable;
@@ -46,4 +47,7 @@ public interface IOperator {
     default void reportResult(String taskId, LinkedHashMap<String, Object> reportData) {
     }
 
+    default CheckItemInfo queryCheckItemInfo(String taskId, String rowId) {
+        return null;
+    }
 }

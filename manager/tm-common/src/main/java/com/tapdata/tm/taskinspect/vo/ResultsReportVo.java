@@ -1,5 +1,6 @@
 package com.tapdata.tm.taskinspect.vo;
 
+import com.tapdata.tm.taskinspect.TaskInspectUtils;
 import com.tapdata.tm.taskinspect.cons.DiffTypeEnum;
 import com.tapdata.tm.utils.MD5Utils;
 import io.tapdata.entity.schema.value.DateTime;
@@ -7,7 +8,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +23,7 @@ import java.util.Map;
 public class ResultsReportVo implements Serializable {
     private String rowId;
     private LinkedHashMap<String, Object> keys;
+    private String serializedKeys;
     private String sourceTable;
     private List<String> sourceFields;
     private LinkedHashMap<String, Object> source;
@@ -32,6 +33,17 @@ public class ResultsReportVo implements Serializable {
     private DiffTypeEnum diffType;
     private List<String> diffFields;
     private List<ResultOperationsVo> operations;
+
+    public String getSerializedKeys() {
+        if (null == serializedKeys && null != keys) {
+            try {
+                serializedKeys = TaskInspectUtils.encodeKeys(keys);
+            } catch (Exception e) {
+                serializedKeys = null;
+            }
+        }
+        return serializedKeys;
+    }
 
     public ResultsReportVo table(String rowId) {
         this.rowId = rowId;
