@@ -1389,7 +1389,16 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 				DataMap match = new DataMap();
 				List<QueryOperator> queryOperators = new ArrayList<>();
-				for (QueryOperator queryOperator : conditions) {
+				for (QueryOperator operator : conditions) {
+					QueryOperator queryOperator = new QueryOperator();
+					queryOperator.setFastQuery(operator.isFastQuery());
+					queryOperator.setOperator(operator.getOperator());
+					queryOperator.setKey(operator.getKey());
+					queryOperator.setOriginalValue(operator.getOriginalValue());
+					queryOperator.setNumber(operator.getNumber());
+					queryOperator.setForm(operator.getForm());
+					queryOperator.setUnit(operator.getUnit());
+					queryOperator.setValue(operator.getValue());
 					TapField tapField = tapTable.getNameFieldMap().get(queryOperator.getKey());
 					TapType tapType = tapField.getTapType();
 					Object convertValue;
