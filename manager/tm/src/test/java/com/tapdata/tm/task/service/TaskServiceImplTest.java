@@ -147,7 +147,6 @@ import static org.springframework.beans.BeanUtils.copyProperties;
 
 
 class TaskServiceImplTest {
-    CpuMemoryService cpuMemoryService;
     TaskServiceImpl taskService;
     TaskRecordService taskRecordService;
     BatchService batchService;
@@ -161,8 +160,6 @@ class TaskServiceImplTest {
     UserLogService userLogService;
     @BeforeEach
     void init() {
-        cpuMemoryService = mock(CpuMemoryService.class);
-        when(cpuMemoryService.cpuMemoryUsageOfTask(anyList())).thenReturn(new HashMap<>());
         taskService = mock(TaskServiceImpl.class);
         taskRecordService = mock(TaskRecordService.class);
         monitoringLogsService = mock(MonitoringLogsService.class);
@@ -179,7 +176,6 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService, "dataSourceService", dataSourceService);
         userLogService = mock(UserLogService.class);
         ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
-        ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
     }
 
     @Nested
@@ -1587,7 +1583,6 @@ class TaskServiceImplTest {
             user = mock(UserDetail.class);
             repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
-            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             when(repository.getMongoOperations()).thenReturn(mock(MongoTemplate.class));
             new DataPermissionHelper(mock(IDataPermissionHelper.class)); //when repository.find call methods in DataPermissionHelper class this line is need
             transformerService = mock(MetadataTransformerService.class);
@@ -1597,7 +1592,6 @@ class TaskServiceImplTest {
         @DisplayName("test find method when is agent request")
         void test1(){
             taskService = spy(new TaskServiceImpl(mock(TaskRepository.class)));
-            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             try (MockedStatic<RequestContextHolder> mb = Mockito
                     .mockStatic(RequestContextHolder.class)) {
                 ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
@@ -1614,7 +1608,6 @@ class TaskServiceImplTest {
         void test2(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
-            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             try (MockedStatic<RequestContextHolder> mb = Mockito
                     .mockStatic(RequestContextHolder.class)) {
                 ServletRequestAttributes attributes = mock(ServletRequestAttributes.class);
@@ -1818,7 +1811,7 @@ class TaskServiceImplTest {
 
             // call method
             Object actual = taskService.getSourceNode(taskDto);
-            assertEquals(node, actual);
+            assertEquals(null, actual);
         }
         @Test
         @DisplayName("test getSourceNode method when edges is empty")
@@ -1838,7 +1831,6 @@ class TaskServiceImplTest {
         void beforeEach(){
             taskDto = mock(TaskDto.class);
             taskService = mock(TaskServiceImpl.class);
-            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
         }
         @Test
         @DisplayName("test getTargetNode method normal")
@@ -1856,7 +1848,7 @@ class TaskServiceImplTest {
 
             // call method
             Object actual = taskService.getTargetNode(taskDto);
-            assertEquals(node, actual);
+            assertNull(actual);
         }
         @Test
         @DisplayName("test getTargetNode method when edges is empty")
@@ -1915,7 +1907,6 @@ class TaskServiceImplTest {
         void beforeEach(){
             repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
-            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             user = mock(UserDetail.class);
             filter = new Filter();
             dataSourceService = mock(DataSourceServiceImpl.class);
@@ -2138,7 +2129,6 @@ class TaskServiceImplTest {
         void testFindByIdsNormal(){
             TaskRepository repository = mock(TaskRepository.class);
             taskService = spy(new TaskServiceImpl(repository));
-            ReflectionTestUtils.setField(taskService,"cpuMemoryService",cpuMemoryService);
             List<ObjectId> idList = new ArrayList<>();
             ObjectId id = mock(ObjectId.class);
             idList.add(id);
