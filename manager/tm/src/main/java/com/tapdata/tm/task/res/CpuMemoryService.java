@@ -1,13 +1,20 @@
 package com.tapdata.tm.task.res;
 
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -26,9 +33,14 @@ import java.util.Optional;
  */
 @Service
 @Setter(onMethod_ = {@Autowired})
+@Slf4j
 public class CpuMemoryService {
     MongoTemplate mongoOperations;
 
+    /**
+     * @deprecated unused
+     * */
+    @Deprecated(since = "release-v4.9.0", forRemoval = true)
     public Map<String, Map<String, Object>> cpuMemoryUsageOfTask(List<String> taskIds) {
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(Criteria.where("tags.taskId").in(taskIds)
@@ -63,5 +75,26 @@ public class CpuMemoryService {
             }
         });
         return info;
+    }
+
+    public void updateTaskCpuMemory(Map<String, Map<String, Number>> usageMap) {
+        if (CollectionUtils.isEmpty(usageMap)) {
+            return;
+        }
+        try {
+            BulkOperations bulkOps = mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class);
+            usageMap.forEach((taskId, usage) -> {
+                if (CollectionUtils.isEmpty(usage)) {
+                    return;
+                }
+                Query query = Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
+                Update update = new Update();
+                update.set("metricInfo", usage);
+                bulkOps.upsert(query, update);
+            });
+            bulkOps.execute();
+        } catch (Exception e) {
+            log.error("bulkUpsert Task's cpu and memory error", e);
+        }
     }
 }
