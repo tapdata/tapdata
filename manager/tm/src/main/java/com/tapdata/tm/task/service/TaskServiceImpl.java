@@ -2026,7 +2026,7 @@ public class TaskServiceImpl extends TaskService{
                     }
                 }
 
-                CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
+                CacheNode cacheNode = (CacheNode) getCacheNode(taskDto);
                 if (null != cacheNode) {
                     BeanUtil.copyProperties(cacheNode, shareCacheVo);
                     String externalStorageId = cacheNode.getExternalStorageId();
