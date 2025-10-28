@@ -9,6 +9,6 @@ class AlarmKeyEnumTest {
 
     @Test
     void getTaskAlarmKeys() {
-        Assertions.assertEquals(37, AlarmKeyEnum.getTaskAlarmKeys().size());
+        Assertions.assertEquals(38, AlarmKeyEnum.getTaskAlarmKeys().size());
     }
 }
