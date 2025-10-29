@@ -108,7 +108,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					dbNode.setUpdateConditionFieldMap(Maps.newHashMap());
 				}
 				updateConditionFieldsMap.putAll(dbNode.getUpdateConditionFieldMap());
-                writeGroupByTableEnable = !Boolean.FALSE.equals(dbNode.getWriteWithGroupByTableEnable());
+                writeGroupByTableEnable = Boolean.TRUE.equals(dbNode.getWriteWithGroupByTableEnable());
 			}
 			if (getNode() instanceof DataParentNode) {
 				writeStrategy = ((DataParentNode<?>) getNode()).getWriteStrategy();
