@@ -292,6 +292,14 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Boolean oldVersionTimezone = true;
 
+    /**
+     * 任务指标信息
+     * cpu: cpuUsage<Double>
+     * mem: memoryUsage<Long>
+     * time: lastUpdateTime<Long>
+     */
+    private Map<String, Object> metricInfo;
+
     public String getAccessNodeProcessId() {
         if (AccessNodeTypeEnum.isGroupManually(accessNodeType)) {
             return accessNodeProcessId;

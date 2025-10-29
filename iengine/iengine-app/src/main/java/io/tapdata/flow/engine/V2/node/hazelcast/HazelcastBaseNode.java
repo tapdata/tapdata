@@ -422,6 +422,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		messageEntity.setBefore(before);
 		Map<String, Object> after = TapEventUtil.getAfter(dataEvent);
 		messageEntity.setAfter(after);
+		if (dataEvent instanceof TapInsertRecordEvent) {
+			messageEntity.setAfterIllegalDateFieldName(((TapInsertRecordEvent) dataEvent).getAfterIllegalDateFieldName());
+		} else if (dataEvent instanceof TapUpdateRecordEvent) {
+			messageEntity.setBeforeIllegalDateFieldName(((TapUpdateRecordEvent) dataEvent).getBeforeIllegalDateFieldName());
+			messageEntity.setAfterIllegalDateFieldName(((TapUpdateRecordEvent) dataEvent).getAfterIllegalDateFieldName());
+		} else if (dataEvent instanceof TapDeleteRecordEvent) {
+			messageEntity.setBeforeIllegalDateFieldName(((TapDeleteRecordEvent) dataEvent).getBeforeIllegalDateFieldName());
+		}
+		messageEntity.setContainsIllegalDate(dataEvent.getContainsIllegalDate());
 		messageEntity.setOp(TapEventUtil.getOp(dataEvent));
 		messageEntity.setTableName(dataEvent.getTableId());
 		messageEntity.setTimestamp(dataEvent.getReferenceTime());
@@ -461,6 +470,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tapRecordEvent.setReferenceTime(messageEntity.getTimestamp());
 			tapRecordEvent.setTime(messageEntity.getTime());
 			tapRecordEvent.setInfo(messageEntity.getInfo());
+			if (messageEntity.getBeforeIllegalDateFieldName() != null) {
+				for (String field : messageEntity.getBeforeIllegalDateFieldName()) {
+					TapEventUtil.addBeforeIllegalDateField(tapRecordEvent, field);
+				}
+			}
+			if (messageEntity.getAfterIllegalDateFieldName() != null) {
+				for (String field : messageEntity.getAfterIllegalDateFieldName()) {
+					TapEventUtil.addAfterIllegalDateField(tapRecordEvent, field);
+				}
+			}
+			TapEventUtil.setContainsIllegalDate(tapRecordEvent, messageEntity.isContainsIllegalDate());
 		}
 		return tapRecordEvent;
 	}
