@@ -1319,10 +1319,21 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
     protected void replaceIllegalDateWithNullIfNeed(TapRecordEvent event) {
         boolean containsIllegalDate = event.getContainsIllegalDate();
         if (containsIllegalDate && !illegalDateAcceptable) {
+			Map<String, List<String>> illegalField = TapEventUtil.getIllegalField(event);
             Map<String, Object> before = Optional.ofNullable(TapEventUtil.getBefore(event)).orElse(new HashMap<>());
             replaceIllegalDate(before);
             Map<String, Object> after = Optional.ofNullable(TapEventUtil.getAfter(event)).orElse(new HashMap<>());
             replaceIllegalDate(after);
+			if (MapUtils.isNotEmpty(illegalField)) {
+				List<String> beforeIllegalFields = illegalField.get("before");
+				if (CollectionUtils.isNotEmpty(beforeIllegalFields)) {
+					beforeIllegalFields.forEach(illegalDateFiled -> replaceIllegalDateField2Null(illegalDateFiled, before));
+				}
+				List<String> afterIllegalFields = illegalField.get("after");
+				if (CollectionUtils.isNotEmpty(afterIllegalFields)) {
+					afterIllegalFields.forEach(illegalDateFiled -> replaceIllegalDateField2Null(illegalDateFiled, after));
+				}
+			}
         }
     }
 
@@ -1350,6 +1361,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             entry.setValue(null);
         }
     }
+
+	protected void replaceIllegalDateField2Null(String illegalDateFiled, Map<String, Object> data) {
+		for (Map.Entry<String, Object> entry : data.entrySet()) {
+			if (illegalDateFiled.equals(entry.getKey()) && null != entry.getValue()) {
+				entry.setValue(null);
+			}
+		}
+	}
 
 
     protected boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
