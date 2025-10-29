@@ -1811,7 +1811,7 @@ class TaskServiceImplTest {
 
             // call method
             Object actual = taskService.getSourceNode(taskDto);
-            assertEquals(null, actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getSourceNode method when edges is empty")
@@ -1848,7 +1848,7 @@ class TaskServiceImplTest {
 
             // call method
             Object actual = taskService.getTargetNode(taskDto);
-            assertNull(actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getTargetNode method when edges is empty")
@@ -1970,7 +1970,7 @@ class TaskServiceImplTest {
             TableNode dataNode = mock(TableNode.class);
             when(taskService.getSourceNode(dto)).thenReturn(dataNode);
             CacheNode cacheNode = mock(CacheNode.class);
-            when(taskService.getTargetNode(dto)).thenReturn(cacheNode);
+            when(taskService.getCacheNode(dto)).thenReturn(cacheNode);
             when(dataNode.getConnectionId()).thenReturn("222");
             DataSourceConnectionDto connectionDto = mock(DataSourceConnectionDto.class);
             when(dataSourceService.findOne(any(Query.class))).thenReturn(connectionDto);
