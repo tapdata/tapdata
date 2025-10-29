@@ -123,6 +123,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -1389,7 +1390,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 				DataMap match = new DataMap();
 				List<QueryOperator> queryOperators = new ArrayList<>();
-				for (QueryOperator queryOperator : conditions) {
+				for (QueryOperator operator : conditions) {
+					QueryOperator queryOperator = new QueryOperator();
+					BeanUtils.copyProperties(operator, queryOperator);
 					TapField tapField = tapTable.getNameFieldMap().get(queryOperator.getKey());
 					TapType tapType = tapField.getTapType();
 					Object convertValue;
