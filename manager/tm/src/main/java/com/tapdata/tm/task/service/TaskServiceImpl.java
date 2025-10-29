@@ -1902,7 +1902,7 @@ public class TaskServiceImpl extends TaskService{
 
     public Node getSourceNode(TaskDto taskDto) {
         return Optional.ofNullable(taskDto.getDag())
-            .map(DAG::getSourceNode)
+            .map(DAG::getSourceDataParentNode)
             .map(nodes -> {
                 if (nodes.isEmpty()) {
                     return null;
@@ -1914,7 +1914,7 @@ public class TaskServiceImpl extends TaskService{
 
     public Node getTargetNode(TaskDto taskDto) {
         return Optional.ofNullable(taskDto.getDag())
-            .map(DAG::getTargetNode)
+            .map(DAG::getTargetDataParentNode)
             .map(nodes -> {
                 if (nodes.isEmpty()) {
                     return null;
@@ -1922,6 +1922,18 @@ public class TaskServiceImpl extends TaskService{
                 return nodes.getFirst();
             })
             .orElse(null);
+    }
+
+    public Node getCacheNode(TaskDto taskDto) {
+        return Optional.ofNullable(taskDto.getDag())
+                .map(DAG::getCacheNode)
+                .map(nodes -> {
+                    if (nodes.isEmpty()) {
+                        return null;
+                    }
+                    return nodes.getFirst();
+                })
+                .orElse(null);
     }
 
     public static String printInfos(DAG dag) {
@@ -2016,7 +2028,7 @@ public class TaskServiceImpl extends TaskService{
                     }
                 }
 
-                CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
+                CacheNode cacheNode = (CacheNode) getCacheNode(taskDto);
                 if (null != cacheNode) {
                     BeanUtil.copyProperties(cacheNode, shareCacheVo);
                     String externalStorageId = cacheNode.getExternalStorageId();
@@ -2044,7 +2056,7 @@ public class TaskServiceImpl extends TaskService{
     public ShareCacheDetailVo findShareCacheById(String id) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
         Node sourceNode = getSourceNode(taskDto);
-        CacheNode targetNode = (CacheNode) getTargetNode(taskDto);
+        CacheNode targetNode = (CacheNode) getCacheNode(taskDto);
         ShareCacheDetailVo shareCacheDetailVo = new ShareCacheDetailVo();
         shareCacheDetailVo.setId(id);
         shareCacheDetailVo.setName(taskDto.getName());

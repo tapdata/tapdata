@@ -2544,16 +2544,16 @@ class TaskServiceImplTest {
             // mock data
             DatabaseNode node = mock(DatabaseNode.class);
             DAG dag = mock(DAG.class);
-            LinkedList<DatabaseNode> nodes = new LinkedList<>();
+            LinkedList<DataParentNode> nodes = new LinkedList<>();
             nodes.add(node);
             // mock method
-            when(dag.getSourceNode()).thenReturn(nodes);
+            when(dag.getSourceDataParentNode()).thenReturn(nodes);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getSourceNode(taskDto);
 
             // call method
             Object actual = taskService.getSourceNode(taskDto);
-            assertEquals(null, actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getSourceNode method when edges is empty")
@@ -2582,15 +2582,15 @@ class TaskServiceImplTest {
             DAG dag = mock(DAG.class);
 
             // mock method
-            LinkedList<DatabaseNode> objects = new LinkedList<>();
+            LinkedList<DataParentNode> objects = new LinkedList<>();
             objects.add(node);
-            when(dag.getTargetNode()).thenReturn(objects);
+            when(dag.getTargetDataParentNode()).thenReturn(objects);
             when(taskDto.getDag()).thenReturn(dag);
             doCallRealMethod().when(taskService).getTargetNode(taskDto);
 
             // call method
             Object actual = taskService.getTargetNode(taskDto);
-            assertNull(actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getTargetNode method when edges is empty")
@@ -2712,7 +2712,7 @@ class TaskServiceImplTest {
             TableNode dataNode = mock(TableNode.class);
             when(taskService.getSourceNode(dto)).thenReturn(dataNode);
             CacheNode cacheNode = mock(CacheNode.class);
-            when(taskService.getTargetNode(dto)).thenReturn(cacheNode);
+            when(taskService.getCacheNode(dto)).thenReturn(cacheNode);
             when(dataNode.getConnectionId()).thenReturn("222");
             DataSourceConnectionDto connectionDto = mock(DataSourceConnectionDto.class);
             when(dataSourceService.findOne(any(Query.class))).thenReturn(connectionDto);
