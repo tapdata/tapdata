@@ -800,12 +800,14 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			after.put("id", "1");
 			after.put("name", "test");
 			after.put("date", tapDateTimeValue);
-			after.put("last_date", tapDateTimeValue);
+			after.put("last_date", "0000-00-00 00:00:00");
 			((TapInsertRecordEvent) event).setAfter(after);
 			event.setContainsIllegalDate(true);
+			((TapInsertRecordEvent) event).setAfterIllegalDateFieldName(Arrays.asList("date", "last_date"));
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateWithNullIfNeed(event);
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDate(any());
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateTime2Null(any(),any());
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).replaceIllegalDateField2Null(any(),any());
 			hazelcastTargetPdkBaseNode.replaceIllegalDateWithNullIfNeed(event);
 			assertNull(((TapInsertRecordEvent) event).getAfter().get("date"));
 			assertNull(((TapInsertRecordEvent) event).getAfter().get("last_date"));

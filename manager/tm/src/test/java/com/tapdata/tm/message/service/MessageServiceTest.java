@@ -191,6 +191,51 @@ class MessageServiceTest {
         verify(mockMailUtils,times(1)).sendHtmlMail(Arrays.asList("test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
     }
 
+    @Test
+    void testAddSync_DAAS_SendingEmail() {
+        // Setup
+        final Settings settings = new Settings();
+        settings.setId("id");
+        settings.setCategory("category");
+        settings.setCategory_sort(0);
+        settings.setDefault_value("default_value");
+        settings.setValue("{\"runNotification\":[{\"label\":\"jobStarted\",\"notice\":true,\"email\":true}," +
+                "{\"label\":\"jobPaused\",\"notice\":true,\"email\":true},{\"label\":\"jobDeleted\",\"notice\":true,\"email\":true}," +
+                "{\"label\":\"jobStateError\",\"notice\":true,\"email\":true},{\"label\":\"jobEncounterError\",\"notice\":true,\"email\":true,\"noticeInterval\":\"noticeInterval\",\"Interval\":12,\"util\":\"hour\"}," +
+                "{\"label\":\"CDCLagTime\",\"notice\":true,\"email\":true,\"lagTime\":\"lagTime\",\"lagTimeInterval\":12,\"lagTimeUtil\":\"second\",\"noticeInterval\":\"noticeInterval\",\"noticeIntervalInterval\":24,\"noticeIntervalUtil\":\"hour\"}," +
+                "{\"label\":\"inspectCount\",\"notice\":true,\"email\":true},{\"label\":\"inspectValue\",\"notice\":true,\"email\":true},{\"label\":\"inspectDelete\",\"notice\":true,\"email\":true}," +
+                "{\"label\":\"inspectError\",\"notice\":true,\"email\":true}],\"systemNotification\":[],\"agentNotification\":[{\"label\":\"serverDisconnected\",\"notice\":true,\"email\":true},{\"label\":\"agentStarted\",\"notice\":true,\"email\":false}," +
+                "{\"label\":\"agentStopped\",\"notice\":true,\"email\":true},{\"label\":\"agentCreated\",\"notice\":true,\"email\":false}," +
+                "{\"label\":\"agentDeleted\",\"notice\":true,\"email\":true}]}");
+        when(mockSettingsService.getByCategoryAndKey(CategoryEnum.NOTIFICATION, KeyEnum.NOTIFICATION))
+                .thenReturn(settings);
+        MessageEntity messageEntity = new MessageEntity();
+        messageEntity.setLevel(Level.RECOVERY.getValue());
+        messageEntity.setServerName("serverName");
+        messageEntity.setMsg("");
+        messageEntity.setTitle("title");
+        messageEntity.setSourceId("sourceId");
+        messageEntity.setSystem("");
+        messageEntity.setCreateAt(new Date());
+        messageEntity.setLastUpdAt(new Date());
+        messageEntity.setUserId(userDetail.getUserId());
+        messageEntity.setRead(false);
+        messageEntity.setIsDeleted((false));
+        messageEntity.setId(MongoUtils.toObjectId("6552e10c61030809c4b3af30"));
+        when(mockSettingsService.isCloud()).thenReturn(false);
+        when(mockRepository.save(any(MessageEntity.class),any(UserDetail.class))).thenAnswer(invocationOnMock -> {
+            MessageEntity message = invocationOnMock.getArgument(0,MessageEntity.class);
+            message.setId(MongoUtils.toObjectId("6552e10c61030809c4b3af30"));
+            return message;
+        });
+        // Run the test
+        messageServiceUnderTest.addSync("serverName", "sourceId", MsgTypeEnum.PAUSED, "title", Level.RECOVERY,
+                userDetail);
+
+        // Verify the results，method call once
+        verify(mockMailUtils,times(0)).sendHtmlMail(Arrays.asList("test@test.com"),"username", "serverName", SystemEnum.SYNC, MsgTypeEnum.STARTED, "sourceId");
+    }
+
     /**
      * Use case for email sending limit
      */
