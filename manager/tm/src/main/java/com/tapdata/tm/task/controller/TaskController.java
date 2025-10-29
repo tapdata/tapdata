@@ -65,6 +65,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.tapdata.tm.task.res.CpuMemoryService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -102,6 +103,7 @@ public class TaskController extends BaseController {
     private WorkerService workerService;
     private UserService userService;
     private TaskErrorEventService taskErrorEventService;
+    private CpuMemoryService cpuMemoryService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -1489,6 +1491,13 @@ public class TaskController extends BaseController {
         );
 
         taskService.refreshSchemas(resultTask, nodeIds, keys, user);
+        return success();
+    }
+
+    @Operation(summary = "Refresh task memory and cpu usage(for engine, @see io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler#reportOnce)")
+    @PostMapping("/update-cpu-memory")
+    public ResponseMessage<Object> refreshSchemas(@RequestBody Map<String, Map<String, Number>> usageMap) {
+        cpuMemoryService.updateTaskCpuMemory(usageMap);
         return success();
     }
 }
