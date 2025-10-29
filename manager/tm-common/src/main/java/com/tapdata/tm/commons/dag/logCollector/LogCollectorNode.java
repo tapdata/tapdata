@@ -55,6 +55,9 @@ public class LogCollectorNode extends Node<List<Schema>> {
     @EqField
     private Integer increaseReadSize = 1;
 
+    /** 源是否开启分区表同步*/
+    private Boolean syncSourcePartitionTableEnable;
+
     @EqField
     /**
      *  allTables - 所有表
