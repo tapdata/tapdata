@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TableAnalyzerV1 extends BaseAnalyzer {
 
-	private static final String[] TASK_INCLUDE_FIELDS = new String[]{"_id", "name", "dag", "syncType", "status"};
+	private static final String[] TASK_INCLUDE_FIELDS = new String[]{"_id", "name", "dag", "syncType", "status", "startTime"};
 	private static final String[] DATASOURCE_INCLUDE_FIELDS = new String[]{"_id", "name", "pdkType", "pdkHash"};
 	private static final String[] MODULES_INCLUDE_FIELDS = new String[]{"_id", "name", "datasource", "tableName", "basePath", "status", "listtags"};
 	public static final String[] METADATA_INCLUDE_FIELDS = new String[]{"_id", "sourceType"};
@@ -508,7 +508,8 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 				task.getName(),
 				wrapLineageTaskNode(node),
 				task.getSyncType(),
-				task.getStatus()
+				task.getStatus(),
+                task.getStartTime()
 		);
 	}
 
@@ -519,7 +520,8 @@ public class TableAnalyzerV1 extends BaseAnalyzer {
 				task.getName(),
 				wrapLineageTaskNode(node),
 				task.getSyncType(),
-				task.getStatus()
+				task.getStatus(),
+                task.getStartTime()
 		);
 	}
 
