@@ -707,7 +707,7 @@ class ModulesServiceTest {
 			properties.put("connection", connection);
 			definitionDto.setProperties(properties);
 			when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
-			ApiDefinitionVo actual = modulesService.apiDefinition("", null, userDetail);
+			ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
 			assertEquals(1, actual.getConnections().size());
 			assertTrue(actual.getConnections().get(0).getSsl());
 			assertEquals("----test ca----", actual.getConnections().get(0).getSslCA());
@@ -745,7 +745,7 @@ class ModulesServiceTest {
 			properties.put("connection", connection);
 			definitionDto.setProperties(properties);
 			when(dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail)).thenReturn(definitionDto);
-			ApiDefinitionVo actual = modulesService.apiDefinition("", null, userDetail);
+			ApiDefinitionVo actual = modulesService.apiDefinition(userDetail);
 			assertEquals(1, actual.getConnections().size());
 			assertNull(actual.getConnections().get(0).getSsl());
 			assertNull(actual.getConnections().get(0).getSslCA());

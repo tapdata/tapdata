@@ -31,7 +31,7 @@ public class ApiServerWorkerInfo {
     int sort;
 
     /**
-     * 1: be used
+     * 2: be used
      * 0: not used
      * */
     int tag;
