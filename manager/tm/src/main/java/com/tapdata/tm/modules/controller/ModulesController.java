@@ -14,7 +14,6 @@ import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
-import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -220,9 +219,8 @@ public class ModulesController extends BaseController {
    * @return
    */
   @GetMapping("apiDefinition")
-  public ResponseMessage apiDefinition(@RequestParam(value = "workerCount", required = false) Integer workerCount,
-                                       @RequestParam(value = "processId", required = true) String processId) {
-    return success(modulesService.apiDefinition(processId, workerCount, getLoginUser()));
+  public ResponseMessage apiDefinition() {
+    return success(modulesService.apiDefinition(getLoginUser()));
   }
 
   @GetMapping("worker-info")
