@@ -439,7 +439,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @param userDetail
 	 * @return
 	 */
-	public ApiDefinitionVo apiDefinition(String processId, Integer workerCount, UserDetail userDetail) {
+	public ApiDefinitionVo apiDefinition(UserDetail userDetail) {
 		List<ConnectionVo> connectionVos = new ArrayList<>();
 		ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
 		//查找已发布的api
@@ -530,7 +530,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setApis(apis);
 		}
 		textEncryptionRule(apiDefinitionVo);
-		genericWorkInfoIfNeed(apiDefinitionVo, processId, workerCount);
 		return apiDefinitionVo;
 	}
 
@@ -581,7 +580,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
             worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
             worker.setSort(worker.getSort());
 			if (index < workerCount || worker.getTag() == 1) {
-				worker.setTag(1);
+				worker.setTag(2);
 			} else {
 				worker.setTag(0);
 			}
@@ -591,7 +590,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			item.setName(genericName(existsNames));
 			item.setSort(i);
 			item.setOid(new ObjectId().toHexString());
-			item.setTag(1);
+			item.setTag(2);
 			apiWorkerInfos.add(item);
 		}
 		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
@@ -615,20 +614,12 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	void reUpdateWorkerInfo(WorkerDto one, List<ApiServerWorkerInfo> apiWorkerInfos) {
 		Update update = new Update();
 		Map<String, ApiServerWorkerInfo> infos = apiWorkerInfos.stream()
-				.filter(e -> e.getTag() == 1)
+				.filter(e -> e.getTag() > 1)
 				.collect(Collectors.toMap(ApiServerWorkerInfo::getOid, e -> e, (e1, e2) -> e2));
 		update.set("worker_status.workers", infos);
 		workerService.update(
 				Query.query(Criteria.where("id").is(one.getId())),
 				update);
-	}
-
-	protected void genericWorkInfoIfNeed(ApiDefinitionVo apiDefinitionVo, String processId, Integer workerCount) {
-		if (null == apiDefinitionVo || null == workerCount || workerCount <= 0) {
-			return;
-		}
-		List<ApiServerWorkerInfo> apiWorkerInfo = getApiWorkerInfo(processId, workerCount);
-		apiDefinitionVo.setWorkerInfo(apiWorkerInfo);
 	}
 
 	protected void textEncryptionRule(ApiDefinitionVo apiDefinitionVo) {
