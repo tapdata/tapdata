@@ -5,6 +5,7 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+import java.util.Date;
 
 /**
  * @author samuel
@@ -20,11 +21,13 @@ public class LineageTask extends LineageAttr {
 	private Node taskNode;
 	private String syncType;
 	private String status;
+    private Date startTime;
 
-	public LineageTask(String id, String name, Node taskNode, String syncType, String status) {
+	public LineageTask(String id, String name, Node taskNode, String syncType, String status, Date startTime) {
 		super(id, ATTR_KEY, name);
 		this.taskNode = taskNode;
 		this.syncType = syncType;
 		this.status = status;
+        this.startTime = startTime;
 	}
 }
