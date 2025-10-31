@@ -1650,7 +1650,7 @@ class ModulesServiceTest {
 			one.setWorkerStatus(jsonObject);
 			when(workerService.findOne(any(Query.class))).thenReturn(one);
 			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 1);
-			assertEquals(1, apiWorkerInfo.size());
+			assertEquals(10, apiWorkerInfo.size());
 		}
 	}
 }

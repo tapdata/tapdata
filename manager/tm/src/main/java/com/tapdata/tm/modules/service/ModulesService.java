@@ -600,14 +600,17 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	String genericName(List<String> existsNames) {
 		String name = "Worker-1";
 		int index = 1;
-		if (existsNames.isEmpty()) {
-			return name;
+		try {
+			if (existsNames.isEmpty()) {
+				return name;
+			}
+			while (existsNames.contains(name)) {
+				name = "Worker-" + index;
+				index++;
+			}
+		} finally {
+			existsNames.add(name);
 		}
-		while (existsNames.contains(name)) {
-			name = "Worker-" + index;
-			index++;
-		}
-		existsNames.add(name);
 		return name;
 	}
 
