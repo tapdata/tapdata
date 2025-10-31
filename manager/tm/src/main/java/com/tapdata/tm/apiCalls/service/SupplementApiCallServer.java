@@ -56,7 +56,9 @@ public class SupplementApiCallServer {
     ApiCallStatsService apiCallStatsService;
 
     public void supplementOnce() {
-        Criteria criteria = Criteria.where(SUPPLEMENT).is(true);
+        Criteria criteria = Criteria.where(SUPPLEMENT).is(true)
+                .and("allPathId").ne(null)
+                .and("reqTime").ne(null);
         Query query = Query.query(criteria);
         long count = mongoOperations.count(query, ApiCallDto.class, API_CALL);
         if (count <= 0L) {
@@ -140,6 +142,9 @@ public class SupplementApiCallServer {
                             return Criteria.where(MODULE_ID).is(apiCallDto.getAllPathId()).and("apiCallTime").in(times);
                         })
                 ));
+        if (CollectionUtils.isEmpty(collect)) {
+            return;
+        }
         List<ApiCallMinuteStatsDto> minuteStats = mongoOperations.find(Query.query(new Criteria().orOperator(collect.values())), ApiCallMinuteStatsDto.class, MongoUtils.getCollectionName(ApiCallMinuteStatsEntity.class));
         minuteStats.forEach(e -> callMinuteMap.put(e.getModuleId() + "_" + e.getApiCallTime().getTime(), e));
         apiCalls.forEach(apiCall -> {

@@ -2,9 +2,12 @@ package com.tapdata.tm.worker.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.commons.ping.PingDto;
+import com.tapdata.tm.commons.ping.PingType;
 import com.tapdata.tm.worker.dto.ApiServerInfo;
 import com.tapdata.tm.worker.service.ApiWorkerServer;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -54,5 +57,15 @@ public class ApiWorkerController extends BaseController {
                                            @RequestParam(name = "processId", required = true) String workerOid) {
         apiWorkerServer.delete(processId, workerOid);
         return success();
+    }
+
+    @GetMapping("/ping")
+    public ResponseMessage<PingDto> ping() {
+        PingDto dto = new PingDto();
+        dto.setId(new ObjectId());
+        dto.setPingId(dto.getId().toHexString());
+        dto.setPingType(PingType.API_SERVER_PING);
+        dto.setPingResult(PingDto.PingResult.OK);
+        return success(dto);
     }
 }
