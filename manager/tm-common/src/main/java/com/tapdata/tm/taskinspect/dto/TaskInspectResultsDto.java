@@ -24,6 +24,7 @@ public class TaskInspectResultsDto extends BaseDto {
     public static final String FIELD_HISTORIES = "histories";
     public static final String FIELD_ROW_ID = "rowId";
     public static final String FIELD_KEYS = "keys";
+    public static final String FIELD_SERIALIZED_KEYS = "serializedKeys";
     public static final String FIELD_SOURCE_TABLE = "sourceTable";
     public static final String FIELD_SOURCE_FIELDS = "sourceFields";
     public static final String FIELD_SOURCE = "source";
@@ -39,6 +40,7 @@ public class TaskInspectResultsDto extends BaseDto {
     private Set<String> histories;
     private String rowId;
     private Map<String, Object> keys;
+    private String serializedKeys;
     private String sourceTable;
     private List<String> sourceFields;
     private Map<String, Object> source;

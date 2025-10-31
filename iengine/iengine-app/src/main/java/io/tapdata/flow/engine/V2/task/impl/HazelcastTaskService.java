@@ -104,6 +104,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -135,6 +136,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	private ConfigurationCenter configurationCenter;
 
 	private static ClientMongoOperator clientMongoOperator;
+	private static ClientMongoOperator pingClientMongoOperator;
 
 	@Autowired
 	private SettingService settingService;
@@ -147,10 +149,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static ICacheService cacheService;
 
-	public HazelcastTaskService(ClientMongoOperator clientMongoOperator) {
-		if (HazelcastTaskService.clientMongoOperator == null) {
-			HazelcastTaskService.clientMongoOperator = clientMongoOperator;
-		}
+	public HazelcastTaskService(
+			ClientMongoOperator clientMongoOperator,
+			@Qualifier("pingClientMongoOperator") ClientMongoOperator pingClientMongoOperator
+	) {
+		HazelcastTaskService.clientMongoOperator = clientMongoOperator;
+		HazelcastTaskService.pingClientMongoOperator = pingClientMongoOperator;
 		taskService = this;
 	}
 
@@ -186,7 +190,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
-			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance);
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");

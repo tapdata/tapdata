@@ -1,15 +1,20 @@
 package com.tapdata.tm.task.res;
 
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.task.entity.TaskEntity;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
 
@@ -223,6 +228,67 @@ class CpuMemoryServiceTest {
             cpuMemoryService.cpuMemoryUsageOfTask(taskIds);
             
             verify(mongoOperations).aggregate(any(Aggregation.class), eq(MeasurementEntity.COLLECTION_NAME), eq(Map.class));
+        }
+    }
+
+
+
+    @Nested
+    class updateTaskCpuMemoryTest {
+        @Test
+        @DisplayName("test main process")
+        void test1() {
+            BulkOperations op = mock(BulkOperations.class);
+            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.execute()).thenReturn(null);
+            when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
+            Map<String, Map<String, Number>> usageMap = new HashMap<>();
+            Map<String, Number> task1Usage = new HashMap<>();
+            task1Usage.put("cpuUsage", 15.5);
+            task1Usage.put("memoryUsage", 2048L);
+            usageMap.put("task1", task1Usage);
+
+            cpuMemoryService.updateTaskCpuMemory(usageMap);
+
+            verify(mongoOperations).bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class);
+        }
+        void testException() {
+            BulkOperations op = mock(BulkOperations.class);
+            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.execute()).thenAnswer(w -> {throw new RuntimeException("test");});
+            when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
+            Map<String, Map<String, Number>> usageMap = new HashMap<>();
+            Map<String, Number> task1Usage = new HashMap<>();
+            task1Usage.put("cpuUsage", 15.5);
+            task1Usage.put("memoryUsage", 2048L);
+            usageMap.put("task1", task1Usage);
+
+            cpuMemoryService.updateTaskCpuMemory(usageMap);
+
+            verify(mongoOperations).bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class);
+        }
+
+        @Test
+        void testEmpty() {
+            BulkOperations op = mock(BulkOperations.class);
+            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.execute()).thenReturn(null);
+            when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
+            Map<String, Map<String, Number>> usageMap = new HashMap<>();
+            cpuMemoryService.updateTaskCpuMemory(usageMap);
+            verify(mongoOperations, times(0)).bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class);
+        }
+
+        @Test
+        void testEmptyInfo() {
+            BulkOperations op = mock(BulkOperations.class);
+            when(op.upsert(any(Query.class), any(Update.class))).thenReturn(null);
+            when(op.execute()).thenReturn(null);
+            when(mongoOperations.bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class)).thenReturn(op);
+            Map<String, Map<String, Number>> usageMap = new HashMap<>();
+            usageMap.put(new ObjectId().toHexString(), new HashMap<>());
+            cpuMemoryService.updateTaskCpuMemory(usageMap);
+            verify(mongoOperations, times(1)).bulkOps(BulkOperations.BulkMode.ORDERED, TaskEntity.class);
         }
     }
 }

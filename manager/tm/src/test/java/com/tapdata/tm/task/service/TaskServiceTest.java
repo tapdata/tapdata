@@ -7,6 +7,7 @@ import com.tapdata.tm.base.dto.MutiResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -901,7 +902,7 @@ public class TaskServiceTest {
                 MongoTemplate mongoTemplate = mock(MongoTemplate.class);
                 when(taskRepository.getMongoOperations()).thenReturn(mongoTemplate);
                 assertThrows(BizException.class, () -> {
-                    taskService.importRmProject(mockMultipartFile, userDetail, false, new ArrayList<>(), "123", "123");
+                    taskService.importRmProject(mockMultipartFile, userDetail, ImportModeEnum.CANCEL_IMPORT, new ArrayList<>(), "123", "123");
                 });
             }
         }
