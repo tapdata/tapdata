@@ -20,6 +20,8 @@ public class TableIndex implements Serializable {
 
     private boolean unique;
 
+    private boolean coreUnique;
+
     private List<TableIndexColumn> columns;
 
     private String dbIndexDescriptionJson;

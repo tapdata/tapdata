@@ -22,8 +22,8 @@
         <logback.version>1.4.5</logback.version>
         <commons.lang3.version>3.12.0</commons.lang3.version>
         <commons.cli.version>1.5.0</commons.cli.version>
-        <tapdata.pdk.runner.version>2.3-SNAPSHOT</tapdata.pdk.runner.version>
-        <tapdata.pdk.api.version>2.0.3-SNAPSHOT</tapdata.pdk.api.version>
+        <tapdata.pdk.runner.version>2.4-SNAPSHOT</tapdata.pdk.runner.version>
+        <tapdata.pdk.api.version>2.0.4-SNAPSHOT</tapdata.pdk.api.version>
     </properties>
 
     <dependencies>

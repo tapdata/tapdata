@@ -273,6 +273,9 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
                 if (CollectionUtils.isNotEmpty(primaryKeys)) {
                     metadataInstancesVo.setSortColumns(primaryKeys);
+                } else if (CollectionUtils.isNotEmpty(metadataInstancesDto.getIndices()) && metadataInstancesDto.getIndices().stream().anyMatch(TableIndex::isCoreUnique)) {
+                    metadataInstancesDto.getIndices().stream().filter(TableIndex::isCoreUnique).findAny()
+                            .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList())));
                 } else if (CollectionUtils.isNotEmpty(metadataInstancesDto.getIndices()) && metadataInstancesDto.getIndices().stream().anyMatch(TableIndex::isUnique)) {
                     metadataInstancesDto.getIndices().stream().filter(TableIndex::isUnique).findAny()
                             .ifPresent(idx -> metadataInstancesVo.setSortColumns(idx.getColumns().stream().map(TableIndexColumn::getColumnName).filter(fieldName->!NO_PDK_HASH.equalsIgnoreCase(fieldName)).collect(Collectors.toList())));
