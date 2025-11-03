@@ -2666,7 +2666,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     String connectionId = metadataInstancesDtos.get(0).getSource().get_id();
                     DataSourceConnectionDto connDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
                     if (null == connDto) throw new BizException(EX_TASK_NOT_FOUND_DS, connectionId);
-                    dataSourceService.sendTestConnection(connDto, true, true, String.join(",", tableNames), user);
+                    dataSourceService.sendTestConnection(connDto, true, true, compareIgnoreCase ? null : String.join(",", tableNames), user);
                     Consumer<MetadataInstancesDto> tableConsumer = (MetadataInstancesDto targetMetadataInstance) -> {
                         if (null != targetMetadataInstance) {
                             MetadataInstancesDto deductionMetadataInstance = map.get(compareIgnoreCase ? targetMetadataInstance.getName().toLowerCase() : targetMetadataInstance.getName());
