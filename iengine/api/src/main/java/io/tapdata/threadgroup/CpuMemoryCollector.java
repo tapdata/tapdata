@@ -74,7 +74,9 @@ public final class CpuMemoryCollector {
             return;
         }
         List<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new ArrayList<>());
-        weakReferences.removeIf(weakReference -> null == weakReference.get());
+        synchronized (weakReferences) {
+            weakReferences.removeIf(weakReference -> null == weakReference.get());
+        }
         for (WeakReference<ThreadFactory> weakReference : weakReferences) {
             if (weakReference.get() == threadGroup) {
                 return;
@@ -201,7 +203,9 @@ public final class CpuMemoryCollector {
             threadGroupMap.remove(taskId);
             return;
         }
-        weakReferences.removeIf(weakReference -> null == weakReference.get());
+        synchronized (weakReferences) {
+            weakReferences.removeIf(weakReference -> null == weakReference.get());
+        }
         List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
         Map<Long, Long> before = new HashMap<>();
         long now = System.currentTimeMillis();
