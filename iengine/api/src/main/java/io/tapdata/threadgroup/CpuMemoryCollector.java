@@ -82,7 +82,9 @@ public final class CpuMemoryCollector {
                 return;
             }
         }
-        weakReferences.add(new WeakReference<>(threadGroup));
+        synchronized (weakReferences) {
+            weakReferences.add(new WeakReference<>(threadGroup));
+        }
     }
 
     public static void unregisterTask(String taskId) {
@@ -220,7 +222,9 @@ public final class CpuMemoryCollector {
             }
         }
         if (!useless.isEmpty()) {
-            useless.forEach(weakReferences::remove);
+            synchronized (weakReferences) {
+                useless.forEach(weakReferences::remove);
+            }
         }
         long interval = Math.max(1000L, lead);
         useless = new ArrayList<>();
@@ -229,7 +233,9 @@ public final class CpuMemoryCollector {
             usage.addCpu(cpuTime);
         });
         if (!useless.isEmpty()) {
-            useless.forEach(weakReferences::remove);
+            synchronized (weakReferences) {
+                useless.forEach(weakReferences::remove);
+            }
         }
         if (weakReferences.isEmpty()) {
             threadGroupMap.remove(taskId);
