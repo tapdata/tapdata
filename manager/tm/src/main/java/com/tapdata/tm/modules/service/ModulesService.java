@@ -581,7 +581,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
             worker.setSort(worker.getSort());
 			if (index < workerCount || worker.getTag() == 1) {
 				worker.setTag(2);
-			} else {
+			}
+			if (worker.getTag() < 2) {
 				worker.setTag(0);
 			}
         }
