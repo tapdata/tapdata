@@ -819,6 +819,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 if (Boolean.TRUE.equals(toTapValueConcurrent)) {
                     try {
                         tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
+                        accpetCdcEventIfHasInspect(tapdataEvents);
                     } catch (ConcurrentProcessorApplyException e) {
 						// throw exception not include original events, local log file will include it
 						logger.error("Concurrent transform to tap value failed, original events: {}", e.getOriginValue(), e.getCause());
@@ -1575,9 +1576,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 TapdataEvent event = tapdataEvent;
                 if (SyncStage.CDC.name().equals(syncProgress.getSyncStage())) {
                     event = this.tapEventFilter.handle(tapdataEvent);
-                    if (null != taskInspect) {
-                        taskInspect.acceptCdcEvent(dataProcessorContext, event);
-                    }
                 }
                 if (eventQueue.offer(event, 3, TimeUnit.SECONDS)) {
                     break;
