@@ -19,8 +19,6 @@ import java.nio.file.Paths;
 public class EngineHelper {
     private static final Logger LOGGER = LogManager.getLogger(EngineHelper.class);
 
-    private static volatile EngineHelper INSTANCE;
-
     private final Charset charset;
     private final String workDir;
     private final VfsHelper vfs;
@@ -53,16 +51,7 @@ public class EngineHelper {
     // ---------- 内部函数 ----------
 
     private static EngineHelper ins() {
-        if (null == INSTANCE) {
-            synchronized (EngineHelper.class) {
-                if (null == INSTANCE) {
-                    Charset charset = StandardCharsets.UTF_8;
-                    String workDir = initWorkDir();
-                    INSTANCE = new EngineHelper(charset, workDir, new VfsHelper(workDir, charset));
-                }
-            }
-        }
-        return INSTANCE;
+        return Holder.INSTANCE;
     }
 
     private static String initWorkDir() {
@@ -84,6 +73,16 @@ public class EngineHelper {
             return workDirFile.getCanonicalPath();
         } catch (IOException e) {
             throw new RuntimeException("init work_dir failed", e);
+        }
+    }
+
+    // 静态内部类懒加载单例，当调用静态方法 ins() 时，才触发静态内部类加载，从而初始化单例（线程安全）
+    private static class Holder {
+        private static final EngineHelper INSTANCE;
+        static {
+            Charset charset = StandardCharsets.UTF_8;
+            String workDir = initWorkDir();
+            INSTANCE = new EngineHelper(charset, workDir, new VfsHelper(workDir, charset));
         }
     }
 
