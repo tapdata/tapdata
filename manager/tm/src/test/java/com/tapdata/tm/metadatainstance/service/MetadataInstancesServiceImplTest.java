@@ -1,6 +1,7 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.google.common.collect.Lists;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
@@ -466,6 +467,76 @@ public class MetadataInstancesServiceImplTest {
 			MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
 			metadataInstancesVo.setSortColumns(new ArrayList<>());
 			assertEquals(metadataInstancesVo, actual.get(0));
+		}
+
+		@Test
+		@DisplayName("test findInspect method when metadataInstancesDtoList is not empty")
+		void testSortColumns() {
+			Where where = new Where();
+			where.put("source.id", "111");
+			filter.setWhere(where);
+			List metadataInstancesDtoList = new ArrayList<>();
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setSource(mock(SourceDto.class));
+
+			Field field1 = new Field();
+			field1.setId("a1");
+			field1.setFieldName("a1");
+			field1.setPrimaryKey(false);
+			field1.setColumnPosition(1);
+
+			Field field2 = new Field();
+			field2.setId("a2");
+			field2.setFieldName("a2");
+			field2.setPrimaryKey(false);
+			field2.setColumnPosition(2);
+
+			Field field3 = new Field();
+			field3.setId("a3");
+			field3.setFieldName("a3");
+			field3.setPrimaryKey(true);
+			field3.setPrimaryKeyPosition(1);
+			field3.setColumnPosition(3);
+
+			Field field4 = new Field();
+			field4.setId("a4");
+			field4.setFieldName("a4");
+			field4.setPrimaryKey(true);
+			field4.setPrimaryKeyPosition(2);
+			field4.setColumnPosition(4);
+
+			metadataInstancesDto.setFields(Lists.newArrayList(field1, field2));
+
+			TableIndex index1 = new TableIndex();
+			TableIndexColumn column1 = new TableIndexColumn();
+			column1.setColumnName("a1");
+			column1.setColumnPosition(1);
+			index1.setColumns(Lists.newArrayList(column1));
+			index1.setCoreUnique(false);
+			index1.setUnique(true);
+
+			TableIndex index2 = new TableIndex();
+			TableIndexColumn column2 = new TableIndexColumn();
+			column2.setColumnName("a2");
+			column2.setColumnPosition(2);
+			index2.setColumns(Lists.newArrayList(column2));
+			index2.setCoreUnique(true);
+			index2.setUnique(true);
+
+			metadataInstancesDto.setIndices(Lists.newArrayList(index1, index2));
+			metadataInstancesDtoList.add(metadataInstancesDto);
+			when(metadataInstancesService.findAll(filter)).thenReturn(metadataInstancesDtoList);
+			List<MetadataInstancesVo> actual1 = metadataInstancesService.findInspect(filter, userDetail);
+			MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+			metadataInstancesVo.setSortColumns(Lists.newArrayList("a2"));
+			assertEquals(metadataInstancesVo, actual1.get(0));
+
+			metadataInstancesDto.setFields(Lists.newArrayList(field1, field2, field3, field4));
+			List<MetadataInstancesVo> actual2 = metadataInstancesService.findInspect(filter, userDetail);
+			metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+			metadataInstancesVo.setSortColumns(Lists.newArrayList("a3","a4"));
+			assertEquals(metadataInstancesVo, actual2.get(0));
+
 		}
 
 		@Test
