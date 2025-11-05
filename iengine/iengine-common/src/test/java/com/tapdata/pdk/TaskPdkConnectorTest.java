@@ -162,7 +162,7 @@ class TaskPdkConnectorTest {
                 connectionUtilMockedStatic.when(() -> ConnectionUtil.getDatabaseType(eq(clientMongoOperator), anyString()))
                     .thenReturn(null);
                 TaskNodePdkConnector pdkConnector = mock(TaskNodePdkConnector.class);
-                connectorMockedStatic.when(() -> TaskNodePdkConnector.create(any(), anyString(), any(), anyString(), any(), any(), any()))
+                connectorMockedStatic.when(() -> TaskNodePdkConnector.create(any(), anyString(), any(), anyString(), any(), any(), any(),any()))
                     .thenReturn(pdkConnector);
 
 
