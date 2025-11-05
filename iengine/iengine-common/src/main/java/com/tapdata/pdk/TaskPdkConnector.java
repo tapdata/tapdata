@@ -10,11 +10,14 @@ import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -64,11 +67,18 @@ public class TaskPdkConnector {
 
     public IPdkConnector create(Node<?> node, String associateId) {
         if (node instanceof DataParentNode) {
-            String connectionId = ((DataParentNode<?>) node).getConnectionId();
+            DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
+            String connectionId = dataParentNode.getConnectionId();
+            Map<String, Object> nodeConfig = null;
+            if (node instanceof DatabaseNode) {
+                nodeConfig = ((DatabaseNode) node).getNodeConfig();
+            } else if (node instanceof TableNode) {
+                nodeConfig = ((TableNode) node).getNodeConfig();
+            }
             Connections connections = getConnections(connectionId);
             if (null != connections) {
                 DatabaseTypeEnum.DatabaseType sourceDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
-                return TaskNodePdkConnector.create(clientMongoOperator, taskId, node, associateId, connections, sourceDatabaseType, taskConfig.getTaskRetryConfig());
+                return TaskNodePdkConnector.create(clientMongoOperator, taskId, node, associateId, connections, sourceDatabaseType, taskConfig.getTaskRetryConfig(),nodeConfig);
             }
         }
         return null;
