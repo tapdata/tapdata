@@ -28,26 +28,20 @@ public class VfsHelper {
     @Getter
     private final String home;
 
-    public VfsHelper(String workDir, Charset charset) {
-        try {
-            this.charset = charset;
-            String homeStr = System.getenv("TAPDATA_VFS_HOME");
-            if (null == homeStr || homeStr.isBlank()) {
-                homePath = Paths.get(workDir, "vfs_home");
-                homeStr = homePath.toFile().getCanonicalPath();
-            } else {
-                homePath = Paths.get(homeStr);
-            }
-            this.home = homeStr;
+    public VfsHelper(String homeStr, Charset charset) {
+        this.charset = charset;
+        this.home = homeStr;
+        this.homePath = Paths.get(homeStr);
 
+        try {
             if (!Files.exists(homePath)) {
                 Files.createDirectories(homePath);
             }
-
-            LOGGER.info("init vfs_home success, path: {}", homePath);
         } catch (IOException e) {
             throw new RuntimeException("init vfs_home failed", e);
         }
+
+        LOGGER.info("init vfs_home success, path: {}", homePath);
     }
 
     /**
