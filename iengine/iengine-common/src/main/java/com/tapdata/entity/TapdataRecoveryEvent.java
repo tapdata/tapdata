@@ -3,6 +3,7 @@ package com.tapdata.entity;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.utils.VfsFilepath;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,19 +25,13 @@ public class TapdataRecoveryEvent extends TapdataEvent {
     public static final String RECOVERY_TYPE_DATA = "DATA";
     public static final String RECOVERY_TYPE_END = "END";
 
-    private String inspectTaskId;
-    private String rowId;
-    private String recoveryType;
+    private String inspectTaskId; // 校验任务编号（单表）
+    private String rowId; // 修复事件行编号
+    private String recoveryType; // 修复事件类型
 
-    private String recoverySql;
-
-    private Boolean isExport = false;
-
-    private String inspectResultId;
-
-    private String inspectId;
-
-    private Boolean isManual = false; // 是否手动校验
+    private String manualId; // 手动操作标识（空为：自动修复）
+    private String recoverySql; // 修复 SQL，仅用于导出
+    private String recoverySqlFile; // 修复 SQL 导出路径
 
     public TapdataRecoveryEvent() {
         super.syncStage = SyncStage.CDC;
@@ -50,46 +45,49 @@ public class TapdataRecoveryEvent extends TapdataEvent {
 
     @Override
     public boolean isConcurrentWrite() {
+        return isDataEvent();
+    }
+
+    public boolean isDataEvent() {
         return RECOVERY_TYPE_DATA.equals(recoveryType);
+    }
+
+    public TapdataRecoveryEvent ofManual(String manualId) {
+        setManualId(manualId);
+        return this;
+    }
+
+    public TapdataRecoveryEvent ofTaskInspectRecoverSql(String taskId, String manualId) {
+        String filepath = VfsFilepath.task_recoverSql_taskInspect(taskId, manualId);
+
+        setManualId(manualId);
+        setRecoverySqlFile(filepath);
+        return this;
+    }
+
+    public TapdataRecoveryEvent ofInspectRecoverSql(boolean isExport, String taskId, String inspectResultId) {
+        setManualId(inspectResultId);
+        if (isExport) {
+            String filepath = VfsFilepath.task_recoverSql_inspect(taskId, inspectResultId);
+            setRecoverySqlFile(filepath);
+        }
+        return this;
     }
 
     public static TapdataRecoveryEvent createBegin(String inspectTaskId) {
         return new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_BEGIN);
     }
 
-    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String tableId, Map<String, Object> after,Boolean isExport,String inspectResultId,String inspectId) {
-        TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
-        tapdataEvent.setInspectResultId(inspectResultId);
-        tapdataEvent.setInspectId(inspectId);
-        tapdataEvent.setIsExport(isExport);
-        TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
-        insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
-        tapdataEvent.setTapEvent(insertRecordEvent);
-        return tapdataEvent;
-    }
-
-    public static TapdataRecoveryEvent createInsert(String inspectTaskId, boolean isManual, String rowId, String tableId, Map<String, Object> after) {
+    public static TapdataRecoveryEvent createInsert(String inspectTaskId, String tableId, String rowId, Map<String, Object> after) {
         TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
         TapInsertRecordEvent insertRecordEvent = TapInsertRecordEvent.create().after(after).table(tableId);
         insertRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
-        tapdataEvent.setIsManual(isManual);
         tapdataEvent.setRowId(rowId);
         tapdataEvent.setTapEvent(insertRecordEvent);
         return tapdataEvent;
     }
 
-    public static TapdataRecoveryEvent createDelete(String inspectTaskId, String tableId, Map<String, Object> before,Boolean isExport,String inspectResultId,String inspectId) {
-        TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
-        tapdataEvent.setInspectResultId(inspectResultId);
-        tapdataEvent.setInspectId(inspectId);
-        tapdataEvent.setIsExport(isExport);
-        TapDeleteRecordEvent deleteRecordEvent = TapDeleteRecordEvent.create().before(before).table(tableId);
-        deleteRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);
-        tapdataEvent.setTapEvent(deleteRecordEvent);
-        return tapdataEvent;
-    }
-
-    public static TapdataRecoveryEvent createDelete(String inspectTaskId, String rowId, String tableId, Map<String, Object> before) {
+    public static TapdataRecoveryEvent createDelete(String inspectTaskId, String tableId, String rowId, Map<String, Object> before) {
         TapdataRecoveryEvent tapdataEvent = new TapdataRecoveryEvent(inspectTaskId, RECOVERY_TYPE_DATA);
         TapDeleteRecordEvent deleteRecordEvent = TapDeleteRecordEvent.create().before(before).table(tableId);
         deleteRecordEvent.addInfo(EVENT_INFO_AUTO_RECOVERY_TASK, inspectTaskId);

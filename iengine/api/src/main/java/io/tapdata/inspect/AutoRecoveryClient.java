@@ -1,14 +1,15 @@
 package io.tapdata.inspect;
 
 import com.tapdata.entity.TapdataRecoveryEvent;
+import io.tapdata.utils.EngineHelper;
 import lombok.Getter;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -19,13 +20,14 @@ import java.util.function.Consumer;
  */
 public abstract class AutoRecoveryClient implements AutoCloseable {
     private static final Logger logger = LogManager.getLogger(AutoRecoveryClient.class);
-    private static final String EXPORT_SQL = "exportSql";
     @Getter
     private final String taskId;
     @Getter
     private final String inspectTaskId;
     private final Consumer<TapdataRecoveryEvent> enqueueConsumer;
     private final Consumer<TapdataRecoveryEvent> completedConsumer;
+
+    private String lastErrorManualId; // 控制同个操作编号仅处理一次错误
 
     protected AutoRecoveryClient(String taskId, String inspectTaskId, Consumer<TapdataRecoveryEvent> enqueueConsumer, Consumer<TapdataRecoveryEvent> completedConsumer) {
         this.taskId = taskId;
@@ -40,27 +42,58 @@ public abstract class AutoRecoveryClient implements AutoCloseable {
     }
 
     public void completed(TapdataRecoveryEvent event) {
+        exportRecoverSql(event);
         completedConsumer.accept(event);
     }
-    public void exportRecoverySql(String fileName,TapdataRecoveryEvent event) {
-        String filePath = EXPORT_SQL + File.separator + fileName;
-        File file = new File(filePath);
+
+    protected void exportRecoverSql(TapdataRecoveryEvent event) {
+        String recoverSqlFile = event.getRecoverySqlFile();
+        if (null == recoverSqlFile) return;
+
+        String manualId = event.getManualId();
+        if (null == manualId) return;
+
         try {
-            File parentDir = file.getParentFile();
-            if (parentDir != null && !parentDir.exists() && !parentDir.mkdirs()) {
-                logger.error("Create directory error: {}", parentDir.getAbsolutePath());
-                return;
-            }
-            if (!file.exists() && !file.createNewFile()) {
-                logger.error("Create file error: {}", fileName);
-                return;
-            }
-            if(StringUtils.isNotBlank(event.getRecoverySql())) {
-                FileUtils.writeStringToFile(file, event.getRecoverySql() + System.lineSeparator(), StandardCharsets.UTF_8, true);
+            String recoveryType = event.getRecoveryType();
+            switch (recoveryType) {
+                case TapdataRecoveryEvent.RECOVERY_TYPE_BEGIN:
+                    deleteRecoverSqlHistories(recoverSqlFile, manualId);
+                    appendRecoverSqlBegin(recoverSqlFile, manualId);
+                    break;
+                case TapdataRecoveryEvent.RECOVERY_TYPE_DATA:
+                    EngineHelper.vfs().append(recoverSqlFile, Collections.singleton(event.getRecoverySql() + ";"));
+                    break;
+                case TapdataRecoveryEvent.RECOVERY_TYPE_END:
+                    appendRecoverSqlEnd(recoverSqlFile);
+                    break;
             }
         } catch (Exception e) {
-            logger.error("Export recovery sql error: {}", e.getMessage());
+            if (!manualId.equals(lastErrorManualId)) {
+                logger.error("manualId: {}, recover sql append failed: {}", manualId, e.getMessage(), e);
+                lastErrorManualId = manualId;
+            }
         }
+    }
 
+    protected void appendRecoverSqlBegin(String filepath, String manualId) throws IOException {
+        EngineHelper.vfs().append(filepath, List.of(
+            "-- createTime: " + Instant.now().toString(),
+            "--     taskId: " + taskId,
+            "--   manualId: " + manualId,
+            ""
+        ));
+    }
+
+    protected void deleteRecoverSqlHistories(String filepath, String manualId) throws IOException {
+        int deleteTotals = EngineHelper.vfs().deleteFrom3DaysAgo(filepath, true);
+        if (deleteTotals > 0) {
+            logger.info("manualId: {}, recover sql delete {} files", manualId, deleteTotals);
+        }
+    }
+
+    protected void appendRecoverSqlEnd(String filepath) throws IOException {
+        EngineHelper.vfs().append(filepath, List.of(
+            "-- completedTime: " + Instant.now().toString()
+        ));
     }
 }

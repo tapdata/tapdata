@@ -27,6 +27,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.commons.function.ThrowableConsumer;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
@@ -38,6 +39,7 @@ import com.tapdata.tm.userLog.constant.Operation;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
+import org.apache.http.entity.ContentType;
 import org.mockito.Mockito;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.handler.ExceptionHandler;
@@ -3129,6 +3131,31 @@ public class TaskServiceImpl extends TaskService{
         throw error.get();
     }
 
+    @Override
+    public void downloadEngineRpc(HttpServletResponse response, ThrowableConsumer<Object, Throwable> errorConsumer, String engineId, String className, String method, Object... args) throws Throwable {
+        io.tapdata.modules.api.net.data.FileMeta fileMeta = callEngineRpc(engineId, io.tapdata.modules.api.net.data.FileMeta.class, className, method, args);
+
+        if (fileMeta.isTransferFile()) {
+            response.setHeader(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_OCTET_STREAM.getMimeType());
+            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, String.format("attachment; filename=%s", fileMeta.getFilename()));
+            response.setHeader(HttpHeaders.CONTENT_LENGTH, String.valueOf(fileMeta.getFileSize()));
+            response.setHeader("X-FileMeta-Code", fileMeta.getCode());
+            try (InputStream inputStream = fileMeta.getFileInputStream();
+                 OutputStream outputStream = response.getOutputStream()) {
+                long count = 0;
+                int n;
+                byte[] buffer = new byte[8192];
+                while (-1 != (n = inputStream.read(buffer))) {
+                    outputStream.write(buffer, 0, n);
+                    count += n;
+                }
+                log.debug("Write file length {}", count);
+            }
+            return;
+        }
+
+        errorConsumer.accept(fileMeta);
+    }
 
     public ResponseEntity<InputStreamResource> analyzeTask(HttpServletRequest request, HttpServletResponse response, String taskId, UserDetail user) throws IOException {
         String tarFileName = "analyze-" + taskId + "-" + System.currentTimeMillis() + ".tar";

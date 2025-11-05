@@ -15,6 +15,8 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.inspect.constant.InspectStatusEnum;
 import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.inspect.dto.InspectResultDto;
+import com.tapdata.tm.inspect.service.InspectResultService;
 import com.tapdata.tm.inspect.service.InspectService;
 import com.tapdata.tm.inspect.service.InspectTaskService;
 import com.tapdata.tm.inspect.vo.InspectRecoveryStartVerifyVo;
@@ -32,6 +34,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.modules.api.net.data.FileMeta;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -40,6 +44,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
@@ -63,10 +68,16 @@ import java.util.function.Supplier;
 @RequestMapping("/api/Inspects")
 @Setter(onMethod_ = {@Autowired})
 public class InspectController extends BaseController {
+    private final InspectResultService inspectResultService;
     private InspectService inspectService;
     private InspectTaskService inspectTaskService;
     private TaskService taskService;
     private MetadataDefinitionService metadataDefinitionService;
+
+    public InspectController(InspectResultService inspectResultService) {
+        super();
+        this.inspectResultService = inspectResultService;
+    }
 
     private <T> T dataPermissionUnAuth(DataPermissionActionEnums action, List<DataPermissionActionEnums> need) {
         throw new BizException("insufficient.permissions",
@@ -409,27 +420,6 @@ public class InspectController extends BaseController {
         return success(startVerifyVo);
     }
 
-    @Operation(summary = "导出修复事件SQL")
-    @PutMapping("/{id}/exportRecoverySql")
-    public ResponseMessage<InspectRecoveryStartVerifyVo> exportRecoverySql(HttpServletRequest request, @PathVariable String id,@RequestParam String inspectResultId) {
-        InspectDto inspectDto = dataPermissionCheckOfId(
-                request,
-                getLoginUser(),
-                MongoUtils.toObjectId(id),
-                DataPermissionActionEnums.Start,
-                Lists.newArrayList(DataPermissionActionEnums.Start),
-                () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(id))))
-        );
-
-        if (null == inspectDto) {
-            throw new BizException("Inspect.NotFound");
-        }
-
-        UserDetail userDetail = getLoginUser();
-        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.exportRecoveryEventSql(inspectDto, userDetail,inspectResultId);
-        return success(startVerifyVo);
-    }
-
     @Operation(summary = "差异修复-验证信息")
     @GetMapping("/{id}/recovery/start-verify")
     public ResponseMessage<InspectRecoveryStartVerifyVo> recoveryStartVerify(HttpServletRequest request, @PathVariable String id) {
@@ -454,5 +444,76 @@ public class InspectController extends BaseController {
     @PatchMapping("batchUpdateListtags")
     public ResponseMessage<List<String>> batchUpdateListTags(@RequestBody BatchUpdateParam batchUpdateParam) {
         return success(metadataDefinitionService.batchUpdateListTags("Inspect", batchUpdateParam, getLoginUser()));
+    }
+
+    @Operation(summary = "导出修复事件SQL")
+    @PutMapping("/{inspectId}/recover-sql/{inspectResultId}/export")
+    public ResponseMessage<InspectRecoveryStartVerifyVo> exportRecoverySql(HttpServletRequest request
+        , @PathVariable(name = "inspectId") String inspectId
+        , @PathVariable(name = "inspectResultId") String inspectResultId) {
+        InspectDto inspectDto = dataPermissionCheckOfId(
+            request,
+            getLoginUser(),
+            MongoUtils.toObjectId(inspectId),
+            DataPermissionActionEnums.Start,
+            Lists.newArrayList(DataPermissionActionEnums.Start),
+            () -> inspectService.findOne(Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(inspectId))))
+        );
+
+        if (null == inspectDto) {
+            throw new BizException("Inspect.NotFound");
+        }
+
+        UserDetail userDetail = getLoginUser();
+        InspectRecoveryStartVerifyVo startVerifyVo = inspectService.exportRecoveryEventSql(inspectDto, userDetail, inspectResultId);
+        return success(startVerifyVo);
+    }
+
+    @GetMapping("/{inspectId}/recover-sql/{inspectResultId}/download")
+    @Operation(summary = "Manual check or recover or exportRecoverSql")
+    public void downloadRecoverSql(HttpServletRequest request, HttpServletResponse response
+        , @PathVariable(name = "inspectId") String inspectId
+        , @PathVariable(name = "inspectResultId") String inspectResultId) {
+        InspectDto inspectDto = dataPermissionCheckOfId(
+            request,
+            getLoginUser(),
+            MongoUtils.toObjectId(inspectId),
+            DataPermissionActionEnums.Start,
+            Lists.newArrayList(DataPermissionActionEnums.Start),
+            () -> {
+                Query query = Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(inspectId)));
+                query.fields().include("agentId", "flowId");
+                return inspectService.findOne(query);
+            }
+        );
+
+        if (null == inspectDto) {
+            throw new BizException("Inspect.RecoverSql.Notfound");
+        }
+
+        // 将操作发送到 FE
+        String taskId = inspectDto.getFlowId();
+        String agentId = inspectDto.getAgentId();
+
+        try {
+            taskService.downloadEngineRpc(response, o -> {
+                FileMeta fileMeta = (FileMeta) o;
+                switch (fileMeta.getCode()) {
+                    case "FileNotFound" -> {
+                        // 文件不存在，更新状态为通过，重新生成
+                        inspectResultService.update(
+                            Query.query(Criteria.where("_id").is(MongoUtils.toObjectId(inspectResultId)))
+                            , Update.update("status", InspectResultDto.RESULT_PASSED)
+                        );
+                        throw new BizException("TaskInspect.RecoverSql.Notfound");
+                    }
+                    default -> throw new BizException(fileMeta.getCode());
+                }
+            }, agentId, "VfsDownloadRemoteService", "downloadInspectRecoverSql", taskId, inspectResultId);
+        } catch (BizException e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new BizException("TaskInspect.ManualError", e);
+        }
     }
 }
