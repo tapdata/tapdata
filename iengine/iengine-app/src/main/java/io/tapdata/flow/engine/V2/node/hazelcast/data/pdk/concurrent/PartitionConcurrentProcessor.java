@@ -76,6 +76,23 @@ public class PartitionConcurrentProcessor {
 	private TaskDto taskDto;
 	private DataProcessorContext dataProcessorContext;
 
+	/**
+	 * Cache for primary key hash mapping when update events change partition keys
+	 * Key: hash of the new partition value (after)
+	 * Value: CachedPartitionMapping containing the actual partition number and access counter
+	 */
+	private final Map<Integer, CachedPartitionMapping> pkHashMappingCache = new ConcurrentHashMap<>();
+
+	/**
+	 * Counter for processDML method calls, used for cache cleanup
+	 */
+	private final AtomicLong processDMLCounter = new AtomicLong(0L);
+
+	/**
+	 * Threshold for cache cleanup - remove entries that haven't been matched for this many processDML calls
+	 */
+	private static final int CACHE_CLEANUP_THRESHOLD = 100;
+
 	public PartitionConcurrentProcessor(
 			int partitionSize,
 			int batchSize,
@@ -339,18 +356,29 @@ public class PartitionConcurrentProcessor {
 	protected void processDML(TapdataEvent tapdataEvent, AtomicBoolean singleMode) throws InterruptedException {
 		String tableName = "";
 		try {
+			// Increment counter and perform cache cleanup periodically
+			long currentCounter = processDMLCounter.incrementAndGet();
+			if (currentCounter % CACHE_CLEANUP_THRESHOLD == 0) {
+				cleanupPkHashMappingCache(currentCounter);
+			}
+
 			final TapEvent tapEvent = tapdataEvent.getTapEvent();
 			Map<String, Object> row = getTapRecordEventData(tapEvent);
 			// when tapEvent is not TapRecordEvent type then 'getTapRecordEventData' throws exception
 			tableName = ((TapRecordEvent) tapEvent).getTableId();
 
 			final int partition;
-			final List<Object> partitionValue = keySelector.select(tapEvent, row);
-			if (toSingleMode(tapEvent, partitionValue, singleMode)) {
+			if (toSingleMode(tapEvent, null, singleMode)) {
 				partition = 0;
 			} else {
-				final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
-				partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+				// Check if this is an update event with partition key change
+				if (tapEvent instanceof TapUpdateRecordEvent) {
+					partition = handleUpdateEventPartition((TapUpdateRecordEvent) tapEvent, tapdataEvent, currentCounter);
+				} else {
+					final List<Object> partitionValue = keySelector.select(tapEvent, row);
+					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
+					partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+				}
 			}
 
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
@@ -477,6 +505,118 @@ public class PartitionConcurrentProcessor {
 		this.executorService.shutdownNow();
 	}
 
+	/**
+	 * Handle partition assignment for update events, considering primary key changes
+	 *
+	 * @param updateRecordEvent the update event
+	 * @param tapdataEvent the tapdata event wrapper
+	 * @param currentCounter current processDML counter value
+	 * @return the partition number to use
+	 */
+	protected int handleUpdateEventPartition(TapUpdateRecordEvent updateRecordEvent, TapdataEvent tapdataEvent,
+											  long currentCounter) throws InterruptedException {
+		final Map<String, Object> before = updateRecordEvent.getBefore();
+		final Map<String, Object> after = updateRecordEvent.getAfter();
+
+		// Extract partition keys from before and after
+		List<Object> beforeValue = null;
+		if (MapUtils.isNotEmpty(before)) {
+			beforeValue = keySelector.select(updateRecordEvent, before);
+		}
+
+		List<Object> afterValue = null;
+		if (MapUtils.isNotEmpty(after)) {
+			afterValue = keySelector.select(updateRecordEvent, after);
+		}
+
+		// Check if partition values are valid (not null and not empty)
+		boolean beforeValueValid = beforeValue != null && !beforeValue.isEmpty();
+		boolean afterValueValid = afterValue != null && !afterValue.isEmpty();
+
+		// If both values exist and are different, we need to handle the mapping
+		if (beforeValueValid && afterValueValid) {
+			int beforeHash = Objects.hash(beforeValue);
+			int afterHash = Objects.hash(afterValue);
+
+			if (beforeHash != afterHash) {
+				// Primary key changed - check if before hash has a cached partition
+				CachedPartitionMapping cachedMapping = pkHashMappingCache.get(beforeHash);
+
+				if (cachedMapping != null) {
+					// Found cached mapping, use it and update the cache
+					int partition = cachedMapping.getPartition();
+					cachedMapping.updateLastMatchedCounter(currentCounter);
+
+					// Add mapping for the new hash (after) to the same partition
+					pkHashMappingCache.put(afterHash, new CachedPartitionMapping(partition, currentCounter));
+
+					if (logger.isDebugEnabled()) {
+						logger.debug(LOG_PREFIX + "Update event with PK change found cached partition. beforeHash={}, afterHash={}, partition={}",
+								beforeHash, afterHash, partition);
+					}
+
+					return partition;
+				} else {
+					// No cached mapping, calculate partition based on before value
+					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, beforeValue);
+					int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+
+					// Cache the mapping for the after hash
+					pkHashMappingCache.put(afterHash, new CachedPartitionMapping(partition, currentCounter));
+
+					if (logger.isDebugEnabled()) {
+						logger.debug(LOG_PREFIX + "Update event with PK change, created new cache entry. beforeHash={}, afterHash={}, partition={}",
+								beforeHash, afterHash, partition);
+					}
+
+					return partition;
+				}
+			}
+		}
+
+		// No primary key change or missing values, use standard partitioning
+		// Prefer afterValue if valid, otherwise use beforeValue
+		List<Object> partitionValue = afterValueValid ? afterValue : (beforeValueValid ? beforeValue : null);
+		if (partitionValue == null) {
+			// Fallback: use getTapRecordEventData to get the appropriate data
+			Map<String, Object> row = getTapRecordEventData(updateRecordEvent);
+			partitionValue = keySelector.select(updateRecordEvent, row);
+		}
+
+		final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
+		return partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
+	}
+
+	/**
+	 * Clean up cache entries that haven't been matched for CACHE_CLEANUP_THRESHOLD processDML calls
+	 *
+	 * @param currentCounter current processDML counter value
+	 */
+	protected void cleanupPkHashMappingCache(long currentCounter) {
+		if (pkHashMappingCache.isEmpty()) {
+			return;
+		}
+
+		Iterator<Map.Entry<Integer, CachedPartitionMapping>> iterator = pkHashMappingCache.entrySet().iterator();
+		int removedCount = 0;
+
+		while (iterator.hasNext()) {
+			Map.Entry<Integer, CachedPartitionMapping> entry = iterator.next();
+			CachedPartitionMapping mapping = entry.getValue();
+
+			// Remove if not matched for CACHE_CLEANUP_THRESHOLD calls
+			if (currentCounter - mapping.getLastMatchedCounter() >= CACHE_CLEANUP_THRESHOLD) {
+				iterator.remove();
+				removedCount++;
+			}
+		}
+
+		if (removedCount > 0 && logger.isDebugEnabled()) {
+			logger.debug(LOG_PREFIX + "Cleaned up {} entries from PK hash mapping cache. Remaining entries: {}",
+					removedCount, pkHashMappingCache.size());
+		}
+	}
+
 	protected boolean updatePartitionValueEvent(TapUpdateRecordEvent updateRecordEvent) {
 		List<Object> beforeValue = null;
 		final Map<String, Object> before = updateRecordEvent.getBefore();
@@ -493,6 +633,31 @@ public class PartitionConcurrentProcessor {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Internal class to store cached partition mapping information
+	 */
+	protected static class CachedPartitionMapping {
+		private final int partition;
+		private long lastMatchedCounter;
+
+		public CachedPartitionMapping(int partition, long lastMatchedCounter) {
+			this.partition = partition;
+			this.lastMatchedCounter = lastMatchedCounter;
+		}
+
+		public int getPartition() {
+			return partition;
+		}
+
+		public long getLastMatchedCounter() {
+			return lastMatchedCounter;
+		}
+
+		public void updateLastMatchedCounter(long counter) {
+			this.lastMatchedCounter = counter;
+		}
 	}
 
 	@FunctionalInterface

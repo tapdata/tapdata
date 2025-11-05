@@ -548,7 +548,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<>() {
 				private final Set<String> warnTag = new HashSet<>();
 
 				@Override
@@ -951,9 +951,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents
-            , AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache
-            , List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
+    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents,
+									  AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache,
+									  List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
         try {
             Optional.ofNullable(tapdataEvent.getSyncStage()).ifPresent(this::handleAspectWithSyncStage);
 
