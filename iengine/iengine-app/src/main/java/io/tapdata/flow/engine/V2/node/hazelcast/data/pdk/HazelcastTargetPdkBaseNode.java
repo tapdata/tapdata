@@ -980,16 +980,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						.ifPresent(CountDownLatch::countDown);
 			} else if (tapdataEvent instanceof TapdataSourceBatchSplitEvent) {
 				executeAspect(new WriteRecordFuncAspect().state(WriteRecordFuncAspect.BATCH_SPLIT).dataProcessorContext(dataProcessorContext));
-			} else {
-				if(isExportRecoveryEvent(tapdataEvent)){
-					handleExportRecoveryEvent((TapdataRecoveryEvent) tapdataEvent);
-				}else{
-					handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
-				}
-				if (tapdataEvent instanceof TapdataRecoveryEvent) {
-					AutoRecovery.completed(getNode().getTaskId(), (TapdataRecoveryEvent) tapdataEvent);
-				}
-			}
+            } else if (tapdataEvent instanceof TapdataRecoveryEvent recoveryEvent) {
+                if (!handleExportRecoveryEvent(recoveryEvent)) {
+                    // 如果不是导出 SQL，需要先写入
+                    handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+                }
+                AutoRecovery.completed(getNode().getTaskId(), recoveryEvent);
+            } else {
+                handleTapdataEvent(tapEvents, hasExactlyOnceWriteCache, exactlyOnceWriteCache, lastTapdataEvent, tapdataEvent);
+            }
         } catch (Throwable throwable) {
 			Throwable matchThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
 			if (null != matchThrowable) {
@@ -1970,37 +1969,37 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void processConnectorAfterSnapshot(TapTable tapTable) {
 	}
 
-	protected Boolean isExportRecoveryEvent(TapdataEvent tapdataEvent) {
-		if(tapdataEvent instanceof TapdataRecoveryEvent event){
-			return event.getIsExport();
-		}
-		return false;
-	}
+	protected boolean handleExportRecoveryEvent(TapdataRecoveryEvent tapdataEvent) {
+        // 非导出事件返回 false
+        if (null == tapdataEvent.getRecoverySqlFile()) return false;
 
-	protected void handleExportRecoveryEvent(TapdataRecoveryEvent tapdataEvent) {
-		String TableName = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
-		TapTable tapTable = dataProcessorContext.getTapTableMap().get(TableName);
-		ConnectorNode connectorNode = getConnectorNode();
-		ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
-		ExportEventSqlFunction exportEventSqlFunction = connectorFunctions.getExportEventSqlFunction();
-		if(exportEventSqlFunction != null){
-			PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.EXPORT_EVENT_SQL,
-					pdkMethodInvoker.runnable(() -> {
-								try {
-									String sql = exportEventSqlFunction.exportEventSql(
-											connectorNode.getConnectorContext(),
-											tapdataEvent.getTapEvent(),
-											tapTable);
-									if(StringUtils.isNotBlank(sql)){
-										tapdataEvent.setRecoverySql(sql);
-									}
-								} catch (Exception e) {
-									obsLogger.warn("Exporting Recovery event sql failed: {}", e.getMessage());
-								}
-							}
-					));
-			AutoRecovery.exportRecoverySql(getNode().getTaskId(), tapdataEvent);
-		}
-	}
+        // 排除 BEGIN 和 END 事件
+        if (!tapdataEvent.isDataEvent()) return true;
+
+        // 丰富 exportSql 属性
+        String TableName = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+        TapTable tapTable = dataProcessorContext.getTapTableMap().get(TableName);
+        ConnectorNode connectorNode = getConnectorNode();
+        ConnectorFunctions connectorFunctions = connectorNode.getConnectorFunctions();
+        ExportEventSqlFunction exportEventSqlFunction = connectorFunctions.getExportEventSqlFunction();
+        if (exportEventSqlFunction != null) {
+            PDKMethodInvoker pdkMethodInvoker = createPdkMethodInvoker();
+            PDKInvocationMonitor.invoke(connectorNode, PDKMethod.EXPORT_EVENT_SQL,
+                pdkMethodInvoker.runnable(() -> {
+                        try {
+                            String sql = exportEventSqlFunction.exportEventSql(
+                                connectorNode.getConnectorContext(),
+                                tapdataEvent.getTapEvent(),
+                                tapTable);
+                            if (StringUtils.isNotBlank(sql)) {
+                                tapdataEvent.setRecoverySql(sql);
+                            }
+                        } catch (Exception e) {
+                            obsLogger.warn("Exporting Recovery event sql failed: {}", e.getMessage());
+                        }
+                    }
+                ));
+        }
+        return true;
+    }
 }

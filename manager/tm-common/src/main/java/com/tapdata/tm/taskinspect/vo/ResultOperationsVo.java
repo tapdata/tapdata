@@ -41,6 +41,10 @@ public class ResultOperationsVo implements Serializable {
      * 手动修复校验
      */
     public static final String OP_MANUAL_RECOVER_CHECK = "MANUAL_RECOVER_CHECK";
+    /**
+     * 导出修复 SQL
+     */
+    public static final String OP_EXPORT_RECOVER_SQL = "EXPORT_RECOVER_SQL";
 
     private Long ts; // 操作时间
     private String op; // 操作类型
