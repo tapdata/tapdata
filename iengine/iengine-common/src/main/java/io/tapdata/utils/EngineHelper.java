@@ -1,5 +1,6 @@
 package io.tapdata.utils;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -57,7 +58,7 @@ public class EngineHelper {
     private static String initWorkDir() {
         try {
             // 从环境变量中获取工作目录
-            String workDir = System.getenv("TAPDATA_WORK_DIR");
+            String workDir = CommonUtils.getenv("TAPDATA_WORK_DIR");
             if (null == workDir) {
                 workDir = ".";
             }
@@ -82,7 +83,20 @@ public class EngineHelper {
         static {
             Charset charset = StandardCharsets.UTF_8;
             String workDir = initWorkDir();
-            INSTANCE = new EngineHelper(charset, workDir, new VfsHelper(workDir, charset));
+
+            String homeStr;
+            try {
+                homeStr = CommonUtils.getenv("TAPDATA_VFS_HOME");
+                if (null == homeStr || homeStr.isBlank()) {
+                    Path homePath = Paths.get(workDir, "vfs_home");
+                    homeStr = homePath.toFile().getCanonicalPath();
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("init vfs_home path failed", e);
+            }
+
+            VfsHelper vfsHelper = new VfsHelper(homeStr, charset);
+            INSTANCE = new EngineHelper(charset, workDir, vfsHelper);
         }
     }
 
