@@ -33,6 +33,7 @@ public class InspectCronJob implements Job {
             log.info("inspect {},status:{}  不用在进行校验", inspectId, status);
         } else {
             log.info("inspect {},status:{}  定时在进行校验", inspectId, status);
+            inspectDto.setByFirstCheckId("");
             UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(inspectDto.getUserId()));
             Where where = new Where();
             where.put("id", inspectId);
