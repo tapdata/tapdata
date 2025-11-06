@@ -226,6 +226,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				((GraalJSScriptEngine) this.engine).close();
 			}
 		}, TAG);
+		if (null != processContextThreadLocal) {
+			processContextThreadLocal.remove();
+		}
 		super.doClose();
 	}
 
