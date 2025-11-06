@@ -14,18 +14,21 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class TaskInspectResultsOpDto extends BaseDto {
 
-    public static final String OP_MANUAL_CHECK = "MANUAL_CHECK";
-    public static final String OP_MANUAL_RECOVER = "MANUAL_RECOVER";
+    public static final String OP_MANUAL_CHECK = "manualCheck";
+    public static final String OP_MANUAL_RECOVER = "manualRecover";
+    public static final String OP_EXPORT_RECOVER_SQL = "exportRecoverSql";
 
     public static final String FIELD_OP = "op";
     public static final String FIELD_OP_ID = "opId";
     public static final String FIELD_TASK_ID = "taskId";
+    public static final String FIELD_AGENT_ID = "agentId";
     public static final String FIELD_CONFIG = "config";
     public static final String FIELD_TOTALS = "totals";
 
     private String op;
     private String opId;
     private String taskId;
+    private String agentId;
     private String config;
     private Long totals;
 }
