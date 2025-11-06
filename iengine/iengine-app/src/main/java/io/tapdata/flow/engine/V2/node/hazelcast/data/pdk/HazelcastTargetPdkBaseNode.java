@@ -1010,6 +1010,45 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
+        // Group tapEvents by MergeInfo level
+        List<TapEvent> level1Events = new ArrayList<>();
+        List<TapEvent> otherLevelEvents = new ArrayList<>();
+        boolean hasMergeInfo = false;
+
+        for (TapEvent tapEvent : tapEvents) {
+            Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+            if (mergeInfoObj instanceof MergeInfo) {
+                hasMergeInfo = true;
+                MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
+                Integer level = mergeInfo.getLevel();
+                if (level != null && level == 1) {
+                    level1Events.add(tapEvent);
+                } else {
+                    otherLevelEvents.add(tapEvent);
+                }
+            } else {
+                otherLevelEvents.add(tapEvent);
+            }
+        }
+
+        // If no MergeInfo exists, use original logic
+        if (!hasMergeInfo) {
+            processEventsWithExactlyOnceCheck(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
+            return;
+        }
+
+        // Process level=1 events with exactly once write if enabled
+        if (CollectionUtils.isNotEmpty(level1Events)) {
+            processEventsWithExactlyOnceCheck(tapdataEvents, level1Events, hasExactlyOnceWriteCache);
+        }
+
+        // Process other level events without exactly once write
+        if (CollectionUtils.isNotEmpty(otherLevelEvents)) {
+            processEvents(otherLevelEvents);
+        }
+    }
+
+    private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
             try {
                 transactionBegin();
