@@ -368,14 +368,19 @@ public class PartitionConcurrentProcessor {
 			tableName = ((TapRecordEvent) tapEvent).getTableId();
 
 			final int partition;
-			if (toSingleMode(tapEvent, null, singleMode)) {
+			List<Object> partitionValue = keySelector.select(tapEvent, row);
+			if (toSingleMode(tapEvent, partitionValue, singleMode)) {
 				partition = 0;
 			} else {
 				// Check if this is an update event with partition key change
-				if (tapEvent instanceof TapUpdateRecordEvent) {
-					partition = handleUpdateEventPartition((TapUpdateRecordEvent) tapEvent, tapdataEvent, currentCounter);
+				if (tapEvent instanceof TapUpdateRecordEvent updateRecordEvent) {
+					// Extract partition keys from before and after to avoid duplicate extraction
+					List<Object>[] values = extractBeforeAfterPartitionValues(updateRecordEvent);
+					List<Object> beforeValue = values[0];
+					List<Object> afterValue = values[1];
+
+					partition = handleUpdateEventPartition(updateRecordEvent, tapdataEvent, beforeValue, afterValue, currentCounter);
 				} else {
-					final List<Object> partitionValue = keySelector.select(tapEvent, row);
 					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
 					partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
 				}
@@ -510,25 +515,14 @@ public class PartitionConcurrentProcessor {
 	 *
 	 * @param updateRecordEvent the update event
 	 * @param tapdataEvent the tapdata event wrapper
+	 * @param beforeValue partition key values extracted from before data (can be null)
+	 * @param afterValue partition key values extracted from after data (can be null)
 	 * @param currentCounter current processDML counter value
 	 * @return the partition number to use
 	 */
 	protected int handleUpdateEventPartition(TapUpdateRecordEvent updateRecordEvent, TapdataEvent tapdataEvent,
+											  List<Object> beforeValue, List<Object> afterValue,
 											  long currentCounter) throws InterruptedException {
-		final Map<String, Object> before = updateRecordEvent.getBefore();
-		final Map<String, Object> after = updateRecordEvent.getAfter();
-
-		// Extract partition keys from before and after
-		List<Object> beforeValue = null;
-		if (MapUtils.isNotEmpty(before)) {
-			beforeValue = keySelector.select(updateRecordEvent, before);
-		}
-
-		List<Object> afterValue = null;
-		if (MapUtils.isNotEmpty(after)) {
-			afterValue = keySelector.select(updateRecordEvent, after);
-		}
-
 		// Check if partition values are valid (not null and not empty)
 		boolean beforeValueValid = beforeValue != null && !beforeValue.isEmpty();
 		boolean afterValueValid = afterValue != null && !afterValue.isEmpty();
@@ -577,11 +571,6 @@ public class PartitionConcurrentProcessor {
 		// No primary key change or missing values, use standard partitioning
 		// Prefer afterValue if valid, otherwise use beforeValue
 		List<Object> partitionValue = afterValueValid ? afterValue : (beforeValueValid ? beforeValue : null);
-		if (partitionValue == null) {
-			// Fallback: use getTapRecordEventData to get the appropriate data
-			Map<String, Object> row = getTapRecordEventData(updateRecordEvent);
-			partitionValue = keySelector.select(updateRecordEvent, row);
-		}
 
 		final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
 		return partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
@@ -617,7 +606,13 @@ public class PartitionConcurrentProcessor {
 		}
 	}
 
-	protected boolean updatePartitionValueEvent(TapUpdateRecordEvent updateRecordEvent) {
+	/**
+	 * Extract partition key values from before and after data of an update event
+	 *
+	 * @param updateRecordEvent the update event
+	 * @return array containing [beforeValue, afterValue], either element can be null
+	 */
+	protected List<Object>[] extractBeforeAfterPartitionValues(TapUpdateRecordEvent updateRecordEvent) {
 		List<Object> beforeValue = null;
 		final Map<String, Object> before = updateRecordEvent.getBefore();
 		if (MapUtils.isNotEmpty(before)) {
@@ -625,9 +620,17 @@ public class PartitionConcurrentProcessor {
 		}
 		List<Object> afterValue = null;
 		final Map<String, Object> after = updateRecordEvent.getAfter();
-		if (MapUtils.isNotEmpty(before)) {
+		if (MapUtils.isNotEmpty(after)) {
 			afterValue = keySelector.select(updateRecordEvent, after);
 		}
+		return new List[]{beforeValue, afterValue};
+	}
+
+	protected boolean updatePartitionValueEvent(TapUpdateRecordEvent updateRecordEvent) {
+		List<Object>[] values = extractBeforeAfterPartitionValues(updateRecordEvent);
+		List<Object> beforeValue = values[0];
+		List<Object> afterValue = values[1];
+
 		if (beforeValue != null && afterValue != null) {
 			return Objects.hash(beforeValue) != Objects.hash(afterValue);
 		}
