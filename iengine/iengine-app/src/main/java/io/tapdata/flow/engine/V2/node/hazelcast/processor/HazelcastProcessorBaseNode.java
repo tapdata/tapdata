@@ -1,9 +1,12 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.google.common.collect.Queues;
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.processor.context.ProcessContext;
+import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
@@ -16,6 +19,9 @@ import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.error.TapEventException;
 import io.tapdata.error.TaskMergeProcessorExCode_16;
 import io.tapdata.error.TaskProcessorExCode_11;
@@ -610,5 +616,40 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected List<String> getLogTags() {
 		return Collections.emptyList();
+	}
+
+	@NotNull
+	protected Map<String, Object> buildContextMap(TapdataEvent tapdataEvent, TapEvent tapEvent, Map<String, Object> before, Map<String, Object> globalTaskContent, ThreadLocal<Map<String, Object>> processContextThreadLocal) throws IllegalAccessException {
+		String tableName = TapEventUtil.getTableId(tapEvent);
+		String op = TapEventUtil.getOp(tapEvent);
+		ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
+
+		Long referenceTime = ((TapRecordEvent) tapEvent).getReferenceTime();
+		long eventTime = referenceTime == null ? 0 : referenceTime;
+		processContext.setEventTime(eventTime);
+		processContext.setTs(eventTime);
+		SyncStage syncStage = tapdataEvent.getSyncStage();
+		processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
+		processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
+
+		ProcessContextEvent processContextEvent = processContext.getEvent();
+		if (processContextEvent == null) {
+			processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
+		}
+		if (null != before) {
+			processContextEvent.setBefore(before);
+		}
+		processContextEvent.setType(processContext.getType());
+		Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
+		Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
+		contextMap.put("event", eventMap);
+		contextMap.put("before", before);
+		contextMap.put("info", tapEvent.getInfo());
+		contextMap.put("global", globalTaskContent);
+		contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
+		contextMap.put("removedFields", TapEventUtil.getRemoveFields(tapEvent));
+		Map<String, Object> context = processContextThreadLocal.get();
+		context.putAll(contextMap);
+		return context;
 	}
 }

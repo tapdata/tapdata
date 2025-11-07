@@ -63,6 +63,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	private StateMap stateMap;
 
 	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
+	private Map<String, Object> globalTaskContent;
 
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -72,6 +73,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
 		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+		this.globalTaskContent = new ConcurrentHashMap<>();
 		Node<?> node = processorBaseContext.getNode();
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
@@ -155,35 +157,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		isAfter = null != after;
 		((ScriptEngine) engine).put("log", logger);
 
-		String tableName = TapEventUtil.getTableId(tapEvent);
-		String op = TapEventUtil.getOp(tapEvent);
-		ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
-
-		Long referenceTime = ((TapRecordEvent) tapEvent).getReferenceTime();
-		long eventTime = referenceTime == null ? 0 : referenceTime;
-		processContext.setEventTime(eventTime);
-		processContext.setTs(eventTime);
-		SyncStage syncStage = tapdataEvent.getSyncStage();
-		processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
-		processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
-
-		ProcessContextEvent processContextEvent = processContext.getEvent();
-		if (processContextEvent == null) {
-			processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
-		}
-		if (null != before) {
-			processContextEvent.setBefore(before);
-		}
-		processContextEvent.setType(processContext.getType());
-		Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
-		Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
-		contextMap.put("event", eventMap);
-		contextMap.put("before", before);
-		contextMap.put("info", tapEvent.getInfo());
-		contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
-		contextMap.put("removedFields", TapEventUtil.getRemoveFields(tapEvent));
-		Map<String, Object> context = this.processContextThreadLocal.get();
-		context.putAll(contextMap);
+		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
 
 		((ScriptEngine) engine).put("context", context);
 

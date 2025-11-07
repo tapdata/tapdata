@@ -103,6 +103,7 @@ public class HazelcastCustomProcessorTest extends BaseHazelcastNodeTest {
         ReflectionTestUtils.setField(dataProcessorContext, "node", customProcessorNode);
         doCallRealMethod().when(dataProcessorContext).getNode();
         doCallRealMethod().when(hazelcastCustomProcessor).execute(tapdataEvent);
+        doCallRealMethod().when(hazelcastCustomProcessor).buildContextMap(any(), any(), any(), any(), any());
         Invocable engine = ScriptUtil.getScriptEngine(
                 "function process(record, form){\n" +
                         "\n" +
