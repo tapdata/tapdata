@@ -264,6 +264,9 @@ public class ExternalStorageServiceImpl extends ExternalStorageService {
 	}
 
 	public ExternalStorageDto findNotCheckById(String id) {
+		if (StringUtils.isBlank(id)) {
+			return null;
+		}
 		return super.findById(new ObjectId(id), new Field());
 	}
 
