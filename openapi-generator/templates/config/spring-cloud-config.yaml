@@ -39,7 +39,3 @@ files:
         templateType: SupportingFiles
         destinationFilename: MongoDecimalDeserializer.java
         folder: src/main/java/io/tapdata/configuration
-    jackson/FeignConfig.mustache:
-        templateType: SupportingFiles
-        destinationFilename: FeignConfig.java
-        folder: src/main/java/io/tapdata/configuration

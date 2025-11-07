@@ -12,8 +12,6 @@
         {{^useSealed}}
         <java.version>1.8</java.version>
         {{/useSealed}}
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         {{#springFoxDocumentationProvider}}
         <springfox.version>2.9.2</springfox.version>
@@ -43,7 +41,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.3</version>
+        <version>3.4.8</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 {{/parentOverridden}}
@@ -65,20 +63,6 @@
         </plugins>{{/interfaceOnly}}
     </build>
 
-{{^parentOverridden}}
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-starter-parent</artifactId>
-                <version>2025.0.0</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
-{{/parentOverridden}}
     <dependencies>
         {{#springDocDocumentationProvider}}
         <!--SpringDoc dependencies -->
@@ -86,6 +70,7 @@
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-ui</artifactId>
             <version>${springdoc.version}</version>
+            <scope>provided</scope>
         </dependency>
         {{/springDocDocumentationProvider}}
         {{#springFoxDocumentationProvider}}
@@ -94,6 +79,7 @@
             <groupId>io.springfox</groupId>
             <artifactId>springfox-swagger2</artifactId>
             <version>${springfox.version}</version>
+            <scope>provided</scope>
         </dependency>
         {{/springFoxDocumentationProvider}}
         {{^springFoxDocumentationProvider}}
@@ -103,6 +89,7 @@
             <groupId>io.swagger</groupId>
             <artifactId>swagger-annotations</artifactId>
             <version>${swagger-annotations.version}</version>
+            <scope>provided</scope>
         </dependency>
         {{/swagger1AnnotationLibrary}}
         {{#swagger2AnnotationLibrary}}
@@ -110,41 +97,24 @@
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-annotations</artifactId>
             <version>${swagger-annotations.version}</version>
+            <scope>provided</scope>
         </dependency>
         {{/swagger2AnnotationLibrary}}
         {{/springDocDocumentationProvider}}
         {{/springFoxDocumentationProvider}}
-        <!-- @Nullable annotation -->
-        <dependency>
-            <groupId>com.google.code.findbugs</groupId>
-            <artifactId>jsr305</artifactId>
-            {{^parentOverridden}}
-            <version>3.0.2</version>
-            {{/parentOverridden}}
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-openfeign</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-oauth2-client</artifactId>
-        </dependency>
         {{#withXml}}
         <!-- XML processing: Jackson -->
         <dependency>
-          <groupId>com.fasterxml.jackson.dataformat</groupId>
-          <artifactId>jackson-dataformat-xml</artifactId>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-xml</artifactId>
+            <scope>provided</scope>
         </dependency>
         {{/withXml}}
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-        </dependency>
         {{#joda}}
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-joda</artifactId>
+            <scope>provided</scope>
         </dependency>
         {{/joda}}
         {{#openApiNullable}}
@@ -156,10 +126,16 @@
         {{/parentOverridden}}
         </dependency>
         {{/openApiNullable}}
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
         {{#hateoas}}
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-hateoas</artifactId>
+            <scope>provided</scope>
         </dependency>
         {{/hateoas}}
         {{#lombok}}
@@ -173,16 +149,8 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+            <scope>provided</scope>
         </dependency>
         {{/useBeanValidation}}
-        <dependency>
-            <groupId>org.springframework.data</groupId>
-            <artifactId>spring-data-commons</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 </project>
