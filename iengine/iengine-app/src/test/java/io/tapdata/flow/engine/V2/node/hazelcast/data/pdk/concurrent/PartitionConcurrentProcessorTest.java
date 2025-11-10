@@ -33,6 +33,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -597,6 +598,8 @@ class PartitionConcurrentProcessorTest {
         void testInterrupted() throws InterruptedException {
             TapdataEvent tapdataEvent = mock(TapdataEvent.class);
             PartitionConcurrentProcessor processor = mock(PartitionConcurrentProcessor.class, CALLS_REAL_METHODS);
+            AtomicLong atomicLong = new AtomicLong(0L);
+            UnitTestUtils.injectField(PartitionConcurrentProcessor.class, processor, "processDMLCounter", atomicLong);
             doAnswer(invocationOnMock -> {throw new InterruptedException();}).when(processor).getTapRecordEventData(any());
 
             AtomicBoolean singleMode = new AtomicBoolean(false);
@@ -799,8 +802,9 @@ class PartitionConcurrentProcessorTest {
                     .before(before)
                     .after(after)
                     .table("test_table");
-
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
 
             // Should use standard partitioning based on after value
             assertTrue(partition >= 0 && partition < partitionSize);
@@ -823,7 +827,9 @@ class PartitionConcurrentProcessorTest {
                     .after(after)
                     .table("test_table");
 
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
 
             // Should calculate partition based on before value and cache the after hash
             assertTrue(partition >= 0 && partition < partitionSize);
@@ -831,9 +837,9 @@ class PartitionConcurrentProcessorTest {
             // Verify cache was populated with after hash
             Field cacheField = PartitionConcurrentProcessor.class.getDeclaredField("pkHashMappingCache");
             cacheField.setAccessible(true);
+            Integer afterHash = Objects.hash(afterValue);
             Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping> cache =
                     (Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping>) cacheField.get(processor);
-            int afterHash = Objects.hash(Collections.singletonList(2));
             assertTrue(cache.containsKey(afterHash));
             assertEquals(partition, cache.get(afterHash).getPartition());
         }
@@ -846,9 +852,8 @@ class PartitionConcurrentProcessorTest {
             cacheField.setAccessible(true);
             Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping> cache =
                     (Map<Integer, PartitionConcurrentProcessor.CachedPartitionMapping>) cacheField.get(processor);
-            int beforeHash = Objects.hash(Collections.singletonList(1));
             int expectedPartition = 2;
-            cache.put(beforeHash, new PartitionConcurrentProcessor.CachedPartitionMapping(expectedPartition, 0L));
+
 
             // Create update event with different partition keys
             Map<String, Object> before = new HashMap<>();
@@ -864,13 +869,18 @@ class PartitionConcurrentProcessorTest {
                     .after(after)
                     .table("test_table");
 
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int beforeHash = Objects.hash(beforeValue);
+            cache.put(beforeHash, new PartitionConcurrentProcessor.CachedPartitionMapping(expectedPartition, 0L));
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
 
             // Should use cached partition
             assertEquals(expectedPartition, partition);
 
             // Verify cache was updated with after hash
-            int afterHash = Objects.hash(Collections.singletonList(2));
+//            int afterHash = Objects.hash(Collections.singletonList(2));
+            int afterHash = Objects.hash(afterValue);
             assertTrue(cache.containsKey(afterHash));
             assertEquals(expectedPartition, cache.get(afterHash).getPartition());
 
@@ -890,7 +900,9 @@ class PartitionConcurrentProcessorTest {
                     .after(after)
                     .table("test_table");
 
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> afterValue = after.values().stream().toList();
+
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, null,afterValue,1L);
 
             // Should use after value for partitioning
             assertTrue(partition >= 0 && partition < partitionSize);
@@ -908,7 +920,9 @@ class PartitionConcurrentProcessorTest {
                     .before(before)
                     .table("test_table");
 
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,null,1L);
+
 
             // Should use before value for partitioning
             assertTrue(partition >= 0 && partition < partitionSize);
@@ -928,7 +942,9 @@ class PartitionConcurrentProcessorTest {
                     .after(after)
                     .table("test_table");
 
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
 
             // Should use after value for partitioning
             assertTrue(partition >= 0 && partition < partitionSize);
@@ -953,7 +969,9 @@ class PartitionConcurrentProcessorTest {
                     .after(after)
                     .table("test_table");
 
-            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, 1L);
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,1L);
 
             // Should default to 0
             assertEquals(0, partition);
@@ -985,7 +1003,9 @@ class PartitionConcurrentProcessorTest {
                     .table("test_table");
 
             long currentCounter = 10L;
-            processor.handleUpdateEventPartition(updateEvent, tapdataEvent, currentCounter);
+            List<Object> afterValue = after.values().stream().toList();
+            List<Object> beforeValue = before.values().stream().toList();
+            int partition = processor.handleUpdateEventPartition(updateEvent, tapdataEvent, beforeValue,afterValue,10L);
 
             // Verify counter was updated
             assertEquals(currentCounter, mapping.getLastMatchedCounter());
