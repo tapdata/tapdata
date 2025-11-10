@@ -288,7 +288,7 @@ class CpuMemoryCollectorTest {
             Map<String, Usage> usageMap = new java.util.HashMap<>();
             collector.collectMemoryUsage(List.of(taskId), usageMap);
             
-            assertTrue(usageMap.containsKey(taskId));
+            assertFalse(usageMap.containsKey(taskId));
         }
     }
 

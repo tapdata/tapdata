@@ -35,6 +35,7 @@ import java.util.function.LongConsumer;
  */
 @Slf4j
 public final class CpuMemoryCollector {
+    private static final double JUDGE_CHANGE_RATE = 0.25d;
     private static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
             50,
             200,
@@ -48,6 +49,25 @@ public final class CpuMemoryCollector {
     final Map<String, WeakReference<TaskDto>> taskDtoMap = new HashMap<>(16);
     final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
     final Map<String, List<WeakReference<ThreadFactory>>> threadGroupMap = new HashMap<>(16);
+    final Map<String, Info> taskInfo = new HashMap<>();
+
+    static class Info {
+        String taskId;
+        Long lastCount = 0L;
+
+        public boolean judged(long size) {
+            if (lastCount <= 0L) {
+                lastCount = size;
+                return true;
+            }
+            double rate = Math.abs(size - lastCount) * 1.0D / lastCount;
+            if (rate >= JUDGE_CHANGE_RATE) {
+                lastCount = size;
+                return true;
+            }
+            return false;
+        }
+    }
 
     private CpuMemoryCollector() {
 
@@ -55,7 +75,10 @@ public final class CpuMemoryCollector {
 
 
     public static void startTask(TaskDto taskDto) {
-        COLLECTOR.taskDtoMap.put(taskDto.getId().toHexString(), new WeakReference<>(taskDto));
+        Info item = new Info();
+        item.taskId = taskDto.getId().toHexString();
+        COLLECTOR.taskDtoMap.put(item.taskId, new WeakReference<>(taskDto));
+        COLLECTOR.taskInfo.put(item.taskId, item);
     }
 
     public static void addNode(String taskId, String nodeId) {
@@ -91,6 +114,7 @@ public final class CpuMemoryCollector {
         COLLECTOR.threadGroupMap.remove(taskId);
         COLLECTOR.weakReferenceMap.remove(taskId);
         COLLECTOR.taskDtoMap.remove(taskId);
+        COLLECTOR.taskInfo.remove(taskId);
         List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
         nodeIds.forEach(nodeId -> {
             if (Objects.equals(taskId, COLLECTOR.taskWithNode.get(nodeId))) {
@@ -139,7 +163,19 @@ public final class CpuMemoryCollector {
         asyncCollect(tasks ->
                 taskIds.stream()
                         .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
-                        .forEach(taskId -> {
+                        .filter(taskId -> {
+                            Info item = COLLECTOR.taskInfo.get(taskId);
+                            if (null == item) {
+                                item = new Info();
+                                item.taskId = taskId;
+                                COLLECTOR.taskInfo.put(taskId, item);
+                            }
+                            List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
+                            if (CollectionUtils.isEmpty(weakReferences)) {
+                                return false;
+                            }
+                            return item.judged(weakReferences.size());
+                        }).forEach(taskId -> {
                             CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
                                 Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
                                 Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
