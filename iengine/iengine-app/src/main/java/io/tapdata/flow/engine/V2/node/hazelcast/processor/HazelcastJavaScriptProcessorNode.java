@@ -222,37 +222,9 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
 			afterMapInRecord = new HashMap<>();
 			MapUtil.copyToNewMap(TapEventUtil.getBefore(tapEvent), afterMapInRecord);
 		}
-
 		String op = TapEventUtil.getOp(tapEvent);
-		ProcessContext processContext = new ProcessContext(op, tableName, null, null, null, tapdataEvent.getOffset());
-
-		Long referenceTime = ((TapRecordEvent) tapEvent).getReferenceTime();
-		long eventTime = referenceTime == null ? 0 : referenceTime;
-		processContext.setEventTime(eventTime);
-		processContext.setTs(eventTime);
-		SyncStage syncStage = tapdataEvent.getSyncStage();
-		processContext.setType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
-		processContext.setSyncType(getProcessorBaseContext().getTaskDto().getSyncType());
-
-		ProcessContextEvent processContextEvent = processContext.getEvent();
-		if (processContextEvent == null) {
-			processContextEvent = new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime);
-		}
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-		if (null != before) {
-			processContextEvent.setBefore(before);
-		}
-		processContextEvent.setType(processContext.getType());
-		Map<String, Object> eventMap = MapUtil.obj2Map(processContextEvent);
-		Map<String, Object> contextMap = MapUtil.obj2Map(processContext);
-		contextMap.put("event", eventMap);
-		contextMap.put(BEFORE, before);
-		contextMap.put("info", tapEvent.getInfo());
-		contextMap.put("global", this.globalTaskContent);
-        contextMap.put("isReplace", tapEvent instanceof TapUpdateRecordEvent && Boolean.TRUE.equals(((TapUpdateRecordEvent) tapEvent).getIsReplaceEvent()));
-		contextMap.put("removedFields", TapEventUtil.getRemoveFields(tapEvent));
-		Map<String, Object> context = this.processContextThreadLocal.get();
-		context.putAll(contextMap);
+		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
 
 		Invocable engine = getOrInitEngine();
 

@@ -7,15 +7,19 @@ import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.context.ProcessContext;
+import com.tapdata.processor.context.ProcessContextEvent;
 import com.tapdata.processor.error.ScriptProcessorExCode_30;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.error.TaskProcessorExCode_11;
 import io.tapdata.exception.TapCodeException;
@@ -23,6 +27,7 @@ import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.script.ObsScriptLogger;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +43,7 @@ import javax.script.ScriptException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -56,6 +62,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	private Invocable engine;
 	private StateMap stateMap;
 
+	private ThreadLocal<Map<String, Object>> processContextThreadLocal;
+	private Map<String, Object> globalTaskContent;
+
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 	}
@@ -63,6 +72,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		super.doInit(context);
+		this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
+		this.globalTaskContent = new ConcurrentHashMap<>();
 		Node<?> node = processorBaseContext.getNode();
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
@@ -110,6 +121,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		map.clear();
 	}
 
+	@SneakyThrows
 	@Override
 	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		execute(tapdataEvent);
@@ -121,7 +133,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		consumer.accept(tapdataEvent, processResult);
 	}
 
-	private void execute(TapdataEvent tapdataEvent) {
+	protected void execute(TapdataEvent tapdataEvent) throws IllegalAccessException {
 		Node<?> node = processorBaseContext.getNode();
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		MessageEntity messageEntity = tapdataEvent.getMessageEntity();
@@ -144,6 +156,10 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 		Map<String, Object> record = null == after ? before : after;
 		isAfter = null != after;
 		((ScriptEngine) engine).put("log", logger);
+
+		Map<String, Object> context = buildContextMap(tapdataEvent, tapEvent, before, this.globalTaskContent, this.processContextThreadLocal);
+
+		((ScriptEngine) engine).put("context", context);
 
 		Object result;
 		try {
@@ -184,6 +200,9 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				((GraalJSScriptEngine) this.engine).close();
 			}
 		}, TAG);
+		if (null != processContextThreadLocal) {
+			processContextThreadLocal.remove();
+		}
 		super.doClose();
 	}
 
