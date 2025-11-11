@@ -174,6 +174,9 @@ public final class CpuMemoryCollector {
                             if (CollectionUtils.isEmpty(weakReferences)) {
                                 return false;
                             }
+                            synchronized (weakReferences) {
+                                weakReferences.removeIf(weakReference -> null == weakReference.get());
+                            }
                             return item.judged(weakReferences.size());
                         }).forEach(taskId -> {
                             CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
