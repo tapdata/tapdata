@@ -345,7 +345,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         } else if (node instanceof DatabaseNode) {
             // Nonsupport
         }
-        obsLogger.trace("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
+        obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
     }
 
     protected void checkUnwindConfiguration() {
@@ -916,7 +916,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<TapRecordEvent> exactlyOnceWriteCache = new ArrayList<>();
         List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
 
-        initAndGetExactlyOnceWriteLookupList();
         AtomicBoolean hasExactlyOnceWriteCache = new AtomicBoolean(false);
         for (TapdataEvent tapdataEvent : tapdataEvents) {
             if (!isRunning()) {
@@ -1391,7 +1390,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 
     protected boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
-        if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
+		String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), tgtTableNameFromTapEvent)) {
             return false;
         }
         if (null == exactlyOnceWriteCache) {
@@ -1403,7 +1403,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, String.format("Event from tableId:%s,exactlyOnceId is %s", tapEvent.getTableId(), tapEvent.getExactlyOnceId()))
                     .dynamicDescriptionParameters(tapEvent.getTableId(), tapEvent.getExactlyOnceId());
         }
-        Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()), tapEvent, timestamp);
+        Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), tgtTableNameFromTapEvent, tapEvent, timestamp);
         TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create()
                 .after(data)
                 .referenceTime(System.currentTimeMillis())
@@ -1849,10 +1849,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
         // Check only have one source node
         List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-        if (predecessors.size() > 1) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("Exactly once write is not supported in any merge scenarios");
-        }
-
         if (CollectionUtils.isNotEmpty(predecessors)) {
             Node<?> sourceNode = predecessors.get(0);
             if (sourceNode instanceof TableNode) {

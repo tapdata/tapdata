@@ -816,7 +816,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapdataEvents = pendingEvents;
                 pendingEvents = null;
             } else {
-                if (Boolean.TRUE.equals(toTapValueConcurrent)) {
+                if (toTapValueConcurrent) {
                     try {
                         tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
                         accpetCdcEventIfHasInspect(tapdataEvents);

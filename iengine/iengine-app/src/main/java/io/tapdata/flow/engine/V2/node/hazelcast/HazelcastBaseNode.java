@@ -1111,4 +1111,19 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public void setHazelcastTaskNodeOffer(HazelcastTaskNodeOffer hazelcastTaskNodeOffer) {
 		this.hazelcastTaskNodeOffer = hazelcastTaskNodeOffer;
 	}
+
+	protected TapRecordEvent cloneTapRecordEvent(TapRecordEvent tapRecordEvent) {
+		TapRecordEvent cloneRecordEvent;
+		if (tapRecordEvent instanceof TapInsertRecordEvent) {
+			cloneRecordEvent = new TapInsertRecordEvent();
+		} else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
+			cloneRecordEvent = new TapUpdateRecordEvent();
+		} else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
+			cloneRecordEvent = new TapDeleteRecordEvent();
+		} else {
+			return null;
+		}
+		tapRecordEvent.clone(cloneRecordEvent);
+		return cloneRecordEvent;
+	}
 }
