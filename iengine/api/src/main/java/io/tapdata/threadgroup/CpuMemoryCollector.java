@@ -49,7 +49,45 @@ public final class CpuMemoryCollector {
     final Map<String, WeakReference<TaskDto>> taskDtoMap = new HashMap<>(16);
     final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
     final Map<String, List<WeakReference<ThreadFactory>>> threadGroupMap = new HashMap<>(16);
-    final Map<String, Info> taskInfo = new HashMap<>();
+    final Map<String, Info> taskInfo = new HashMap<>(16);
+    final Map<WeakReference<Object>, MemInfo> cacheMemoryMap = new HashMap<>(16);
+
+    static class MemInfo {
+        long mem = 0L;
+        Long lastCalcTime;
+        final WeakReference<Object> weakReference;
+
+        public MemInfo(WeakReference<Object> weakReference) {
+            this.weakReference = weakReference;
+        }
+
+        public Long memory() {
+            if (weakReference == null) {
+                return null;
+            }
+            final Object object = weakReference.get();
+            if (object == null) {
+                synchronized (weakReference) {
+                    COLLECTOR.cacheMemoryMap.remove(weakReference);
+                }
+                return null;
+            }
+            //30s内使用旧值，避免频繁计算
+            if (null != lastCalcTime && 30000L >= (System.currentTimeMillis() - lastCalcTime)) {
+                return mem;
+            }
+            if (null == lastCalcTime) {
+                lastCalcTime = System.currentTimeMillis();
+            }
+            long sizeOf;
+            try {
+                sizeOf = GraphLayout.parseInstance(object).totalSize();
+            } catch (Exception e) {
+                sizeOf = RamUsageEstimator.sizeOfObject(object);
+            }
+            return mem = sizeOf;
+        }
+    }
 
     static class Info {
         String taskId;
@@ -60,7 +98,7 @@ public final class CpuMemoryCollector {
                 lastCount = size;
                 return true;
             }
-            double rate = Math.abs(size - lastCount) * 1.0D / lastCount;
+            final double rate = Math.abs(size - lastCount) * 1.0D / lastCount;
             if (rate >= JUDGE_CHANGE_RATE) {
                 lastCount = size;
                 return true;
@@ -75,7 +113,7 @@ public final class CpuMemoryCollector {
 
 
     public static void startTask(TaskDto taskDto) {
-        Info item = new Info();
+        final Info item = new Info();
         item.taskId = taskDto.getId().toHexString();
         COLLECTOR.taskDtoMap.put(item.taskId, new WeakReference<>(taskDto));
         COLLECTOR.taskInfo.put(item.taskId, item);
@@ -92,11 +130,11 @@ public final class CpuMemoryCollector {
         if (null == threadGroup) {
             return;
         }
-        String taskId = COLLECTOR.taskWithNode.get(nodeId);
+        final String taskId = COLLECTOR.taskWithNode.get(nodeId);
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        List<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new ArrayList<>());
+        final List<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new ArrayList<>());
         synchronized (weakReferences) {
             weakReferences.removeIf(weakReference -> null == weakReference.get());
         }
@@ -110,12 +148,17 @@ public final class CpuMemoryCollector {
         }
     }
 
+
     public static void unregisterTask(String taskId) {
         COLLECTOR.threadGroupMap.remove(taskId);
+        final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
+        if (!CollectionUtils.isEmpty(weakReferences)) {
+            weakReferences.forEach(COLLECTOR.cacheMemoryMap::remove);
+        }
         COLLECTOR.weakReferenceMap.remove(taskId);
         COLLECTOR.taskDtoMap.remove(taskId);
         COLLECTOR.taskInfo.remove(taskId);
-        List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
+        final List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
         nodeIds.forEach(nodeId -> {
             if (Objects.equals(taskId, COLLECTOR.taskWithNode.get(nodeId))) {
                 COLLECTOR.taskWithNode.remove(nodeId);
@@ -124,13 +167,15 @@ public final class CpuMemoryCollector {
     }
 
     public static void listening(String nodeId, Object info) {
-        String taskId = COLLECTOR.taskWithNode.get(nodeId);
+        final String taskId = COLLECTOR.taskWithNode.get(nodeId);
         if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new LinkedList<>());
-        WeakReference<Object> reference = new WeakReference<>(info);
+        final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new LinkedList<>());
+        final WeakReference<Object> reference = new WeakReference<>(info);
         weakReferences.add(reference);
+        final MemInfo memInfo = new MemInfo(reference);
+        COLLECTOR.cacheMemoryMap.put(reference, memInfo);
     }
 
     void eachTaskOnce(List<WeakReference<Object>> weakReferences, List<WeakReference<Object>> remove, Usage usage) {
@@ -142,15 +187,11 @@ public final class CpuMemoryCollector {
                         return;
                     }
                     ignore(() -> {
-                        Object object = weakReference.get();
-                        if (null != object) {
-                            long sizeOf;
-                            try {
-                                sizeOf = GraphLayout.parseInstance(object).totalSize();
-                            } catch (Exception e) {
-                                sizeOf = RamUsageEstimator.sizeOfObject(object);
-                            }
-                            usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + sizeOf);
+                        final MemInfo memInfo = COLLECTOR.cacheMemoryMap.get(weakReference);
+                        if (null != memInfo) {
+                            final long sizeOf = memInfo.memory();
+                            final long value = usage.getHeapMemoryUsage() + sizeOf;
+                            usage.setHeapMemoryUsage(value);
                         } else {
                             remove.add(weakReference);
                         }
@@ -159,50 +200,48 @@ public final class CpuMemoryCollector {
     }
 
     void collectMemoryUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
-        List<String> taskIds = new ArrayList<>(weakReferenceMap.keySet());
-        asyncCollect(tasks ->
-                taskIds.stream()
-                        .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
-                        .filter(taskId -> {
-                            Info item = COLLECTOR.taskInfo.get(taskId);
-                            if (null == item) {
-                                item = new Info();
-                                item.taskId = taskId;
-                                COLLECTOR.taskInfo.put(taskId, item);
-                            }
-                            List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
-                            if (CollectionUtils.isEmpty(weakReferences)) {
-                                return false;
-                            }
-                            synchronized (weakReferences) {
-                                weakReferences.removeIf(weakReference -> null == weakReference.get());
-                            }
-                            return item.judged(weakReferences.size());
-                        }).forEach(taskId -> {
-                            CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
-                                Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
-                                Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
-                                        .map(WeakReference::get)
-                                        .ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + GraphLayout.parseInstance(info).totalSize()));
-                                List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
-                                if (null == weakReferences) {
-                                    weakReferenceMap.remove(taskId);
-                                    return;
-                                }
-                                if (weakReferences.isEmpty()) {
-                                    weakReferenceMap.remove(taskId);
-                                    return;
-                                }
-                                List<WeakReference<Object>> remove = new ArrayList<>();
-                                eachTaskOnce(weakReferences, remove, usage);
-                                if (!CollectionUtils.isEmpty(remove)) {
-                                    CompletableFuture<Void> removeFuture = CompletableFuture.runAsync(() -> remove.forEach(weakReferences::remove), EXECUTOR_SERVICE);
-                                    tasks.add(removeFuture);
-                                }
-                            }, EXECUTOR_SERVICE);
-                            tasks.add(futureItem);
-                        })
-        );
+        final List<String> taskIds = new ArrayList<>(weakReferenceMap.keySet());
+        taskIds.stream()
+                .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
+                .filter(taskId -> {
+                    Info item = COLLECTOR.taskInfo.get(taskId);
+                    if (null == item) {
+                        item = new Info();
+                        item.taskId = taskId;
+                        COLLECTOR.taskInfo.put(taskId, item);
+                    }
+                    List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
+                    if (CollectionUtils.isEmpty(weakReferences)) {
+                        return false;
+                    }
+                    synchronized (weakReferences) {
+                        weakReferences.removeIf(weakReference -> null == weakReference.get());
+                    }
+                    return item.judged(weakReferences.size());
+                }).forEach(taskId -> {
+                    //CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
+                    final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
+                    Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
+                            .map(WeakReference::get)
+                            .ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + GraphLayout.parseInstance(info).totalSize()));
+                    final List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
+                    if (null == weakReferences) {
+                        weakReferenceMap.remove(taskId);
+                        return;
+                    }
+                    if (weakReferences.isEmpty()) {
+                        weakReferenceMap.remove(taskId);
+                        return;
+                    }
+                    final List<WeakReference<Object>> remove = new ArrayList<>();
+                    eachTaskOnce(weakReferences, remove, usage);
+                    if (!CollectionUtils.isEmpty(remove)) {
+                        remove.forEach(e -> {
+                            weakReferences.remove(e);
+                            COLLECTOR.cacheMemoryMap.remove(e);
+                        });
+                    }
+                });
     }
 
 
@@ -211,18 +250,23 @@ public final class CpuMemoryCollector {
                 .stream()
                 .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
                 .toList();
-        for (String taskId : taskIds) {
-            Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
-            eachOneTask(taskId, usage);
-        }
+        asyncCollect(tasks -> {
+            for (String taskId : taskIds) {
+                CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
+                    Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
+                    eachOneTask(taskId, usage);
+                }, EXECUTOR_SERVICE);
+                tasks.add(futureItem);
+            }
+        });
     }
 
     void eachThreadGroup(List<WeakReference<ThreadFactory>> weakReferences, List<WeakReference<ThreadFactory>> useless, LongConsumer runnable) {
         for (int i = weakReferences.size() - 1; i >= 0; i--) {
             final int index = i;
             ignore(() -> {
-                WeakReference<ThreadFactory> weakReference = weakReferences.get(index);
-                ThreadFactory threadGroup = weakReference.get();
+                final WeakReference<ThreadFactory> weakReference = weakReferences.get(index);
+                final ThreadFactory threadGroup = weakReference.get();
                 if (null == threadGroup) {
                     useless.add(weakReference);
                 } else {
@@ -239,7 +283,7 @@ public final class CpuMemoryCollector {
     }
 
     void eachOneTask(String taskId, Usage usage) {
-        List<WeakReference<ThreadFactory>> weakReferences = threadGroupMap.get(taskId);
+        final List<WeakReference<ThreadFactory>> weakReferences = threadGroupMap.get(taskId);
         if (null == weakReferences) {
             threadGroupMap.remove(taskId);
             return;
@@ -248,11 +292,11 @@ public final class CpuMemoryCollector {
             weakReferences.removeIf(weakReference -> null == weakReference.get());
         }
         List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
-        Map<Long, Long> before = new HashMap<>();
-        long now = System.currentTimeMillis();
+        final Map<Long, Long> before = new HashMap<>();
+        final long now = System.currentTimeMillis();
         eachThreadGroup(weakReferences, useless, threadId -> before.put(threadId, THREAD_CPU_TIME.getThreadCpuTime(threadId)));
-        long lead = System.currentTimeMillis() - now;
-        long last = 1000L - lead;
+        final long lead = System.currentTimeMillis() - now;
+        final long last = 1000L - lead;
         if (last > 0L) {
             try {
                 Thread.sleep(last);
@@ -265,7 +309,7 @@ public final class CpuMemoryCollector {
                 useless.forEach(weakReferences::remove);
             }
         }
-        long interval = Math.max(1000L, lead);
+        final long interval = Math.max(1000L, lead);
         useless = new ArrayList<>();
         eachThreadGroup(weakReferences, useless, threadId -> {
             double cpuTime = THREAD_CPU_TIME.calculateCpuUsage(threadId, before.get(threadId), interval);
@@ -282,9 +326,9 @@ public final class CpuMemoryCollector {
     }
 
     public static Map<String, Usage> collectOnce(List<String> taskIds) {
-        Map<String, Usage> usageMap = new HashMap<>();
-        CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
-        CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
+        final Map<String, Usage> usageMap = new HashMap<>();
+        final CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
+        final CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
         try {
             futureCpu.get();
             futureMemory.get();
@@ -307,7 +351,7 @@ public final class CpuMemoryCollector {
     }
 
     static void asyncCollect(Consumer<List<CompletableFuture<Void>>> runnable) {
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        final List<CompletableFuture<Void>> futures = new ArrayList<>();
         try {
             runnable.accept(futures);
         } finally {
