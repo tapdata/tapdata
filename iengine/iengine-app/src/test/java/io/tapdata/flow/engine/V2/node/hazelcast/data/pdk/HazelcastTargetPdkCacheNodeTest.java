@@ -1,14 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.cache.CacheUtil;
-import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
-import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import io.tapdata.construct.constructImpl.ConstructIMap;
-import io.tapdata.construct.constructImpl.DocumentIMap;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import lombok.SneakyThrows;
@@ -20,7 +13,7 @@ import java.util.*;
 
 import static org.mockito.Mockito.*;
 
-class HazelcastTargetPdkCacheNodeTest extends HazelcastPdkBaseNodeTest{
+class HazelcastTargetPdkCacheNodeTest{
     HazelcastTargetPdkCacheNode hazelcastTargetPdkCacheNode;
     ConstructIMap<Map<String, Map<String, Object>>> dataMap;
     @BeforeEach
