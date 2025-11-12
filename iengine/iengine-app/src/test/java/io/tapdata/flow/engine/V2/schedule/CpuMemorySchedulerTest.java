@@ -46,7 +46,7 @@ class CpuMemorySchedulerTest {
             Scheduled annotation = method.getAnnotation(Scheduled.class);
             
             assertNotNull(annotation);
-            assertEquals("0/5 * * * * ?", annotation.cron());
+            assertEquals("0/10 * * * * ?", annotation.cron());
         }
 
         @Test
