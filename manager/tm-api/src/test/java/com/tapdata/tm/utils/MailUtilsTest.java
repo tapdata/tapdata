@@ -461,15 +461,19 @@ class MailUtilsTest {
             try (MockedStatic<Session> mb = Mockito
                     .mockStatic(Session.class)) {
                 mb.when(()->Session.getInstance(any(Properties.class),any(Authenticator.class))).thenReturn(null);
-                when(parms.getUser()).thenReturn("test@tapdata.io");
-                when(parms.getPass()).thenReturn("testPasswd");
-                when(parms.getHost()).thenReturn("test@tapdata.io");
-                when(parms.getPort()).thenReturn(465);
-                when(parms.getProxyHost()).thenReturn("smtp.test.cn");
-                when(parms.getProxyPort()).thenReturn(1025);
-                when(parms.getFrom()).thenReturn("from@tapdata.io");
-                MailUtils.sendHtmlEmail(parms, adressees, title, content);
-                mb.verify(() -> Session.getInstance(any(Properties.class),any(Authenticator.class)),new Times(1));
+                try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = Mockito
+                        .mockStatic(SpringContextHelper.class)) {
+                    springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(SettingsService.class)).thenReturn(settingsService);
+                    when(parms.getUser()).thenReturn("test@tapdata.io");
+                    when(parms.getPass()).thenReturn("testPasswd");
+                    when(parms.getHost()).thenReturn("test@tapdata.io");
+                    when(parms.getPort()).thenReturn(465);
+                    when(parms.getProxyHost()).thenReturn("smtp.test.cn");
+                    when(parms.getProxyPort()).thenReturn(1025);
+                    when(parms.getFrom()).thenReturn("from@tapdata.io");
+                    MailUtils.sendHtmlEmail(parms, adressees, title, content);
+                    mb.verify(() -> Session.getInstance(any(Properties.class),any(Authenticator.class)),new Times(1));
+                }
             }
         }
     }
