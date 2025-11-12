@@ -78,6 +78,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 				String beforePk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), before);
 				String afterCacheKey = getCacheKey(after);
 				String afterPk = CacheUtil.getPk(dataFlowCacheConfig.getPrimaryKeys(), after);
+				Map<String, Object> cacheFieldRow = CacheUtil.cacheFieldRow(after, dataFlowCacheConfig.getFields());
 				if (tapEvent instanceof TapUpdateRecordEvent) {
 					CacheUtil.removeRecord(dataMap, beforeCacheKey, beforePk);
 					Map<String, Map<String, Object>> recordMap;
@@ -86,7 +87,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 					} else {
 						recordMap = new HashMap<>();
 					}
-					recordMap.put(afterPk, after);
+					recordMap.put(afterPk, cacheFieldRow);
 					dataMap.insert(afterCacheKey, recordMap);
 
 				} else if (tapEvent instanceof TapDeleteRecordEvent) {
