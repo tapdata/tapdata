@@ -47,6 +47,9 @@ public class PdkTableMap implements KVMap<TapTable> {
 
 	@Override
 	public TapTable get(String key) {
+		if (!tapTableMap.containsKey(key)) {
+			return null;
+		}
 		return tapTableMap.get(key);
 	}
 
