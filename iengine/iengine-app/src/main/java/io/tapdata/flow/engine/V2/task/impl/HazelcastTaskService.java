@@ -166,6 +166,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	public void init() {
 		String agentId = (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		Config config = HazelcastUtil.getConfig(agentId);
+		config.setClassLoader(getClass().getClassLoader()); // @PostConstruct 中初始小概率发生 TCCL 问题，主动设置 classloader，防止发生找不到 org.bson.Document 问题
 		hazelcastInstance = Hazelcast.newHazelcastInstance(config);
 		cacheService = new ExternalStorageCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);
