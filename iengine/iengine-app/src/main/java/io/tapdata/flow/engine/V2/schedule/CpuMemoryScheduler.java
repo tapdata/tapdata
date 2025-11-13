@@ -6,6 +6,7 @@ import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,7 @@ import java.util.Optional;
  * @description
  */
 @Component
+@Slf4j
 public class CpuMemoryScheduler {
     @Autowired
     private ClientMongoOperator clientMongoOperator;
@@ -29,6 +31,14 @@ public class CpuMemoryScheduler {
     @Scheduled(cron = "0/10 * * * * ?")
     public void collectCpuUsage() {
         reportOnce(null);
+    }
+    @Scheduled(cron = "0/30 * * * * ?")
+    public void cleanTask() {
+        try {
+            CpuMemoryCollector.cleanOnce();
+        } catch (Exception e) {
+            log.warn("Clean task empty reference object failed: {}", e.getMessage());
+        }
     }
 
     public void reportOnce(List<String> taskIds) {
