@@ -13,6 +13,7 @@ import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.ref.WeakReference;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -51,6 +52,7 @@ public final class CpuMemoryCollector {
     final Map<String, WeakReference<TaskDto>> taskDtoMap = new ConcurrentHashMap<>(16);
 
     final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
+
     final Map<String, List<WeakReference<Object>>> cacheLeftWeakReferenceMap = new HashMap<>(16);
     final Map<String, List<WeakReference<Object>>> cacheRightWeakReferenceMap = new HashMap<>(16);
 
@@ -58,9 +60,7 @@ public final class CpuMemoryCollector {
 
     final Map<String, Info> taskInfo = new ConcurrentHashMap<>(16);
     final Map<WeakReference<Object>, MemInfo> cacheMemoryMap = new HashMap<>(16);
-
-    public static final Map<String, String> TASK_LOCK = new ConcurrentHashMap<>(16);
-
+    
     static class MemInfo {
         long mem = 0L;
         Long lastCalcTime;
@@ -123,83 +123,34 @@ public final class CpuMemoryCollector {
     public static void cleanOnce() {
         List<String> taskIds = new ArrayList<>(COLLECTOR.taskDtoMap.keySet());
         for (String taskId : taskIds) {
-            try {
-                TASK_LOCK.put(taskId, "100");
-                final List<WeakReference<Object>> list = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, key -> new ArrayList<>());
-                synchronized (list) {
-                    if (!CollectionUtils.isEmpty(list)) {
-                        list.removeIf(e -> Objects.isNull(e.get()));
-                    }
-                }
-            } finally {
-                TASK_LOCK.put(taskId, "000");
+            final List<WeakReference<Object>> list;
+            synchronized (COLLECTOR.weakReferenceMap) {
+                list = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, key -> new ArrayList<>());
+                list.removeIf(e -> Objects.isNull(e.get()));
             }
+            final int sec = LocalDateTime.now().getSecond();
+            int step = sec / 5;
+            int type = step % 2;
+            if (type == 0) {
+                clean(COLLECTOR.cacheLeftWeakReferenceMap, taskId, list);
+            } else {
+                clean(COLLECTOR.cacheRightWeakReferenceMap, taskId, list);
+            }
+        }
+    }
 
-            try {
-                TASK_LOCK.put(taskId, "010");
-                List<WeakReference<Object>> list = COLLECTOR.cacheLeftWeakReferenceMap.get(taskId);
-                if (null != list) {
-                    synchronized (list) {
-                        if (!CollectionUtils.isEmpty(list)) {
-                            list.removeIf(e -> Objects.isNull(e.get()));
-                        }
-                    }
-                }
-            } finally {
-                TASK_LOCK.put(taskId, "000");
-            }
-
-            try {
-                TASK_LOCK.put(taskId, "001");
-                List<WeakReference<Object>> list = COLLECTOR.cacheRightWeakReferenceMap.get(taskId);
-                if (list != null) {
-                    synchronized (list) {
-                        if (!CollectionUtils.isEmpty(list)) {
-                            list.removeIf(e -> Objects.isNull(e.get()));
-                        }
-                    }
-                }
-            } finally {
-                TASK_LOCK.put(taskId, "000");
-            }
-
-            try {
-                TASK_LOCK.put(taskId, "110");
-                final List<WeakReference<Object>> list = COLLECTOR.weakReferenceMap.get(taskId);
-                if (null != list) {
-                    synchronized (list) {
-                        final List<WeakReference<Object>> listLeft = COLLECTOR.cacheLeftWeakReferenceMap.get(taskId);
-                        if (null != listLeft) {
-                            synchronized (listLeft) {
-                                if (!CollectionUtils.isEmpty(listLeft)) {
-                                    list.addAll(listLeft);
-                                    listLeft.clear();
-                                }
-                            }
-                        }
-                    }
-                }
-            } finally {
-                TASK_LOCK.put(taskId, "000");
-            }
-            try {
-                TASK_LOCK.put(taskId, "101");
-                final List<WeakReference<Object>> list = COLLECTOR.weakReferenceMap.get(taskId);
-                if (null != list) {
-                    synchronized (list) {
-                        final List<WeakReference<Object>> listRight = COLLECTOR.cacheRightWeakReferenceMap.get(taskId);
-                        if (null != listRight) {
-                            synchronized (listRight) {
-                                if (!CollectionUtils.isEmpty(listRight)) {
-                                    list.addAll(listRight);
-                                    listRight.clear();
-                                }
-                            }
-                        }
-                    }
-                }
-            } finally {
-                TASK_LOCK.put(taskId, "000");
+    static void clean(Map<String, List<WeakReference<Object>>> map, String taskId, List<WeakReference<Object>> list) {
+        List<WeakReference<Object>> listRight = map.get(taskId);
+        if (CollectionUtils.isEmpty(listRight)) {
+            return;
+        }
+        synchronized (listRight) {
+            listRight.removeIf(e -> Objects.isNull(e.get()));
+        }
+        synchronized (listRight) {
+            if (!CollectionUtils.isEmpty(listRight)) {
+                list.addAll(listRight);
+                listRight.clear();
             }
         }
     }
@@ -295,14 +246,11 @@ public final class CpuMemoryCollector {
                 return;
             }
             final WeakReference<Object> reference = new WeakReference<>(info);
-            final List<WeakReference<Object>> weakReferences;
-            final String type = TASK_LOCK.computeIfAbsent(taskId, key -> "000");
-            weakReferences = switch (type) {
-                case "100", "101" ->
-                        COLLECTOR.cacheLeftWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
-                case "110" -> COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
-                default -> COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
-            };
+            final int sec = LocalDateTime.now().getSecond();
+            int step = sec / 5;
+            int type = step % 2;
+            final List<WeakReference<Object>> weakReferences = type == 0 ? COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>()) :
+                    COLLECTOR.cacheLeftWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
             synchronized (weakReferences) {
                 weakReferences.add(reference);
             }
