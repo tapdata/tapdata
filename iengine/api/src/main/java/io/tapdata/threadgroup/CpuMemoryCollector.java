@@ -60,7 +60,7 @@ public final class CpuMemoryCollector {
 
     final Map<String, Info> taskInfo = new ConcurrentHashMap<>(16);
     final Map<WeakReference<Object>, MemInfo> cacheMemoryMap = new HashMap<>(16);
-    
+
     static class MemInfo {
         long mem = 0L;
         Long lastCalcTime;
@@ -146,8 +146,6 @@ public final class CpuMemoryCollector {
         }
         synchronized (listRight) {
             listRight.removeIf(e -> Objects.isNull(e.get()));
-        }
-        synchronized (listRight) {
             if (!CollectionUtils.isEmpty(listRight)) {
                 list.addAll(listRight);
                 listRight.clear();
