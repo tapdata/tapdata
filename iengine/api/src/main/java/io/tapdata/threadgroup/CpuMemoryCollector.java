@@ -3,22 +3,24 @@ package io.tapdata.threadgroup;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.Usage;
 import io.tapdata.pdk.core.executor.ThreadFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.threadgroup.utils.ThreadGroupUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.ehcache.impl.internal.concurrent.ConcurrentHashMap;
 import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
@@ -45,12 +47,19 @@ public final class CpuMemoryCollector {
             r -> new Thread(r, "CpuMemoryCollector"));
     public static final ThreadCPUMonitor THREAD_CPU_TIME = new ThreadCPUMonitor();
     public static final CpuMemoryCollector COLLECTOR = new CpuMemoryCollector();
-    final Map<String, String> taskWithNode = new HashMap<>(16);
-    final Map<String, WeakReference<TaskDto>> taskDtoMap = new HashMap<>(16);
+    final Map<String, String> taskWithNode = new ConcurrentHashMap<>(16);
+    final Map<String, WeakReference<TaskDto>> taskDtoMap = new ConcurrentHashMap<>(16);
+
     final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
-    final Map<String, List<WeakReference<ThreadFactory>>> threadGroupMap = new HashMap<>(16);
-    final Map<String, Info> taskInfo = new HashMap<>(16);
+    final Map<String, List<WeakReference<Object>>> cacheLeftWeakReferenceMap = new HashMap<>(16);
+    final Map<String, List<WeakReference<Object>>> cacheRightWeakReferenceMap = new HashMap<>(16);
+
+    final Map<String, CopyOnWriteArrayList<WeakReference<ThreadFactory>>> threadGroupMap = new ConcurrentHashMap<>(16);
+
+    final Map<String, Info> taskInfo = new ConcurrentHashMap<>(16);
     final Map<WeakReference<Object>, MemInfo> cacheMemoryMap = new HashMap<>(16);
+
+    public static final Map<String, String> TASK_LOCK = new ConcurrentHashMap<>(16);
 
     static class MemInfo {
         long mem = 0L;
@@ -111,79 +120,204 @@ public final class CpuMemoryCollector {
 
     }
 
+    public static void cleanOnce() {
+        List<String> taskIds = new ArrayList<>(COLLECTOR.taskDtoMap.keySet());
+        for (String taskId : taskIds) {
+            try {
+                TASK_LOCK.put(taskId, "100");
+                final List<WeakReference<Object>> list = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, key -> new ArrayList<>());
+                synchronized (list) {
+                    if (!CollectionUtils.isEmpty(list)) {
+                        list.removeIf(e -> Objects.isNull(e.get()));
+                    }
+                }
+            } finally {
+                TASK_LOCK.put(taskId, "000");
+            }
+
+            try {
+                TASK_LOCK.put(taskId, "010");
+                List<WeakReference<Object>> list = COLLECTOR.cacheLeftWeakReferenceMap.get(taskId);
+                if (null != list) {
+                    synchronized (list) {
+                        if (!CollectionUtils.isEmpty(list)) {
+                            list.removeIf(e -> Objects.isNull(e.get()));
+                        }
+                    }
+                }
+            } finally {
+                TASK_LOCK.put(taskId, "000");
+            }
+
+            try {
+                TASK_LOCK.put(taskId, "001");
+                List<WeakReference<Object>> list = COLLECTOR.cacheRightWeakReferenceMap.get(taskId);
+                if (list != null) {
+                    synchronized (list) {
+                        if (!CollectionUtils.isEmpty(list)) {
+                            list.removeIf(e -> Objects.isNull(e.get()));
+                        }
+                    }
+                }
+            } finally {
+                TASK_LOCK.put(taskId, "000");
+            }
+
+            try {
+                TASK_LOCK.put(taskId, "110");
+                final List<WeakReference<Object>> list = COLLECTOR.weakReferenceMap.get(taskId);
+                if (null != list) {
+                    synchronized (list) {
+                        final List<WeakReference<Object>> listLeft = COLLECTOR.cacheLeftWeakReferenceMap.get(taskId);
+                        if (null != listLeft) {
+                            synchronized (listLeft) {
+                                if (!CollectionUtils.isEmpty(listLeft)) {
+                                    list.addAll(listLeft);
+                                    listLeft.clear();
+                                }
+                            }
+                        }
+                    }
+                }
+            } finally {
+                TASK_LOCK.put(taskId, "000");
+            }
+            try {
+                TASK_LOCK.put(taskId, "101");
+                final List<WeakReference<Object>> list = COLLECTOR.weakReferenceMap.get(taskId);
+                if (null != list) {
+                    synchronized (list) {
+                        final List<WeakReference<Object>> listRight = COLLECTOR.cacheRightWeakReferenceMap.get(taskId);
+                        if (null != listRight) {
+                            synchronized (listRight) {
+                                if (!CollectionUtils.isEmpty(listRight)) {
+                                    list.addAll(listRight);
+                                    listRight.clear();
+                                }
+                            }
+                        }
+                    }
+                }
+            } finally {
+                TASK_LOCK.put(taskId, "000");
+            }
+        }
+    }
+
 
     public static void startTask(TaskDto taskDto) {
         final Info item = new Info();
         item.taskId = taskDto.getId().toHexString();
-        COLLECTOR.taskDtoMap.put(item.taskId, new WeakReference<>(taskDto));
-        COLLECTOR.taskInfo.put(item.taskId, item);
+        try {
+            COLLECTOR.taskDtoMap.put(item.taskId, new WeakReference<>(taskDto));
+            COLLECTOR.taskInfo.put(item.taskId, item);
+        } catch (Exception e) {
+            log.warn("StartTask and register task failed, task id = {}, e = {}", taskDto.getId(), e.getMessage());
+        }
     }
 
     public static void addNode(String taskId, String nodeId) {
-        if (StringUtils.isBlank(nodeId) || StringUtils.isBlank(taskId)) {
-            return;
+        try {
+            if (StringUtils.isBlank(nodeId) || StringUtils.isBlank(taskId)) {
+                return;
+            }
+            COLLECTOR.taskWithNode.put(nodeId, taskId);
+        } catch (Exception e) {
+            log.warn("Add node failed, task id = {}, node id = {}, e = {}", taskId, nodeId, e.getMessage());
         }
-        COLLECTOR.taskWithNode.put(nodeId, taskId);
     }
 
     public static void registerTask(String nodeId, ThreadFactory threadGroup) {
-        if (null == threadGroup) {
-            return;
-        }
-        final String taskId = COLLECTOR.taskWithNode.get(nodeId);
-        if (StringUtils.isEmpty(taskId)) {
-            return;
-        }
-        final List<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new ArrayList<>());
-        synchronized (weakReferences) {
-            weakReferences.removeIf(weakReference -> null == weakReference.get());
-        }
-        for (WeakReference<ThreadFactory> weakReference : weakReferences) {
-            if (weakReference.get() == threadGroup) {
+        try {
+            if (null == threadGroup) {
                 return;
             }
-        }
-        synchronized (weakReferences) {
+            final String taskId = COLLECTOR.taskWithNode.get(nodeId);
+            if (StringUtils.isEmpty(taskId)) {
+                return;
+            }
+            final CopyOnWriteArrayList<WeakReference<ThreadFactory>> weakReferences = COLLECTOR.threadGroupMap.computeIfAbsent(taskId, k -> new CopyOnWriteArrayList<>());
+            weakReferences.removeIf(weakReference -> null == weakReference.get());
+            for (WeakReference<ThreadFactory> weakReference : weakReferences) {
+                if (weakReference.get() == threadGroup) {
+                    return;
+                }
+            }
             weakReferences.add(new WeakReference<>(threadGroup));
+        } catch (Exception e) {
+            log.warn("Register task failed, node id = {}, e = {}", nodeId, e.getMessage());
         }
     }
 
 
     public static void unregisterTask(String taskId) {
-        COLLECTOR.threadGroupMap.remove(taskId);
-        final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
-        if (!CollectionUtils.isEmpty(weakReferences)) {
-            weakReferences.forEach(COLLECTOR.cacheMemoryMap::remove);
+        CommonUtils.handleAnyError(() -> COLLECTOR.threadGroupMap.remove(taskId),
+                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean threadGroupMap, {}", taskId, e.getMessage()));
+        CommonUtils.handleAnyError(() -> {
+                    final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
+                    if (!CollectionUtils.isEmpty(weakReferences)) {
+                        weakReferences.forEach(COLLECTOR.cacheMemoryMap::remove);
+                    }
+                },
+                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap, {}", taskId, e.getMessage()));
+        synchronized (COLLECTOR.weakReferenceMap) {
+            CommonUtils.handleAnyError(() -> COLLECTOR.weakReferenceMap.remove(taskId),
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
         }
-        COLLECTOR.weakReferenceMap.remove(taskId);
-        COLLECTOR.taskDtoMap.remove(taskId);
-        COLLECTOR.taskInfo.remove(taskId);
-        final List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
-        nodeIds.forEach(nodeId -> {
-            if (Objects.equals(taskId, COLLECTOR.taskWithNode.get(nodeId))) {
-                COLLECTOR.taskWithNode.remove(nodeId);
-            }
-        });
+        synchronized (COLLECTOR.cacheLeftWeakReferenceMap) {
+            CommonUtils.handleAnyError(() -> COLLECTOR.cacheLeftWeakReferenceMap.remove(taskId),
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
+        }
+        synchronized (COLLECTOR.cacheRightWeakReferenceMap) {
+            CommonUtils.handleAnyError(() -> COLLECTOR.cacheRightWeakReferenceMap.remove(taskId),
+                    e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
+        }
+        CommonUtils.handleAnyError(() -> COLLECTOR.taskDtoMap.remove(taskId),
+                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskDtoMap, {}", taskId, e.getMessage()));
+        CommonUtils.handleAnyError(() -> COLLECTOR.taskInfo.remove(taskId),
+                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskInfo, {}", taskId, e.getMessage()));
+        CommonUtils.handleAnyError(() -> {
+                    final List<String> nodeIds = new ArrayList<>(COLLECTOR.taskWithNode.keySet());
+                    nodeIds.forEach(nodeId -> {
+                        if (Objects.equals(taskId, COLLECTOR.taskWithNode.get(nodeId))) {
+                            COLLECTOR.taskWithNode.remove(nodeId);
+                        }
+                    });
+                },
+                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean taskWithNode, {}", taskId, e.getMessage()));
+
     }
 
     public static void listening(String nodeId, Object info) {
-        final String taskId = COLLECTOR.taskWithNode.get(nodeId);
-        if (StringUtils.isEmpty(taskId)) {
-            return;
+        try {
+            final String taskId = COLLECTOR.taskWithNode.get(nodeId);
+            if (StringUtils.isEmpty(taskId)) {
+                return;
+            }
+            final WeakReference<Object> reference = new WeakReference<>(info);
+            final List<WeakReference<Object>> weakReferences;
+            final String type = TASK_LOCK.computeIfAbsent(taskId, key -> "000");
+            weakReferences = switch (type) {
+                case "100", "101" ->
+                        COLLECTOR.cacheLeftWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
+                case "110" -> COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
+                default -> COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
+            };
+            synchronized (weakReferences) {
+                weakReferences.add(reference);
+            }
+            final MemInfo memInfo = new MemInfo(reference);
+            COLLECTOR.cacheMemoryMap.put(reference, memInfo);
+        } catch (Exception e) {
+            log.warn("Listening failed, node id = {}, e = {}", nodeId, e.getMessage());
         }
-        final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, k -> new LinkedList<>());
-        final WeakReference<Object> reference = new WeakReference<>(info);
-        weakReferences.add(reference);
-        final MemInfo memInfo = new MemInfo(reference);
-        COLLECTOR.cacheMemoryMap.put(reference, memInfo);
     }
 
-    void eachTaskOnce(List<WeakReference<Object>> weakReferences, List<WeakReference<Object>> remove, Usage usage) {
+    void eachTaskOnce(List<WeakReference<Object>> weakReferences, Usage usage) {
         weakReferences.stream()
                 .filter(Objects::nonNull)
                 .forEach(weakReference -> {
                     if (null == weakReference.get()) {
-                        remove.add(weakReference);
                         return;
                     }
                     ignore(() -> {
@@ -192,8 +326,6 @@ public final class CpuMemoryCollector {
                             final long sizeOf = memInfo.memory();
                             final long value = usage.getHeapMemoryUsage() + sizeOf;
                             usage.setHeapMemoryUsage(value);
-                        } else {
-                            remove.add(weakReference);
                         }
                     }, "Calculate memory usage failed, {}");
                 });
@@ -214,36 +346,17 @@ public final class CpuMemoryCollector {
                     if (CollectionUtils.isEmpty(weakReferences)) {
                         return false;
                     }
-                    synchronized (weakReferences) {
-                        weakReferences.removeIf(weakReference -> null == weakReference.get());
-                    }
+                    //weakReferences.removeIf(weakReference -> null == weakReference.get());
                     return item.judged(weakReferences.size());
                 }).forEach(taskId -> {
-                    //CompletableFuture<Void> futureItem = CompletableFuture.runAsync(() -> {
                     final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
                     Optional.ofNullable(COLLECTOR.taskDtoMap.get(taskId))
                             .map(WeakReference::get)
                             .ifPresent(info -> usage.setHeapMemoryUsage(usage.getHeapMemoryUsage() + GraphLayout.parseInstance(info).totalSize()));
                     final List<WeakReference<Object>> weakReferences = weakReferenceMap.get(taskId);
-                    if (null == weakReferences) {
-                        weakReferenceMap.remove(taskId);
-                        return;
-                    }
-                    if (weakReferences.isEmpty()) {
-                        weakReferenceMap.remove(taskId);
-                        return;
-                    }
-                    final List<WeakReference<Object>> remove = new ArrayList<>();
-                    eachTaskOnce(weakReferences, remove, usage);
-                    if (!CollectionUtils.isEmpty(remove)) {
-                        remove.forEach(e -> {
-                            weakReferences.remove(e);
-                            COLLECTOR.cacheMemoryMap.remove(e);
-                        });
-                    }
+                    eachTaskOnce(weakReferences, usage);
                 });
     }
-
 
     void collectCpuUsage(List<String> filterTaskIds, Map<String, Usage> usageMap) {
         List<String> taskIds = new ArrayList<>(threadGroupMap.keySet())
@@ -288,9 +401,7 @@ public final class CpuMemoryCollector {
             threadGroupMap.remove(taskId);
             return;
         }
-        synchronized (weakReferences) {
-            weakReferences.removeIf(weakReference -> null == weakReference.get());
-        }
+        weakReferences.removeIf(weakReference -> null == weakReference.get());
         List<WeakReference<ThreadFactory>> useless = new ArrayList<>();
         final Map<Long, Long> before = new HashMap<>();
         final long now = System.currentTimeMillis();
@@ -305,9 +416,7 @@ public final class CpuMemoryCollector {
             }
         }
         if (!useless.isEmpty()) {
-            synchronized (weakReferences) {
-                useless.forEach(weakReferences::remove);
-            }
+            useless.forEach(weakReferences::remove);
         }
         final long interval = Math.max(1000L, lead);
         useless = new ArrayList<>();
@@ -316,9 +425,7 @@ public final class CpuMemoryCollector {
             usage.addCpu(cpuTime);
         });
         if (!useless.isEmpty()) {
-            synchronized (weakReferences) {
-                useless.forEach(weakReferences::remove);
-            }
+            useless.forEach(weakReferences::remove);
         }
         if (weakReferences.isEmpty()) {
             threadGroupMap.remove(taskId);
