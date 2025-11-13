@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.Usage;
 import io.tapdata.pdk.core.executor.ThreadFactory;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -201,9 +202,7 @@ class CpuMemoryCollectorTest {
             
             CpuMemoryCollector.listening(nodeId, info);
             
-            assertTrue(collector.weakReferenceMap.containsKey(taskId));
-            assertEquals(1, collector.weakReferenceMap.get(taskId).size());
-            assertEquals(info, collector.weakReferenceMap.get(taskId).get(0).get());
+            assertFalse(collector.weakReferenceMap.containsKey(taskId));
         }
 
         @Test
@@ -964,6 +963,48 @@ class CpuMemoryCollectorTest {
             assertNotNull(CpuMemoryCollector.COLLECTOR.threadGroupMap);
             assertNotNull(CpuMemoryCollector.COLLECTOR.taskInfo);
             assertNotNull(CpuMemoryCollector.COLLECTOR.cacheMemoryMap);
+        }
+    }
+
+    @Nested
+    class cleanOnceTest {
+        @Test
+        void testNormal() {
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+        }
+        @Test
+        void testWithNull() {
+            collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
+            collector.cacheLeftWeakReferenceMap.put("taskId", null);
+            collector.cacheRightWeakReferenceMap.put("taskId", null);
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+        }
+
+        @Test
+        void testWithEmpty() {
+            collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
+            collector.cacheLeftWeakReferenceMap.put("taskId", new ArrayList<>());
+            collector.cacheRightWeakReferenceMap.put("taskId", new ArrayList<>());
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+        }
+        @Test
+        void testWithNullReference() {
+            collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
+            List<WeakReference<Object>> list = new ArrayList<>();
+            list.add(new WeakReference<>(null));
+            collector.cacheLeftWeakReferenceMap.put("taskId", list);
+            collector.cacheRightWeakReferenceMap.put("taskId", list);
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+        }
+        @Test
+        void testWithSomeReference() {
+            collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
+            List<WeakReference<Object>> list = new ArrayList<>();
+            list.add(new WeakReference<>(null));
+            list.add(new WeakReference<>(new Object()));
+            collector.cacheLeftWeakReferenceMap.put("taskId", list);
+            collector.cacheRightWeakReferenceMap.put("taskId", list);
+            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
         }
     }
 }
