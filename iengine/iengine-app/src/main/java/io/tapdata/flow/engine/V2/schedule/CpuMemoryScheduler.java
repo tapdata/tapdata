@@ -30,15 +30,12 @@ public class CpuMemoryScheduler {
 
     @Scheduled(cron = "0/10 * * * * ?")
     public void collectCpuUsage() {
-        reportOnce(null);
-    }
-    @Scheduled(cron = "0/30 * * * * ?")
-    public void cleanTask() {
         try {
             CpuMemoryCollector.cleanOnce();
         } catch (Exception e) {
             log.warn("Clean task empty reference object failed: {}", e.getMessage());
         }
+        reportOnce(null);
     }
 
     public void reportOnce(List<String> taskIds) {
