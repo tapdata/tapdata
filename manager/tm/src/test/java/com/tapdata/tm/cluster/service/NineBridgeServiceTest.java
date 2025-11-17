@@ -36,6 +36,12 @@ class NineBridgeServiceTest {
         rawServerStateService = mock(RawServerStateService.class);
         ReflectionTestUtils.setField(nineBridgeService, "rawServerStateService", rawServerStateService);
     }
+
+    @Test
+    void testConstructor() {
+        NineBridgeService service = new NineBridgeService();
+        assertNotNull(service);
+    }
     
     @Nested
     class FindByServerIdTest {
