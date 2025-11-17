@@ -129,31 +129,16 @@ public class TaskRestartSchedule {
         Map<String, List<Worker>> userWorkerMap = this.getUserWorkMap();
         List<TaskDto> orderTask = metadataDefinitionService.orderTaskByTagPriority(all);
         for (TaskDto taskDto : orderTask) {
-            if (isCloud) {
-                String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
-                if ("offline".equals(status) ) {
-                    log.debug("The cloud version does not need this rescheduling");
-                    continue;
-                }
-                if ("online".equals(status)) {
-                    taskScheduleService.sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), userDetailMap.get(taskDto.getUserId()));
-                    continue;
-                }
-            }
             UserDetail user = userDetailMap.get(taskDto.getUserId());
-            if (user == null) {
-                continue;
-            }
+            if (null == user || restartInCloud(isCloud, taskDto, user)) continue;
 
             List<Worker> workerList = getUserWorkList(isCloud, userWorkerMap, user.getUserId());
-            if (CollectionUtils.isEmpty(workerList)) {
-                continue;
-            }
-
-            StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
-            if (stateMachineResult.isOk()) {
-                transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
-                taskScheduleService.scheduling(taskDto, user);
+            if (CollectionUtils.isNotEmpty(workerList)) {
+                StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, user);
+                if (stateMachineResult.isOk()) {
+                    transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
+                    taskScheduleService.scheduling(taskDto, user);
+                }
             }
         }
     }
@@ -240,11 +225,8 @@ public class TaskRestartSchedule {
         for (TaskDto taskDto : all) {
             String agentId = taskDto.getAgentId();
             UserDetail user = userMap.get(taskDto.getUserId());
-            if (Objects.isNull(user)) {
-                continue;
-            }
-
-            if (isCloud() && skipCloudEngineOffline(agentId, user)) {
+            if (Objects.isNull(user)
+                || isCloud() && skipCloudEngineOffline(agentId, user)) {
                 continue;
             }
 
@@ -276,11 +258,8 @@ public class TaskRestartSchedule {
         for (TaskDto taskDto : all) {
             String agentId = taskDto.getAgentId();
             UserDetail user = userMap.get(taskDto.getUserId());
-            if (Objects.isNull(user)) {
-                continue;
-            }
-
-            if (isCloud() && skipCloudEngineOffline(agentId, user)) {
+            if (Objects.isNull(user)
+                || (isCloud() && skipCloudEngineOffline(agentId, user))) {
                 continue;
             }
 
@@ -326,6 +305,20 @@ public class TaskRestartSchedule {
 
         log.debug("The cloud version does not need this rescheduling, engine: '{}', status {}", agentId, status);
         return true;
+    }
+
+    private boolean restartInCloud(boolean isCloud, TaskDto taskDto, UserDetail user) {
+        if (isCloud) {
+            String status = workerService.checkUsedAgent(taskDto.getAgentId(), user);
+            if ("offline".equals(status)) {
+                log.debug("The cloud version does not need this rescheduling");
+                return true;
+            } else if ("online".equals(status)) {
+                taskScheduleService.sendStartMsg(taskDto.getId().toHexString(), taskDto.getAgentId(), user);
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<Worker> getUserWorkList(boolean isCloud, Map<String, List<Worker>> userWorkerMap, String userId) {
