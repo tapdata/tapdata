@@ -18,4 +18,5 @@ public class RawServerStateEntity extends BaseEntity {
     private Date timestamp;
     private String serviceIP;
     private Integer servicePort;
+    private Boolean delete;
 }
