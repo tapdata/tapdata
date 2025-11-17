@@ -1,5 +1,6 @@
 package com.tapdata.tm.schedule;
 
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
@@ -41,6 +42,8 @@ public class TaskRestartScheduleTest {
 
             TaskRestartSchedule taskRestartSchedule = new TaskRestartSchedule();
 
+            SettingsService settingsService = mock(SettingsService.class);
+            taskRestartSchedule.setSettingsService(settingsService);
             TaskService taskService = mock(TaskService.class);
             when(taskService.findAll(any(Query.class))).thenReturn(all);
             taskRestartSchedule.setTaskService(taskService);
