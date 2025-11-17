@@ -33,6 +33,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.*;
 public class RawServerStateService extends BaseService<RawServerStateDto, RawServerStateEntity, ObjectId, RawServerStateRepository> {
     public static final String SERVICE_ID = "serviceId";
     public static final String TIMESTAMP = "timestamp";
+    public static final String DELETE = "delete";
     public RawServerStateService(@NonNull RawServerStateRepository repository) {
         super(repository, RawServerStateDto.class, RawServerStateEntity.class);
     }
@@ -43,7 +44,7 @@ public class RawServerStateService extends BaseService<RawServerStateDto, RawSer
     }
 
     public Page<RawServerStateDto> getAllLatest(Filter filter) {
-        filter.getWhere().put("delete", new Document().append("$ne", true));
+        filter.getWhere().put(DELETE, new Document().append("$ne", true));
         Aggregation aggregation = Aggregation.newAggregation(
                 match(QueryUtil.parseWhereToCriteria(filter.getWhere())),
                 sort(Sort.by(Sort.Direction.DESC, TIMESTAMP)),
@@ -66,6 +67,6 @@ public class RawServerStateService extends BaseService<RawServerStateDto, RawSer
     }
 
     public void deleteAll(String serviceId) {
-        repository.updateMany(Query.query(Criteria.where(SERVICE_ID).is(serviceId).and("delete").ne(true)), Update.update("delete", true));
+        repository.updateMany(Query.query(Criteria.where(SERVICE_ID).is(serviceId).and(DELETE).ne(true)), Update.update(DELETE, true));
     }
 }
