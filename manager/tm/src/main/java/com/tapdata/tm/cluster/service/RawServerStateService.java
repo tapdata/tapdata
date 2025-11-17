@@ -66,6 +66,6 @@ public class RawServerStateService extends BaseService<RawServerStateDto, RawSer
     }
 
     public void deleteAll(String serviceId) {
-        repository.update(Query.query(Criteria.where(SERVICE_ID).is(serviceId)), Update.update("delete", true));
+        repository.updateMany(Query.query(Criteria.where(SERVICE_ID).is(serviceId).and("delete").ne(true)), Update.update("delete", true));
     }
 }
