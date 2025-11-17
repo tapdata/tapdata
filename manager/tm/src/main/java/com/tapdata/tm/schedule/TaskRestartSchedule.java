@@ -239,20 +239,14 @@ public class TaskRestartSchedule {
         boolean isCloud = isCloud();
         Map<String, UserDetail> userMap = this.getUserDetailMap(all);
         for (TaskDto taskDto : all) {
-            String userId = taskDto.getUserId();
             String agentId = taskDto.getAgentId();
-            UserDetail user = userMap.get(userId);
+            UserDetail user = userMap.get(taskDto.getUserId());
             if (Objects.isNull(user)) {
                 continue;
             }
 
-            if (isCloud) {
-                // 云版，引擎在线时再重新调度
-                String status = workerService.checkUsedAgent(agentId, user);
-                if (!"online".equals(status)) {
-                    log.debug("The cloud version does not need this re-scheduling, engine: '{}', status {}", agentId, status);
-                    continue;
-                }
+            if (isCloud && skipCloudEngineOffline(agentId, user)) {
+                continue;
             }
 
             transformSchema.transformSchemaBeforeDynamicTableName(taskDto, user);
@@ -290,20 +284,14 @@ public class TaskRestartSchedule {
         boolean isCloud = isCloud();
         Map<String, UserDetail> userMap = this.getUserDetailMap(all);
         for (TaskDto taskDto : all) {
-            String userId = taskDto.getUserId();
             String agentId = taskDto.getAgentId();
-            UserDetail user = userMap.get(userId);
+            UserDetail user = userMap.get(taskDto.getUserId());
             if (Objects.isNull(user)) {
                 continue;
             }
 
-            if (isCloud) {
-                // 云版，引擎在线时再重新调度
-                String status = workerService.checkUsedAgent(agentId, user);
-                if (!"online".equals(status)) {
-                    log.debug("The cloud version does not need this rescheduling of status {}", status);
-                    continue;
-                }
+            if (isCloud && skipCloudEngineOffline(agentId, user)) {
+                continue;
             }
 
             CompletableFuture.runAsync(() -> {
@@ -344,6 +332,15 @@ public class TaskRestartSchedule {
             buildProfile = "DAAS";
         }
         return buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+    }
+
+    protected boolean skipCloudEngineOffline(String agentId, UserDetail user) {
+        // 云版，只在引擎在线时重新调度
+        String status = workerService.checkUsedAgent(agentId, user);
+        if ("online".equals(status)) return false;
+
+        log.debug("The cloud version does not need this rescheduling, engine: '{}', status {}", agentId, status);
+        return true;
     }
 
     private List<Worker> getUserWorkList(boolean isCloud, Map<String, List<Worker>> userWorkerMap, String userId) {
