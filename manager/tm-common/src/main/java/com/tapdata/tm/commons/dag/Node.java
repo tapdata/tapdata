@@ -82,6 +82,8 @@ public abstract class Node<S> extends Element{
 
     private Map<String, List<String>> notSupportFieldMap;
 
+    private Boolean autoAdjustBatchSize;
+
 //    private String subTaskId;
 
     /**

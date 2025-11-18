@@ -72,6 +72,8 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustStage;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.BatchAcceptor;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
@@ -86,11 +88,13 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.DynamicLinkedBlockingQueue;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -109,6 +113,8 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -153,7 +159,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @author jackin
  * @date 2022/2/22 2:33 PM
  **/
-public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
+public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode implements AdjustStage {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
 	public static final int DEFAULT_POLLING_CDC_HEART_BEAT_TIME = 2;
 	//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
@@ -167,8 +173,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	protected final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
 	private StreamReadConsumer streamReadConsumer;
+	private BatchAcceptor streamReadBatchAcceptor;
+
 	private PDKMethodInvoker streamReadMethodInvoker;
 	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
+
+	private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
 
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -241,6 +251,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
+			reportBatchSize(readBatchSize, streamReadBatchAcceptor.getDelayMs());
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			CacheNode cacheNode = (CacheNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof CacheNode && node.getType().equals(TaskDto.SYNC_TYPE_MEM_CACHE))
@@ -712,7 +723,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			if (newSourceQueueCapacity != this.sourceQueueCapacity) {
 				while (isRunning()) {
 					if (this.eventQueue.isEmpty()) {
-						this.eventQueue = new LinkedBlockingQueue<>(newSourceQueueCapacity);
+						this.eventQueue = new DynamicLinkedBlockingQueue<TapdataEvent>(newSourceQueueCapacity).active(this::isRunning);
 						obsLogger.trace("{}Source queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
 						this.sourceQueueCapacity = newSourceQueueCapacity;
 						break;
@@ -828,6 +839,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
 		syncProgressType = SyncProgress.Type.NORMAL;
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		ConnectorNode connectorNode = getConnectorNode();
@@ -865,7 +877,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
 			anyError = () -> {
 				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
-						syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
+						syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), streamReadConsumer);
 			};
 		} else {
 			RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
@@ -903,7 +915,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
 				anyError = () -> {
 					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
+							syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), streamReadConsumer);
 				};
 			}
 		}
@@ -919,7 +931,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							.dataProcessorContext(getDataProcessorContext())
 							.streamReadFunction(finalStreamReadFunctionName)
 							.tables(tables)
-							.eventBatchSize(increaseReadSize)
+							.eventBatchSize(getIncreaseReadSize())
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
 					streamReadFuncAspect -> {
@@ -932,7 +944,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
-		return StreamReadConsumer.create((events, offsetObj) -> {
+		StreamReadConsumer consumer = StreamReadConsumer.create((events, offsetObj) -> {
 			try {
 				while (isRunning()) {
 					try {
@@ -944,6 +956,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 				}
 				if (events != null && !events.isEmpty()) {
+					List<TapEvent> finalEvents = events;
+					Optional.ofNullable(this.streamReadBatchSizeConsumer).ifPresent(e -> e.accept(finalEvents));
 					HandlerUtil.sampleMemoryToTapEvent(events);
 					events = events.stream().map(event -> {
 						if (null == event.getTime()) {
@@ -991,6 +1005,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
+		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
+		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(connectorNode.getConnectorContext())
+				.map(TapConnectorContext::getSpecification)
+				.map(TapNodeSpecification::getAutoAccumulateBatch)
+				.map(AutoAccumulateBatchInfo::getIncreaseRead)
+				.orElse(new AutoAccumulateBatchInfo.Info());
+		if (!autoAccumulateBatchInfo.isOpen()) {
+			return consumer;
+		}
+		long batchDelayMs = autoAccumulateBatchInfo.getMaxDelayMs();
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, batchDelayMs, consumer);
+		return StreamReadConsumer.create(streamReadBatchAcceptor::accept);
 	}
 
 	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
@@ -1515,4 +1541,46 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		return counts.get();
 	}
 
+	@Override
+	public String getNodeId() {
+		return getNode().getId();
+	}
+
+	@Override
+	public void setConsumer(Consumer<List<TapEvent>> consumer) {
+		this.streamReadBatchSizeConsumer = consumer;
+	}
+
+	@Override
+	public Consumer<List<TapEvent>> consumer() {
+		return this.streamReadBatchSizeConsumer;
+	}
+
+	@Override
+	public void metric(MetricInfo metricInfo) {
+
+	}
+
+	@Override
+	public TaskInfo getTaskInfo() {
+		final TaskInfo info = new TaskInfo();
+		final int capacity = eventQueue.capacity();
+		final int size = eventQueue.size();
+		final int batchSize = Optional.ofNullable(getIncreaseReadSize()).orElse(0);
+		info.setEventQueueCapacity(capacity);
+		info.setEventQueueSize(size);
+		info.setIncreaseReadSize(batchSize);
+		return info;
+	}
+
+	@Override
+	public void updateIncreaseReadSize(int newSize) {
+		final int old = eventQueue.capacity();
+		final int changeTo = eventQueue.changeTo(newSize, SOURCE_QUEUE_FACTOR);
+		setIncreaseReadSize(changeTo);
+		reportBatchSize(changeTo, streamReadBatchAcceptor.getDelayMs());
+		if (changeTo != old) {
+			obsLogger.info("Data node [{} - {}] | Change event queue capacity from {} to {}", getNode().getName(), getNode().getId(), old, changeTo);
+		}
+	}
 }

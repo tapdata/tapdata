@@ -50,6 +50,7 @@ public class ObservableAspectTask extends AspectTask {
 	public ObservableAspectTask() {
 		// data node aspects
 		observerClassHandlers.register(CpuMemUsageAspect.class, this::handleCpuMemUsage);
+		observerClassHandlers.register(BatchSizeAspect.class, this::handleBatchSize);
 		// data node aspects
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
 		observerClassHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
@@ -99,6 +100,12 @@ public class ObservableAspectTask extends AspectTask {
 
 	public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
 		return taskSampleHandler.handleCpuMemUsage(aspect);
+	}
+
+	public Void handleBatchSize(BatchSizeAspect aspect) {
+		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(aspect.getNodeId());
+		Optional.ofNullable(handler).ifPresent(h -> h.handleBatchSize(aspect));
+		return null;
 	}
 
 	protected void initCompletableFuture() {

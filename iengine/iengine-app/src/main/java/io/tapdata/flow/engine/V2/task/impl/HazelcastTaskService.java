@@ -74,6 +74,8 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControllerExCode_21;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustBatchSizeFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustStage;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
@@ -195,6 +197,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
+			AdjustBatchSizeFactory.startIfNeed(taskDto.getId().toHexString(), obsLogger);
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
@@ -992,7 +995,16 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 		}
 		MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, hazelcastNode);
+		registerAdjustStageIfNeed(node, hazelcastNode, taskDto.getId().toHexString());
 		return hazelcastNode;
+	}
+
+	static void registerAdjustStageIfNeed(Node<?> node, HazelcastBaseNode hazelcastNode, String taskId) {
+		if (hazelcastNode instanceof AdjustStage stage
+				&& Objects.nonNull(node.getAutoAdjustBatchSize())
+				&& node.getAutoAdjustBatchSize()) {
+			AdjustBatchSizeFactory.register(taskId, stage);
+		}
 	}
 
 	private void handleEdge(

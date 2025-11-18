@@ -43,6 +43,7 @@ import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.DynamicLinkedBlockingQueue;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -72,7 +73,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -134,7 +134,7 @@ public class HazelcastSourcePartitionReadDataNode extends HazelcastSourcePdkData
 				}
 			}
 			super.doInit(context);
-			this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity >> 1);
+			this.eventQueue = new DynamicLinkedBlockingQueue<TapdataEvent>(sourceQueueCapacity >> 1).active(this::isRunning);
 		} catch (Exception e) {
 			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
 		}

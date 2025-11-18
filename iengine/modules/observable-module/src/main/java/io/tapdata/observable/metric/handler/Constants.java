@@ -32,4 +32,7 @@ public class Constants {
 
     static final String CPU_USAGE           = "cpuUsage";
     static final String MEMORY_USAGE        = "memoryUsage";
+
+    static final String BATCH_READ_SIZE     = "batchReadSize";
+    static final String INTERVAL_MS        = "intervalMs";
 }
