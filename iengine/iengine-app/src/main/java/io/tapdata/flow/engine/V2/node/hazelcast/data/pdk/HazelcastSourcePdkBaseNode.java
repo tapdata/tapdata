@@ -5,7 +5,6 @@ import cn.hutool.core.util.ReUtil;
 import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Queues;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
@@ -40,16 +39,19 @@ import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
 import io.tapdata.Runnable.LoadSchemaRunner;
+import io.tapdata.aspect.BatchSizeAspect;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.supervisor.DataNodeThreadGroupAspect;
+import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.common.concurrent.exception.ConcurrentProcessorApplyException;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
+import io.tapdata.entity.BatchSizeInfo;
 import io.tapdata.entity.CountResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -91,6 +93,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.DynamicLinkedBlockingQueue;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -172,7 +175,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
      * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
      * blocked when reading data from data source while jet using async when passing the event to next node.
      */
-    protected LinkedBlockingQueue<TapdataEvent> eventQueue;
+    protected DynamicLinkedBlockingQueue<TapdataEvent> eventQueue;
     private final AtomicReference<Object> lastStreamOffset = new AtomicReference<>();
     protected StreamReadFuncAspect streamReadFuncAspect;
     protected TapdataEvent pendingEvent;
@@ -336,7 +339,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         try {
             List<TapdataEvent> tapdataEvents = new ArrayList<>();
             while (isRunning()) {
-                int drain = Queues.drain(eventQueue, tapdataEvents, readBatchSize, 1L, TimeUnit.MILLISECONDS);
+                int drain = eventQueue.drain(tapdataEvents, readBatchSize, 1L, TimeUnit.MILLISECONDS);
                 if (drain > 0) {
                     List<List<TapdataEvent>> partition = ListUtils.partition(tapdataEvents, toTapValueBatchSize);
                     for (List<TapdataEvent> events : partition) {
@@ -466,19 +469,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     private void initSourceEventQueue() {
         this.sourceQueueCapacity = readBatchSize * SOURCE_QUEUE_FACTOR;
         this.originalSourceQueueCapacity = sourceQueueCapacity;
-        this.eventQueue = new LinkedBlockingQueue<>(sourceQueueCapacity);
+        this.eventQueue = new DynamicLinkedBlockingQueue<TapdataEvent>(sourceQueueCapacity).active(this::isRunning);
         obsLogger.trace("Source node \"{}\" event queue capacity: {}", getNode().getName(), sourceQueueCapacity);
     }
 
     private void initSourceReadBatchSize() {
         this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
-        this.increaseReadSize = DEFAULT_INCREASE_BATCH_SIZE;
+        int increaseReadSize = DEFAULT_INCREASE_BATCH_SIZE;
         if (getNode() instanceof DataParentNode) {
             this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
-            this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
+            increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
         } else if (getNode() instanceof LogCollectorNode) {
-            this.increaseReadSize = Optional.ofNullable(((LogCollectorNode) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
+            increaseReadSize = Optional.ofNullable(((LogCollectorNode) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
         }
+        this.setIncreaseReadSize(increaseReadSize);
         this.drainSize = Math.max(1, readBatchSize / 2);
         obsLogger.trace("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
     }
@@ -831,7 +835,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                 tapdataEvents = pendingEvents;
                 pendingEvents = null;
             } else {
-                if (toTapValueConcurrent) {
+                if (Boolean.TRUE.equals(toTapValueConcurrent)) {
                     try {
                         tapdataEvents = toTapValueConcurrentProcessor.get(1L, TimeUnit.SECONDS);
                         accpetCdcEventIfHasInspect(tapdataEvents);
@@ -842,7 +846,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				} else {
 					if (null != eventQueue) {
-						int drain = Queues.drain(eventQueue, tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
+						int drain = eventQueue.drain(tapdataEvents, drainSize, 100L, TimeUnit.MILLISECONDS);
 						if (drain > 0) {
                             batchTransformToTapValue(tapdataEvents);
                             accpetCdcEventIfHasInspect(tapdataEvents);
@@ -1804,6 +1808,52 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
+    public void startSourceConsumer() {
+        while (isRunning()) {
+            try {
+                TapdataEvent dataEvent;
+                AtomicBoolean isPending = new AtomicBoolean();
+                if (pendingEvent != null) {
+                    dataEvent = pendingEvent;
+                    pendingEvent = null;
+                    isPending.compareAndSet(false, true);
+                } else {
+                    try {
+                        dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                    isPending.compareAndSet(true, false);
+                }
+
+                if (dataEvent != null) {
+                    if (!isPending.get()) {
+                        TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+                        TapEvent tapEvent = dataEvent.getTapEvent();
+                        tapRecordToTapValue(tapEvent, codecsFilterManager);
+                    }
+                    if (!offer(dataEvent)) {
+                        pendingEvent = dataEvent;
+                        continue;
+                    }
+                    Optional.ofNullable(getSnapshotProgressManager())
+                            .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
+                }
+            } catch (Throwable e) {
+                errorHandle(e, "start source consumer failed: " + e.getMessage());
+                break;
+            }
+        }
+    }
+
+    public LinkedBlockingQueue<TapdataEvent> getEventQueue() {
+        return eventQueue.getQueue();
+    }
+
+    public SnapshotProgressManager getSnapshotProgressManager() {
+        return snapshotProgressManager;
+    }
+
     public enum SourceMode {
         NORMAL,
         LOG_COLLECTOR,
@@ -1853,5 +1903,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     protected CountResult getCountResult(Long count,String tableId) {
         return new CountResult(count,null != syncProgress && BatchOffsetUtil.batchIsOverOfTable(syncProgress, tableId));
+    }
+
+    void reportBatchSize(int batchSize, long targetIntervalMs) {
+        BatchSizeInfo batchSizeInfo = new BatchSizeInfo();
+        batchSizeInfo.setBatchSize(batchSize);
+        batchSizeInfo.setTargetIntervalMs(targetIntervalMs);
+        BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+        aspect.setNodeId(getNode().getId());
+        Optional.ofNullable(TaskAspectManager.get(processorBaseContext.getTaskDto().getId().toHexString()))
+                .ifPresent(context -> context.onObserveAspect(aspect));
     }
 }

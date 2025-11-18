@@ -4,6 +4,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.micrometer.core.instrument.Metrics;
+import io.tapdata.aspect.BatchSizeAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.SampleCollector;
@@ -36,6 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,6 +84,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 	@Getter
 	private Long snapshotDoneAt = null;
 	private final Map<String, Long> tableSnapshotDoneAtMap = new HashMap<>();
+
+	protected AtomicInteger batchReadSize = new AtomicInteger(0);
+	protected AtomicLong intervalMs = new AtomicLong(0L);
 
 	@Override
 	List<String> samples() {
@@ -160,6 +165,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 			}
 			return currentSnapshotTableInsertRowTotal;
 		});
+		collector.addSampler(Constants.BATCH_READ_SIZE, () -> batchReadSize.get());
+		collector.addSampler(Constants.INTERVAL_MS, () -> intervalMs.get());
 	}
 
 	public void addTable(String... tables) {
@@ -525,5 +532,16 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 		public void stopHealthCheck(String nodeId) {
 			nodeMap.remove(nodeId);
 		}
+	}
+
+
+	public Void handleBatchSize(BatchSizeAspect aspect) {
+		Optional.ofNullable(aspect.getBatchSizeInfo()).ifPresent(info -> {
+			Optional.ofNullable(info.getTargetBatchSize())
+					.ifPresent(batchReadSize::set);
+			Optional.ofNullable(info.getTargetIntervalMs())
+					.ifPresent(intervalMs::set);
+		});
+		return null;
 	}
 }
