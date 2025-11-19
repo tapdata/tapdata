@@ -197,7 +197,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
-			AdjustBatchSizeFactory.startIfNeed(taskDto.getId().toHexString(), obsLogger);
+			AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));

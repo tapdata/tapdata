@@ -251,7 +251,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	public void startSourceRunner() {
 		try {
-			reportBatchSize(readBatchSize, streamReadBatchAcceptor.getDelayMs());
+			reportBatchSize(readBatchSize, 1000);
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			CacheNode cacheNode = (CacheNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof CacheNode && node.getType().equals(TaskDto.SYNC_TYPE_MEM_CACHE))
@@ -1012,6 +1012,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				.map(AutoAccumulateBatchInfo::getIncreaseRead)
 				.orElse(new AutoAccumulateBatchInfo.Info());
 		if (!autoAccumulateBatchInfo.isOpen()) {
+			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, 1000, null);
 			return consumer;
 		}
 		long batchDelayMs = autoAccumulateBatchInfo.getMaxDelayMs();
@@ -1575,7 +1576,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 	@Override
 	public void updateIncreaseReadSize(int newSize) {
-		final int old = eventQueue.capacity();
+		final int old = getIncreaseReadSize();
 		final int changeTo = eventQueue.changeTo(newSize, SOURCE_QUEUE_FACTOR);
 		setIncreaseReadSize(changeTo);
 		reportBatchSize(changeTo, streamReadBatchAcceptor.getDelayMs());
