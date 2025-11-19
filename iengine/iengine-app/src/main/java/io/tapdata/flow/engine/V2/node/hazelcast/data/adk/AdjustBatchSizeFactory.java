@@ -3,27 +3,27 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.adk;
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.observable.logging.ObsLogger;
 import org.apache.commons.lang3.StringUtils;
+import org.ehcache.impl.internal.concurrent.ConcurrentHashMap;
 import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.management.MemoryUsage;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,17 +37,19 @@ import java.util.function.Consumer;
  */
 public final class AdjustBatchSizeFactory {
     static final long DEFAULT_CHECK_INTERVAL_MS = 5000L;
-    static final Map<String, AtomicBoolean> ADJUST_TASK_MAP = new HashMap<>(16);
-    static final Map<String, AdjustManager> ADJUST_INSTANCE_MAP = new HashMap<>(16);
-    static final ScheduledExecutorService scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
-    static final Map<String, ScheduledFuture<?>> ADJUST_TASK_FUTURE_MAP = new HashMap<>(16);
+    static final Map<String, ObsLogger> TASK_LOGGER_MAP = new ConcurrentHashMap<>(16);
+    static final Map<String, AtomicBoolean> ADJUST_TASK_MAP = new ConcurrentHashMap<>(16);
+    static final Map<String, AdjustManager> ADJUST_INSTANCE_MAP = new ConcurrentHashMap<>(16);
+    static final ScheduledExecutorService scheduledExecutor = new ScheduledThreadPoolExecutor(20);
+    static final Map<String, ScheduledFuture<?>> ADJUST_TASK_FUTURE_MAP = new ConcurrentHashMap<>(16);
     static final ExecutorService EXECUTOR_SERVICE = new ThreadPoolExecutor(
             50,
             200,
             0L,
             TimeUnit.MILLISECONDS,
-            new SynchronousQueue<>(true),
-            r -> new Thread(r, AdjustBatchSizeFactory.class.getSimpleName()));
+            new LinkedBlockingQueue<>(1000),
+            r -> new Thread(r, AdjustBatchSizeFactory.class.getSimpleName()),
+            new ThreadPoolExecutor.CallerRunsPolicy());
 
     private AdjustBatchSizeFactory() {
 
@@ -59,21 +61,22 @@ public final class AdjustBatchSizeFactory {
         }
         ADJUST_INSTANCE_MAP.computeIfAbsent(
                 taskId,
-                key -> new AdjustManager(ADJUST_TASK_MAP.get(taskId), DEFAULT_CHECK_INTERVAL_MS)
+                key -> new AdjustManager(ADJUST_TASK_MAP.computeIfAbsent(taskId, k -> new AtomicBoolean(true)), DEFAULT_CHECK_INTERVAL_MS)
         ).append(taskId, stage);
-        ADJUST_TASK_MAP.putIfAbsent(taskId, new AtomicBoolean(true));
     }
 
-    public static void startIfNeed(String taskId, ObsLogger obsLogger) {
-        boolean needStart = Optional.ofNullable(ADJUST_INSTANCE_MAP.get(taskId))
-                .map(AdjustManager::isEmpty)
-                .orElse(true);
-        if (!needStart) {
-            return;
-        }
+    public static void start(String taskId, ObsLogger obsLogger) {
+        ADJUST_TASK_MAP.put(taskId, new AtomicBoolean(true));
+        TASK_LOGGER_MAP.put(taskId, obsLogger);
         AdjustBatchSizeFactory.stopTaskIfNeed(taskId);
         final ScheduledFuture<?> scheduledFuture = scheduledExecutor.scheduleWithFixedDelay(
-                () -> foreach(taskId, AdjustNodeInstance::checkOnce),
+                () -> {
+                    try {
+                        foreach(taskId, AdjustNodeInstance::checkOnce);
+                    } catch (Exception e) {
+                        Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Check adjust batch size failed, error message: {}", e.getMessage()));
+                    }
+                },
                 DEFAULT_CHECK_INTERVAL_MS,
                 DEFAULT_CHECK_INTERVAL_MS,
                 TimeUnit.MILLISECONDS
@@ -87,13 +90,13 @@ public final class AdjustBatchSizeFactory {
             try {
                 feature.cancel(true);
             } catch (Exception e) {
-                //@todo log info
+                Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
             }
         });
         try {
             ADJUST_TASK_FUTURE_MAP.remove(taskId);
         } catch (Exception e) {
-            //@todo log info
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
         }
     }
 
@@ -102,19 +105,20 @@ public final class AdjustBatchSizeFactory {
             Optional.ofNullable(ADJUST_TASK_MAP.get(taskId))
                     .ifPresent(e -> e.set(false));
         } catch (Exception e) {
-            //@todo log info
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
         }
         try {
             ADJUST_TASK_MAP.remove(taskId);
         } catch (Exception e) {
-            //@todo log info
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
         }
         AdjustBatchSizeFactory.stopTaskIfNeed(taskId);
         try {
             ADJUST_INSTANCE_MAP.remove(taskId);
         } catch (Exception e) {
-            //@todo log info
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
         }
+        TASK_LOGGER_MAP.remove(taskId);
     }
 
     public static void unregister(String taskId) {
@@ -142,7 +146,7 @@ public final class AdjustBatchSizeFactory {
             this.checkIntervalMs = checkIntervalMs;
         }
 
-        static final Map<String, AdjustNodeInstance> NODE_LIST = new HashMap<>(4);
+        static final Map<String, AdjustNodeInstance> NODE_LIST = new ConcurrentHashMap<>(4);
 
         void foreach(Consumer<AdjustNodeInstance> consumer) {
             NODE_LIST.values().stream().filter(Objects::nonNull).forEach(consumer);
@@ -162,6 +166,7 @@ public final class AdjustBatchSizeFactory {
 
     final static class AdjustNodeInstance {
         final LinkedBlockingQueue<AdjustInfo> queue;
+        final FixedSizeQueue<Integer> historyQueue;
         final long checkIntervalMs;
         final AtomicBoolean isAlive;
         final AdjustStage stage;
@@ -180,19 +185,48 @@ public final class AdjustBatchSizeFactory {
             stage.setConsumer(this::accept);
             this.checkIntervalMs = checkIntervalMs;
             this.queue = new LinkedBlockingQueue<>(2000);
+            this.historyQueue = new FixedSizeQueue<>(5, 5D);
+        }
+
+        void setAllTaskInfo(AdjustInfo info) {
+            Optional.ofNullable(SpringUtil.getBean(TapdataTaskScheduler.class))
+                    .map(TapdataTaskScheduler::getRunningTaskInfos)
+                    .ifPresent(taskInfos ->
+                            taskInfos.forEach(taskInfo -> {
+                                info.allTaskCount++;
+                                int nodeSize = Optional.ofNullable(taskInfo.getDag())
+                                        .map(DAG::getNodes)
+                                        .map(Collection::size)
+                                        .orElse(0);
+                                info.allTaskNodes += nodeSize;
+                                if (Objects.equals(this.taskId, taskInfo.getId().toHexString())) {
+                                    info.currentTaskNodes = nodeSize;
+                                }
+                            })
+                    );
+            Optional.ofNullable(SpringUtil.getBean(JvmMemoryService.class))
+                    .ifPresent(jvmMemoryService -> {
+                        final MemoryUsage heapUsage = jvmMemoryService.getHeapUsage();
+                        info.sysMemUsed = heapUsage.getUsed();
+                        info.sysMem = heapUsage.getMax();
+                    });
         }
 
         public void accept(List<TapEvent> events) {
             final long delayAvg = delayAvg(events);
-            CompletableFuture.runAsync(() -> {
-                final AdjustInfo adjust = adjust(events, delayAvg);
-                try {
-                    queue.offer(adjust, 1000L, TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    //@todo log info
-                    Thread.currentThread().interrupt();
-                }
-            }, EXECUTOR_SERVICE);
+            try {
+                CompletableFuture.runAsync(() -> {
+                    final AdjustInfo adjust = adjust(events, delayAvg);
+                    try {
+                        queue.offer(adjust, 1000L, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Offer adjust info failed, error message: {}", e.getMessage()));
+                        Thread.currentThread().interrupt();
+                    }
+                }, EXECUTOR_SERVICE);
+            } catch (Exception e) {
+                Optional.ofNullable(TASK_LOGGER_MAP.get(taskId)).ifPresent(log -> log.warn("Offer adjust info failed, error message: {}", e.getMessage()));
+            }
         }
 
         public long delayAvg(List<TapEvent> events) {
@@ -202,7 +236,11 @@ public final class AdjustBatchSizeFactory {
             final long now = System.currentTimeMillis();
             long total = 0L;
             for (TapEvent event : events) {
-                total += (now - event.getTime());
+                if (event instanceof TapRecordEvent e) {
+                    total += (now - e.getReferenceTime());
+                } else {
+                    total += (now - event.getTime());
+                }
             }
             return total / events.size();
         }
@@ -230,7 +268,7 @@ public final class AdjustBatchSizeFactory {
             }
             long now = System.currentTimeMillis();
             final List<AdjustInfo> adjustInfos = new ArrayList<>();
-            while (isAlive.get()) {
+            while (isAlive != null && isAlive.get()) {
                 AdjustInfo adjustInfo = queue.peek();
                 if (null == adjustInfo) {
                     break;
@@ -245,16 +283,23 @@ public final class AdjustBatchSizeFactory {
             if (!adjustInfos.isEmpty()) {
                 final AdjustStage.MetricInfo metricInfo = new AdjustStage.MetricInfo();
                 final AdjustInfo avg = AdjustInfo.avg(adjustInfos);
-                final int scope = AdjustBatchSizeFactory.judge(avg);
-                int size;
-                if (scope > 8) {
-                    size = ((Number) (avg.batchSize * 0.9D)).intValue();
-                } else if (scope > 5) {
-                    size = ((Number) (avg.batchSize * 0.95D)).intValue();
-                } else if (scope > 2) {
-                    size = ((Number) (avg.batchSize * 1.15D)).intValue();
-                } else {
-                    return;
+                final JudgeResult result = AdjustBatchSizeFactory.judge(avg);
+                int ago = avg.batchSize;
+                int size = ((Number) (ago * (1.0d + result.rate))).intValue();
+                switch (result.type) {
+                    case -2:
+                    case -1:
+                        if (size <= 5 && size == ago) {
+                            size--;
+                        }
+                        break;
+                    case 1:
+                        if (size <= 5 && size == ago) {
+                            size++;
+                        }
+                        break;
+                    default:
+                        return;
                 }
                 setAllTaskInfo(avg);
                 //检查内存是否满足新的batchSize
@@ -264,50 +309,53 @@ public final class AdjustBatchSizeFactory {
                 if (needMem > available) {
                     size = ((Number) (available / avg.eventMemAvg)).intValue();
                 }
+                size = fixNumber(size);
+                size = historyQueue.push(size);
                 metricInfo.setIncreaseReadSize(size);
                 this.stage.updateIncreaseReadSize(metricInfo.getIncreaseReadSize());
                 this.stage.metric(metricInfo);
             }
         }
-
-        void setAllTaskInfo(AdjustInfo info) {
-            Optional.ofNullable(SpringUtil.getBean(TapdataTaskScheduler.class))
-                    .map(TapdataTaskScheduler::getRunningTaskInfos)
-                    .ifPresent(taskInfos ->
-                            taskInfos.forEach(taskInfo -> {
-                                info.allTaskCount++;
-                                int nodeSize = Optional.ofNullable(taskInfo.getDag())
-                                        .map(DAG::getNodes)
-                                        .map(Collection::size)
-                                        .orElse(0);
-                                info.allTaskNodes += nodeSize;
-                                if (Objects.equals(this.taskId, taskInfo.getId().toHexString())) {
-                                    info.currentTaskNodes = nodeSize;
-                                }
-                            })
-                    );
-            Optional.ofNullable(SpringUtil.getBean(JvmMemoryService.class))
-                    .ifPresent(jvmMemoryService -> {
-                        final MemoryUsage heapUsage = jvmMemoryService.getHeapUsage();
-                        info.sysMemUsed = heapUsage.getUsed();
-                        info.sysMem = heapUsage.getMax();
-                    });
-        }
     }
 
-    static int judge(AdjustInfo adjustInfo) {
-        int scope = 0;
+    static int fixNumber(int num) {
+        if (num <= 10) return num;
+        int item = (int) Math.pow(10, (int) Math.log10(num));
+        int step = item / 2;
+        int offset = num % item;
+        return num - offset + (offset > step ? step : 0);
+    }
+
+    static JudgeResult judge(AdjustInfo adjustInfo) {
+        JudgeResult result = new JudgeResult();
+        double rateOf = 0d;
         if (adjustInfo.batchSize > adjustInfo.eventSize) {
-            scope += 8;
+            result.type = -2;
+            rateOf = -1.0d * (adjustInfo.batchSize - adjustInfo.eventSize) / adjustInfo.batchSize;
         }
         double rate = 1.0D * adjustInfo.eventQueueSize / adjustInfo.eventQueueCapacity;
-        if (rate > adjustInfo.eventQueueSizeThreshold) {
-            scope += 5;
+        if (adjustInfo.batchSize > 1 && rate > adjustInfo.eventQueueSizeThreshold) {
+            if (result.type >= 0) {
+                rateOf = -1.0D * Math.max(rateOf, rate - adjustInfo.eventQueueSizeThreshold);
+            }
+            result.type = -1;
         }
         if (adjustInfo.eventDelay > adjustInfo.eventDelayThreshold && rate < 0.7D) {
-            scope += -5;
+            double available = (adjustInfo.eventQueueSizeThreshold - rate);
+            if (Math.abs(available) < Math.abs(rateOf)) {
+                result.rate = rateOf;
+                return result;
+            }
+            rateOf = rateOf + 1.2D * available;
+            result.type = 1;
         }
-        return scope;
+        result.rate = rateOf;
+        return result;
+    }
+
+    static class JudgeResult {
+        int type;
+        double rate;
     }
 
     final static class AdjustInfo {
@@ -317,10 +365,10 @@ public final class AdjustBatchSizeFactory {
 
         int eventQueueSize;
         int eventQueueCapacity;
-        double eventQueueSizeThreshold;
+        double eventQueueSizeThreshold = 0.95D;
 
         long eventDelay;
-        double eventDelayThreshold;
+        double eventDelayThreshold = 800L;
 
         int currentTaskNodes;
         int allTaskNodes;
@@ -330,7 +378,7 @@ public final class AdjustBatchSizeFactory {
         long eventMemAvg;
         long sysMem;
         long sysMemUsed;
-        double taskMemThreshold;
+        double taskMemThreshold = 0.8D;
 
 
         public AdjustInfo() {
@@ -351,7 +399,7 @@ public final class AdjustBatchSizeFactory {
                 adjustInfo.eventQueueSize = item.eventQueueSize;
                 adjustInfo.eventQueueCapacity = item.eventQueueCapacity;
                 adjustInfo.eventQueueSizeThreshold = item.eventQueueSizeThreshold;
-                adjustInfo.eventDelay += item.eventDelay;
+                adjustInfo.eventDelay = Math.max(item.eventDelay, adjustInfo.eventDelay);
                 adjustInfo.eventDelayThreshold = item.eventDelayThreshold;
                 adjustInfo.eventMem += item.eventMem;
                 adjustInfo.eventMemAvg += item.eventMemAvg;
@@ -359,7 +407,6 @@ public final class AdjustBatchSizeFactory {
             }
             int size = adjustInfos.size();
             adjustInfo.eventSize = adjustInfo.eventSize / size;
-            adjustInfo.eventDelay = adjustInfo.eventDelay / size;
             adjustInfo.eventMem = adjustInfo.eventMem / size;
             adjustInfo.eventMemAvg = adjustInfo.eventMemAvg / size;
             return adjustInfo;

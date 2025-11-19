@@ -95,8 +95,9 @@ public class DynamicLinkedBlockingQueue<E> {
      * */
     public int changeTo(int newSize, int sourceQueueFactor) {
         newSize = fixCapacity(newSize);
-        if (this.capacity >= newSize) {
-            return this.capacity;
+        if (this.capacity >= newSize && this.capacity <= (newSize >> 1)) {
+            //When the batch number is smaller than the length of the event queue, do not change the queue. Just return the batch number
+            return newSize;
         }
         QueueHolder<E> oldHolder = holderRef.get();
         LinkedBlockingQueue<E> newQueue = new LinkedBlockingQueue<>((newSize * sourceQueueFactor) >> 1);

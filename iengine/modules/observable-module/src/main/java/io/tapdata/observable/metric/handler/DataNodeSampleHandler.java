@@ -537,7 +537,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
 	public Void handleBatchSize(BatchSizeAspect aspect) {
 		Optional.ofNullable(aspect.getBatchSizeInfo()).ifPresent(info -> {
-			Optional.ofNullable(info.getTargetBatchSize())
+			Optional.ofNullable(info.getBatchSize())
 					.ifPresent(batchReadSize::set);
 			Optional.ofNullable(info.getTargetIntervalMs())
 					.ifPresent(intervalMs::set);
