@@ -30,16 +30,16 @@
 		<mongo.version>5.5.1</mongo.version>
 		<tapdata-api.version>2.0.5-SNAPSHOT</tapdata-api.version>
 		<tapdata-pdk-api.version>2.0.5-SNAPSHOT</tapdata-pdk-api.version>
-		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
-		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
-		<modules-api.version>2.4-SNAPSHOT</modules-api.version>
+		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
+		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
+		<modules-api.version>2.5-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
-		<tapdata-pdk-runner.version>2.4-SNAPSHOT</tapdata-pdk-runner.version>
+		<tapdata-pdk-runner.version>2.5-SNAPSHOT</tapdata-pdk-runner.version>
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
 		<commons-collections4.version>4.5.0-M3</commons-collections4.version>
