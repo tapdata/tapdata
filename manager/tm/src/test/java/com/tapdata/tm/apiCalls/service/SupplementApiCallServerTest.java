@@ -213,6 +213,26 @@ class SupplementApiCallServerTest {
                 Assertions.assertDoesNotThrow(() -> supplementApiCallServer.foreach(apiCalls));
             }
         }
+        @Test
+        void testInvaludCalls() {
+            List<ApiCallDto> apiCalls = createTestApiCallDtos();
+            List<ApiCallStatsDto> callStats = createTestApiCallStatsDtos();
+            List<ApiCallMinuteStatsDto> minuteStats = createTestApiCallMinuteStatsDtos();
+            apiCalls.forEach(dto -> dto.setAllPathId(null));
+
+            when(mongoOperations.find(any(Query.class), eq(ApiCallStatsDto.class), anyString())).thenReturn(callStats);
+            when(mongoOperations.find(any(Query.class), eq(ApiCallMinuteStatsDto.class), anyString())).thenReturn(minuteStats);
+            doCallRealMethod().when(supplementApiCallServer).foreach(apiCalls);
+            doNothing().when(supplementApiCallServer).acceptApiCallStats(any(), any());
+            doNothing().when(supplementApiCallServer).acceptApiCallMinuteStats(any(), any());
+
+            try (MockedStatic<MongoUtils> mockedMongoUtils = mockStatic(MongoUtils.class)) {
+                mockedMongoUtils.when(() -> MongoUtils.getCollectionName(ApiCallStatsEntity.class)).thenReturn("ApiCallStats");
+                mockedMongoUtils.when(() -> MongoUtils.getCollectionName(ApiCallMinuteStatsEntity.class)).thenReturn("ApiCallMinuteStats");
+
+                Assertions.assertDoesNotThrow(() -> supplementApiCallServer.foreach(apiCalls));
+            }
+        }
         
         @Test
         void testEmptyList() {

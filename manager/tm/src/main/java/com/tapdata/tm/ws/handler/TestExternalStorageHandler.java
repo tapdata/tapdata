@@ -1,10 +1,12 @@
 package com.tapdata.tm.ws.handler;
 
+import com.mongodb.ConnectionString;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -98,9 +100,9 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		// 将 ExternalStorage 配置转换成 Connections 配置
 		String externalStorageId = (String) externalStorageConfig.get("id");
 		ExternalStorageService externalStorageService = SpringContextHelper.getBean(ExternalStorageService.class);
-		ExternalStorageDto dto;
+		ExternalStorageDto dto = externalStorageService.findNotCheckById(externalStorageId);
 		Map<String, Object> testConnectionConfig = new HashMap<>();
-		if (ExternalStorageType.mongodb.name().equals(externalStorageConfig.get("type"))) {
+		if ((dto != null && ExternalStorageType.mongodb.name().equals(dto.getType())) || ExternalStorageType.mongodb.name().equals(externalStorageConfig.get("type"))) {
 			testConnectionConfig = newMongoDBConnections(userDetail);
 			if (null == testConnectionConfig) {
 				throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
@@ -126,7 +128,6 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			externalStorageConfig.compute("checkServerIdentity", boolSetter);
 		} else {
 			// 已存在配置
-			dto = externalStorageService.findNotCheckById(externalStorageId);
 			if (dto == null) {
 				throw new TestExternalStorageException(String.format("Can not found storage by id '%s', please check the datasource 'MongoDB' is exists", externalStorageId), "NotFoundStorage");
 			}
@@ -139,10 +140,11 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 			fillBoolean(connectorConfig, externalStorageConfig, "sslValidate", dto::isSslValidate);
 			fillBoolean(connectorConfig, externalStorageConfig, "checkServerIdentity", dto::isCheckServerIdentity);
 			testConnectionConfig.put("name", dto.getName());
+			replaceMaskPwdIfNeed(connectorConfig, dto);
 
 		}
 		connectorConfig.put("__connectionType", testConnectionConfig.get("connection_type"));
-		testConnectionConfig.put("testType", externalStorageConfig.get("type"));
+		testConnectionConfig.put("testType", null == externalStorageConfig.get("type") ? Objects.requireNonNull(dto).getType() : externalStorageConfig.get("type"));
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
 		testConnectionMessageInfo.setType(testConnectionType.getType());
 		testConnectionConfig.put("externalStorageId", externalStorageId);
@@ -150,6 +152,26 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 		testConnectionConfig.put("accessNodeType", "AUTOMATIC_PLATFORM_ALLOCATION");
 		testConnectionMessageInfo.setData(testConnectionConfig);
 		return testConnectionMessageInfo;
+	}
+
+	private void replaceMaskPwdIfNeed(Map<String, Object> connectorConfig, ExternalStorageDto dto) {
+		Object uri = connectorConfig.get("uri");
+		if (uri instanceof String && ((String) uri).contains("******")) {
+			Object uriFormDataSource = dto.getUri();
+			if (null == uriFormDataSource) return;
+			ConnectionString connectionString = new ConnectionString(uriFormDataSource.toString());
+			char[] passwordChars = connectionString.getPassword();
+			if (null != passwordChars && passwordChars.length > 0) {
+				StringBuilder password = new StringBuilder();
+				for (char passwordChar : passwordChars) {
+					password.append(passwordChar);
+				}
+				String username = connectionString.getUsername();
+				if (org.apache.commons.lang3.StringUtils.isNotBlank(username) && org.apache.commons.lang3.StringUtils.isNotBlank(password)) {
+					connectorConfig.put("uri", ((String) uri).replace(username + ":" + "******", username + ":" + password));
+				}
+			}
+		}
 	}
 
 	private void fillString(Map<String, Object> connectorConfig, Map<String, Object> externalStorageConfig, String key, Supplier<Object> supplier) {

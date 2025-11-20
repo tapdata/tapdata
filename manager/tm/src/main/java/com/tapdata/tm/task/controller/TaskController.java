@@ -22,6 +22,7 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
@@ -64,6 +65,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.tapdata.tm.task.res.CpuMemoryService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -101,6 +103,7 @@ public class TaskController extends BaseController {
     private WorkerService workerService;
     private UserService userService;
     private TaskErrorEventService taskErrorEventService;
+    private CpuMemoryService cpuMemoryService;
 
 		private <T> T dataPermissionUnAuth() {
 			throw new RuntimeException("Un auth");
@@ -1110,6 +1113,7 @@ public class TaskController extends BaseController {
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
+                                        @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode,
                                         @RequestParam(value = "listtags", required = false) String listtags,
                                         @RequestParam(value = "source", required = false, defaultValue = "") String source,
                                         @RequestParam(value = "sink", required = false, defaultValue = "") String sink) throws IOException {
@@ -1117,11 +1121,14 @@ public class TaskController extends BaseController {
         if (StringUtils.isNoneBlank(listtags)) {
             tags = JSON.parseArray(listtags, String.class);
         }
+
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("json.gz")) {
-            taskService.batchUpTask(file, getLoginUser(), cover, tags);
+            taskService.batchUpTask(file, getLoginUser(), cover, importModeEnum, tags);
         }
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("relmig")) {
-            taskService.importRmProject(file, getLoginUser(), cover, tags, source, sink);
+            taskService.importRmProject(file, getLoginUser(), importModeEnum, tags, source, sink);
         }
         return success();
     }
@@ -1484,6 +1491,13 @@ public class TaskController extends BaseController {
         );
 
         taskService.refreshSchemas(resultTask, nodeIds, keys, user);
+        return success();
+    }
+
+    @Operation(summary = "Refresh task memory and cpu usage(for engine, @see io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler#reportOnce)")
+    @PostMapping("/update-cpu-memory")
+    public ResponseMessage<Object> refreshSchemas(@RequestBody Map<String, Map<String, Number>> usageMap) {
+        cpuMemoryService.updateTaskCpuMemory(usageMap);
         return success();
     }
 }

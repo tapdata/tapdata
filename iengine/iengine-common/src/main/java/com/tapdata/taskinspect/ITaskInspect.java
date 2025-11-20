@@ -3,6 +3,7 @@ package com.tapdata.taskinspect;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.taskinspect.TaskInspectConfig;
+import com.tapdata.tm.taskinspect.vo.ManualOperationVo;
 
 import java.util.List;
 
@@ -20,9 +21,11 @@ public interface ITaskInspect extends AutoCloseable {
 
     void refresh(TaskInspectConfig config) throws InterruptedException;
 
-    void manualCheck(String userId, String userName, String manualId, List<String> rowIds);
+    void manualCheck(ManualOperationVo param);
 
-    void manualRecover(String userId, String userName, String manualId, List<String> rowIds);
+    void manualRecover(ManualOperationVo param);
+
+    void exportRecoverSql(ManualOperationVo param);
 
     boolean stop(boolean force);
 

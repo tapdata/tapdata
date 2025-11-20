@@ -9,4 +9,5 @@ public enum PingType {
 	WEBSOCKET_HEALTH,
 	WORKER_PING,
 	TASK_PING,
+	API_SERVER_PING
 }

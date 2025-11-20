@@ -100,7 +100,7 @@ class TaskPingTimeMonitorTest {
 
 			// Ignore log printing for successful use cases
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
-			when(taskPingTimeMonitor.onHeartExpire()).thenReturn(1000000000L);
+			when(taskPingTimeMonitor.onHeartExpire()).thenReturn(-1L);
 			taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
 
 			verify(taskMonitor, times(1)).accept(TerminalMode.INTERNAL_STOP);

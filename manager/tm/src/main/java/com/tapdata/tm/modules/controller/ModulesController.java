@@ -14,7 +14,6 @@ import com.tapdata.tm.modules.param.ApiDetailParam;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.ApiServerWorkerInfo;
-import com.tapdata.tm.worker.dto.ApiWorkerInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -220,9 +219,8 @@ public class ModulesController extends BaseController {
    * @return
    */
   @GetMapping("apiDefinition")
-  public ResponseMessage apiDefinition(@RequestParam(value = "workerCount", required = false) Integer workerCount,
-                                       @RequestParam(value = "processId", required = true) String processId) {
-    return success(modulesService.apiDefinition(processId, workerCount, getLoginUser()));
+  public ResponseMessage apiDefinition() {
+    return success(modulesService.apiDefinition(getLoginUser()));
   }
 
   @GetMapping("worker-info")
@@ -279,11 +277,12 @@ public class ModulesController extends BaseController {
 
 	@Operation(summary = "api导入")
 	@PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
-                                        @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
-		modulesService.batchUpTask(file, getLoginUser(), cover);
-		return success();
-	}
+    public ResponseMessage<Void> uploadWithMode(@RequestParam(value = "file") MultipartFile file,
+                                                @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode) {
+      com.tapdata.tm.commons.task.dto.ImportModeEnum mode = com.tapdata.tm.commons.task.dto.ImportModeEnum.fromValue(importMode);
+      modulesService.batchUpTask(file, getLoginUser(), mode);
+      return success();
+    }
 
   @Operation(summary = "api文档导出")
   @GetMapping("api/export")

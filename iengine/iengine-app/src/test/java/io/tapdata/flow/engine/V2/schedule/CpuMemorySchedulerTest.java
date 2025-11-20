@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.schedule;
 
+import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.aspect.CpuMemUsageAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.TaskAspectManager;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -25,10 +27,13 @@ import static org.mockito.Mockito.*;
 class CpuMemorySchedulerTest {
 
     private CpuMemoryScheduler scheduler;
+    ClientMongoOperator clientMongoOperator;
 
     @BeforeEach
     void setUp() {
+        clientMongoOperator = mock(ClientMongoOperator.class);
         scheduler = new CpuMemoryScheduler();
+        ReflectionTestUtils.setField(scheduler, "clientMongoOperator", clientMongoOperator);
     }
 
     @Nested
@@ -41,7 +46,7 @@ class CpuMemorySchedulerTest {
             Scheduled annotation = method.getAnnotation(Scheduled.class);
             
             assertNotNull(annotation);
-            assertEquals("0/5 * * * * ?", annotation.cron());
+            assertEquals("0/10 * * * * ?", annotation.cron());
         }
 
         @Test
@@ -62,6 +67,10 @@ class CpuMemorySchedulerTest {
     @Nested
     @DisplayName("Method reportOnce test")
     class reportOnceTest {
+        @BeforeEach
+        void setUp() {
+            when(clientMongoOperator.postOne(anyMap(), anyString(), any(Class.class))).thenReturn(null);
+        }
         @Test
         @DisplayName("test main process")
         void test1() {

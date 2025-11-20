@@ -5,12 +5,9 @@ import io.tapdata.inspect.exception.DuplicateAutoRecoveryException;
 import io.tapdata.inspect.exception.DuplicateClientAutoRecoveryException;
 import io.tapdata.inspect.exception.NotfoundAutoRecoveryException;
 import lombok.Getter;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.File;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -81,18 +78,5 @@ public class AutoRecovery implements AutoCloseable {
             });
             return ins;
         });
-    }
-    @SuppressWarnings("resource")
-    public static void exportRecoverySql(String taskId, TapdataRecoveryEvent event) {
-        if(StringUtils.isNotBlank(event.getInspectResultId())){
-            String fileName =event.getInspectId() +  File.separator + event.getInspectResultId() + ".sql";
-            instances.computeIfPresent(taskId, (id, ins) -> {
-                ins.clients.computeIfPresent(event.getInspectTaskId(), (inspectTaskId, autoRecoveryClient) -> {
-                    autoRecoveryClient.exportRecoverySql(fileName,event);
-                    return autoRecoveryClient;
-                });
-                return ins;
-            });
-        }
     }
 }

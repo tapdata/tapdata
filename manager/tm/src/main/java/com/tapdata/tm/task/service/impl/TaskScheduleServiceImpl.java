@@ -46,6 +46,7 @@ import org.springframework.util.Assert;
 
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -74,8 +75,15 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
             String msg = MessageFormat.format(template, calculationEngineVo.getProcessId() , JSON.toJSONString(calculationEngineVo.getThreadLog()));
             monitoringLogsService.startTaskErrorLog(taskDto, finalUser, msg, Level.INFO);
         });
+        // Fix: When no available agent is found, keep task in SCHEDULING state and wait for retry
+        // instead of setting it to SCHEDULING_FAILED (error) state
         if (StringUtils.isBlank(taskDto.getAgentId())) {
-            scheduleFailed(taskDto, user);
+            log.warn("No available agent found for task [{}], will keep in SCHEDULING state and retry in next round", taskDto.getName());
+            CompletableFuture.runAsync(() -> {
+                String template = "No available agent found, task will remain in scheduling state and retry automatically when agent becomes available.";
+                monitoringLogsService.startTaskErrorLog(taskDto, finalUser, template, Level.WARN);
+            });
+            return; // Keep task in SCHEDULING state, will be retried by TaskRestartSchedule
         }
 
         Date now = new Date();
@@ -182,7 +190,18 @@ public class TaskScheduleServiceImpl implements TaskScheduleService {
                 }
                 taskDto.setAgentId(finalAgentId);
             } else {
-                taskDto.setAgentId(null);
+                // Fix: When original agent is unavailable, try to schedule to a new available agent
+                // instead of directly setting agentId to null, which would cause scheduling failure
+                log.info("Original agent is unavailable for task [{}], attempting to schedule to a new agent", taskDto.getName());
+                CalculationEngineVo tempVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+                if (StringUtils.isNotBlank(tempVo.getProcessId())) {
+                    taskDto.setAgentId(tempVo.getProcessId());
+                    log.info("Successfully scheduled task [{}] to new agent [{}]", taskDto.getName(), tempVo.getProcessId());
+                } else {
+                    // Only set to null when no available agent is found
+                    taskDto.setAgentId(null);
+                    log.warn("No available agent found for task [{}], agentId set to null", taskDto.getName());
+                }
             }
         }
 

@@ -7,11 +7,6 @@ import io.tapdata.inspect.exception.NotfoundAutoRecoveryException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -123,8 +118,8 @@ class AutoRecoveryTest {
         try {
             // 验证一个同步任务多校验任务场景
             CompletableFuture<Void> allFuture = CompletableFuture.allOf(serverFuture
-                , startClient(taskId, inspectTaskId1, afterServerInitialized, errors,false,null,null)
-                , startClient(taskId, inspectTaskId2, afterServerInitialized, errors,false,null,null)
+                , startClient(taskId, inspectTaskId1, afterServerInitialized, errors, false, null, null)
+                , startClient(taskId, inspectTaskId2, afterServerInitialized, errors, false, null, null)
             );
             allFuture.get(5, TimeUnit.SECONDS);
 
@@ -134,91 +129,6 @@ class AutoRecoveryTest {
         } catch (Exception e) {
             exited.set(true);
             Assertions.assertNull(e);
-        }
-    }
-
-    @Test
-    void testExportRecoverySql() {
-        String inspectTaskId1 = "test-inspect-task-id-1";
-        AtomicBoolean exited = new AtomicBoolean(false);
-        CountDownLatch afterServerInitialized = new CountDownLatch(1);
-        List<Throwable> errors = new ArrayList<>();
-
-        CompletableFuture<Void> serverFuture = CompletableFuture.runAsync(() -> {
-            try (AutoRecovery ignoreAutoRecovery = AutoRecovery.init(taskId)) {
-                ConcurrentLinkedQueue<TapdataRecoveryEvent> queue = new ConcurrentLinkedQueue<>();
-
-                // 初始化 enqueue 后才能初始化 client
-                AutoRecovery.setEnqueueConsumer(taskId, tapdataRecoveryEvent -> {
-                    try {
-                        while (!queue.offer(tapdataRecoveryEvent) && !exited.get()) {
-                            TimeUnit.MILLISECONDS.sleep(interval);
-                        }
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-                afterServerInitialized.countDown();
-
-                // 消费到 end 事件后退出
-                boolean inspectTaskId1Completed = false;
-                while (!Thread.currentThread().isInterrupted() && !exited.get()) {
-                    TapdataRecoveryEvent event = queue.poll();
-                    if (event != null) {
-                        System.out.printf("Accept recovery record '%s': %s\n", event.getInspectTaskId(), event.getRecoveryType());
-                        event.setRecoverySql("upsert sql");
-                        if(event.getIsExport())AutoRecovery.exportRecoverySql(taskId,event);
-                        AutoRecovery.completed(taskId, event);
-                        if (TapdataRecoveryEvent.RECOVERY_TYPE_END.equals(event.getRecoveryType())) {
-                            if (inspectTaskId1.equals(event.getInspectTaskId())) {
-                                inspectTaskId1Completed = true;
-                            }
-
-                            if (inspectTaskId1Completed) {
-                                break;
-                            }
-                        }
-                    } else {
-                        TimeUnit.MILLISECONDS.sleep(interval);
-                    }
-                }
-            }
-            catch (Exception e) {
-                errors.add(e);
-            }
-        });
-
-        try {
-            // 验证一个同步任务多校验任务场景
-            CompletableFuture<Void> allFuture = CompletableFuture.allOf(serverFuture
-                , startClient(taskId, inspectTaskId1, afterServerInitialized, errors,true,"inspectResultId","inspectId")
-            );
-            allFuture.get(5, TimeUnit.SECONDS);
-
-            if (!errors.isEmpty()) {
-                Assertions.fail(errors.get(0));
-            }
-        } catch (Exception e) {
-            exited.set(true);
-            Assertions.assertNull(e);
-        }
-        String directoryPath = "exportSql" + File.separator + "inspectId" + File.separator + "inspectResultId" + ".sql";
-        File file = new File(directoryPath);
-        Assertions.assertTrue(file.exists());
-        try {
-            Files.deleteIfExists(Paths.get(directoryPath));
-        } catch (IOException e) {
-            System.out.println("Failed to delete deleted: " + directoryPath);
-        }
-        Path parentPath = Paths.get(directoryPath).getParent();
-        while (parentPath != null) {
-            try {
-                Files.deleteIfExists(parentPath);
-                System.out.println("Parent directory deleted: " + parentPath);
-                parentPath = parentPath.getParent();
-            } catch (IOException e) {
-                System.err.println("Failed to delete parent directory: " + parentPath + ", error: " + e.getMessage());
-            }
         }
     }
 
@@ -238,7 +148,9 @@ class AutoRecoveryTest {
 
                     String tableId = inspectTaskId + "-table-id";
                     Map<String, Object> data = new HashMap<>();
-                    recoveryClient.enqueue(TapdataRecoveryEvent.createInsert(inspectTaskId, tableId, data,exportSql,inspectResultId,inspectId));
+                    TapdataRecoveryEvent recoveryEvent = TapdataRecoveryEvent.createInsert(inspectTaskId, tableId, null, data);
+                    recoveryEvent.ofInspectRecoverSql(exportSql, inspectResultId, inspectId);
+                    recoveryClient.enqueue(recoveryEvent);
 
                     recoveryClient.enqueue(TapdataRecoveryEvent.createEnd(inspectTaskId));
 

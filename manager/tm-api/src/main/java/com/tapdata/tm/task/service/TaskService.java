@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.function.ThrowableConsumer;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesCompareDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -187,13 +188,13 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
 
     public abstract ResponseEntity<InputStreamResource> analyzeTask(HttpServletRequest request, HttpServletResponse response, String taskId, UserDetail user) throws IOException;
 
-    public abstract void importRmProject(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags, String source, String sink) throws IOException;
+    public abstract void importRmProject(MultipartFile multipartFile, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, String source, String sink) throws IOException;
 
     public abstract void checkJsProcessorTestRun(UserDetail user, List<TaskDto> tpTasks);
 
-    public abstract void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<String> tags);
+    public abstract void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags);
 
-    public abstract void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap);
+    public abstract void batchImport(List<TaskDto> taskDtos, UserDetail user, com.tapdata.tm.commons.task.dto.ImportModeEnum importMode, List<String> tags, Map<String, DataSourceConnectionDto> conMap, Map<String, String> taskMap,Map<String, String> nodeMap);
 
     public abstract Criteria parseOrToCriteria(Where where);
 
@@ -300,6 +301,7 @@ public abstract class TaskService extends BaseService<TaskDto, TaskEntity, Objec
     public abstract void refreshSchemas(TaskDto taskDto, String nodeIds, String keys, UserDetail userDetail);
     public abstract void checkSourceTimeDifference(TaskDto taskDto,UserDetail userDetail);
     public abstract <T> T callEngineRpc(String engineId, Class<T> returnClz, String className, String method, Object... args) throws Throwable;
+    public abstract void downloadEngineRpc(HttpServletResponse response, ThrowableConsumer<Object, Throwable> errorConsumer, String engineId, String className, String method, Object... args) throws Throwable;
     public abstract Node getSourceNode(TaskDto taskDto);
     public abstract Node getTargetNode(TaskDto taskDto);
     public abstract void wait2ConnectionsLoadFinished(String taskId, ObjectId connId, long beginTime, int timeout, UserDetail userDetail);

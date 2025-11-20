@@ -72,6 +72,7 @@ import com.tapdata.tm.modules.vo.Source;
 import com.tapdata.tm.system.api.dto.TextEncryptionRuleDto;
 import com.tapdata.tm.system.api.service.TextEncryptionRuleService;
 import com.tapdata.tm.task.bean.TaskUpAndLoadDto;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.EntityUtils;
 import com.tapdata.tm.utils.FunctionUtils;
@@ -439,7 +440,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	 * @param userDetail
 	 * @return
 	 */
-	public ApiDefinitionVo apiDefinition(String processId, Integer workerCount, UserDetail userDetail) {
+	public ApiDefinitionVo apiDefinition(UserDetail userDetail) {
 		List<ConnectionVo> connectionVos = new ArrayList<>();
 		ApiDefinitionVo apiDefinitionVo = new ApiDefinitionVo();
 		//查找已发布的api
@@ -530,7 +531,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			apiDefinitionVo.setApis(apis);
 		}
 		textEncryptionRule(apiDefinitionVo);
-		genericWorkInfoIfNeed(apiDefinitionVo, processId, workerCount);
 		return apiDefinitionVo;
 	}
 
@@ -580,12 +580,19 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
             }
             worker.setOid(Optional.ofNullable(worker.getOid()).orElse(new ObjectId().toHexString()));
             worker.setSort(worker.getSort());
+			if (index < workerCount || worker.getTag() == 1) {
+				worker.setTag(2);
+			}
+			if (worker.getTag() < 2) {
+				worker.setTag(0);
+			}
         }
 		for (int i = size; i < workerCount; i++) {
 			ApiServerWorkerInfo item = new ApiServerWorkerInfo();
 			item.setName(genericName(existsNames));
 			item.setSort(i);
 			item.setOid(new ObjectId().toHexString());
+			item.setTag(2);
 			apiWorkerInfos.add(item);
 		}
 		Optional.ofNullable(one).ifPresent(info -> reUpdateWorkerInfo(info, apiWorkerInfos));
@@ -595,33 +602,29 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 	String genericName(List<String> existsNames) {
 		String name = "Worker-1";
 		int index = 1;
-		if (existsNames.isEmpty()) {
-			return name;
+		try {
+			if (existsNames.isEmpty()) {
+				return name;
+			}
+			while (existsNames.contains(name)) {
+				name = "Worker-" + index;
+				index++;
+			}
+		} finally {
+			existsNames.add(name);
 		}
-		while (existsNames.contains(name)) {
-			name = "Worker-" + index;
-			index++;
-		}
-		existsNames.add(name);
 		return name;
 	}
 
 	void reUpdateWorkerInfo(WorkerDto one, List<ApiServerWorkerInfo> apiWorkerInfos) {
 		Update update = new Update();
 		Map<String, ApiServerWorkerInfo> infos = apiWorkerInfos.stream()
+				.filter(e -> e.getTag() > 1)
 				.collect(Collectors.toMap(ApiServerWorkerInfo::getOid, e -> e, (e1, e2) -> e2));
 		update.set("worker_status.workers", infos);
 		workerService.update(
 				Query.query(Criteria.where("id").is(one.getId())),
 				update);
-	}
-
-	protected void genericWorkInfoIfNeed(ApiDefinitionVo apiDefinitionVo, String processId, Integer workerCount) {
-		if (null == apiDefinitionVo || null == workerCount || workerCount <= 0) {
-			return;
-		}
-		List<ApiServerWorkerInfo> apiWorkerInfo = getApiWorkerInfo(processId, workerCount);
-		apiDefinitionVo.setWorkerInfo(apiWorkerInfo);
 	}
 
 	protected void textEncryptionRule(ApiDefinitionVo apiDefinitionVo) {
@@ -1492,7 +1495,17 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 		fileService.viewImg1(json, response, fileName.get() + ".json.gz");
 	}
 
-	public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
+	/**
+	 * 优化的批量导入方法，支持基于名称的冲突检测和三种导入模式
+	 *
+	 * @param multipartFile 导入文件
+	 * @param user 用户信息
+	 * @param importMode 导入模式
+	 */
+	public void batchUpTask(MultipartFile multipartFile, UserDetail user, ImportModeEnum importMode) {
+		if (importMode == null) {
+			importMode = ImportModeEnum.REPLACE; // 默认为替换模式
+		}
 
 		if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("json.gz")) {
 			//不支持其他的格式文件
@@ -1538,13 +1551,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
 			Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
 			try {
-				conMap = dataSourceService.batchImport(connections, user, cover);
-				metaMap = metadataInstancesService.batchImport(metadataInstancess, user, cover, conMap);
+				conMap = dataSourceService.batchImport(connections, user, importMode);
+				metaMap = metadataInstancesService.batchImport(metadataInstancess, user, conMap,null,null);
 			} catch (Exception e) {
 				log.error("metadataInstancesService.batchImport error", e);
 			}
 			try {
-				batchImport(modulesDtos, user, cover, conMap, metaMap);
+				batchImport(modulesDtos, user, importMode, conMap, metaMap);
 			} catch (Exception e) {
 				log.error("Modules.batchImport error", e);
 			}
@@ -1557,48 +1570,140 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 	}
 
-	private void batchImport(List<ModulesDto> modulesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
-
+	/**
+	 * 优化的批量导入方法，支持基于名称的匹配和三种导入模式
+	 *
+	 * @param modulesDtos 模块列表
+	 * @param user 用户信息
+	 * @param importMode 导入模式
+	 * @param conMap 连接映射
+	 * @param metaMap 元数据映射
+	 */
+	protected void batchImport(List<ModulesDto> modulesDtos, UserDetail user, ImportModeEnum importMode,
+							Map<String, DataSourceConnectionDto> conMap, Map<String, MetadataInstancesDto> metaMap) {
 
 		for (ModulesDto modulesDto : modulesDtos) {
-			Query query = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
-			query.fields().include("_id", "user_id");
-			ModulesDto one = findOne(query, user);
+			// 基于名称查找现有模块，而不是基于ID
+			ModulesDto existingModuleByName = findExistingModuleByName(modulesDto.getName(), user);
 
 			modulesDto.setIsDeleted(false);
 			modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
 
-			if (one == null) {
-				ModulesDto one1 = findOne(new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true)));
-				if (one1 != null) {
-					modulesDto.setId(null);
-				}
-			}
-
-			if (one == null || cover) {
-				ObjectId objectId = null;
-				if (one != null) {
-					objectId = one.getId();
-				}
-
-				while (checkTaskNameNotError(modulesDto.getName(), user, objectId)) {
-					modulesDto.setName(modulesDto.getName() + "_import");
-				}
-
-				if (one == null) {
-					if (modulesDto.getId() == null) {
-						modulesDto.setId(new ObjectId());
+			// 根据导入模式处理
+			switch (importMode) {
+				case REPLACE:
+					handleReplaceMode(modulesDto, existingModuleByName, user, conMap);
+					break;
+				case IMPORT_AS_COPY:
+					handleImportAsCopyMode(modulesDto, user, conMap);
+					break;
+				case CANCEL_IMPORT:
+					if (null != existingModuleByName) {
+						return;
+					} else {
+						if (checkConnectionIdDuplicate(modulesDto, conMap)) {
+							return;
+						} else {
+							handleImportAsCopyMode(modulesDto, user, conMap);
+						}
 					}
-					ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
-					log.info("import api modules {}", importEntity);
-				} else {
-					updateByWhere(new Query(Criteria.where("_id").is(objectId)), modulesDto, user);
-				}
+					break;
+				default:
+					// 默认使用复制导入
+					handleImportAsCopyMode(modulesDto, user, conMap);
+					break;
 			}
 		}
 	}
 
-	private boolean checkTaskNameNotError(String newName, UserDetail user, ObjectId id) {
+	/**
+	 * 根据名称查找现有模块
+	 */
+	protected ModulesDto findExistingModuleByName(String name, UserDetail user) {
+		Query query = new Query(Criteria.where("name").is(name).and("is_deleted").ne(true));
+		query.fields().include("_id", "user_id", "name");
+		return findOne(query, user);
+	}
+
+	/**
+	 * 处理替换模式
+	 */
+	protected void handleReplaceMode(ModulesDto modulesDto, ModulesDto existingModule, UserDetail user,
+								  Map<String, DataSourceConnectionDto> conMap) {
+		if (existingModule != null) {
+			// 保留现有模块的ID，使用导入数据覆盖
+			ObjectId existingId = existingModule.getId();
+			modulesDto.setId(existingId);
+
+			// 更新连接ID映射
+			updateConnectionIds(modulesDto, conMap);
+
+			// 更新现有模块
+			updateByWhere(new Query(Criteria.where("_id").is(existingId)), modulesDto, user);
+		} else {
+			Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
+			idQuery.fields().include("_id", "user_id", "name");
+			ModulesDto existingModuleByID = findOne(idQuery);
+			if (null != existingModuleByID) {
+				modulesDto.setId(new ObjectId());
+			}
+			// 更新连接ID映射
+			updateConnectionIds(modulesDto, conMap);
+
+			ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
+			log.info("import api modules {}", importEntity);
+		}
+	}
+
+	/**
+	 * 处理复制模式
+	 */
+	protected void handleImportAsCopyMode(ModulesDto modulesDto, UserDetail user,
+									   Map<String, DataSourceConnectionDto> conMap) {
+		Query idQuery = new Query(Criteria.where("_id").is(modulesDto.getId()).and("is_deleted").ne(true));
+		idQuery.fields().include("_id", "user_id", "name");
+		ModulesDto existingModuleByID = findOne(idQuery);
+
+		// 确保名称唯一，添加_import后缀
+		while (checkTaskNameNotError(modulesDto.getName(), user, null)) {
+			modulesDto.setName(modulesDto.getName() + "_import");
+		}
+
+		if (existingModuleByID != null) {
+			modulesDto.setId(new ObjectId());
+		}
+
+		// 更新连接ID映射
+		updateConnectionIds(modulesDto, conMap);
+
+		ModulesEntity importEntity = repository.importEntity(convertToEntity(ModulesEntity.class, modulesDto), user);
+		log.info("import api modules {}", importEntity);
+	}
+
+	/**
+	 * 检查连接ID是否重复
+	 */
+	protected boolean checkConnectionIdDuplicate(ModulesDto modulesDto, Map<String, DataSourceConnectionDto> conMap) {
+		if (modulesDto.getConnectionId() != null && conMap.containsKey(modulesDto.getConnectionId())) {
+			return conMap.get(modulesDto.getConnectionId()) == null;
+		}
+		return false;
+	}
+
+	/**
+	 * 更新模块中的连接ID映射
+	 */
+	protected void updateConnectionIds(ModulesDto modulesDto, Map<String, DataSourceConnectionDto> conMap) {
+		if (modulesDto.getConnectionId() != null && conMap.containsKey(modulesDto.getConnectionId())) {
+			DataSourceConnectionDto dataSourceCon = conMap.get(modulesDto.getConnectionId());
+			if (dataSourceCon != null) {
+				modulesDto.setConnectionId(dataSourceCon.getId().toString());
+				modulesDto.setConnection(dataSourceCon.getId());
+			}
+		}
+	}
+
+	protected boolean checkTaskNameNotError(String newName, UserDetail user, ObjectId id) {
 		Criteria criteria = Criteria.where("name").is(newName).and("is_deleted").ne(true);
 		if (id != null) {
 			criteria.and("_id").ne(id);

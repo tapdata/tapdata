@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
@@ -9,7 +10,6 @@ import io.tapdata.flow.engine.V2.util.ConsumerImpl;
 import io.tapdata.flow.engine.V2.util.SupplierImpl;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.utils.AppType;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -87,35 +87,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 					);
 					Update update = new Update().set("pingTime", System.currentTimeMillis());
 					try {
-//						Map<String, Object> pingData = new HashMap<String, Object>() {{
-//							put("where", query.getQueryObject().toJson());
-//							put("update", update.getUpdateObject().toJson());
-//						}};
-//						PingDto pingDto = new PingDto();
-//						pingDto.setPingType(PingType.TASK_PING);
-//						String pingId = UUIDGenerator.uuid();
-//						pingDto.setPingId(pingId);
-//						pingDto.setData(pingData);
-//						WebSocketEvent<PingDto> webSocketEvent = new WebSocketEvent<>();
-//						webSocketEvent.setType("ping");
-//						webSocketEvent.setData(pingDto);
-//						BeanUtil.getBean(ManagementWebsocketHandler.class).sendMessage(new TextMessage(JSONUtil.obj2Json(webSocketEvent)));
-//						boolean handleResponse = PongHandler.handleResponse(
-//								pingId,
-//								cache -> {
-//									String pingResult = cache.get(PingDto.PING_RESULT).toString();
-//									if (PingDto.PingResult.FAIL.name().equals(pingResult)) {
-//										throw new RuntimeException("Failed to send task heartbeat use websocket, will retry use http, message: " + cache.getOrDefault(PingDto.ERR_MESSAGE, "unknown error"));
-//									}
-//								}
-//						);
-//						if (!handleResponse) {
-//							throw new RuntimeException("No response from task heartbeat websocket, will retry use http");
-//						}
 						taskPingTimeUseHttp(query, update);
 					} catch (Exception e) {
 						logger.warn(e.getMessage(), e);
-//						taskPingTimeUseHttp(query, update);
 					} finally {
 						ThreadContext.clearAll();
 					}
@@ -133,10 +107,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
         if (System.currentTimeMillis() - lastPingTime < heartExpire / 2 && failedStartTime == 0) {
             return;
         }
-        heartExpire = getHeartExpire();
-
-        lastPingTime = System.currentTimeMillis();
 		try {
+			heartExpire = getHeartExpire();
+			lastPingTime = System.currentTimeMillis();
 			UpdateResult updateResult = clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 			// 任务状态异常，应该将任务停止
 			if (updateResult.getModifiedCount() == 0) {
@@ -154,10 +127,11 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
                 if (failedStartTime == 0) {
                     failedStartTime = System.currentTimeMillis();
                 }
-                if (System.currentTimeMillis() - failedStartTime > (heartExpire - onHeartExpire())) {
+                if (System.currentTimeMillis() - failedStartTime > onHeartExpire()) {
                     logger.warn("Send task ping time failed, will stop task: {}", e.getMessage(), e);
                     taskMonitor.accept(TerminalMode.INTERNAL_STOP);
                     stopTask.get();
+					ExecutorUtil.shutdown(executorService, 1L, TimeUnit.SECONDS);
                 } else {
                     logger.warn("Send task ping time failed for {}ms, heartbeat expire is {}ms, will retry", System.currentTimeMillis() - failedStartTime, heartExpire);
                 }
@@ -166,7 +140,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	}
 
 	protected long onHeartExpire() {
-		return 10000L;
+		return TimeUnit.SECONDS.toMillis(15L);
 	}
 
 	@Override

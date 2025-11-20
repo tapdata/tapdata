@@ -26,12 +26,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -72,6 +67,21 @@ public class CacheUtil {
 		}
 
 		return sb.toString();
+	}
+
+	public static Map<String, Object> cacheFieldRow(Map<String, Object> row, Set<String> fields) {
+		if (CollectionUtils.isEmpty(fields)) {
+			return Collections.emptyMap();
+		}
+		Map<String, Object> cacheFieldRow = new HashMap<>();
+		for (String field : fields) {
+			if (MapUtil.containsKey(row, field)) {
+				cacheFieldRow.put(field, MapUtil.getValueByKey(row, field));
+			} else {
+				cacheFieldRow.put(field, null);
+			}
+		}
+		return cacheFieldRow;
 	}
 
 	public static Object[] getKeyValues(List<String> keys, Map<String, Object> row) {

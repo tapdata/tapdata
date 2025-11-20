@@ -1,4 +1,4 @@
-package com.tapdata.tm.externalStorage;
+package com.tapdata.tm.ws.handler;
 
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.dto.Filter;
@@ -10,6 +10,7 @@ import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.externalStorage.MockDataSourceDefinitionService;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.user.service.UserService;
@@ -18,8 +19,6 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.enums.MessageType;
-import com.tapdata.tm.ws.handler.TestConnectionHandler;
-import com.tapdata.tm.ws.handler.TestExternalStorageHandler;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -47,7 +46,7 @@ public class TestExternalStorageHandlerTest {
 
 
     @BeforeAll
-     static void init() {
+    static void init() {
         messageQueueService = Mockito.mock(MessageQueueService.class);
         dataSourceService = Mockito.mock(DataSourceService.class);
         userService = Mockito.mock(UserService.class);
@@ -60,7 +59,7 @@ public class TestExternalStorageHandlerTest {
 
 
     @Test
-     void wrapMessageInfoMongodbTest() {
+    void wrapMessageInfoMongodbTest() {
 
         TestExternalStorageHandler testExternalStorageHandler = new TestExternalStorageHandler(messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);
@@ -69,10 +68,12 @@ public class TestExternalStorageHandlerTest {
         Map<String, Object> externalStorageConfig = new HashMap<>();
         externalStorageConfig.put("id", "test1234");
         externalStorageConfig.put("type", "mongodb");
+        externalStorageConfig.put("uri", "mongodb://admin:******@localhost:27017/test");
         try (MockedStatic<SpringContextHelper> springContextHelperMockedStatic = mockStatic(SpringContextHelper.class)) {
             springContextHelperMockedStatic.when(() -> SpringContextHelper.getBean(eq(ExternalStorageService.class))).thenReturn(externalStorageService);
             ExternalStorageDto externalStorageDto = new ExternalStorageDto();
             externalStorageDto.setType(ExternalStorageType.mongodb.name());
+            externalStorageDto.setUri("mongodb://admin:password@localhost:27017/test");
             when(externalStorageService.findNotCheckById("test1234")).thenReturn(externalStorageDto);
             List<DataSourceTypeDto> list = new ArrayList<>();
             DataSourceTypeDto dataSourceTypeDto = new DataSourceTypeDto();
@@ -93,7 +94,7 @@ public class TestExternalStorageHandlerTest {
     }
 
     @Test
-     void wrapMessageInfoRocksDbTest() {
+    void wrapMessageInfoRocksDbTest() {
         TestExternalStorageHandler testExternalStorageHandler = new TestExternalStorageHandler(messageQueueService,
                 dataSourceService, userService, workerService, dataSourceDefinitionService);
 
@@ -114,7 +115,7 @@ public class TestExternalStorageHandlerTest {
     }
 
     @Test
-     void handleMessageNoPdkHashTest() throws Exception {
+    void handleMessageNoPdkHashTest() throws Exception {
         DataSourceDefinitionRepository repository = Mockito.mock(DataSourceDefinitionRepository.class);
         MockDataSourceDefinitionService dataSourceDefinitionService = new MockDataSourceDefinitionService(repository);
         TestConnectionHandler testConnectionHandler = new TestConnectionHandler(agentGroupService, messageQueueService,
@@ -133,7 +134,7 @@ public class TestExternalStorageHandlerTest {
 
 
     @Test
-     void handleMessagePdkHashTest() throws Exception {
+    void handleMessagePdkHashTest() throws Exception {
         MessageQueueService messageQueueService = Mockito.mock(MessageQueueService.class);
         DataSourceService dataSourceService = Mockito.mock(DataSourceService.class);
         UserService userService = Mockito.mock(UserService.class);

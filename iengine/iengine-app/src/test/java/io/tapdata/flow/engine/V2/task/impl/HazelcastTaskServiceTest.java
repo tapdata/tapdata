@@ -80,7 +80,7 @@ public class HazelcastTaskServiceTest {
         @BeforeEach
         void setUp() {
             HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
-            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
         }
 
         @DisplayName("test get task retry config default")
@@ -766,7 +766,7 @@ public class HazelcastTaskServiceTest {
         @BeforeEach
         void init() {
             clientMongoOperator = mock(ClientMongoOperator.class);
-            hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
         }
 
         @DisplayName("test initializeModel main process")
@@ -1058,7 +1058,7 @@ public class HazelcastTaskServiceTest {
         @BeforeEach
         void setUp() {
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
             hazelcastInstance = mock(HazelcastInstance.class);
             ReflectionTestUtils.setField(hazelcastTaskService, "hazelcastInstance", hazelcastInstance);
         }
@@ -1114,7 +1114,7 @@ public class HazelcastTaskServiceTest {
         @BeforeEach
         void setUp() {
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
         }
 
         @Test
@@ -1218,7 +1218,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             boolean result = hazelcastTaskService.testTaskUsingPreview(taskDto);
             assertTrue(result);
         }
@@ -1252,7 +1252,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             assertThrows(IllegalArgumentException.class, () -> hazelcastTaskService.testTaskUsingPreview(taskDto));
         }
 
@@ -1286,7 +1286,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             assertThrows(IllegalArgumentException.class, () -> hazelcastTaskService.testTaskUsingPreview(taskDto));
         }
 
@@ -1319,7 +1319,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             assertThrows(IllegalArgumentException.class, () -> hazelcastTaskService.testTaskUsingPreview(taskDto));
         }
 
@@ -1351,7 +1351,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             boolean result = hazelcastTaskService.testTaskUsingPreview(taskDto);
             assertFalse(result);
         }
@@ -1373,7 +1373,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             boolean result = hazelcastTaskService.testTaskUsingPreview(taskDto);
             assertFalse(result);
         }
@@ -1399,7 +1399,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
 
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator);
+            HazelcastTaskService hazelcastTaskService = new HazelcastTaskService(clientMongoOperator, clientMongoOperator);
             boolean result = hazelcastTaskService.testTaskUsingPreview(taskDto);
             assertFalse(result);
         }
@@ -1413,7 +1413,7 @@ public class HazelcastTaskServiceTest {
         void test1() {
             TaskDto taskDto = new TaskDto();
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            HazelcastTaskService hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
             doReturn(true).when(hazelcastTaskService).testTaskUsingPreview(taskDto);
             try (
                     MockedStatic<InstanceFactory> instanceFactoryMockedStatic = mockStatic(InstanceFactory.class)
@@ -1433,7 +1433,7 @@ public class HazelcastTaskServiceTest {
             taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
             taskDto.setDag(new DAG(new Graph<>()));
             ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            HazelcastTaskService hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            HazelcastTaskService hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
             doReturn(false).when(hazelcastTaskService).testTaskUsingPreview(taskDto);
             JetDag jetDag = mock(JetDag.class);
             doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, false);
@@ -1469,7 +1469,7 @@ public class HazelcastTaskServiceTest {
 
         @BeforeEach
         void setUp() {
-            hazelcastTaskService = new HazelcastTaskService(null);
+            hazelcastTaskService = new HazelcastTaskService(null, null);
         }
 
         @Test
@@ -1529,7 +1529,7 @@ public class HazelcastTaskServiceTest {
 
         @BeforeEach
         void setUp() {
-            hazelcastTaskService = new HazelcastTaskService(null);
+            hazelcastTaskService = new HazelcastTaskService(null, null);
         }
 
         @Test
@@ -1580,7 +1580,7 @@ public class HazelcastTaskServiceTest {
         @BeforeEach
         void setUp() {
 			ClientMongoOperator clientMongoOperator = mock(ClientMongoOperator.class);
-            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator));
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
         }
 
         @Test
