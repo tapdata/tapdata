@@ -329,24 +329,36 @@ public final class AdjustBatchSizeFactory {
     static JudgeResult judge(AdjustInfo adjustInfo) {
         JudgeResult result = new JudgeResult();
         double rateOf = 0d;
+        //1）If the batch returned is smaller than the batch size,
+        // that means some kind of time-out occurred and we can consider to lower the batch size
         if (adjustInfo.batchSize > adjustInfo.eventSize) {
             result.type = -2;
             rateOf = -1.0d * (adjustInfo.batchSize - adjustInfo.eventSize) / adjustInfo.batchSize;
         }
+        //2）If any of the hazelcast queues fill up to over 95% of their limit,
+        // then we can consider to lower the batch size
         double rate = 1.0D * adjustInfo.eventQueueSize / adjustInfo.eventQueueCapacity;
         if (adjustInfo.batchSize > 1 && rate > adjustInfo.eventQueueSizeThreshold) {
-            if (result.type >= 0) {
-                rateOf = -1.0D * Math.max(rateOf, rate - adjustInfo.eventQueueSizeThreshold);
-            }
+            //if (result.type >= 0) {
+                //rateOf = -1.0D * Math.max(rateOf, rate - adjustInfo.eventQueueSizeThreshold);
+            //}
+            rateOf = rateOf + rate / adjustInfo.eventQueueSizeThreshold;
             result.type = -1;
         }
+        //3) If the data latency is higher than a threshold (e.g., 1 second),
+        // and none of the hazelcast queues is filled above 70%,
+        // then consider to increase the batch size
         if (adjustInfo.eventDelay > adjustInfo.eventDelayThreshold && rate < 0.7D) {
             double available = (adjustInfo.eventQueueSizeThreshold - rate);
             if (Math.abs(available) < Math.abs(rateOf)) {
                 result.rate = rateOf;
                 return result;
             }
-            rateOf = rateOf + 1.2D * available;
+            if (result.type >= 0) {
+                available = available / 2;
+            }
+            double downRate = -1.0D * (adjustInfo.eventDelay - adjustInfo.eventDelayThreshold) /adjustInfo.eventDelay;
+            rateOf = rateOf + available + downRate;
             result.type = 1;
         }
         result.rate = rateOf;

@@ -65,9 +65,10 @@ public class DynamicLinkedBlockingQueue<E> {
 
     /**
      * create a DynamicLinkedBlockingQueue with capacity
+     *
      * @param capacity the capacity of the queue, if capacity <= 0, the capacity will be set to MIN_CAPACITY,
-     * if capacity >= MAX_CAPACITY, the capacity will be set to MAX_CAPACITY
-     * */
+     *                 if capacity >= MAX_CAPACITY, the capacity will be set to MAX_CAPACITY
+     */
     public DynamicLinkedBlockingQueue(int capacity) {
         capacity = fixCapacity(capacity);
         holderRef = new AtomicReference<>(new QueueHolder<>(new LinkedBlockingQueue<>(capacity)));
@@ -92,7 +93,7 @@ public class DynamicLinkedBlockingQueue<E> {
      * @param newSize the new capacity of the queue, if newSize <= 0, the newSize will be set to MIN_CAPACITY,
      *                if newSize >= MAX_CAPACITY, the newSize will be set to MAX_CAPACITY.
      *                if newSize is less than the current capacity, do nothing
-     * */
+     */
     public int changeTo(int newSize, int sourceQueueFactor) {
         newSize = fixCapacity(newSize);
         if (this.capacity >= newSize && this.capacity <= (newSize >> 1)) {
