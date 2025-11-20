@@ -1,0 +1,23 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+        "category": "Job",
+        "category_sort": "20",
+        "default_value": "false",
+        "documentation": "Automatically adjust the incremental reading quantity per batch",
+        "hot_reloading": false,
+        "key": "auto_incremental_batch_size",
+        "key_label": "Auto adjust incremental batch size",
+        "last_update": 0,
+        "scope": "global",
+        "sort": "20",
+        "user_visible": true,
+        "value": "false",
+        "enums": ["true", "false"]
+      }
+    ]
+  }
+]

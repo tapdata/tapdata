@@ -22,6 +22,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
 import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.Setting;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -182,6 +183,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	@Override
 	public TaskClient<TaskDto> startTask(TaskDto taskDto) {
 		try {
+			boolean open = openAutoIncrementalBatchSize();
 			taskDto.setDag(taskDto.getDag());
 			ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
 
@@ -194,10 +196,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			JetService jet = hazelcastInstance.getJet();
 			HazelcastTaskClient hazelcastTaskClient = HazelcastTaskClient.create(taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance);
-			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient);
+			Job job = startJetJob(taskDto, obsLogger, jet, jobConfig, hazelcastTaskClient, open);
 			hazelcastTaskClient.setJob(job);
 			obsLogger.info("Task started");
-			AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+			if (open) {
+				AdjustBatchSizeFactory.start(taskDto.getId().toHexString(), obsLogger);
+			}
 			return hazelcastTaskClient;
 		} catch (Throwable throwable) {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
@@ -205,10 +209,10 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 	}
 
-	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient) {
+	private @NotNull Job startJetJob(TaskDto taskDto, ObsLogger obsLogger, JetService jet, JobConfig jobConfig, HazelcastTaskClient hazelcastTaskClient, boolean open) {
 		Job job;
 		try {
-			final JetDag jetDag = task2HazelcastDAG(taskDto, true);
+			final JetDag jetDag = task2HazelcastDAG(taskDto, true, open);
 			cpuMemoryScheduler.reportOnce(List.of(taskDto.getId().toHexString()));
 			obsLogger.trace("The engine receives " + taskDto.getName() + " task data from TM and will continue to run tasks by jet");
 			job = jet.newJob(jetDag.getDag(), jobConfig);
@@ -264,7 +268,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				logger.info(stopWatch.prettyPrint(TimeUnit.MILLISECONDS));
 				return null;
 			} else {
-				final JetDag jetDag = task2HazelcastDAG(taskDto, false);
+				final JetDag jetDag = task2HazelcastDAG(taskDto, false, false);
 				JobConfig jobConfig = new JobConfig();
 				jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 				Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
@@ -283,7 +287,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			testTaskUsingPreview(taskDto);
 			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto).info("KYE_OF_SCRIPT_RUN_RESULT", result).log(new TapLog()));
 			long startTs = System.currentTimeMillis();
-			final JetDag jetDag = task2HazelcastDAG(taskDto, false);
+			final JetDag jetDag = task2HazelcastDAG(taskDto, false, false);
 			JobConfig jobConfig = new JobConfig();
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
@@ -304,7 +308,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		if (StringUtils.equalsAny(syncType, TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			deduce = false;
 		}
-		JetDag jetDag = task2HazelcastDAG(taskDto, deduce);
+		JetDag jetDag = task2HazelcastDAG(taskDto, deduce, false);
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 		Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
@@ -312,7 +316,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	@SneakyThrows
-	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce) {
+	protected JetDag task2HazelcastDAG(TaskDto taskDto, Boolean deduce, boolean open) {
 		CpuMemoryCollector.startTask(taskDto);
 		handleDagWhenProcessAfterMerge(taskDto);
 		Map<String, TapTableMap<String, TapTable>> tapTableMapHashMap;
@@ -450,7 +454,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								finalDatabaseType,
 								null,
 								finalTapTableMap,
-								taskConfig
+								taskConfig,
+								open
 						);
 						CpuMemoryCollector.listening(node.getId(), hazelcastBaseNode);
 					} catch (Exception e) {
@@ -553,6 +558,24 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Map<String, MergeTableNode> mergeTableMap,
 			TapTableMap<String, TapTable> tapTableMap,
 			TaskConfig taskConfig
+	) throws Exception {
+		return createNode(taskDto, nodes, edges, node, predecessors, successors, config, connection, databaseType, mergeTableMap, tapTableMap, taskConfig, false);
+	}
+
+	public static HazelcastBaseNode createNode(
+			TaskDto taskDto,
+			List<Node> nodes,
+			List<Edge> edges,
+			Node node,
+			List<Node> predecessors,
+			List<Node> successors,
+			ConfigurationCenter config,
+			Connections connection,
+			DatabaseTypeEnum.DatabaseType databaseType,
+			Map<String, MergeTableNode> mergeTableMap,
+			TapTableMap<String, TapTable> tapTableMap,
+			TaskConfig taskConfig,
+			boolean open
 	) throws Exception {
 		List<RelateDataBaseTable> nodeSchemas = new ArrayList<>();
 		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_TEST_RUN, TaskDto.SYNC_TYPE_DEDUCE_SCHEMA) &&
@@ -995,12 +1018,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 		}
 		MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, hazelcastNode);
-		registerAdjustStageIfNeed(node, hazelcastNode, taskDto.getId().toHexString());
+		registerAdjustStageIfNeed(node, hazelcastNode, taskDto.getId().toHexString(), open);
 		return hazelcastNode;
 	}
 
-	static void registerAdjustStageIfNeed(Node<?> node, HazelcastBaseNode hazelcastNode, String taskId) {
-		if (hazelcastNode instanceof AdjustStage stage
+	static void registerAdjustStageIfNeed(Node<?> node, HazelcastBaseNode hazelcastNode, String taskId, boolean open) {
+		if (open && hazelcastNode instanceof AdjustStage stage
 				&& Objects.nonNull(node.getAutoAdjustBatchSize())
 				&& node.getAutoAdjustBatchSize()) {
 			AdjustBatchSizeFactory.register(taskId, stage);
@@ -1181,5 +1204,14 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		String taskId = taskDto.getId().toHexString();
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
 		globalStateMap.put(TaskEnvMap.name(taskId), taskEnvMap);
+	}
+
+	boolean openAutoIncrementalBatchSize() {
+		Setting setting = settingService.getSetting("auto_incremental_batch_size");
+		if (null == setting) {
+			return false;
+		}
+		String value = Optional.ofNullable(setting.getValue()).orElse(setting.getDefault_value());
+		return Objects.equals("true", value) || Objects.equals("TRUE", value);
 	}
 }
