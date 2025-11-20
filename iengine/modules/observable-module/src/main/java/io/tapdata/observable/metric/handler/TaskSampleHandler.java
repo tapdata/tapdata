@@ -83,8 +83,8 @@ public class TaskSampleHandler extends AbstractHandler {
     private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
     private final HashMap<String, DataNodeSampleHandler> sourceNodeHandlers = new HashMap<>();
 
-    protected AtomicDouble taskCpuUsage = new AtomicDouble(0d);
-    protected AtomicLong taskMemUsage = new AtomicLong(0L);
+    protected AtomicReference<Double> taskCpuUsage = new AtomicReference<>(null);
+    protected AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
 
     public TaskSampleHandler(TaskDto task) {
         super(task);
@@ -273,8 +273,8 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     protected Long getTaskMem() {
-        long mem = taskMemUsage.get();
-        return mem < 0L ? null : mem;
+        Long mem = taskMemUsage.get();
+        return null == mem || mem < 0L ? null : mem;
     }
 
     public void close() {
@@ -413,9 +413,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
         taskCpuUsage.set(aspect.getUsage().getCpuUsage());
-        if (null != aspect.getUsage().getHeapMemoryUsage() && aspect.getUsage().getHeapMemoryUsage() > 0L) {
-            taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
-        }
+        taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
         return null;
     }
 }

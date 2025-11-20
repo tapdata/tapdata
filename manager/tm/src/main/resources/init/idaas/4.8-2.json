@@ -1,0 +1,23 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+        "category": "Job",
+        "category_sort": "19",
+        "default_value": "true",
+        "documentation": "Task CPU and Memory Metrics Statistics",
+        "hot_reloading": false,
+        "key": "cpu_mem_collector",
+        "key_label": "Task CPU and Memory Metrics Statistics",
+        "last_update": 0,
+        "scope": "global",
+        "sort": "19",
+        "user_visible": true,
+        "value": "true",
+        "enums": ["true", "false"]
+      }
+    ]
+  }
+]
