@@ -22,7 +22,7 @@ public class ErrorMessageSkip extends SkipError{
 
     protected String removeHashCodeAndTime(String message) {
         if (StringUtils.isBlank(message)) return message;
-        Pattern pattern = Pattern.compile("\\w+@([a-fA-F0-9]{1,8})");
+        Pattern pattern = Pattern.compile("\\w++@([a-fA-F0-9]{1,8})");
         Matcher matcher = pattern.matcher(message);
         String hashCode = "";
         if (matcher.find()) {
