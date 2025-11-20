@@ -43,5 +43,14 @@ public interface AdjustStage {
 
         int eventQueueSize;
         int eventQueueCapacity;
+
+        //Determine the threshold for event queue to be full, should more than 'eventQueueIdleThreshold' and less than 1.0
+        double eventQueueFullThreshold = 0.95D;
+        //Determine the threshold for idle event queue, should more than 0.0, and less than 'eventQueueFullThreshold'
+        double eventQueueIdleThreshold = 0.7D;
+        //Threshold for determining excessive event delay, should be more than 0
+        double eventDelayThresholdMs = 800L;
+        //Determine the threshold for high task memory, should more than 0.0, and less than 1.0
+        double taskMemThreshold = 0.8D;
     }
 }
