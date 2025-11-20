@@ -28,8 +28,8 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>5.5.1</mongo.version>
-		<tapdata-api.version>2.0.4-SNAPSHOT</tapdata-api.version>
-		<tapdata-pdk-api.version>2.0.4-SNAPSHOT</tapdata-pdk-api.version>
+		<tapdata-api.version>2.0.5-SNAPSHOT</tapdata-api.version>
+		<tapdata-pdk-api.version>2.0.5-SNAPSHOT</tapdata-pdk-api.version>
 		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
 		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
 		<modules-api.version>2.4-SNAPSHOT</modules-api.version>
