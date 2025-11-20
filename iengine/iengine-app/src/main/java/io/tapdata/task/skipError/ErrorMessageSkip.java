@@ -21,8 +21,8 @@ public class ErrorMessageSkip extends SkipError{
     }
 
     protected String removeHashCodeAndTime(String message) {
-        if (StringUtils.isBlank(message)) return message;
-        Pattern pattern = Pattern.compile("\\w++@([a-fA-F0-9]{1,8})");
+        if (StringUtils.isBlank(message) || !message.contains("@")) return message;
+        Pattern pattern = Pattern.compile("\\w{1,1000}@([a-fA-F0-9]{1,8})");
         Matcher matcher = pattern.matcher(message);
         String hashCode = "";
         if (matcher.find()) {
