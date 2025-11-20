@@ -36,11 +36,7 @@ public class ResultsReportVo implements Serializable {
 
     public String getSerializedKeys() {
         if (null == serializedKeys && null != keys) {
-            try {
-                serializedKeys = TaskInspectUtils.encodeKeys(keys);
-            } catch (Exception e) {
-                serializedKeys = null;
-            }
+            serializedKeys = TaskInspectUtils.keysSerialization(keys);
         }
         return serializedKeys;
     }
