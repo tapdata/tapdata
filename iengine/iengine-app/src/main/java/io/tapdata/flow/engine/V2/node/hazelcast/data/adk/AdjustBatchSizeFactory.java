@@ -259,6 +259,10 @@ public final class AdjustBatchSizeFactory {
             info.eventQueueSize = adjust.getEventQueueSize();
             info.eventQueueCapacity = adjust.getEventQueueCapacity();
             info.eventDelay = delayAvg;
+            info.eventQueueFullThreshold = adjust.getEventQueueFullThreshold();
+            info.eventQueueIdleThreshold = adjust.getEventQueueIdleThreshold();
+            info.eventDelayThresholdMs = adjust.getEventDelayThresholdMs();
+            info.taskMemThreshold = adjust.getTaskMemThreshold();
             return info;
         }
 
@@ -329,27 +333,27 @@ public final class AdjustBatchSizeFactory {
     static JudgeResult judge(AdjustInfo adjustInfo) {
         JudgeResult result = new JudgeResult();
         double rateOf = 0d;
-        //1）If the batch returned is smaller than the batch size,
+        //1) If the batch returned is smaller than the batch size,
         // that means some kind of time-out occurred and we can consider to lower the batch size
         if (adjustInfo.batchSize > adjustInfo.eventSize) {
             result.type = -2;
             rateOf = -1.0d * (adjustInfo.batchSize - adjustInfo.eventSize) / adjustInfo.batchSize;
         }
-        //2）If any of the hazelcast queues fill up to over 95% of their limit,
+        //2) If any of the hazelcast queues fill up to over 95% of their limit,
         // then we can consider to lower the batch size
         double rate = 1.0D * adjustInfo.eventQueueSize / adjustInfo.eventQueueCapacity;
-        if (adjustInfo.batchSize > 1 && rate > adjustInfo.eventQueueSizeThreshold) {
-            //if (result.type >= 0) {
-                //rateOf = -1.0D * Math.max(rateOf, rate - adjustInfo.eventQueueSizeThreshold);
-            //}
-            rateOf = rateOf + rate / adjustInfo.eventQueueSizeThreshold;
+        if (adjustInfo.batchSize > 1 && rate > adjustInfo.eventQueueFullThreshold) {
+            //Isn't the delay exceeding the threshold here, and the capacity has not reached 70%, such as 20%,
+            // with a default queue limit of 95%?
+            // At this point, available=95% -20%=75%, indicating that it can only increase by another 75% at most.
+            rateOf = rateOf + rate / adjustInfo.eventQueueFullThreshold;
             result.type = -1;
         }
         //3) If the data latency is higher than a threshold (e.g., 1 second),
         // and none of the hazelcast queues is filled above 70%,
         // then consider to increase the batch size
-        if (adjustInfo.eventDelay > adjustInfo.eventDelayThreshold && rate < 0.7D) {
-            double available = (adjustInfo.eventQueueSizeThreshold - rate);
+        if (adjustInfo.eventDelay > adjustInfo.eventDelayThresholdMs && rate < adjustInfo.eventQueueIdleThreshold) {
+            double available = (adjustInfo.eventQueueFullThreshold - rate);
             if (Math.abs(available) < Math.abs(rateOf)) {
                 result.rate = rateOf;
                 return result;
@@ -357,7 +361,15 @@ public final class AdjustBatchSizeFactory {
             if (result.type >= 0) {
                 available = available / 2;
             }
-            double downRate = -1.0D * (adjustInfo.eventDelay - adjustInfo.eventDelayThreshold) /adjustInfo.eventDelay;
+            //According to the delay ratio, if the delay is too high,
+            // it is not advisable to adjust the queue too many times,
+            // otherwise the queue will always be full and will accumulate batches after timeout. The delay will stabilize at around 1 second
+            double downRate = -1.0D * (adjustInfo.eventDelay - adjustInfo.eventDelayThresholdMs) /adjustInfo.eventDelay;
+            //rateOf + avaliable, The value of rateOf here mainly comes from the first rule,
+            // which is that the number of batches is greater than the number of events,
+            // and then a ratio can be obtained,
+            // which needs to be adjusted to make the number of batches as equal to the number of events as possible,
+            // so as to achieve relative balance.
             rateOf = rateOf + available + downRate;
             result.type = 1;
         }
@@ -372,26 +384,42 @@ public final class AdjustBatchSizeFactory {
 
     final static class AdjustInfo {
         final long timestamp;
+        //number of events
         int eventSize;
+        //Current batch count
         int batchSize;
 
+        //The size of the event queue has been used
         int eventQueueSize;
+        //Maximum capacity of event queue
         int eventQueueCapacity;
-        double eventQueueSizeThreshold = 0.95D;
+        //Determine the threshold for event queue to be full, should more than 'eventQueueIdleThreshold' and less than 1.0
+        double eventQueueFullThreshold = 0.95D;
+        //Determine the threshold for idle event queue, should more than 0.0, and less than 'eventQueueFullThreshold'
+        double eventQueueIdleThreshold = 0.7D;
 
+        //Average delay of events
         long eventDelay;
-        double eventDelayThreshold = 800L;
+        //Threshold for determining excessive event delay, should be more than 0
+        double eventDelayThresholdMs = 800L;
 
+        //Current number of task nodes
         int currentTaskNodes;
+        //The sum of all task nodes on the current engine
         int allTaskNodes;
+        //The current number of tasks on the engine
         int allTaskCount;
 
+        //Total memory usage of the event
         long eventMem;
+        //Average memory usage of events
         long eventMemAvg;
+        //Current total memory usage of the engine
         long sysMem;
+        //The current engine is using memory
         long sysMemUsed;
+        //Determine the threshold for high task memory, should more than 0.0, and less than 1.0
         double taskMemThreshold = 0.8D;
-
 
         public AdjustInfo() {
             this.timestamp = System.currentTimeMillis();
@@ -410,9 +438,10 @@ public final class AdjustBatchSizeFactory {
                 adjustInfo.batchSize = item.batchSize;
                 adjustInfo.eventQueueSize = item.eventQueueSize;
                 adjustInfo.eventQueueCapacity = item.eventQueueCapacity;
-                adjustInfo.eventQueueSizeThreshold = item.eventQueueSizeThreshold;
+                adjustInfo.eventQueueFullThreshold = item.eventQueueFullThreshold;
+                adjustInfo.eventQueueIdleThreshold = item.eventQueueIdleThreshold;
                 adjustInfo.eventDelay = Math.max(item.eventDelay, adjustInfo.eventDelay);
-                adjustInfo.eventDelayThreshold = item.eventDelayThreshold;
+                adjustInfo.eventDelayThresholdMs = item.eventDelayThresholdMs;
                 adjustInfo.eventMem += item.eventMem;
                 adjustInfo.eventMemAvg += item.eventMemAvg;
                 adjustInfo.taskMemThreshold = item.taskMemThreshold;

@@ -1571,6 +1571,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		info.setEventQueueCapacity(capacity);
 		info.setEventQueueSize(size);
 		info.setIncreaseReadSize(batchSize);
+		info.setEventQueueFullThreshold(0.95D);
+		info.setEventQueueIdleThreshold(0.7D);
+		info.setEventDelayThresholdMs(800L);
+		info.setTaskMemThreshold(0.8D);
 		return info;
 	}
 
