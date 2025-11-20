@@ -841,8 +841,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             if (null == matchThrowable) {
                 matchThrowable = new TapCodeException(TaskTargetProcessorExCode_15.UNKNOWN_ERROR, e);
             }
-            errorHandle(matchThrowable);
-        }
+			TapCodeException tapCodeException = errorHandle(matchThrowable);
+			if (null == tapCodeException) {
+				this.queueConsumerThreadPool.submit(this::processQueueConsume);
+			}
+		}
     }
 
     protected void drainAndRun(BlockingQueue<TapdataEvent> queue, int elementsNum, long timeout, TimeUnit timeUnit, TapdataEventsRunner tapdataEventsRunner) {

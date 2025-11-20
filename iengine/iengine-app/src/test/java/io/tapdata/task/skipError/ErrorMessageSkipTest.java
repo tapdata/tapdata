@@ -56,4 +56,16 @@ public class ErrorMessageSkipTest {
         errorEventList.add(new ErrorEvent(null,"110",null));
         Assertions.assertFalse(errorMessageSkip.match(errorEventList,new ErrorEvent(null,"110",null)));
     }
+
+    @Test
+    void errorMessageSkipWithRemoveHashCodeAndTime(){
+        ErrorMessageSkip errorMessageSkip = new ErrorMessageSkip();
+        List<ErrorEvent> errorEventList = new ArrayList<>();
+        String message1 = "Data to be written: io.DGG.entity.event.dml.TapInsertRecordEvent@25f2a0e1: {\"after\":{\"id\":7,\"name\":\"777\"},\"containsIllegalDate\":false,\"tableId\":\"AA_1105\",\"time\":1763626901843,\"type\":300}";
+        ErrorEvent event1 = new ErrorEvent(message1,"110",null);
+        errorEventList.add(event1);
+        String message2 = "Data to be written: io.DGG.entity.event.dml.TapInsertRecordEvent@701fe650: {\"after\":{\"id\":7,\"name\":\"777\"},\"containsIllegalDate\":false,\"tableId\":\"AA_1105\",\"time\":1763626886938,\"type\":300}";
+        ErrorEvent event = new ErrorEvent(message2,"110",null);
+        Assertions.assertTrue(errorMessageSkip.match(errorEventList,event));
+    }
 }
