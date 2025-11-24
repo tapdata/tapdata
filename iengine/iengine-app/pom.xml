@@ -465,17 +465,4 @@
             </resource>
         </resources>
     </build>
-    <repositories>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>maven</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
 </project>
