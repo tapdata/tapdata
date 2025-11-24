@@ -208,13 +208,6 @@ public final class CpuMemoryCollector {
     public static void unregisterTask(String taskId) {
         CommonUtils.handleAnyError(() -> COLLECTOR.threadGroupMap.remove(taskId),
                 e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean threadGroupMap, {}", taskId, e.getMessage()));
-        CommonUtils.handleAnyError(() -> {
-                    final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
-                    if (!CollectionUtils.isEmpty(weakReferences)) {
-                        weakReferences.forEach(COLLECTOR.cacheMemoryMap::remove);
-                    }
-                },
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap, {}", taskId, e.getMessage()));
         synchronized (COLLECTOR.weakReferenceMap) {
             CommonUtils.handleAnyError(() -> COLLECTOR.weakReferenceMap.remove(taskId),
                     e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
@@ -264,8 +257,6 @@ public final class CpuMemoryCollector {
             synchronized (weakReferences) {
                 weakReferences.add(reference);
             }
-            final MemInfo memInfo = new MemInfo(reference);
-            COLLECTOR.cacheMemoryMap.put(reference, memInfo);
         } catch (Exception e) {
             log.warn("Listening failed, node id = {}, e = {}", nodeId, e.getMessage());
         }
@@ -310,7 +301,6 @@ public final class CpuMemoryCollector {
                     if (CollectionUtils.isEmpty(weakReferences)) {
                         return false;
                     }
-                    //weakReferences.removeIf(weakReference -> null == weakReference.get());
                     return item.judged(weakReferences.size());
                 }).forEach(taskId -> {
                     final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
