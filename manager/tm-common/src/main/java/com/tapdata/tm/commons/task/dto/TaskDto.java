@@ -229,6 +229,8 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
 
     private Map<String, String> env;
 
+    private boolean reFullRun = false;
+
     /**
      * 任务指标信息
      * cpu: cpuUsage<Double>
@@ -289,12 +291,20 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
         return TYPE_CDC.equals(getType());
     }
 
+    public boolean isInitialSyncTask() {
+        return TYPE_INITIAL_SYNC.equals(getType()) || TYPE_INITIAL_SYNC_CDC.equals(getType());
+    }
+
     public boolean hasSyncProgress() {
         return null != getAttrs() && getAttrs().containsKey("syncProgress");
     }
 
     public boolean hasDisableNode() {
         return null != dag && null != dag.getNodes() && dag.getNodes().stream().anyMatch(Element::disabledNode);
+    }
+
+    public boolean hashMergeTableCacheIdList(){
+        return null != getAttrs() && getAttrs().containsKey("mergeTableCacheIdList");
     }
 
     @Data

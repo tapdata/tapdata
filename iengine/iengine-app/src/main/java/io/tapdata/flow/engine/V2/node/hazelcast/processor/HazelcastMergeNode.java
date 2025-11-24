@@ -94,6 +94,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 	public static final int DEFAULT_UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE = 10;
 	public static final String UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE_PROP_KEY = "UPDATE_JOIN_KEY_VALUE_CACHE_IN_MEM_SIZE";
 	public static final String HANDLE_UPDATE_JOIN_KEY_THREAD_NUM_PROP_KEY = "HANDLE_UPDATE_JOIN_KEY_THREAD_NUM";
+	public static final String CACHE_STATISTICS = "_CacheStatistics";
 	public static final int DEFAULT_UPDATE_JOIN_KEY_THREAD_NUM = 4;
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
@@ -243,6 +244,15 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		this.mapIterator = new AllLayerMapIterator();
 		batchProcessMetrics = new BatchProcessMetrics();
 		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey(), this), TAG);
+		CommonUtils.ignoreAnyError(() -> PDKIntegration.registerMemoryFetcher(memoryKey() + CACHE_STATISTICS, this::getCacheStatistics), TAG);
+	}
+
+	private DataMap getCacheStatistics(String s, String s1) {
+		DataMap dataMap = DataMap.create();
+		for(Map.Entry<String, ConstructIMap<Document>> entry : mergeCacheMap.entrySet()) {
+			dataMap.put(entry.getKey(), entry.getValue().getStatistics());
+		}
+		return dataMap;
 	}
 
 	protected void initFirstLevelIds() {
@@ -1070,7 +1080,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 		return false;
 	}
 
-	private static String getMergeCacheName(String nodeId, String tableName) {
+	public static String getMergeCacheName(String nodeId, String tableName) {
 		String name;
 		if (StringUtils.isBlank(nodeId)) {
 			throw new IllegalArgumentException("Get merge node cache name failed, node id is blank");
@@ -2101,6 +2111,7 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode implements Me
 			}
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(lookupThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
 			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryKey()), TAG);
+			CommonUtils.ignoreAnyError(() -> PDKIntegration.unregisterMemoryFetcher(memoryKey() + CACHE_STATISTICS), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(handleUpdateJoinKeyThreadPool).ifPresent(ExecutorService::shutdownNow), TAG);
 		} finally {
 			super.doClose();
