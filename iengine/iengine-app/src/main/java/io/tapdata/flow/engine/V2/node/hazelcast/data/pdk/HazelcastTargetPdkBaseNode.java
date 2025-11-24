@@ -28,6 +28,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.UnwindProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
@@ -111,6 +112,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -1009,7 +1011,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                 handleTapdataHeartbeatEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
                 handleTapdataCompleteSnapshotEvent();
-            } else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
+            } else if (tapdataEvent instanceof TapdataMergeTableCacheRebuildCompleteEvent) {
+				handleTapdataMergeTableCacheRebuildCompleteEvent((TapdataMergeTableCacheRebuildCompleteEvent) tapdataEvent);
+			} else if (tapdataEvent instanceof TapdataStartingCdcEvent) {
                 handleTapdataStartCdcEvent(tapdataEvent);
             } else if (tapdataEvent instanceof TapdataStartedCdcEvent) {
 				buildSourceConnectorNodeMap((TapdataStartedCdcEvent) tapdataEvent);
@@ -1337,11 +1341,25 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
         executeAspect(new SnapshotWriteEndAspect().dataProcessorContext(dataProcessorContext));
         syncMetricCollector.snapshotCompleted();
+		if(dataProcessorContext.getTaskDto().getDag().isMergeTableDag()){
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/saveMergeTableCacheInfo", dataProcessorContext.getTaskDto().getId().toHexString(), TaskDto.class);
+		}
     }
 
     private void handleTapdataHeartbeatEvent(TapdataEvent tapdataEvent) {
         flushOffsetByTapdataEventForNoConcurrent(new AtomicReference<>(tapdataEvent));
     }
+
+	protected void handleTapdataMergeTableCacheRebuildCompleteEvent(TapdataMergeTableCacheRebuildCompleteEvent tapdataEvent) {
+		clientMongoOperator.update(Query.query(Criteria.where("taskId").is(dataProcessorContext.getTaskDto().getId().toHexString())
+				.and("nodeId").is(tapdataEvent.getNodeId())
+				.and("mergeTablePropertiesId").is(tapdataEvent.getMergeTablePropertiesId())), new Update().set("status", CacheRebuildStatus.DONE.name()),ConnectorConstant.TASK_COLLECTION + "/mergeTablePropertiesRebuildStatus");
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
+		Object mergeRebuildCache = taskGlobalVariable.get(TaskGlobalVariable.MERGE_REBUILD_CACHE);
+		if(mergeRebuildCache instanceof AtomicInteger) {
+			((AtomicInteger) mergeRebuildCache).decrementAndGet();
+		}
+	}
 
     protected TapRecordEvent handleTapdataRecordEvent(TapdataEvent tapdataEvent) {
         TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();

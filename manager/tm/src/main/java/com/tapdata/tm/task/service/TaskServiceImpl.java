@@ -8,6 +8,7 @@ import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,14 +29,15 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.function.ThrowableConsumer;
+import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.metadataInstancesCompare.service.MetadataInstancesCompareService;
 import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.shareCdcTableMapping.service.ShareCdcTableMappingService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.vo.*;
-import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.userLog.constant.Operation;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import org.apache.commons.io.FileUtils;
@@ -69,15 +71,6 @@ import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
-import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.DataSyncMq;
-import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import com.tapdata.tm.commons.task.dto.Message;
-import com.tapdata.tm.commons.task.dto.Milestone;
-import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.task.dto.TaskHistory;
-import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingVO;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
@@ -4633,7 +4626,7 @@ public class TaskServiceImpl extends TaskService{
      */
     public String runError(ObjectId id, UserDetail user, String errMsg, String errStack) {
         //判断任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID);
+        TaskDto taskDto = checkExistById(id, user, "_id", STATUS, "name", TASK_RECORD_ID,"dag");
 
         //将子任务状态更新成错误.
         StateMachineResult stateMachineResult = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.ERROR, user);
@@ -4641,7 +4634,13 @@ public class TaskServiceImpl extends TaskService{
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
-
+        DAG dag = taskDto.getDag();
+        if(null != dag && dag.isMergeTableDag()){
+            dag.getNodes().stream().filter(node -> node instanceof MergeTableNode).forEach(node -> {
+                updateMergeTablePropertiesRebuildStatus( ((MergeTableNode) node).getMergeProperties(), taskDto.getStatus());
+            });
+        }
+        taskUpdateDagService.updateDag(taskDto.getId(), dag,false);
         return id.toHexString();
 
     }
@@ -4699,6 +4698,14 @@ public class TaskServiceImpl extends TaskService{
                 start(id, user);
             }
         });
+
+        DAG dag = taskDto.getDag();
+        if(null != dag && dag.isMergeTableDag()){
+            dag.getNodes().stream().filter(node -> node instanceof MergeTableNode).forEach(node -> {
+                updateMergeTablePropertiesRebuildStatus( ((MergeTableNode) node).getMergeProperties(), taskDto.getStatus());
+            });
+        }
+        taskUpdateDagService.updateDag(taskDto.getId(), dag,false);
         return id.toHexString();
     }
 
@@ -5421,4 +5428,147 @@ public class TaskServiceImpl extends TaskService{
         if(metadataInstancesCompareDto != null)metadataInstancesCompareDto.setStatus(MetadataInstancesCompareDto.STATUS_TIMEOUT);
 
     }
+
+    @Override
+    public List<MergeTablePropertiesInfo> getMergeTaskCacheManager(String taskId, String nodeId,UserDetail userDetail,Boolean check){
+        Field field = new Field();
+        field.put("dag", true);
+        field.put("name", true);
+        field.put("status", true);
+        field.put("agentId",true);
+        field.put("attrs",true);
+        TaskDto taskDto = findById(MongoUtils.toObjectId(taskId),field,userDetail);
+        if(!checkMergeTableTask(taskDto))return new ArrayList<>();
+        DAG dag = taskDto.getDag();
+        List<MergeTablePropertiesInfo> mergeTablePropertiesInfos = new ArrayList<>();
+        if(dag.getNode(nodeId) instanceof MergeTableNode mergeTableNode){
+            if(StringUtils.isBlank(mergeTableNode.getExternalStorageId()))return new ArrayList<>();
+            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(mergeTableNode.getExternalStorageId()));
+            if(null == externalStorageDto)return new ArrayList<>();
+            Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
+            MergeTablePropertiesUtil.initLookupMergeProperties(mergeTableNode.getMergeProperties(),lookupMap);
+            Map<String, String> needCacheIdListMap = new HashMap<>();
+            for (List<MergeTableProperties> lookupList : lookupMap.values()) {
+                needCacheIdListMap.putAll(lookupList.stream().collect(Collectors.toMap(MergeTableProperties::getId, MergeTableProperties::getTableName)));
+            }
+            String memoyName = "HazelcastMergeNode_" + taskDto.getName() +"_" + mergeTableNode.getName() + "_CacheStatistics";
+            DataMap result;
+            try {
+                result = callEngineRpc(taskDto.getAgentId(),DataMap.class,"MemoryService","mergeCacheManager",new Object[]{Arrays.asList(memoyName),needCacheIdListMap,taskDto.getStatus().equals(TaskDto.STATUS_RUNNING),externalStorageDto,null,null});
+            }catch (Throwable e){
+                return new ArrayList<>();
+            }
+            for(Map.Entry<String, Object> entry : result.entrySet()){
+                JSONArray array = (JSONArray) entry.getValue();
+                List<CacheStatistics> cacheStatisticsList = JSON.parseArray(array.toJSONString(), CacheStatistics.class);
+                MergeTableProperties targetProperty = MergeTablePropertiesUtil.findMergeTablePropertiesById(mergeTableNode.getMergeProperties(), entry.getKey());
+                MergeTablePropertiesInfo mergeTablePropertiesInfo = new MergeTablePropertiesInfo();
+                mergeTablePropertiesInfo.setCacheStatisticsList(cacheStatisticsList);
+                mergeTablePropertiesInfo.setMergeTablePropertiesId(entry.getKey());
+                mergeTablePropertiesInfo.setCacheRebuildStatus(targetProperty.getCacheRebuildStatus());
+                mergeTablePropertiesInfo.setTableName(targetProperty.getTableName());
+                mergeTablePropertiesInfo.setMergeNodeId(nodeId);
+                mergeTablePropertiesInfos.add(mergeTablePropertiesInfo);
+            }
+            if(check && taskDto.hashMergeTableCacheIdList()){
+                List<String> rebuildMergeTablePropertiesIdList = new ArrayList<>();
+                Map<String,List<Map<String, String>>> cacheIdsMap = (Map<String,List<Map<String, String>>>) taskDto.getAttrs().get("mergeTableCacheIdList");
+                Map<String,List<String>> newCacheIdsMap = MergeTablePropertiesUtil.getMergeTablePropertiesIdList(dag);
+                if(MapUtils.isNotEmpty(cacheIdsMap) && MapUtils.isNotEmpty(newCacheIdsMap)){
+                    List<String> cacheIds = cacheIdsMap.values().stream().map(cacheIdList -> cacheIdList.stream().map(map -> map.get("id")).toList()).flatMap(Collection::stream).toList();
+                    for(Map.Entry<String, List<String>> entry : newCacheIdsMap.entrySet()){
+                        rebuildMergeTablePropertiesIdList.addAll(entry.getValue().stream().filter(id -> !cacheIds.contains(id)).toList());
+                    }
+                }
+                if((taskDto.isCDCTask() || taskDto.hasSyncProgress()) && CollectionUtils.isNotEmpty(rebuildMergeTablePropertiesIdList) && mergeTablePropertiesInfos.stream().anyMatch(
+                        info ->rebuildMergeTablePropertiesIdList.contains(info.getMergeTablePropertiesId()) &&
+                                !CacheRebuildStatus.PENDING.equals(info.getCacheRebuildStatus()))){
+                    mergeTablePropertiesInfos.stream().filter(
+                                    info ->rebuildMergeTablePropertiesIdList.contains(info.getMergeTablePropertiesId()) && !CacheRebuildStatus.PENDING.equals(info.getCacheRebuildStatus()))
+                            .forEach(info -> info.setNeedRebuild(true));
+                    return mergeTablePropertiesInfos;
+                }
+            }
+            if(check && CollectionUtils.isNotEmpty(mergeTablePropertiesInfos)){
+                mergeTablePropertiesInfos.stream()
+                        .filter(info -> CacheRebuildStatus.RUNNING.equals(info.getCacheRebuildStatus()) || CacheRebuildStatus.ERROR.equals(info.getCacheRebuildStatus()))
+                        .forEach(info -> info.setNeedRebuild(true));
+            }
+
+        }
+        return mergeTablePropertiesInfos;
+
+    }
+
+    @Override
+    public void updateMergeTablePropertiesRebuildStatus(String taskId, String nodeId, String mergeTablePropertiesId,UserDetail userDetail,String status) {
+        Field field = new Field();
+        field.put("dag", true);
+        field.put("status", true);
+        TaskDto taskDto = findById(MongoUtils.toObjectId(taskId),field);
+        DAG dag = taskDto.getDag();
+        if(null == dag)return;
+        if(dag.getNode(nodeId) instanceof MergeTableNode mergeTableNode){
+           List<MergeTableProperties> mergeProperties = mergeTableNode.getMergeProperties();
+           if(CollectionUtils.isEmpty(mergeProperties)){
+               return;
+           }
+           MergeTableProperties targetProperty = MergeTablePropertiesUtil.findMergeTablePropertiesById(mergeProperties, mergeTablePropertiesId);
+           if(null == targetProperty){
+               return;
+           }
+           if(StringUtils.isNotBlank(status)){
+               CacheRebuildStatus cacheRebuildStatus = CacheRebuildStatus.fromValue(status);
+               if(null == cacheRebuildStatus){
+                   return;
+               }
+               targetProperty.setCacheRebuildStatus(cacheRebuildStatus);
+               taskUpdateDagService.updateDag(taskDto.getId(), dag,false);
+           }
+        }
+    }
+
+    @Override
+    public void saveMergeTableCacheInfo(String taskId) {
+        Field field = new Field();
+        field.put("dag", true);
+        TaskDto taskDto = findById(MongoUtils.toObjectId(taskId),field);
+        DAG dag = taskDto.getDag();
+        if(null == dag)return;
+        if(dag.isMergeTableDag()){
+            Map<String,List<Map<String, String>>> cacheIdsMap = MergeTablePropertiesUtil.getMergeTablePropertiesInfoList(dag);
+            if(MapUtils.isNotEmpty(cacheIdsMap)){
+                update(Query.query(Criteria.where("_id").is(taskDto.getId())), Update.update("attrs.mergeTableCacheIdList", cacheIdsMap));
+            }
+        }
+    }
+
+
+    protected Boolean checkMergeTableTask(TaskDto taskDto){
+        if (taskDto == null || taskDto.getDag() == null || taskDto.getDag().getNodes() == null) {
+            return false;
+        }
+        DAG dag = taskDto.getDag();
+        return dag.getNodes().stream().anyMatch(node -> node instanceof MergeTableNode);
+    }
+
+
+
+    private void updateMergeTablePropertiesRebuildStatus(List<MergeTableProperties> mergeTableProperties, String taskStatus) {
+        if (CollectionUtils.isEmpty(mergeTableProperties)) {
+            return;
+        }
+        mergeTableProperties.forEach(properties -> {
+            CacheRebuildStatus currentStatus = properties.getCacheRebuildStatus();
+            if (TaskDto.STATUS_STOP.equals(taskStatus) && CacheRebuildStatus.RUNNING.equals(currentStatus)) {
+                properties.setCacheRebuildStatus(CacheRebuildStatus.PENDING);
+            } else if (TaskDto.STATUS_ERROR.equals(taskStatus) && CacheRebuildStatus.RUNNING.equals(currentStatus)) {
+                properties.setCacheRebuildStatus(CacheRebuildStatus.ERROR);
+            }
+            updateMergeTablePropertiesRebuildStatus(properties.getChildren(), taskStatus);
+        });
+
+    }
+    
+
 }
