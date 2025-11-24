@@ -7,7 +7,21 @@ spring:
       sslCertKey: ""
       conn_params: ""
 
+# 使用JdkHttpServerConfig jdk 内置的httpserver开启http服务，避免tomcat也暴露端点
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus, info, health"
+
 tapdata:
+  monitor:
+    enable: false
+    EFPort: 3035
   cloud:
     accessCode: <ACCESS_CODE>
     retryTime: 3

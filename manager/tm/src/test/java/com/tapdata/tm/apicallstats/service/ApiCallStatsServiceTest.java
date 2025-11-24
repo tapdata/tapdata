@@ -141,7 +141,7 @@ class ApiCallStatsServiceTest {
 			when(aggregateIterable.iterator()).thenReturn(mongoCursor);
 			when(mongoCollection.aggregate(anyList())).thenAnswer(invocationOnMock -> {
 				List<Document> pipeline = invocationOnMock.getArgument(0);
-				assertEquals("{\"$match\": {\"user_id\": \"" + userId + "\"}}", pipeline.get(0).toJson());
+				assertEquals("{\"$match\": {\"$and\": [{\"user_id\": \"" + userId + "\"}, {\"supplement\": {\"$ne\": true}}]}}", pipeline.get(0).toJson());
 				assertEquals("{\"$facet\": {\"callTotalCount\": [{\"$group\": {\"_id\": null, \"data\": {\"$sum\": \"$callTotalCount\"}}}], \"transferDataTotalBytes\": [{\"$group\": {\"_id\": null, \"data\": {\"$sum\": \"$transferDataTotalBytes\"}}}], \"callAlarmTotalCount\": [{\"$group\": {\"_id\": null, \"data\": {\"$sum\": \"$callAlarmTotalCount\"}}}], \"responseDataRowTotalCount\": [{\"$group\": {\"_id\": \"$allPathId\", \"data\": {\"$sum\": \"$responseDataRowTotalCount\"}}}], \"totalResponseTime\": [{\"$group\": {\"_id\": \"$allPathId\", \"data\": {\"$sum\": \"$totalResponseTime\"}}}], \"alarmApiTotalCount\": [{\"$match\": {\"accessFailureRate\": {\"$gt\": 0}}}, {\"$group\": {\"_id\": null, \"data\": {\"$sum\": 1}}}], \"lastUpdAt\": [{\"$group\": {\"_id\": null, \"data\": {\"$max\": \"$last_updated\"}}}]}}", pipeline.get(1).toJson());
 				return aggregateIterable;
 			});

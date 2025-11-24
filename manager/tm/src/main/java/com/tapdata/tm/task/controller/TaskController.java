@@ -22,13 +22,14 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.ErrorEvent;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
@@ -730,6 +731,22 @@ public class TaskController extends BaseController {
 			return success();
 		}
 
+    @Operation(summary = "系统后台停止同步任务")
+    @PostMapping("systemStop/{id}")
+    public ResponseMessage<TaskDto> systemStop(
+            HttpServletRequest request,
+            @PathVariable("id") String id,
+            @RequestParam(value = "force", defaultValue = "false") Boolean force
+    ) {
+        UserDetail userDetail = getLoginUser();
+        ObjectId objectId = MongoUtils.toObjectId(id);
+        dataPermissionCheckOfId(request, userDetail, objectId, DataPermissionActionEnums.Start, () -> {
+            taskService.pause(objectId, userDetail, force);
+            return null;
+        });
+        return success();
+    }
+
     @Operation(summary = "子任务已经成功运行回调接口")
     @PostMapping("running/{id}")
     public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
@@ -1096,6 +1113,7 @@ public class TaskController extends BaseController {
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
+                                        @RequestParam(value = "importMode", required = false, defaultValue = "import_as_copy") String importMode,
                                         @RequestParam(value = "listtags", required = false) String listtags,
                                         @RequestParam(value = "source", required = false, defaultValue = "") String source,
                                         @RequestParam(value = "sink", required = false, defaultValue = "") String sink) throws IOException {
@@ -1103,11 +1121,14 @@ public class TaskController extends BaseController {
         if (StringUtils.isNoneBlank(listtags)) {
             tags = JSON.parseArray(listtags, String.class);
         }
+
+        ImportModeEnum importModeEnum = ImportModeEnum.fromValue(importMode);
+
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("json.gz")) {
-            taskService.batchUpTask(file, getLoginUser(), cover, tags);
+            taskService.batchUpTask(file, getLoginUser(), cover, importModeEnum, tags);
         }
         if (Objects.requireNonNull(file.getOriginalFilename()).endsWith("relmig")) {
-            taskService.importRmProject(file, getLoginUser(), cover, tags, source, sink);
+            taskService.importRmProject(file, getLoginUser(), importModeEnum, tags, source, sink);
         }
         return success();
     }

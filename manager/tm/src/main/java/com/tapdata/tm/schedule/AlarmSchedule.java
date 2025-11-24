@@ -34,6 +34,13 @@ public class AlarmSchedule implements InitializingBean {
         alarmNotifyService.notifyAlarm();
     }
 
+    @Scheduled(cron = "0/30 * * * * ?")
+    @SchedulerLock(name ="datasource_alarm", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void datasourceAlarm() {
+        Thread.currentThread().setName(getClass().getSimpleName() + "-schedule");
+        alarmNotifyService.notifyDatasourceAlarm();
+    }
+
     @Scheduled(cron = "0 0/1 * * * ?")
     @SchedulerLock(name ="api_server_notify_alarm", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void apiServer() {

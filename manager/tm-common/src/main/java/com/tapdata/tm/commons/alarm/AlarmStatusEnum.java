@@ -1,4 +1,4 @@
-package com.tapdata.tm.alarm.constant;
+package com.tapdata.tm.commons.alarm;
 
 public enum AlarmStatusEnum {
     ING,RECOVER,CLOESE

@@ -11,4 +11,8 @@ public interface AlarmNotifyService {
     default void notifyAlarm() {
 
     }
+
+    default void notifyDatasourceAlarm() {
+
+    }
 }

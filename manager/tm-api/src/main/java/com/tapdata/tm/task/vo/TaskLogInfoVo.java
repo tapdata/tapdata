@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.vo;
 
 import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

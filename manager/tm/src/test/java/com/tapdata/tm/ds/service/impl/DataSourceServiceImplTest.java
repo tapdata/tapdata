@@ -6,6 +6,7 @@ import com.tapdata.tm.Settings.constant.SettingUtil;
 import com.tapdata.tm.agent.service.AgentGroupService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -24,12 +25,14 @@ import com.tapdata.tm.permissions.DataPermissionHelper;
 import com.tapdata.tm.report.service.UserDataReportService;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
 import org.mockito.Answers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -39,11 +42,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class DataSourceServiceImplTest {
@@ -798,5 +801,306 @@ class DataSourceServiceImplTest {
         }
 
 
+    }
+
+    @Nested
+    @DisplayName("BatchImport with ImportModeEnum Tests")
+    class BatchImportWithImportModeTest {
+        private List<DataSourceConnectionDto> connectionDtos;
+        private UserDetail user;
+        private com.tapdata.tm.commons.task.dto.ImportModeEnum importMode;
+        private DataSourceConnectionDto connectionDto;
+        private DataSourceConnectionDto existingConnection;
+        private AgentGroupService agentGroupService;
+        private ExternalStorageService externalStorageService;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceService = spy(new DataSourceServiceImpl(mock(DataSourceRepository.class)));
+            connectionDtos = new ArrayList<>();
+            user = mock(UserDetail.class);
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
+
+            // Setup connection DTO
+            connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37075"));
+            connectionDto.setName("test_connection");
+            connectionDto.setDatabase_type("mysql");
+            connectionDtos.add(connectionDto);
+
+            // Setup existing connection
+            existingConnection = new DataSourceConnectionDto();
+            existingConnection.setId(new ObjectId("662877df9179877be8b37076"));
+            existingConnection.setName("test_connection");
+
+            // Mock services
+            agentGroupService = mock(AgentGroupService.class);
+            externalStorageService = mock(ExternalStorageService.class);
+
+            ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
+            ReflectionTestUtils.setField(dataSourceService, "externalStorageService", externalStorageService);
+        }
+
+        @Test
+        @DisplayName("test batchImport with REPLACE mode - existing connection")
+        void testBatchImportReplaceModeWithExistingConnection() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
+
+            doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(connectionDto).when(dataSourceService).save(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.containsKey("662877df9179877be8b37075"));
+
+            // Verify that the connection ID was replaced with existing ID
+            assertEquals(existingConnection.getId(), connectionDto.getId());
+            verify(dataSourceService, times(1)).save(connectionDto, user);
+            verify(agentGroupService, times(1)).importAgentInfo(connectionDto);
+        }
+
+        @Test
+        @DisplayName("test batchImport with REPLACE mode - no existing connection")
+        void testBatchImportReplaceModeNoExistingConnection() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
+
+            doReturn(null).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(connectionDto).when(dataSourceService).handleImportAsCopyConnection(connectionDto, user);
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test batchImport with IMPORT_AS_COPY mode")
+        void testBatchImportCopyMode() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.IMPORT_AS_COPY;
+
+            doReturn(connectionDto).when(dataSourceService).handleImportAsCopyConnection(connectionDto, user);
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - existing connection")
+        void testBatchImportCancelModeWithExistingConnection() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
+
+            doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.containsKey("662877df9179877be8b37075"));
+            assertNull(result.get("662877df9179877be8b37075")); // Should be null for cancel import with existing connection
+
+            verify(dataSourceService, never()).handleImportAsCopyConnection(any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - no existing connection")
+        void testBatchImportCancelModeNoExistingConnection() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
+
+            doReturn(null).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(connectionDto).when(dataSourceService).handleImportAsCopyConnection(connectionDto, user);
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
+        }
+    }
+
+    @Nested
+    @DisplayName("HandleImportAsCopyConnection Tests")
+    class HandleImportAsCopyConnectionTest {
+        private DataSourceConnectionDto connectionDto;
+        private DataSourceConnectionDto existingConnectionById;
+        private UserDetail user;
+        private AgentGroupService agentGroupService;
+        private ExternalStorageService externalStorageService;
+        private ExternalStorageDto externalStorageDto;
+        private ExternalStorageDto defaultExternalStorage;
+
+        @BeforeEach
+        void setUp() {
+            dataSourceService = spy(new DataSourceServiceImpl(mock(DataSourceRepository.class)));
+            user = mock(UserDetail.class);
+
+            // Setup connection DTO
+            connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37075"));
+            connectionDto.setName("test_connection");
+            connectionDto.setDatabase_type("mysql");
+
+            // Setup existing connection by ID
+            existingConnectionById = new DataSourceConnectionDto();
+            existingConnectionById.setId(new ObjectId("662877df9179877be8b37075"));
+            existingConnectionById.setName("existing_connection");
+
+            // Mock services
+            agentGroupService = mock(AgentGroupService.class);
+            externalStorageService = mock(ExternalStorageService.class);
+            externalStorageDto = mock(ExternalStorageDto.class);
+            defaultExternalStorage = mock(ExternalStorageDto.class);
+
+            ReflectionTestUtils.setField(dataSourceService, "agentGroupService", agentGroupService);
+            ReflectionTestUtils.setField(dataSourceService, "externalStorageService", externalStorageService);
+
+            when(defaultExternalStorage.getId()).thenReturn(new ObjectId("662877df9179877be8b37080"));
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyConnection with existing connection by ID")
+        void testHandleImportAsCopyConnectionWithExistingById() {
+            // Setup
+            doReturn(existingConnectionById).when(dataSourceService).findOne(any(Query.class));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
+            doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            // Execute
+            DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
+
+            // Verify
+            assertNotNull(result);
+            assertNull(connectionDto.getId()); // ID should be set to null for new connection
+            verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+            verify(agentGroupService, times(1)).importAgentInfo(connectionDto);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyConnection with no existing connection by ID")
+        void testHandleImportAsCopyConnectionNoExistingById() {
+            // Setup
+            doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
+            doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            // Execute
+            DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(new ObjectId("662877df9179877be8b37075"), connectionDto.getId()); // ID should remain unchanged
+            verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+            verify(agentGroupService, times(1)).importAgentInfo(connectionDto);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyConnection with name conflict")
+        void testHandleImportAsCopyConnectionWithNameConflict() {
+            // Setup
+            doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(true, true, false).when(dataSourceService).checkRepeatNameBool(eq(user), anyString(), eq(null));
+            doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            // Execute
+            DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals("test_connection_import_import", connectionDto.getName()); // Name should be modified to avoid conflict
+            verify(dataSourceService, times(3)).checkRepeatNameBool(eq(user), anyString(), eq(null));
+            verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyConnection with external storage")
+        void testHandleImportAsCopyConnectionWithExternalStorage() {
+            // Setup
+            connectionDto.setShareCDCExternalStorageId("662877df9179877be8b37079");
+
+            doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
+            doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            when(externalStorageService.findById(any(ObjectId.class))).thenReturn(externalStorageDto);
+
+            // Execute
+            DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals("662877df9179877be8b37079", connectionDto.getShareCDCExternalStorageId());
+            verify(externalStorageService, times(1)).findById(any(ObjectId.class));
+            verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyConnection with missing external storage")
+        void testHandleImportAsCopyConnectionWithMissingExternalStorage() {
+            // Setup
+            connectionDto.setShareCDCExternalStorageId("662877df9179877be8b37079");
+
+            doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
+            doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            when(externalStorageService.findById(any(ObjectId.class))).thenReturn(null);
+            when(externalStorageService.findOne(any(Query.class))).thenReturn(defaultExternalStorage);
+
+            // Execute
+            DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals("662877df9179877be8b37080", connectionDto.getShareCDCExternalStorageId());
+            verify(externalStorageService, times(1)).findById(any(ObjectId.class));
+            verify(externalStorageService, times(1)).findOne(any(Query.class));
+            verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyConnection with blank external storage ID")
+        void testHandleImportAsCopyConnectionWithBlankExternalStorageId() {
+            // Setup
+            connectionDto.setShareCDCExternalStorageId(""); // Blank storage ID
+
+            doReturn(null).when(dataSourceService).findOne(any(Query.class));
+            doReturn(false).when(dataSourceService).checkRepeatNameBool(user, "test_connection", null);
+            doReturn(connectionDto).when(dataSourceService).importEntity(connectionDto, user);
+            doNothing().when(agentGroupService).importAgentInfo(connectionDto);
+
+            // Execute
+            DataSourceConnectionDto result = dataSourceService.handleImportAsCopyConnection(connectionDto, user);
+
+            // Verify
+            assertNotNull(result);
+            verify(externalStorageService, never()).findById(any(ObjectId.class));
+            verify(dataSourceService, times(1)).importEntity(connectionDto, user);
+        }
     }
 }

@@ -2,25 +2,23 @@ package io.tapdata.observable.metric.handler;
 
 import com.google.common.util.concurrent.AtomicDouble;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.micrometer.core.instrument.Metrics;
 import io.tapdata.aspect.CpuMemUsageAspect;
 import io.tapdata.common.sample.CollectorFactory;
+import io.tapdata.common.sample.SamplerPrometheus;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.firedome.MultiTaggedGauge;
+import io.tapdata.firedome.PrometheusName;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -80,8 +78,18 @@ public class TaskSampleHandler extends AbstractHandler {
 
     private final Set<String> taskTables = new HashSet<>();
 
+    // Prometheus metrics reporting
+    private transient ScheduledExecutorService prometheusScheduler;
+    private transient ScheduledFuture<?> prometheusFuture;
+    private transient MultiTaggedGauge replicateLagGauge;
+
     private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
     private final HashMap<String, DataNodeSampleHandler> sourceNodeHandlers = new HashMap<>();
+    private String taskId;
+    private String taskName;
+
+    protected AtomicDouble taskCpuUsage = new AtomicDouble(0d);
+    protected AtomicLong taskMemUsage = new AtomicLong(0L);
 
     protected AtomicReference<Double> taskCpuUsage = new AtomicReference<>(null);
     protected AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
@@ -139,10 +147,26 @@ public class TaskSampleHandler extends AbstractHandler {
                 Constants.CPU_USAGE,
                 Constants.MEMORY_USAGE
         );
+	}
+
+    private void initPrometheusReporter() {
+        try {
+            // base tags
+            taskId = Optional.ofNullable(task.getId()).map(Object::toString).orElse("");
+            taskName = Optional.ofNullable(task.getName()).orElse("");
+
+            // build gauge for REPLICATE_LAG -> task_cdc_delay_seconds
+            replicateLagGauge = new MultiTaggedGauge(PrometheusName.TASK_CDC_DELAY_MS, Metrics.globalRegistry,
+                    "task_id", "task_name", "task_type");
+        } catch (Throwable ignore) {
+        }
     }
 
     public void doInit(Map<String, Number> values) {
         super.doInit(values);
+        // init Prometheus metrics reporter
+        initPrometheusReporter();
+
         collector.addSampler(TABLE_TOTAL, () -> {
             if (taskTables.isEmpty() && snapshotTableTotal.value().longValue() > 0) {
                 return Math.max(snapshotTableTotal.value().longValue(), values.get(TABLE_TOTAL).longValue());
@@ -184,22 +208,33 @@ public class TaskSampleHandler extends AbstractHandler {
             });
             return currentEventTimestampRef.get();
         });
-        collector.addSampler(Constants.REPLICATE_LAG, () -> {
-            AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
-            Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream())
-                    .forEach(h -> {
-                        Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
-                            Number value = sampler.value();
-                            if (Objects.nonNull(value)) {
-                                long v = value.longValue();
-                                if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
-                                    replicateLagRef.set(v);
-                                }
-                            }
-                        });
-                    });
+        collector.addSampler(Constants.REPLICATE_LAG, new SamplerPrometheus() {
+            @Override
+            public Number value() {
+                AtomicReference<Long> replicateLagRef = new AtomicReference<>(null);
+                Stream.concat(sourceNodeHandlers.values().stream(), targetNodeHandlers.values().stream())
+                        .forEach(h -> Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+							Number value = sampler.value();
+							if (Objects.nonNull(value)) {
+								long v = value.longValue();
+								if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+									replicateLagRef.set(v);
+								}
+							}
+						}));
 
-            return replicateLagRef.get();
+                return replicateLagRef.get();
+            }
+
+            @Override
+            public String[] tagValues() {
+                return new String[]{taskId, taskName, task.getSyncType()};
+            }
+
+            @Override
+            public MultiTaggedGauge multiTaggedGauge() {
+                return replicateLagGauge;
+            }
         });
 
         createTableTotal = getCounterSampler(values, CREATE_TABLE_TOTAL);
@@ -284,6 +319,15 @@ public class TaskSampleHandler extends AbstractHandler {
             CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
             CollectorFactory.getInstance("v2").removeSampleCollectorByTags(tags);
         });
+        // stop Prometheus reporter when closing
+        if (prometheusFuture != null) {
+            try { prometheusFuture.cancel(true); } catch (Throwable ignore) {}
+            prometheusFuture = null;
+        }
+        if (prometheusScheduler != null) {
+            try { prometheusScheduler.shutdownNow(); } catch (Throwable ignore) {}
+            prometheusScheduler = null;
+        }
     }
 
     public void addTable(String... tables) {
@@ -294,6 +338,8 @@ public class TaskSampleHandler extends AbstractHandler {
         snapshotRowTotal.inc(count);
         currentSnapshotTableRowTotalMap.put(table, count);
     }
+        // stop Prometheus reporter when closing
+
 
     public void handleCreateTableEnd() {
         // if task tables size = 0, must be error stops the table adder, stop the
@@ -396,6 +442,8 @@ public class TaskSampleHandler extends AbstractHandler {
             return;
         }
 
+
+
         taskTables.addAll(tables);
         inputDdlCounter.inc(tables.size());
     }
@@ -413,7 +461,9 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
         taskCpuUsage.set(aspect.getUsage().getCpuUsage());
-        taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
+        if (null != aspect.getUsage().getHeapMemoryUsage() && aspect.getUsage().getHeapMemoryUsage() > 0L) {
+            taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
+        }
         return null;
     }
 }

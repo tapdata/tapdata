@@ -16,9 +16,7 @@ import com.tapdata.tm.application.service.ApplicationService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.ApplicationConfig;
 import com.tapdata.tm.config.security.UserDetail;
@@ -58,8 +56,12 @@ import java.time.ZonedDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.never;
 
 @DisplayName("Class ModulesService Test")
 class ModulesServiceTest {
@@ -80,7 +82,7 @@ class ModulesServiceTest {
 		modulesRepository = mock(ModulesRepository.class);
 		modulesService = new ModulesService(modulesRepository);
 		dataSourceService = mock(DataSourceService.class);
-		dataSourceDefinitionService = mock(DataSourceDefinitionService.class);
+		dataSourceDefinitionService = mock(DataSourceDefinitionService.class);workerService = mock(WorkerService.class);
 		workerService = mock(WorkerService.class);
 		ReflectionTestUtils.setField(modulesService, "dataSourceService", dataSourceService);
 		ReflectionTestUtils.setField(modulesService, "dataSourceDefinitionService", dataSourceDefinitionService);
@@ -1191,7 +1193,6 @@ class ModulesServiceTest {
 					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
 					"          },\n" +
 					"          \"name\": \"Worker-2\",\n" +
-					"          \"tag\": 1,\n" +
 					"          \"sort\": 1\n" +
 					"        },\n" +
 					"        \"13\": {\n" +
@@ -1324,333 +1325,471 @@ class ModulesServiceTest {
 			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 10);
 			assertEquals(10, apiWorkerInfo.size());
 		}
-
-		@Test
-		void testWorkerInfo1() {
-			String workerInfoJson = "{\n" +
-					"      \"workers\": {\n" +
-					"        \"11\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a6b\",\n" +
-					"          \"id\": 11,\n" +
-					"          \"pid\": 39097,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323402512,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 41549824,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-1\",\n" +
-					"          \"sort\": 0\n" +
-					"        },\n" +
-					"        \"12\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a6e\",\n" +
-					"          \"id\": 12,\n" +
-					"          \"pid\": 39125,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323403013,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 41566208,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-2\",\n" +
-					"          \"tag\": 1,\n" +
-					"          \"sort\": 1\n" +
-					"        },\n" +
-					"        \"13\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a6f\",\n" +
-					"          \"id\": 13,\n" +
-					"          \"pid\": 39154,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323403510,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43630592,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-3\",\n" +
-					"          \"sort\": 2\n" +
-					"        },\n" +
-					"        \"14\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a70\",\n" +
-					"          \"id\": 14,\n" +
-					"          \"pid\": 39186,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323404023,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43728896,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-2\",\n" +
-					"          \"sort\": 3\n" +
-					"        },\n" +
-					"        \"15\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a71\",\n" +
-					"          \"id\": 15,\n" +
-					"          \"pid\": 39449,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323404571,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43794432,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-5\",\n" +
-					"          \"sort\": 4\n" +
-					"        },\n" +
-					"        \"16\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a72\",\n" +
-					"          \"id\": 16,\n" +
-					"          \"pid\": 39474,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323405085,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43646976,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"sort\": 5\n" +
-					"        },\n" +
-					"        \"17\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a73\",\n" +
-					"          \"id\": 17,\n" +
-					"          \"pid\": 39499,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323405588,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43237376,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-7\",\n" +
-					"          \"sort\": 6\n" +
-					"        },\n" +
-					"        \"18\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a74\",\n" +
-					"          \"id\": 18,\n" +
-					"          \"pid\": 39524,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323406093,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43433984,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-8\",\n" +
-					"          \"sort\": 7\n" +
-					"        },\n" +
-					"        \"19\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a75\",\n" +
-					"          \"id\": 19,\n" +
-					"          \"pid\": 39549,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323406599,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43270144,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-9\",\n" +
-					"          \"sort\": 8\n" +
-					"        },\n" +
-					"        \"20\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a76\",\n" +
-					"          \"id\": 20,\n" +
-					"          \"pid\": 39574,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323407111,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43319296,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-10\",\n" +
-					"          \"sort\": 9\n" +
-					"        }\n" +
-					"      },\n" +
-					"      \"worker_process_id\": 38486,\n" +
-					"      \"worker_process_start_time\": 1757323393373,\n" +
-					"      \"worker_process_end_time\": null,\n" +
-					"      \"status\": \"running\",\n" +
-					"      \"exit_code\": null,\n" +
-					"      \"metricValues\": {\n" +
-					"        \"HeapMemoryUsage\": 1144.875,\n" +
-					"        \"CpuUsage\": 2.8,\n" +
-					"        \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"      }\n" +
-					"    }";
-			ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
-			WorkerDto one = new WorkerDto();
-			one.setWorkerStatus(jsonObject);
-			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 100);
-			assertEquals(100, apiWorkerInfo.size());
-		}
-
-		@Test
-		void testWorkerInfo2() {
-			String workerInfoJson = "{\n" +
-					"      \"workers\": {\n" +
-					"        \"11\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a6b\",\n" +
-					"          \"id\": 11,\n" +
-					"          \"pid\": 39097,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323402512,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 41549824,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-1\",\n" +
-					"          \"sort\": 0\n" +
-					"        },\n" +
-					"        \"12\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a6e\",\n" +
-					"          \"id\": 12,\n" +
-					"          \"pid\": 39125,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323403013,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 41566208,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-2\",\n" +
-					"          \"tag\": 1,\n" +
-					"          \"sort\": 1\n" +
-					"        },\n" +
-					"        \"13\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a6f\",\n" +
-					"          \"id\": 13,\n" +
-					"          \"pid\": 39154,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323403510,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43630592,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-3\",\n" +
-					"          \"sort\": 2\n" +
-					"        },\n" +
-					"        \"14\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a70\",\n" +
-					"          \"id\": 14,\n" +
-					"          \"pid\": 39186,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323404023,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43728896,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-2\",\n" +
-					"          \"sort\": 3\n" +
-					"        },\n" +
-					"        \"15\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a71\",\n" +
-					"          \"id\": 15,\n" +
-					"          \"pid\": 39449,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323404571,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43794432,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-5\",\n" +
-					"          \"sort\": 4\n" +
-					"        },\n" +
-					"        \"16\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a72\",\n" +
-					"          \"id\": 16,\n" +
-					"          \"pid\": 39474,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323405085,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43646976,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"sort\": 5\n" +
-					"        },\n" +
-					"        \"17\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a73\",\n" +
-					"          \"id\": 17,\n" +
-					"          \"pid\": 39499,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323405588,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43237376,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-7\",\n" +
-					"          \"sort\": 6\n" +
-					"        },\n" +
-					"        \"18\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a74\",\n" +
-					"          \"id\": 18,\n" +
-					"          \"pid\": 39524,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323406093,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43433984,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-8\",\n" +
-					"          \"sort\": 7\n" +
-					"        },\n" +
-					"        \"19\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a75\",\n" +
-					"          \"id\": 19,\n" +
-					"          \"pid\": 39549,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323406599,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43270144,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-9\",\n" +
-					"          \"sort\": 8\n" +
-					"        },\n" +
-					"        \"20\": {\n" +
-					"          \"oid\": \"68bb9330661d7713deee3a76\",\n" +
-					"          \"id\": 20,\n" +
-					"          \"pid\": 39574,\n" +
-					"          \"worker_status\": \"listening\",\n" +
-					"          \"worker_start_time\": 1757323407111,\n" +
-					"          \"metricValues\": {\n" +
-					"            \"CpuUsage\": 0,\n" +
-					"            \"HeapMemoryUsage\": 43319296,\n" +
-					"            \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"          },\n" +
-					"          \"name\": \"Worker-10\",\n" +
-					"          \"sort\": 9\n" +
-					"        }\n" +
-					"      },\n" +
-					"      \"worker_process_id\": 38486,\n" +
-					"      \"worker_process_start_time\": 1757323393373,\n" +
-					"      \"worker_process_end_time\": null,\n" +
-					"      \"status\": \"running\",\n" +
-					"      \"exit_code\": null,\n" +
-					"      \"metricValues\": {\n" +
-					"        \"HeapMemoryUsage\": 1144.875,\n" +
-					"        \"CpuUsage\": 2.8,\n" +
-					"        \"lastUpdateTime\": \"2025-09-08T10:00:15.057Z\"\n" +
-					"      }\n" +
-					"    }";
-			ApiServerStatus jsonObject = JSON.parseObject(workerInfoJson, ApiServerStatus.class);
-			WorkerDto one = new WorkerDto();
-			one.setWorkerStatus(jsonObject);
-			when(workerService.findOne(any(Query.class))).thenReturn(one);
-			List<ApiServerWorkerInfo> apiWorkerInfo = modulesService.getApiWorkerInfo(new ObjectId().toHexString(), 1);
-			assertEquals(10, apiWorkerInfo.size());
-		}
 	}
+    @Nested
+    @DisplayName("BatchImport with ImportModeEnum Tests")
+    class BatchImportWithImportModeTest {
+        private List<ModulesDto> modulesDtos;
+        private UserDetail user;
+        private com.tapdata.tm.commons.task.dto.ImportModeEnum importMode;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private Map<String, MetadataInstancesDto> metaMap;
+        private ModulesDto moduleDto;
+        private ModulesDto existingModule;
+        private DataSourceConnectionDto connectionDto;
+
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(new ModulesService(modulesRepository));
+            modulesDtos = new ArrayList<>();
+            user = mock(UserDetail.class);
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
+            conMap = new HashMap<>();
+            metaMap = new HashMap<>();
+
+            // Setup module DTO
+            moduleDto = new ModulesDto();
+            moduleDto.setId(new ObjectId("662877df9179877be8b37075"));
+            moduleDto.setName("test_module");
+            moduleDto.setConnectionId("662877df9179877be8b37074");
+            modulesDtos.add(moduleDto);
+
+            // Setup existing module
+            existingModule = new ModulesDto();
+            existingModule.setId(new ObjectId("662877df9179877be8b37076"));
+            existingModule.setName("test_module");
+
+            // Setup connection DTO
+            connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            connectionDto.setName("new_connection");
+            conMap.put("662877df9179877be8b37074", connectionDto);
+        }
+
+        @Test
+        @DisplayName("test batchImport with REPLACE mode - existing module")
+        void testBatchImportReplaceModeWithExistingModule() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
+
+            doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
+            doNothing().when(modulesService).handleReplaceMode(moduleDto, existingModule, user, conMap);
+
+            // Execute
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            // Verify
+            verify(modulesService, times(1)).handleReplaceMode(moduleDto, existingModule, user, conMap);
+            assertEquals(false, moduleDto.getIsDeleted());
+            assertEquals(ModuleStatusEnum.PENDING.getValue(), moduleDto.getStatus());
+        }
+
+        @Test
+        @DisplayName("test batchImport with REPLACE mode - no existing module")
+        void testBatchImportReplaceModeNoExistingModule() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REPLACE;
+
+            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doNothing().when(modulesService).handleReplaceMode(moduleDto, null, user, conMap);
+
+            // Execute
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            // Verify
+            verify(modulesService, times(1)).handleReplaceMode(moduleDto, null, user, conMap);
+        }
+
+        @Test
+        @DisplayName("test batchImport with IMPORT_AS_COPY mode")
+        void testBatchImportCopyMode() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.IMPORT_AS_COPY;
+
+            doNothing().when(modulesService).handleImportAsCopyMode(moduleDto, user, conMap);
+
+            // Execute
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            // Verify
+            verify(modulesService, times(1)).handleImportAsCopyMode(moduleDto, user, conMap);
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - existing module")
+        void testBatchImportCancelModeWithExistingModule() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
+
+            doReturn(existingModule).when(modulesService).findExistingModuleByName("test_module", user);
+
+            // Execute
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            // Verify - should return early without calling any handle methods
+            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any());
+            verify(modulesService, never()).handleImportAsCopyMode(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - no existing module but connection duplicate")
+        void testBatchImportCancelModeWithConnectionDuplicate() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
+
+            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(true).when(modulesService).checkConnectionIdDuplicate(moduleDto, conMap);
+
+            // Execute
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            // Verify - should return early without calling handle methods
+            verify(modulesService, never()).handleReplaceMode(any(), any(), any(), any());
+            verify(modulesService, never()).handleImportAsCopyMode(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("test batchImport with CANCEL_IMPORT mode - no existing module and no connection duplicate")
+        void testBatchImportCancelModeNoConnectionDuplicate() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
+
+            doReturn(null).when(modulesService).findExistingModuleByName("test_module", user);
+            doReturn(false).when(modulesService).checkConnectionIdDuplicate(moduleDto, conMap);
+            doNothing().when(modulesService).handleImportAsCopyMode(moduleDto, user, conMap);
+
+            // Execute
+            modulesService.batchImport(modulesDtos, user, importMode, conMap, metaMap);
+
+            // Verify
+            verify(modulesService, times(1)).handleImportAsCopyMode(moduleDto, user, conMap);
+        }
+    }
+
+    @Nested
+    @DisplayName("HandleReplaceMode Tests")
+    class HandleReplaceModeTest {
+        private ModulesDto moduleDto;
+        private ModulesDto existingModule;
+        private UserDetail user;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private ModulesRepository repository;
+
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(new ModulesService(modulesRepository));
+            moduleDto = new ModulesDto();
+            moduleDto.setId(new ObjectId("662877df9179877be8b37075"));
+            moduleDto.setName("test_module");
+            moduleDto.setConnectionId("662877df9179877be8b37074");
+
+            existingModule = new ModulesDto();
+            existingModule.setId(new ObjectId("662877df9179877be8b37076"));
+            existingModule.setName("test_module");
+
+            user = mock(UserDetail.class);
+            conMap = new HashMap<>();
+
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            conMap.put("662877df9179877be8b37074", connectionDto);
+
+            repository = mock(ModulesRepository.class);
+            ReflectionTestUtils.setField(modulesService, "repository", repository);
+        }
+
+        @Test
+        @DisplayName("test handleReplaceMode with existing module")
+        void testHandleReplaceModeWithExistingModule() {
+            // Setup
+            doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
+            doReturn(1L).when(modulesService).updateByWhere(any(Query.class), eq(moduleDto), eq(user));
+
+            // Execute
+            modulesService.handleReplaceMode(moduleDto, existingModule, user, conMap);
+
+            // Verify
+            assertEquals(existingModule.getId(), moduleDto.getId());
+            verify(modulesService, times(1)).updateConnectionIds(moduleDto, conMap);
+            verify(modulesService, times(1)).updateByWhere(any(Query.class), eq(moduleDto), eq(user));
+        }
+
+        @Test
+        @DisplayName("test handleReplaceMode without existing module - no existing by ID")
+        void testHandleReplaceModeWithoutExistingModuleNoExistingById() {
+            // Setup
+            doReturn(null).when(modulesService).findOne(any(Query.class));
+            doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
+            when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
+            doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
+
+            // Execute
+            modulesService.handleReplaceMode(moduleDto, null, user, conMap);
+
+            // Verify
+            assertEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should remain unchanged
+            verify(modulesService, times(1)).updateConnectionIds(moduleDto, conMap);
+            verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
+        }
+
+        @Test
+        @DisplayName("test handleReplaceMode without existing module - existing by ID")
+        void testHandleReplaceModeWithoutExistingModuleExistingById() {
+            // Setup
+            ModulesDto existingById = new ModulesDto();
+            existingById.setId(new ObjectId("662877df9179877be8b37075"));
+
+            doReturn(existingById).when(modulesService).findOne(any(Query.class));
+            doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
+            when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
+            doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
+
+            // Execute
+            modulesService.handleReplaceMode(moduleDto, null, user, conMap);
+
+            // Verify
+            assertNotEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should be changed
+            verify(modulesService, times(1)).updateConnectionIds(moduleDto, conMap);
+            verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
+        }
+    }
+
+    @Nested
+    @DisplayName("HandleImportAsCopyMode Tests")
+    class HandleImportAsCopyModeTest {
+        private ModulesDto moduleDto;
+        private ModulesDto existingModuleById;
+        private UserDetail user;
+        private Map<String, DataSourceConnectionDto> conMap;
+        private ModulesRepository repository;
+
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(new ModulesService(modulesRepository));
+            moduleDto = new ModulesDto();
+            moduleDto.setId(new ObjectId("662877df9179877be8b37075"));
+            moduleDto.setName("test_module");
+            moduleDto.setConnectionId("662877df9179877be8b37074");
+
+            existingModuleById = new ModulesDto();
+            existingModuleById.setId(new ObjectId("662877df9179877be8b37075"));
+            existingModuleById.setName("existing_module");
+
+            user = mock(UserDetail.class);
+            conMap = new HashMap<>();
+
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            conMap.put("662877df9179877be8b37074", connectionDto);
+
+            repository = mock(ModulesRepository.class);
+            ReflectionTestUtils.setField(modulesService, "repository", repository);
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with existing module by ID")
+        void testHandleImportAsCopyModeWithExistingById() {
+            // Setup
+            doReturn(existingModuleById).when(modulesService).findOne(any(Query.class));
+            doReturn(false).when(modulesService).checkTaskNameNotError("test_module", user, null);
+            doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
+            when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
+            doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
+
+            modulesService.handleImportAsCopyMode(moduleDto, user, conMap);
+
+            // Verify
+            assertNotEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should be changed
+            verify(modulesService, times(1)).updateConnectionIds(moduleDto, conMap);
+            verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with no existing module by ID")
+        void testHandleImportAsCopyModeNoExistingById() {
+            // Setup
+            doReturn(null).when(modulesService).findOne(any(Query.class));
+            doReturn(false).when(modulesService).checkTaskNameNotError("test_module", user, null);
+            doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
+            when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
+            doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
+
+            // Execute
+            modulesService.handleImportAsCopyMode(moduleDto, user, conMap);
+
+            // Verify
+            assertEquals(new ObjectId("662877df9179877be8b37075"), moduleDto.getId()); // ID should remain unchanged
+            verify(modulesService, times(1)).updateConnectionIds(moduleDto, conMap);
+            verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
+        }
+
+        @Test
+        @DisplayName("test handleImportAsCopyMode with name conflict")
+        void testHandleImportAsCopyModeWithNameConflict() {
+            // Setup
+            doReturn(null).when(modulesService).findOne(any(Query.class));
+            doReturn(true, true, false).when(modulesService).checkTaskNameNotError(anyString(), eq(user), eq(null));
+            doNothing().when(modulesService).updateConnectionIds(moduleDto, conMap);
+            when(repository.importEntity(any(ModulesEntity.class), eq(user))).thenReturn(new ModulesEntity());
+            doReturn(new ModulesEntity()).when(modulesService).convertToEntity(eq(ModulesEntity.class), eq(moduleDto));
+
+            // Execute
+            modulesService.handleImportAsCopyMode(moduleDto, user, conMap);
+
+            // Verify
+            assertEquals("test_module_import_import", moduleDto.getName()); // Name should be modified to avoid conflict
+            verify(modulesService, times(3)).checkTaskNameNotError(anyString(), eq(user), eq(null));
+            verify(repository, times(1)).importEntity(any(ModulesEntity.class), eq(user));
+        }
+    }
+
+    @Nested
+    @DisplayName("Utility Methods Tests")
+    class UtilityMethodsTest {
+        private ModulesDto moduleDto;
+        private UserDetail user;
+        private Map<String, DataSourceConnectionDto> conMap;
+
+        @BeforeEach
+        void setUp() {
+            modulesService = spy(new ModulesService(modulesRepository));
+            moduleDto = new ModulesDto();
+            moduleDto.setConnectionId("662877df9179877be8b37074");
+
+            user = mock(UserDetail.class);
+            conMap = new HashMap<>();
+        }
+
+        @Test
+        @DisplayName("test findExistingModuleByName with existing module")
+        void testFindExistingModuleByNameWithExistingModule() {
+            // Setup
+            ModulesDto existingModule = new ModulesDto();
+            existingModule.setName("test_module");
+
+            doReturn(existingModule).when(modulesService).findOne(any(Query.class), eq(user));
+
+            // Execute
+            ModulesDto result = modulesService.findExistingModuleByName("test_module", user);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals("test_module", result.getName());
+            verify(modulesService, times(1)).findOne(any(Query.class), eq(user));
+        }
+
+        @Test
+        @DisplayName("test findExistingModuleByName with no existing module")
+        void testFindExistingModuleByNameNoExistingModule() {
+            // Setup
+            doReturn(null).when(modulesService).findOne(any(Query.class), eq(user));
+
+            // Execute
+            ModulesDto result = modulesService.findExistingModuleByName("test_module", user);
+
+            // Verify
+            assertNull(result);
+            verify(modulesService, times(1)).findOne(any(Query.class), eq(user));
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with existing connection mapping")
+        void testUpdateConnectionIdsWithExistingMapping() {
+            // Setup
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            conMap.put("662877df9179877be8b37074", connectionDto);
+
+            // Execute
+            modulesService.updateConnectionIds(moduleDto,conMap);
+
+            // Verify
+            assertEquals("662877df9179877be8b37077", moduleDto.getConnectionId());
+            assertEquals(new ObjectId("662877df9179877be8b37077"), moduleDto.getConnection());
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with no connection mapping")
+        void testUpdateConnectionIdsNoMapping() {
+            // Setup
+            String originalConnectionId = moduleDto.getConnectionId();
+            ObjectId originalConnection = moduleDto.getConnection();
+
+            // Execute
+            modulesService.updateConnectionIds(moduleDto,conMap);
+
+            // Verify
+            assertEquals(originalConnectionId, moduleDto.getConnectionId());
+            assertEquals(originalConnection, moduleDto.getConnection());
+        }
+
+        @Test
+        @DisplayName("test updateConnectionIds with null connection mapping value")
+        void testUpdateConnectionIdsNullMappingValue() {
+            // Setup
+            conMap.put("662877df9179877be8b37074", null);
+            String originalConnectionId = moduleDto.getConnectionId();
+            ObjectId originalConnection = moduleDto.getConnection();
+
+            // Execute
+            modulesService.updateConnectionIds(moduleDto,conMap);
+
+            // Verify
+            assertEquals(originalConnectionId, moduleDto.getConnectionId());
+            assertEquals(originalConnection, moduleDto.getConnection());
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with existing connection")
+        void testCheckConnectionIdDuplicateWithExistingConnection() {
+            // Setup
+            DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
+            connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+            conMap.put("662877df9179877be8b37074", connectionDto);
+
+            // Execute
+            boolean result = modulesService.checkConnectionIdDuplicate( moduleDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with null connection mapping")
+        void testCheckConnectionIdDuplicateWithNullMapping() {
+            // Setup
+            conMap.put("662877df9179877be8b37074", null);
+
+            // Execute
+            boolean result = modulesService.checkConnectionIdDuplicate( moduleDto, conMap);
+
+            // Verify
+            assertTrue(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with no connection mapping")
+        void testCheckConnectionIdDuplicateNoMapping() {
+            // Setup - empty conMap
+
+            // Execute
+            boolean result = modulesService.checkConnectionIdDuplicate( moduleDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("test checkConnectionIdDuplicate with null connection ID")
+        void testCheckConnectionIdDuplicateNullConnectionId() {
+            // Setup
+            moduleDto.setConnectionId(null);
+
+            // Execute
+            boolean result = modulesService.checkConnectionIdDuplicate( moduleDto, conMap);
+
+            // Verify
+            assertFalse(result);
+        }
+    }
 }

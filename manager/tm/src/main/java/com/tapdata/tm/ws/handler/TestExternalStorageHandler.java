@@ -144,7 +144,7 @@ public class TestExternalStorageHandler implements WebSocketHandler {
 
 		}
 		connectorConfig.put("__connectionType", testConnectionConfig.get("connection_type"));
-		testConnectionConfig.put("testType", null == externalStorageConfig.get("type") ? dto.getType() : externalStorageConfig.get("type"));
+		testConnectionConfig.put("testType", null == externalStorageConfig.get("type") ? Objects.requireNonNull(dto).getType() : externalStorageConfig.get("type"));
 		MessageInfo testConnectionMessageInfo = new MessageInfo();
 		testConnectionMessageInfo.setType(testConnectionType.getType());
 		testConnectionConfig.put("externalStorageId", externalStorageId);
