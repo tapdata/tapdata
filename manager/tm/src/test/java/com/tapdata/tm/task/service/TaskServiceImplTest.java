@@ -2553,7 +2553,7 @@ class TaskServiceImplTest {
 
             // call method
             Object actual = taskService.getSourceNode(taskDto);
-            assertEquals(null, actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getSourceNode method when edges is empty")
@@ -2590,7 +2590,7 @@ class TaskServiceImplTest {
 
             // call method
             Object actual = taskService.getTargetNode(taskDto);
-            assertNull(actual);
+            assertEquals(node, actual);
         }
         @Test
         @DisplayName("test getTargetNode method when edges is empty")

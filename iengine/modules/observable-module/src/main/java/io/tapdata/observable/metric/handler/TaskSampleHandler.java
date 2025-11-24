@@ -88,9 +88,6 @@ public class TaskSampleHandler extends AbstractHandler {
     private String taskId;
     private String taskName;
 
-    protected AtomicDouble taskCpuUsage = new AtomicDouble(0d);
-    protected AtomicLong taskMemUsage = new AtomicLong(0L);
-
     protected AtomicReference<Double> taskCpuUsage = new AtomicReference<>(null);
     protected AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
 

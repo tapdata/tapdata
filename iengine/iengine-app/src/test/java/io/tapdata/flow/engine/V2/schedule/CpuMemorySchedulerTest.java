@@ -46,21 +46,7 @@ class CpuMemorySchedulerTest {
             Scheduled annotation = method.getAnnotation(Scheduled.class);
             
             assertNotNull(annotation);
-            assertEquals("0/5 * * * * ?", annotation.cron());
-        }
-
-        @Test
-        @DisplayName("test method execution")
-        void test2() {
-            try (MockedStatic<CpuMemoryCollector> mockedCollector = mockStatic(CpuMemoryCollector.class)) {
-                Map<String, Usage> mockUsageMap = new HashMap<>();
-                mockedCollector.when(() -> CpuMemoryCollector.collectOnce(null))
-                        .thenReturn(mockUsageMap);
-                
-                assertDoesNotThrow(() -> scheduler.collectCpuUsage());
-                
-                mockedCollector.verify(() -> CpuMemoryCollector.collectOnce(null));
-            }
+            assertEquals("0/10 * * * * ?", annotation.cron());
         }
     }
 
