@@ -25,4 +25,8 @@ public interface IPdkConnector extends AutoCloseable {
     LinkedHashMap<String, Object> findOneByKeys(String tableName, LinkedHashMap<String, Object> keys, List<String> fields);
 
     String getDatabaseType();
+
+    default ClassLoader getConnectorClassLoader() {
+        throw new UnsupportedOperationException();
+    }
 }
