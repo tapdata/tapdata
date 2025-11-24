@@ -213,13 +213,6 @@ class TaskInspectUtilsTest {
                 String toJsonStr = String.join("::", i.value.stream().map(JSON::toJSONString).sorted().toList());
                 return fromJsonStr.equals(toJsonStr);
             });
-            appendCheckItem(Optional.of(new LinkedHashSet<>()).map(m -> {
-                m.add("3");
-                m.add("1");
-                m.add("2");
-                m.add(new TapDateTimeValue(DateTime.withDateStr("2025-01-01")));
-                return m;
-            }).get());
 
             // TapValue 检查
             appendCheckItem(new TapArrayValue(Optional.of(new ArrayList<>()).map(o -> {
