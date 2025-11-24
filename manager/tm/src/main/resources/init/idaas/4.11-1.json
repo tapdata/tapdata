@@ -19,5 +19,19 @@
         "enums": ["true", "false"]
       }
     ]
+  },
+  {
+    "createIndexes": "RawStateMetrix",
+    "indexes": [
+      {
+        "name": "sort_for_metric_serviceId_timestamp",
+        "key": {
+          "serviceId": 1,
+          "timestamp": -1,
+          "delete": 1
+        },
+        "background": true
+      }
+    ]
   }
 ]

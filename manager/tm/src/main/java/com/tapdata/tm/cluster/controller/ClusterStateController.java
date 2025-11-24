@@ -3,10 +3,25 @@ package com.tapdata.tm.cluster.controller;
 import com.tapdata.tm.Permission.service.PermissionService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
-import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.cluster.dto.*;
+import com.tapdata.tm.cluster.dto.AccessNodeInfo;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.ClusterStateMonitorRequest;
+import com.tapdata.tm.cluster.dto.NineBridgeCommandExecResult;
+import com.tapdata.tm.cluster.dto.NineBridgeSNResult;
+import com.tapdata.tm.cluster.dto.NineBridgeUpdateConfigResult;
+import com.tapdata.tm.cluster.dto.NineBridgeUpgradeSNResult;
+import com.tapdata.tm.cluster.dto.RawServerStateDto;
+import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
+import com.tapdata.tm.cluster.dto.UpdateAgentVersionParam;
+import com.tapdata.tm.cluster.params.NineBridgeConfigParam;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.cluster.service.NineBridgeService;
 import com.tapdata.tm.cluster.service.RawServerStateService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
@@ -17,8 +32,21 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +69,7 @@ public class ClusterStateController extends BaseController {
     private PermissionService permissionService;
     @Autowired
     private SettingsService settingsService;
+    private NineBridgeService nineBridgeService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -333,6 +362,75 @@ public class ClusterStateController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(rawServerStateService.getAllLatest(filter));
+        Page<RawServerStateDto> allLatest = rawServerStateService.getAllLatest(filter);
+        for (RawServerStateDto item : allLatest.getItems()) {
+            item.setServiceIP(null);
+            item.setServicePort(null);
+        }
+        return success(allLatest);
+    }
+
+    @Operation(summary = "Execute nine bridge command, start/stop/restart")
+    @PostMapping("/nine-bridge")
+    public ResponseMessage<NineBridgeCommandExecResult> executeCommand(
+            @RequestParam(value = "serverId") String serverId,
+            @RequestParam(value = "command") String command) {
+        return success(nineBridgeService.executeCommand(serverId, command));
+    }
+
+
+    @Operation(summary = "Upgrade nine bridge sn file")
+    @PostMapping("/nine-bridge/upgrade-sn")
+    public ResponseMessage<NineBridgeUpgradeSNResult> upgradeNineBridgeSN(
+            @RequestParam(value = "serverId") String serverId,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                throw new BizException("nine.bridge.sn.file.empty");
+            }
+            String contentType = file.getContentType();
+            if (!isTextFile(contentType, file.getOriginalFilename())) {
+                throw new BizException("nine.bridge.sn.file.not.text");
+            }
+            String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+            return success(nineBridgeService.upgradeNineBridgeSN(serverId, content));
+        } catch (IOException e) {
+            throw new BizException("nine.bridge.sn.file.upload.error", e.getMessage());
+        }
+    }
+
+    private boolean isTextFile(String contentType, String filename) {
+        // 检查常见的文本文件类型
+        return contentType != null && (
+                contentType.startsWith("text/") ||
+                        contentType.equals("application/json") ||
+                        contentType.equals("application/xml") ||
+                        filename.endsWith(".txt") ||
+                        filename.endsWith(".csv") ||
+                        filename.endsWith(".json") ||
+                        filename.endsWith(".xml")
+        );
+    }
+
+    @Operation(summary = "Get nine bridge sn info")
+    @GetMapping("/nine-bridge/sn")
+    public ResponseMessage<NineBridgeSNResult> findNineBridgeSN(
+            @RequestParam(value = "serverId") String serverId) {
+        return success(nineBridgeService.findNineBridgeSN(serverId));
+    }
+
+    @Operation(summary = "Update nine bridge config")
+    @PostMapping("/nine-bridge/update-config")
+    public ResponseMessage<NineBridgeUpdateConfigResult> updateNineBridgeConfig(
+            @RequestParam(value = "serverId") String serverId,
+            @RequestBody NineBridgeConfigParam parma) {
+        return success(nineBridgeService.updateNineBridgeConfig(serverId, parma));
+    }
+
+    @Operation(summary = "remove nine bridge in list")
+    @DeleteMapping("/nine-bridge")
+    public ResponseMessage<Boolean> removeUselessServerInfo(
+            @RequestParam(value = "serverId") String serverId) {
+        return success(nineBridgeService.removeUselessServerInfo(serverId));
     }
 }

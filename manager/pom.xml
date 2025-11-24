@@ -28,18 +28,18 @@
 		<tm.impl.artifactId>tm-oss</tm.impl.artifactId>
 		<tm.oss.module>tm-oss</tm.oss.module>
 		<mongo.version>5.3.0</mongo.version>
-		<tapdata-api.version>2.0.4-SNAPSHOT</tapdata-api.version>
-		<tapdata-pdk-api.version>2.0.4-SNAPSHOT</tapdata-pdk-api.version>
-		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
-		<tapdata-common.version>2.4-SNAPSHOT</tapdata-common.version>
-		<modules-api.version>2.4-SNAPSHOT</modules-api.version>
+		<tapdata-api.version>2.0.5-SNAPSHOT</tapdata-api.version>
+		<tapdata-pdk-api.version>2.0.5-SNAPSHOT</tapdata-pdk-api.version>
+		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
+		<tapdata-common.version>2.5-SNAPSHOT</tapdata-common.version>
+		<modules-api.version>2.5-SNAPSHOT</modules-api.version>
 		<websocket-server-module.version>${modules-api.version}</websocket-server-module.version>
 		<service-skeleton-module.version>${modules-api.version}</service-skeleton-module.version>
 		<tapdata-proxy.version>${modules-api.version}</tapdata-proxy.version>
 		<mongodb-storage-module.version>${modules-api.version}</mongodb-storage-module.version>
 		<tcm.artifactId>tcm</tcm.artifactId>
 		<tcm.module>tcm-module</tcm.module>
-		<tapdata-pdk-runner.version>2.4-SNAPSHOT</tapdata-pdk-runner.version>
+		<tapdata-pdk-runner.version>2.5-SNAPSHOT</tapdata-pdk-runner.version>
 		<commons-net.version>3.11.1</commons-net.version>
 		<gson.version>2.12.1</gson.version>
 		<netty.version>4.1.119.Final</netty.version>
@@ -175,6 +175,28 @@
 			</snapshots>
 		</repository>
 		<repository>
+			<id>nexus-releases</id>
+			<name>nexus-maven-release</name>
+			<url>https://nexus.tapdata.net/repository/maven-releases/</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>nexus-snapshots</id>
+			<name>nexus-maven-snapshot</name>
+			<url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+		<repository>
 			<id>tapdata-tapdata-maven</id>
 			<name>maven</name>
 			<url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
@@ -253,4 +275,17 @@
 			</plugins>
 		</pluginManagement>
 	</build>
+
+	<distributionManagement>
+		<repository>
+			<id>nexus-tapdata-net</id>
+			<name>Nexus Release Repository</name>
+			<url>https://nexus.tapdata.net/repository/maven-releases/</url>
+		</repository>
+		<snapshotRepository>
+			<id>nexus-tapdata-net</id>
+			<name>Nexus Snapshot Repository</name>
+			<url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
 </project>

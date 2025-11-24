@@ -16,4 +16,7 @@ public class RawServerStateEntity extends BaseEntity {
     private String dataSource;
     private String serviceId;
     private Date timestamp;
+    private String serviceIP;
+    private Integer servicePort;
+    private Boolean delete;
 }
