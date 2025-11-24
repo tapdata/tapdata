@@ -17,5 +17,8 @@ public class RawServerStateDto extends BaseDto {
     private String serviceId;
     private Date timestamp;
 
+    private String serviceIP;
+    private Integer servicePort;
+
     private Boolean isAlive;
 }

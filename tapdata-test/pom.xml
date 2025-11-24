@@ -187,4 +187,17 @@
             </properties>
         </profile>
     </profiles>
+
+    <distributionManagement>
+        <repository>
+            <id>nexus-tapdata-net</id>
+            <name>Nexus Release Repository</name>
+            <url>https://nexus.tapdata.net/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-tapdata-net</id>
+            <name>Nexus Snapshot Repository</name>
+            <url>https://nexus.tapdata.net/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
