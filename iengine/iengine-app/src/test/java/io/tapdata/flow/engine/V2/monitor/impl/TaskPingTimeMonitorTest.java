@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Field;
 
@@ -99,6 +100,7 @@ class TaskPingTimeMonitorTest {
 
 			// Ignore log printing for successful use cases
 			UnitTestUtils.injectField(TaskPingTimeMonitor.class, taskPingTimeMonitor, "logger", mock(Logger.class));
+			when(taskPingTimeMonitor.onHeartExpire()).thenReturn(-1L);
 			taskPingTimeMonitor.taskPingTimeUseHttp(query, update);
 
 			verify(taskMonitor, times(1)).accept(TerminalMode.INTERNAL_STOP);

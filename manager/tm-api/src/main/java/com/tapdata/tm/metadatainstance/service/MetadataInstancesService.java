@@ -165,7 +165,7 @@ public abstract class MetadataInstancesService extends BaseService<MetadataInsta
 
     public abstract TableListVo findTablesById(String id);
 
-    public abstract Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, boolean cover, Map<String, DataSourceConnectionDto> conMap);
+    public abstract Map<String, MetadataInstancesDto> batchImport(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, Map<String, DataSourceConnectionDto> conMap,Map<String,String> taskMap,Map<String,String> nodeMap);
 
     public abstract Page<TapTable> getTapTable(Filter filter, UserDetail loginUser);
 

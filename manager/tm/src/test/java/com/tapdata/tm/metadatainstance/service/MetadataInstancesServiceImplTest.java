@@ -1,6 +1,7 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.google.common.collect.Lists;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.base.dto.Filter;
@@ -265,7 +266,7 @@ public class MetadataInstancesServiceImplTest {
 				long time = new Date().getTime();
 				String connectionId = new ObjectId().toHexString();
 				DataSourceConnectionDto dataSourceConnectionDto = new DataSourceConnectionDto();
-				when(dataSourceService.findById(any(ObjectId.class), eq(userDetail))).thenReturn(dataSourceConnectionDto);
+				when(dataSourceService.findById(any(ObjectId.class))).thenReturn(dataSourceConnectionDto);
 				String qualifiedName = "test-qualified-name";
 				metaDataBuilderUtilsMockedStatic.when(() -> MetaDataBuilderUtils.generateQualifiedName(MetaType.database.name(), dataSourceConnectionDto, null)).thenReturn(qualifiedName);
 				MetadataInstancesDto databaseMetaDto = new MetadataInstancesDto();
@@ -466,6 +467,76 @@ public class MetadataInstancesServiceImplTest {
 			MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
 			metadataInstancesVo.setSortColumns(new ArrayList<>());
 			assertEquals(metadataInstancesVo, actual.get(0));
+		}
+
+		@Test
+		@DisplayName("test findInspect method when metadataInstancesDtoList is not empty")
+		void testSortColumns() {
+			Where where = new Where();
+			where.put("source.id", "111");
+			filter.setWhere(where);
+			List metadataInstancesDtoList = new ArrayList<>();
+			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+			metadataInstancesDto.setSource(mock(SourceDto.class));
+
+			Field field1 = new Field();
+			field1.setId("a1");
+			field1.setFieldName("a1");
+			field1.setPrimaryKey(false);
+			field1.setColumnPosition(1);
+
+			Field field2 = new Field();
+			field2.setId("a2");
+			field2.setFieldName("a2");
+			field2.setPrimaryKey(false);
+			field2.setColumnPosition(2);
+
+			Field field3 = new Field();
+			field3.setId("a3");
+			field3.setFieldName("a3");
+			field3.setPrimaryKey(true);
+			field3.setPrimaryKeyPosition(1);
+			field3.setColumnPosition(3);
+
+			Field field4 = new Field();
+			field4.setId("a4");
+			field4.setFieldName("a4");
+			field4.setPrimaryKey(true);
+			field4.setPrimaryKeyPosition(2);
+			field4.setColumnPosition(4);
+
+			metadataInstancesDto.setFields(Lists.newArrayList(field1, field2));
+
+			TableIndex index1 = new TableIndex();
+			TableIndexColumn column1 = new TableIndexColumn();
+			column1.setColumnName("a1");
+			column1.setColumnPosition(1);
+			index1.setColumns(Lists.newArrayList(column1));
+			index1.setCoreUnique(false);
+			index1.setUnique(true);
+
+			TableIndex index2 = new TableIndex();
+			TableIndexColumn column2 = new TableIndexColumn();
+			column2.setColumnName("a2");
+			column2.setColumnPosition(2);
+			index2.setColumns(Lists.newArrayList(column2));
+			index2.setCoreUnique(true);
+			index2.setUnique(true);
+
+			metadataInstancesDto.setIndices(Lists.newArrayList(index1, index2));
+			metadataInstancesDtoList.add(metadataInstancesDto);
+			when(metadataInstancesService.findAll(filter)).thenReturn(metadataInstancesDtoList);
+			List<MetadataInstancesVo> actual1 = metadataInstancesService.findInspect(filter, userDetail);
+			MetadataInstancesVo metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+			metadataInstancesVo.setSortColumns(Lists.newArrayList("a2"));
+			assertEquals(metadataInstancesVo, actual1.get(0));
+
+			metadataInstancesDto.setFields(Lists.newArrayList(field1, field2, field3, field4));
+			List<MetadataInstancesVo> actual2 = metadataInstancesService.findInspect(filter, userDetail);
+			metadataInstancesVo = BeanUtil.copyProperties(metadataInstancesDto, MetadataInstancesVo.class);
+			metadataInstancesVo.setSortColumns(Lists.newArrayList("a3","a4"));
+			assertEquals(metadataInstancesVo, actual2.get(0));
+
 		}
 
 		@Test
@@ -2540,66 +2611,7 @@ public class MetadataInstancesServiceImplTest {
 			assertEquals(1, actual.getErrorTables().size());
 		}
 	}
-
-	@Nested
-	class BatchImportTest {
-		List<MetadataInstancesDto> metadataInstancesDtos;
-		boolean cover;
-		Map<String, DataSourceConnectionDto> conMap;
-
-		@BeforeEach
-		void beforeEach() {
-			metadataInstancesDtos = new ArrayList<>();
-			DataSourceConnectionDto connectionDto = new DataSourceConnectionDto();
-			connectionDto.setId(mock(ObjectId.class));
-			conMap = new HashMap<>();
-			conMap.put("662877df9179877be8b37074", connectionDto);
-		}
-
-		@Test
-		@DisplayName("test batchImport method normal")
-		void test1() {
-			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
-			metadataInstancesDto.setQualifiedName("qualifiedName");
-			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
-			SourceDto sourceDto = new SourceDto();
-			sourceDto.setId(new ObjectId("662877df9179877be8b37074"));
-			metadataInstancesDto.setSource(sourceDto);
-			metadataInstancesDtos.add(metadataInstancesDto);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto, userDetail);
-			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
-			assertEquals(metadataInstancesDto, actual.get("662877df9179877be8b37075"));
-		}
-
-		@Test
-		@DisplayName("test batchImport method simple")
-		void test2() {
-			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
-			metadataInstancesDto.setQualifiedName("qualifiedName");
-			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
-			metadataInstancesDtos.add(metadataInstancesDto);
-			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto, userDetail);
-			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
-			assertEquals(metadataInstancesDto, actual.get("662877df9179877be8b37075"));
-		}
-
-		@Test
-		@DisplayName("test batchImport method when connectionId not null and connectionDto is null")
-		void test3() {
-			MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
-			metadataInstancesDto.setQualifiedName("qualifiedName");
-			metadataInstancesDto.setId(new ObjectId("662877df9179877be8b37075"));
-			SourceDto sourceDto = new SourceDto();
-			sourceDto.set_id("662877df9179877be8b37074");
-			metadataInstancesDto.setSource(sourceDto);
-			metadataInstancesDtos.add(metadataInstancesDto);
-			conMap.clear();
-			doReturn(metadataInstancesDto).when(metadataInstancesService).importEntity(metadataInstancesDto, userDetail);
-			Map<String, MetadataInstancesDto> actual = metadataInstancesService.batchImport(metadataInstancesDtos, userDetail, cover, conMap);
-			assertEquals(metadataInstancesDto, actual.get("662877df9179877be8b37075"));
-		}
-	}
-
+	
 	@Nested
 	class GetTapTableTest {
 
@@ -3466,8 +3478,7 @@ public class MetadataInstancesServiceImplTest {
 				metadataInstancesService.targetSchemaDetection(nodeId, taskId, userDetail);
 
 				// Then
-				verify(taskService).findOne(any(Query.class), eq(userDetail));
-			}
+				verify(taskService).findOne(any(Query.class), eq(userDetail));}
 		}
 
 		private TaskDto createMockTaskDto() {
@@ -3712,6 +3723,537 @@ public class MetadataInstancesServiceImplTest {
 			fields.get(2).setTapType("{\"bytes\":8,\"cannotWrite\":true,\"type\":9}");
 		});
 		return targetMetadataInstancesDtos;
+	}
+
+	@Nested
+	@DisplayName("BatchImport with taskMap and nodeMap Tests")
+	class BatchImportNewVersionTest {
+		private List<MetadataInstancesDto> metadataInstancesDtos;
+		private UserDetail user;
+		private Map<String, DataSourceConnectionDto> conMap;
+		private Map<String, String> taskMap;
+		private Map<String, String> nodeMap;
+		private MetadataInstancesDto databaseMetadata;
+		private MetadataInstancesDto tableMetadata;
+		private DataSourceConnectionDto connectionDto;
+
+		@BeforeEach
+		void setUp() {
+			metadataInstancesDtos = new ArrayList<>();
+			user = mock(UserDetail.class);
+			conMap = new HashMap<>();
+			taskMap = new HashMap<>();
+			nodeMap = new HashMap<>();
+
+			// Setup database metadata
+			databaseMetadata = new MetadataInstancesDto();
+			databaseMetadata.setId(new ObjectId("662877df9179877be8b37075"));
+			databaseMetadata.setQualifiedName("database_qualified_name");
+			databaseMetadata.setMetaType("database");
+			databaseMetadata.setOriginalName("test_database");
+			databaseMetadata.setAncestorsName("test_database");
+
+			SourceDto databaseSource = new SourceDto();
+			databaseSource.set_id("662877df9179877be8b37074");
+			databaseSource.setId(new ObjectId("662877df9179877be8b37074"));
+			databaseMetadata.setSource(databaseSource);
+
+			// Setup table metadata
+			tableMetadata = new MetadataInstancesDto();
+			tableMetadata.setId(new ObjectId("662877df9179877be8b37076"));
+			tableMetadata.setQualifiedName("table_qualified_name");
+			tableMetadata.setMetaType("table");
+			tableMetadata.setOriginalName("test_table");
+			tableMetadata.setDatabaseId("662877df9179877be8b37075");
+			tableMetadata.setTaskId("task123");
+			tableMetadata.setNodeId("node456");
+
+			SourceDto tableSource = new SourceDto();
+			tableSource.set_id("662877df9179877be8b37074");
+			tableSource.setId(new ObjectId("662877df9179877be8b37074"));
+			tableMetadata.setSource(tableSource);
+
+			// Setup connection DTO
+			connectionDto = new DataSourceConnectionDto();
+			connectionDto.setId(new ObjectId("662877df9179877be8b37077"));
+			connectionDto.setName("new_connection");
+
+			conMap.put("662877df9179877be8b37074", connectionDto);
+			taskMap.put("task123", "newTask456");
+			nodeMap.put("node456", "newNode789");
+		}
+
+		@Test
+		@DisplayName("test batchImport with database metadata - connection ID change")
+		void testBatchImportDatabaseMetadataWithConnectionIdChange() {
+			// Setup
+			metadataInstancesDtos.add(databaseMetadata);
+
+			MetadataInstancesDto importedDatabase = new MetadataInstancesDto();
+			importedDatabase.setId(new ObjectId("662877df9179877be8b37078"));
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doReturn(importedDatabase).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, times(1)).importEntity(any(MetadataInstancesDto.class), eq(user));
+			assertNotNull(result);
+			assertEquals(1, result.size());
+			assertTrue(result.containsKey("662877df9179877be8b37078"));
+
+			// Verify that the database metadata was updated correctly
+			ArgumentCaptor<MetadataInstancesDto> captor = ArgumentCaptor.forClass(MetadataInstancesDto.class);
+			verify(metadataInstancesService).importEntity(captor.capture(), eq(user));
+			MetadataInstancesDto capturedMetadata = captor.getValue();
+
+			assertEquals("662877df9179877be8b37077", capturedMetadata.getSource().get_id());
+			assertEquals("new_connection", capturedMetadata.getOriginalName());
+			assertEquals("new_connection", capturedMetadata.getAncestorsName());
+			assertNull(capturedMetadata.getListtags());
+		}
+
+		@Test
+		@DisplayName("test batchImport with database metadata - same connection ID")
+		void testBatchImportDatabaseMetadataSameConnectionId() {
+			// Setup - use same connection ID
+			connectionDto.setId(new ObjectId("662877df9179877be8b37074"));
+			conMap.clear();
+			conMap.put("662877df9179877be8b37074", connectionDto);
+
+			metadataInstancesDtos.add(databaseMetadata);
+
+			MetadataInstancesDto importedDatabase = new MetadataInstancesDto();
+			importedDatabase.setId(new ObjectId("662877df9179877be8b37078"));
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doReturn(importedDatabase).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, times(1)).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Verify that the database metadata keeps original ID when connection ID is same
+			ArgumentCaptor<MetadataInstancesDto> captor = ArgumentCaptor.forClass(MetadataInstancesDto.class);
+			verify(metadataInstancesService).importEntity(captor.capture(), eq(user));
+			MetadataInstancesDto capturedMetadata = captor.getValue();
+
+			assertEquals(databaseMetadata.getId(), capturedMetadata.getId());
+			assertEquals(databaseMetadata.getQualifiedName(), capturedMetadata.getQualifiedName());
+		}
+
+		@Test
+		@DisplayName("test batchImport with table metadata - all mappings present")
+		void testBatchImportTableMetadataWithAllMappings() {
+			// Setup
+			metadataInstancesDtos.add(databaseMetadata);
+			metadataInstancesDtos.add(tableMetadata);
+
+			// Set qualified name to contain task and node IDs for replacement testing
+			tableMetadata.setQualifiedName("conn_662877df9179877be8b37074_task123_table");
+
+			MetadataInstancesDto importedDatabase = new MetadataInstancesDto();
+			importedDatabase.setId(new ObjectId("662877df9179877be8b37078"));
+
+			MetadataInstancesDto importedTable = new MetadataInstancesDto();
+			importedTable.setId(new ObjectId("662877df9179877be8b37079"));
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doReturn(importedDatabase, importedTable).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, times(2)).importEntity(any(MetadataInstancesDto.class), eq(user));
+			assertNotNull(result);
+			assertEquals(2, result.size());
+
+			// Verify table metadata updates
+			ArgumentCaptor<MetadataInstancesDto> captor = ArgumentCaptor.forClass(MetadataInstancesDto.class);
+			verify(metadataInstancesService, times(2)).importEntity(captor.capture(), eq(user));
+			List<MetadataInstancesDto> capturedMetadata = captor.getAllValues();
+
+			// Find the table metadata (non-database)
+			MetadataInstancesDto capturedTable = capturedMetadata.stream()
+					.filter(meta -> !"database".equals(meta.getMetaType()))
+					.findFirst()
+					.orElse(null);
+
+			assertNotNull(capturedTable);
+			assertEquals("newTask456", capturedTable.getTaskId());
+			assertEquals("newNode789", capturedTable.getNodeId());
+			assertEquals("662877df9179877be8b37078", capturedTable.getDatabaseId()); // Updated database ID
+			assertTrue(capturedTable.getQualifiedName().contains("newTask456"));
+			assertTrue(capturedTable.getQualifiedName().contains("662877df9179877be8b37077"));
+		}
+
+		@Test
+		@DisplayName("test batchImport with table metadata - missing connection mapping")
+		void testBatchImportTableMetadataMissingConnectionMapping() {
+			// Setup
+			metadataInstancesDtos.add(tableMetadata);
+			conMap.clear(); // Remove connection mapping
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, never()).importEntity(any(MetadataInstancesDto.class), eq(user));
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test batchImport with table metadata - null source")
+		void testBatchImportTableMetadataNullSource() {
+			// Setup
+			tableMetadata.setSource(null);
+			metadataInstancesDtos.add(tableMetadata);
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, never()).importEntity(any(MetadataInstancesDto.class), eq(user));
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test batchImport with table metadata - partial mappings")
+		void testBatchImportTableMetadataPartialMappings() {
+			// Setup
+			metadataInstancesDtos.add(tableMetadata);
+
+			// Only provide task mapping, no node mapping
+			nodeMap.clear();
+
+			MetadataInstancesDto importedTable = new MetadataInstancesDto();
+			importedTable.setId(new ObjectId("662877df9179877be8b37079"));
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doReturn(importedTable).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, times(1)).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			ArgumentCaptor<MetadataInstancesDto> captor = ArgumentCaptor.forClass(MetadataInstancesDto.class);
+			verify(metadataInstancesService).importEntity(captor.capture(), eq(user));
+			MetadataInstancesDto capturedMetadata = captor.getValue();
+
+			// Task ID should be updated but node ID should remain original
+			assertEquals("newTask456", capturedMetadata.getTaskId());
+			assertEquals("node456", capturedMetadata.getNodeId()); // Original node ID
+		}
+
+		@Test
+		@DisplayName("test batchImport with empty metadata list")
+		void testBatchImportEmptyMetadataList() {
+			// Setup
+			metadataInstancesDtos.clear();
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			verify(metadataInstancesService, never()).importEntity(any(MetadataInstancesDto.class), eq(user));
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test batchImport with duplicate qualified names")
+		void testBatchImportDuplicateQualifiedNames() {
+			// Setup - create two metadata with same qualified name
+			MetadataInstancesDto duplicate1 = new MetadataInstancesDto();
+			duplicate1.setId(new ObjectId("662877df9179877be8b37080"));
+			duplicate1.setQualifiedName("duplicate_qualified_name");
+			duplicate1.setMetaType("table");
+
+			SourceDto source1 = new SourceDto();
+			source1.set_id("662877df9179877be8b37074");
+			duplicate1.setSource(source1);
+
+			MetadataInstancesDto duplicate2 = new MetadataInstancesDto();
+			duplicate2.setId(new ObjectId("662877df9179877be8b37081"));
+			duplicate2.setQualifiedName("duplicate_qualified_name"); // Same qualified name
+			duplicate2.setMetaType("table");
+
+			SourceDto source2 = new SourceDto();
+			source2.set_id("662877df9179877be8b37074");
+			duplicate2.setSource(source2);
+
+			metadataInstancesDtos.add(duplicate1);
+			metadataInstancesDtos.add(duplicate2);
+
+			MetadataInstancesDto importedMetadata = new MetadataInstancesDto();
+			importedMetadata.setId(new ObjectId("662877df9179877be8b37082"));
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doReturn(importedMetadata).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify - should only process one due to deduplication
+			verify(metadataInstancesService, times(1)).importEntity(any(MetadataInstancesDto.class), eq(user));
+			assertNotNull(result);
+			assertEquals(1, result.size());
+		}
+
+		@Test
+		@DisplayName("test batchImport with null maps")
+		void testBatchImportWithNullMaps() {
+			// Setup
+			metadataInstancesDtos.add(tableMetadata);
+
+			MetadataInstancesDto importedTable = new MetadataInstancesDto();
+			importedTable.setId(new ObjectId("662877df9179877be8b37079"));
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, null, null);
+			doReturn(importedTable).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, null, null);
+
+			// Verify
+			verify(metadataInstancesService, times(1)).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			ArgumentCaptor<MetadataInstancesDto> captor = ArgumentCaptor.forClass(MetadataInstancesDto.class);
+			verify(metadataInstancesService).importEntity(captor.capture(), eq(user));
+			MetadataInstancesDto capturedMetadata = captor.getValue();
+
+			// Original task and node IDs should be preserved when maps are null
+			assertEquals("task123", capturedMetadata.getTaskId());
+			assertEquals("node456", capturedMetadata.getNodeId());
+		}
+	}
+
+	@Nested
+	@DisplayName("BatchImport Integration and Performance Tests")
+	class BatchImportIntegrationTest {
+		private List<MetadataInstancesDto> metadataInstancesDtos;
+		private UserDetail user;
+		private Map<String, DataSourceConnectionDto> conMap;
+		private Map<String, String> taskMap;
+		private Map<String, String> nodeMap;
+
+		@BeforeEach
+		void setUp() {
+			metadataInstancesDtos = new ArrayList<>();
+			user = mock(UserDetail.class);
+			conMap = new HashMap<>();
+			taskMap = new HashMap<>();
+			nodeMap = new HashMap<>();
+		}
+
+		@Test
+		@DisplayName("test batchImport with large dataset")
+		void testBatchImportLargeDataset() {
+			// Setup - create 100 metadata instances
+			for (int i = 0; i < 100; i++) {
+				MetadataInstancesDto metadata = new MetadataInstancesDto();
+				metadata.setId(new ObjectId());
+				metadata.setQualifiedName("qualified_name_" + i);
+				metadata.setMetaType(i % 10 == 0 ? "database" : "table");
+				metadata.setOriginalName("table_" + i);
+
+				SourceDto source = new SourceDto();
+				source.set_id("connection_" + (i % 5)); // 5 different connections
+				source.setId(new ObjectId());
+				metadata.setSource(source);
+
+				if (!"database".equals(metadata.getMetaType())) {
+					metadata.setTaskId("task_" + (i % 3)); // 3 different tasks
+					metadata.setNodeId("node_" + (i % 4)); // 4 different nodes
+					metadata.setDatabaseId(new ObjectId().toHexString());
+				}
+
+				metadataInstancesDtos.add(metadata);
+			}
+
+			// Setup connections
+			for (int i = 0; i < 5; i++) {
+				DataSourceConnectionDto connection = new DataSourceConnectionDto();
+				connection.setId(new ObjectId());
+				connection.setName("connection_" + i);
+				conMap.put("connection_" + i, connection);
+			}
+
+			// Setup task and node mappings
+			for (int i = 0; i < 3; i++) {
+				taskMap.put("task_" + i, "new_task_" + i);
+			}
+			for (int i = 0; i < 4; i++) {
+				nodeMap.put("node_" + i, "new_node_" + i);
+			}
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doAnswer(invocation -> {
+				MetadataInstancesDto input = invocation.getArgument(0);
+				MetadataInstancesDto result = new MetadataInstancesDto();
+				result.setId(new ObjectId());
+				return result;
+			}).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			long startTime = System.currentTimeMillis();
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			long endTime = System.currentTimeMillis();
+
+			// Verify
+			assertNotNull(result);
+			assertTrue(result.size() > 0);
+			assertTrue(endTime - startTime < 5000); // Should complete within 5 seconds
+
+			// Verify that importEntity was called for each metadata with valid connection
+			verify(metadataInstancesService, times(100)).importEntity(any(MetadataInstancesDto.class), eq(user));
+		}
+
+		@Test
+		@DisplayName("test batchImport with mixed metadata types")
+		void testBatchImportMixedMetadataTypes() {
+			// Setup - create different types of metadata
+			MetadataInstancesDto database = createDatabaseMetadata("db1", "conn1");
+			MetadataInstancesDto table = createTableMetadata("table1", "conn1", "task1", "node1", "db1");
+			MetadataInstancesDto view = createViewMetadata("view1", "conn1", "task1", "node1", "db1");
+			MetadataInstancesDto collection = createCollectionMetadata("collection1", "conn2", "task2", "node2", "db2");
+
+			metadataInstancesDtos.add(database);
+			metadataInstancesDtos.add(table);
+			metadataInstancesDtos.add(view);
+			metadataInstancesDtos.add(collection);
+
+			// Setup connections
+			DataSourceConnectionDto conn1 = new DataSourceConnectionDto();
+			conn1.setId(new ObjectId());
+			conn1.setName("connection1");
+			conMap.put("conn1", conn1);
+
+			DataSourceConnectionDto conn2 = new DataSourceConnectionDto();
+			conn2.setId(new ObjectId());
+			conn2.setName("connection2");
+			conMap.put("conn2", conn2);
+
+			taskMap.put("task1", "new_task1");
+			taskMap.put("task2", "new_task2");
+			nodeMap.put("node1", "new_node1");
+			nodeMap.put("node2", "new_node2");
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doAnswer(invocation -> {
+				MetadataInstancesDto input = invocation.getArgument(0);
+				MetadataInstancesDto result = new MetadataInstancesDto();
+				result.setId(new ObjectId());
+				return result;
+			}).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify
+			assertNotNull(result);
+			assertEquals(4, result.size());
+			verify(metadataInstancesService, times(4)).importEntity(any(MetadataInstancesDto.class), eq(user));
+		}
+
+		@Test
+		@DisplayName("test batchImport error handling")
+		void testBatchImportErrorHandling() {
+			// Setup
+			MetadataInstancesDto validMetadata = createTableMetadata("table1", "conn1", "task1", "node1", "db1");
+			MetadataInstancesDto invalidMetadata = createTableMetadata("table2", "invalid_conn", "task1", "node1", "db1");
+
+			metadataInstancesDtos.add(validMetadata);
+			metadataInstancesDtos.add(invalidMetadata);
+
+			// Setup only one valid connection
+			DataSourceConnectionDto conn1 = new DataSourceConnectionDto();
+			conn1.setId(new ObjectId());
+			conn1.setName("connection1");
+			conMap.put("conn1", conn1);
+
+			taskMap.put("task1", "new_task1");
+			nodeMap.put("node1", "new_node1");
+
+			doCallRealMethod().when(metadataInstancesService).batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+			doAnswer(invocation -> {
+				MetadataInstancesDto input = invocation.getArgument(0);
+				MetadataInstancesDto result = new MetadataInstancesDto();
+				result.setId(new ObjectId());
+				return result;
+			}).when(metadataInstancesService).importEntity(any(MetadataInstancesDto.class), eq(user));
+
+			// Execute
+			Map<String, MetadataInstancesDto> result = metadataInstancesService.batchImport(metadataInstancesDtos, user, conMap, taskMap, nodeMap);
+
+			// Verify - only valid metadata should be processed
+			assertNotNull(result);
+			assertEquals(1, result.size());
+			verify(metadataInstancesService, times(1)).importEntity(any(MetadataInstancesDto.class), eq(user));
+		}
+
+		private MetadataInstancesDto createDatabaseMetadata(String name, String connectionId) {
+			MetadataInstancesDto metadata = new MetadataInstancesDto();
+			metadata.setId(new ObjectId());
+			metadata.setQualifiedName("database_" + name);
+			metadata.setMetaType("database");
+			metadata.setOriginalName(name);
+			metadata.setAncestorsName(name);
+
+			SourceDto source = new SourceDto();
+			source.set_id(connectionId);
+			source.setId(new ObjectId());
+			metadata.setSource(source);
+
+			return metadata;
+		}
+
+		private MetadataInstancesDto createTableMetadata(String name, String connectionId, String taskId, String nodeId, String databaseId) {
+			MetadataInstancesDto metadata = new MetadataInstancesDto();
+			metadata.setId(new ObjectId());
+			metadata.setQualifiedName("table_" + name);
+			metadata.setMetaType("table");
+			metadata.setOriginalName(name);
+			metadata.setTaskId(taskId);
+			metadata.setNodeId(nodeId);
+			metadata.setDatabaseId(databaseId);
+
+			SourceDto source = new SourceDto();
+			source.set_id(connectionId);
+			source.setId(new ObjectId());
+			metadata.setSource(source);
+
+			return metadata;
+		}
+
+		private MetadataInstancesDto createViewMetadata(String name, String connectionId, String taskId, String nodeId, String databaseId) {
+			MetadataInstancesDto metadata = createTableMetadata(name, connectionId, taskId, nodeId, databaseId);
+			metadata.setMetaType("view");
+			metadata.setQualifiedName("view_" + name);
+			return metadata;
+		}
+
+		private MetadataInstancesDto createCollectionMetadata(String name, String connectionId, String taskId, String nodeId, String databaseId) {
+			MetadataInstancesDto metadata = createTableMetadata(name, connectionId, taskId, nodeId, databaseId);
+			metadata.setMetaType("collection");
+			metadata.setQualifiedName("collection_" + name);
+			return metadata;
+		}
 	}
 
 

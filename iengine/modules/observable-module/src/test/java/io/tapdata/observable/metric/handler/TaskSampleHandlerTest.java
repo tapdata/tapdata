@@ -10,6 +10,7 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -68,7 +69,8 @@ public class TaskSampleHandlerTest {
         @Test
         void testGetTaskMem() {
             TaskSampleHandler handler = mock(TaskSampleHandler.class);
-            AtomicLong taskMemUsage = new AtomicLong(-1);
+            AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
+            taskMemUsage.set(-1L);
             ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
             doCallRealMethod().when(handler).getTaskMem();
             Long mem = handler.getTaskMem();
@@ -80,7 +82,8 @@ public class TaskSampleHandlerTest {
         @Test
         void testGetTaskMem3() {
             TaskSampleHandler handler = mock(TaskSampleHandler.class);
-            AtomicLong taskMemUsage = new AtomicLong(0);
+            AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
+            taskMemUsage.set(0L);
             ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
             doCallRealMethod().when(handler).getTaskMem();
             Long mem = handler.getTaskMem();
@@ -89,7 +92,8 @@ public class TaskSampleHandlerTest {
         @Test
         void testGetTaskMem4() {
             TaskSampleHandler handler = mock(TaskSampleHandler.class);
-            AtomicLong taskMemUsage = new AtomicLong(100L);
+            AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
+            taskMemUsage.set(100L);
             ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
             doCallRealMethod().when(handler).getTaskMem();
             Long mem = handler.getTaskMem();

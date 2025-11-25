@@ -12,6 +12,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.service.DiscoveryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
@@ -26,6 +27,7 @@ import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.constant.LdpDirEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.LdpService;
+import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
@@ -40,6 +42,8 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -58,6 +62,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
             "Task", TaskEntity.class,
             "Modules", ModulesEntity.class,
             "Inspect", InspectEntity.class,
+            "User", User.class,
 
             "dataflow", TaskEntity.class,
             "database", DataSourceEntity.class,
@@ -471,4 +476,142 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
 
     }
+    /**
+     * 根据标签优先级对任务进行排序
+     */
+    public List<TaskDto> orderTaskByTagPriority(List<TaskDto> tasks) {
+        if (CollectionUtils.isEmpty(tasks)) {
+            return new ArrayList<>();
+        }
+
+        Map<String, MetadataDefinitionDto> tagMap = loadTagDefinitionMap();
+        if (tagMap.isEmpty()) {
+            return new ArrayList<>(tasks);
+        }
+
+        try {
+            List<TaskDto> sortedTasks = new ArrayList<>(tasks);
+            PriorityPathBuilder pathBuilder = new PriorityPathBuilder(tagMap);
+
+            sortedTasks.sort((t1, t2) -> {
+                List<Integer> p1 = getTaskPriorityPath(t1, pathBuilder);
+                List<Integer> p2 = getTaskPriorityPath(t2, pathBuilder);
+                return PriorityPathComparator.compare(p1, p2);
+            });
+
+            return sortedTasks;
+        } catch (Exception e) {
+            log.error("Error ordering tasks by tag priority", e);
+            return new ArrayList<>(tasks);
+        }
+    }
+
+    /**
+     * 加载标签定义映射
+     */
+    private Map<String, MetadataDefinitionDto> loadTagDefinitionMap() {
+        try {
+            List<MetadataDefinitionDto> taskTags = findAll(
+                Query.query(Criteria.where("item_type").is("dataflow"))
+            );
+
+            if (CollectionUtils.isEmpty(taskTags)) {
+                return Collections.emptyMap();
+            }
+
+            return taskTags.stream()
+                .filter(Objects::nonNull)
+                .filter(tag -> tag.getId() != null)
+                .collect(Collectors.toMap(
+                    tag -> tag.getId().toHexString(),
+                    Function.identity(),
+                    (existing, replacement) -> existing
+                ));
+        } catch (Exception e) {
+            log.error("Error loading tag definitions", e);
+            return Collections.emptyMap();
+        }
+    }
+
+    /**
+     * 获取任务的优先级路径（简化版本）
+     */
+    private List<Integer> getTaskPriorityPath(TaskDto task, PriorityPathBuilder pathBuilder) {
+        if (task == null || CollectionUtils.isEmpty(task.getListtags())) {
+            return Collections.emptyList();
+        }
+
+        // 找到最高优先级的标签
+        Tag highestPriorityTag = task.getListtags().stream()
+            .filter(Objects::nonNull)
+            .filter(tag -> StringUtils.isNotBlank(tag.getId()))
+            .min((t1, t2) -> {
+                List<Integer> p1 = pathBuilder.buildPath(t1.getId());
+                List<Integer> p2 = pathBuilder.buildPath(t2.getId());
+                return PriorityPathComparator.compare(p1, p2);
+            })
+            .orElse(null);
+
+        return highestPriorityTag != null ?
+            pathBuilder.buildPath(highestPriorityTag.getId()) :
+            Collections.emptyList();
+    }
+
+    private static class PriorityPathBuilder {
+        private final Map<String, MetadataDefinitionDto> tagMap;
+        private final Map<String, List<Integer>> pathCache;
+
+        public PriorityPathBuilder(Map<String, MetadataDefinitionDto> tagMap) {
+            this.tagMap = tagMap;
+            this.pathCache = new ConcurrentHashMap<>();
+        }
+
+        public List<Integer> buildPath(String tagId) {
+            if (StringUtils.isBlank(tagId)) {
+                return Collections.emptyList();
+            }
+            return pathCache.computeIfAbsent(tagId, this::buildPathInternal);
+        }
+
+        private List<Integer> buildPathInternal(String tagId) {
+            if (tagMap.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            Deque<Integer> pathStack = new ArrayDeque<>();
+            MetadataDefinitionDto current = tagMap.get(tagId);
+            Set<String> visited = new HashSet<>();
+
+            while (current != null && !visited.contains(current.getId().toHexString())) {
+                visited.add(current.getId().toHexString());
+                Integer priority = current.getPriority();
+                pathStack.push(priority != null ? priority : Integer.MAX_VALUE);
+
+                if (StringUtils.isBlank(current.getParent_id())) {
+                    break;
+                }
+                current = tagMap.get(current.getParent_id());
+            }
+
+            return new ArrayList<>(pathStack);
+        }
+    }
+
+    private static class PriorityPathComparator {
+        public static int compare(List<Integer> p1, List<Integer> p2) {
+            int len = Math.min(p1.size(), p2.size());
+
+            // 逐级比较优先级（降序）
+            for (int i = 0; i < len; i++) {
+                int cmp = Integer.compare(p1.get(i), p2.get(i));
+                if (cmp != 0) {
+                    return cmp;
+                }
+            }
+
+            // 如果前面都一样，路径长的排后面
+            return Integer.compare(p1.size(), p2.size());
+        }
+    }
+
 }

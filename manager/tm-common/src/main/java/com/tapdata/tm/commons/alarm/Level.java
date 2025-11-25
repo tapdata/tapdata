@@ -1,4 +1,4 @@
-package com.tapdata.tm.message.constant;
+package com.tapdata.tm.commons.alarm;
 
 public enum Level {
     RECOVERY("Recovery"),

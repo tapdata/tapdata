@@ -165,7 +165,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				.startRetry(taskRetryService::start)
 				.resetRetry(taskRetryService::reset)
 				.signFunctionRetry(() -> signFunctionRetry(taskDto.getId().toHexString()))
-				.clearFunctionRetry(() -> cleanFuctionRetry(taskDto.getId().toHexString()))
+				.clearFunctionRetry(() -> cleanFunctionRetry(taskDto.getId().toHexString()))
 				.retryLifeCycle(createRetryLifeCycle());
 		this.pdkMethodInvokerList.add(pdkMethodInvoker);
 		return pdkMethodInvoker;
@@ -181,16 +181,26 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId))
 					.orOperator(functionRetryStatusExists, functionRetryStatusNone));
 			clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
-		}, "Faild to sign function retry status");
+			ConnectorConstant.TASK_STATUS_GAUGE.set(2, taskId, processorBaseContext.getTaskDto().getName(), processorBaseContext.getTaskDto().getSyncType());
+		}, "Failed to sign function retry status");
 	}
 
-	public void cleanFuctionRetry(String taskId) {
+	public void cleanFunctionRetry(String taskId) {
 		CommonUtils.ignoreAnyError(() -> {
 			Update update = new Update();
 			update.set(FUNCTION_RETRY_STATUS, TaskDto.RETRY_STATUS_NONE);
 			update.set("taskRetryStartTime", 0);
 			clientMongoOperator.update(Query.query(Criteria.where("_id").is(new ObjectId(taskId))), update, ConnectorConstant.TASK_COLLECTION);
-		}, "Faild to clean function retry status");
+			ConnectorConstant.TASK_STATUS_GAUGE.set(0, taskId, processorBaseContext.getTaskDto().getName(), processorBaseContext.getTaskDto().getSyncType());
+			ConnectorConstant.TASK_ACTIVE_DB_GAUGE.set(
+					0,
+					processorBaseContext.getTaskDto().getId().toHexString(),
+					processorBaseContext.getTaskDto().getName(),
+					processorBaseContext.getTaskDto().getSyncType(),
+					getNode().getId(),
+					getNode().getName()
+			);
+		}, "Failed to clean function retry status");
 	}
 
 

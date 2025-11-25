@@ -524,4 +524,33 @@ public class DAGTest {
 		}
 	}
 
+	@Nested
+	class getSourceAndTargetDataParentNodeTest {
+		DAG dag;
+		@BeforeEach
+		void setUp() {
+			Graph<Node, Edge> graph = new Graph<>();
+			TableNode node1 = new TableNode();
+			node1.setId("node 1");
+			graph.setNode(node1.getId(), node1);
+			TableNode node2 = new TableNode();
+			node2.setId("node 2");
+			graph.setNode(node2.getId(), node2);
+			graph.setEdge(node1.getId(), node2.getId(), new Edge(node1.getId(), node2.getId()));
+			dag = new DAG(graph);
+		}
+		@Test
+		@DisplayName("Method getSourceDataParentNode test")
+		void test1() {
+			LinkedList<DataParentNode> sourceDataParentNode = dag.getSourceDataParentNode();
+			assertEquals(1, sourceDataParentNode.size());
+		}
+		@Test
+		@DisplayName("test get target data parent node")
+		void test2() {
+			LinkedList<DataParentNode> targetDataParentNodes = dag.getTargetDataParentNode();
+			assertEquals(1, targetDataParentNodes.size());
+		}
+	}
+
 }

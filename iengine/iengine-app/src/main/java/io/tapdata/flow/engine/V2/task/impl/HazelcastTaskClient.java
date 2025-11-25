@@ -55,6 +55,7 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 //  protected ScheduledFuture<?> metricsThreadPoolFuture;
 	private ConfigurationCenter configurationCenter;
 	private ClientMongoOperator clientMongoOperator;
+	private ClientMongoOperator pingClientMongoOperator;
 	private HazelcastInstance hazelcastInstance;
 	private MonitorManager monitorManager;
 	private String cacheName;
@@ -67,20 +68,27 @@ public class HazelcastTaskClient implements TaskClient<TaskDto> {
 	private final AutoRecovery autoRecovery;
     private final long createTime = System.currentTimeMillis();
 
-	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
-		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance);
+	public static HazelcastTaskClient create(TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
+											 ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
+		return new HazelcastTaskClient(null, taskDto, clientMongoOperator, pingClientMongoOperator, configurationCenter, hazelcastInstance);
 	}
 
 	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
+		this(job, taskDto, clientMongoOperator, clientMongoOperator, configurationCenter, hazelcastInstance);
+	}
+
+	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ClientMongoOperator pingClientMongoOperator,
+							   ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		this.job = job;
 		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
+		this.pingClientMongoOperator = pingClientMongoOperator;
 		this.configurationCenter = configurationCenter;
 		this.hazelcastInstance = hazelcastInstance;
 		if (!taskDto.isTestTask() && !taskDto.isPreviewTask()) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, clientMongoOperator, new SupplierImpl<>(this::stop), new ConsumerImpl<>(this::terminalMode));
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.TASK_PING_TIME, taskDto, pingClientMongoOperator, new SupplierImpl<>(this::stop), new ConsumerImpl<>(this::terminalMode));
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));

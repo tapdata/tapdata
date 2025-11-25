@@ -20,7 +20,7 @@ import com.tapdata.tm.dataflow.dto.*;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.dataflowrecord.dto.DataFlowRecordDto;
 import com.tapdata.tm.dataflowrecord.service.DataFlowRecordService;
-import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.commons.alarm.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.statemachine.dto.StateMachineDto;

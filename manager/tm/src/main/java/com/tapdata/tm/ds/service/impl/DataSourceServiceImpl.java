@@ -26,6 +26,7 @@ import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
@@ -86,6 +87,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.quartz.CronScheduleBuilder;
+import org.quartz.CronTrigger;
+import org.quartz.TriggerBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -217,7 +221,7 @@ public class DataSourceServiceImpl extends DataSourceService{
         }
     }
 
-    private boolean checkRepeatNameBool(UserDetail user, String name, ObjectId id) {
+    protected boolean checkRepeatNameBool(UserDetail user, String name, ObjectId id) {
         log.debug("check connection repeat name, name = {}, id = {}, user = {}", name, id, user == null ? null : user.getUserId());
         Criteria criteria = Criteria.where("name").is(name);
         if (id != null) {
@@ -1815,6 +1819,108 @@ public class DataSourceServiceImpl extends DataSourceService{
         return conMap;
     }
 
+    /**
+     * 优化的批量导入方法，支持基于名称的匹配和导入模式
+     */
+    public Map<String, DataSourceConnectionDto> batchImport(List<DataSourceConnectionDto> connectionDtos, UserDetail user,
+                                                            com.tapdata.tm.commons.task.dto.ImportModeEnum importMode) {
+        Map<String, DataSourceConnectionDto> conMap = new HashMap<>();
+
+        if(importMode.equals(ImportModeEnum.CANCEL_IMPORT)){
+            List<String> nameList = connectionDtos.stream().map(DataSourceConnectionDto::getName).collect(Collectors.toList());
+            Query nameQuery = new Query(Criteria.where("name").in(nameList).and("is_deleted").ne(true));
+            long count = count(nameQuery, user);
+            if(count > 0){
+                throw new BizException("Datasource.RepeatName");
+            }
+        }
+
+        for (DataSourceConnectionDto connectionDto : connectionDtos) {
+            String connId = connectionDto.getId().toString();
+            connectionDto.setListtags(null);
+
+            // 基于名称查找现有连接
+            Query nameQuery = new Query(Criteria.where("name").is(connectionDto.getName()).and("is_deleted").ne(true));
+            nameQuery.fields().include("_id", "name");
+            DataSourceConnectionDto existingConnectionByName = findOne(nameQuery, user);
+
+            DataSourceConnectionDto resultConnection = null;
+
+            switch (importMode) {
+                case REPLACE:
+                    if (existingConnectionByName != null) {
+                        // 替换模式：保留现有ID，使用导入数据覆盖
+                        ObjectId existingId = existingConnectionByName.getId();
+                        connectionDto.setId(existingId);
+
+                        if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
+                            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+                            if (externalStorageDto == null) {
+                                Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+                                ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+                                connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+                            }
+                        }
+
+                        agentGroupService.importAgentInfo(connectionDto);
+                        resultConnection = save(connectionDto, user);
+                    } else {
+                        // 不存在同名连接，作为新连接导入
+                        resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    }
+                    break;
+
+                case IMPORT_AS_COPY:
+                    resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    break;
+
+                case CANCEL_IMPORT:
+                    // 取消导入，使用原有连接（如果存在）
+                    if (existingConnectionByName == null) {
+                        resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    }
+                    break;
+
+                default:
+                    // 默认使用IMPORT_AS_COPY
+                    resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    break;
+            }
+            conMap.put(connId, resultConnection);
+        }
+
+        return conMap;
+    }
+
+    /**
+     * 处理复制模式的连接导入
+     */
+    protected DataSourceConnectionDto handleImportAsCopyConnection(DataSourceConnectionDto connectionDto, UserDetail user) {
+        Query idQuery = new Query(Criteria.where("_id").is(connectionDto.getId()).and("is_deleted").ne(true));
+        idQuery.fields().include("_id", "name");
+        DataSourceConnectionDto existingConnectionById = findOne(idQuery);
+        // 检查名称冲突并重命名
+        while (checkRepeatNameBool(user, connectionDto.getName(), null)) {
+            connectionDto.setName(connectionDto.getName() + "_import");
+        }
+        if(null != existingConnectionById){
+            // 分配新ID
+            connectionDto.setId(null);
+        }
+
+        if (StringUtils.isNotBlank(connectionDto.getShareCDCExternalStorageId())) {
+            ExternalStorageDto externalStorageDto = externalStorageService.findById(MongoUtils.toObjectId(connectionDto.getShareCDCExternalStorageId()));
+            if (externalStorageDto == null) {
+                Query query1 = new Query(Criteria.where("defaultStorage").is(true));
+                ExternalStorageDto defaultExternalStorage = externalStorageService.findOne(query1);
+                connectionDto.setShareCDCExternalStorageId(defaultExternalStorage.getId().toString());
+            }
+        }
+
+        agentGroupService.importAgentInfo(connectionDto);
+        return importEntity(connectionDto, user);
+    }
+
     public List<DataSourceConnectionDto> listAll(Filter filter, UserDetail loginUser) {
         Query query = repository.filterToQuery(filter);
         query.skip(0);
@@ -2234,6 +2340,82 @@ public class DataSourceServiceImpl extends DataSourceService{
             
             return databaseTypes;
         });
+    }
+
+    @Override
+    public void startDatasourceCronMonitor() {
+        Criteria criteria = Criteria.where("dataSourceMonitor").is(true)
+                .and("status").is("ready");
+        Query dataSourceQuery = new Query(criteria);
+        List<DataSourceConnectionDto> dataSourceConnectionDtoList = findAll(dataSourceQuery);
+        List<String> userList = dataSourceConnectionDtoList.stream().map(BaseDto::getUserId).toList();
+        if (CollectionUtils.isEmpty(userList)) {
+            return;
+        }
+        Map<String, UserDetail> userDetailMap = userService.getUserMapByIdList(userList);
+        if (userDetailMap == null || userDetailMap.isEmpty()) {
+            return;
+        }
+        if (CollectionUtils.isNotEmpty(dataSourceConnectionDtoList)) {
+            dataSourceConnectionDtoList.forEach(v -> sendScheduleMonitor(v, userDetailMap.get(v.getUserId())));
+        }
+    }
+
+    public void sendScheduleMonitor(DataSourceConnectionDto connectionDto, UserDetail user) {
+        log.info("send schedule monitor, connection = {}, user = {}", connectionDto.getName(), user == null ? null : user.getUserId());
+        if (StringUtils.isBlank(connectionDto.getMonitorCron())) {
+            connectionDto.setMonitorCron("0 0 */1 * * ?");
+        }
+        CronTrigger cronTrigger = TriggerBuilder.newTrigger().withIdentity("Datasource Monitor Date")
+                .withSchedule(CronScheduleBuilder.cronSchedule(connectionDto.getMonitorCron())).build();
+        Date startTime = cronTrigger.getStartTime();
+        Long newScheduleDate = cronTrigger.getFireTimeAfter(startTime).getTime();
+        Long scheduleDate = connectionDto.getNextMonitorDate();
+        if (scheduleDate == null || newScheduleDate < scheduleDate) {
+            connectionDto.setNextMonitorDate(newScheduleDate);
+            save(connectionDto, user);
+            return;
+        }
+        if (scheduleDate < new Date().getTime()) {
+            List<Worker> availableAgent;
+            if (StringUtils.isNotEmpty(connectionDto.getAccessNodeType())
+                    && AccessNodeTypeEnum.isManually(connectionDto.getAccessNodeType())) {
+                availableAgent = workerService.findAvailableAgentByAccessNode(user, agentGroupService.getProcessNodeListWithGroup(connectionDto, user));
+                List<String> processIds = availableAgent.stream().map(Worker::getProcessId).toList();
+                if(StringUtils.isNotEmpty(connectionDto.getPriorityProcessId()) && processIds.contains(connectionDto.getPriorityProcessId())){
+                    availableAgent = availableAgent.stream().filter(worker -> worker.getProcessId().equals(connectionDto.getPriorityProcessId())).collect(Collectors.toList());
+                }
+            } else {
+                availableAgent = workerService.findAvailableAgent(user);
+            }
+            if (CollectionUtils.isEmpty(availableAgent)) {
+                log.info("send datasource monitor, agent not found");
+                return;
+
+            }
+
+            String processId = availableAgent.get(0).getProcessId();
+            ObjectMapper objectMapper = new ObjectMapper();
+            String json;
+            Map<String, Object> data;
+            try {
+                json = objectMapper.writeValueAsString(connectionDto);
+                data = objectMapper.readValue(json, Map.class);
+            } catch (JsonProcessingException e) {
+                log.warn("json parser failed");
+                throw new BizException("SystemError");
+            }
+            data.put("type", "datasourceMonitor");
+            MessageQueueDto queueDto = new MessageQueueDto();
+            queueDto.setReceiver(processId);
+            queueDto.setData(data);
+            queueDto.setType("datasourceMonitor");
+
+            log.info("build send datasource monitor websocket context, processId = {}, userId = {}", processId, user == null ? null : user.getUserId());
+            messageQueueService.sendMessage(queueDto);
+            connectionDto.setNextMonitorDate(newScheduleDate);
+            save(connectionDto, user);
+        }
     }
 
 }

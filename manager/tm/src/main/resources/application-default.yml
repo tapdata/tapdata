@@ -118,15 +118,6 @@ jasypt:
   encryptor:
     password: nmyswls
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "health, info"
-  metrics:
-    tags:
-      application: 'TMApplication'
-
 access:
   token:
     ttl: 1209600
@@ -170,3 +161,16 @@ openapi:
       version: 11
   setting:
     where-max-deep: ${openapi.setting.whereMaxDeep:10}
+
+management:
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "prometheus, info, health"
+  metrics:
+    tags:
+      application: 'TMApplication'

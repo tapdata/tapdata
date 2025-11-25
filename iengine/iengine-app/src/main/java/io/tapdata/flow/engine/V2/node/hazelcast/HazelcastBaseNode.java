@@ -8,6 +8,7 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Outbox;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
@@ -32,11 +33,8 @@ import com.tapdata.tm.commons.task.dto.ErrorEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.HazelcastTaskNodeOffer;
-import io.tapdata.aspect.DataFunctionAspect;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.ProcessorNodeCloseAspect;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
+import io.tapdata.PDKExCode_10;
+import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.OnData;
@@ -95,6 +93,9 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.EOFException;
+import java.io.InterruptedIOException;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -149,6 +150,22 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected ExternalStorageDto externalStorageDto;
 	protected TaskPreviewInstance taskPreviewInstance;
 	protected HazelcastTaskNodeOffer hazelcastTaskNodeOffer;
+
+	private static Class<? extends Throwable>[] COMMON_NET_EXCEPTION;
+
+	static {
+		COMMON_NET_EXCEPTION = new Class[]{
+				SocketTimeoutException.class,
+				EOFException.class,
+				InterruptedIOException.class,
+				ConnectException.class,
+				UnknownHostException.class,
+				NoRouteToHostException.class,
+				BindException.class,
+				PortUnreachableException.class,
+				ProtocolException.class
+		};
+	}
 
 	protected HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
@@ -243,6 +260,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				doInitWithDisableNode(context);
 			}
 		} catch (Exception e) {
+			AspectUtils.executeAspect(DataNodeInitErrorAspect.class, () -> new DataNodeInitErrorAspect().dataProcessorContext((DataProcessorContext) processorBaseContext).error(e));
 			errorHandle(e);
 		}
 	}
@@ -404,6 +422,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		messageEntity.setBefore(before);
 		Map<String, Object> after = TapEventUtil.getAfter(dataEvent);
 		messageEntity.setAfter(after);
+		if (dataEvent instanceof TapInsertRecordEvent) {
+			messageEntity.setAfterIllegalDateFieldName(((TapInsertRecordEvent) dataEvent).getAfterIllegalDateFieldName());
+		} else if (dataEvent instanceof TapUpdateRecordEvent) {
+			messageEntity.setBeforeIllegalDateFieldName(((TapUpdateRecordEvent) dataEvent).getBeforeIllegalDateFieldName());
+			messageEntity.setAfterIllegalDateFieldName(((TapUpdateRecordEvent) dataEvent).getAfterIllegalDateFieldName());
+		} else if (dataEvent instanceof TapDeleteRecordEvent) {
+			messageEntity.setBeforeIllegalDateFieldName(((TapDeleteRecordEvent) dataEvent).getBeforeIllegalDateFieldName());
+		}
+		messageEntity.setContainsIllegalDate(dataEvent.getContainsIllegalDate());
 		messageEntity.setOp(TapEventUtil.getOp(dataEvent));
 		messageEntity.setTableName(dataEvent.getTableId());
 		messageEntity.setTimestamp(dataEvent.getReferenceTime());
@@ -443,6 +470,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tapRecordEvent.setReferenceTime(messageEntity.getTimestamp());
 			tapRecordEvent.setTime(messageEntity.getTime());
 			tapRecordEvent.setInfo(messageEntity.getInfo());
+			if (messageEntity.getBeforeIllegalDateFieldName() != null) {
+				for (String field : messageEntity.getBeforeIllegalDateFieldName()) {
+					TapEventUtil.addBeforeIllegalDateField(tapRecordEvent, field);
+				}
+			}
+			if (messageEntity.getAfterIllegalDateFieldName() != null) {
+				for (String field : messageEntity.getAfterIllegalDateFieldName()) {
+					TapEventUtil.addAfterIllegalDateField(tapRecordEvent, field);
+				}
+			}
+			TapEventUtil.setContainsIllegalDate(tapRecordEvent, messageEntity.isContainsIllegalDate());
 		}
 		return tapRecordEvent;
 	}
@@ -706,6 +744,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				getErrorMessage(errorMessage, currentEx);
 				saveErrorEvent(taskDto.getErrorEvents(), errorEvent.get(),taskDto.getId(),skipError);
 				obsLogger.error(errorMessage, currentEx);
+				reportError2Prometheus(currentEx);
 				this.running.set(false);
 
 				// jetContext async injection, Attempt 5 times to get the instance every 500ms
@@ -725,6 +764,40 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			logger.error("Preview task node {}[{}] have error", getNode().getName(), getNode().getId(), currentEx);
 		}
 		return currentEx;
+	}
+
+	private void reportError2Prometheus(Throwable throwable) {
+		if (null == throwable) {
+			return;
+		}
+		Double value = null;
+		Throwable matchedThrowable = CommonUtils.matchThrowable(throwable, TapCodeException.class);
+		if (matchedThrowable instanceof TapCodeException tapCodeException) {
+			if (tapCodeException.getCode().equals(PDKExCode_10.TERMINATE_BY_SERVER)) {
+				value = 1D;
+			} else if (tapCodeException.getCode().equals(PDKExCode_10.USERNAME_PASSWORD_INVALID)) {
+				value = 2D;
+			}
+		}
+		if (null == value) {
+			for (Class<? extends Throwable> aClass : COMMON_NET_EXCEPTION) {
+				matchedThrowable = CommonUtils.matchThrowable(throwable, aClass);
+				if (null != matchedThrowable) {
+					value = 1D;
+					break;
+				}
+			}
+		}
+		if (null != value) {
+			ConnectorConstant.TASK_ACTIVE_DB_GAUGE.set(
+					value,
+					processorBaseContext.getTaskDto().getId().toHexString(),
+					processorBaseContext.getTaskDto().getName(),
+					processorBaseContext.getTaskDto().getSyncType(),
+					getNode().getId(),
+					getNode().getName()
+			);
+		}
 	}
 
 	protected void stopJetJobIfStatusIsRunning(JobStatus status, TaskDto taskDto, com.hazelcast.jet.Job hazelcastJob) {

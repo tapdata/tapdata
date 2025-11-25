@@ -7,6 +7,8 @@ import java.util.List;
 
 @Getter
 public enum AlarmKeyEnum {
+
+    DATASOURCE_MONITOR_ALTER(Constant.TYPE_CONNECTION),
     TASK_STATUS_ERROR(Constant.TYPE_EVENT),
     TASK_INSPECT_ERROR(Constant.TYPE_EVENT),
     TASK_FULL_COMPLETE(Constant.TYPE_EVENT),
@@ -67,6 +69,7 @@ public enum AlarmKeyEnum {
 
     public static class Constant {
         private Constant() {}
+        public static final String TYPE_CONNECTION = "connection";
         public static final String TYPE_EVENT = "event";
         public static final String TYPE_METRIC = "metric";
         public static final String TYPE_API_SERVER = "api-server";

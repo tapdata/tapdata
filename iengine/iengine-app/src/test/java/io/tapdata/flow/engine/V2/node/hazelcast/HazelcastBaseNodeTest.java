@@ -916,6 +916,27 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 		}
 
 		@Test
+		void testTapEvent2MessageForUpdateEvent() {
+			TapUpdateRecordEvent tapUpdateRecordEvent = mock(TapUpdateRecordEvent.class);
+			when(tapUpdateRecordEvent.getAfter()).thenReturn(MOCK_DATA);
+			when(tapUpdateRecordEvent.getTableId()).thenReturn(TABLE_NAME);
+			when(tapUpdateRecordEvent.getReferenceTime()).thenReturn(TIME);
+			when(tapUpdateRecordEvent.getInfo()).thenReturn(INFO_MAP);
+			when(tapUpdateRecordEvent.getTime()).thenReturn(TIME);
+			MessageEntity actual = hazelcastBaseNode.tapEvent2Message(tapUpdateRecordEvent);
+			assertNotNull(actual);
+			assertEquals(MessageEntity.class, actual.getClass());
+			assertEquals(MOCK_DATA, actual.getAfter());
+			assertEquals(TABLE_NAME, actual.getTableName());
+			assertEquals(TIME, actual.getTimestamp());
+			assertEquals("u", actual.getOp());
+			assertEquals(INFO_MAP, actual.getInfo());
+			assertEquals(TIME, actual.getTime());
+			assertEquals(Collections.emptyList(), actual.getBeforeIllegalDateFieldName());
+			assertEquals(Collections.emptyList(), actual.getAfterIllegalDateFieldName());
+		}
+
+		@Test
 		void testMessage2TapEventNullMessageEntity() {
 			TapRecordEvent actual = hazelcastBaseNode.message2TapEvent(null);
 			assertNull(actual);
@@ -945,6 +966,8 @@ class HazelcastBaseNodeTest extends BaseHazelcastNodeTest {
 			messageEntity.setTimestamp(TIME);
 			messageEntity.setBefore(MOCK_DATA);
 			messageEntity.setTime(TIME);
+			messageEntity.setBeforeIllegalDateFieldName(Collections.singletonList("insert_dte"));
+			messageEntity.setAfterIllegalDateFieldName(Collections.singletonList("insert_dte"));
 			TapRecordEvent actual = hazelcastBaseNode.message2TapEvent(messageEntity);
 			assertNotNull(actual);
 			assertEquals(TapUpdateRecordEvent.class, actual.getClass());

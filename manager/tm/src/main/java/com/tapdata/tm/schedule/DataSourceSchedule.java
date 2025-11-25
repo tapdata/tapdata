@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-public class LoadSchemaSchedule {
+public class DataSourceSchedule {
     @Autowired
     private DataSourceRepository repository;
 
@@ -84,6 +84,12 @@ public class LoadSchemaSchedule {
         for (DataSourceConnectionDto dataSource : dataSourceConnectionDtos) {
             scheduleUtil.doLoadSchema(dataSource, userDetailMap, metadataInstancesService, settingMap, dataSourceService);
         }
+    }
+
+    @Scheduled(fixedDelay = 10 * 1000)
+    @SchedulerLock(name = "startDatasourceCronMonitorLock", lockAtMostFor = "30s", lockAtLeastFor = "10s")
+    public void datasourceMonitor() {
+        dataSourceService.startDatasourceCronMonitor();
     }
 
 }

@@ -43,14 +43,20 @@ public class ExceptionHandler extends BaseController {
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(Throwable.class)
 	public ResponseMessage<?> handlerException(Throwable e, HttpServletRequest request, HttpServletResponse response) throws Throwable {
-		log.error("System error", e);
 
 		Locale locale = WebUtils.getLocale(request);
 
 		String errorCode = "SystemError";
 		if (e instanceof NoResourceFoundException) {
-			throw e;
+			if (e.getMessage() != null && e.getMessage().contains("actuator/prometheus")) {
+				log.warn("No static resource actuator/prometheus");
+				return failed(errorCode, "No static resource actuator/prometheus");
+			} else {
+				log.error("System error", e);
+				throw e;
+			}
 		}
+		log.error("System error", e);
 		String message = e.getMessage();
 
 		if (e instanceof BizException){

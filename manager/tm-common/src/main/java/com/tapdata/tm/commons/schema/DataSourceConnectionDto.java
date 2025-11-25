@@ -88,6 +88,9 @@ public class DataSourceConnectionDto extends BaseDto implements IDataPermissionD
         /** 检测时间 */
         private Long testTime;
         private Map<String, Object> monitorAPI;
+        private Boolean dataSourceMonitor;
+        private String monitorCron;
+        private Long nextMonitorDate;
         private String database_host;
         private String database_username;
         private Integer database_port;

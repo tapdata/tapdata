@@ -285,7 +285,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
             initAndStartSourceRunner();
             initTapCodecsFilterManager();
             initToTapValueConcurrent();
+            reportPrometheusTaskRunning();
         });
+    }
+
+    private void reportPrometheusTaskRunning() {
+        ConnectorConstant.TASK_STATUS_GAUGE.set(0, dataProcessorContext.getTaskDto().getId().toHexString(), dataProcessorContext.getTaskDto().getName(), dataProcessorContext.getTaskDto().getSyncType());
+        ConnectorConstant.TASK_ACTIVE_DB_GAUGE.set(
+                0,
+                processorBaseContext.getTaskDto().getId().toHexString(),
+                processorBaseContext.getTaskDto().getName(),
+                processorBaseContext.getTaskDto().getSyncType(),
+                getNode().getId(),
+                getNode().getName()
+        );
     }
 
     private void initTargetDataNodes() {
@@ -299,6 +312,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
     protected void initSyncPartitionTableEnable() {
         Node<?> node = getNode();
         this.syncSourcePartitionTableEnable =
+                node instanceof LogCollectorNode &&
+                        Boolean.TRUE.equals(((LogCollectorNode) node).getSyncSourcePartitionTableEnable()) ||
                 node instanceof DataParentNode &&
                         Boolean.TRUE.equals(((DataParentNode<?>) node).getSyncSourcePartitionTableEnable());
         if (syncSourcePartitionTableEnable)
@@ -1420,8 +1435,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                         //     源上会用tableid获取表后去做类型转换或者啥操作，拿子表的话旧有问题，换成getPartitionMasterTableId去拿主表修改范围太大了
                         Optional.ofNullable(tapTable.getId()).ifPresent(event::setTableId);
                         Optional.ofNullable(eventTableId).ifPresent(event::setPartitionMasterTableId);
+                        if (((TapRecordEvent) e).getNamespaces() != null) {
+                            ((TapRecordEvent) e).getNamespaces().remove(((TapRecordEvent) e).getNamespaces().size() - 1);
+                            ((TapRecordEvent) e).getNamespaces().add(tapTable.getId());
+                        }
                     } else {
-                        tapTable = tapTableMap.get(eventTableId);
+                        if (((TapRecordEvent) e).getNamespaces() == null) {
+                            tapTable = tapTableMap.get(eventTableId);
+                        } else {
+                            tapTable = tapTableMap.get(String.join(".", ((TapRecordEvent) e).getNamespaces()));
+                        }
                         if (Objects.nonNull(tapTable) && tapTable.checkIsSubPartitionTable()) {
                             Optional.ofNullable(tapTable.getPartitionMasterTableId()).ifPresent(event::setPartitionMasterTableId);
                         }

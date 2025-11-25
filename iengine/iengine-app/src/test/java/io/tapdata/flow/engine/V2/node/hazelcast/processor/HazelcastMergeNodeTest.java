@@ -3572,5 +3572,86 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			result = hazelcastMergeNode.mergeLookupData(map1, null);
 			assertSame(map1, result);
 		}
+
+		@Nested
+		@DisplayName("getJoinValueKeyByTarget method test")
+		class GetJoinValueKeyByTargetTest {
+			@Test
+			@DisplayName("scalar + TapList + number → multiple joined keys")
+			void testScalarAndTapList() {
+				// data: a='test', b=['001','002'], c=100
+				Map<String, Object> data = new HashMap<>();
+				data.put("a", "test");
+				com.tapdata.constant.TapList bList = new com.tapdata.constant.TapList();
+				bList.add(0, "001");
+				bList.add(1, "002");
+				data.put("b", bList);
+				data.put("c", 100);
+
+				MergeTableProperties mp = new MergeTableProperties();
+				List<Map<String, String>> joinKeys = new ArrayList<>();
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "a"); }});
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "b"); }});
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "c"); }});
+				mp.setJoinKeys(joinKeys);
+
+				ConstructIMap<Document> mockMap = mock(ConstructIMap.class);
+				List<String> result = hazelcastMergeNode.getJoinValueKeyByTarget(data, mp, null, mockMap);
+				assertNotNull(result);
+				assertEquals(Arrays.asList("test_001_100", "test_002_100"), result);
+			}
+
+			@Test
+			@DisplayName("two TapList (unequal) with scalars at both ends")
+			void testTwoTapListsAlignment() {
+				// data: pre='pre', x=['001','002'], y=['aaa','bbb','ccc'], post=100
+				Map<String, Object> data = new HashMap<>();
+				data.put("pre", "pre");
+				com.tapdata.constant.TapList xList = new com.tapdata.constant.TapList();
+				xList.add(0, "001");
+				xList.add(1, "002");
+				com.tapdata.constant.TapList yList = new com.tapdata.constant.TapList();
+				yList.add(0, "aaa");
+				yList.add(1, "bbb");
+				yList.add(2, "ccc");
+				data.put("x", xList);
+				data.put("y", yList);
+				data.put("post", 100);
+
+				MergeTableProperties mp = new MergeTableProperties();
+				List<Map<String, String>> joinKeys = new ArrayList<>();
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "pre"); }});
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "x"); }});
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "y"); }});
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "post"); }});
+				mp.setJoinKeys(joinKeys);
+
+				ConstructIMap<Document> mockMap = mock(ConstructIMap.class);
+				List<String> result = hazelcastMergeNode.getJoinValueKeyByTarget(data, mp, null, mockMap);
+				assertNotNull(result);
+				assertEquals(Arrays.asList("pre_001_aaa_100", "pre_002_bbb_100", "pre_ccc_100"), result);
+			}
+
+			@Test
+			@DisplayName("only scalars → single joined key in list")
+			void testOnlyScalars() {
+				Map<String, Object> data = new HashMap<>();
+				data.put("p", 7);
+				data.put("q", "qq");
+
+				MergeTableProperties mp = new MergeTableProperties();
+				List<Map<String, String>> joinKeys = new ArrayList<>();
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "p"); }});
+				joinKeys.add(new HashMap<String, String>() {{ put("target", "q"); }});
+				mp.setJoinKeys(joinKeys);
+
+				ConstructIMap<Document> mockMap = mock(ConstructIMap.class);
+				List<String> result = hazelcastMergeNode.getJoinValueKeyByTarget(data, mp, null, mockMap);
+				assertNotNull(result);
+				assertEquals(Collections.singletonList("7_qq"), result);
+			}
+		}
+
 	}
 }
+

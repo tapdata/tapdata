@@ -55,6 +55,7 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
+import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.entity.TapTimeForm;
 import io.tapdata.pdk.apis.entity.TapTimeUnit;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -261,8 +262,11 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 	void testQueryOperator() {
 		String dateTime = "2023-12-20 12:23:20";
 		QueryOperator queryOperator = new QueryOperator("createTime", dateTime, 1);
-		queryOperator(dateTime, queryOperator);
-		Assert.assertTrue(queryOperator.getOriginalValue() == dateTime);
+		TapAdvanceFilter tapAdvanceFilter = queryOperator(dateTime, queryOperator);
+
+		Assert.assertFalse(queryOperator.getOriginalValue() == dateTime);
+		Assert.assertTrue(tapAdvanceFilter.getOperators().get(0).getOriginalValue() == dateTime);
+
 	}
 
 
@@ -272,7 +276,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		String dateTime = "2021-12-20 12:23:24";
 		QueryOperator queryOperator = new QueryOperator("createTime", dateTime, 1);
 		queryOperator.setOriginalValue(dateTime);
-		queryOperator(dateTime, queryOperator);
+		TapAdvanceFilter tapAdvanceFilter = queryOperator(dateTime, queryOperator);
 		LocalDateTime localDateTime;
 		String datetimeFormat = "yyyy-MM-dd HH:mm:ss";
 		try {
@@ -282,11 +286,11 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		}
 		ZonedDateTime gmtZonedDateTime = localDateTime.atZone(ZoneId.of("GMT"));
 		DateTime expectedValue = new DateTime(gmtZonedDateTime);
-		Assert.assertTrue(expectedValue.compareTo((DateTime) queryOperator.getValue()) == 0);
+		Assert.assertTrue(expectedValue.compareTo((DateTime) tapAdvanceFilter.getOperators().get(0).getValue()) == 0);
 	}
 
 
-	public void queryOperator(String dateTime,QueryOperator queryOperator){
+	public TapAdvanceFilter queryOperator(String dateTime,QueryOperator queryOperator){
 		List<QueryOperator> conditions = new ArrayList<>();
 
 		conditions.add(queryOperator);
@@ -306,7 +310,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 		TapTableMap<String, TapTable>  tapTableMap = TapTableMap.create("test",tapTable);
 
 		when(dataProcessorContext.getTapTableMap()).thenReturn(tapTableMap);
-		ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode,"batchFilterRead");
+		return ReflectionTestUtils.invokeMethod(hazelcastSourcePdkDataNode, "batchFilterRead");
 
 	}
 

@@ -159,6 +159,11 @@ public class TaskNodePdkConnector implements IPdkConnector {
     }
 
     @Override
+    public ClassLoader getConnectorClassLoader() {
+        return connectorNode.getConnectorClassLoader();
+    }
+
+    @Override
     public void close() throws Exception {
         if (null != connectorNode) {
             CommonUtils.handleAnyError(() -> {
