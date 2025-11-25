@@ -86,14 +86,6 @@
         </dependency>
     </dependencies>
 
-    <distributionManagement>
-        <repository>
-            <id>tapdata-tapdata-maven</id>
-            <name>Tapdata Maven Repository</name>
-            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
-        </repository>
-    </distributionManagement>
-
     <build>
         <plugins>
             <plugin>
