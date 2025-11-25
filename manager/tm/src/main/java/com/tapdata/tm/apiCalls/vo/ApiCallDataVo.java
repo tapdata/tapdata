@@ -116,4 +116,17 @@ public class ApiCallDataVo {
 
     /**The unique identifier of the worker corresponding to the current request*/
     private String workOid;
+
+    /**
+     * Start time of database access for API request
+     * */
+    private Long dataQueryFromTime;
+    /**
+     * End time of database access for API request
+     * */
+    private Long dataQueryEndTime;
+    /**
+     * Database access time for API requests
+     * */
+    private Long dataQueryTotalTime;
 }
