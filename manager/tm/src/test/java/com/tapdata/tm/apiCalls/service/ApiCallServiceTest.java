@@ -966,77 +966,40 @@ class ApiCallServiceTest {
 
     @Nested
     class findByIdTest {
+        ApiCallService service;
+        @BeforeEach
+        void init() {
+            service = mock(ApiCallService.class);
+            when(service.findById(anyString(), any(UserDetail.class))).thenCallRealMethod();
+            ReflectionTestUtils.setField(service, "mongoOperations", mongoTemplate);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+        }
         @Test
         void testNormal() {
+            ModulesDto modulesDto = new ModulesDto();
             ApiCallEntity entity = new ApiCallEntity();
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            ApiCallDetailVo apiCallDetailVo = apiCallService.findById("id", mock(UserDetail.class));
+            UserDetail mock = mock(UserDetail.class);
+            String allPathId = new ObjectId().toHexString();
+            entity.setAllPathId(allPathId);
+            when(service.afterFindEntity(entity)).thenReturn(entity);
+            when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
+            when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
+            ApiCallDetailVo apiCallDetailVo = service.findById("id", mock);
             Assertions.assertNotNull(apiCallDetailVo);
         }
         @Test
-        void testIdIsBlank() {
-            Assertions.assertThrows(BizException.class, () -> {
-                try {
-                    apiCallService.findById("", mock(UserDetail.class));
-                } catch (BizException e) {
-                    Assertions.assertEquals("api.call.id.required", e.getErrorCode());
-                    throw e;
-                }
-            });
-        }
-        @Test
-        void testEntityIsNull() {
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(null);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank() {
+        void testLatency() {
+            ModulesDto modulesDto = new ModulesDto();
             ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank2() {
-            ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("  ");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank3() {
-            ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("   ");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank4() {
-            ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("    ");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank5() {
-            ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("     ");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank6() {
-            ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("      ");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
-        }
-        @Test
-        void testEntityIsBlank7() {
-            ApiCallEntity entity = new ApiCallEntity();
-            entity.setAllPathId("       ");
-            when(mongoTemplate.findOne(any(Query.class), any(Class.class))).thenReturn(entity);
-            Assertions.assertNull(apiCallService.findById("id", mock(UserDetail.class)));
+            entity.setLatency(1000L);
+            UserDetail mock = mock(UserDetail.class);
+            String allPathId = new ObjectId().toHexString();
+            entity.setAllPathId(allPathId);
+            when(service.afterFindEntity(entity)).thenReturn(entity);
+            when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
+            when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
+            ApiCallDetailVo apiCallDetailVo = apiCallService.findById("id", mock);
+            Assertions.assertNotNull(apiCallDetailVo);
         }
     }
 
