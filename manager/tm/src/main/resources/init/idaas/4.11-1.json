@@ -15,7 +15,7 @@
         "scope": "global",
         "sort": "20",
         "user_visible": true,
-        "value": "false",
+        "value": "true",
         "enums": ["true", "false"]
       }
     ]

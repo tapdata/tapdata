@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.adk;
 
 import cn.hutool.extra.spring.SpringUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.commons.dag.DAG;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -267,12 +269,12 @@ public final class AdjustBatchSizeFactory {
         }
 
         void checkOnce() {
-            if (queue.isEmpty()) {
+            if (queue.isEmpty() || isAlive == null) {
                 return;
             }
             long now = System.currentTimeMillis();
             final List<AdjustInfo> adjustInfos = new ArrayList<>();
-            while (isAlive != null && isAlive.get()) {
+            while (isAlive.get()) {
                 AdjustInfo adjustInfo = queue.peek();
                 if (null == adjustInfo) {
                     break;
@@ -287,23 +289,14 @@ public final class AdjustBatchSizeFactory {
             if (!adjustInfos.isEmpty()) {
                 final AdjustStage.MetricInfo metricInfo = new AdjustStage.MetricInfo();
                 final AdjustInfo avg = AdjustInfo.avg(adjustInfos);
-                final JudgeResult result = AdjustBatchSizeFactory.judge(avg);
+                final JudgeResult result = AdjustBatchSizeFactory.judge(avg, taskId);
+                if (result.type == 0) {
+                    return;
+                }
                 int ago = avg.batchSize;
                 int size = ((Number) (ago * (1.0d + result.rate))).intValue();
-                switch (result.type) {
-                    case -2:
-                    case -1:
-                        if (size <= 5 && size == ago) {
-                            size--;
-                        }
-                        break;
-                    case 1:
-                        if (size <= 5 && size == ago) {
-                            size++;
-                        }
-                        break;
-                    default:
-                        return;
+                if (size <= 5 && size == ago) {
+                    size += (result.type == -2 ? -1 : 1);
                 }
                 setAllTaskInfo(avg);
                 //检查内存是否满足新的batchSize
@@ -330,7 +323,8 @@ public final class AdjustBatchSizeFactory {
         return num - offset + (offset > step ? step : 0);
     }
 
-    static JudgeResult judge(AdjustInfo adjustInfo) {
+    static JudgeResult judge(AdjustInfo adjustInfo, String taskId) {
+        long now = System.currentTimeMillis();
         JudgeResult result = new JudgeResult();
         double rateOf = 0d;
         //1) If the batch returned is smaller than the batch size,
@@ -338,6 +332,9 @@ public final class AdjustBatchSizeFactory {
         if (adjustInfo.batchSize > adjustInfo.eventSize) {
             result.type = -2;
             rateOf = -1.0d * (adjustInfo.batchSize - adjustInfo.eventSize) / adjustInfo.batchSize;
+            double r = rateOf;
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId))
+                    .ifPresent(log -> log.info("Judgment Rule 1 - [{} - {}], rate of {} , judge info: {}", now, taskId, r, JSON.toJSONString(adjustInfo)));
         }
         //2) If any of the hazelcast queues fill up to over 95% of their limit,
         // then we can consider to lower the batch size
@@ -348,6 +345,9 @@ public final class AdjustBatchSizeFactory {
             // At this point, available=95% -20%=75%, indicating that it can only increase by another 75% at most.
             rateOf = rateOf + rate / adjustInfo.eventQueueFullThreshold;
             result.type = -1;
+            double r = rateOf;
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId))
+                    .ifPresent(log -> log.info("Judgment Rule 2 - [{} - {}], rate of {} , judge info: {}", now, taskId, r, JSON.toJSONString(adjustInfo)));
         }
         //3) If the data latency is higher than a threshold (e.g., 1 second),
         // and none of the hazelcast queues is filled above 70%,
@@ -356,6 +356,10 @@ public final class AdjustBatchSizeFactory {
             double available = (adjustInfo.eventQueueFullThreshold - rate);
             if (Math.abs(available) < Math.abs(rateOf)) {
                 result.rate = rateOf;
+                double r = rateOf;
+                double a = available;
+                Optional.ofNullable(TASK_LOGGER_MAP.get(taskId))
+                        .ifPresent(log -> log.info("Judgment Rule 3 - [{} - {}] available less than rateOf, rate of {}, available: {}, judge info: {}", now, taskId, r, a, JSON.toJSONString(adjustInfo)));
                 return result;
             }
             if (result.type >= 0) {
@@ -372,6 +376,10 @@ public final class AdjustBatchSizeFactory {
             // so as to achieve relative balance.
             rateOf = rateOf + available + downRate;
             result.type = 1;
+            double r = rateOf;
+            double a = available;
+            Optional.ofNullable(TASK_LOGGER_MAP.get(taskId))
+                    .ifPresent(log -> log.info("Judgment Rule 3 - [{} - {}], rate of {}, available: {}, down rate: {}, judge info: {}", now, taskId, r, a, downRate, JSON.toJSONString(adjustInfo)));
         }
         result.rate = rateOf;
         return result;
@@ -382,7 +390,7 @@ public final class AdjustBatchSizeFactory {
         double rate;
     }
 
-    final static class AdjustInfo {
+    static class AdjustInfo {
         final long timestamp;
         //number of events
         int eventSize;

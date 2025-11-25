@@ -53,6 +53,7 @@ import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
@@ -1478,7 +1479,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 					assertEquals(pdkMethodInvoker, pdkMethodArgs);
 					return null;
 				});
-				StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
+				StreamReadConsumer streamReadConsumer = (StreamReadConsumer) hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode, pdkMethodInvoker);
 				streamReadConsumer.streamReadStarted();
 				verify(obsLogger, times(1)).trace(anyString(), any(), any());
 			}
@@ -1765,7 +1766,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			tapUpdateRecordEvent.setTime(System.currentTimeMillis());
 			tapEvents.add(tapUpdateRecordEvent);
 			doCallRealMethod().when(hazelcastSourcePdkDataNode).generateStreamReadConsumer(any(),any());
-			StreamReadConsumer streamReadConsumer = hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode,pdkMethodInvoker);
+			StreamReadConsumer streamReadConsumer = (StreamReadConsumer) hazelcastSourcePdkDataNode.generateStreamReadConsumer(connectorNode,pdkMethodInvoker);
 			streamReadConsumer.accept(tapEvents,null);
 			verify(cdcDelay,times(1)).filterAndCalcDelay(any(),any());
 		}
