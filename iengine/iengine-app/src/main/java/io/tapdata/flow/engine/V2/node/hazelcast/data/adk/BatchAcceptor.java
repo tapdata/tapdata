@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.adk;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -19,10 +20,10 @@ import java.util.Objects;
 public final class BatchAcceptor {
     private final ValueGetter<Integer> batchSizeGetter;
     private final long delayMs;
-    private final StreamReadConsumer consumer;
+    private final TapStreamReadConsumer<List<TapEvent>, Object> consumer;
     private List<TapEvent> values;
     private long lastAcceptTime;
-    public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, long delayMs, StreamReadConsumer consumer) {
+    public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, long delayMs, TapStreamReadConsumer<List<TapEvent>, Object> consumer) {
         this.batchSizeGetter = batchSizeGetter;
         this.delayMs = delayMs;
         this.consumer = consumer;

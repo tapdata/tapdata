@@ -6,8 +6,8 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -17,8 +17,8 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 	private static final String TAG = StreamReadFuncAspect.class.getSimpleName();
 	private boolean waitRawData = true;
 	private Throwable errorDuringWait;
-	private StreamReadConsumer streamReadConsumer;
-	public StreamReadFuncAspect streamReadConsumer(StreamReadConsumer streamReadConsumer) {
+	private TapStreamReadConsumer<?, ?> streamReadConsumer;
+	public StreamReadFuncAspect streamReadConsumer(TapStreamReadConsumer<?, ?> streamReadConsumer) {
 		this.streamReadConsumer = streamReadConsumer;
 		return this;
 	}
@@ -182,7 +182,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		this.streamReadFunction = streamReadFunction;
 	}
 
-	public StreamReadConsumer getStreamReadConsumer() {
+	public TapStreamReadConsumer<?, ?> getStreamReadConsumer() {
 		return streamReadConsumer;
 	}
 

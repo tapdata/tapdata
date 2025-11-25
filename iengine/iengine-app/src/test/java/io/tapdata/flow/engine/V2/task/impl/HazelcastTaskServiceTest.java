@@ -620,7 +620,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, true);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -637,7 +637,7 @@ public class HazelcastTaskServiceTest {
                 tapTableMap.put("testNodeId", new TapTable());
 
                 when(hazelcastTaskService.getTapTableMap(any(), any(), any(), any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto, true);
+                hazelcastTaskService.task2HazelcastDAG(taskDto, true, true);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
@@ -649,7 +649,7 @@ public class HazelcastTaskServiceTest {
                  MockedStatic<ConnectionUtil> connectionUtilMockedStatic = mockStatic(ConnectionUtil.class)) {
 
                 TaskDto taskDto = MockTaskUtil.setUpTaskDtoByJsonFile();
-                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false);
+                doCallRealMethod().when(hazelcastTaskService).task2HazelcastDAG(taskDto, false, false);
 
                 when(hazelcastTaskService.getTaskConfig(any())).thenReturn(mock(TaskConfig.class));
                 Connections connections = new Connections();
@@ -666,7 +666,7 @@ public class HazelcastTaskServiceTest {
                 tapTableMap.put("testNodeId", new TapTable());
 
                 when(hazelcastTaskService.getTapTableMap(any(), any(), any(), any())).thenReturn(tapTableMap);
-                hazelcastTaskService.task2HazelcastDAG(taskDto, false);
+                hazelcastTaskService.task2HazelcastDAG(taskDto, false, false);
                 verify(hazelcastTaskService, times(2)).singleTaskFilterEventDataIfNeed(eq(connections), any(), any());
             }
         }
@@ -1071,7 +1071,7 @@ public class HazelcastTaskServiceTest {
             JetDag jetDag = mock(JetDag.class);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true);
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, true);
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
@@ -1090,7 +1090,7 @@ public class HazelcastTaskServiceTest {
             JetDag jetDag = mock(JetDag.class);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(eq(taskDto), any(Boolean.class));
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(eq(taskDto), any(Boolean.class), any(Boolean.class));
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
@@ -1098,10 +1098,10 @@ public class HazelcastTaskServiceTest {
 
             taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
             assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
-            verify(hazelcastTaskService, times(1)).task2HazelcastDAG(taskDto, false);
+            verify(hazelcastTaskService, times(1)).task2HazelcastDAG(taskDto, false, false);
             taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
             assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
-            verify(hazelcastTaskService, times(2)).task2HazelcastDAG(taskDto, false);
+            verify(hazelcastTaskService, times(2)).task2HazelcastDAG(taskDto, false, false);
         }
     }
 
@@ -1436,7 +1436,7 @@ public class HazelcastTaskServiceTest {
             HazelcastTaskService hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
             doReturn(false).when(hazelcastTaskService).testTaskUsingPreview(taskDto);
             JetDag jetDag = mock(JetDag.class);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, false);
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, false, false);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
             HazelcastInstance hazelcastInstance = mock(HazelcastInstance.class);

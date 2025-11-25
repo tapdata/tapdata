@@ -1018,15 +1018,15 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 		}
 		MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, hazelcastNode);
-		registerAdjustStageIfNeed(node, hazelcastNode, taskDto.getId().toHexString(), open);
+		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
+		registerAdjustStageIfNeed(node, hazelcastNode, taskDto.getId().toHexString(), open, obsLogger);
 		return hazelcastNode;
 	}
 
-	static void registerAdjustStageIfNeed(Node<?> node, HazelcastBaseNode hazelcastNode, String taskId, boolean open) {
-		if (open && hazelcastNode instanceof AdjustStage stage
-				&& Objects.nonNull(node.getAutoAdjustBatchSize())
-				&& node.getAutoAdjustBatchSize()) {
+	static void registerAdjustStageIfNeed(Node<?> node, HazelcastBaseNode hazelcastNode, String taskId, boolean open, ObsLogger obsLogger) {
+		if (open && hazelcastNode instanceof AdjustStage stage) {
 			AdjustBatchSizeFactory.register(taskId, stage);
+			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
 		}
 	}
 
