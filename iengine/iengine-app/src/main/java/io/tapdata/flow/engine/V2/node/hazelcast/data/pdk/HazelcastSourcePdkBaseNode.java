@@ -1793,52 +1793,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    public void startSourceConsumer() {
-        while (isRunning()) {
-            try {
-                TapdataEvent dataEvent;
-                AtomicBoolean isPending = new AtomicBoolean();
-                if (pendingEvent != null) {
-                    dataEvent = pendingEvent;
-                    pendingEvent = null;
-                    isPending.compareAndSet(false, true);
-                } else {
-                    try {
-                        dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                    isPending.compareAndSet(true, false);
-                }
-
-                if (dataEvent != null) {
-                    if (!isPending.get()) {
-                        TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-                        TapEvent tapEvent = dataEvent.getTapEvent();
-                        tapRecordToTapValue(tapEvent, codecsFilterManager);
-                    }
-                    if (!offer(dataEvent)) {
-                        pendingEvent = dataEvent;
-                        continue;
-                    }
-                    Optional.ofNullable(getSnapshotProgressManager())
-                            .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
-                }
-            } catch (Throwable e) {
-                errorHandle(e, "start source consumer failed: " + e.getMessage());
-                break;
-            }
-        }
-    }
-
-    public LinkedBlockingQueue<TapdataEvent> getEventQueue() {
-        return eventQueue;
-    }
-
-    public SnapshotProgressManager getSnapshotProgressManager() {
-        return snapshotProgressManager;
-    }
-
     public enum SourceMode {
         NORMAL,
         LOG_COLLECTOR,
