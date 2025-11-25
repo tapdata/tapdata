@@ -81,6 +81,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
+import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -649,6 +652,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 							if (taskDto.isTestUsingPreview()) {
 								hazelcastNode = new HazelcastPreviewSourcePdkDataNode(processorContext);
+								((HazelcastPreviewSourcePdkDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else {
 								hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
 							}
@@ -660,12 +664,16 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 							if (readPartitionOptions != null && readPartitionOptions.isEnable() && readPartitionOptions.getSplitType() != ReadPartitionOptions.SPLIT_TYPE_NONE && !Objects.equals(taskDto.getType(), SyncTypeEnum.CDC.getSyncType())) {
 								hazelcastNode = new HazelcastSourcePartitionReadDataNode(processorContext);
+								((HazelcastSourcePartitionReadDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_MIGRATE) && node instanceof DatabaseNode && ((DatabaseNode) node).isEnableConcurrentRead()) {
 								hazelcastNode = new HazelcastSourceConcurrentReadDataNode(processorContext);
+								((HazelcastSourceConcurrentReadDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else if (previewTask) {
 								hazelcastNode = new HazelcastPreviewSourcePdkDataNode(processorContext);
+								((HazelcastPreviewSourcePdkDataNode)hazelcastNode).needAdjustBatchSize(open);
 							} else {
 								hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+								((HazelcastSourcePdkDataNode)hazelcastNode).needAdjustBatchSize(open);
 							}
 //							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
 						}
@@ -1018,16 +1026,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 				break;
 		}
 		MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, hazelcastNode);
-		ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDto);
-		registerAdjustStageIfNeed(node, hazelcastNode, taskDto.getId().toHexString(), open, obsLogger);
 		return hazelcastNode;
-	}
-
-	static void registerAdjustStageIfNeed(Node<?> node, HazelcastBaseNode hazelcastNode, String taskId, boolean open, ObsLogger obsLogger) {
-		if (open && hazelcastNode instanceof AdjustStage stage) {
-			AdjustBatchSizeFactory.register(taskId, stage);
-			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
-		}
 	}
 
 	private void handleEdge(
