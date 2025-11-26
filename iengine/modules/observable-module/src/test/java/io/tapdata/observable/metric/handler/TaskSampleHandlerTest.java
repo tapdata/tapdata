@@ -69,8 +69,7 @@ public class TaskSampleHandlerTest {
         @Test
         void testGetTaskMem() {
             TaskSampleHandler handler = mock(TaskSampleHandler.class);
-            AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
-            taskMemUsage.set(-1L);
+            AtomicReference<Long> taskMemUsage = new AtomicReference<>(-1L);
             ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
             doCallRealMethod().when(handler).getTaskMem();
             Long mem = handler.getTaskMem();
@@ -82,8 +81,7 @@ public class TaskSampleHandlerTest {
         @Test
         void testGetTaskMem3() {
             TaskSampleHandler handler = mock(TaskSampleHandler.class);
-            AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
-            taskMemUsage.set(0L);
+            AtomicReference<Long> taskMemUsage = new AtomicReference<>(0L);
             ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
             doCallRealMethod().when(handler).getTaskMem();
             Long mem = handler.getTaskMem();
@@ -92,8 +90,7 @@ public class TaskSampleHandlerTest {
         @Test
         void testGetTaskMem4() {
             TaskSampleHandler handler = mock(TaskSampleHandler.class);
-            AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
-            taskMemUsage.set(100L);
+            AtomicReference<Long> taskMemUsage = new AtomicReference<>(100L);
             ReflectionTestUtils.setField(handler, "taskMemUsage", taskMemUsage);
             doCallRealMethod().when(handler).getTaskMem();
             Long mem = handler.getTaskMem();

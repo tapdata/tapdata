@@ -212,6 +212,19 @@ class CpuMemoryCollectorTest {
             
             assertTrue(collector.weakReferenceMap.isEmpty());
         }
+
+        @Test
+        @DisplayName("test when taskId not found")
+        void test3() {
+            try {
+                CpuMemoryCollector.switchChange(false);
+                CpuMemoryCollector.switchChange(false);
+                CpuMemoryCollector.listening("node1", new Object());
+                assertTrue(collector.weakReferenceMap.isEmpty());
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+            }
+        }
     }
 
     @Nested
@@ -221,9 +234,7 @@ class CpuMemoryCollectorTest {
         @DisplayName("test main process")
         void test1() {
             List<String> taskIds = List.of("task1");
-            
             Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
-            
             assertNotNull(result);
         }
 
@@ -231,8 +242,58 @@ class CpuMemoryCollectorTest {
         @DisplayName("test with null taskIds")
         void test2() {
             Map<String, Usage> result = CpuMemoryCollector.collectOnce(null);
-            
             assertNotNull(result);
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test3() {
+            List<String> taskIds = List.of("task1");
+            try {
+                CpuMemoryCollector.switchChange(false);
+                Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
+                assertNotNull(result);
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+            }
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test4() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            CpuMemoryCollector.startTask(taskDto);
+            CpuMemoryCollector.addNode(taskDto.getId().toHexString(), "node1");
+            CpuMemoryCollector.registerTask("node1", threadFactory);
+            List<String> taskIds = List.of(taskDto.getId().toHexString());
+            try {
+                CpuMemoryCollector.switchChange(false);
+                Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
+                assertNotNull(result);
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+                CpuMemoryCollector.unregisterTask(taskDto.getId().toHexString());
+            }
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test5() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            CpuMemoryCollector.startTask(taskDto);
+            CpuMemoryCollector.addNode(taskDto.getId().toHexString(), "node1");
+            CpuMemoryCollector.registerTask("node1", threadFactory);
+            List<String> taskIds = new ArrayList<>();
+            try {
+                CpuMemoryCollector.switchChange(false);
+                Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
+                assertNotNull(result);
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+                CpuMemoryCollector.unregisterTask(taskDto.getId().toHexString());
+            }
         }
     }
 
@@ -834,14 +895,14 @@ class CpuMemoryCollectorTest {
     class cleanOnceTest {
         @Test
         void testNormal() {
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithNull() {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
             collector.cacheLeftWeakReferenceMap.put("taskId", null);
             collector.cacheRightWeakReferenceMap.put("taskId", null);
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
 
         @Test
@@ -849,7 +910,7 @@ class CpuMemoryCollectorTest {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
             collector.cacheLeftWeakReferenceMap.put("taskId", new ArrayList<>());
             collector.cacheRightWeakReferenceMap.put("taskId", new ArrayList<>());
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithNullReference() {
@@ -858,7 +919,7 @@ class CpuMemoryCollectorTest {
             list.add(new WeakReference<>(null));
             collector.cacheLeftWeakReferenceMap.put("taskId", list);
             collector.cacheRightWeakReferenceMap.put("taskId", list);
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithSomeReference() {
@@ -868,7 +929,7 @@ class CpuMemoryCollectorTest {
             list.add(new WeakReference<>(new Object()));
             collector.cacheLeftWeakReferenceMap.put("taskId", list);
             collector.cacheRightWeakReferenceMap.put("taskId", list);
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
     }
 }

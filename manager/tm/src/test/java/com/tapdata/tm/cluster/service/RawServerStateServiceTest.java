@@ -250,7 +250,7 @@ class RawServerStateServiceTest {
 
             rawServerStateService.deleteAll(serviceId);
 
-            verify(repository, times(1)).update(any(Query.class), any(Update.class));
+            verify(repository, times(1)).updateMany(any(Query.class), any(Update.class));
         }
 
         @Test
@@ -259,7 +259,7 @@ class RawServerStateServiceTest {
 
             rawServerStateService.deleteAll(serviceId);
 
-            verify(repository, times(1)).update(
+            verify(repository, times(1)).updateMany(
                 any(Query.class), any(Update.class)
             );
         }
@@ -272,7 +272,7 @@ class RawServerStateServiceTest {
             rawServerStateService.deleteAll(serviceId1);
             rawServerStateService.deleteAll(serviceId2);
 
-            verify(repository, times(2)).update(any(Query.class), any(Update.class));
+            verify(repository, times(2)).updateMany(any(Query.class), any(Update.class));
         }
     }
 }

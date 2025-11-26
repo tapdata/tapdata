@@ -104,6 +104,13 @@ public final class CpuMemoryCollector {
         }
     }
 
+    private volatile boolean doCollect = true;
+    public static void switchChange(boolean val) {
+        if (COLLECTOR.doCollect != val) {
+            COLLECTOR.doCollect = val;
+        }
+    }
+
     static class Info {
         String taskId;
         Long lastCount = 0L;

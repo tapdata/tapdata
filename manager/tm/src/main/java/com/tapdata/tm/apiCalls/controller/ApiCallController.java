@@ -83,15 +83,12 @@ public class ApiCallController extends BaseController {
     /**
      * Find a model instance by {{id}} from the data source
      *
-     * @param fieldsJson
      * @return
      */
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
-    public ResponseMessage<ApiCallDetailVo> findById(@PathVariable("id") String id,
-                                                     @RequestParam(value = "fields", required = false) String fieldsJson) {
-        Field fields = parseField(fieldsJson);
-        return success(apiCallService.findById(id, fields, getLoginUser()));
+    public ResponseMessage<ApiCallDetailVo> findById(@PathVariable("id") String id) {
+        return success(apiCallService.findById(id, getLoginUser()));
     }
 
 
