@@ -60,6 +60,13 @@ public final class CpuMemoryCollector {
 
     final Map<String, Info> taskInfo = new ConcurrentHashMap<>(16);
 
+    private volatile boolean doCollect = true;
+    public static void switchChange(boolean val) {
+        if (COLLECTOR.doCollect != val) {
+            COLLECTOR.doCollect = val;
+        }
+    }
+
     static class Info {
         String taskId;
         Long lastCount = 0L;
@@ -193,6 +200,9 @@ public final class CpuMemoryCollector {
     }
 
     public static void listening(String nodeId, Object info) {
+        if (!COLLECTOR.doCollect) {
+            return;
+        }
         if (null == info) {
             return;
         }
@@ -341,6 +351,10 @@ public final class CpuMemoryCollector {
 
     public static Map<String, Usage> collectOnce(List<String> taskIds) {
         final Map<String, Usage> usageMap = new HashMap<>();
+        if (!COLLECTOR.doCollect) {
+            COLLECTOR.stopCollect(taskIds, usageMap);
+            return usageMap;
+        }
         final CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
         final CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
         try {
@@ -353,6 +367,19 @@ public final class CpuMemoryCollector {
             log.error("Collect cpu and memory usage failed ExecutionException, {}", ex.getMessage(), ex);
         }
         return usageMap;
+    }
+
+    void stopCollect(List<String> filterTaskIds, Map<String, Usage> usageMap) {
+        new ArrayList<>(threadGroupMap.keySet())
+                .stream()
+                .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
+                .forEach(task -> {
+                    Usage usage = new Usage();
+                    usage.setCpuUsage(null);
+                    usage.setHeapMemoryUsage(null);
+                    usageMap.put(task, usage);
+                });
+
     }
 
 
