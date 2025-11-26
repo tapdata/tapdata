@@ -12,6 +12,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -78,6 +79,7 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
+import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -253,8 +255,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 				}
 			}
+			boolean need2InitialSync = need2InitialSync(syncProgress);
+			boolean checkRebuildMergeTableCache = checkRebuildMergeTableCache(true);
 			try {
-				if (need2InitialSync(syncProgress) || checkRebuildMergeTableCache(true)) {
+				if (need2InitialSync || checkRebuildMergeTableCache) {
 					if (this.sourceRunnerFirstTime.get()) {
 						obsLogger.info("Starting batch read from {} tables", tables.size());
 						doSnapshotWithControl(new ArrayList<>(tables));
@@ -272,6 +276,21 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				executeAspect(new SnapshotReadErrorAspect().dataProcessorContext(dataProcessorContext).error(e));
 				throw e;
 			} finally {
+				if (isRunning()) {
+					if(need2InitialSync){
+						enqueue(new TapdataCompleteSnapshotEvent());
+					}
+					if(checkRebuildMergeTableCache){
+						SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
+						if(null != snapshotOrderController) {
+							snapshotOrderController.finish(getNode());
+							snapshotOrderController.flush();
+						}
+						if(getNode() instanceof TableNode tableNode && tableNode.isReFullRun()){
+							enqueue(new TapdataMergeTableCacheRebuildCompleteEvent(tableNode.getMergeTablePropertiesId(), tableNode.getMergeNodeId()));
+						}
+					}
+				}
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 			}
 			Snapshot2CDCAspect.execute(dataProcessorContext);
@@ -316,17 +335,28 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 	private void waitAllSnapshotCompleteIfNeed() {
 		while (isRunning()) {
-			if (hasMergeNode() && (need2InitialSync(syncProgress) || checkRebuildMergeTableCache(false))) {
+			boolean need2InitialSync = need2InitialSync(syncProgress);
+			boolean checkRebuildMergeTableCache = checkRebuildMergeTableCache(false);
+			if (hasMergeNode() && (need2InitialSync || checkRebuildMergeTableCache)) {
 				Predicate<TaskDto> mergeWaitPredicate = taskDto -> {
 					Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
-					Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
-					if (obj instanceof AtomicInteger) {
-						return ((AtomicInteger) obj).get() > 0;
+					AtomicInteger initialSync = new AtomicInteger(0);
+					AtomicInteger mergeRebuildCache = null != taskGlobalVariable.get(TaskGlobalVariable.MERGE_REBUILD_CACHE) ? (AtomicInteger) taskGlobalVariable.get(TaskGlobalVariable.MERGE_REBUILD_CACHE) : new AtomicInteger(0);
+					List<Node<?>> targetDataNodes = GraphUtil.successors(getNode(), n -> n instanceof TableNode || n instanceof DatabaseNode);
+					if (CollectionUtils.isNotEmpty(targetDataNodes)) {
+						for (Node<?> targetDataNode : targetDataNodes) {
+							String key = String.join("_", TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY, targetDataNode.getId());
+							if( null != taskGlobalVariable.get(key)){
+								initialSync.addAndGet(((AtomicInteger)taskGlobalVariable.get(key)).get());
+							}
+						}
 					}
-					//等待缓存重建后才能进入增量
-					Object mergeRebuildCache = taskGlobalVariable.get(TaskGlobalVariable.MERGE_REBUILD_CACHE);
-					if(mergeRebuildCache instanceof AtomicInteger) {
-						return ((AtomicInteger) mergeRebuildCache).get() > 0;
+					if(need2InitialSync && checkRebuildMergeTableCache){
+						return initialSync.get() > 0 || mergeRebuildCache.get() > 0;
+					}else if(need2InitialSync){
+						return initialSync.get() > 0;
+					}else if(checkRebuildMergeTableCache){
+						return mergeRebuildCache.get() > 0;
 					}
 					return false;
 				};
@@ -435,12 +465,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 		} finally {
-			if (isRunning()) {
-				if(getNode() instanceof TableNode tableNode && tableNode.isReFullRun()) {
-					enqueue(new TapdataMergeTableCacheRebuildCompleteEvent(tableNode.getMergeTablePropertiesId(), tableNode.getMergeNodeId()));
-				}
-				enqueue(new TapdataCompleteSnapshotEvent());
-			}
 			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 		}
 		executeAspect(new SnapshotReadEndAspect().dataProcessorContext(dataProcessorContext));
@@ -913,7 +937,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 		if (null != anyError) {
 			obsLogger.trace("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
-			obsLogger.info("Starting incremental sync using database log parser");
+			obsLogger.info("Node {} Starting incremental sync using database log parser", getNode().getName());
 
 			CommonUtils.AnyError finalAnyError = anyError;
 			String finalStreamReadFunctionName = streamReadFunctionName;
@@ -1533,11 +1557,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				return true;
 			}else if(dataProcessorContext.getTaskDto().isReFullRun() && !tableNode.isReFullRun()) {
 				if(first){
-					SnapshotOrderController snapshotOrderController = SnapshotOrderService.getInstance().getController(dataProcessorContext.getTaskDto().getId().toHexString());
-					if(null != snapshotOrderController) {
-						snapshotOrderController.finish(getNode());
-						snapshotOrderController.flush();
-					}
 					obsLogger.info("No need to rebuild the cache, skip directly, table name: {}", tableNode.getTableName());
 				}
 				return true;
