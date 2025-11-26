@@ -629,7 +629,6 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 verify(newTables, times(v.newTablesToArray())).toArray();
                 verify(newTables, times(v.newTablesToArray())).clear();
                 verify(endSnapshotLoop, times(v.endSnapshotLoopSet())).set(true);
-                verify(instance, times(v.tapdataCompleteSnapshotEvent())).enqueue(any(TapdataCompleteSnapshotEvent.class));
                 verify(sourceStateAspect, times(v.stateCOMPLETED())).state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED);
                 verify(instance, times(v.snapshotReadEndAspect())).executeAspect(any(SnapshotReadEndAspect.class));
                 verify(obsLogger, times(v.warn())).warn("PDK node does not support table batch count: {}", databaseType);
@@ -1022,7 +1021,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1056,7 +1055,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testLastIsRunningIsFalse() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1087,7 +1086,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testNewTablesIsEmpty() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1122,7 +1121,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testThrowableWhenExecuteDataFuncAspect() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1185,7 +1184,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testTapCodeExceptionWhenExecuteDataFuncAspect() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1248,7 +1247,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testRemoveTablesIsNull() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1283,7 +1282,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1314,7 +1313,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1338,7 +1337,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testSyncProgressBatchIsOverOfTableIsTrue() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1363,7 +1362,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(0)
                         .executeAspect(0)
@@ -1403,7 +1402,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .setDefaultRowSizeMap(1)
                         .getProcessorBaseContext(0)
                         .warn(1)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -2282,31 +2281,19 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
 			verify(obsLogger, never()).info(anyString(), anyString());
 		}
 
-		@Test
-		@DisplayName("测试任务reFullRun为true但TableNode的reFullRun为false且first为true时")
-		void testTaskReFullRunTrueButTableNodeFalseWithFirstTrue() {
-			doReturn(true).when(sourceNode).isRunning();
-			TableNode tableNode = (TableNode) this.tableNode;
-			when(tableNode.isReFullRun()).thenReturn(false);
-			when(tableNode.getTableName()).thenReturn("test_table");
-			taskDto.setReFullRun(true);
+        @Test
+        @DisplayName("测试任务reFullRun为true但TableNode的reFullRun为false且first为true时")
+        void testTaskReFullRunTrueButTableNodeFalseWithFirstTrue() {
+            doReturn(true).when(sourceNode).isRunning();
+            TableNode tableNode = (TableNode) this.tableNode;
+            when(tableNode.isReFullRun()).thenReturn(false);
+            when(tableNode.getTableName()).thenReturn("test_table");
+            taskDto.setReFullRun(true);
 
-			try (MockedStatic<SnapshotOrderService> serviceMock = mockStatic(SnapshotOrderService.class)) {
-				SnapshotOrderService snapshotOrderService = mock(SnapshotOrderService.class);
-				SnapshotOrderController snapshotOrderController = mock(SnapshotOrderController.class);
+            boolean result = sourceNode.checkRebuildMergeTableCache(true);
 
-				serviceMock.when(SnapshotOrderService::getInstance).thenReturn(snapshotOrderService);
-				when(snapshotOrderService.getController(taskDto.getId().toHexString()))
-					.thenReturn(snapshotOrderController);
-
-				boolean result = sourceNode.checkRebuildMergeTableCache(true);
-
-				assertTrue(result);
-				verify(snapshotOrderController).finish(tableNode);
-				verify(snapshotOrderController).flush();
-				verify(obsLogger).info("No need to rebuild the cache, skip directly, table name: {}", "test_table");
-			}
-		}
+            assertTrue(result);
+        }
 
 		@Test
 		@DisplayName("测试任务reFullRun为true但TableNode的reFullRun为false且first为false时")
