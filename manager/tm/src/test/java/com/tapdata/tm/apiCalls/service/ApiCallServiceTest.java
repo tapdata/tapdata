@@ -1,5 +1,6 @@
 package com.tapdata.tm.apiCalls.service;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.alibaba.fastjson.JSON;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCollection;
@@ -960,6 +961,45 @@ class ApiCallServiceTest {
             when(mongoTemplate.insert(anyList(), anyString())).thenReturn(new ArrayList<>());
             doNothing().when(realTimeOfApiResponseSizeAlter).check(anyString(), anyList());
             apiCallService.save(saveApiCallParamList, userDetail);
+        }
+    }
+
+    @Nested
+    class findByIdTest {
+        ApiCallService service;
+        @BeforeEach
+        void init() {
+            service = mock(ApiCallService.class);
+            when(service.findById(anyString(), any(UserDetail.class))).thenCallRealMethod();
+            ReflectionTestUtils.setField(service, "mongoOperations", mongoTemplate);
+            ReflectionTestUtils.setField(service, "modulesService", modulesService);
+        }
+        @Test
+        void testNormal() {
+            ModulesDto modulesDto = new ModulesDto();
+            ApiCallEntity entity = new ApiCallEntity();
+            UserDetail mock = mock(UserDetail.class);
+            String allPathId = new ObjectId().toHexString();
+            entity.setAllPathId(allPathId);
+            when(service.afterFindEntity(entity)).thenReturn(entity);
+            when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
+            when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
+            ApiCallDetailVo apiCallDetailVo = service.findById("id", mock);
+            Assertions.assertNotNull(apiCallDetailVo);
+        }
+        @Test
+        void testLatency() {
+            ModulesDto modulesDto = new ModulesDto();
+            ApiCallEntity entity = new ApiCallEntity();
+            entity.setLatency(1000L);
+            UserDetail mock = mock(UserDetail.class);
+            String allPathId = new ObjectId().toHexString();
+            entity.setAllPathId(allPathId);
+            when(service.afterFindEntity(entity)).thenReturn(entity);
+            when(mongoTemplate.findById("id", ApiCallEntity.class)).thenReturn(entity);
+            when(modulesService.findById(any(ObjectId.class), any(UserDetail.class))).thenReturn(modulesDto);
+            ApiCallDetailVo apiCallDetailVo = apiCallService.findById("id", mock);
+            Assertions.assertNotNull(apiCallDetailVo);
         }
     }
 
