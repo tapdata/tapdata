@@ -7,6 +7,7 @@ import java.util.function.Function;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -509,6 +510,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         // Get task and validate
         Query taskQuery = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
         taskQuery.fields().include("dag");
+        taskQuery.fields().include("syncType");
         TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
         if (taskDto == null) {
             return null;
@@ -541,6 +543,10 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         List<MetadataInstancesCompareDto> applyDtos = findAll(
             Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_APPLY))
         );
+        String targetTableName = null;
+        if(targetNode instanceof TableNode tableNode){
+            targetTableName = tableNode.getTableName();
+        }
 
         return ComparisonContext.builder()
             .nodeId(nodeId)
@@ -552,6 +558,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             .applyRules(applyRules)
             .targetSchemaLoadTime(targetSchemaLoadTime)
             .applyDtos(applyDtos).compareIgnoreCase(targetNode.getCompareIgnoreCase())
+                .targetTableName(targetTableName)
             .build();
     }
 
@@ -631,15 +638,25 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             context.getNodeId(), context.getApplyRules()
         );
 
-        Map<String, MetadataInstancesDto> deductionMap = context.getDeductionMetadataInstances().stream()
-            .collect(Collectors.toMap(MetadataInstancesDto::getName, Function.identity()));
-
-        List<String> tableNames = context.getDeductionMetadataInstances().stream()
-            .map(MetadataInstancesDto::getName)
-            .collect(Collectors.toList());
+        Map<String, MetadataInstancesDto> deductionMap;
 
         // Get target metadata instances
         List<MetadataInstancesDto> targetMetadataInstances;
+        List<String> tableNames;
+        if(context.getTaskDto().getSyncType().equals(TaskDto.SYNC_TYPE_SYNC) && StringUtils.isNotBlank(context.getTargetTableName()) && context.getDeductionMetadataInstances().size() == 1){
+            tableNames = Collections.singletonList(context.getTargetTableName());
+            deductionMap = new HashMap<>();
+            deductionMap.put(context.getCompareIgnoreCase() ? context.getTargetTableName().toLowerCase() : context.getTargetTableName(), context.getDeductionMetadataInstances().get(0));
+        }else if(context.getTaskDto().getSyncType().equals(TaskDto.SYNC_TYPE_MIGRATE)){
+            tableNames = context.getDeductionMetadataInstances().stream()
+                    .map(MetadataInstancesDto::getName)
+                    .collect(Collectors.toList());
+            deductionMap = context.getDeductionMetadataInstances().stream()
+                    .collect(Collectors.toMap(MetadataInstancesDto::getName, Function.identity()));
+        }else{
+            return new MetadataInstancesCompareResult();
+        }
+
         if(context.getCompareIgnoreCase()){
             targetMetadataInstances = metadataInstancesService.findSourceSchemaBySourceIdIgnoreCase(
                     context.getConnectionId(), tableNames, userDetail,
@@ -778,6 +795,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         private Long targetSchemaLoadTime;
         private List<MetadataInstancesCompareDto> applyDtos;
         private Boolean compareIgnoreCase;
+        private String targetTableName;
     }
 
     protected void saveMetadataInstancesCompare(String taskId,String nodeId,MetadataInstancesDto deductionMetadataInstance,MetadataInstancesDto targetMetadataInstance,List<MetadataInstancesCompareDto> compareDtos,Map<String,List<DifferenceField>> applyFields,Boolean compareIgnoreCase) {

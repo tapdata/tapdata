@@ -2686,6 +2686,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
     public void targetSchemaDetection(String nodeId, String taskId, UserDetail user) {
         Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(taskId)));
         query.fields().include("dag");
+        query.fields().include("syncType");
         TaskDto taskDto = taskService.findOne(query,user);
         if(taskDto == null)return;
         if (!(taskDto.getDag().getNode(nodeId) instanceof DataParentNode<?>)) {
@@ -2719,7 +2720,14 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     log.info("Processing batch {}, size: {} for nodeId: {}, taskId: {}", currentPage, metadataInstancesDtos.size(), nodeId, taskId);
                     List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
                     Map<String, MetadataInstancesDto> map = metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getName, m -> m));
-                    List<String> tableNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+                    List<String> tableNames;
+                    if(targetNode instanceof TableNode tableNode){
+                        tableNames = Collections.singletonList(tableNode.getTableName());
+                    }else if(targetNode instanceof DatabaseNode){
+                        tableNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
+                    }else{
+                        break;
+                    }
                     int timeout = 10 * 1000 * tableNames.size();
                     long beginTime = System.currentTimeMillis();
                     String connectionId = metadataInstancesDtos.get(0).getSource().get_id();
@@ -2728,7 +2736,14 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     dataSourceService.sendTestConnection(connDto, true, true, compareIgnoreCase ? null : String.join(",", tableNames), user);
                     Consumer<MetadataInstancesDto> tableConsumer = (MetadataInstancesDto targetMetadataInstance) -> {
                         if (null != targetMetadataInstance) {
-                            MetadataInstancesDto deductionMetadataInstance = map.get(compareIgnoreCase ? targetMetadataInstance.getName().toLowerCase() : targetMetadataInstance.getName());
+                            MetadataInstancesDto deductionMetadataInstance;
+                            if(taskDto.getSyncType().equals(TaskDto.SYNC_TYPE_SYNC) && map.size() == 1 ){
+                                deductionMetadataInstance = map.values().stream().findFirst().get();
+                            }else if(taskDto.getSyncType().equals(TaskDto.SYNC_TYPE_MIGRATE)){
+                                deductionMetadataInstance =  map.get(compareIgnoreCase ? targetMetadataInstance.getName().toLowerCase() : targetMetadataInstance.getName());
+                            }else{
+                                return;
+                            }
                             // Create field maps for comparison
                             Map<String, Field> deductionFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
                             List<DifferenceField> applyDifferenceFields =

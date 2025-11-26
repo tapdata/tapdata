@@ -613,11 +613,11 @@ public class MessageServiceImpl extends MessageService{
         String metadataName = messageMetadata.getName();
         String smsContent = "";
 
-        if (MsgTypeEnum.CONNECTED.getValue().equals(msgType)) {
+        if (MsgTypeEnum.CONNECTED.equals(msgType)) {
             smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 正在运行";
-        } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.getValue().equals(msgType)) {
+        } else if (MsgTypeEnum.CONNECTION_INTERRUPTED.equals(msgType)) {
             smsContent = "尊敬的用户，你好，您在Tapdata Cloud 上创建的任务:" + metadataName + " 出错，请即使处理";
-        } else if (MsgTypeEnum.STOPPED_BY_ERROR.getValue().equals(msgType)) {
+        } else if (MsgTypeEnum.STOPPED_BY_ERROR.equals(msgType)) {
 
         }
 

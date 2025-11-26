@@ -59,48 +59,11 @@ public final class CpuMemoryCollector {
     final Map<String, CopyOnWriteArrayList<WeakReference<ThreadFactory>>> threadGroupMap = new ConcurrentHashMap<>(16);
 
     final Map<String, Info> taskInfo = new ConcurrentHashMap<>(16);
-    final Map<WeakReference<Object>, MemInfo> cacheMemoryMap = new HashMap<>(16);
-	private volatile boolean doCollect = true;
-	public static void switchChange(boolean val) {
-		if (COLLECTOR.doCollect != val) {
-			COLLECTOR.doCollect = val;
-		}
-	}
 
-    static class MemInfo {
-        long mem = 0L;
-        Long lastCalcTime;
-        final WeakReference<Object> weakReference;
-
-        public MemInfo(WeakReference<Object> weakReference) {
-            this.weakReference = weakReference;
-        }
-
-        public Long memory() {
-            if (weakReference == null) {
-                return null;
-            }
-            final Object object = weakReference.get();
-            if (object == null) {
-                synchronized (weakReference) {
-                    COLLECTOR.cacheMemoryMap.remove(weakReference);
-                }
-                return null;
-            }
-            //30s内使用旧值，避免频繁计算
-            if (null != lastCalcTime && 30000L >= (System.currentTimeMillis() - lastCalcTime)) {
-                return mem;
-            }
-            if (null == lastCalcTime) {
-                lastCalcTime = System.currentTimeMillis();
-            }
-            long sizeOf;
-            try {
-                sizeOf = GraphLayout.parseInstance(object).totalSize();
-            } catch (Exception e) {
-                sizeOf = RamUsageEstimator.sizeOfObject(object);
-            }
-            return mem = sizeOf;
+    private volatile boolean doCollect = true;
+    public static void switchChange(boolean val) {
+        if (COLLECTOR.doCollect != val) {
+            COLLECTOR.doCollect = val;
         }
     }
 
@@ -208,13 +171,6 @@ public final class CpuMemoryCollector {
     public static void unregisterTask(String taskId) {
         CommonUtils.handleAnyError(() -> COLLECTOR.threadGroupMap.remove(taskId),
                 e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean threadGroupMap, {}", taskId, e.getMessage()));
-        CommonUtils.handleAnyError(() -> {
-                    final List<WeakReference<Object>> weakReferences = COLLECTOR.weakReferenceMap.get(taskId);
-                    if (!CollectionUtils.isEmpty(weakReferences)) {
-                        weakReferences.forEach(COLLECTOR.cacheMemoryMap::remove);
-                    }
-                },
-                e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap, {}", taskId, e.getMessage()));
         synchronized (COLLECTOR.weakReferenceMap) {
             CommonUtils.handleAnyError(() -> COLLECTOR.weakReferenceMap.remove(taskId),
                     e -> log.warn("Unregister task {} from cpu memory collector failed: can not clean weakReferenceMap of task, {}", taskId, e.getMessage()));
@@ -264,8 +220,6 @@ public final class CpuMemoryCollector {
             synchronized (weakReferences) {
                 weakReferences.add(reference);
             }
-            final MemInfo memInfo = new MemInfo(reference);
-            COLLECTOR.cacheMemoryMap.put(reference, memInfo);
         } catch (Exception e) {
             log.warn("Listening failed, node id = {}, e = {}", nodeId, e.getMessage());
         }
@@ -310,7 +264,6 @@ public final class CpuMemoryCollector {
                     if (CollectionUtils.isEmpty(weakReferences)) {
                         return false;
                     }
-                    //weakReferences.removeIf(weakReference -> null == weakReference.get());
                     return item.judged(weakReferences.size());
                 }).forEach(taskId -> {
                     final Usage usage = usageMap.computeIfAbsent(taskId, k -> new Usage());
