@@ -2694,8 +2694,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         }
         DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
         Boolean compareIgnoreCase = targetNode.getCompareIgnoreCase();
-        if(targetNode == null)return;
-        Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
+		Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
         MetadataInstancesCompareDto metadataInstancesCompareStatus = metadataInstancesCompareService.findOne(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)));
         if(null != metadataInstancesCompareStatus && metadataInstancesCompareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_RUNNING))return;
         metadataInstancesCompareService.deleteAll(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));

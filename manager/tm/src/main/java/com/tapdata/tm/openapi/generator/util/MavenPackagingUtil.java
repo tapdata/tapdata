@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Maven packaging utility for building JAR files from generated source code
@@ -277,44 +278,48 @@ public class MavenPackagingUtil {
     private static PackagingResult executeMavenCommand(List<String> command, Path sourceDir, boolean isOfflineMode) {
         String modeLabel = isOfflineMode ? "[OFFLINE MODE]" : "[ONLINE MODE]";
 
-        try {
-            ProcessBuilder processBuilder = new ProcessBuilder(command);
-            processBuilder.directory(sourceDir.toFile());
-            processBuilder.redirectErrorStream(true);
+		try {
+			ProcessBuilder processBuilder = new ProcessBuilder(command);
+			processBuilder.directory(sourceDir.toFile());
+			processBuilder.redirectErrorStream(true);
 
-            Process process = processBuilder.start();
+			Process process = processBuilder.start();
 
-            // Capture output
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                    log.debug("{} Maven output: {}", modeLabel, line);
-                }
-            }
+			// Capture output
+			StringBuilder output = new StringBuilder();
+			try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+				String line;
+				while ((line = reader.readLine()) != null) {
+					output.append(line).append("\n");
+					log.debug("{} Maven output: {}", modeLabel, line);
+				}
+			}
 
-            int exitCode = process.waitFor();
-            String outputString = output.toString();
+			int exitCode = process.waitFor();
+			String outputString = output.toString();
 
-            if (exitCode == 0) {
-                // Find generated JAR file
-                Path jarFile = findGeneratedJar(sourceDir);
-                if (jarFile != null && Files.exists(jarFile)) {
-                    log.info("{} Maven packaging successful, JAR file: {}", modeLabel, jarFile);
-                    return PackagingResult.success(jarFile, outputString);
-                } else {
-                    return PackagingResult.failure("Maven build succeeded but JAR file not found in target directory");
-                }
-            } else {
-                log.error("{} Maven packaging failed with exit code: {}, output: {}", modeLabel, exitCode, outputString);
-                return PackagingResult.failure("Maven build failed with exit code " + exitCode + ": " + outputString);
-            }
+			if (exitCode == 0) {
+				// Find generated JAR file
+				Path jarFile = findGeneratedJar(sourceDir);
+				if (jarFile != null && Files.exists(jarFile)) {
+					log.info("{} Maven packaging successful, JAR file: {}", modeLabel, jarFile);
+					return PackagingResult.success(jarFile, outputString);
+				} else {
+					return PackagingResult.failure("Maven build succeeded but JAR file not found in target directory");
+				}
+			} else {
+				log.error("{} Maven packaging failed with exit code: {}, output: {}", modeLabel, exitCode, outputString);
+				return PackagingResult.failure("Maven build failed with exit code " + exitCode + ": " + outputString);
+			}
 
-        } catch (Exception e) {
-            log.error("{} Exception during Maven command execution", modeLabel, e);
-            return PackagingResult.failure("Exception during Maven command execution: " + e.getMessage());
-        }
+		} catch (InterruptedException e) {
+			log.error("{} Maven packaging interrupted", modeLabel, e);
+			Thread.currentThread().interrupt();
+			return PackagingResult.failure("Maven packaging interrupted");
+		} catch (Exception e) {
+			log.error("{} Exception during Maven command execution", modeLabel, e);
+			return PackagingResult.failure("Exception during Maven command execution: " + e.getMessage());
+		}
     }
 
     /**
@@ -327,19 +332,19 @@ public class MavenPackagingUtil {
             return null;
         }
 
-        try {
-            // Look for JAR files in target directory
-            return Files.walk(targetDir, 1)
-                    .filter(path -> path.toString().endsWith(".jar"))
-                    .filter(path -> !path.toString().contains("original-"))
-                    .filter(path -> !path.toString().contains("sources"))
-                    .filter(path -> !path.toString().contains("javadoc"))
-                    .findFirst()
-                    .orElse(null);
-        } catch (IOException e) {
-            log.error("Error searching for JAR file in target directory", e);
-            return null;
-        }
+		try (Stream<Path> pathStream = Files.walk(targetDir, 1)) {
+			// Look for JAR files in target directory
+			return pathStream
+					.filter(path -> path.toString().endsWith(".jar"))
+					.filter(path -> !path.toString().contains("original-"))
+					.filter(path -> !path.toString().contains("sources"))
+					.filter(path -> !path.toString().contains("javadoc"))
+					.findFirst()
+					.orElse(null);
+		} catch (IOException e) {
+			log.error("Error searching for JAR file in target directory", e);
+			return null;
+		}
     }
 
     /**

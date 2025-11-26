@@ -342,6 +342,13 @@ public class OpenApiGeneratorService {
 				throw new IOException("Classpath resource not found: " + resourcePath);
 			}
 		}
+
+		// For non-classpath paths, verify the file exists
+		Path filePath = Paths.get(path);
+		if (!Files.exists(filePath)) {
+			throw new IOException("File not found: " + path);
+		}
+
 		return path;
 	}
 
@@ -837,10 +844,14 @@ public class OpenApiGeneratorService {
 
 			log.info("Command line Java version validation passed. Version: {} (major: {})", commandLineVersion, commandLineMajorVersion);
 
-		} catch (IOException | InterruptedException e) {
+		} catch (IOException e) {
 			String errorMessage = "Failed to check command line Java version: " + e.getMessage();
 			log.error(errorMessage, e);
 			throw new CodeGenerationException(errorMessage);
+		} catch (InterruptedException e) {
+			String errorMessage = "Interrupted while checking command line Java version: " + e.getMessage();
+			log.error(errorMessage, e);
+			Thread.currentThread().interrupt();
 		}
 	}
 
