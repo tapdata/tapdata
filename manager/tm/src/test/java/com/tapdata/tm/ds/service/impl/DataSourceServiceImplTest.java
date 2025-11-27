@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.SimpleGrantedAuthority;
@@ -902,7 +903,7 @@ class DataSourceServiceImplTest {
 
         @Test
         @DisplayName("test batchImport with CANCEL_IMPORT mode - existing connection")
-        void testBatchImportCancelModeWithExistingConnection() {
+        void testBatchImportCancelModeExistingConnection() {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
 
@@ -925,6 +926,44 @@ class DataSourceServiceImplTest {
         void testBatchImportCancelModeNoExistingConnection() {
             // Setup
             importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.CANCEL_IMPORT;
+
+            doReturn(null).when(dataSourceService).findOne(any(Query.class), eq(user));
+            doReturn(connectionDto).when(dataSourceService).handleImportAsCopyConnection(connectionDto, user);
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            verify(dataSourceService, times(1)).handleImportAsCopyConnection(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test batchImport with REUSE_EXISTING mode - existing connection")
+        void testBatchImportReuseExistingModeWithExistingConnection() {
+            // Setup
+            importMode = ImportModeEnum.REUSE_EXISTING;
+            doReturn(existingConnection).when(dataSourceService).findOne(any(Query.class), eq(user));
+
+            // Execute
+            Map<String, DataSourceConnectionDto> result = dataSourceService.batchImport(connectionDtos, user, importMode);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            assertTrue(result.containsKey("662877df9179877be8b37075"));
+
+            // Verify that the connection ID was replaced with existing ID
+            assertEquals(existingConnection.getId(), result.get("662877df9179877be8b37075").getId());
+            verify(dataSourceService, times(0)).save(connectionDto, user);
+        }
+
+        @Test
+        @DisplayName("test batchImport with REUSE_EXISTING mode - no existing connection")
+        void testBatchImportReuseExistingModeNoExistingConnection() {
+            // Setup
+            importMode = com.tapdata.tm.commons.task.dto.ImportModeEnum.REUSE_EXISTING;
 
             doReturn(null).when(dataSourceService).findOne(any(Query.class), eq(user));
             doReturn(connectionDto).when(dataSourceService).handleImportAsCopyConnection(connectionDto, user);

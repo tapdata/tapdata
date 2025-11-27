@@ -1869,6 +1869,15 @@ public class DataSourceServiceImpl extends DataSourceService{
                         resultConnection = handleImportAsCopyConnection(connectionDto, user);
                     }
                     break;
+                case REUSE_EXISTING:
+                    if (existingConnectionByName != null) {
+                        resultConnection = existingConnectionByName;
+                    } else {
+                        // 不存在同名连接，作为新连接导入
+                        resultConnection = handleImportAsCopyConnection(connectionDto, user);
+                    }
+                    break;
+
 
                 case IMPORT_AS_COPY:
                     resultConnection = handleImportAsCopyConnection(connectionDto, user);

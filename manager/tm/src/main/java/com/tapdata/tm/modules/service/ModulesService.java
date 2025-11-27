@@ -1591,7 +1591,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 			// 根据导入模式处理
 			switch (importMode) {
-				case REPLACE:
+				case REPLACE,REUSE_EXISTING:
 					handleReplaceMode(modulesDto, existingModuleByName, user, conMap);
 					break;
 				case IMPORT_AS_COPY:
@@ -1699,6 +1699,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 			if (dataSourceCon != null) {
 				modulesDto.setConnectionId(dataSourceCon.getId().toString());
 				modulesDto.setConnection(dataSourceCon.getId());
+				modulesDto.setDataSource(dataSourceCon.getId().toString());
+				modulesDto.setConnectionName(dataSourceCon.getName());
+				modulesDto.setConnectionType(dataSourceCon.getConnection_type());
 			}
 		}
 	}
