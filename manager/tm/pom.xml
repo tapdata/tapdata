@@ -346,6 +346,31 @@
 			<version>1.8.0</version>
 		</dependency>
 
+		<!-- Swagger Parser for OpenAPI Generator -->
+		<dependency>
+			<groupId>io.swagger.parser.v3</groupId>
+			<artifactId>swagger-parser</artifactId>
+			<version>2.1.31</version>
+		</dependency>
+		<dependency>
+			<groupId>io.swagger.core.v3</groupId>
+			<artifactId>swagger-core</artifactId>
+			<version>2.2.34</version>
+		</dependency>
+
+		<!-- SnakeYAML with enhanced configuration -->
+		<dependency>
+			<groupId>org.yaml</groupId>
+			<artifactId>snakeyaml</artifactId>
+			<version>2.0</version>
+		</dependency>
+
+		<!-- Jackson YAML for enhanced YAML parsing -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.dataformat</groupId>
+			<artifactId>jackson-dataformat-yaml</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>net.javacrumbs.shedlock</groupId>
 			<artifactId>shedlock-spring</artifactId>
@@ -411,7 +436,6 @@
 		<dependency>
 			<groupId>cn.hutool</groupId>
 			<artifactId>hutool-core</artifactId>
-			<version>5.8.36</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jsoup</groupId>
@@ -508,7 +532,7 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-fileupload2-jakarta-servlet6</artifactId>
-			<version>2.0.0-M2</version>
+			<version>2.0.0-M4</version>
 			<exclusions>
 				<exclusion>
 					<artifactId>commons-io</artifactId>

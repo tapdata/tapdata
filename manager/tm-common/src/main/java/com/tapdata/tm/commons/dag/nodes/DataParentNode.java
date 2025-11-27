@@ -114,6 +114,8 @@ public abstract class DataParentNode<S> extends Node<S> {
     private Boolean applyCompareRule = false;
 
     private List<String> applyCompareRules;
+
+    private Boolean compareIgnoreCase = false;
     /**
      * constructor for node
      *

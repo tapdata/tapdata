@@ -829,6 +829,27 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
         return findAllDto(Query.query(criteria), userDetail);
     }
 
+    @Override
+    public List<MetadataInstancesDto> findSourceSchemaBySourceIdIgnoreCase(String sourceId, List<String> tableNames, UserDetail userDetail, String... fields) {
+        Criteria criteria = Criteria
+                .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
+                .and(IS_DELETED).ne(true)
+                .and(SOURCE_ID).is(sourceId)
+                .and(SOURCE_TYPE).is(SourceTypeEnum.SOURCE.name())
+                .and(TASK_ID).exists(false);
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            List<Pattern> patterns = tableNames.stream()
+                    .map(name -> Pattern.compile("^" + Pattern.quote(name) + "$", Pattern.CASE_INSENSITIVE))
+                    .collect(Collectors.toList());
+            criteria.and(ORIGINAL_NAME).in(patterns);
+        }
+        Query query = new Query(criteria);
+        if (fields != null && fields.length > 0) {
+            query.fields().include(fields);
+        }
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where(META_TYPE).in(Lists.of(TABLE, COLLECTION, "view"))
@@ -2648,7 +2669,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
 
     @Override
     public Long findDatabaseMetadataInstanceLastUpdate(String connectionId, UserDetail user) {
-        DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId), user);
+        DataSourceConnectionDto connectionDto = dataSourceService.findById(toObjectId(connectionId));
         if (connectionDto == null) {
             throw new BizException("connection is null");
         }
@@ -2671,8 +2692,8 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
             return;
         }
         DataParentNode targetNode = (DataParentNode)taskDto.getDag().getNode(nodeId);
-        if(targetNode == null)return;
-        Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
+        Boolean compareIgnoreCase = targetNode.getCompareIgnoreCase();
+		Map<String,List<DifferenceField>> applyFields = metadataInstancesCompareService.getMetadataInstancesComparesByType(nodeId,targetNode.getApplyCompareRules());
         MetadataInstancesCompareDto metadataInstancesCompareStatus = metadataInstancesCompareService.findOne(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_STATUS)));
         if(null != metadataInstancesCompareStatus && metadataInstancesCompareStatus.getStatus().equals(MetadataInstancesCompareDto.STATUS_RUNNING))return;
         metadataInstancesCompareService.deleteAll(Query.query(Criteria.where("nodeId").is(nodeId).and("type").is(MetadataInstancesCompareDto.TYPE_COMPARE)));
@@ -2698,15 +2719,15 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                     List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
                     Map<String, MetadataInstancesDto> map = metadataInstancesDtos.stream().collect(Collectors.toMap(MetadataInstancesDto::getName, m -> m));
                     List<String> tableNames = metadataInstancesDtos.stream().map(MetadataInstancesDto::getName).collect(Collectors.toList());
-                    int timeout = 5 * 1000 * tableNames.size();
+                    int timeout = 10 * 1000 * tableNames.size();
                     long beginTime = System.currentTimeMillis();
                     String connectionId = metadataInstancesDtos.get(0).getSource().get_id();
                     DataSourceConnectionDto connDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
                     if (null == connDto) throw new BizException(EX_TASK_NOT_FOUND_DS, connectionId);
-                    dataSourceService.sendTestConnection(connDto, true, true, String.join(",", tableNames), user);
+                    dataSourceService.sendTestConnection(connDto, true, true, compareIgnoreCase ? null : String.join(",", tableNames), user);
                     Consumer<MetadataInstancesDto> tableConsumer = (MetadataInstancesDto targetMetadataInstance) -> {
                         if (null != targetMetadataInstance) {
-                            MetadataInstancesDto deductionMetadataInstance = map.get(targetMetadataInstance.getName());
+                            MetadataInstancesDto deductionMetadataInstance = map.get(compareIgnoreCase ? targetMetadataInstance.getName().toLowerCase() : targetMetadataInstance.getName());
                             // Create field maps for comparison
                             Map<String, Field> deductionFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
                             List<DifferenceField> applyDifferenceFields =
@@ -2718,7 +2739,7 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                                     differenceField.getType().recoverField(deductionFieldMap.get(differenceField.getColumnName()),deductionMetadataInstance.getFields(),differenceField);
                                 });
                             }
-                            List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance);
+                            List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance,compareIgnoreCase);
                             compareDtos.add(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoCompare(taskId,nodeId,deductionMetadataInstance.getName(),deductionMetadataInstance.getQualifiedName(),differenceFieldList));
                         }
                     };
@@ -2728,7 +2749,11 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                         updateStatus(metadataInstancesStatus);
                         break;
                     }
-                    findSourceSchemaBySourceId(connectionId, tableNames, user, "original_name", "fields", "qualified_name", "name", "source._id").forEach(tableConsumer);
+                    if(compareIgnoreCase){
+                        findSourceSchemaBySourceIdIgnoreCase(connectionId, tableNames, user, "original_name", "fields", "qualified_name", "name", "source._id").forEach(tableConsumer);
+                    }else{
+                        findSourceSchemaBySourceId(connectionId, tableNames, user, "original_name", "fields", "qualified_name", "name", "source._id").forEach(tableConsumer);
+                    }
                     hasMoreData = page.getTotal() > (long) currentPage * batchSize;
                     boolean isLastBatch = !hasMoreData;
 

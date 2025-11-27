@@ -1,0 +1,41 @@
+# https://openapi-generator.tech/docs/generators/spring/#supported-vendor-extensions
+additionalProperties:
+    generatePom: true
+    generateApiTests: false
+    generateModelTests: false
+    dateLibrary: java8
+    serializableModel: true
+    documentationProvider: none
+    useSwaggerUI: false
+    useTags: true
+    snapshotVersion: false
+    useFeignClientContextId: false
+    useFeignClientUrl: false
+    useOneOfInterfaces: false
+    useResponseEntity: false
+    useBeanValidation: false
+    useSealed: true
+    useVersion: false
+    parentOverridden: false
+    disallowAdditionalPropertiesIfNotPresent: false
+    generateGenericResponseEntity: false
+    developerEmail: ""
+    developerName: ""
+    developerOrganization: ""
+    developerOrganizationUrl: ""
+    configPackage: io.tapdata.configuration
+    enableResponseGeneric: true
+    removeRequestPrefix: "get,find"
+files:
+    jackson/JacksonConfig.mustache:
+        templateType: SupportingFiles
+        destinationFilename: JacksonConfig.java
+        folder: src/main/java/io/tapdata/configuration
+    jackson/OffsetDateTimeDeserializer.mustache:
+        templateType: SupportingFiles
+        destinationFilename: OffsetDateTimeDeserializer.java
+        folder: src/main/java/io/tapdata/configuration
+    jackson/MongoDecimalDeserializer.mustache:
+        templateType: SupportingFiles
+        destinationFilename: MongoDecimalDeserializer.java
+        folder: src/main/java/io/tapdata/configuration

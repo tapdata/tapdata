@@ -8,7 +8,6 @@ import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SamplerPrometheus;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;

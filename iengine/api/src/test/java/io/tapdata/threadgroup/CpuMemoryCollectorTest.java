@@ -202,7 +202,6 @@ class CpuMemoryCollectorTest {
             
             CpuMemoryCollector.listening(nodeId, info);
             CpuMemoryCollector.listening(nodeId, null);
-            
             assertFalse(collector.weakReferenceMap.containsKey(taskId));
         }
 
@@ -310,7 +309,6 @@ class CpuMemoryCollectorTest {
             
             weakReferences.add(new WeakReference<>(testObj));
             weakReferences.add(new WeakReference<>(null));
-            
             collector.eachTaskOnce(weakReferences, usage);
             
             assertFalse(usage.getHeapMemoryUsage() > 0);
