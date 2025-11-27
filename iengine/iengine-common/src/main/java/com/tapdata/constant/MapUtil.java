@@ -689,9 +689,15 @@ public class MapUtil {
 				} else if (o instanceof List) {
 					List list = (List) o;
 					if (CollectionUtils.isNotEmpty(list)) {
-						for (Object o1 : list) {
+						Iterator listIter = list.iterator();
+						while (listIter.hasNext()) {
+							Object o1 = listIter.next();
 							if (o1 instanceof Map) {
 								recursiveRemoveByValuePredicate((Map) o1, valuePredicate);
+							} else {
+								if (valuePredicate.test(o1)) {
+									listIter.remove();
+								}
 							}
 						}
 					}

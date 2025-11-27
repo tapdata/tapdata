@@ -551,7 +551,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             .deductionMetadataInstances(deductionMetadataInstances)
             .applyRules(applyRules)
             .targetSchemaLoadTime(targetSchemaLoadTime)
-            .applyDtos(applyDtos)
+            .applyDtos(applyDtos).compareIgnoreCase(targetNode.getCompareIgnoreCase())
             .build();
     }
 
@@ -639,10 +639,18 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
             .collect(Collectors.toList());
 
         // Get target metadata instances
-        List<MetadataInstancesDto> targetMetadataInstances = metadataInstancesService.findSourceSchemaBySourceId(
-            context.getConnectionId(), tableNames, userDetail,
-            "original_name", "fields", "qualified_name", "name", "source._id", "last_updated"
-        );
+        List<MetadataInstancesDto> targetMetadataInstances;
+        if(context.getCompareIgnoreCase()){
+            targetMetadataInstances = metadataInstancesService.findSourceSchemaBySourceIdIgnoreCase(
+                    context.getConnectionId(), tableNames, userDetail,
+                    "original_name", "fields", "qualified_name", "name", "source._id", "last_updated"
+            );
+        }else{
+            targetMetadataInstances = metadataInstancesService.findSourceSchemaBySourceId(
+                    context.getConnectionId(), tableNames, userDetail,
+                    "original_name", "fields", "qualified_name", "name", "source._id", "last_updated"
+            );
+        };
 
         if (CollectionUtils.isEmpty(targetMetadataInstances)) {
             return createEmptyComparisonResult(context.getTargetSchemaLoadTime());
@@ -701,10 +709,10 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         List<MetadataInstancesCompareDto> compareDtos = new ArrayList<>();
 
         for (MetadataInstancesDto targetMetadata : targetMetadataInstances) {
-            MetadataInstancesDto deductionMetadata = deductionMap.get(targetMetadata.getName());
+            MetadataInstancesDto deductionMetadata = deductionMap.get(context.getCompareIgnoreCase() ? targetMetadata.getName().toLowerCase() : targetMetadata.getName());
             saveMetadataInstancesCompare(
                 context.getTaskId(), context.getNodeId(), deductionMetadata,
-                targetMetadata, compareDtos, applyFields
+                targetMetadata, compareDtos, applyFields,context.getCompareIgnoreCase()
             );
         }
 
@@ -769,9 +777,10 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
         private List<String> applyRules;
         private Long targetSchemaLoadTime;
         private List<MetadataInstancesCompareDto> applyDtos;
+        private Boolean compareIgnoreCase;
     }
 
-    protected void saveMetadataInstancesCompare(String taskId,String nodeId,MetadataInstancesDto deductionMetadataInstance,MetadataInstancesDto targetMetadataInstance,List<MetadataInstancesCompareDto> compareDtos,Map<String,List<DifferenceField>> applyFields) {
+    protected void saveMetadataInstancesCompare(String taskId,String nodeId,MetadataInstancesDto deductionMetadataInstance,MetadataInstancesDto targetMetadataInstance,List<MetadataInstancesCompareDto> compareDtos,Map<String,List<DifferenceField>> applyFields,Boolean compareIgnoreCase) {
         if (null != targetMetadataInstance) {
             Map<String, Field> deductionFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
             List<DifferenceField> applyDifferenceFields =
@@ -784,7 +793,7 @@ public class MetadataInstancesCompareServiceImpl extends MetadataInstancesCompar
                 });
             }
 
-            List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance);
+            List<DifferenceField> differenceFieldList = SchemaUtils.compareSchema(deductionMetadataInstance, targetMetadataInstance,compareIgnoreCase);
             compareDtos.add(MetadataInstancesCompareDto.createMetadataInstancesCompareDtoCompare(taskId,nodeId,deductionMetadataInstance.getName(),deductionMetadataInstance.getQualifiedName(),differenceFieldList));
         }
     }

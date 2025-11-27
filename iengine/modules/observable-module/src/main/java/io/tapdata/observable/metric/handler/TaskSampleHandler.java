@@ -8,7 +8,6 @@ import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SamplerPrometheus;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
@@ -89,8 +88,8 @@ public class TaskSampleHandler extends AbstractHandler {
     private String taskId;
     private String taskName;
 
-    protected AtomicDouble taskCpuUsage = new AtomicDouble(0d);
-    protected AtomicLong taskMemUsage = new AtomicLong(0L);
+    protected AtomicReference<Double> taskCpuUsage = new AtomicReference<>(null);
+    protected AtomicReference<Long> taskMemUsage = new AtomicReference<>(null);
 
     public TaskSampleHandler(TaskDto task) {
         super(task);
@@ -306,8 +305,8 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     protected Long getTaskMem() {
-        long mem = taskMemUsage.get();
-        return mem < 0L ? null : mem;
+        Long mem = taskMemUsage.get();
+        return null == mem || mem < 0L ? null : mem;
     }
 
     public void close() {
@@ -459,9 +458,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public Void handleCpuMemUsage(CpuMemUsageAspect aspect) {
         taskCpuUsage.set(aspect.getUsage().getCpuUsage());
-        if (null != aspect.getUsage().getHeapMemoryUsage() && aspect.getUsage().getHeapMemoryUsage() > 0L) {
-            taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
-        }
+        taskMemUsage.set(aspect.getUsage().getHeapMemoryUsage());
         return null;
     }
 }

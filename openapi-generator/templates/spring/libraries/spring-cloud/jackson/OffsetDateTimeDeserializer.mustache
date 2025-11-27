@@ -1,0 +1,32 @@
+package {{configPackage}};
+
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+
+public class OffsetDateTimeDeserializer extends JsonDeserializer<OffsetDateTime> {
+    @Override
+    public OffsetDateTime deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+        JsonNode node = p.getCodec().readTree(p);
+
+        // 如果是字符串，直接解析
+        if (node.isTextual()) {
+        return OffsetDateTime.parse(node.asText());
+        }
+
+        // 如果是对象，尝试从对象中提取日期信息
+        if (node.isObject() && node.has("$date")) {
+        String dateStr = node.get("$date").asText();
+        return OffsetDateTime.ofInstant(Instant.parse(dateStr), ZoneOffset.UTC);
+        }
+
+        return null;
+    }
+}

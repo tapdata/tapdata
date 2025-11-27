@@ -347,7 +347,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         } else if (node instanceof DatabaseNode) {
             // Nonsupport
         }
-        obsLogger.trace("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
+        obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
     }
 
     protected void checkUnwindConfiguration() {
@@ -550,7 +550,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             DataParentNode<?> dataParentNode = (DataParentNode<?>) getNode();
             final Boolean initialConcurrentInConfig = dataParentNode.getInitialConcurrent();
             this.concurrentWritePartitionMap = dataParentNode.getConcurrentWritePartitionMap();
-			Function<TapEvent, List<String>> partitionKeyFunction = new Function<TapEvent, List<String>>() {
+			Function<TapEvent, List<String>> partitionKeyFunction = new Function<>() {
 				private final Set<String> warnTag = new HashSet<>();
 
 				@Override
@@ -949,7 +949,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<TapRecordEvent> exactlyOnceWriteCache = new ArrayList<>();
         List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
 
-        initAndGetExactlyOnceWriteLookupList();
         AtomicBoolean hasExactlyOnceWriteCache = new AtomicBoolean(false);
         for (TapdataEvent tapdataEvent : tapdataEvents) {
             if (!isRunning()) {
@@ -984,9 +983,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         }
     }
 
-    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents
-            , AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache
-            , List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
+    protected void handleTapdataEvent(List<TapEvent> tapEvents, List<TapdataShareLogEvent> tapdataShareLogEvents,
+									  AtomicReference<TapdataEvent> lastTapdataEvent, AtomicBoolean hasExactlyOnceWriteCache,
+									  List<TapRecordEvent> exactlyOnceWriteCache, TapdataEvent tapdataEvent) {
         try {
             Optional.ofNullable(tapdataEvent.getSyncStage()).ifPresent(this::handleAspectWithSyncStage);
 
@@ -1045,6 +1044,45 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected void processTapEvents(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (CollectionUtils.isEmpty(tapEvents)) return;
 
+        // Group tapEvents by MergeInfo level
+        List<TapEvent> level1Events = new ArrayList<>();
+        List<TapEvent> otherLevelEvents = new ArrayList<>();
+        boolean hasMergeInfo = false;
+
+        for (TapEvent tapEvent : tapEvents) {
+            Object mergeInfoObj = tapEvent.getInfo(MergeInfo.EVENT_INFO_KEY);
+            if (mergeInfoObj instanceof MergeInfo) {
+                hasMergeInfo = true;
+                MergeInfo mergeInfo = (MergeInfo) mergeInfoObj;
+                Integer level = mergeInfo.getLevel();
+                if (level != null && level == 1) {
+                    level1Events.add(tapEvent);
+                } else {
+                    otherLevelEvents.add(tapEvent);
+                }
+            } else {
+                otherLevelEvents.add(tapEvent);
+            }
+        }
+
+        // If no MergeInfo exists, use original logic
+        if (!hasMergeInfo) {
+            processEventsWithExactlyOnceCheck(tapdataEvents, tapEvents, hasExactlyOnceWriteCache);
+            return;
+        }
+
+        // Process level=1 events with exactly once write if enabled
+        if (CollectionUtils.isNotEmpty(level1Events)) {
+            processEventsWithExactlyOnceCheck(tapdataEvents, level1Events, hasExactlyOnceWriteCache);
+        }
+
+        // Process other level events without exactly once write
+        if (CollectionUtils.isNotEmpty(otherLevelEvents)) {
+            processEvents(otherLevelEvents);
+        }
+    }
+
+    private void processEventsWithExactlyOnceCheck(List<TapdataEvent> tapdataEvents, List<TapEvent> tapEvents, AtomicBoolean hasExactlyOnceWriteCache) {
         if (Boolean.TRUE.equals(checkExactlyOnceWriteEnableResult.getEnable()) && hasExactlyOnceWriteCache.get()) {
             try {
                 transactionBegin();
@@ -1420,7 +1458,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 
     protected boolean handleExactlyOnceWriteCacheIfNeed(TapdataEvent tapdataEvent, List<TapRecordEvent> exactlyOnceWriteCache) {
-        if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()))) {
+		String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent());
+		if (!tableEnableExactlyOnceWrite(tapdataEvent.getSyncStage(), tgtTableNameFromTapEvent)) {
             return false;
         }
         if (null == exactlyOnceWriteCache) {
@@ -1432,7 +1471,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             throw new TapCodeException(TapExactlyOnceWriteExCode_22.WRITE_CACHE_FAILED_TIMESTAMP_IS_NULL, String.format("Event from tableId:%s,exactlyOnceId is %s", tapEvent.getTableId(), tapEvent.getExactlyOnceId()))
                     .dynamicDescriptionParameters(tapEvent.getTableId(), tapEvent.getExactlyOnceId());
         }
-        Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()), tapEvent, timestamp);
+        Map<String, Object> data = ExactlyOnceUtil.generateExactlyOnceCacheRow(getNode().getId(), tgtTableNameFromTapEvent, tapEvent, timestamp);
         TapInsertRecordEvent tapInsertRecordEvent = TapInsertRecordEvent.create()
                 .after(data)
                 .referenceTime(System.currentTimeMillis())
@@ -1878,10 +1917,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
         // Check only have one source node
         List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
-        if (predecessors.size() > 1) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("Exactly once write is not supported in any merge scenarios");
-        }
-
         if (CollectionUtils.isNotEmpty(predecessors)) {
             Node<?> sourceNode = predecessors.get(0);
             if (sourceNode instanceof TableNode) {

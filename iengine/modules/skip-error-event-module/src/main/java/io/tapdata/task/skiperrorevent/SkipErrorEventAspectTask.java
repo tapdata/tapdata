@@ -86,7 +86,7 @@ public class SkipErrorEventAspectTask extends AbstractAspectTask {
     private Map<String, AtomicLong> getTableMetrics(String tableName) {
         Map<String, AtomicLong> tableMetrics = syncAndSkipMap.get(tableName);
         if (null == tableMetrics) {
-            tableMetrics = syncAndSkipMap.computeIfAbsent(tableName, s -> new HashMap<>());
+            tableMetrics = syncAndSkipMap.computeIfAbsent(tableName, s -> new ConcurrentHashMap<>());
         }
         return tableMetrics;
     }

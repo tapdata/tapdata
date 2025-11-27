@@ -57,7 +57,6 @@ public class ExactlyOnceUtil {
 		}
 		exactlyOnceTable.setNameFieldMap(tapResult.getData());
 		exactlyOnceTable.add(new TapIndex().indexField(new TapIndexField().name("TIMESTAMP").fieldAsc(true)));
-		exactlyOnceTable.add(new TapIndex().indexField(new TapIndexField().name("TIMESTAMP").fieldAsc(true)));
 		return exactlyOnceTable;
 	}
 
