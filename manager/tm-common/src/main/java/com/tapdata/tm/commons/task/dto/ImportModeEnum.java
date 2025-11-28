@@ -21,8 +21,15 @@ public enum ImportModeEnum {
     /**
      * 取消导入：终止导入操作
      */
-    CANCEL_IMPORT("cancel_import");
-    
+    CANCEL_IMPORT("cancel_import"),
+
+    /**
+     * 使用现有连接，任务冲突则替换任务
+     */
+    REUSE_EXISTING("reuse_existing");
+
+
+
     private final String value;
     
     ImportModeEnum(String value) {

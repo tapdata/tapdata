@@ -744,6 +744,7 @@ class TaskServiceImplTest {
                 when(taskDto.getCrontabExpression()).thenReturn(expression);
                 when(taskDto.getCrontabExpressionFlag()).thenReturn(true);
                 doCallRealMethod().when(taskService).updateById(taskDto, user);
+                doCallRealMethod().when(taskService).updateById(taskDto, user,false);
                 assertThrows(BizException.class, ()->taskService.updateById(taskDto, user));
             }
         }
@@ -767,6 +768,7 @@ class TaskServiceImplTest {
             newSourceNode.add(mock(DatabaseNode.class));
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
+            doCallRealMethod().when(taskService).updateById(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
         }
@@ -787,6 +789,7 @@ class TaskServiceImplTest {
             newSourceNode.add(mock(DatabaseNode.class));
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
+            doCallRealMethod().when(taskService).updateById(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
         }
@@ -795,6 +798,7 @@ class TaskServiceImplTest {
         void test4(){
             when(taskDto.getId()).thenReturn(null);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
+            doCallRealMethod().when(taskService).updateById(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).create(taskDto, user);
         }
@@ -821,6 +825,7 @@ class TaskServiceImplTest {
             newSourceNode.add(mock(DatabaseNode.class));
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
+            doCallRealMethod().when(taskService).updateById(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaService,times(1)).transformSchema(any(),any(),any());
@@ -847,6 +852,7 @@ class TaskServiceImplTest {
             newSourceNode.add(mock(DatabaseNode.class));
             when(newDag.getSourceNode()).thenReturn(newSourceNode);
             doCallRealMethod().when(taskService).updateById(taskDto, user);
+            doCallRealMethod().when(taskService).updateById(taskDto, user,false);
             taskService.updateById(taskDto,user);
             verify(taskService, new Times(1)).save(taskDto, user);
             verify(transformSchemaAsyncService,times(1)).transformSchema(any(DAG.class),any(),any());
@@ -1809,7 +1815,7 @@ class TaskServiceImplTest {
             when(taskDto.getShareCache()).thenReturn(true);
             doCallRealMethod().when(taskService).confirmById(taskDto,user,confirm,importTask);
             taskService.confirmById(taskDto,user,confirm,importTask);
-            verify(taskService,new Times(1)).updateById(taskDto,user);
+            verify(taskService,new Times(1)).updateById(taskDto,user,importTask);
         }
     }
     @Nested

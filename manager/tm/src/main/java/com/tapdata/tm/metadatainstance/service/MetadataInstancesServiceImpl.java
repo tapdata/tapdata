@@ -2147,10 +2147,15 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                             MetadataInstancesDto newMeta = null;
                             metadataInstancesDto.setListtags(null);
                             if(!connectionId.equals(connectionDto.getId().toHexString())) {
-                                metadataInstancesDto.setId(new ObjectId());
                                 metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName().replace(connectionId, connectionDto.getId().toHexString()));
                                 metadataInstancesDto.setOriginalName(connectionDto.getName());
                                 metadataInstancesDto.setAncestorsName(connectionDto.getName());
+                                MetadataInstancesDto oldMeta = findByQualifiedNameNotDelete(metadataInstancesDto.getQualifiedName(), user, "_id");
+                                if (oldMeta != null) {
+                                    metadataInstancesDto.setId(oldMeta.getId());
+                                }else{
+                                    metadataInstancesDto.setId(new ObjectId());
+                                }
                             }
                             newMeta = importEntity(metadataInstancesDto, user);
                             databaseIdMap.put(oldDatabaseId,newMeta.getId().toHexString());
@@ -2185,7 +2190,6 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                                 if(oldQualifiedName.contains(oldTaskId)){
                                     String newQualifiedName = oldQualifiedName.replace(connectionId, connectionDto.getId().toHexString()).replace(oldTaskId, taskMap.get(oldTaskId));
                                     metadataInstancesDto.setQualifiedName(newQualifiedName);
-                                    metadataInstancesDto.setId(new ObjectId());
                                 }
                             }
                             if(org.apache.commons.lang3.StringUtils.isNotBlank(oldNodeId) && null != nodeMap && nodeMap.containsKey(oldNodeId)){
@@ -2193,8 +2197,13 @@ public class MetadataInstancesServiceImpl extends MetadataInstancesService {
                                 if(oldQualifiedName.contains(oldNodeId)){
                                     String newQualifiedName = oldQualifiedName.replace(oldNodeId, nodeMap.get(oldNodeId));
                                     metadataInstancesDto.setQualifiedName(newQualifiedName);
-                                    metadataInstancesDto.setId(new ObjectId());
                                 }
+                            }
+                            MetadataInstancesDto oldMeta = findByQualifiedNameNotDelete(metadataInstancesDto.getQualifiedName(), user, "_id");
+                            if (oldMeta != null) {
+                                metadataInstancesDto.setId(oldMeta.getId());
+                            }else{
+                                metadataInstancesDto.setId(new ObjectId());
                             }
                             metadataInstancesDto.setSource(sourceDto);
                             MetadataInstancesDto newMeta = null;
