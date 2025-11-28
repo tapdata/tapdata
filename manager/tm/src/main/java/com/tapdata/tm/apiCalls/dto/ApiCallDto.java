@@ -98,4 +98,23 @@ public class ApiCallDto extends BaseDto {
      * Database access time for API requests
      * */
     private Long dataQueryTotalTime;
+    /**
+     * query Of Count
+     * */
+    private String queryOfCount;
+
+    /**
+     * query Of Page
+     * */
+    private String queryOfPage;
+
+    /**
+     * query Of total count of table
+     * */
+    private Long totalRows;
+
+    /**
+     * query Of http request cost time(ms)
+     * */
+    private Long requestCost;
 }
