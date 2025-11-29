@@ -243,9 +243,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		List<TapIndex> indexList = tapTable.getIndexList();
 		boolean createdTable = createTable(tapTable, succeed, init);
 		clearData(existsDataProcessEnum, tableId);
-		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable, indexList);
 		//sync index
 		syncIndex(tableId, tapTable, indexList, succeed.get());
+		createTargetIndex(updateConditionFields, succeed.get(), tableId, tapTable, createdTable, indexList);
 		if (null != funcAspect)
 			funcAspect.state(TableInitFuncAspect.STATE_PROCESS).completed(tableId, createdTable);
 		return createdTable;
@@ -590,8 +590,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (indexFields1.size() != indexFields2.size()) {
 			return false;
 		}
-		indexFields1.sort(Comparator.comparing(TapIndexField::getName));
-		indexFields2.sort(Comparator.comparing(TapIndexField::getName));
 		for (int i = 0; i < indexFields1.size(); i++) {
 			TapIndexField tapIndexField1 = indexFields1.get(i);
 			TapIndexField tapIndexField2 = indexFields2.get(i);
