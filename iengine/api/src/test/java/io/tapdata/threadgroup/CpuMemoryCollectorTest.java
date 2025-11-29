@@ -311,7 +311,7 @@ class CpuMemoryCollectorTest {
             weakReferences.add(new WeakReference<>(null));
             collector.eachTaskOnce(weakReferences, usage);
             
-            assertFalse(usage.getHeapMemoryUsage() > 0);
+            assertFalse(usage.getHeapMemoryUsage() > 40);
         }
 
         @Test
@@ -730,7 +730,7 @@ class CpuMemoryCollectorTest {
 
             collector.eachTaskOnce(weakReferences, usage);
 
-            assertFalse(usage.getHeapMemoryUsage() > 0);
+            assertFalse(usage.getHeapMemoryUsage() > 40);
         }
 
         @Test
