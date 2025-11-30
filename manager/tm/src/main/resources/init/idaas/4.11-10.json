@@ -1,0 +1,23 @@
+[
+  {
+    "insert": "Settings",
+    "documents": [
+      {
+        "_class": "com.tapdata.tm.Settings.dto.SettingsDto",
+        "category": "ApiServer",
+        "category_sort": "19",
+        "default_value": "true",
+        "documentation": "Database query compression enabled",
+        "hot_reloading": false,
+        "key": "database_query_compression_enabled",
+        "key_label": "Database query compression enabled",
+        "last_update": 0,
+        "scope": "global",
+        "sort": "19",
+        "user_visible": true,
+        "value": "false",
+        "enums": ["true", "false"]
+      }
+    ]
+  }
+]

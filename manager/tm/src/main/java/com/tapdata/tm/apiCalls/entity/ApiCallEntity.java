@@ -98,4 +98,24 @@ public class ApiCallEntity extends BaseEntity {
      * api请求的数据库访问耗时
      * */
     private Long dataQueryTotalTime;
+
+    /**
+     * query Of Count
+     * */
+    private String queryOfCount;
+
+    /**
+     * query Of Page
+     * */
+    private String queryOfPage;
+
+    /**
+     * query Of total count of table
+     * */
+    private Long totalRows;
+
+    /**
+     * query Of http request cost time(ms)
+     * */
+    private Long requestCost;
 }
