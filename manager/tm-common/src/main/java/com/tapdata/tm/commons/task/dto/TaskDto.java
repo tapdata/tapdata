@@ -201,6 +201,11 @@ public class TaskDto extends ParentTaskDto implements IDataPermissionDto {
     private Boolean doubleActive;
 
     /**
+     * 是否开启省流
+     */
+    private Boolean dataSaving;
+
+    /**
      * 是否启用同步指标收集，启用时任务停止打印同步指标
      */
     private Boolean enableSyncMetricCollector;
