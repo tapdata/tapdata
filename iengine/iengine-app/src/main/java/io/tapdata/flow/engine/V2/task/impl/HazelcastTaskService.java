@@ -12,6 +12,8 @@ import com.hazelcast.jet.config.ProcessingGuarantee;
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;
 import com.hazelcast.jet.core.Vertex;
+import com.hazelcast.persistence.ConstructType;
+import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.external.ExternalStorageCacheService;
 import com.tapdata.constant.ConfigurationCenter;
@@ -43,10 +45,11 @@ import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.process.script.ScriptProcessNode;
 import com.tapdata.tm.commons.dag.process.script.py.PyProcessNode;
 import com.tapdata.tm.commons.dag.vo.ReadPartitionOptions;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
-import com.tapdata.tm.commons.task.dto.ErrorEvent;
-import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
+import com.tapdata.tm.utils.MergeTablePropertiesUtil;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.taskmilestones.EngineDeductionAspect;
@@ -115,6 +118,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService.SNAPSHOT_ORDER_LIST_KEY;
 
 /**
  * @author jackin
@@ -343,6 +348,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		if (taskDto.isNormalTask()) {
 			initSourceInitialCounter(taskDtoAtomicReference.get());
 			// init snapshot order (only for normal task)
+			checkMergeTaskReBuildCache(taskDtoAtomicReference.get());
 			initSnapshotOrder(taskDtoAtomicReference);
 		}
 
@@ -1131,6 +1137,78 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		MergeNodeCleaner mergeNodeCleaner = new MergeNodeCleaner();
 		mergeNodeCleaner.cleanTaskNode(taskDto.getId().toHexString(), nodeId);
 		logger.info("Clear {} master-slave merge cache", nodeId);
+	}
+
+	protected void checkMergeTaskReBuildCache(TaskDto taskDto) {
+		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
+		if (null == dag || !dag.isMergeTableDag() || (taskDto.isInitialSyncTask() && !taskDto.hasSyncProgress())){
+			return;
+		}
+		List<Node> nodes = taskDto.getDag().getNodes();
+		Map<String,List<Map<String, String>>> cacheIdsMap =  null != taskDto.getAttrs() ? (Map<String,List<Map<String, String>>>) taskDto.getAttrs().get("mergeTableCacheIdList") : null;
+		Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(taskDto.getId().toHexString());
+		AtomicInteger mergeRebuildCache = new AtomicInteger(0);
+		nodes.stream().filter(node -> node instanceof MergeTableNode).forEach(node -> {
+			MergeTableNode mergeTableNode = (MergeTableNode) node;
+			Map<String, List<MergeTableProperties>> lookupMap = new HashMap<>();
+			MergeTablePropertiesUtil.initLookupMergeProperties(mergeTableNode.getMergeProperties(),lookupMap);
+			lookupMap.values().forEach(lookupList -> {
+				List<MergeTableProperties> cacheRebuildList = lookupList.stream()
+						.filter(mergeTableProperties -> null !=mergeTableProperties
+								&& null != mergeTableProperties.getCacheRebuildStatus()
+								&& CacheRebuildStatus.PENDING.equals(mergeTableProperties.getCacheRebuildStatus())).toList();
+				//清除失效缓存
+				if(MapUtils.isNotEmpty(cacheIdsMap) && cacheIdsMap.containsKey(mergeTableNode.getId()) && CollectionUtils.isNotEmpty(cacheRebuildList)){
+					List<String> newCacheIdList = lookupList.stream().map(MergeTableProperties::getId).toList();
+					List<Map<String, String>> cacheIdList = cacheIdsMap.get(mergeTableNode.getId());
+					List<Map<String, String>> deleteCacheIdList = cacheIdList.stream().filter(info -> !newCacheIdList.contains(info.get("id"))).toList();
+					deleteMergeTableCache(node,deleteCacheIdList);
+				}
+				if(CollectionUtils.isNotEmpty(cacheRebuildList)){
+					deleteMergeTableCache(node,cacheRebuildList.stream().map(mergeTableProperties -> {
+						Map<String, String> cacheInfo = new HashMap<>();
+						cacheInfo.put("id", mergeTableProperties.getId());
+						cacheInfo.put("tableName", mergeTableProperties.getTableName());
+						return cacheInfo;
+					}).toList());
+				}
+				cacheRebuildList.forEach(mergeTableProperties -> {
+					List<TableNode> sourceTableNodes = dag.getSourceTableNodes(mergeTableProperties.getId());
+					if(CollectionUtils.isNotEmpty(sourceTableNodes)){
+						sourceTableNodes.forEach(sourceTableNode -> {
+							sourceTableNode.setReFullRun(true);
+							sourceTableNode.setMergeTablePropertiesId(mergeTableProperties.getId());
+							sourceTableNode.setMergeNodeId(mergeTableNode.getId());
+							mergeRebuildCache.incrementAndGet();
+						});
+						taskDto.setReFullRun(true);
+						taskDto.getAttrs().remove(SNAPSHOT_ORDER_LIST_KEY);
+					}
+				});
+
+			});
+		});
+		taskGlobalVariable.put(TaskGlobalVariable.MERGE_REBUILD_CACHE, mergeRebuildCache);
+
+	}
+
+	protected void deleteMergeTableCache(Node node,List<Map<String, String>> cacheInfoList){
+		if(node instanceof MergeTableNode){
+			Map<String,String> deleteCacheIdMap = cacheInfoList.stream().collect(Collectors.toMap(map -> map.get("id"), map -> map.get("tableName")));
+			ExternalStorageDto externalStorageDto = ExternalStorageUtil.getExternalStorage(node);
+			for(Map.Entry<String,String> entry : deleteCacheIdMap.entrySet()) {
+				String cacheName = HazelcastMergeNode.getMergeCacheName(entry.getKey(), entry.getValue());
+				try {
+					HazelcastInstance hazelcastInstance = HazelcastUtil.getInstance();
+					ExternalStorageUtil.initHZMapStorage(externalStorageDto, HazelcastMergeNode.class.getSimpleName(),String.valueOf(cacheName.hashCode()),hazelcastInstance.getConfig());
+					PersistenceStorage.getInstance().clear(ConstructType.IMAP, String.valueOf(cacheName.hashCode()));
+				}catch (Exception e){
+					logger.warn("Clear merge table cache failed, message: {}", e.getMessage());
+				}finally {
+					PersistenceStorage.getInstance().destroy(HazelcastMergeNode.class.getSimpleName(), ConstructType.IMAP, String.valueOf(cacheName.hashCode()));
+				}
+			}
+		}
 	}
 
 	protected TapConnectorContext.IsomorphismType sourceAndSinkIsomorphismType(TaskDto taskDto) {

@@ -10,10 +10,8 @@ import com.tapdata.tm.commons.dag.check.DAGCheckUtil;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.tapdata.tm.commons.dag.vo.FieldChangeRuleGroup;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -1057,6 +1055,19 @@ public class DAG implements Serializable, Cloneable {
         return false;
     }
 
+    public boolean isMergeTableDag() {
+        Collection<String> nodes = this.graph.getNodes();
+        for (String nodeName : nodes) {
+            Node node = this.graph.getNode(nodeName);
+            if (node != null) {
+                if (node instanceof MergeTableNode) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public LinkedList<DatabaseNode> getSourceNode() {
         return graph.getNodes()
                 .stream()
@@ -1083,12 +1094,46 @@ public class DAG implements Serializable, Cloneable {
         return node instanceof DatabaseNode ? (DatabaseNode) node : null;
     }
 
+    /**
+     * 获取链路源节点列表，可能有多个
+     * @param nodeId 节点ID
+     * @return 源节点列表（TableNode类型）
+     */
+    public List<TableNode> getSourceTableNodes(String nodeId) {
+        List<String> sourceNodeIds = getSourceNodeIdsByNode(nodeId);
+        return sourceNodeIds.stream()
+                .map(graph::getNode)
+                .filter(node -> node instanceof TableNode)
+                .map(node -> (TableNode) node)
+                .collect(Collectors.toList());
+    }
+
     private String getSourceNodeIdByNode(String nodeId) {
         Collection<String> collection = graph.predecessors(nodeId);
         if (collection.isEmpty()) {
             return nodeId;
         } else {
             return getSourceNodeIdByNode(collection.iterator().next());
+        }
+    }
+
+    /**
+     * 获取链路源节点ID列表，可能有多个
+     * @param nodeId 节点ID
+     * @return 源节点ID列表
+     */
+    private List<String> getSourceNodeIdsByNode(String nodeId) {
+        Collection<String> predecessors = graph.predecessors(nodeId);
+        if (predecessors.isEmpty()) {
+            // 当前节点没有前驱节点，说明它本身就是源节点
+            return Collections.singletonList(nodeId);
+        } else {
+            // 递归获取所有前驱节点的源节点
+            List<String> sourceNodeIds = new ArrayList<>();
+            for (String predecessorId : predecessors) {
+                sourceNodeIds.addAll(getSourceNodeIdsByNode(predecessorId));
+            }
+            return sourceNodeIds;
         }
     }
 

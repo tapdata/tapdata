@@ -36,6 +36,7 @@ public enum TaskGlobalVariable implements MemoryFetcher {
 
 	public final static String SOURCE_INITIAL_COUNTER_KEY = "SOURCE_INITIAL_COUNTER";
 	public final static String PREVIEW_COMPLETE_KEY = "PREVIEW_COMPLETE";
+	public final static String MERGE_REBUILD_CACHE = "MERGE_REBUILD_CACHE";
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {

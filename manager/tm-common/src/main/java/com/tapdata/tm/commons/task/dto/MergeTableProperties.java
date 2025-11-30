@@ -29,6 +29,7 @@ public class MergeTableProperties implements Serializable {
 	private Boolean enableUpdateJoinKeyValue;
 	private String parentId;
 	private Boolean ignoreUpdateEvent;
+	private CacheRebuildStatus cacheRebuildStatus;
 
 	public boolean getIsArray() {
 		return isArray;

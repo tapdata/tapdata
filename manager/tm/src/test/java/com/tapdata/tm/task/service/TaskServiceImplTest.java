@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
+import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
@@ -24,6 +25,8 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.ImportModeEnum;
 
 import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.task.dto.MergeTablePropertiesInfo;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
 
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
@@ -102,6 +105,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.sample.request.Sample;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.exception.TapCodeException;
@@ -147,6 +151,7 @@ import java.util.stream.Collectors;
 
 import static com.tapdata.tm.task.service.TaskServiceImpl.AGENT_ID;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.beans.BeanUtils.copyProperties;
 
@@ -6447,6 +6452,353 @@ class TaskServiceImplTest {
 
             verify(taskService, never()).checkTaskName(anyString(), any(UserDetail.class), any(ObjectId.class));
             verify(taskService, never()).updateById(any(ObjectId.class), any(Update.class), any(UserDetail.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("GetMergeTaskCacheManager测试类")
+    class GetMergeTaskCacheManagerTest {
+        private String taskId;
+        private String nodeId;
+        private UserDetail userDetail;
+        private TaskDto taskDto;
+        private DAG dag;
+        private Node mergeTableNode;
+        private ExternalStorageDto externalStorageDto;
+        private ExternalStorageService externalStorageService;
+
+        @BeforeEach
+        void setUp() {
+            taskId = "507f1f77bcf86cd799439011";
+            nodeId = "mergeNode1";
+            userDetail = mock(UserDetail.class);
+            taskDto = new TaskDto();
+            taskDto.setId(new ObjectId(taskId));
+            taskDto.setName("Test Task");
+            taskDto.setStatus(TaskDto.STATUS_RUNNING);
+            taskDto.setAgentId("agent1");
+            externalStorageService = mock(ExternalStorageService.class);
+            dag = mock(DAG.class);
+            taskDto.setDag(dag);
+            ReflectionTestUtils.setField(taskService, "externalStorageService", externalStorageService);
+
+            mergeTableNode = mock(MergeTableNode.class);
+            when(mergeTableNode.getId()).thenReturn(nodeId);
+            when(mergeTableNode.getName()).thenReturn("MergeNode");
+            when(mergeTableNode.getExternalStorageId()).thenReturn("externalStorage1");
+
+            externalStorageDto = new ExternalStorageDto();
+            externalStorageDto.setId(new ObjectId());
+            externalStorageDto.setName("External Storage");
+            externalStorageDto.setInMemSize(100);
+        }
+
+        @Test
+        @DisplayName("测试非合并表任务抛出异常")
+        void testNotMergeTableTask() {
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(false).when(taskService).checkMergeTableTask(taskDto);
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            List<MergeTablePropertiesInfo> result = taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("测试节点不是MergeTableNode时返回空列表")
+        void testNodeNotMergeTableNode() {
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+
+            Node tableNode = mock(TableNode.class);
+            when(dag.getNode(nodeId)).thenReturn(tableNode);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(true).when(taskService).checkMergeTableTask(taskDto);
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            List<MergeTablePropertiesInfo> result = taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        @DisplayName("测试ExternalStorage不存在时抛出异常")
+        void testExternalStorageNotFound() {
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+
+            when(dag.getNode(nodeId)).thenReturn(mergeTableNode);
+            when(mergeTableNode.getExternalStorageId()).thenReturn(null);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(true).when(taskService).checkMergeTableTask(taskDto);
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            assertTrue(taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, false).isEmpty());
+        }
+
+        @Test
+        @DisplayName("测试成功获取缓存管理信息且check为false")
+        void testGetCacheManagerSuccessWithoutCheck() throws Throwable {
+            // 准备数据
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+
+            when(dag.getNode(nodeId)).thenReturn(mergeTableNode);
+            when(dag.getNodes()).thenReturn(Arrays.asList(mergeTableNode));
+
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            MergeTableProperties property1 = new MergeTableProperties();
+            property1.setId("prop");
+            property1.setTableName("table");
+            MergeTableProperties propertyChild = new MergeTableProperties();
+            propertyChild.setId("prop1");
+            propertyChild.setTableName("table1");
+            propertyChild.setCacheRebuildStatus(CacheRebuildStatus.PENDING);
+            property1.setChildren(Arrays.asList(propertyChild));
+            mergeProperties.add(property1);
+            MergeTableNode mergeTableNode = (MergeTableNode) this.mergeTableNode;
+            when(mergeTableNode.getMergeProperties()).thenReturn(mergeProperties);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(true).when(taskService).checkMergeTableTask(taskDto);
+            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+
+            // Mock callEngineRpc返回
+            DataMap dataMap = new DataMap();
+            List<CacheStatistics> cacheStatisticsList = new ArrayList<>();
+            CacheStatistics cacheStatistics = CacheStatistics.createLocalCache(1024L, 100L, 1000L);
+            cacheStatisticsList.add(cacheStatistics);
+            dataMap.put("prop1", JSON.parseArray(JSON.toJSONString(cacheStatisticsList)));
+
+            doReturn(dataMap).when(taskService).callEngineRpc(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(), any(), any(), any(), any(), any()
+            );
+
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            // 执行测试
+            List<MergeTablePropertiesInfo> result = taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            // 验证
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            MergeTablePropertiesInfo info = result.get(0);
+            assertEquals("prop1", info.getMergeTablePropertiesId());
+            assertEquals("table1", info.getTableName());
+            assertEquals(nodeId, info.getMergeNodeId());
+            assertEquals(CacheRebuildStatus.PENDING, info.getCacheRebuildStatus());
+            assertNotNull(info.getCacheStatisticsList());
+            assertEquals(1, info.getCacheStatisticsList().size());
+        }
+
+        @Test
+        @DisplayName("测试check为true且有需要重建的缓存")
+        void testGetCacheManagerWithCheckAndNeedRebuild() throws Throwable {
+            // 准备数据
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+            when(dag.getNodes()).thenReturn(Arrays.asList(mergeTableNode));
+
+            when(dag.getNode(nodeId)).thenReturn(mergeTableNode);
+
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            MergeTableProperties property1 = new MergeTableProperties();
+            property1.setId("prop");
+            property1.setTableName("table");
+            property1.setCacheRebuildStatus(CacheRebuildStatus.RUNNING);
+            MergeTableProperties propertyChild = new MergeTableProperties();
+            propertyChild.setId("prop1");
+            propertyChild.setTableName("table1");
+            propertyChild.setCacheRebuildStatus(CacheRebuildStatus.RUNNING);
+            property1.setChildren(Arrays.asList(propertyChild));
+            mergeProperties.add(property1);
+            MergeTableNode mergeTableNode = (MergeTableNode) this.mergeTableNode;
+            when(mergeTableNode.getMergeProperties()).thenReturn(mergeProperties);
+
+            // 设置attrs中的mergeTableCacheIdList
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, List<Map<String, String>>> cacheIdsMap = new HashMap<>();
+            List<Map<String, String>> cacheIdList = new ArrayList<>();
+            Map<String, String> cacheInfo = new HashMap<>();
+            cacheInfo.put("id", "prop2"); // 旧的缓存ID，不在新的列表中
+            cacheInfo.put("tableName", "table2");
+            cacheIdList.add(cacheInfo);
+            cacheIdsMap.put(nodeId, cacheIdList);
+            attrs.put("mergeTableCacheIdList", cacheIdsMap);
+            taskDto.setAttrs(attrs);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(true).when(taskService).checkMergeTableTask(taskDto);
+            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+
+            // Mock callEngineRpc返回
+            DataMap dataMap = new DataMap();
+            List<CacheStatistics> cacheStatisticsList = new ArrayList<>();
+            CacheStatistics cacheStatistics = CacheStatistics.createLocalCache(1024L, 100L, 1000L);
+            cacheStatisticsList.add(cacheStatistics);
+            dataMap.put("prop1", JSON.parseArray(JSON.toJSONString(cacheStatisticsList)));
+
+            doReturn(dataMap).when(taskService).callEngineRpc(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(), any(), any(), any(), any(), any()
+            );
+
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, true);
+
+            // 执行测试
+            List<MergeTablePropertiesInfo> result = taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, true);
+
+            // 验证 - prop1是新增的，需要重建，但状态不是PENDING，所以needRebuild应该为true
+            assertNotNull(result);
+            assertEquals(1, result.size());
+            MergeTablePropertiesInfo info = result.get(0);
+            assertEquals("prop1", info.getMergeTablePropertiesId());
+            assertTrue(info.isNeedRebuild());
+        }
+
+        @Test
+        @DisplayName("测试check为true但没有需要重建的缓存返回空列表")
+        void testGetCacheManagerWithCheckButNoNeedRebuild() throws Throwable {
+            // 准备数据
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+
+            when(dag.getNodes()).thenReturn(Arrays.asList(mergeTableNode));
+
+            when(dag.getNode(nodeId)).thenReturn(mergeTableNode);
+
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            MergeTableProperties property1 = new MergeTableProperties();
+            property1.setId("prop");
+            property1.setTableName("table");
+            property1.setCacheRebuildStatus(CacheRebuildStatus.DONE);
+            MergeTableProperties propertyChild = new MergeTableProperties();
+            propertyChild.setId("prop1");
+            propertyChild.setTableName("table1");
+            propertyChild.setCacheRebuildStatus(CacheRebuildStatus.DONE);
+            property1.setChildren(Arrays.asList(propertyChild));
+            mergeProperties.add(property1);
+            MergeTableNode mergeTableNode = (MergeTableNode) this.mergeTableNode;
+            when(mergeTableNode.getMergeProperties()).thenReturn(mergeProperties);
+
+            // 设置attrs中的mergeTableCacheIdList，包含prop1
+            Map<String, Object> attrs = new HashMap<>();
+            Map<String, List<Map<String, String>>> cacheIdsMap = new HashMap<>();
+            List<Map<String, String>> cacheIdList = new ArrayList<>();
+            Map<String, String> cacheInfo = new HashMap<>();
+            cacheInfo.put("id", "prop1");
+            cacheInfo.put("tableName", "table1");
+            cacheIdList.add(cacheInfo);
+            cacheIdsMap.put(nodeId, cacheIdList);
+            attrs.put("mergeTableCacheIdList", cacheIdsMap);
+            taskDto.setAttrs(attrs);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(true).when(taskService).checkMergeTableTask(taskDto);
+            when(externalStorageService.findById(any())).thenReturn(externalStorageDto);
+
+            // Mock callEngineRpc返回
+            DataMap dataMap = new DataMap();
+            List<CacheStatistics> cacheStatisticsList = new ArrayList<>();
+            CacheStatistics cacheStatistics = CacheStatistics.createLocalCache(1024L, 100L, 1000L);
+            cacheStatisticsList.add(cacheStatistics);
+            dataMap.put("prop1", JSON.parseArray(JSON.toJSONString(cacheStatisticsList)));
+
+            doReturn(dataMap).when(taskService).callEngineRpc(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(), any(), any(), any(), any(), any()
+            );
+
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, true);
+
+            // 执行测试
+            List<MergeTablePropertiesInfo> result = taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, true);
+
+            // 验证 - prop1已存在，不需要重建，返回空列表
+            assertNotNull(result);
+            assertFalse(result.get(0).isNeedRebuild());
+        }
+
+        @Test
+        @DisplayName("测试callEngineRpc抛出异常")
+        void testCallEngineRpcThrowsException() throws Throwable {
+            // 准备数据
+            Field field = new Field();
+            field.put("dag", true);
+            field.put("name", true);
+            field.put("status", true);
+            field.put("agentId", true);
+            field.put("attrs", true);
+
+            when(dag.getNode(nodeId)).thenReturn(mergeTableNode);
+
+            List<MergeTableProperties> mergeProperties = new ArrayList<>();
+            MergeTableProperties property1 = new MergeTableProperties();
+            property1.setId("prop1");
+            property1.setTableName("table1");
+            mergeProperties.add(property1);
+            MergeTableNode mergeTableNode = (MergeTableNode) this.mergeTableNode;
+            when(mergeTableNode.getMergeProperties()).thenReturn(mergeProperties);
+
+            doReturn(taskDto).when(taskService).findById(any(ObjectId.class), any(Field.class), any(UserDetail.class));
+            doReturn(true).when(taskService).checkMergeTableTask(taskDto);
+            doReturn(externalStorageDto).when(externalStorageService).findById(any(ObjectId.class));
+
+            // Mock callEngineRpc抛出异常
+            doThrow(new RuntimeException("Engine RPC failed")).when(taskService).callEngineRpc(
+                    eq("agent1"),
+                    eq(DataMap.class),
+                    eq("MemoryService"),
+                    eq("mergeCacheManager"),
+                    any()
+            );
+
+            doCallRealMethod().when(taskService).getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            List<MergeTablePropertiesInfo> result = taskService.getMergeTaskCacheManager(taskId, nodeId, userDetail, false);
+
+            assertNotNull(result);
+            assertTrue(result.isEmpty());
         }
     }
 }

@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.task.constant.SyncType;
 import io.swagger.annotations.ApiParam;
 import org.springframework.core.io.InputStreamResource;
@@ -21,9 +22,6 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
-import com.tapdata.tm.commons.task.dto.ErrorEvent;
-import com.tapdata.tm.commons.task.dto.ImportModeEnum;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
 import com.tapdata.tm.commons.util.ProcessorNodeType;
 import com.tapdata.tm.config.security.UserDetail;
@@ -1498,6 +1496,32 @@ public class TaskController extends BaseController {
     @PostMapping("/update-cpu-memory")
     public ResponseMessage<Object> refreshSchemas(@RequestBody Map<String, Map<String, Number>> usageMap) {
         cpuMemoryService.updateTaskCpuMemory(usageMap);
+        return success();
+    }
+
+    @GetMapping("/getMergeTaskCacheManager")
+    public ResponseMessage<List<MergeTablePropertiesInfo>> getMergeTaskCacheManager(@RequestParam("taskId") String taskId,
+                                                                                    @RequestParam("nodeId") String nodeId,
+                                                                                    @RequestParam(name = "check") Boolean check){
+        return success(taskService.getMergeTaskCacheManager(taskId, nodeId, getLoginUser(),check));
+    }
+    @Operation(summary = "主从合并任务缓存状态更新")
+    @PostMapping("/mergeTablePropertiesRebuildStatus/update")
+    public ResponseMessage<Void> updateMergeTablePropertiesRebuildStatus(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+        String taskId = (String)where.get("taskId");
+        String nodeId = (String)where.get("nodeId");
+        String mergeTablePropertiesId = (String)where.get("mergeTablePropertiesId");
+        Document update = Document.parse(reqBody);
+        Document set = (Document)update.get("$set");
+        taskService.updateMergeTablePropertiesRebuildStatus(taskId, nodeId, mergeTablePropertiesId, getLoginUser(),(String)set.get("status"));
+        return success();
+    }
+
+    @Operation(summary = "主从合并任务合并缓存信息保存")
+    @PostMapping("/saveMergeTableCacheInfo/{id}")
+    public ResponseMessage<Void> saveMergeTableCacheInfo(@PathVariable("id") String id) {
+        taskService.saveMergeTableCacheInfo(id);
         return success();
     }
 }

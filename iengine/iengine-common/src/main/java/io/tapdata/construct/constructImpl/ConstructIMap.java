@@ -5,6 +5,7 @@ import com.hazelcast.map.IMap;
 import com.hazelcast.persistence.ConstructType;
 import com.hazelcast.persistence.PersistenceStorage;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.CacheStatistics;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
@@ -147,5 +148,18 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 		if (PersistenceStorage.getInstance().destroy(referenceId, ConstructType.IMAP, name) && null != iMap) {
 			iMap.destroy();
 		}
+	}
+
+	@Override
+	public CacheStatistics getStatistics(){
+		Number memorySize = iMap.getLocalMapStats().getOwnedEntryMemoryCost();
+		Number entryCount = iMap.getLocalMapStats().getOwnedEntryCount();
+		Number entryCountLimit;
+		if(memorySize.longValue() == 0 || entryCount.longValue() == 0){
+			entryCountLimit = 0;
+		}else{
+			entryCountLimit = (externalStorageDto.getInMemSize() * 1024 * 1024) / (memorySize.longValue() / entryCount.longValue());
+		}
+		return CacheStatistics.createLocalCache(memorySize,entryCount,entryCountLimit);
 	}
 }
