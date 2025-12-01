@@ -7,6 +7,7 @@ import com.google.common.collect.Queues;
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -345,8 +346,25 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
             exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
             obsLogger.trace("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
         } else if (node instanceof DatabaseNode) {
-            // Nonsupport
-        }
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncTables = ((DatabaseNode) node).getSyncObjects().stream().filter(o -> o.getType().equals(SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
+			if (syncTables != null) {
+				List<String> objectNames = syncTables.getObjectNames();
+				if (CollectionUtils.isNotEmpty(objectNames)) {
+					objectNames.forEach(tableName -> {
+						ExactlyOnceWriteCleanerEntity exactlyOnceWriteCleanerEntity = new ExactlyOnceWriteCleanerEntity(
+								tableName,
+								node.getId(),
+								((DatabaseNode) node).getIncrementExactlyOnceEnableTimeWindowDay(),
+								((DatabaseNode) node).getConnectionId()
+						);
+						ExactlyOnceWriteCleaner.getInstance().registerCleaner(exactlyOnceWriteCleanerEntity);
+						exactlyOnceWriteCleanerEntities.add(exactlyOnceWriteCleanerEntity);
+						obsLogger.trace("Registered exactly once write cleaner: {}", exactlyOnceWriteCleanerEntity);
+						exactlyOnceWriteTables.add(tableName);
+					});
+				}
+			}
+		}
         obsLogger.info("Exactly once write has been enabled, and the effective table is: {}", StringUtil.subLongString(Arrays.toString(exactlyOnceWriteTables.toArray()), 100, "..."));
     }
 
@@ -1138,9 +1156,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<String> lookupTables = initAndGetExactlyOnceWriteLookupList();
         String tgtTableNameFromTapEvent = getTgtTableNameFromTapEvent(tapRecordEvent);
         if (null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent) && hasExactlyOnceWriteCache.get() && eventExactlyOnceWriteCheckExists(tapdataEvent)) {
-            if (obsLogger.isDebugEnabled()) {
-                obsLogger.debug("Event check exactly once write exists, will ignore it: {}" + JSONUtil.obj2Json(tapRecordEvent));
-            }
+			obsLogger.trace("Event check exactly once write exists, will ignore it: {}", JSONUtil.obj2Json(tapRecordEvent));
             return;
         } else {
             if (SyncStage.CDC.equals(tapdataEvent.getSyncStage()) && null != lookupTables && lookupTables.contains(tgtTableNameFromTapEvent)) {
@@ -1890,15 +1906,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
     protected CheckExactlyOnceWriteEnableResult enableExactlyOnceWrite() {
         // Check whether the table supports exactly once write
-        Node node = getNode();
-        if (node instanceof TableNode) {
-            TableNode tableNode = (TableNode) getNode();
-            if (null == tableNode.getIncrementExactlyOnceEnable() || !tableNode.getIncrementExactlyOnceEnable()) {
+        Node<?> node = getNode();
+        if (node instanceof TableNode || node instanceof DatabaseNode) {
+            DataParentNode<?> dataParentNode = (DataParentNode<?>) node;
+            if (null == dataParentNode.getIncrementExactlyOnceEnable() || !dataParentNode.getIncrementExactlyOnceEnable()) {
                 return CheckExactlyOnceWriteEnableResult.createDisable("");
             }
         } else {
             // Other data node type nonsupport exactly once write
-            return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s nonsupport exactly once write", node.getClass().getSimpleName()));
+            return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Node type %s is not support exactly once write", node.getClass().getSimpleName()));
         }
 
         // Check whether the connector supports exactly once write functions
@@ -1909,7 +1925,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         TransactionRollbackFunction transactionRollbackFunction = connectorFunctions.getTransactionRollbackFunction();
         QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
         if (null == transactionBeginFunction || null == transactionCommitFunction || null == transactionRollbackFunction) {
-            return CheckExactlyOnceWriteEnableResult.createDisable("The connector nonsupport exactly once write transaction functions: begin, commit, rollback");
+            return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write transaction functions: begin, commit, rollback");
         }
         if (null == queryByAdvanceFilterFunction) {
             return CheckExactlyOnceWriteEnableResult.createDisable("The connector is not support exactly once write functions: query by advance filter");
@@ -1919,18 +1935,19 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
         List<Node<?>> predecessors = GraphUtil.predecessors(node, Node::isDataNode);
         if (CollectionUtils.isNotEmpty(predecessors)) {
             Node<?> sourceNode = predecessors.get(0);
-            if (sourceNode instanceof TableNode) {
-                String connectionId = ((TableNode) sourceNode).getConnectionId();
-                Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-                DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
-                List<Capability> capabilities = databaseType.getCapabilities();
-                if (null == capabilities
-                        || null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {
-                    return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
-                }
-            } else if (sourceNode instanceof DatabaseNode) {
-                return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a table node", sourceNode.getName()));
-            }
+			String connectionId;
+			if (sourceNode instanceof TableNode || sourceNode instanceof DatabaseNode) {
+				connectionId = ((DataParentNode<?>) sourceNode).getConnectionId();
+			} else {
+				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Exactly once write is not supported, source connector(%s) is not a database/table node", sourceNode.getName()));
+			}
+			Connections sourceConn = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(connectionId)), ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+			DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConn.getPdkHash());
+			List<Capability> capabilities = databaseType.getCapabilities();
+			if (null == capabilities
+					|| null == capabilities.stream().map(Capability::getId).filter(capabilityId -> capabilityId.equals(ConnectionOptions.CAPABILITY_SOURCE_SUPPORT_EXACTLY_ONCE)).findFirst().orElse(null)) {
+				return CheckExactlyOnceWriteEnableResult.createDisable(String.format("Source connector(%s) stream read is not supported exactly once", sourceConn.getName()));
+			}
         }
         return CheckExactlyOnceWriteEnableResult.createEnable();
     }
@@ -1950,9 +1967,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
                     tables.add(tableName);
                 }
                 return tables;
-            } else if (node instanceof DatabaseNode) {
-                // Nonsupport
-            }
+            } else if (node instanceof DatabaseNode dbNode) {
+				com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = dbNode.getSyncObjects().stream().filter(o -> o.getType().equals(SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
+				if (null != syncObjects) {
+					List<String> objectNames = syncObjects.getObjectNames();
+					if (CollectionUtils.isNotEmpty(objectNames)) {
+						return objectNames.stream().filter(exactlyOnceWriteTables::contains).collect(Collectors.toList());
+					}
+				}
+			}
             return null;
         });
     }

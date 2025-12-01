@@ -116,6 +116,9 @@ public abstract class DataParentNode<S> extends Node<S> {
     private List<String> applyCompareRules;
 
     private Boolean compareIgnoreCase = false;
+
+	private Boolean incrementExactlyOnceEnable;
+	private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
     /**
      * constructor for node
      *
