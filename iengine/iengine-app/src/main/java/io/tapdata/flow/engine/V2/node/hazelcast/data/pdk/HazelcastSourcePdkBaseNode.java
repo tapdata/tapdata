@@ -475,16 +475,22 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     private void initSourceReadBatchSize() {
         this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
-        int increaseReadSize = DEFAULT_INCREASE_BATCH_SIZE;
         if (getNode() instanceof DataParentNode) {
             this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
+        }
+        initIncreaseReadSize(DEFAULT_INCREASE_BATCH_SIZE);
+        this.drainSize = Math.max(1, readBatchSize / 2);
+        obsLogger.trace("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
+    }
+
+    protected void initIncreaseReadSize(int defaultSize) {
+        int increaseReadSize = defaultSize;
+        if (getNode() instanceof DataParentNode) {
             increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
         } else if (getNode() instanceof LogCollectorNode) {
             increaseReadSize = Optional.ofNullable(((LogCollectorNode) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
         }
         this.setIncreaseReadSize(increaseReadSize);
-        this.drainSize = Math.max(1, readBatchSize / 2);
-        obsLogger.trace("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
     }
 
     protected void initDDLFilter() {
