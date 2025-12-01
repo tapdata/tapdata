@@ -72,6 +72,7 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustStage;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.BatchAcceptor;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
@@ -165,6 +166,11 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode implements AdjustStage {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
+	static final String TASK_INCREASE_EVENT_QUEUE_FULL_THRESHOLD = "task_increase_event_queue_full_threshold";
+	static final String TASK_INCREASE_EVENT_QUEUE_IDLE_THRESHOLD = "task_increase_event_queue_idle_threshold";
+	static final String TASK_INCREASE_EVENT_DELAY_THRESHOLD_MS = "task_increase_event_delay_threshold_ms";
+	static final String TASK_INCREASE_MEMORY_THRESHOLD = "task_increase_memory_threshold";
+
 	public static final int DEFAULT_POLLING_CDC_HEART_BEAT_TIME = 2;
 	//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	private final Logger logger = LogManager.getRootLogger();
@@ -181,6 +187,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 	private PDKMethodInvoker streamReadMethodInvoker;
 	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
+	protected boolean needAdjustBatchSize;
 
 	private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
 
@@ -190,9 +197,33 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	}
 
 	@Override
+	public void needAdjustBatchSize(boolean needAdjustBatchSize) {
+		this.needAdjustBatchSize = needAdjustBatchSize;
+	}
+
+	protected void registerAdjustStageIfNeed() {
+		if (!this.needAdjustBatchSize) {
+			return;
+		}
+		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
+		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(getConnectorNode())
+				.map(ConnectorNode::getConnectorContext)
+				.map(TapConnectorContext::getSpecification)
+				.map(TapNodeSpecification::getAutoAccumulateBatch)
+				.map(AutoAccumulateBatchInfo::getIncreaseRead)
+				.orElse(new AutoAccumulateBatchInfo.Info());
+		if (autoAccumulateBatchInfo.isOpen()) {
+			Node<?> node = getNode();
+			AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
+			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
+		}
+	}
+
+	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		try {
 			super.doInit(context);
+			registerAdjustStageIfNeed();
 			checkPollingCDCIfNeed();
 		} catch (Throwable e) {
 			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
@@ -202,6 +233,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 	@Override
 	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		super.doInitWithDisableNode(context);
+		registerAdjustStageIfNeed();
 		if (getNode().disabledNode() && isRunning()) {
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
@@ -843,7 +875,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (!isRunning()) {
 			return;
 		}
-		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
 		syncProgressType = SyncProgress.Type.NORMAL;
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 		ConnectorNode connectorNode = getConnectorNode();
@@ -864,11 +895,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (streamReadConsumer instanceof StreamReadConsumer consumer) {
 			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
+			this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+			obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
 			logger.error("Unknown stream read consumer: " + streamReadConsumer);
 			return;
 		}
+		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
 
 		if (null != anyError) {
 			obsLogger.trace("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
@@ -1070,11 +1104,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 				.map(AutoAccumulateBatchInfo::getIncreaseRead)
 				.orElse(new AutoAccumulateBatchInfo.Info());
 		if (!autoAccumulateBatchInfo.isOpen()) {
-			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, 1000, null);
+			final int delayMs = Math.max(50, this.getIncreaseReadSize() / 10);
+			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> delayMs, null);
 			return consumer;
 		}
-		long batchDelayMs = autoAccumulateBatchInfo.getMaxDelayMs();
-		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, batchDelayMs, consumer);
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), consumer);
 		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o));
 	}
 
@@ -1629,10 +1663,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		info.setEventQueueCapacity(capacity);
 		info.setEventQueueSize(size);
 		info.setIncreaseReadSize(batchSize);
-		info.setEventQueueFullThreshold(0.95D);
-		info.setEventQueueIdleThreshold(0.7D);
-		info.setEventDelayThresholdMs(800L);
-		info.setTaskMemThreshold(0.8D);
+
+		final String eventQueueFullThreshold = CommonUtils.getProperty(TASK_INCREASE_EVENT_QUEUE_FULL_THRESHOLD, "0.95");
+		final String eventQueueIdleThreshold = CommonUtils.getProperty(TASK_INCREASE_EVENT_QUEUE_IDLE_THRESHOLD, "0.7");
+		final String delayThresholdMs = CommonUtils.getProperty(TASK_INCREASE_EVENT_DELAY_THRESHOLD_MS, "1000");
+		final String memThreshold = CommonUtils.getProperty(TASK_INCREASE_MEMORY_THRESHOLD, "0.8");
+		info.setEventQueueFullThreshold(info.parse(eventQueueFullThreshold, 0.95D).doubleValue());
+		info.setEventQueueIdleThreshold(info.parse(eventQueueIdleThreshold, 0.7D).doubleValue());
+		info.setEventDelayThresholdMs(info.parse(delayThresholdMs, 1_000L).longValue());
+		info.setTaskMemThreshold(info.parse(memThreshold, 0.8D).doubleValue());
 		return info;
 	}
 

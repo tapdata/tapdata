@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.adk;
 
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import org.springframework.util.CollectionUtils;
 
@@ -19,20 +18,20 @@ import java.util.Objects;
  */
 public final class BatchAcceptor {
     private final ValueGetter<Integer> batchSizeGetter;
-    private final long delayMs;
+    private final ValueGetter<Integer> delayMsGetter;
     private final TapStreamReadConsumer<List<TapEvent>, Object> consumer;
     private List<TapEvent> values;
     private long lastAcceptTime;
-    public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, long delayMs, TapStreamReadConsumer<List<TapEvent>, Object> consumer) {
+    public BatchAcceptor(ValueGetter<Integer> batchSizeGetter, ValueGetter<Integer> delayMsGetter, TapStreamReadConsumer<List<TapEvent>, Object> consumer) {
         this.batchSizeGetter = batchSizeGetter;
-        this.delayMs = delayMs;
+        this.delayMsGetter = delayMsGetter;
         this.consumer = consumer;
         this.values = new ArrayList<>();
         this.lastAcceptTime = 0L;
     }
 
     public long getDelayMs() {
-        return delayMs;
+        return delayMsGetter.get();
     }
 
     public void accept(TapEvent event, Object offset) {
@@ -55,8 +54,8 @@ public final class BatchAcceptor {
             return;
         }
         this.values.addAll(es);
-        if (this.values.size() >= batchSizeGetter.batchSize() ||
-                (this.lastAcceptTime > 0L && System.currentTimeMillis() - this.lastAcceptTime > this.delayMs)) {
+        if (this.values.size() >= batchSizeGetter.get() ||
+                (this.lastAcceptTime > 0L && System.currentTimeMillis() - this.lastAcceptTime > this.getDelayMs())) {
             consumer.accept(this.values, offset);
             this.values = new ArrayList<>();
             this.lastAcceptTime = System.currentTimeMillis();
@@ -65,6 +64,6 @@ public final class BatchAcceptor {
 
 
     public interface ValueGetter<T extends Number> {
-        T batchSize();
+        T get();
     }
 }
