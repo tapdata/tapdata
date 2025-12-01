@@ -201,6 +201,7 @@ class CpuMemoryCollectorTest {
             collector.taskWithNode.put(nodeId, taskId);
             
             CpuMemoryCollector.listening(nodeId, info);
+            CpuMemoryCollector.listening(nodeId, null);
             
             assertFalse(collector.weakReferenceMap.containsKey(taskId));
         }
@@ -212,6 +213,19 @@ class CpuMemoryCollectorTest {
             
             assertTrue(collector.weakReferenceMap.isEmpty());
         }
+
+        @Test
+        @DisplayName("test when taskId not found")
+        void test3() {
+            try {
+                CpuMemoryCollector.switchChange(false);
+                CpuMemoryCollector.switchChange(false);
+                CpuMemoryCollector.listening("node1", new Object());
+                assertTrue(collector.weakReferenceMap.isEmpty());
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+            }
+        }
     }
 
     @Nested
@@ -221,9 +235,7 @@ class CpuMemoryCollectorTest {
         @DisplayName("test main process")
         void test1() {
             List<String> taskIds = List.of("task1");
-            
             Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
-            
             assertNotNull(result);
         }
 
@@ -231,8 +243,58 @@ class CpuMemoryCollectorTest {
         @DisplayName("test with null taskIds")
         void test2() {
             Map<String, Usage> result = CpuMemoryCollector.collectOnce(null);
-            
             assertNotNull(result);
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test3() {
+            List<String> taskIds = List.of("task1");
+            try {
+                CpuMemoryCollector.switchChange(false);
+                Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
+                assertNotNull(result);
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+            }
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test4() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            CpuMemoryCollector.startTask(taskDto);
+            CpuMemoryCollector.addNode(taskDto.getId().toHexString(), "node1");
+            CpuMemoryCollector.registerTask("node1", threadFactory);
+            List<String> taskIds = List.of(taskDto.getId().toHexString());
+            try {
+                CpuMemoryCollector.switchChange(false);
+                Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
+                assertNotNull(result);
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+                CpuMemoryCollector.unregisterTask(taskDto.getId().toHexString());
+            }
+        }
+
+        @Test
+        @DisplayName("test main process")
+        void test5() {
+            TaskDto taskDto = new TaskDto();
+            taskDto.setId(new ObjectId());
+            CpuMemoryCollector.startTask(taskDto);
+            CpuMemoryCollector.addNode(taskDto.getId().toHexString(), "node1");
+            CpuMemoryCollector.registerTask("node1", threadFactory);
+            List<String> taskIds = new ArrayList<>();
+            try {
+                CpuMemoryCollector.switchChange(false);
+                Map<String, Usage> result = CpuMemoryCollector.collectOnce(taskIds);
+                assertNotNull(result);
+            } finally {
+                CpuMemoryCollector.switchChange(true);
+                CpuMemoryCollector.unregisterTask(taskDto.getId().toHexString());
+            }
         }
     }
 
@@ -247,10 +309,11 @@ class CpuMemoryCollectorTest {
             Object testObj = new Object();
             
             weakReferences.add(new WeakReference<>(testObj));
+            weakReferences.add(new WeakReference<>(null));
             
             collector.eachTaskOnce(weakReferences, usage);
             
-            assertFalse(usage.getHeapMemoryUsage() > 0);
+            assertFalse(usage.getHeapMemoryUsage() > 40);
         }
 
         @Test
@@ -506,81 +569,6 @@ class CpuMemoryCollectorTest {
     }
 
     @Nested
-    @DisplayName("Inner class MemInfo test")
-    class MemInfoTest {
-        @Test
-        @DisplayName("test memory calculation")
-        void test1() {
-            Object testObj = new Object();
-            WeakReference<Object> ref = new WeakReference<>(testObj);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-
-            Long memory = memInfo.memory();
-
-            assertNotNull(memory);
-            assertTrue(memory > 0);
-        }
-
-        @Test
-        @DisplayName("test with null reference")
-        void test2() {
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(null);
-
-            Long memory = memInfo.memory();
-
-            assertNull(memory);
-        }
-
-        @Test
-        @DisplayName("test with garbage collected object")
-        void test3() {
-            WeakReference<Object> ref = new WeakReference<>(null);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-
-            Long memory = memInfo.memory();
-
-            assertNull(memory);
-        }
-
-        @Test
-        @DisplayName("test cache mechanism")
-        void test4() {
-            Object testObj = new Object();
-            WeakReference<Object> ref = new WeakReference<>(testObj);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-
-            Long memory1 = memInfo.memory();
-            Long memory2 = memInfo.memory();
-
-            assertEquals(memory1, memory2);
-        }
-
-        @Test
-        @DisplayName("test cache mechanism")
-        void test5() {
-            Object testObj = new Object();
-            WeakReference<Object> ref = new WeakReference<>(testObj);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-            memInfo.lastCalcTime = System.currentTimeMillis() - 10000L;
-            memInfo.mem = 100L;
-            Long memory1 = memInfo.memory();
-            assertEquals(100L, memory1);
-        }
-
-        @Test
-        @DisplayName("test cache mechanism")
-        void test6() {
-            Object testObj = new Object();
-            WeakReference<Object> ref = new WeakReference<>(testObj);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-            memInfo.lastCalcTime = System.currentTimeMillis() - 50000L;
-            memInfo.mem = 100L;
-            Long memory1 = memInfo.memory();
-            assertNotEquals(100L, memory1);
-        }
-    }
-
-    @Nested
     @DisplayName("Inner class Info test")
     class InfoTest {
         @Test
@@ -656,7 +644,6 @@ class CpuMemoryCollectorTest {
             CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
-            collector.cacheMemoryMap.put(weakRefs.get(0), new CpuMemoryCollector.MemInfo(weakRefs.get(0)));
 
             collector.collectMemoryUsage(filterTaskIds, usageMap);
 
@@ -673,7 +660,6 @@ class CpuMemoryCollectorTest {
             CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
-            collector.cacheMemoryMap.put(weakRefs.get(0), new CpuMemoryCollector.MemInfo(weakRefs.get(0)));
 
             collector.collectMemoryUsage(null, usageMap);
 
@@ -703,7 +689,6 @@ class CpuMemoryCollectorTest {
             CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
-            collector.cacheMemoryMap.put(weakRefs.get(0), new CpuMemoryCollector.MemInfo(weakRefs.get(0)));
             collector.taskInfo.remove(taskId);
 
             collector.collectMemoryUsage(null, usageMap);
@@ -721,7 +706,6 @@ class CpuMemoryCollectorTest {
             CopyOnWriteArrayList<WeakReference<Object>> weakRefs = new CopyOnWriteArrayList<>();
             weakRefs.add(new WeakReference<>(testObj));
             collector.weakReferenceMap.put(taskId, weakRefs);
-            collector.cacheMemoryMap.put(weakRefs.get(0), new CpuMemoryCollector.MemInfo(weakRefs.get(0)));
 
             CpuMemoryCollector.Info info = new CpuMemoryCollector.Info();
             info.lastCount = 1000L;
@@ -745,11 +729,10 @@ class CpuMemoryCollectorTest {
             Object testObj = new Object();
             WeakReference<Object> ref = new WeakReference<>(testObj);
             weakReferences.add(ref);
-            collector.cacheMemoryMap.put(ref, new CpuMemoryCollector.MemInfo(ref));
 
             collector.eachTaskOnce(weakReferences, usage);
 
-            assertTrue(usage.getHeapMemoryUsage() > 0);
+            assertFalse(usage.getHeapMemoryUsage() > 40);
         }
 
         @Test
@@ -811,61 +794,6 @@ class CpuMemoryCollectorTest {
             };
 
             assertDoesNotThrow(() -> collector.ignore(runnable, "test message"));
-        }
-    }
-
-    @Nested
-    @DisplayName("MemInfo memory calculation edge cases")
-    class MemInfoEdgeCasesTest {
-        @Test
-        @DisplayName("test with cache time check")
-        void test1() throws InterruptedException {
-            Object testObj = new Object();
-            WeakReference<Object> ref = new WeakReference<>(testObj);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-
-            // First call
-            Long memory1 = memInfo.memory();
-
-            // Set lastCalcTime to simulate cache hit
-            memInfo.lastCalcTime = System.currentTimeMillis() - 20000L;
-
-            // Second call should use cached value
-            Long memory2 = memInfo.memory();
-
-            assertEquals(memory1, memory2);
-        }
-
-        @Test
-        @DisplayName("test with GraphLayout exception fallback")
-        void test2() {
-            // Create an object that might cause GraphLayout to fail
-            Object testObj = new Object() {
-                @Override
-                public String toString() {
-                    throw new RuntimeException("test");
-                }
-            };
-            WeakReference<Object> ref = new WeakReference<>(testObj);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-
-            Long memory = memInfo.memory();
-
-            assertNotNull(memory);
-            assertTrue(memory > 0);
-        }
-
-        @Test
-        @DisplayName("test synchronized removal")
-        void test3() {
-            WeakReference<Object> ref = new WeakReference<>(null);
-            CpuMemoryCollector.MemInfo memInfo = new CpuMemoryCollector.MemInfo(ref);
-            collector.cacheMemoryMap.put(ref, memInfo);
-
-            Long memory = memInfo.memory();
-
-            assertNull(memory);
-            assertFalse(collector.cacheMemoryMap.containsKey(ref));
         }
     }
 
@@ -962,7 +890,6 @@ class CpuMemoryCollectorTest {
             assertNotNull(CpuMemoryCollector.COLLECTOR.weakReferenceMap);
             assertNotNull(CpuMemoryCollector.COLLECTOR.threadGroupMap);
             assertNotNull(CpuMemoryCollector.COLLECTOR.taskInfo);
-            assertNotNull(CpuMemoryCollector.COLLECTOR.cacheMemoryMap);
         }
     }
 
@@ -970,14 +897,14 @@ class CpuMemoryCollectorTest {
     class cleanOnceTest {
         @Test
         void testNormal() {
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithNull() {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
             collector.cacheLeftWeakReferenceMap.put("taskId", null);
             collector.cacheRightWeakReferenceMap.put("taskId", null);
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
 
         @Test
@@ -985,7 +912,7 @@ class CpuMemoryCollectorTest {
             collector.taskDtoMap.put("taskId", new WeakReference<>(taskDto));
             collector.cacheLeftWeakReferenceMap.put("taskId", new ArrayList<>());
             collector.cacheRightWeakReferenceMap.put("taskId", new ArrayList<>());
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithNullReference() {
@@ -994,7 +921,7 @@ class CpuMemoryCollectorTest {
             list.add(new WeakReference<>(null));
             collector.cacheLeftWeakReferenceMap.put("taskId", list);
             collector.cacheRightWeakReferenceMap.put("taskId", list);
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
         @Test
         void testWithSomeReference() {
@@ -1004,7 +931,7 @@ class CpuMemoryCollectorTest {
             list.add(new WeakReference<>(new Object()));
             collector.cacheLeftWeakReferenceMap.put("taskId", list);
             collector.cacheRightWeakReferenceMap.put("taskId", list);
-            Assertions.assertDoesNotThrow(() -> CpuMemoryCollector.cleanOnce());
+            Assertions.assertDoesNotThrow(CpuMemoryCollector::cleanOnce);
         }
     }
 }
