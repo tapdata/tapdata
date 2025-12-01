@@ -284,6 +284,11 @@ public class TaskEntity extends BaseEntity implements IDataPermissionEntity {
      */
     private Boolean doubleActive = false;
 
+    /**
+     * 是否开启省流
+     */
+    private Boolean dataSaving = true;
+
     private List<ErrorEvent> errorEvents;
     /**
      * Compatible with old versions of timezone processing

@@ -109,6 +109,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public static final String FUNCTION_RETRY_STATUS = "functionRetryStatus";
 	private static final String DOUBLE_ACTIVE = "doubleActive";
+	private static final String DATA_SAVING = "dataSaving";
 	private static final String WRITE_THREAD_SIZE = "writeThreadSize";
 	protected TapRecordSkipDetector skipDetector;
 	protected PdkStateMap pdkStateMap;
@@ -292,6 +293,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
             nodeConfig.put(WRITE_THREAD_SIZE, Math.max(initialConcurrentWriteNum, cdcConcurrentWriteNum));
         }
 		nodeConfig.put(DOUBLE_ACTIVE, taskDto.getDoubleActive());
+		nodeConfig.put(DATA_SAVING, taskDto.getDataSaving());
 		Boolean oldVersionTimezone = taskDto.getOldVersionTimezone();
 		oldVersionTimezone = CommonUtils.getPropertyBool(OLD_VERSION_TIME_ZONE_PROP_KEY, oldVersionTimezone);
 		nodeConfig.put(OLD_VERSION_TIMEZONE, oldVersionTimezone);

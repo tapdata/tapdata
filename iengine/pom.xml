@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.0</version>
+        <version>3.5.7</version>
         <relativePath/>
     </parent>
 
@@ -24,7 +24,7 @@
         <maven.compiler.target>17</maven.compiler.target>
 
         <!-- Kafka and it's dependencies MUST reflect what the Kafka version uses -->
-        <version.kafka>2.7.0</version.kafka>
+        <version.kafka>3.9.1</version.kafka>
         <version.kafka.scala>2.13</version.kafka.scala>
         <version.curator>2.11.0</version.curator>
         <version.zookeeper>3.8.4</version.zookeeper>
@@ -39,12 +39,12 @@
         <version.hana.driver>2.3.58</version.hana.driver>
         <version.mysql.binlog>0.28.0</version.mysql.binlog>
         <version.mongo.server>3.2.12</version.mongo.server>
-        <version.mongo.driver>5.3.0</version.mongo.driver>
+        <version.mongo.driver>5.5.1</version.mongo.driver>
         <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
         <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
         <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
         <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
-        <version.spring>6.2.2</version.spring>
+        <version.spring>6.2.8</version.spring>
 
         <!-- Connectors -->
         <version.com.google.protobuf>4.29.3</version.com.google.protobuf>
@@ -136,7 +136,7 @@
         <jna.version>5.10.0</jna.version>
         <log4j.version>2.17.1</log4j.version>
 
-        <hutool.version>5.8.36</hutool.version>
+        <hutool.version>5.8.40</hutool.version>
 
         <!-- 依赖关系：compile,provided,runtime,test -->
         <scope.libs.db2>compile</scope.libs.db2>
@@ -179,8 +179,12 @@
         <async-tools-module.version>2.5-SNAPSHOT</async-tools-module.version>
         <script-engine-module.version>2.5-SNAPSHOT</script-engine-module.version>
         <gson.version>2.12.1</gson.version>
-        <netty.version>4.1.119.Final</netty.version>
         <httpclient5.version>5.4.4</httpclient5.version>
+
+        <!-- Override spring boot version -->
+        <netty.version>4.1.127.Final</netty.version>
+        <spring-framework.version>6.2.11</spring-framework.version>
+        <spring-security.version>6.5.4</spring-security.version>
     </properties>
 
     <modules>

@@ -29,7 +29,7 @@ public class StopTaskOnErrorLog implements Log {
 
 	@Override
 	public void trace(String message, Object... params) {
-		log.info(message, params);
+		log.trace(message, params);
 	}
 
 	@Override

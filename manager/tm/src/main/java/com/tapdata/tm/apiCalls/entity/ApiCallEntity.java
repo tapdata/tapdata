@@ -85,4 +85,37 @@ public class ApiCallEntity extends BaseEntity {
     private String workOid;
 
     private Boolean supplement;
+
+    /**
+     * api请求的数据库访问开始时间
+     * */
+    private Long dataQueryFromTime;
+    /**
+     * api请求的数据库访问结束时间
+     * */
+    private Long dataQueryEndTime;
+    /**
+     * api请求的数据库访问耗时
+     * */
+    private Long dataQueryTotalTime;
+
+    /**
+     * query Of Count
+     * */
+    private String queryOfCount;
+
+    /**
+     * query Of Page
+     * */
+    private String queryOfPage;
+
+    /**
+     * query Of total count of table
+     * */
+    private Long totalRows;
+
+    /**
+     * query Of http request cost time(ms)
+     * */
+    private Long requestCost;
 }

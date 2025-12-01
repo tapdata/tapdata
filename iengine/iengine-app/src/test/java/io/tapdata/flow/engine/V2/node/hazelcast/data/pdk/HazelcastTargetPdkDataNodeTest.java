@@ -68,6 +68,7 @@ import org.springframework.util.ReflectionUtils;
 import java.sql.Ref;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -400,9 +401,10 @@ class HazelcastTargetPdkDataNodeTest extends BaseTaskTest {
 				when(connectorNode.getConnectorFunctions()).thenReturn(connectorFunctions);
 				doCallRealMethod().when(hazelcastTargetPdkDataNode).eventExactlyOnceWriteCheckExists(any());
 				doCallRealMethod().when(hazelcastTargetPdkDataNode).throwTapCodeException(any(),any());
+				ReflectionTestUtils.setField(hazelcastTargetPdkDataNode, "exactlyOncePdkMethodInvokerMap", new ConcurrentHashMap<>());
 				try(MockedStatic<PDKInvocationMonitor> pdkInvocationMonitorMockedStatic = mockStatic(PDKInvocationMonitor.class)){
 					pdkInvocationMonitorMockedStatic.when(()->{PDKInvocationMonitor.invoke(any(),any(),any());}).thenAnswer((invocationOnMock -> {
-						PDKMethodInvoker argument = (PDKMethodInvoker) invocationOnMock.getArgument(2);
+						PDKMethodInvoker argument = invocationOnMock.getArgument(2);
 						CommonUtils.AnyError runnable = argument.getRunnable();
 						TapCodeException tapCodeException = assertThrows(TapCodeException.class, runnable::run);
 						assertEquals(TapExactlyOnceWriteExCode_22.CHECK_CACHE_FAILED,tapCodeException.getCode());

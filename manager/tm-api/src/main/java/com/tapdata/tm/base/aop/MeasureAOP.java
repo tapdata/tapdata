@@ -177,7 +177,7 @@ public class MeasureAOP {
         boolean checkCdcOpen = alarmService.checkOpen(taskDto, null, AlarmKeyEnum.TASK_INCREMENT_START, null, userDetail);
         if (checkCdcOpen && Objects.isNull(taskDto.getCurrentEventTimestamp()) && Objects.nonNull(currentEventTimestamp) && currentEventTimestamp.longValue() > 0L  && TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
             Map<String, Object> param = Maps.newHashMap();
-            param.put("cdcTime", DateUtil.date(currentEventTimestamp.longValue()).toDateStr());
+            param.put("cdcTime", DateUtil.format(DateUtil.date(currentEventTimestamp.longValue()), "yyyy-MM-dd HH:mm:ss"));
             param.put("alarmDate", alarmDate);
             param.put("taskName", taskDto.getName());
 

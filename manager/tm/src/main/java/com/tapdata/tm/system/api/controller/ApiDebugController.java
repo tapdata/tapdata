@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import javax.annotation.Resource;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -62,13 +63,13 @@ public class ApiDebugController extends BaseController {
                 ASYNC_EXECUTOR);
         try {
             Map<String, List<TextEncryptionRuleDto>> objConfig = supplyAsync.get();
-            DebugVo objHttp = future.get();
+            DebugVo objHttp = Optional.ofNullable(future.get()).orElse(DebugVo.error("Failed to get api debug result"));
             if (null == objHttp) {
                 objHttp = new DebugVo();
                 objHttp.setHttpCode(httpCode.get());
                 objHttp.setError(Map.of("message", "No data returned", "code", "NO_DATA"));
             }
-            objHttp.setHttpCode(httpCode.get());
+            objHttp.setHttpCode(Optional.ofNullable(httpCode.get()).orElse(500));
             return success(TextEncryptionUtil.map(objConfig, objHttp));
         } catch (InterruptedException e) {
             log.warn("Interrupted when get api debug result: {}", e.getMessage(), e);

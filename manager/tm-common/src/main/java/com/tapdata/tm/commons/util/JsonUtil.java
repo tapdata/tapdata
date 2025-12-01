@@ -5,23 +5,19 @@ import com.alibaba.fastjson.parser.DefaultJSONParser;
 import com.alibaba.fastjson.parser.ParserConfig;
 import com.alibaba.fastjson.parser.deserializer.ObjectDeserializer;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.ObjectCodec;
-import com.fasterxml.jackson.core.TreeNode;
+import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonDeserializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.TypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 import com.tapdata.manager.common.utils.Utils;
 import io.tapdata.entity.schema.partition.type.TapPartitionType;
 import io.tapdata.entity.schema.type.TapType;
@@ -35,6 +31,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TimeZone;
 
 @Slf4j
 public class JsonUtil {
@@ -48,6 +45,7 @@ public class JsonUtil {
 	private static Gson buildGson() {
 		if (gson == null) {
 			GsonBuilder builder = new GsonBuilder();
+			builder.registerTypeAdapter(TimeZone.class, new TimeZoneAdapter());
 			if (_pretty) {
 				builder.setPrettyPrinting();
 			}
@@ -70,6 +68,7 @@ public class JsonUtil {
 			SimpleModule simpleModule = new SimpleModule();
 			simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
 			simpleModule.addDeserializer(TapPartitionType.class, new TapPartitionTypeDeserializer());
+
 			objectMapper.registerModule(simpleModule);
 			objectMapper.registerModule(new JavaTimeModule());
 		}
@@ -172,6 +171,23 @@ public class JsonUtil {
 			} else {
 				throw new RuntimeException("Unsupported tap type: " + typeInt);
 			}
+		}
+	}
+
+	static class TimeZoneAdapter extends TypeAdapter<TimeZone> {
+		@Override
+		public void write(JsonWriter out, TimeZone value) throws IOException {
+			if (value == null) {
+				out.nullValue();
+			} else {
+				out.value(value.getID()); // 使用 ID 字符串序列化
+			}
+		}
+
+		@Override
+		public TimeZone read(JsonReader in) throws IOException {
+			String timeZoneId = in.nextString();
+			return TimeZone.getTimeZone(timeZoneId); // 根据 ID 反序列化
 		}
 	}
 

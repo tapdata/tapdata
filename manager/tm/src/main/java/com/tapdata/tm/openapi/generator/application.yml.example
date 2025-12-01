@@ -1,0 +1,47 @@
+# OpenAPI Generator Configuration Example
+# Copy this configuration to your application.yml
+
+openapi:
+  generator:
+    # OpenAPI Generator JAR file path
+    # Recommended to use classpath path, compatible with local debugging and packaged deployment
+    jar:
+      path: classpath:openapi-generator/openapi-generator-cli.jar
+      # If you need to use external JAR file, you can use absolute path
+      # path: /opt/tapdata/openapi-generator/openapi-generator-cli.jar
+
+    # Template directory path configuration
+    # Recommended to use classpath path, compatible with local debugging and packaged deployment
+    template:
+      path: classpath:openapi-generator
+      # If you need to use external template directory, you can use absolute path
+      # path: /opt/tapdata/templates/openapi-generator
+
+    # Temporary directory configuration
+    # Default uses system temporary directory, can also specify custom path
+    temp:
+      dir: ${java.io.tmpdir}
+      # dir: /tmp/tapdata-openapi
+
+    # Java version configuration
+    # Specify Java version for code generation (default: 17)
+    java:
+      version: 17
+
+# Other Related Configurations
+spring:
+  servlet:
+    multipart:
+      # File upload size limit (if need to upload large OpenAPI specification files)
+      max-file-size: 10MB
+      max-request-size: 10MB
+  
+  mvc:
+    async:
+      # HTTP timeout configuration
+      request-timeout: 300000
+
+# Logging configuration
+logging:
+  level:
+    com.tapdata.tm.openapi.generator: DEBUG

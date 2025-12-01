@@ -9,8 +9,8 @@ application:
 spring:
   servlet:
     multipart:
-      max-file-size: ${SERVER_UPLOAD_FILE_MAX_SIZE:300MB}
-      max-request-size: ${SERVER_UPLOAD_REQUEST_MAX_SIZE:300MB}
+      max-file-size: ${SERVER_UPLOAD_FILE_MAX_SIZE:1000MB}
+      max-request-size: ${SERVER_UPLOAD_REQUEST_MAX_SIZE:1000MB}
       enabled: true
   application:
     name: TCMApplication
@@ -37,7 +37,7 @@ spring:
     format:
       date-time: yyyyMM-dd HH:mm:ss
     async:
-      request-timeout: 1000
+      request-timeout: 30000
   jackson:
     default-property-inclusion: non_null
 
@@ -107,7 +107,7 @@ server:
     min-spare-threads: 100 #最小工作线程数量
     max-connections: 1000 #一瞬间最大支持的并发的连接数
     accept-count: 20 #等待队列长度
-  max-http-header-size: 2MB
+  max-http-request-header-size: 2MB
 
 mail:
   host: smtp.exmail.qq.com
@@ -171,3 +171,6 @@ management:
     web:
       exposure:
         include: "prometheus, info, health"
+  metrics:
+    tags:
+      application: 'TMApplication'

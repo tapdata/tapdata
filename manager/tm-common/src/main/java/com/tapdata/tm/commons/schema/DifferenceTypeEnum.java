@@ -33,6 +33,7 @@ public enum DifferenceTypeEnum {
         public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
             if(field.getDataType().equals(differenceField.getSourceField().getDataType())) {
                 differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
+                differenceField.getTargetField().setFieldName(field.getFieldName());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }
@@ -50,6 +51,7 @@ public enum DifferenceTypeEnum {
         public void processDifferenceField(Field field, List<Field> fields, DifferenceField differenceField) {
             if(field.getDataType().equals(differenceField.getSourceField().getDataType())) {
                 differenceField.getTargetField().setOriginalFieldName(field.getOriginalFieldName());
+                differenceField.getTargetField().setFieldName(field.getFieldName());
                 fields.remove(field);
                 fields.add(differenceField.getTargetField());
             }

@@ -303,22 +303,34 @@ public class SchemaUtils {
     }
 
     public static List<DifferenceField> compareSchema(MetadataInstancesDto deductionMetadataInstance, MetadataInstancesDto targetMetadataInstance) {
+        return compareSchema(deductionMetadataInstance, targetMetadataInstance, false);
+    }
+
+    public static List<DifferenceField> compareSchema(MetadataInstancesDto deductionMetadataInstance, MetadataInstancesDto targetMetadataInstance,Boolean compareIgnoreCase) {
         List<DifferenceField> differenceFieldList = new ArrayList<>();
         if(Objects.isNull(deductionMetadataInstance) || Objects.isNull(targetMetadataInstance)){
             return differenceFieldList;
         }
-        Map<String, Field> sourceFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
-        Map<String, Field> targetFieldMap = targetMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+        Map<String, Field> sourceFieldMap;
+        Map<String, Field> targetFieldMap;
+        if (compareIgnoreCase){
+            sourceFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(field -> field.getFieldName().toLowerCase(), m -> m));
+            targetFieldMap = targetMetadataInstance.getFields().stream().collect(Collectors.toMap(field -> field.getFieldName().toLowerCase(), m -> m));
+        }else {
+            sourceFieldMap = deductionMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+            targetFieldMap = targetMetadataInstance.getFields().stream().collect(Collectors.toMap(Field::getFieldName, m -> m));
+        }
+
 
         sourceFieldMap.keySet().forEach(fieldName -> {
             if (!targetFieldMap.containsKey(fieldName)) {
-                differenceFieldList.add(DifferenceField.buildMissingField(fieldName,sourceFieldMap.get(fieldName)));
+                differenceFieldList.add(DifferenceField.buildMissingField(sourceFieldMap.get(fieldName).getFieldName(),sourceFieldMap.get(fieldName)));
             }
         });
 
         targetFieldMap.forEach((fieldName, targetField) -> {
             if (!sourceFieldMap.containsKey(fieldName)) {
-                differenceFieldList.add(DifferenceField.buildAdditionalField(fieldName, targetField));
+                differenceFieldList.add(DifferenceField.buildAdditionalField(targetField.getFieldName(), targetField));
             } else {
                 Field sourceField = sourceFieldMap.get(fieldName);
                 TapType targetTapType = null;
@@ -335,11 +347,11 @@ public class SchemaUtils {
                     });
                 }
                 if(null != targetTapType && Boolean.TRUE.equals(targetTapType.getCannotWrite())){
-                    differenceFieldList.add(DifferenceField.buildCannotWriteField(fieldName,sourceField,targetField));
+                    differenceFieldList.add(DifferenceField.buildCannotWriteField(sourceField.getFieldName(),sourceField,targetField));
                 } else if (null != targetTapType && null != sourceTapType && !targetTapType.getClass().equals(sourceTapType.getClass())){
-                    differenceFieldList.add(DifferenceField.buildDifferentField(fieldName, sourceField, targetField));
+                    differenceFieldList.add(DifferenceField.buildDifferentField(sourceField.getFieldName(), sourceField, targetField));
                 } else if (!sourceField.getDataType().equalsIgnoreCase(targetField.getDataType())) {
-                    differenceFieldList.add(DifferenceField.buildPrecisionField(fieldName, sourceField, targetField));
+                    differenceFieldList.add(DifferenceField.buildPrecisionField(sourceField.getFieldName(), sourceField, targetField));
                 }
 
             }

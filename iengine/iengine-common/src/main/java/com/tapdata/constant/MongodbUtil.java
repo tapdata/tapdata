@@ -189,7 +189,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 			if (StringUtils.isNotEmpty(databaseUri)) {
 				ConnectionString uri = new ConnectionString(databaseUri);
 				builder.applyConnectionString(uri);
-				mongoClient = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
+				mongoClient = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
 			} else {
 				StringBuilder sb = new StringBuilder("mongodb://");
 				if (StringUtils.isNoneBlank(username, password)) {
@@ -227,7 +227,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 				}
 				ConnectionString uri = new ConnectionString(sb.toString());
 				builder.applyConnectionString(uri);
-				mongoClient = new MongoClientImpl(builder.build(), MongoDriverInformation.builder().build());
+				mongoClient = MongoClients.create(builder.build(), MongoDriverInformation.builder().build());
 			}
 
 		} catch (Exception e) {
