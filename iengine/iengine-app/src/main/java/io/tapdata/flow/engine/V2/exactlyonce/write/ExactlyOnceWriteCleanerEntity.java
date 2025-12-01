@@ -51,10 +51,6 @@ public class ExactlyOnceWriteCleanerEntity implements Serializable {
 		return String.join("_", nodeId, tableName);
 	}
 
-	public void setTimeWindowDay(Integer timeWindowDay) {
-		this.timeWindowDay = timeWindowDay;
-	}
-
 	public ExactlyOnceWriteCleanerEntity timeWindowDay(Integer timeWindowDay) {
 		this.timeWindowDay = timeWindowDay;
 		return this;

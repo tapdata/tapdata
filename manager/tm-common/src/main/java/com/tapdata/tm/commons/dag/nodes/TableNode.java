@@ -185,9 +185,6 @@ public class TableNode extends DataNode {
     private boolean enableCustomCommand;
     private Map<String, Object> customCommand;
 
-    private Boolean incrementExactlyOnceEnable;
-    private Integer incrementExactlyOnceEnableTimeWindowDay = 3;
-
     private String previewQualifiedName;
     private TapTable previewTapTable;
     private static final String MONGODB = "MongoDB";
