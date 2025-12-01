@@ -13,7 +13,6 @@ import org.openjdk.jol.info.GraphLayout;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.ref.WeakReference;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
@@ -53,12 +53,20 @@ public final class CpuMemoryCollector {
 
     final Map<String, List<WeakReference<Object>>> weakReferenceMap = new HashMap<>(16);
 
+    final AtomicBoolean readFromLeft = new AtomicBoolean(false);
     final Map<String, List<WeakReference<Object>>> cacheLeftWeakReferenceMap = new HashMap<>(16);
     final Map<String, List<WeakReference<Object>>> cacheRightWeakReferenceMap = new HashMap<>(16);
 
     final Map<String, CopyOnWriteArrayList<WeakReference<ThreadFactory>>> threadGroupMap = new ConcurrentHashMap<>(16);
 
     final Map<String, Info> taskInfo = new ConcurrentHashMap<>(16);
+
+    private volatile boolean doCollect = true;
+    public static void switchChange(boolean val) {
+        if (COLLECTOR.doCollect != val) {
+            COLLECTOR.doCollect = val;
+        }
+    }
 
     static class Info {
         String taskId;
@@ -90,13 +98,12 @@ public final class CpuMemoryCollector {
                 list = COLLECTOR.weakReferenceMap.computeIfAbsent(taskId, key -> new ArrayList<>());
                 list.removeIf(e -> Objects.isNull(e.get()));
             }
-            final int sec = LocalDateTime.now().getSecond();
-            int step = sec / 5;
-            int type = step % 2;
-            if (type == 0) {
+            if (COLLECTOR.readFromLeft.get()) {
                 clean(COLLECTOR.cacheLeftWeakReferenceMap, taskId, list);
+                COLLECTOR.readFromLeft.set(false);
             } else {
                 clean(COLLECTOR.cacheRightWeakReferenceMap, taskId, list);
+                COLLECTOR.readFromLeft.set(true);
             }
         }
     }
@@ -193,6 +200,9 @@ public final class CpuMemoryCollector {
     }
 
     public static void listening(String nodeId, Object info) {
+        if (!COLLECTOR.doCollect) {
+            return;
+        }
         if (null == info) {
             return;
         }
@@ -202,10 +212,7 @@ public final class CpuMemoryCollector {
                 return;
             }
             final WeakReference<Object> reference = new WeakReference<>(info);
-            final int sec = LocalDateTime.now().getSecond();
-            int step = sec / 5;
-            int type = step % 2;
-            final List<WeakReference<Object>> weakReferences = type == 0 ? COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>()) :
+            final List<WeakReference<Object>> weakReferences = COLLECTOR.readFromLeft.get() ? COLLECTOR.cacheRightWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>()) :
                     COLLECTOR.cacheLeftWeakReferenceMap.computeIfAbsent(taskId, k -> new ArrayList<>());
             synchronized (weakReferences) {
                 weakReferences.add(reference);
@@ -233,7 +240,8 @@ public final class CpuMemoryCollector {
                         } catch (Exception e) {
                             sizeOf = RamUsageEstimator.sizeOfObject(o);
                         }
-                        final long value = usage.getHeapMemoryUsage() + sizeOf;
+                        //WeakReference 32~40B, 按40B计算
+                        final long value = usage.getHeapMemoryUsage() + sizeOf + 40;
                         usage.setHeapMemoryUsage(value);
                     }, "Calculate memory usage failed, {}");
                 });
@@ -341,6 +349,10 @@ public final class CpuMemoryCollector {
 
     public static Map<String, Usage> collectOnce(List<String> taskIds) {
         final Map<String, Usage> usageMap = new HashMap<>();
+        if (!COLLECTOR.doCollect) {
+            COLLECTOR.stopCollect(taskIds, usageMap);
+            return usageMap;
+        }
         final CompletableFuture<Void> futureCpu = CompletableFuture.runAsync(() -> COLLECTOR.collectCpuUsage(taskIds, usageMap));
         final CompletableFuture<Void> futureMemory = CompletableFuture.runAsync(() -> COLLECTOR.collectMemoryUsage(taskIds, usageMap));
         try {
@@ -353,6 +365,19 @@ public final class CpuMemoryCollector {
             log.error("Collect cpu and memory usage failed ExecutionException, {}", ex.getMessage(), ex);
         }
         return usageMap;
+    }
+
+    void stopCollect(List<String> filterTaskIds, Map<String, Usage> usageMap) {
+        new ArrayList<>(threadGroupMap.keySet())
+                .stream()
+                .filter(id -> CollectionUtils.isEmpty(filterTaskIds) || filterTaskIds.contains(id))
+                .forEach(task -> {
+                    Usage usage = new Usage();
+                    usage.setCpuUsage(null);
+                    usage.setHeapMemoryUsage(null);
+                    usageMap.put(task, usage);
+                });
+
     }
 
 

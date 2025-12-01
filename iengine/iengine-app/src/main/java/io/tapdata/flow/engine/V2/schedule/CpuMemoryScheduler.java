@@ -1,9 +1,11 @@
 package io.tapdata.flow.engine.V2.schedule;
 
+import com.tapdata.entity.Setting;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.aspect.CpuMemUsageAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.TaskAspectManager;
+import io.tapdata.common.SettingService;
 import io.tapdata.entity.Usage;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -28,6 +31,9 @@ public class CpuMemoryScheduler {
     @Autowired
     private ClientMongoOperator clientMongoOperator;
 
+    @Autowired
+    private SettingService settingService;
+
     @Scheduled(cron = "0/10 * * * * ?")
     public void collectCpuUsage() {
         try {
@@ -35,7 +41,17 @@ public class CpuMemoryScheduler {
         } catch (Exception e) {
             log.warn("Clean task empty reference object failed: {}", e.getMessage());
         }
+        CpuMemoryCollector.switchChange(hasOpenSwitch());
         reportOnce(null);
+    }
+
+    boolean hasOpenSwitch() {
+        Setting setting = settingService.getSetting("cpu_mem_collector");
+        if (null == setting) {
+            return true;
+        }
+        String booVal = Optional.ofNullable(setting.getValue()).orElse(setting.getDefault_value());
+        return Objects.equals("TRUE", booVal) || Objects.equals("true", booVal);
     }
 
     public void reportOnce(List<String> taskIds) {
