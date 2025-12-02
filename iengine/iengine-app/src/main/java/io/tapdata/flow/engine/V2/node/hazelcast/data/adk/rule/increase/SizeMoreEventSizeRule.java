@@ -32,7 +32,7 @@ public class SizeMoreEventSizeRule extends AbstractRule implements InitializingB
         if (adjustInfo.getBatchSize() > adjustInfo.getEventSize()) {
             result.setHasJudge(true);
             result.setType(-2);
-            double rateOf = -1.5d * (adjustInfo.getBatchSize() - adjustInfo.getEventSize()) / adjustInfo.getBatchSize();
+            double rateOf = -1d * (adjustInfo.getBatchSize() - adjustInfo.getEventSize()) / adjustInfo.getBatchSize();
             double r = rateOf;
             String msg = String.format("Judgment Rule 1 - [%s], rate of %.2f , judge info: %s, %d", taskId, r, JSON.toJSONString(adjustInfo), System.currentTimeMillis());
             AdjustBatchSizeFactory.debug(taskId, msg);

@@ -895,8 +895,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 		if (streamReadConsumer instanceof StreamReadConsumer consumer) {
 			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
-			this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
-			obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
+			if (this.needAdjustBatchSize) {
+				this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+				obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
+			}
 			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
 			logger.error("Unknown stream read consumer: " + streamReadConsumer);

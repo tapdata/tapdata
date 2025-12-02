@@ -175,8 +175,12 @@ public final class IncreaseRuleInstance {
                 return;
             }
             int ago = avg.getBatchSize();
-            int size = ((Number) (ago * (1.0d + result.getRate()))).intValue();
-            if (size <= 5 && size == ago) {
+            int calcItem = ago;
+            if (calcItem < 10 && result.getRate() > 0D) {
+                calcItem = 10;
+            }
+            int size = ((Number) (calcItem * (1.0d + result.getRate()))).intValue();
+            if (size <= 5 && size == calcItem) {
                 size += (result.getType() == -2 ? -1 : 1);
             }
             setAllTaskInfo(avg);
