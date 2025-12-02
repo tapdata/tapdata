@@ -5,6 +5,7 @@ import com.tapdata.tm.taskinspect.TaskInspectConfig;
 import com.tapdata.tm.taskinspect.TaskInspectMode;
 import com.tapdata.tm.taskinspect.config.Custom;
 import com.tapdata.tm.taskinspect.config.Intelligent;
+import com.tapdata.tm.taskinspect.config.TableFilter;
 import com.tapdata.tm.taskinspect.cons.TimeCheckModeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -26,6 +27,7 @@ public class TaskInspectDto extends BaseDto {
     private Long cdcTimeout;                 // 增量校验在队列中超时，不作延迟等待
     private Boolean checkNoPkTable;          // 校验无主键表
     private TimeCheckModeEnum timeCheckMode; // 时间校验模式
+    private TableFilter tableFilter;         // 表过滤
 
     public TaskInspectDto fill(TaskInspectConfig config) {
         setEnable(config.getEnable());
