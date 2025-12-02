@@ -39,21 +39,22 @@ public class LatencyHigherQueueFilledRule extends AbstractRule implements Initia
                 String msg = String.format("Judgment Rule 3 - [%s] available less than rateOf, rate of %.2f , judge info: %s, %d", taskId, rateOf, JSON.toJSONString(adjustInfo), System.currentTimeMillis());
                 AdjustBatchSizeFactory.debug(taskId, msg);
                 result.setDetail(msg);
-                result.setReason(String.format("Increase event delay(%dms) is higher than the threshold(%dms), but the event queue is not full, available only: %.2f", adjustInfo.getEventDelay(), adjustInfo.getEventDelayThresholdMs(), available * 100D));
+                result.setReason(String.format("Increase event delay(%dms) is higher than the threshold(%dms), but the event queue is not full (available only: %.2f)", adjustInfo.getEventDelay(), adjustInfo.getEventDelayThresholdMs(), available * 100D));
                 result.setCompleted(true);
                 return;
             }
+            double blockUpRate = -2D * (adjustInfo.getEventQueueIdleThreshold() - rate) / 5D;
             if (result.getType() != 0) {
-                available = available * 2D / 5D;
+                available = (available * 2D / 5D);
             } else {
-                double downRate = -.5D * Math.max(1.5D, 1D * (adjustInfo.getEventDelay() - adjustInfo.getEventDelayThresholdMs()) / adjustInfo.getEventDelay());
+                double downRate = -.8D * Math.max(0.8D, 1D * (adjustInfo.getEventDelay() - adjustInfo.getEventDelayThresholdMs()) / adjustInfo.getEventDelay());
                 rateOf += downRate;
             }
-            rateOf = rateOf + available;
+            rateOf = rateOf + available + blockUpRate;
             result.setType(1);
             String msg = String.format("Judgment Rule 3 - [%s], rate of %.2f, up rate: %.2f, judge info: %s, %d", taskId, rateOf, available, JSON.toJSONString(adjustInfo), System.currentTimeMillis());
             AdjustBatchSizeFactory.debug(taskId, msg);
-            result.setReason(String.format("Increase event delay(%dms) is higher than the threshold(%dms), but the event queue is not full, only used: %.2f%%", adjustInfo.getEventDelay(), adjustInfo.getEventDelayThresholdMs(), rate * 100D));
+            result.setReason(String.format("Increase event delay(%dms) is higher than the threshold(%dms), but the event queue is not full (only used: %.2f%%)", adjustInfo.getEventDelay(), adjustInfo.getEventDelayThresholdMs(), rate * 100D));
             result.setDetail(msg);
             result.setRate(rateOf);
             return;
@@ -61,9 +62,9 @@ public class LatencyHigherQueueFilledRule extends AbstractRule implements Initia
         if (adjustInfo.getEventDelay() > adjustInfo.getEventDelayThresholdMs() * 1.5D && rate >= adjustInfo.getEventQueueIdleThreshold()) {
             result.setHasJudge(true);
             double available = (adjustInfo.getEventQueueSize() / (adjustInfo.getEventQueueIdleThreshold() * adjustInfo.getEventQueueCapacity()))  - 1D;
-            rateOf += (available / 2);
+            rateOf += (available * 2D / 3D);
             String msg = String.format("Judgment Rule 3 - [%s], rate of %.2f, available to up rate: %.2f, judge info: %s, %d: source cdc has long delay", taskId, rateOf, available, JSON.toJSONString(adjustInfo), System.currentTimeMillis());
-            result.setReason(String.format("Increase event delay(%dms) is higher than the 1.5 * threshold(%dms), also the event queue is full, used: %.2f%%, available to up rate: %.2f%%, rateOf: %.2f%%", adjustInfo.getEventDelay(), adjustInfo.getEventDelayThresholdMs(), rate * 100D, available * 100D, rateOf * 100D));
+            result.setReason(String.format("Increase event delay(%dms) is higher than the 1.5 * threshold(%dms), also the event queue is full(used: %.2f%%, available to up rate: %.2f%%), Batch size change rate: %.2f%%", adjustInfo.getEventDelay(), adjustInfo.getEventDelayThresholdMs(), rate * 100D, available * 100D, rateOf * 100D));
             result.setDetail(msg);
             result.setRate(rateOf);
         }

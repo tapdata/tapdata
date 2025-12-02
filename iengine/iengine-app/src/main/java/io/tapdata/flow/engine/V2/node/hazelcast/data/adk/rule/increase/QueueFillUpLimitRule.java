@@ -34,7 +34,7 @@ public class QueueFillUpLimitRule extends AbstractRule implements InitializingBe
             //Isn't the delay exceeding the threshold here, and the capacity has not reached 70%, such as 20%,
             // with a default queue limit of 95%?
             // At this point, available=95% -20%=75%, indicating that it can only increase by another 75% at most.
-            rateOf = rateOf + rate - adjustInfo.getEventQueueFullThreshold();
+            rateOf = rateOf - (rate - adjustInfo.getEventQueueFullThreshold());
             result.setType(-1);
             double r = rateOf;
             String msg = String.format("Judgment Rule 2 - [%s], rate of %.2f , judge info: %s, %d", taskId, r, JSON.toJSONString(adjustInfo), System.currentTimeMillis());
