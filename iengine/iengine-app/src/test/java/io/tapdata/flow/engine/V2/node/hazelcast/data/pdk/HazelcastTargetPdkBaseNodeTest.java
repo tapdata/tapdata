@@ -10,6 +10,7 @@ import com.hazelcast.jet.core.JobStatus;
 import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.SyncObjects;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.dataflow.TableBatchReadStatus;
 import com.tapdata.entity.dataflow.batch.BatchOffsetUtil;
@@ -46,6 +47,7 @@ import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.common.TapdataEventsRunner;
 import io.tapdata.flow.engine.V2.exactlyonce.ExactlyOnceUtil;
 import io.tapdata.flow.engine.V2.exactlyonce.write.CheckExactlyOnceWriteEnableResult;
+import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleaner;
 import io.tapdata.flow.engine.V2.exactlyonce.write.ExactlyOnceWriteCleanerEntity;
 import io.tapdata.flow.engine.V2.exception.TapExactlyOnceWriteExCode_22;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
@@ -1136,6 +1138,132 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 				doCallRealMethod().when(hazelcastTargetPdkBaseNode).initExactlyOnceWriteIfNeed();
 				hazelcastTargetPdkBaseNode.initExactlyOnceWriteIfNeed();
 				verify(hazelcastTargetPdkBaseNode, new Times(1)).buildErrorConsumer("test");
+			}
+		}
+
+		@Test
+		@DisplayName("test initExactlyOnceWriteIfNeed method for DatabaseNode with syncObjects")
+		void testDatabaseNodeWithSyncObjects() {
+			try (MockedStatic<ExactlyOnceUtil> exactlyOnceUtilMockedStatic = Mockito.mockStatic(ExactlyOnceUtil.class);
+				 MockedStatic<ExactlyOnceWriteCleaner> exactlyOnceWriteCleanerMockedStatic = Mockito.mockStatic(ExactlyOnceWriteCleaner.class)) {
+				TapTable exactlyOnceTable = mock(TapTable.class);
+				when(exactlyOnceTable.getId()).thenReturn("test");
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTable(connectorNode)).thenReturn(exactlyOnceTable);
+				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = mock(CheckExactlyOnceWriteEnableResult.class);
+				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
+				when(checkExactlyOnceWriteEnableResult.getEnable()).thenReturn(true);
+				ConnectorFunctions functions = mock(ConnectorFunctions.class);
+				when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+				when(hazelcastTargetPdkBaseNode.createTable(any(TapTable.class), any(AtomicBoolean.class), any(Boolean.class))).thenReturn(false);
+
+				DatabaseNode databaseNode = new DatabaseNode();
+				databaseNode.setId("nodeId");
+				databaseNode.setConnectionId("connectionId");
+				databaseNode.setIncrementExactlyOnceEnableTimeWindowDay(5);
+				List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+				com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+				syncObjects.setType(com.tapdata.entity.dataflow.SyncObjects.TABLE_TYPE);
+				syncObjects.setObjectNames(Arrays.asList("table1", "table2", "table3"));
+				syncObjectsList.add(syncObjects);
+				databaseNode.setSyncObjects(syncObjectsList);
+				when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+				ExactlyOnceWriteCleaner mockCleaner = mock(ExactlyOnceWriteCleaner.class);
+				exactlyOnceWriteCleanerMockedStatic.when(ExactlyOnceWriteCleaner::getInstance).thenReturn(mockCleaner);
+
+				doCallRealMethod().when(hazelcastTargetPdkBaseNode).initExactlyOnceWriteIfNeed();
+				hazelcastTargetPdkBaseNode.initExactlyOnceWriteIfNeed();
+
+				verify(mockCleaner, times(3)).registerCleaner(any(ExactlyOnceWriteCleanerEntity.class));
+				List<String> exactlyOnceWriteTables = (List<String>) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables");
+				assertEquals(3, exactlyOnceWriteTables.size());
+				assertTrue(exactlyOnceWriteTables.contains("table1"));
+				assertTrue(exactlyOnceWriteTables.contains("table2"));
+				assertTrue(exactlyOnceWriteTables.contains("table3"));
+				List<ExactlyOnceWriteCleanerEntity> exactlyOnceWriteCleanerEntities = (List<ExactlyOnceWriteCleanerEntity>) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteCleanerEntities");
+				assertEquals(3, exactlyOnceWriteCleanerEntities.size());
+			}
+		}
+
+		@Test
+		@DisplayName("test initExactlyOnceWriteIfNeed method for DatabaseNode with null syncTables")
+		void testDatabaseNodeWithNullSyncTables() {
+			try (MockedStatic<ExactlyOnceUtil> exactlyOnceUtilMockedStatic = Mockito.mockStatic(ExactlyOnceUtil.class);
+				 MockedStatic<ExactlyOnceWriteCleaner> exactlyOnceWriteCleanerMockedStatic = Mockito.mockStatic(ExactlyOnceWriteCleaner.class)) {
+				TapTable exactlyOnceTable = mock(TapTable.class);
+				when(exactlyOnceTable.getId()).thenReturn("test");
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTable(connectorNode)).thenReturn(exactlyOnceTable);
+				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = mock(CheckExactlyOnceWriteEnableResult.class);
+				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
+				when(checkExactlyOnceWriteEnableResult.getEnable()).thenReturn(true);
+				ConnectorFunctions functions = mock(ConnectorFunctions.class);
+				when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+				when(hazelcastTargetPdkBaseNode.createTable(any(TapTable.class), any(AtomicBoolean.class), any(Boolean.class))).thenReturn(false);
+
+				DatabaseNode databaseNode = new DatabaseNode();
+				databaseNode.setId("nodeId");
+				databaseNode.setConnectionId("connectionId");
+				List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+				com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+				syncObjects.setType("view");
+				syncObjects.setObjectNames(Arrays.asList("view1", "view2"));
+				syncObjectsList.add(syncObjects);
+				databaseNode.setSyncObjects(syncObjectsList);
+				when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+				ExactlyOnceWriteCleaner mockCleaner = mock(ExactlyOnceWriteCleaner.class);
+				exactlyOnceWriteCleanerMockedStatic.when(ExactlyOnceWriteCleaner::getInstance).thenReturn(mockCleaner);
+
+				doCallRealMethod().when(hazelcastTargetPdkBaseNode).initExactlyOnceWriteIfNeed();
+				hazelcastTargetPdkBaseNode.initExactlyOnceWriteIfNeed();
+
+				verify(mockCleaner, never()).registerCleaner(any(ExactlyOnceWriteCleanerEntity.class));
+				List<String> exactlyOnceWriteTables = (List<String>) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables");
+				assertTrue(exactlyOnceWriteTables.isEmpty());
+			}
+		}
+
+		@Test
+		@DisplayName("test initExactlyOnceWriteIfNeed method for DatabaseNode with empty objectNames")
+		void testDatabaseNodeWithEmptyObjectNames() {
+			try (MockedStatic<ExactlyOnceUtil> exactlyOnceUtilMockedStatic = Mockito.mockStatic(ExactlyOnceUtil.class);
+				 MockedStatic<ExactlyOnceWriteCleaner> exactlyOnceWriteCleanerMockedStatic = Mockito.mockStatic(ExactlyOnceWriteCleaner.class)) {
+				TapTable exactlyOnceTable = mock(TapTable.class);
+				when(exactlyOnceTable.getId()).thenReturn("test");
+				ConnectorNode connectorNode = mock(ConnectorNode.class);
+				when(hazelcastTargetPdkBaseNode.getConnectorNode()).thenReturn(connectorNode);
+				exactlyOnceUtilMockedStatic.when(() -> ExactlyOnceUtil.generateExactlyOnceTable(connectorNode)).thenReturn(exactlyOnceTable);
+				CheckExactlyOnceWriteEnableResult checkExactlyOnceWriteEnableResult = mock(CheckExactlyOnceWriteEnableResult.class);
+				when(hazelcastTargetPdkBaseNode.enableExactlyOnceWrite()).thenReturn(checkExactlyOnceWriteEnableResult);
+				when(checkExactlyOnceWriteEnableResult.getEnable()).thenReturn(true);
+				ConnectorFunctions functions = mock(ConnectorFunctions.class);
+				when(connectorNode.getConnectorFunctions()).thenReturn(functions);
+				when(hazelcastTargetPdkBaseNode.createTable(any(TapTable.class), any(AtomicBoolean.class), any(Boolean.class))).thenReturn(false);
+
+				DatabaseNode databaseNode = new DatabaseNode();
+				databaseNode.setId("nodeId");
+				databaseNode.setConnectionId("connectionId");
+				List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+				com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+				syncObjects.setType(com.tapdata.entity.dataflow.SyncObjects.TABLE_TYPE);
+				syncObjects.setObjectNames(new ArrayList<>());
+				syncObjectsList.add(syncObjects);
+				databaseNode.setSyncObjects(syncObjectsList);
+				when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+				ExactlyOnceWriteCleaner mockCleaner = mock(ExactlyOnceWriteCleaner.class);
+				exactlyOnceWriteCleanerMockedStatic.when(ExactlyOnceWriteCleaner::getInstance).thenReturn(mockCleaner);
+
+				doCallRealMethod().when(hazelcastTargetPdkBaseNode).initExactlyOnceWriteIfNeed();
+				hazelcastTargetPdkBaseNode.initExactlyOnceWriteIfNeed();
+
+				verify(mockCleaner, never()).registerCleaner(any(ExactlyOnceWriteCleanerEntity.class));
+				List<String> exactlyOnceWriteTables = (List<String>) ReflectionTestUtils.getField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables");
+				assertTrue(exactlyOnceWriteTables.isEmpty());
 			}
 		}
 	}
@@ -2369,6 +2497,211 @@ class HazelcastTargetPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			e = new CoreException("test exception");
 			doCallRealMethod().when(hazelcastTargetPdkBaseNode).errorHandle(syncProgress, e);
 			assertThrows(TapCodeException.class, () -> hazelcastTargetPdkBaseNode.errorHandle(syncProgress, e));
+		}
+	}
+
+	@Nested
+	@DisplayName("Method initAndGetExactlyOnceWriteLookupList test")
+	class InitAndGetExactlyOnceWriteLookupListTest {
+		private ConcurrentHashMap<String, List<String>> exactlyOnceWriteNeedLookupTables;
+		private List<String> exactlyOnceWriteTables;
+
+		@BeforeEach
+		void setUp() {
+			exactlyOnceWriteNeedLookupTables = new ConcurrentHashMap<>();
+			exactlyOnceWriteTables = new ArrayList<>();
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteNeedLookupTables", exactlyOnceWriteNeedLookupTables);
+			ReflectionTestUtils.setField(hazelcastTargetPdkBaseNode, "exactlyOnceWriteTables", exactlyOnceWriteTables);
+			doCallRealMethod().when(hazelcastTargetPdkBaseNode).initAndGetExactlyOnceWriteLookupList();
+		}
+
+		@Test
+		@DisplayName("test TableNode with tableName in exactlyOnceWriteTables")
+		void testTableNodeWithMatchingTable() {
+			exactlyOnceWriteTables.add("testTable");
+
+			TableNode tableNode = mock(TableNode.class);
+			when(tableNode.getTableName()).thenReturn("testTable");
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) tableNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNotNull(result);
+			assertEquals(1, result.size());
+			assertTrue(result.contains("testTable"));
+		}
+
+		@Test
+		@DisplayName("test TableNode with tableName not in exactlyOnceWriteTables")
+		void testTableNodeWithNoMatchingTable() {
+			exactlyOnceWriteTables.add("otherTable");
+
+			TableNode tableNode = mock(TableNode.class);
+			when(tableNode.getTableName()).thenReturn("testTable");
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) tableNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test TableNode with empty exactlyOnceWriteTables")
+		void testTableNodeWithEmptyExactlyOnceWriteTables() {
+			TableNode tableNode = mock(TableNode.class);
+			when(tableNode.getTableName()).thenReturn("testTable");
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) tableNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with syncObjects containing TABLE_TYPE and matching tables")
+		void testDatabaseNodeWithMatchingTables() {
+			exactlyOnceWriteTables.add("table1");
+			exactlyOnceWriteTables.add("table3");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			syncObjects.setType(SyncObjects.TABLE_TYPE);
+			syncObjects.setObjectNames(Arrays.asList("table1", "table2", "table3"));
+			syncObjectsList.add(syncObjects);
+			databaseNode.setSyncObjects(syncObjectsList);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNotNull(result);
+			assertEquals(2, result.size());
+			assertTrue(result.contains("table1"));
+			assertTrue(result.contains("table3"));
+			assertFalse(result.contains("table2"));
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with syncObjects containing TABLE_TYPE but no matching tables")
+		void testDatabaseNodeWithNoMatchingTables() {
+			exactlyOnceWriteTables.add("tableX");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			syncObjects.setType(SyncObjects.TABLE_TYPE);
+			syncObjects.setObjectNames(Arrays.asList("table1", "table2"));
+			syncObjectsList.add(syncObjects);
+			databaseNode.setSyncObjects(syncObjectsList);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with syncObjects not containing TABLE_TYPE")
+		void testDatabaseNodeWithNonTableType() {
+			exactlyOnceWriteTables.add("table1");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			syncObjects.setType("view");
+			syncObjects.setObjectNames(Arrays.asList("view1", "view2"));
+			syncObjectsList.add(syncObjects);
+			databaseNode.setSyncObjects(syncObjectsList);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with syncObjects containing TABLE_TYPE but empty objectNames")
+		void testDatabaseNodeWithEmptyObjectNames() {
+			exactlyOnceWriteTables.add("table1");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			syncObjects.setType(SyncObjects.TABLE_TYPE);
+			syncObjects.setObjectNames(new ArrayList<>());
+			syncObjectsList.add(syncObjects);
+			databaseNode.setSyncObjects(syncObjectsList);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with syncObjects containing TABLE_TYPE but null objectNames")
+		void testDatabaseNodeWithNullObjectNames() {
+			exactlyOnceWriteTables.add("table1");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+			com.tapdata.tm.commons.dag.vo.SyncObjects syncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			syncObjects.setType(SyncObjects.TABLE_TYPE);
+			syncObjects.setObjectNames(null);
+			syncObjectsList.add(syncObjects);
+			databaseNode.setSyncObjects(syncObjectsList);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with empty syncObjects list")
+		void testDatabaseNodeWithEmptySyncObjects() {
+			exactlyOnceWriteTables.add("table1");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			databaseNode.setSyncObjects(new ArrayList<>());
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNull(result);
+		}
+
+		@Test
+		@DisplayName("test DatabaseNode with multiple syncObjects, only one is TABLE_TYPE")
+		void testDatabaseNodeWithMultipleSyncObjects() {
+			exactlyOnceWriteTables.add("table1");
+			exactlyOnceWriteTables.add("table2");
+
+			DatabaseNode databaseNode = new DatabaseNode();
+			List<com.tapdata.tm.commons.dag.vo.SyncObjects> syncObjectsList = new ArrayList<>();
+
+			com.tapdata.tm.commons.dag.vo.SyncObjects viewSyncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			viewSyncObjects.setType("view");
+			viewSyncObjects.setObjectNames(Arrays.asList("view1", "view2"));
+			syncObjectsList.add(viewSyncObjects);
+
+			com.tapdata.tm.commons.dag.vo.SyncObjects tableSyncObjects = new com.tapdata.tm.commons.dag.vo.SyncObjects();
+			tableSyncObjects.setType(SyncObjects.TABLE_TYPE);
+			tableSyncObjects.setObjectNames(Arrays.asList("table1", "table2", "table3"));
+			syncObjectsList.add(tableSyncObjects);
+
+			databaseNode.setSyncObjects(syncObjectsList);
+			when(hazelcastTargetPdkBaseNode.getNode()).thenReturn((Node) databaseNode);
+
+			List<String> result = hazelcastTargetPdkBaseNode.initAndGetExactlyOnceWriteLookupList();
+
+			assertNotNull(result);
+			assertEquals(2, result.size());
+			assertTrue(result.contains("table1"));
+			assertTrue(result.contains("table2"));
 		}
 	}
 
