@@ -908,7 +908,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode imple
 
 		if (null != anyError) {
 			obsLogger.trace("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
-			obsLogger.info("Starting incremental sync using database log parser");
+			obsLogger.info("Node {} Starting incremental sync using database log parser", getNode().getName());
+
 
 			CommonUtils.AnyError finalAnyError = anyError;
 			String finalStreamReadFunctionName = streamReadFunctionName.get();
