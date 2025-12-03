@@ -65,9 +65,8 @@ public interface TaskInspectUtils {
 
     static String toRowId(String tableName, LinkedHashMap<String, Object> keys) {
         StringBuilder buf = new StringBuilder(tableName);
-        for (Object v : keys.values()) {
-            buf.append("|").append(v);
-        }
+        String serializedKeyStr = keysSerialization(keys);
+        buf.append("|").append(serializedKeyStr);
         return MD5Utils.toLowerHex(buf.toString());
     }
 

@@ -194,6 +194,12 @@ public class TableNode extends DataNode {
 
     private boolean sourceAndTarget;
 
+    private boolean reFullRun = false;
+
+    private String mergeTablePropertiesId;
+
+    private String mergeNodeId;
+
     public TableNode() {
         super("table");
     }

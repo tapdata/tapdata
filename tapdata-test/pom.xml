@@ -61,7 +61,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-common</artifactId>
-            <version>0.2.23-SNAPSHOT</version>
+            <version>${tapdata.pdk.runner.version}</version>
         </dependency>
         <!-- 测试框架 -->
         <dependency>

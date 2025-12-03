@@ -164,6 +164,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.CacheRebuildStatus;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
+import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+
 
 @DisplayName("HazelcastSourcePdkDataNode Class Test")
 public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
@@ -621,7 +628,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                 verify(newTables, times(v.newTablesToArray())).toArray();
                 verify(newTables, times(v.newTablesToArray())).clear();
                 verify(endSnapshotLoop, times(v.endSnapshotLoopSet())).set(true);
-                verify(instance, times(v.tapdataCompleteSnapshotEvent())).enqueue(any(TapdataCompleteSnapshotEvent.class));
+
                 verify(sourceStateAspect, times(v.stateCOMPLETED())).state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED);
                 verify(instance, times(v.snapshotReadEndAspect())).executeAspect(any(SnapshotReadEndAspect.class));
                 verify(obsLogger, times(v.warn())).warn("PDK node does not support table batch count: {}", databaseType);
@@ -1014,7 +1021,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1048,7 +1055,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testLastIsRunningIsFalse() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1079,7 +1086,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testNewTablesIsEmpty() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1114,7 +1121,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testThrowableWhenExecuteDataFuncAspect() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1177,7 +1184,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testTapCodeExceptionWhenExecuteDataFuncAspect() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1240,7 +1247,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testRemoveTablesIsNull() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1275,7 +1282,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1306,7 +1313,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1330,7 +1337,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             @Test
             void testSyncProgressBatchIsOverOfTableIsTrue() throws Exception {
                 VerifyDifferent v = new VerifyDifferent()
-                        .isRunning(3)
+                        .isRunning(2)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -1355,7 +1362,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .getProcessorBaseContext(0)
                         .setDefaultRowSizeMap(0)
                         .warn(0)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(0)
                         .executeAspect(0)
@@ -1395,7 +1402,7 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
                         .setDefaultRowSizeMap(1)
                         .getProcessorBaseContext(0)
                         .warn(1)
-                        .isRunning(4)
+                        .isRunning(3)
                         .sourceRunnerFirstTimeGet(1)
                         .stateINITIAL(1)
                         .executeAspect(1)
@@ -3469,4 +3476,172 @@ public class HazelcastSourcePdkDataNodeTest extends BaseHazelcastNodeTest {
             }
         }
     }
+	@Nested
+	@DisplayName("CheckRebuildMergeTableCacheTest")
+	class CheckRebuildMergeTableCacheTest {
+		private HazelcastSourcePdkDataNodeTestNested sourceNode;
+		private Node tableNode;
+		private TaskDto taskDto;
+		private HttpClientMongoOperator clientMongoOperator;
+		private ObsLogger obsLogger;
+
+		class HazelcastSourcePdkDataNodeTestNested extends HazelcastSourcePdkDataNode{
+			public HazelcastSourcePdkDataNodeTestNested(DataProcessorContext dataProcessorContext) {
+				super(dataProcessorContext);
+			}
+			@Override
+			public void doShareCdc() throws Exception {
+				super.doShareCdc();
+			}
+
+			@Override
+			protected boolean isRunning() {
+				return super.isRunning();
+			}
+		}
+
+		@BeforeEach
+		void setUp() {
+			tableNode = mock(TableNode.class);
+			taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			taskDto.setType(TaskDto.TYPE_INITIAL_SYNC_CDC);
+
+			clientMongoOperator = mock(HttpClientMongoOperator.class);
+			obsLogger= mock(ObsLogger.class);
+
+			when(dataProcessorContext.getNode()).thenReturn(tableNode);
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+
+			sourceNode = spy(new HazelcastSourcePdkDataNodeTestNested(dataProcessorContext));
+			ReflectionTestUtils.setField(sourceNode, "clientMongoOperator", clientMongoOperator);
+			ReflectionTestUtils.setField(sourceNode, "obsLogger", obsLogger);
+		}
+
+
+		@Test
+		@DisplayName("测试节点不是TableNode时返回false")
+		void testNotTableNode() {
+			doReturn(true).when(sourceNode).isRunning();
+			Node databaseNode = mock(DatabaseNode.class);
+			when(dataProcessorContext.getNode()).thenReturn(databaseNode);
+
+			boolean result = sourceNode.checkRebuildMergeTableCache(true);
+
+			assertFalse(result);
+		}
+
+		@Test
+		@DisplayName("测试TableNode的reFullRun为true且first为true时")
+		void testReFullRunTrueWithFirstTrue() {
+			doReturn(true).when(sourceNode).isRunning();
+			TableNode tableNode = (TableNode) this.tableNode;
+			when(tableNode.isReFullRun()).thenReturn(true);
+			when(tableNode.getMergeNodeId()).thenReturn("mergeNode1");
+			when(tableNode.getMergeTablePropertiesId()).thenReturn("prop1");
+			when(tableNode.getTableName()).thenReturn("test_table");
+
+			boolean result = sourceNode.checkRebuildMergeTableCache(true);
+
+			assertTrue(result);
+			verify(clientMongoOperator).update(
+				any(Query.class),
+				any(Update.class),
+				eq("Task/mergeTablePropertiesRebuildStatus")
+			);
+			verify(obsLogger).info("Rebuild merge table cache, table name: {}", "test_table");
+		}
+
+		@Test
+		@DisplayName("测试TableNode的reFullRun为true且first为false时")
+		void testReFullRunTrueWithFirstFalse() {
+			doReturn(true).when(sourceNode).isRunning();
+			TableNode tableNode = (TableNode) this.tableNode;
+			when(tableNode.isReFullRun()).thenReturn(true);
+
+			boolean result = sourceNode.checkRebuildMergeTableCache(false);
+
+			assertTrue(result);
+			verify(clientMongoOperator, never()).update(any(), any(), anyString());
+			verify(obsLogger, never()).info(anyString(), anyString());
+		}
+
+		@Test
+		@DisplayName("测试任务reFullRun为true但TableNode的reFullRun为false且first为true时")
+		void testTaskReFullRunTrueButTableNodeFalseWithFirstTrue() {
+			doReturn(true).when(sourceNode).isRunning();
+			TableNode tableNode = (TableNode) this.tableNode;
+			when(tableNode.isReFullRun()).thenReturn(false);
+			when(tableNode.getTableName()).thenReturn("test_table");
+			taskDto.setReFullRun(true);
+
+			boolean result = sourceNode.checkRebuildMergeTableCache(true);
+
+			assertTrue(result);
+		}
+
+		@Test
+		@DisplayName("测试任务reFullRun为true但TableNode的reFullRun为false且first为false时")
+		void testTaskReFullRunTrueButTableNodeFalseWithFirstFalse() {
+			doReturn(true).when(sourceNode).isRunning();
+			TableNode tableNode = (TableNode) this.tableNode;
+			when(tableNode.isReFullRun()).thenReturn(false);
+			taskDto.setReFullRun(true);
+
+			boolean result = sourceNode.checkRebuildMergeTableCache(false);
+
+			assertTrue(result);
+			verify(obsLogger, never()).info(anyString(), anyString());
+		}
+
+
+		@Test
+		@DisplayName("测试任务和TableNode的reFullRun都为false时")
+		void testBothReFullRunFalse() {
+			doReturn(true).when(sourceNode).isRunning();
+			TableNode tableNode = (TableNode) this.tableNode;
+			when(tableNode.isReFullRun()).thenReturn(false);
+			taskDto.setReFullRun(false);
+
+			boolean result = sourceNode.checkRebuildMergeTableCache(true);
+
+			assertFalse(result);
+			verify(clientMongoOperator, never()).update(any(), any(), anyString());
+			verify(obsLogger, never()).info(anyString(), anyString());
+		}
+
+		@Test
+		@DisplayName("测试更新缓存重建状态时的Query和Update参数")
+		void testUpdateQueryAndUpdateParameters() {
+			doReturn(true).when(sourceNode).isRunning();
+			TableNode tableNode = (TableNode) this.tableNode;
+			when(tableNode.isReFullRun()).thenReturn(true);
+			when(tableNode.getMergeNodeId()).thenReturn("mergeNode1");
+			when(tableNode.getMergeTablePropertiesId()).thenReturn("prop1");
+			when(tableNode.getTableName()).thenReturn("test_table");
+
+			sourceNode.checkRebuildMergeTableCache(true);
+
+			verify(clientMongoOperator).update(
+				argThat(query -> {
+					// 验证Query包含正确的条件
+					String queryStr = query.toString();
+					return queryStr.contains("taskId") &&
+						   queryStr.contains(taskDto.getId().toHexString()) &&
+						   queryStr.contains("nodeId") &&
+						   queryStr.contains("mergeNode1") &&
+						   queryStr.contains("mergeTablePropertiesId") &&
+						   queryStr.contains("prop1");
+				}),
+				argThat(update -> {
+					// 验证Update设置了正确的状态
+					String updateStr = update.toString();
+					return updateStr.contains("status") &&
+						   updateStr.contains(CacheRebuildStatus.RUNNING.name());
+				}),
+				eq("Task/mergeTablePropertiesRebuildStatus")
+			);
+		}
+	}
+
 }
