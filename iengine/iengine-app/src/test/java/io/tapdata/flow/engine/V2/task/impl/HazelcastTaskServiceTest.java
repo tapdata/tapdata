@@ -1074,7 +1074,7 @@ public class HazelcastTaskServiceTest {
             JetDag jetDag = mock(JetDag.class);
             com.hazelcast.jet.core.DAG dag = mock(com.hazelcast.jet.core.DAG.class);
             when(jetDag.getDag()).thenReturn(dag);
-            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, true);
+            doReturn(jetDag).when(hazelcastTaskService).task2HazelcastDAG(taskDto, true, false);
             JetService jet = mock(JetService.class);
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
