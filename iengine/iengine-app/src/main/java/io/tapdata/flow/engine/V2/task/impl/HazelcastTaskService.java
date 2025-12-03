@@ -75,15 +75,11 @@ import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControll
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderControllerExCode_21;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustBatchSizeFactory;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustStage;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.schedule.CpuMemoryScheduler;
-import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;

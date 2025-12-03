@@ -1,11 +1,11 @@
-package io.tapdata.flow.engine.V2.node.hazelcast.data.adk.rule.increase;
+package io.tapdata.flow.engine.V2.node.hazelcast.data.batch.rule.increase;
 
 import com.alibaba.fastjson.JSON;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustBatchSizeFactory;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.rule.AbstractRule;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.rule.IncreaseRuleFactory;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.vo.increase.AdjustInfo;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.vo.increase.JudgeResult;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.rule.AbstractRule;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.rule.IncreaseRuleFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.AdjustInfo;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.JudgeResult;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Component;
 

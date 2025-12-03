@@ -654,7 +654,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			}
 
 			@Override
-			protected boolean isRunning() {
+			public boolean isRunning() {
 				return true;
 			}
 		}
@@ -850,7 +850,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			}
 
 			@Override
-			protected boolean isRunning() {
+			public boolean isRunning() {
 				return true;
 			}
 		}
@@ -1338,7 +1338,7 @@ public class HazelcastMergeNodeTest extends BaseHazelcastNodeTest {
 			}
 
 			@Override
-			protected boolean isRunning() {
+			public boolean isRunning() {
 				return true;
 			}
 		}

@@ -93,7 +93,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjus
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.impl.DynamicAdjustMemoryImpl;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
 import io.tapdata.threadgroup.CpuMemoryCollector;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -475,22 +475,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
     private void initSourceReadBatchSize() {
         this.readBatchSize = DEFAULT_READ_BATCH_SIZE;
+        this.increaseReadSize = DEFAULT_INCREASE_BATCH_SIZE;
         if (getNode() instanceof DataParentNode) {
             this.readBatchSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getReadBatchSize()).orElse(DEFAULT_READ_BATCH_SIZE);
+            this.increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
+        } else if (getNode() instanceof LogCollectorNode) {
+            this.increaseReadSize = Optional.ofNullable(((LogCollectorNode) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
         }
-        initIncreaseReadSize(DEFAULT_INCREASE_BATCH_SIZE);
         this.drainSize = Math.max(1, readBatchSize / 2);
         obsLogger.trace("Source node \"{}\" read batch size: {}", getNode().getName(), readBatchSize);
-    }
-
-    protected void initIncreaseReadSize(int defaultSize) {
-        int increaseReadSize = defaultSize;
-        if (getNode() instanceof DataParentNode) {
-            increaseReadSize = Optional.ofNullable(((DataParentNode<?>) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
-        } else if (getNode() instanceof LogCollectorNode) {
-            increaseReadSize = Optional.ofNullable(((LogCollectorNode) dataProcessorContext.getNode()).getIncreaseReadSize()).orElse(DEFAULT_INCREASE_BATCH_SIZE);
-        }
-        this.setIncreaseReadSize(increaseReadSize);
     }
 
     protected void initDDLFilter() {

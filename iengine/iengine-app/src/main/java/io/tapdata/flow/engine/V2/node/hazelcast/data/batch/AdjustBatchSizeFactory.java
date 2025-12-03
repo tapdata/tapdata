@@ -1,6 +1,6 @@
-package io.tapdata.flow.engine.V2.node.hazelcast.data.adk;
+package io.tapdata.flow.engine.V2.node.hazelcast.data.batch;
 
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.rule.IncreaseRuleInstance;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.rule.IncreaseRuleInstance;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import org.apache.commons.lang3.StringUtils;
@@ -141,7 +141,7 @@ public final class AdjustBatchSizeFactory {
         final AtomicBoolean isAlive;
         final long checkIntervalMs;
 
-        private AdjustManager(AtomicBoolean isAlive, long checkIntervalMs) {
+        AdjustManager(AtomicBoolean isAlive, long checkIntervalMs) {
             this.isAlive = isAlive;
             this.checkIntervalMs = checkIntervalMs;
         }

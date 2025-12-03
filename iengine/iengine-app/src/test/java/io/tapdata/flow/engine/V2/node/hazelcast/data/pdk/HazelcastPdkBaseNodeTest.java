@@ -672,5 +672,13 @@ class HazelcastPdkBaseNodeTest extends BaseHazelcastNodeTest {
 			Assertions.assertEquals(true, aspect.get().isRetrying());
 		}
 	}
-	
+
+	@Nested
+	class IncreaseReadSizeTest {
+		@Test
+		void testGet() {
+			hazelcastPdkBaseNode.setIncreaseReadSize(100);
+			Assertions.assertEquals(100, hazelcastPdkBaseNode.getIncreaseReadSize());
+		}
+	}
 }

@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.node.hazelcast.data.adk;
+package io.tapdata.flow.engine.V2.node.hazelcast.data.batch;
 
 import com.google.common.collect.Queues;
 
@@ -80,7 +80,7 @@ public class DynamicLinkedBlockingQueue<E> {
         return this;
     }
 
-    private boolean active() {
+    protected boolean active() {
         return active != null && active.test();
     }
 
