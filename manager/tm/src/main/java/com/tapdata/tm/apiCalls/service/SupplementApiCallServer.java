@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -25,6 +26,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
@@ -44,19 +46,28 @@ import java.util.stream.Collectors;
  * @description
  */
 @Service
-@Setter(onMethod_ = {@Autowired})
 @Slf4j
 public class SupplementApiCallServer {
     public static final String API_CALL = MongoUtils.getCollectionName(ApiCallEntity.class);
     public static final String SUPPLEMENT = "supplement";
     public static final String MODULE_ID = "moduleId";
+
+    @Value("${api-server.supplement-hour:16}")
+    Integer supplementHour;
+
+    @Autowired
     MongoTemplate mongoOperations;
+    @Autowired
     WorkerCallServiceImpl workerCallService;
+    @Autowired
     ApiCallMinuteStatsService apiCallMinuteStatsService;
+    @Autowired
     ApiCallStatsService apiCallStatsService;
 
     public void supplementOnce() {
+        LocalDateTime filterTime = LocalDateTime.now().minusHours(supplementHour);
         Criteria criteria = Criteria.where(SUPPLEMENT).is(true)
+                .and("createTime").gte(filterTime)
                 .and("allPathId").ne(null)
                 .and("reqTime").ne(null);
         Query query = Query.query(criteria);
@@ -65,18 +76,27 @@ public class SupplementApiCallServer {
             return;
         }
         int from = 0;
-        int size = 100;
+        int size = 1000;
         query.with(Sort.by(Sort.Order.asc("_id")));
+        ObjectId lastId = null;
         try (WorkerCallsInfoGenerator generator = new WorkerCallsInfoGenerator(this::callUpdate)) {
             List<ApiCallDto> apiCalls = null;
             do {
-                query.skip(from)
-                        .limit(size);
+                if (lastId != null) {
+                    query = Query.query(
+                            Criteria.where(SUPPLEMENT).is(true)
+                                    .and("createTime").gte(filterTime)
+                                    .and("allPathId").ne(null)
+                                    .and("reqTime").ne(null)
+                                    .and("_id").gt(lastId)
+                    ).with(Sort.by(Sort.Order.asc("_id"))).limit(size);
+                }
                 apiCalls = mongoOperations.find(query, ApiCallDto.class, API_CALL);
                 from = from + size;
                 if (CollectionUtils.isEmpty(apiCalls)) {
                     break;
                 }
+                lastId = apiCalls.get(apiCalls.size() - 1).getId();
                 List<ObjectId> supplementIds = new ArrayList<>(16);
                 apiCalls.forEach(apiCall -> supplementIds.add(apiCall.getId()));
                 acceptBatch(apiCalls, generator);
