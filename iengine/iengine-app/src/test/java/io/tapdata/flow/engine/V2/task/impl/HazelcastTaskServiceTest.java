@@ -9,6 +9,7 @@ import com.tapdata.constant.*;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.JetDag;
+import com.tapdata.entity.Setting;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskGlobalVariable;
@@ -54,8 +55,10 @@ import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.core.api.impl.JsonParserImpl;
+import io.tapdata.pdk.core.executor.ThreadFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import io.tapdata.threadgroup.CpuMemoryCollector;
 import lombok.SneakyThrows;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.*;
@@ -1076,7 +1079,17 @@ public class HazelcastTaskServiceTest {
             when(hazelcastInstance.getJet()).thenReturn(jet);
             Job job = mock(Job.class);
             when(jet.newJob(eq(dag), any(JobConfig.class))).thenReturn(job);
-            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() -> hazelcastTaskService.startPreviewTask(taskDto));
+            TaskClient<TaskDto> taskDtoTaskClient = assertDoesNotThrow(() ->  {
+                try (MockedStatic<CpuMemoryCollector> cm = mockStatic(CpuMemoryCollector.class)) {
+                    cm.when(() -> CpuMemoryCollector.startTask(taskDto)).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.addNode(anyString(), anyString())).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.registerTask(anyString(), any(ThreadFactory.class))).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.unregisterTask(anyString())).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.listening(anyString(), any(Object.class))).thenAnswer(a -> null);
+                    cm.when(() -> CpuMemoryCollector.collectOnce(anyList())).thenReturn(new HashMap<>());
+                    return hazelcastTaskService.startPreviewTask(taskDto);
+                }
+            });
             assertNotNull(taskDtoTaskClient);
             assertSame(job, ReflectionTestUtils.getField(taskDtoTaskClient, "job"));
             assertSame(taskDto, taskDtoTaskClient.getTask());
@@ -1687,6 +1700,140 @@ public class HazelcastTaskServiceTest {
             taskDto.setDag(dag);
             TapConnectorContext.IsomorphismType isomorphismType = hazelcastTaskService.sourceAndSinkIsomorphismType(taskDto);
             assertEquals(TapConnectorContext.IsomorphismType.HETEROGENEOUS, isomorphismType);
+        }
+    }
+
+    @Nested
+    @DisplayName("Method openAutoIncrementalBatchSize test")
+    class OpenAutoIncrementalBatchSizeTest {
+        private HazelcastTaskService hazelcastTaskService;
+        private SettingService settingService;
+
+        @BeforeEach
+        void setUp() {
+            HttpClientMongoOperator clientMongoOperator = mock(HttpClientMongoOperator.class);
+            hazelcastTaskService = spy(new HazelcastTaskService(clientMongoOperator, clientMongoOperator));
+            settingService = mock(SettingService.class);
+            ReflectionTestUtils.setField(hazelcastTaskService, "settingService", settingService);
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when setting is null")
+        void testOpenAutoIncrementalBatchSizeWhenSettingNull() {
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(null);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is 'true'")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsTrue() {
+            Setting setting = new Setting();
+            setting.setValue("true");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is 'TRUE'")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsTRUE() {
+            Setting setting = new Setting();
+            setting.setValue("TRUE");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is 'false'")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsFalse() {
+            Setting setting = new Setting();
+            setting.setValue("false");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'true'")
+        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultTrue() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value("true");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'TRUE'")
+        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultTRUE() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value("TRUE");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertTrue(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is null and default_value is 'false'")
+        void testOpenAutoIncrementalBatchSizeWhenValueNullAndDefaultFalse() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value("false");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when both value and default_value are null")
+        void testOpenAutoIncrementalBatchSizeWhenBothNull() {
+            Setting setting = new Setting();
+            setting.setValue(null);
+            setting.setDefault_value(null);
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
+        }
+
+        @Test
+        @DisplayName("test openAutoIncrementalBatchSize when value is other string")
+        void testOpenAutoIncrementalBatchSizeWhenValueIsOtherString() {
+            Setting setting = new Setting();
+            setting.setValue("enabled");
+            when(settingService.getSetting("auto_incremental_batch_size")).thenReturn(setting);
+
+            boolean result = hazelcastTaskService.openAutoIncrementalBatchSize();
+
+            assertFalse(result);
+            verify(settingService, times(1)).getSetting("auto_incremental_batch_size");
         }
     }
 }

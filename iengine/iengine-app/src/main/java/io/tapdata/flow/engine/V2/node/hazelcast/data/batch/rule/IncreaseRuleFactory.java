@@ -1,7 +1,7 @@
-package io.tapdata.flow.engine.V2.node.hazelcast.data.adk.rule;
+package io.tapdata.flow.engine.V2.node.hazelcast.data.batch.rule;
 
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.vo.increase.AdjustInfo;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.vo.increase.JudgeResult;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.AdjustInfo;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.JudgeResult;
 
 import java.util.ArrayList;
 import java.util.Comparator;

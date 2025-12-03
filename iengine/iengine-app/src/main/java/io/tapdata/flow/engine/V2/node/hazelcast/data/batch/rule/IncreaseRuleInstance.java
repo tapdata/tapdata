@@ -1,15 +1,15 @@
-package io.tapdata.flow.engine.V2.node.hazelcast.data.adk.rule;
+package io.tapdata.flow.engine.V2.node.hazelcast.data.batch.rule;
 
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustBatchSizeFactory;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.AdjustStage;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.FixedSizeQueue;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.JvmMemoryService;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.vo.increase.AdjustInfo;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.adk.vo.increase.JudgeResult;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustStage;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.FixedSizeQueue;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.JvmMemoryService;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.AdjustInfo;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.vo.increase.JudgeResult;
 import io.tapdata.flow.engine.V2.schedule.TapdataTaskScheduler;
 import io.tapdata.pdk.core.async.ThreadPoolExecutorEx;
 import org.openjdk.jol.info.GraphLayout;
