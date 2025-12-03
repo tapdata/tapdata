@@ -171,3 +171,9 @@ management:
     web:
       exposure:
         include: "prometheus, info, health"
+  metrics:
+    tags:
+      application: 'TMApplication'
+
+api-server:
+  supplement-hour: ${supplement.api.call.hour:16}
