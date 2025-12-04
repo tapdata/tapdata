@@ -165,6 +165,7 @@ class TaskServiceImplTest {
     DataSourceService dataSourceService;
     UserLogService userLogService;
     MetadataDefinitionService metadataDefinitionService;
+    TaskUpdateDagService taskUpdateDagService;
     @BeforeEach
     void init() {
         taskService = mock(TaskServiceImpl.class);
@@ -185,6 +186,9 @@ class TaskServiceImplTest {
         ReflectionTestUtils.setField(taskService,"userLogService",userLogService);
         metadataDefinitionService = mock(MetadataDefinitionService.class);
         ReflectionTestUtils.setField(taskService,"metadataDefinitionService",metadataDefinitionService);
+        taskUpdateDagService = mock(TaskUpdateDagService.class);
+        ReflectionTestUtils.setField(taskService,"taskUpdateDagService",taskUpdateDagService);
+        doNothing().when(taskUpdateDagService).updateDag(any(TaskDto.class), any(TaskDto.class), any(UserDetail.class), anyBoolean());
     }
 
     @Nested
@@ -3568,6 +3572,7 @@ class TaskServiceImplTest {
         void test1(){
             StateMachineResult stateMachineResult = mock(StateMachineResult.class);
             when(stateMachineResult.isFail()).thenReturn(true);
+            when(taskService.checkExistById(id, user, "_id", TaskServiceImpl.STATUS, "name", TaskServiceImpl.TASK_RECORD_ID,"dag")).thenReturn(dto);
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.ERROR, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).runError(id,user,errMsg,errStack);
             String actual = taskService.runError(id, user, errMsg, errStack);
@@ -3580,6 +3585,7 @@ class TaskServiceImplTest {
             when(stateMachineResult.isFail()).thenReturn(false);
             when(stateMachineService.executeAboutTask(dto, DataFlowEvent.ERROR, user)).thenReturn(stateMachineResult);
             doCallRealMethod().when(taskService).runError(id,user,errMsg,errStack);
+            when(taskService.checkExistById(id, user, "_id", TaskServiceImpl.STATUS, "name", TaskServiceImpl.TASK_RECORD_ID,"dag")).thenReturn(dto);
             String actual = taskService.runError(id,user,errMsg,errStack);
             assertEquals(id.toHexString(),actual);
         }

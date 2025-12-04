@@ -872,4 +872,13 @@ public class TapdataTaskScheduler implements MemoryFetcher {
 
 		logger.info("TapdataTaskScheduler resources cleanup completed");
 	}
+
+	public List<TaskDto> getRunningTaskInfos() {
+		return taskClientMap.values()
+				.stream()
+				.filter(Objects::nonNull)
+				.filter(TaskClient::isRunning)
+				.map(TaskClient::getTask)
+				.toList();
+	}
 }

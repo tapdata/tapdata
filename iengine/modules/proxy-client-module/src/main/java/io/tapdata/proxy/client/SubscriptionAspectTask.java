@@ -26,20 +26,19 @@ import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.modules.api.proxy.utils.NodeUtils;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
+import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
 import io.tapdata.pdk.core.api.ConnectorNode;
-import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -48,7 +47,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	private static final String TAG = SubscriptionAspectTask.class.getSimpleName();
 	@Bean
 	ProxySubscriptionManager proxySubscriptionManager;
-	StreamReadConsumer streamReadConsumer;
+	TapStreamReadConsumer<?, ?> streamReadConsumer;
 	Long taskStartTime;
 	private final TaskSubscribeInfo taskSubscribeInfo = new TaskSubscribeInfo();
 	private boolean isStarted;
@@ -61,11 +60,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	public SubscriptionAspectTask() {
 		observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
 		observerHandlers.register(StreamReadFuncAspect.class, this::handleStreamRead);
-//		long fetchNewDataCheckPeriodSeconds = CommonUtils.getPropertyLong("fetch.new.data.check.period.seconds", 60);
-//		ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
-//			enableFetchingNewData();
-//		}, fetchNewDataCheckPeriodSeconds, fetchNewDataCheckPeriodSeconds, TimeUnit.SECONDS	);
-	}
+}
 
 	private Void handleStreamRead(StreamReadFuncAspect streamReadFuncAspect) {
 		this.streamReadFuncAspect = streamReadFuncAspect;
@@ -157,7 +152,15 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 								}, TAG);
 							}
 							if(!messages.isEmpty()) {
-								streamReadConsumer.accept(events, fetchNewDataResult.getOffset());
+								if (streamReadConsumer instanceof StreamReadConsumer consumer) {
+									consumer.accept(events, fetchNewDataResult.getOffset());
+								} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
+									for (TapEvent event : events) {
+										consumer.accept(event, fetchNewDataResult.getOffset());
+									}
+								} else {
+									TapLogger.error(TAG, "Unknown stream read consumer: " + (null == streamReadConsumer ? "-" : streamReadConsumer.getClass().getName()));
+								}
 								currentOffset = fetchNewDataResult.getOffset();
 							}
 							synchronized (this) {

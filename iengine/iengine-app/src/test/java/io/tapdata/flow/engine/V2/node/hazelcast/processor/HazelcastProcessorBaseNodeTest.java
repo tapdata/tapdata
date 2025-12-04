@@ -210,7 +210,7 @@ class HazelcastProcessorBaseNodeTest extends BaseHazelcastNodeTest {
 					.build();
 			hazelcastProcessorBaseNode = spy(new HazelcastBlank(processorBaseContext) {
 				@Override
-				protected boolean isRunning() {
+				public boolean isRunning() {
 					return true;
 				}
 			});

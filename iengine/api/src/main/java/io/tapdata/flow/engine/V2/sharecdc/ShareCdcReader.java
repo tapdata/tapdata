@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.sharecdc;
 
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
-import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
 
 import java.io.Closeable;
 
@@ -20,7 +20,7 @@ public interface ShareCdcReader extends Closeable {
 	 */
 	void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException;
 
-	default void listen(StreamReadConsumer streamReadConsumer) throws Exception {
+	default void listen(TapStreamReadConsumer<?, ?> streamReadConsumer) throws Exception {
 		throw new UnsupportedOperationException();
 	}
 

@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.JsonUtil;
+import io.tapdata.aspect.BatchSizeAspect;
 import io.tapdata.aspect.DropTableFuncAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -15,6 +16,7 @@ import io.tapdata.aspect.WriteRecordFuncAspect;
 import io.tapdata.aspect.taskmilestones.SnapshotWriteTableCompleteAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.aspect.*;
+import io.tapdata.entity.BatchSizeInfo;
 import io.tapdata.entity.CountResult;
 import io.tapdata.entity.Usage;
 import io.tapdata.entity.aspect.Aspect;
@@ -41,6 +43,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -54,6 +57,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.BiConsumer;
 
+import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.*;
 
 
@@ -572,6 +576,143 @@ public class ObservableAspectTaskTest {
 
     }
 
+
+    @Nested
+    @DisplayName("Method handleBatchSize test")
+    class HandleBatchSizeTest {
+        @Test
+        @DisplayName("test handleBatchSize with valid nodeId and handler exists")
+        void testHandleBatchSizeWithValidNodeIdAndHandlerExists() {
+            String nodeId = "test-node-123";
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(nodeId);
+
+            DataNodeSampleHandler mockHandler = mock(DataNodeSampleHandler.class);
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put(nodeId, mockHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            doNothing().when(mockHandler).handleBatchSize(aspect);
+
+            Void result = observableAspectTask.handleBatchSize(aspect);
+
+            assertNull(result);
+            verify(mockHandler, times(1)).handleBatchSize(aspect);
+        }
+
+        @Test
+        @DisplayName("test handleBatchSize when handler does not exist for nodeId")
+        void testHandleBatchSizeWhenHandlerNotExists() {
+            String nodeId = "non-existent-node";
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(nodeId);
+
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            Void result = observableAspectTask.handleBatchSize(aspect);
+
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("test handleBatchSize when dataNodeSampleHandlers is empty")
+        void testHandleBatchSizeWhenHandlersEmpty() {
+            String nodeId = "test-node";
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(nodeId);
+
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            Void result = observableAspectTask.handleBatchSize(aspect);
+
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("test handleBatchSize with null nodeId")
+        void testHandleBatchSizeWithNullNodeId() {
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(null);
+
+            DataNodeSampleHandler mockHandler = mock(DataNodeSampleHandler.class);
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put("test-node", mockHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            Void result = observableAspectTask.handleBatchSize(aspect);
+
+            assertNull(result);
+            verify(mockHandler, never()).handleBatchSize(any());
+        }
+
+        @Test
+        @DisplayName("test handleBatchSize with multiple handlers, only correct one is called")
+        void testHandleBatchSizeWithMultipleHandlers() {
+            String targetNodeId = "target-node";
+            String otherNodeId = "other-node";
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(targetNodeId);
+
+            DataNodeSampleHandler targetHandler = mock(DataNodeSampleHandler.class);
+            DataNodeSampleHandler otherHandler = mock(DataNodeSampleHandler.class);
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put(targetNodeId, targetHandler);
+            dataNodeSampleHandlers.put(otherNodeId, otherHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            doNothing().when(targetHandler).handleBatchSize(aspect);
+
+            Void result = observableAspectTask.handleBatchSize(aspect);
+
+            assertNull(result);
+            verify(targetHandler, times(1)).handleBatchSize(aspect);
+            verify(otherHandler, never()).handleBatchSize(any());
+        }
+
+        @Test
+        @DisplayName("test handleBatchSize when handler is null in map")
+        void testHandleBatchSizeWhenHandlerIsNull() {
+            String nodeId = "test-node";
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(nodeId);
+
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put(nodeId, null);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            Void result = observableAspectTask.handleBatchSize(aspect);
+
+            assertNull(result);
+        }
+
+        @Test
+        @DisplayName("test handleBatchSize verifies handler method is called with correct aspect")
+        void testHandleBatchSizeVerifiesCorrectAspect() {
+            String nodeId = "verify-node";
+            BatchSizeInfo batchSizeInfo = mock(BatchSizeInfo.class);
+            BatchSizeAspect aspect = new BatchSizeAspect(batchSizeInfo);
+            aspect.setNodeId(nodeId);
+
+            DataNodeSampleHandler mockHandler = mock(DataNodeSampleHandler.class);
+            Map<String, DataNodeSampleHandler> dataNodeSampleHandlers = new HashMap<>();
+            dataNodeSampleHandlers.put(nodeId, mockHandler);
+            ReflectionTestUtils.setField(observableAspectTask, "dataNodeSampleHandlers", dataNodeSampleHandlers);
+
+            doNothing().when(mockHandler).handleBatchSize(aspect);
+
+            observableAspectTask.handleBatchSize(aspect);
+
+            verify(mockHandler, times(1)).handleBatchSize(eq(aspect));
+        }
+    }
 
     @Nested
     class handleCpuMemUsageTest {
