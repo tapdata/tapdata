@@ -12,16 +12,16 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.cluster.dto.AccessNodeInfo;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.ClusterStateMonitorRequest;
-import com.tapdata.tm.cluster.dto.NineBridgeCommandExecResult;
-import com.tapdata.tm.cluster.dto.NineBridgeSNResult;
-import com.tapdata.tm.cluster.dto.NineBridgeUpdateConfigResult;
-import com.tapdata.tm.cluster.dto.NineBridgeUpgradeSNResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserCommandExecResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserSNResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserUpdateConfigResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserUpgradeSNResult;
 import com.tapdata.tm.cluster.dto.RawServerStateDto;
 import com.tapdata.tm.cluster.dto.UpdataStatusRequest;
 import com.tapdata.tm.cluster.dto.UpdateAgentVersionParam;
-import com.tapdata.tm.cluster.params.NineBridgeConfigParam;
+import com.tapdata.tm.cluster.params.OracleLogParserConfigParam;
 import com.tapdata.tm.cluster.service.ClusterStateService;
-import com.tapdata.tm.cluster.service.NineBridgeService;
+import com.tapdata.tm.cluster.service.OracleLogParserService;
 import com.tapdata.tm.cluster.service.RawServerStateService;
 import com.tapdata.tm.permissions.constants.DataPermissionEnumsName;
 import com.tapdata.tm.utils.MongoUtils;
@@ -69,7 +69,7 @@ public class ClusterStateController extends BaseController {
     private PermissionService permissionService;
     @Autowired
     private SettingsService settingsService;
-    private NineBridgeService nineBridgeService;
+    private OracleLogParserService oracleLogParserService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -370,32 +370,32 @@ public class ClusterStateController extends BaseController {
         return success(allLatest);
     }
 
-    @Operation(summary = "Execute nine bridge command, start/stop/restart")
-    @PostMapping("/nine-bridge")
-    public ResponseMessage<NineBridgeCommandExecResult> executeCommand(
+    @Operation(summary = "Execute Oracle Log Parser command, start/stop/restart")
+    @PostMapping("/oracle-log-parser")
+    public ResponseMessage<OracleLogParserCommandExecResult> executeCommand(
             @RequestParam(value = "serverId") String serverId,
             @RequestParam(value = "command") String command) {
-        return success(nineBridgeService.executeCommand(serverId, command));
+        return success(oracleLogParserService.executeCommand(serverId, command));
     }
 
 
-    @Operation(summary = "Upgrade nine bridge sn file")
-    @PostMapping("/nine-bridge/upgrade-sn")
-    public ResponseMessage<NineBridgeUpgradeSNResult> upgradeNineBridgeSN(
+    @Operation(summary = "Upgrade Oracle Log Parser sn file")
+    @PostMapping("/oracle-log-parser/upgrade-sn")
+    public ResponseMessage<OracleLogParserUpgradeSNResult> upgradeOracleLogParserSN(
             @RequestParam(value = "serverId") String serverId,
             @RequestParam("file") MultipartFile file) {
         try {
             if (file.isEmpty()) {
-                throw new BizException("nine.bridge.sn.file.empty");
+                throw new BizException("oracle.log.parser.sn.file.empty");
             }
             String contentType = file.getContentType();
             if (!isTextFile(contentType, file.getOriginalFilename())) {
-                throw new BizException("nine.bridge.sn.file.not.text");
+                throw new BizException("oracle.log.parser.sn.file.not.text");
             }
             String content = new String(file.getBytes(), StandardCharsets.UTF_8);
-            return success(nineBridgeService.upgradeNineBridgeSN(serverId, content));
+            return success(oracleLogParserService.upgradeOracleLogParserSN(serverId, content));
         } catch (IOException e) {
-            throw new BizException("nine.bridge.sn.file.upload.error", e.getMessage());
+            throw new BizException("oracle.log.parser.sn.file.upload.error", e.getMessage());
         }
     }
 
@@ -412,25 +412,25 @@ public class ClusterStateController extends BaseController {
         );
     }
 
-    @Operation(summary = "Get nine bridge sn info")
-    @GetMapping("/nine-bridge/sn")
-    public ResponseMessage<NineBridgeSNResult> findNineBridgeSN(
+    @Operation(summary = "Get Oracle Log Parser sn info")
+    @GetMapping("/oracle-log-parser/sn")
+    public ResponseMessage<OracleLogParserSNResult> findOracleLogParserSN(
             @RequestParam(value = "serverId") String serverId) {
-        return success(nineBridgeService.findNineBridgeSN(serverId));
+        return success(oracleLogParserService.findOracleLogParserSN(serverId));
     }
 
-    @Operation(summary = "Update nine bridge config")
-    @PostMapping("/nine-bridge/update-config")
-    public ResponseMessage<NineBridgeUpdateConfigResult> updateNineBridgeConfig(
+    @Operation(summary = "Update Oracle Log Parser config")
+    @PostMapping("/oracle-log-parser/update-config")
+    public ResponseMessage<OracleLogParserUpdateConfigResult> updateOracleLogParserConfig(
             @RequestParam(value = "serverId") String serverId,
-            @RequestBody NineBridgeConfigParam parma) {
-        return success(nineBridgeService.updateNineBridgeConfig(serverId, parma));
+            @RequestBody OracleLogParserConfigParam parma) {
+        return success(oracleLogParserService.updateOracleLogParserConfig(serverId, parma));
     }
 
-    @Operation(summary = "remove nine bridge in list")
-    @DeleteMapping("/nine-bridge")
+    @Operation(summary = "remove Oracle Log Parser in list")
+    @DeleteMapping("/oracle-log-parser")
     public ResponseMessage<Boolean> removeUselessServerInfo(
             @RequestParam(value = "serverId") String serverId) {
-        return success(nineBridgeService.removeUselessServerInfo(serverId));
+        return success(oracleLogParserService.removeUselessServerInfo(serverId));
     }
 }

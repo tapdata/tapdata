@@ -1,15 +1,16 @@
-package com.tapdata.tm.cluster.params;
+package com.tapdata.tm.cluster.dto;
 
 import lombok.Data;
 
 /**
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  * @author <a href="https://github.com/11000100111010101100111">Gavin'Xiao</a>
- * @version v1.0 2025/11/14 09:37 Create
+ * @version v1.0 2025/11/14 09:39 Create
  * @description
  */
 @Data
-public class NineBridgeConfigParam {
-    String oracleUrl;
-    String mapTable;
+public class OracleLogParserCommandExecResult {
+    Object data;
+    String message;
+    String status;
 }

@@ -5,12 +5,12 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.cluster.dto.NineBridgeCommandExecResult;
-import com.tapdata.tm.cluster.dto.NineBridgeSNResult;
-import com.tapdata.tm.cluster.dto.NineBridgeUpdateConfigResult;
-import com.tapdata.tm.cluster.dto.NineBridgeUpgradeSNResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserCommandExecResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserSNResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserUpdateConfigResult;
+import com.tapdata.tm.cluster.dto.OracleLogParserUpgradeSNResult;
 import com.tapdata.tm.cluster.dto.RawServerStateDto;
-import com.tapdata.tm.cluster.params.NineBridgeConfigParam;
+import com.tapdata.tm.cluster.params.OracleLogParserConfigParam;
 import com.tapdata.tm.utils.HttpUtils;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -33,19 +33,19 @@ import java.util.Map;
 @Service
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class NineBridgeService {
-    public static final String START_NINI_BRIDGE = "http://%s:%d/api/ninebridge/start";
-    public static final String STOP_NINI_BRIDGE = "http://%s:%d/api/ninebridge/stop";
-    public static final String RESTART_NINI_BRIDGE = "http://%s:%d/api/ninebridge/restart";
-    public static final String UPDATE_CONFIG_NINI_BRIDGE = "http://%s:%d/api/ninebridge/config";
-    public static final String UPDATE_LICENSE_NINI_BRIDGE = "http://%s:%d/api/ninebridge/license-update";
-    public static final String FIND_LICENSE_NINI_BRIDGE = "http://%s:%d/api/ninebridge/license";
+public class OracleLogParserService {
+    public static final String START_ORACLE_LOG_PARSER = "http://%s:%d/api/oracle-log-parser/start";
+    public static final String STOP_ORACLE_LOG_PARSER = "http://%s:%d/api/oracle-log-parser/stop";
+    public static final String RESTART_ORACLE_LOG_PARSER = "http://%s:%d/api/oracle-log-parser/restart";
+    public static final String UPDATE_CONFIG_ORACLE_LOG_PARSER = "http://%s:%d/api/oracle-log-parser/config";
+    public static final String UPDATE_LICENSE_ORACLE_LOG_PARSER = "http://%s:%d/api/oracle-log-parser/license-update";
+    public static final String FIND_LICENSE_ORACLE_LOG_PARSER = "http://%s:%d/api/oracle-log-parser/license";
 
     private RawServerStateService rawServerStateService;
 
     RawServerStateDto findByServerId(String serverId) {
         if (StringUtils.isBlank(serverId)) {
-            throw new BizException("nine.bridge.server.id.empty");
+            throw new BizException("oracle.log.parser.server.id.empty");
         }
         Filter filter = new Filter();
         filter.setWhere(new Where());
@@ -53,40 +53,40 @@ public class NineBridgeService {
         Page<RawServerStateDto> allLatest = rawServerStateService.getAllLatest(filter);
         List<RawServerStateDto> items = allLatest.getItems();
         if (CollectionUtils.isEmpty(items) || items.get(0) == null) {
-            throw new BizException("nine.bridge.unable.find.server", serverId);
+            throw new BizException("oracle.log.parser.unable.find.server", serverId);
         }
         RawServerStateDto server = items.get(0);
         if (StringUtils.isBlank(server.getServiceIP()) || server.getServicePort() == null) {
-            throw new BizException("nine.bridge.unable.invalid.server", serverId);
+            throw new BizException("oracle.log.parser.unable.invalid.server", serverId);
         }
         return server;
     }
 
-    public NineBridgeCommandExecResult executeCommand(String serverId, String command) {
+    public OracleLogParserCommandExecResult executeCommand(String serverId, String command) {
         RawServerStateDto server = findByServerId(serverId);
         String serviceIP = server.getServiceIP();
         Integer servicePort = server.getServicePort();
         String uri = switch (command) {
-            case "start" -> String.format(START_NINI_BRIDGE, serviceIP, servicePort);
-            case "stop" -> String.format(STOP_NINI_BRIDGE, serviceIP, servicePort);
-            case "restart" -> String.format(RESTART_NINI_BRIDGE, serviceIP, servicePort);
-            default -> throw new BizException("nine.bridge.unable.invalid.command", command);
+            case "start" -> String.format(START_ORACLE_LOG_PARSER, serviceIP, servicePort);
+            case "stop" -> String.format(STOP_ORACLE_LOG_PARSER, serviceIP, servicePort);
+            case "restart" -> String.format(RESTART_ORACLE_LOG_PARSER, serviceIP, servicePort);
+            default -> throw new BizException("oracle.log.parser.unable.invalid.command", command);
         };
         try {
-            return post(uri, new HashMap<>(), NineBridgeCommandExecResult.class);
+            return post(uri, new HashMap<>(), OracleLogParserCommandExecResult.class);
         } catch (Exception e) {
-            throw new BizException("nine.bridge.command.failed", command, serverId, e.getMessage());
+            throw new BizException("oracle.log.parser.command.failed", command, serverId, e.getMessage());
         }
     }
 
-    public NineBridgeUpdateConfigResult updateNineBridgeConfig(String serverId, NineBridgeConfigParam parma) {
+    public OracleLogParserUpdateConfigResult updateOracleLogParserConfig(String serverId, OracleLogParserConfigParam parma) {
         if (StringUtils.isBlank(parma.getOracleUrl()) && StringUtils.isBlank(parma.getMapTable())) {
-            throw new BizException("nine.bridge.update.config.cannot.be.empty", serverId);
+            throw new BizException("oracle.log.parser.update.config.cannot.be.empty", serverId);
         }
         RawServerStateDto server = findByServerId(serverId);
         String serviceIP = server.getServiceIP();
         Integer servicePort = server.getServicePort();
-        String uri = String.format(UPDATE_CONFIG_NINI_BRIDGE, serviceIP, servicePort);
+        String uri = String.format(UPDATE_CONFIG_ORACLE_LOG_PARSER, serviceIP, servicePort);
         final Map<String, Object> body = new HashMap<>(8);
         body.put("service_id", serverId);
         body.put("flag", "s");
@@ -97,43 +97,43 @@ public class NineBridgeService {
             body.put("map_table", parma.getMapTable());
         }
         try {
-            return post(uri, body, NineBridgeUpdateConfigResult.class);
+            return post(uri, body, OracleLogParserUpdateConfigResult.class);
         } catch (Exception e) {
-            throw new BizException("nine.bridge.update.config.failed", serverId, e.getMessage());
+            throw new BizException("oracle.log.parser.update.config.failed", serverId, e.getMessage());
         }
     }
 
-    public NineBridgeUpgradeSNResult upgradeNineBridgeSN(String serverId, String newSnContext) {
+    public OracleLogParserUpgradeSNResult upgradeOracleLogParserSN(String serverId, String newSnContext) {
         if (StringUtils.isBlank(newSnContext)) {
-            throw new BizException("nine.bridge.sn.file.empty");
+            throw new BizException("oracle.log.parser.sn.file.empty");
         }
         RawServerStateDto server = findByServerId(serverId);
         String serviceIP = server.getServiceIP();
         Integer servicePort = server.getServicePort();
         Map<String, String> body = new HashMap<>(1);
         body.put("AuthorizationCode", newSnContext);
-        String uri = String.format(UPDATE_LICENSE_NINI_BRIDGE, serviceIP, servicePort);
+        String uri = String.format(UPDATE_LICENSE_ORACLE_LOG_PARSER, serviceIP, servicePort);
         try {
-            return post(uri, body, NineBridgeUpgradeSNResult.class);
+            return post(uri, body, OracleLogParserUpgradeSNResult.class);
         } catch (Exception e) {
-            throw new BizException("nine.bridge.update.sn.failed", serverId, e.getMessage());
+            throw new BizException("oracle.log.parser.update.sn.failed", serverId, e.getMessage());
         }
     }
 
-    public NineBridgeSNResult findNineBridgeSN(String serverId) {
+    public OracleLogParserSNResult findOracleLogParserSN(String serverId) {
         RawServerStateDto server = findByServerId(serverId);
         String serviceIP = server.getServiceIP();
         Integer servicePort = server.getServicePort();
-        String uri = String.format(FIND_LICENSE_NINI_BRIDGE, serviceIP, servicePort);
+        String uri = String.format(FIND_LICENSE_ORACLE_LOG_PARSER, serviceIP, servicePort);
         try {
             Map<?, ?> map = get(uri, Map.class);
-            NineBridgeSNResult result = new NineBridgeSNResult();
-            result.setData(NineBridgeSNResult.DataInfo.parse(map.get("data")));
+            OracleLogParserSNResult result = new OracleLogParserSNResult();
+            result.setData(OracleLogParserSNResult.DataInfo.parse(map.get("data")));
             result.setMessage((String) map.get("message"));
             result.setStatus((String) map.get("status"));
             return result;
         } catch (Exception e) {
-            throw new BizException("nine.bridge.find.sn.failed", serverId, e.getMessage());
+            throw new BizException("oracle.log.parser.find.sn.failed", serverId, e.getMessage());
         }
     }
 
@@ -143,7 +143,7 @@ public class NineBridgeService {
             rawServerStateService.deleteAll(serverId);
             return true;
         } catch (Exception e) {
-            throw new BizException("nine.bridge.remove.server.failed", serverId, e.getMessage());
+            throw new BizException("oracle.log.parser.remove.server.failed", serverId, e.getMessage());
         }
     }
 

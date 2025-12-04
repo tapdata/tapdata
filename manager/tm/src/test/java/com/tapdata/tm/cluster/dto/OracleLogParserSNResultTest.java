@@ -9,19 +9,19 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for NineBridgeSNResult
+ * Unit tests for Oracle Log ParserSNResult
  * @author <a href="2749984520@qq.com">Gavin'Xiao</a>
  */
-class NineBridgeSNResultTest {
+class OracleLogParserSNResultTest {
     
     @Nested
-    class NineBridgeSNResultMainClassTest {
+    class OracleLogParserSNResultMainClassTest {
         
         @Test
         void testGettersAndSetters() {
-            NineBridgeSNResult result = new NineBridgeSNResult();
+            OracleLogParserSNResult result = new OracleLogParserSNResult();
             
-            NineBridgeSNResult.DataInfo dataInfo = new NineBridgeSNResult.DataInfo();
+            OracleLogParserSNResult.DataInfo dataInfo = new OracleLogParserSNResult.DataInfo();
             result.setData(dataInfo);
             result.setMessage("Success");
             result.setStatus("OK");
@@ -37,7 +37,7 @@ class NineBridgeSNResultTest {
         
         @Test
         void testGettersAndSetters() {
-            NineBridgeSNResult.DataInfo dataInfo = new NineBridgeSNResult.DataInfo();
+            OracleLogParserSNResult.DataInfo dataInfo = new OracleLogParserSNResult.DataInfo();
             
             dataInfo.setDays(365);
             dataInfo.setIssueDate("2024-01-01");
@@ -73,7 +73,7 @@ class NineBridgeSNResultTest {
             map.put("timestamp", 1234567890L);
             map.put("user", "admin");
             
-            NineBridgeSNResult.DataInfo dataInfo = NineBridgeSNResult.DataInfo.parse(map);
+            OracleLogParserSNResult.DataInfo dataInfo = OracleLogParserSNResult.DataInfo.parse(map);
             
             assertNotNull(dataInfo);
             assertEquals(365, dataInfo.getDays());
@@ -89,7 +89,7 @@ class NineBridgeSNResultTest {
         
         @Test
         void testParseWithNullObject() {
-            NineBridgeSNResult.DataInfo dataInfo = NineBridgeSNResult.DataInfo.parse(null);
+            OracleLogParserSNResult.DataInfo dataInfo = OracleLogParserSNResult.DataInfo.parse(null);
             
             assertNotNull(dataInfo);
             assertNull(dataInfo.getDays());
@@ -101,7 +101,7 @@ class NineBridgeSNResultTest {
         @Test
         void testParseWithNonMapObject() {
             String nonMapObject = "not a map";
-            NineBridgeSNResult.DataInfo dataInfo = NineBridgeSNResult.DataInfo.parse(nonMapObject);
+            OracleLogParserSNResult.DataInfo dataInfo = OracleLogParserSNResult.DataInfo.parse(nonMapObject);
             
             assertNotNull(dataInfo);
             assertNull(dataInfo.getDays());
@@ -113,7 +113,7 @@ class NineBridgeSNResultTest {
         @Test
         void testParseWithEmptyMap() {
             Map<String, Object> emptyMap = new HashMap<>();
-            NineBridgeSNResult.DataInfo dataInfo = NineBridgeSNResult.DataInfo.parse(emptyMap);
+            OracleLogParserSNResult.DataInfo dataInfo = OracleLogParserSNResult.DataInfo.parse(emptyMap);
             
             assertNotNull(dataInfo);
             assertNull(dataInfo.getDays());
@@ -135,7 +135,7 @@ class NineBridgeSNResultTest {
             map.put("nHosts", "5");
             map.put("timestamp", "1234567890");
             
-            NineBridgeSNResult.DataInfo dataInfo = NineBridgeSNResult.DataInfo.parse(map);
+            OracleLogParserSNResult.DataInfo dataInfo = OracleLogParserSNResult.DataInfo.parse(map);
             
             assertNotNull(dataInfo);
             assertEquals(365, dataInfo.getDays());
@@ -150,85 +150,85 @@ class NineBridgeSNResultTest {
 
         @Test
         void testParseIntWithInteger() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(123);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(123);
             assertEquals(123, result);
         }
 
         @Test
         void testParseIntWithLong() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(123L);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(123L);
             assertEquals(123, result);
         }
 
         @Test
         void testParseIntWithDouble() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(123.45);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(123.45);
             assertEquals(123, result);
         }
 
         @Test
         void testParseIntWithFloat() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(123.45f);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(123.45f);
             assertEquals(123, result);
         }
 
         @Test
         void testParseIntWithValidString() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt("123");
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt("123");
             assertEquals(123, result);
         }
 
         @Test
         void testParseIntWithInvalidString() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt("not a number");
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt("not a number");
             assertNull(result);
         }
 
         @Test
         void testParseIntWithEmptyString() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt("");
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt("");
             assertNull(result);
         }
 
         @Test
         void testParseIntWithNull() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(null);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(null);
             assertNull(result);
         }
 
         @Test
         void testParseIntWithNegativeNumber() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(-123);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(-123);
             assertEquals(-123, result);
         }
 
         @Test
         void testParseIntWithNegativeString() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt("-123");
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt("-123");
             assertEquals(-123, result);
         }
 
         @Test
         void testParseIntWithZero() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(0);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(0);
             assertEquals(0, result);
         }
 
         @Test
         void testParseIntWithStringZero() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt("0");
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt("0");
             assertEquals(0, result);
         }
 
         @Test
         void testParseIntWithDecimalString() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt("123.45");
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt("123.45");
             assertNull(result);
         }
 
         @Test
         void testParseIntWithBoolean() {
-            Integer result = NineBridgeSNResult.DataInfo.parseInt(true);
+            Integer result = OracleLogParserSNResult.DataInfo.parseInt(true);
             assertNull(result);
         }
     }
@@ -238,98 +238,98 @@ class NineBridgeSNResultTest {
 
         @Test
         void testParseLongWithLong() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(1234567890L);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(1234567890L);
             assertEquals(1234567890L, result);
         }
 
         @Test
         void testParseLongWithInteger() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(123);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(123);
             assertEquals(123L, result);
         }
 
         @Test
         void testParseLongWithDouble() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(123.45);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(123.45);
             assertEquals(123L, result);
         }
 
         @Test
         void testParseLongWithFloat() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(123.45f);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(123.45f);
             assertEquals(123L, result);
         }
 
         @Test
         void testParseLongWithValidString() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong("1234567890");
+            Long result = OracleLogParserSNResult.DataInfo.parseLong("1234567890");
             assertEquals(1234567890L, result);
         }
 
         @Test
         void testParseLongWithInvalidString() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong("not a number");
+            Long result = OracleLogParserSNResult.DataInfo.parseLong("not a number");
             assertNull(result);
         }
 
         @Test
         void testParseLongWithEmptyString() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong("");
+            Long result = OracleLogParserSNResult.DataInfo.parseLong("");
             assertNull(result);
         }
 
         @Test
         void testParseLongWithNull() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(null);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(null);
             assertNull(result);
         }
 
         @Test
         void testParseLongWithNegativeNumber() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(-1234567890L);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(-1234567890L);
             assertEquals(-1234567890L, result);
         }
 
         @Test
         void testParseLongWithNegativeString() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong("-1234567890");
+            Long result = OracleLogParserSNResult.DataInfo.parseLong("-1234567890");
             assertEquals(-1234567890L, result);
         }
 
         @Test
         void testParseLongWithZero() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(0L);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(0L);
             assertEquals(0L, result);
         }
 
         @Test
         void testParseLongWithStringZero() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong("0");
+            Long result = OracleLogParserSNResult.DataInfo.parseLong("0");
             assertEquals(0L, result);
         }
 
         @Test
         void testParseLongWithDecimalString() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong("123.45");
+            Long result = OracleLogParserSNResult.DataInfo.parseLong("123.45");
             assertNull(result);
         }
 
         @Test
         void testParseLongWithBoolean() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(false);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(false);
             assertNull(result);
         }
 
         @Test
         void testParseLongWithVeryLargeNumber() {
-            Long result = NineBridgeSNResult.DataInfo.parseLong(Long.MAX_VALUE);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(Long.MAX_VALUE);
             assertEquals(Long.MAX_VALUE, result);
         }
 
         @Test
         void testParseLongWithVeryLargeString() {
             String maxLong = String.valueOf(Long.MAX_VALUE);
-            Long result = NineBridgeSNResult.DataInfo.parseLong(maxLong);
+            Long result = OracleLogParserSNResult.DataInfo.parseLong(maxLong);
             assertEquals(Long.MAX_VALUE, result);
         }
     }

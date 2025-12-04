@@ -60,7 +60,7 @@
             <version>1.7.36</version>
         </dependency>
 
-        <!-- SLF4J Bridge -->
+        <!-- SLF4J OracleLogParser -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
