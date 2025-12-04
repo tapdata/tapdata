@@ -154,18 +154,24 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 	private HazelcastSourcePdkBaseNodeImp instance;
 	private MockHazelcastSourcePdkBaseNode mockInstance;
 	SyncProgress syncProgress;
+	ObsLogger log;
 
 	@BeforeEach
 	void beforeEach() {
 		super.allSetup();
+		log = mock(ObsLogger.class);
 		mockInstance = mock(MockHazelcastSourcePdkBaseNode.class);
 		ReflectionTestUtils.setField(mockInstance, "processorBaseContext", processorBaseContext);
 		ReflectionTestUtils.setField(mockInstance, "dataProcessorContext", dataProcessorContext);
 		when(mockInstance.getDataProcessorContext()).thenReturn(dataProcessorContext);
-		ReflectionTestUtils.setField(mockInstance, "obsLogger", mockObsLogger);
 		instance = new HazelcastSourcePdkBaseNodeImp(dataProcessorContext);
 		syncProgress = mock(SyncProgress.class);
 		ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
+		ReflectionTestUtils.setField(mockInstance, "obsLogger", log);
+		doNothing().when(log).warn(anyString(), any(Object[].class));
+		doNothing().when(log).info(anyString(), any(Object[].class));
+		doNothing().when(log).debug(anyString(), any(Object[].class));
+		doNothing().when(log).error(anyString(), any(Object[].class));
 	}
 
 	@Nested
@@ -3714,6 +3720,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		@DisplayName("test startSourceConsumer with InterruptedException")
 		void testStartSourceConsumerWithInterruptedException() throws Exception {
 			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			ReflectionTestUtils.setField(spyInstance, "obsLogger", log);
 
 			// Mock isRunning to always return true
 			doReturn(true).when(spyInstance).isRunning();
@@ -3724,36 +3731,8 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
 
 			// Should exit loop on InterruptedException
-			assertDoesNotThrow(() -> spyInstance.startSourceConsumer());
+			assertDoesNotThrow(spyInstance::startSourceConsumer);
 		}
-
-//		@Test
-//		@DisplayName("test startSourceConsumer with exception in processing")
-//		void testStartSourceConsumerWithException() throws Exception {
-//			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
-//			AtomicInteger loopCount = new AtomicInteger(0);
-//
-//			// Mock isRunning to run once
-//			doAnswer(invocation -> loopCount.getAndIncrement() < 1).when(spyInstance).isRunning();
-//
-//			// Setup event queue
-//			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
-//			TapdataEvent event = mock(TapdataEvent.class);
-//			when(mockEventQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(event);
-//			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
-//
-//			// Mock getConnectorNode to throw exception
-//			doThrow(new RuntimeException("Test exception")).when(spyInstance).getConnectorNode();
-//
-//			// Mock errorHandle
-//			TapCodeException e = new TapCodeException("ERROR", new IllegalArgumentException("ERROR"));
-//			when(spyInstance.errorHandle(any(Throwable.class))).thenReturn(e);
-//			when(spyInstance.errorHandle(any(Throwable.class), anyString())).thenReturn(e);
-//
-//			spyInstance.startSourceConsumer();
-//
-//			verify(spyInstance, times(1)).errorHandle(any(RuntimeException.class), anyString());
-//		}
 
 		@Test
 		@DisplayName("test startSourceConsumer with null event from queue")
