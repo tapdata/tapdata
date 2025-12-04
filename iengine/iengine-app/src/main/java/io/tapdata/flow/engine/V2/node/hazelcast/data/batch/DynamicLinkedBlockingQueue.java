@@ -127,31 +127,31 @@ public class DynamicLinkedBlockingQueue<E> {
     }
 
     public E poll() throws InterruptedException {
-        while (this.active()) {
-            QueueHolder<E> h = holderRef.get();
-            E v = h.queue.poll();
-            if (v != null) return v;
-            if (h.migrating) {
-                v = h.migratingQueue.poll();
-                if (v != null) return v;
-            }
-            return h.queue.take();
+        if (!this.active()) {
+            return null;
         }
-        return null;
+        QueueHolder<E> h = holderRef.get();
+        E v = h.queue.poll();
+        if (v != null) return v;
+        if (h.migrating) {
+            v = h.migratingQueue.poll();
+            if (v != null) return v;
+        }
+        return h.queue.take();
     }
 
     public E poll(long timeout, TimeUnit unit) throws InterruptedException {
-        while (this.active()) {
-            QueueHolder<E> h = holderRef.get();
-            E v = h.queue.poll();
-            if (v != null) return v;
-            if (h.migrating) {
-                v = h.migratingQueue.poll(timeout, unit);
-                if (v != null) return v;
-            }
-            return h.queue.take();
+        if (!this.active()) {
+            return null;
         }
-        return null;
+        QueueHolder<E> h = holderRef.get();
+        E v = h.queue.poll();
+        if (v != null) return v;
+        if (h.migrating) {
+            v = h.migratingQueue.poll(timeout, unit);
+            if (v != null) return v;
+        }
+        return h.queue.take();
     }
 
     public int size() {
