@@ -1820,6 +1820,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     try {
                         dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
                     } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                         break;
                     }
                     isPending.compareAndSet(true, false);
@@ -1838,7 +1839,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
                     Optional.ofNullable(getSnapshotProgressManager())
                             .ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 errorHandle(e, "start source consumer failed: " + e.getMessage());
                 break;
             }
