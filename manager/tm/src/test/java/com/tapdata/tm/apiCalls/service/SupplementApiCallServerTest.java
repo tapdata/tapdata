@@ -63,6 +63,7 @@ class SupplementApiCallServerTest {
         ReflectionTestUtils.setField(supplementApiCallServer, "workerCallService", workerCallService);
         ReflectionTestUtils.setField(supplementApiCallServer, "apiCallMinuteStatsService", apiCallMinuteStatsService);
         ReflectionTestUtils.setField(supplementApiCallServer, "apiCallStatsService", apiCallStatsService);
+        ReflectionTestUtils.setField(supplementApiCallServer, "supplementHour", 16);
     }
     
     @Nested
@@ -936,8 +937,8 @@ class SupplementApiCallServerTest {
                 mockedMongoUtils.when(() -> MongoUtils.getCollectionName(any())).thenReturn("ApiCall");
 
                 Assertions.assertDoesNotThrow(() -> supplementApiCallServer.supplementOnce());
-                verify(supplementApiCallServer, times(1)).acceptBatch(any(), any());
-                verify(supplementApiCallServer, times(1)).foreach(any());
+                verify(supplementApiCallServer, times(2)).acceptBatch(any(), any());
+                verify(supplementApiCallServer, times(2)).foreach(any());
             }
         }
 
