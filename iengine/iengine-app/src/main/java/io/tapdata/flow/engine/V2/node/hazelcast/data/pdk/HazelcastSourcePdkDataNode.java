@@ -65,6 +65,9 @@ import io.tapdata.exception.NodeException;
 import io.tapdata.exception.TapCodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderController;
 import io.tapdata.flow.engine.V2.node.hazelcast.controller.SnapshotOrderService;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustBatchSizeFactory;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.AdjustStage;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.BatchAcceptor;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryConstant;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustMemoryExCode_25;
 import io.tapdata.flow.engine.V2.node.hazelcast.dynamicadjustmemory.DynamicAdjustResult;
@@ -80,11 +83,15 @@ import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TerminalMode;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.observable.metric.handler.HandlerUtil;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.consumer.StreamReadOneByOneConsumer;
+import io.tapdata.pdk.apis.consumer.TapStreamReadConsumer;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.SortOn;
@@ -101,8 +108,12 @@ import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunct
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadMultiConnectionOneByOneFunction;
+import io.tapdata.pdk.apis.functions.connector.source.StreamReadOneByOneFunction;
 import io.tapdata.pdk.apis.functions.connector.target.CreateIndexFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.apis.spec.AutoAccumulateBatchInfo;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -147,8 +158,13 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @author jackin
  * @date 2022/2/22 2:33 PM
  **/
-public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
+public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode implements AdjustStage {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
+	static final String TASK_INCREASE_EVENT_QUEUE_FULL_THRESHOLD = "task_increase_event_queue_full_threshold";
+	static final String TASK_INCREASE_EVENT_QUEUE_IDLE_THRESHOLD = "task_increase_event_queue_idle_threshold";
+	static final String TASK_INCREASE_EVENT_DELAY_THRESHOLD_MS = "task_increase_event_delay_threshold_ms";
+	static final String TASK_INCREASE_MEMORY_THRESHOLD = "task_increase_memory_threshold";
+
 	public static final int DEFAULT_POLLING_CDC_HEART_BEAT_TIME = 2;
 	//	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	private final Logger logger = LogManager.getRootLogger();
@@ -160,9 +176,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private ShareCdcReader shareCdcReader;
 	protected final SourceStateAspect sourceStateAspect;
 	private List<String> conditionFields;
-	private StreamReadConsumer streamReadConsumer;
+	private TapStreamReadConsumer<?, ?> streamReadConsumer;
+	private BatchAcceptor streamReadBatchAcceptor;
+
 	private PDKMethodInvoker streamReadMethodInvoker;
 	private SyncProgress.Type syncProgressType = SyncProgress.Type.NORMAL;
+	protected boolean needAdjustBatchSize;
+
+	private Consumer<List<TapEvent>> streamReadBatchSizeConsumer;
 
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -170,9 +191,33 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
+	public void needAdjustBatchSize(boolean needAdjustBatchSize) {
+		this.needAdjustBatchSize = needAdjustBatchSize;
+	}
+
+	protected void registerAdjustStageIfNeed() {
+		if (!this.needAdjustBatchSize) {
+			return;
+		}
+		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
+		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(getConnectorNode())
+				.map(ConnectorNode::getConnectorContext)
+				.map(TapConnectorContext::getSpecification)
+				.map(TapNodeSpecification::getAutoAccumulateBatch)
+				.map(AutoAccumulateBatchInfo::getIncreaseRead)
+				.orElse(new AutoAccumulateBatchInfo.Info());
+		if (autoAccumulateBatchInfo.isOpen()) {
+			Node<?> node = getNode();
+			AdjustBatchSizeFactory.register(node.getTaskId(), this, this.sourceRunner);
+			obsLogger.info("The node [{}] supports automatic adjustment of incremental batch times and the automatic adjustment of batch times switch has been turned on. After the current node enters incremental mode, batch times will be adjusted based on real-time data", node.getId());
+		}
+	}
+
+	@Override
 	protected void doInit(@NotNull Context context) throws TapCodeException {
 		try {
 			super.doInit(context);
+			registerAdjustStageIfNeed();
 			checkPollingCDCIfNeed();
 		} catch (Throwable e) {
 			throw new TapCodeException(TaskProcessorExCode_11.UNKNOWN_ERROR, e);
@@ -182,6 +227,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	protected void doInitWithDisableNode(@NotNull Context context) throws TapCodeException {
 		super.doInitWithDisableNode(context);
+		registerAdjustStageIfNeed();
 		if (getNode().disabledNode() && isRunning()) {
 			Map<String, Object> taskGlobalVariable = TaskGlobalVariable.INSTANCE.getTaskGlobalVariable(dataProcessorContext.getTaskDto().getId().toHexString());
 			Object obj = taskGlobalVariable.get(TaskGlobalVariable.SOURCE_INITIAL_COUNTER_KEY);
@@ -235,6 +281,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@Override
 	public void startSourceRunner() {
 		try {
+			reportBatchSize(readBatchSize, 1000);
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			CacheNode cacheNode = (CacheNode) taskDto.getDag().getNodes().stream().filter(node -> node instanceof CacheNode && node.getType().equals(TaskDto.SYNC_TYPE_MEM_CACHE))
@@ -739,7 +786,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			if (newSourceQueueCapacity != this.sourceQueueCapacity) {
 				while (isRunning()) {
 					if (this.eventQueue.isEmpty()) {
-						this.eventQueue = new LinkedBlockingQueue<>(newSourceQueueCapacity);
+						this.eventQueue = new DynamicLinkedBlockingQueue<TapdataEvent>(newSourceQueueCapacity).active(this::isRunning);
 						obsLogger.trace("{}Source queue size adjusted, old size: {}, new size: {}", DynamicAdjustMemoryConstant.LOG_PREFIX, this.sourceQueueCapacity, newSourceQueueCapacity);
 						this.sourceQueueCapacity = newSourceQueueCapacity;
 						break;
@@ -869,84 +916,36 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			connectionQuery.fields().include("config").include("pdkHash");
 			return clientMongoOperator.find(connectionQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 		});
-		StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = Optional.ofNullable(connectionConfigWithTables).map(configWithTables -> {
-			// first config add heartbeat table to list
-			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
-		}).orElse(null);
-
-		String streamReadFunctionName = null;
-		CommonUtils.AnyError anyError = null;
 		List<String> tables = new ArrayList<>();
-		if (null != streamReadMultiConnectionFunction) {
-			Set<String> tableSet = new HashSet<>();
-			for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
-				for (String tableName : withTables.getTables()) {
-					tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
-							withTables.getConnectionConfig().getString("schema"), tableName
-					)));
-				}
+		CommonUtils.AnyError anyError = null;
+		AtomicReference<String> streamReadFunctionName = new AtomicReference<>("");
+		if (streamReadConsumer instanceof StreamReadConsumer consumer) {
+			anyError = doBatchCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
+		} else if (streamReadConsumer instanceof StreamReadOneByOneConsumer consumer) {
+			if (this.needAdjustBatchSize) {
+				this.setIncreaseReadSize(DEFAULT_ADJUST_INCREASE_BATCH_SIZE);
+				obsLogger.info("Stream read batch size will be adjusted automatically, start from: " + getIncreaseReadSize());
 			}
-			tables.addAll(tableSet);
-			excludeRemoveTable(tables);
-			streamReadFunctionName = streamReadMultiConnectionFunction.getClass().getSimpleName();
-			anyError = () -> {
-				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
-						syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
-			};
+			anyError = doOneByOneCDC(connectorNode, connectionConfigWithTables, tapTableMap, tables, consumer, streamReadFunctionName);
 		} else {
-			RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
-			RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
-//			if(rawDataCallbackFilterFunctionV2 != null) {
-//				rawDataCallbackFilterFunction = null;
-//			}
-			StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
-			if (null != rawDataCallbackFilterFunction || null != rawDataCallbackFilterFunctionV2) {
-				if (null != rawDataCallbackFilterFunctionV2) {
-					streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
-				} else {
-					streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
-				}
-				tables.addAll(tapTableMap.keySet());
-				excludeRemoveTable(tables);
-				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-				anyError = () -> {
-					if (null != streamReadFuncAspect) {
-						executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
-						while (isRunning()) {
-							if (!streamReadFuncAspect.waitRawData()) {
-								break;
-							}
-						}
-						if (streamReadFuncAspect.getErrorDuringWait() != null) {
-							throw streamReadFuncAspect.getErrorDuringWait();
-						}
-					}
-				};
-			} else if (null != streamReadFunction) {
-				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
-				tables.addAll(tapTableMap.keySet());
-				excludeRemoveTable(tables);
-				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
-				anyError = () -> {
-					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-							syncProgress.getStreamOffsetObj(), increaseReadSize, streamReadConsumer);
-				};
-			}
+			logger.error("Unknown stream read consumer: " + streamReadConsumer);
+			return;
 		}
+		reportBatchSize(getIncreaseReadSize(), streamReadBatchAcceptor.getDelayMs());
 
 		if (null != anyError) {
 			obsLogger.trace("Starting stream read, table list: " + tables + ", offset: " + JSONUtil.obj2Json(syncProgress.getStreamOffsetObj()));
 			obsLogger.info("Node {} Starting incremental sync using database log parser", getNode().getName());
 
+
 			CommonUtils.AnyError finalAnyError = anyError;
-			String finalStreamReadFunctionName = streamReadFunctionName;
+			String finalStreamReadFunctionName = streamReadFunctionName.get();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 							.connectorContext(connectorNode.getConnectorContext())
 							.dataProcessorContext(getDataProcessorContext())
 							.streamReadFunction(finalStreamReadFunctionName)
 							.tables(tables)
-							.eventBatchSize(increaseReadSize)
+							.eventBatchSize(getIncreaseReadSize())
 							.offsetState(syncProgress.getStreamOffsetObj())
 							.start(),
 					streamReadFuncAspect -> {
@@ -958,8 +957,116 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
-	protected StreamReadConsumer generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
-		return StreamReadConsumer.create((events, offsetObj) -> {
+
+	CommonUtils.AnyError doBatchCDC(ConnectorNode connectorNode, List<ConnectionConfigWithTables> connectionConfigWithTables, TapTableMap<String, TapTable> tapTableMap, List<String> tables, StreamReadConsumer consumer, AtomicReference<String> streamReadFunctionName) {
+		StreamReadMultiConnectionFunction streamReadMultiConnectionFunction = Optional.ofNullable(connectionConfigWithTables).map(configWithTables -> {
+			// first config add heartbeat table to list
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionFunction();
+		}).orElse(null);
+
+		CommonUtils.AnyError anyError = null;
+		if (null != streamReadMultiConnectionFunction) {
+			doBeforeReadMulti(connectionConfigWithTables, tables);
+			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSimpleName());
+			anyError = () -> {
+				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+						syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
+			};
+		} else {
+			anyError = doRowDataCallbackIfNeed(connectorNode, tables, tapTableMap, streamReadFunctionName, consumer);
+			StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
+			if (null == anyError && null != streamReadFunction) {
+				streamReadFunctionName.set(streamReadFunction.getClass().getSimpleName());
+				tables.addAll(tapTableMap.keySet());
+				excludeRemoveTable(tables);
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				anyError = () -> {
+					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+							syncProgress.getStreamOffsetObj(), getIncreaseReadSize(), consumer);
+				};
+			}
+		}
+
+		return anyError;
+	}
+
+	void doBeforeReadMulti(List<ConnectionConfigWithTables> connectionConfigWithTables, List<String> tables) {
+		Set<String> tableSet = new HashSet<>();
+		for (ConnectionConfigWithTables withTables : connectionConfigWithTables) {
+			for (String tableName : withTables.getTables()) {
+				tableSet.add(ShareCdcUtil.joinNamespaces(Arrays.asList(
+						withTables.getConnectionConfig().getString("schema"), tableName
+				)));
+			}
+		}
+		tables.addAll(tableSet);
+		excludeRemoveTable(tables);
+	}
+
+	CommonUtils.AnyError doRowDataCallbackIfNeed(ConnectorNode connectorNode, List<String> tables, TapTableMap<String, TapTable> tapTableMap, AtomicReference<String> streamReadFunctionName, TapStreamReadConsumer<?, ?> consumer) {
+		RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
+		RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
+		if (null != rawDataCallbackFilterFunction || null != rawDataCallbackFilterFunctionV2) {
+			if (null != rawDataCallbackFilterFunctionV2) {
+				streamReadFunctionName.set(rawDataCallbackFilterFunctionV2.getClass().getSimpleName());
+			} else {
+				streamReadFunctionName.set(rawDataCallbackFilterFunction.getClass().getSimpleName());
+			}
+			tables.addAll(tapTableMap.keySet());
+			excludeRemoveTable(tables);
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+			return () -> {
+				if (null != streamReadFuncAspect) {
+					executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(consumer));
+					while (isRunning()) {
+						if (!streamReadFuncAspect.waitRawData()) {
+							break;
+						}
+					}
+					if (streamReadFuncAspect.getErrorDuringWait() != null) {
+						throw streamReadFuncAspect.getErrorDuringWait();
+					}
+				}
+			};
+		}
+		return null;
+	}
+
+	CommonUtils.AnyError doOneByOneCDC(ConnectorNode connectorNode, List<ConnectionConfigWithTables> connectionConfigWithTables, TapTableMap<String, TapTable> tapTableMap, List<String> tables, StreamReadOneByOneConsumer consumer, AtomicReference<String> streamReadFunctionName) {
+		StreamReadMultiConnectionOneByOneFunction streamReadMultiConnectionFunction = Optional.ofNullable(connectionConfigWithTables).map(configWithTables -> {
+			// first config add heartbeat table to list
+			Optional.of(cdcDelayCalculation.addHeartbeatTable(configWithTables.get(0).getTables())).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+			return connectorNode.getConnectorFunctions().getStreamReadMultiConnectionOneByOneFunction();
+		}).orElse(null);
+
+		CommonUtils.AnyError anyError = null;
+		if (null != streamReadMultiConnectionFunction) {
+			doBeforeReadMulti(connectionConfigWithTables, tables);
+			streamReadFunctionName.set(streamReadMultiConnectionFunction.getClass().getSimpleName());
+			anyError = () -> {
+				streamReadMultiConnectionFunction.streamRead(getConnectorNode().getConnectorContext(), connectionConfigWithTables,
+						syncProgress.getStreamOffsetObj(), consumer);
+			};
+		} else {
+			anyError = doRowDataCallbackIfNeed(connectorNode, tables, tapTableMap, streamReadFunctionName, consumer);
+			StreamReadOneByOneFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadOneByOneFunction();
+			if (null == anyError && null != streamReadFunction) {
+				streamReadFunctionName.set(streamReadFunction.getClass().getSimpleName());
+				tables.addAll(tapTableMap.keySet());
+				excludeRemoveTable(tables);
+				Optional.of(cdcDelayCalculation.addHeartbeatTable(tables)).ifPresent(joinHeartbeat -> executeAspect(SourceJoinHeartbeatAspect.class, () -> new SourceJoinHeartbeatAspect().dataProcessorContext(dataProcessorContext).joinHeartbeat(joinHeartbeat)));
+				anyError = () -> {
+					streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+							syncProgress.getStreamOffsetObj(), consumer);
+				};
+			}
+		}
+		return anyError;
+	}
+
+	protected TapStreamReadConsumer<?, ?> generateStreamReadConsumer(ConnectorNode connectorNode, PDKMethodInvoker pdkMethodInvoker) {
+		StreamReadConsumer consumer = StreamReadConsumer.create((events, offsetObj) -> {
 			try {
 				while (isRunning()) {
 					try {
@@ -971,6 +1078,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 				}
 				if (events != null && !events.isEmpty()) {
+					List<TapEvent> finalEvents = events;
+					Optional.ofNullable(this.streamReadBatchSizeConsumer).ifPresent(e -> e.accept(finalEvents));
 					HandlerUtil.sampleMemoryToTapEvent(events);
 					events = events.stream().map(event -> {
 						if (null == event.getTime()) {
@@ -1018,6 +1127,19 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				obsLogger.trace("Connector {} incremental start succeed, tables: {}, data change syncing", connectorNode.getTapNodeInfo().getTapNodeSpecification().getName(), streamReadFuncAspect != null ? streamReadFuncAspect.getTables() : null);
 			}
 		});
+		//Get switch: whether to enable batch accumulation, delay waiting time (milliseconds)
+		AutoAccumulateBatchInfo.Info autoAccumulateBatchInfo = Optional.ofNullable(connectorNode.getConnectorContext())
+				.map(TapConnectorContext::getSpecification)
+				.map(TapNodeSpecification::getAutoAccumulateBatch)
+				.map(AutoAccumulateBatchInfo::getIncreaseRead)
+				.orElse(new AutoAccumulateBatchInfo.Info());
+		if (!autoAccumulateBatchInfo.isOpen()) {
+			final int delayMs = Math.max(50, this.getIncreaseReadSize() / 10);
+			streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> delayMs, null);
+			return consumer;
+		}
+		streamReadBatchAcceptor = new BatchAcceptor(this::getIncreaseReadSize, () -> Math.max(50, this.getIncreaseReadSize() / 10), consumer);
+		return StreamReadOneByOneConsumer.create((e, o) -> streamReadBatchAcceptor.accept(e, o));
 	}
 
 	private void handleSyncProgressType(List<TapdataEvent> tapdataEvents) {
@@ -1565,4 +1687,55 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		return false;
 	}
 
+	@Override
+	public String getNodeId() {
+		return getNode().getId();
+	}
+
+	@Override
+	public void setConsumer(Consumer<List<TapEvent>> consumer) {
+		this.streamReadBatchSizeConsumer = consumer;
+	}
+
+	@Override
+	public Consumer<List<TapEvent>> consumer() {
+		return this.streamReadBatchSizeConsumer;
+	}
+
+	@Override
+	public void metric(MetricInfo metricInfo) {
+
+	}
+
+	@Override
+	public TaskInfo getTaskInfo() {
+		final TaskInfo info = new TaskInfo();
+		final int capacity = eventQueue.capacity();
+		final int size = eventQueue.size();
+		final int batchSize = Optional.ofNullable(getIncreaseReadSize()).orElse(0);
+		info.setEventQueueCapacity(capacity);
+		info.setEventQueueSize(size);
+		info.setIncreaseReadSize(batchSize);
+
+		final String eventQueueFullThreshold = CommonUtils.getProperty(TASK_INCREASE_EVENT_QUEUE_FULL_THRESHOLD, "0.95");
+		final String eventQueueIdleThreshold = CommonUtils.getProperty(TASK_INCREASE_EVENT_QUEUE_IDLE_THRESHOLD, "0.7");
+		final String delayThresholdMs = CommonUtils.getProperty(TASK_INCREASE_EVENT_DELAY_THRESHOLD_MS, "1000");
+		final String memThreshold = CommonUtils.getProperty(TASK_INCREASE_MEMORY_THRESHOLD, "0.8");
+		info.setEventQueueFullThreshold(info.parse(eventQueueFullThreshold, 0.95D).doubleValue());
+		info.setEventQueueIdleThreshold(info.parse(eventQueueIdleThreshold, 0.7D).doubleValue());
+		info.setEventDelayThresholdMs(info.parse(delayThresholdMs, 1_000L).longValue());
+		info.setTaskMemThreshold(info.parse(memThreshold, 0.8D).doubleValue());
+		return info;
+	}
+
+	@Override
+	public void updateIncreaseReadSize(int newSize) {
+		final int old = getIncreaseReadSize();
+		final int changeTo = eventQueue.changeTo(newSize, SOURCE_QUEUE_FACTOR);
+		setIncreaseReadSize(changeTo);
+		reportBatchSize(changeTo, streamReadBatchAcceptor.getDelayMs());
+		if (changeTo != old) {
+			obsLogger.debug("Data node [{} - {}] | Change event queue capacity from {} to {}", getNode().getName(), getNode().getId(), old, changeTo);
+		}
+	}
 }

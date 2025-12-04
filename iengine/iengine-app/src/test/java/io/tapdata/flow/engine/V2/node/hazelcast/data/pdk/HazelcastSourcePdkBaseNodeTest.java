@@ -9,6 +9,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TransformToTapValueResult;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.entity.task.config.TaskRetryConfig;
@@ -29,14 +30,17 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
-import com.tapdata.tm.commons.util.NoPrimaryKeyTableSelectType;
 import com.tapdata.tm.commons.util.NoPrimaryKeyVirtualField;
+import io.tapdata.aspect.BatchSizeAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.task.AspectTask;
+import io.tapdata.aspect.task.TaskAspectManager;
 import io.tapdata.common.concurrent.SimpleConcurrentProcessorImpl;
 import io.tapdata.common.concurrent.TapExecutors;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.aspect.AspectObserver;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -66,9 +70,12 @@ import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.JetJobStatusMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.PartitionTableMonitor;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.batch.DynamicLinkedBlockingQueue;
+import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCDCOffset;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.SyncTypeEnum;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
@@ -124,26 +131,47 @@ import io.tapdata.entity.CountResult;
  */
 @DisplayName("HazelcastSourcePdkBaseNode Class Test")
 class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
-	private HazelcastSourcePdkBaseNode instance;
+
+	class HazelcastSourcePdkBaseNodeImp extends HazelcastSourcePdkBaseNode {
+		public HazelcastSourcePdkBaseNodeImp(DataProcessorContext dataProcessorContext) {
+			super(dataProcessorContext);
+		}
+
+		@Override
+		void startSourceRunner() {
+
+		}
+		@Override
+		public boolean isRunning() {
+			return super.isRunning();
+		}
+
+		@Override
+		public boolean offer(TapdataEvent tapEvent) {
+			return super.offer(tapEvent);
+		}
+	}
+	private HazelcastSourcePdkBaseNodeImp instance;
 	private MockHazelcastSourcePdkBaseNode mockInstance;
 	SyncProgress syncProgress;
+	ObsLogger log;
 
 	@BeforeEach
 	void beforeEach() {
 		super.allSetup();
+		log = mock(ObsLogger.class);
 		mockInstance = mock(MockHazelcastSourcePdkBaseNode.class);
 		ReflectionTestUtils.setField(mockInstance, "processorBaseContext", processorBaseContext);
 		ReflectionTestUtils.setField(mockInstance, "dataProcessorContext", dataProcessorContext);
 		when(mockInstance.getDataProcessorContext()).thenReturn(dataProcessorContext);
-		ReflectionTestUtils.setField(mockInstance, "obsLogger", mockObsLogger);
-		instance = new HazelcastSourcePdkBaseNode(dataProcessorContext) {
-			@Override
-			void startSourceRunner() {
-
-			}
-		};
+		instance = new HazelcastSourcePdkBaseNodeImp(dataProcessorContext);
 		syncProgress = mock(SyncProgress.class);
 		ReflectionTestUtils.setField(mockInstance, "syncProgress", syncProgress);
+		ReflectionTestUtils.setField(mockInstance, "obsLogger", log);
+		doNothing().when(log).warn(anyString(), any(Object[].class));
+		doNothing().when(log).info(anyString(), any(Object[].class));
+		doNothing().when(log).debug(anyString(), any(Object[].class));
+		doNothing().when(log).error(anyString(), any(Object[].class));
 	}
 
 	@Nested
@@ -1498,7 +1526,7 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 		void test1() {
 			CountDownLatch countDownLatch = new CountDownLatch(1000);
 			int threadNum = 5;
-			LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(Long.valueOf(countDownLatch.getCount()).intValue());
+			DynamicLinkedBlockingQueue<TapdataEvent> eventQueue = new DynamicLinkedBlockingQueue<>(Long.valueOf(countDownLatch.getCount()).intValue());
 			IntStream.range(0, Long.valueOf(countDownLatch.getCount()).intValue()).forEach(i -> eventQueue.offer(new TapdataEvent()));
 			ReflectionTestUtils.setField(instance, "eventQueue", eventQueue);
 			ReflectionTestUtils.setField(instance, "readBatchSize", Long.valueOf(countDownLatch.getCount()).intValue());
@@ -3411,5 +3439,355 @@ class HazelcastSourcePdkBaseNodeTest extends BaseHazelcastNodeTest {
 			}
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Method reportBatchSize test")
+	class ReportBatchSizeTest {
+		@Test
+		@DisplayName("test reportBatchSize with valid parameters")
+		void testReportBatchSizeNormal() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			ReflectionTestUtils.setField(spyInstance, "processorBaseContext", dataProcessorContext);
+
+			try (MockedStatic<TaskAspectManager> taskAspectManagerMock = mockStatic(TaskAspectManager.class)) {
+				AspectTask mockContext = mock(AspectTask.class);
+				taskAspectManagerMock.when(() -> TaskAspectManager.get(anyString())).thenReturn(mockContext);
+
+				spyInstance.reportBatchSize(100, 5000L);
+
+				verify(mockContext, times(1)).onObserveAspect(any(BatchSizeAspect.class));
+			}
+		}
+
+		@Test
+		@DisplayName("test reportBatchSize when TaskAspectManager returns null")
+		void testReportBatchSizeWhenTaskAspectManagerNull() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			ReflectionTestUtils.setField(spyInstance, "processorBaseContext", dataProcessorContext);
+
+			try (MockedStatic<TaskAspectManager> taskAspectManagerMock = mockStatic(TaskAspectManager.class)) {
+				taskAspectManagerMock.when(() -> TaskAspectManager.get(anyString())).thenReturn(null);
+
+				assertDoesNotThrow(() -> spyInstance.reportBatchSize(200, 3000L));
+			}
+		}
+
+		@Test
+		@DisplayName("test reportBatchSize with zero batch size")
+		void testReportBatchSizeWithZero() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			ReflectionTestUtils.setField(spyInstance, "processorBaseContext", dataProcessorContext);
+
+			try (MockedStatic<TaskAspectManager> taskAspectManagerMock = mockStatic(TaskAspectManager.class)) {
+				AspectTask mockContext = mock(AspectTask.class);
+				taskAspectManagerMock.when(() -> TaskAspectManager.get(anyString())).thenReturn(mockContext);
+
+				spyInstance.reportBatchSize(0, 1000L);
+
+				verify(mockContext, times(1)).onObserveAspect(any(BatchSizeAspect.class));
+			}
+		}
+
+		@Test
+		@DisplayName("test reportBatchSize with negative values")
+		void testReportBatchSizeWithNegative() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(new ObjectId());
+			when(dataProcessorContext.getTaskDto()).thenReturn(taskDto);
+			ReflectionTestUtils.setField(spyInstance, "processorBaseContext", dataProcessorContext);
+
+			try (MockedStatic<TaskAspectManager> taskAspectManagerMock = mockStatic(TaskAspectManager.class)) {
+				AspectTask mockContext = mock(AspectTask.class);
+				taskAspectManagerMock.when(() -> TaskAspectManager.get(anyString())).thenReturn(mockContext);
+
+				spyInstance.reportBatchSize(-10, -500L);
+
+				verify(mockContext, times(1)).onObserveAspect(any(BatchSizeAspect.class));
+			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Method getSnapshotProgressManager test")
+	class GetSnapshotProgressManagerTest {
+		@Test
+		@DisplayName("test getSnapshotProgressManager returns non-null")
+		void testGetSnapshotProgressManagerNonNull() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			SnapshotProgressManager mockManager = mock(SnapshotProgressManager.class);
+			ReflectionTestUtils.setField(spyInstance, "snapshotProgressManager", mockManager);
+
+			SnapshotProgressManager result = spyInstance.getSnapshotProgressManager();
+
+			assertNotNull(result);
+			assertSame(mockManager, result);
+		}
+
+		@Test
+		@DisplayName("test getSnapshotProgressManager returns null")
+		void testGetSnapshotProgressManagerNull() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			ReflectionTestUtils.setField(spyInstance, "snapshotProgressManager", null);
+
+			SnapshotProgressManager result = spyInstance.getSnapshotProgressManager();
+
+			assertNull(result);
+		}
+	}
+
+	@Nested
+	@DisplayName("Method getEventQueue test")
+	class GetEventQueueTest {
+		@Test
+		@DisplayName("test getEventQueue returns queue")
+		void testGetEventQueueNormal() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			LinkedBlockingQueue<TapdataEvent> mockQueue = new LinkedBlockingQueue<>();
+			when(mockEventQueue.getQueue()).thenReturn(mockQueue);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			LinkedBlockingQueue<TapdataEvent> result = spyInstance.getEventQueue();
+
+			assertNotNull(result);
+			assertSame(mockQueue, result);
+			verify(mockEventQueue, times(1)).getQueue();
+		}
+
+		@Test
+		@DisplayName("test getEventQueue with empty queue")
+		void testGetEventQueueEmpty() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			LinkedBlockingQueue<TapdataEvent> emptyQueue = new LinkedBlockingQueue<>();
+			when(mockEventQueue.getQueue()).thenReturn(emptyQueue);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			LinkedBlockingQueue<TapdataEvent> result = spyInstance.getEventQueue();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("test getEventQueue with items in queue")
+		void testGetEventQueueWithItems() {
+			HazelcastSourcePdkBaseNode spyInstance = spy(instance);
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			LinkedBlockingQueue<TapdataEvent> queueWithItems = new LinkedBlockingQueue<>();
+			TapdataEvent event1 = mock(TapdataEvent.class);
+			TapdataEvent event2 = mock(TapdataEvent.class);
+			queueWithItems.offer(event1);
+			queueWithItems.offer(event2);
+			when(mockEventQueue.getQueue()).thenReturn(queueWithItems);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			LinkedBlockingQueue<TapdataEvent> result = spyInstance.getEventQueue();
+
+			assertNotNull(result);
+			assertEquals(2, result.size());
+		}
+	}
+
+	@Nested
+	@DisplayName("Method startSourceConsumer test")
+	class StartSourceConsumerTest {
+		@Test
+		@DisplayName("test startSourceConsumer with pending event")
+		void testStartSourceConsumerWithPendingEvent() throws Exception {
+			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			AtomicInteger loopCount = new AtomicInteger(0);
+
+			// Mock isRunning to run once then stop
+			doAnswer(invocation -> loopCount.getAndIncrement() < 1).when(spyInstance).isRunning();
+
+			// Setup pending event
+			TapdataEvent pendingEvent = mock(TapdataEvent.class);
+			TapEvent tapEvent = mock(TapInsertRecordEvent.class);
+			when(pendingEvent.getTapEvent()).thenReturn(tapEvent);
+			ReflectionTestUtils.setField(spyInstance, "pendingEvent", pendingEvent);
+
+			// Mock offer to succeed
+			doReturn(true).when(spyInstance).offer(any(TapdataEvent.class));
+
+			// Mock getConnectorNode
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapCodecsFilterManager codecsFilterManager = mock(TapCodecsFilterManager.class);
+			when(connectorNode.getCodecsFilterManager()).thenReturn(codecsFilterManager);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+
+			// Mock snapshotProgressManager
+			SnapshotProgressManager mockProgressManager = mock(SnapshotProgressManager.class);
+			ReflectionTestUtils.setField(spyInstance, "snapshotProgressManager", mockProgressManager);
+
+			when(spyInstance.tapRecordToTapValue(any(TapEvent.class), any(TapCodecsFilterManager.class))).thenReturn(mock(TransformToTapValueResult.class));
+
+			spyInstance.startSourceConsumer();
+
+			// Verify pendingEvent was processed
+			verify(spyInstance, times(1)).offer(pendingEvent);
+			assertNull(ReflectionTestUtils.getField(spyInstance, "pendingEvent"));
+		}
+
+		@Test
+		@DisplayName("test startSourceConsumer with event from queue")
+		void testStartSourceConsumerWithEventFromQueue() throws Exception {
+			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			AtomicInteger loopCount = new AtomicInteger(0);
+
+			// Mock isRunning to run once then stop
+			doAnswer(invocation -> loopCount.getAndIncrement() < 1).when(spyInstance).isRunning();
+
+			// Setup event queue
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			TapdataEvent event = mock(TapdataEvent.class);
+			TapEvent tapEvent = mock(TapInsertRecordEvent.class);
+			when(event.getTapEvent()).thenReturn(tapEvent);
+			when(mockEventQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(event);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			// Mock offer to succeed
+			when(spyInstance.offer(any(TapdataEvent.class))).thenReturn(true);
+
+			// Mock getConnectorNode
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapCodecsFilterManager codecsFilterManager = mock(TapCodecsFilterManager.class);
+			when(connectorNode.getCodecsFilterManager()).thenReturn(codecsFilterManager);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+
+			// Mock snapshotProgressManager
+			SnapshotProgressManager mockProgressManager = mock(SnapshotProgressManager.class);
+			ReflectionTestUtils.setField(spyInstance, "snapshotProgressManager", mockProgressManager);
+
+			when(spyInstance.tapRecordToTapValue(any(TapEvent.class), any(TapCodecsFilterManager.class))).thenReturn(mock(TransformToTapValueResult.class));
+
+			try (MockedStatic<TapEventUtil> tapEventUtilMock = mockStatic(TapEventUtil.class)) {
+				tapEventUtilMock.when(() -> TapEventUtil.getTableId(any(TapEvent.class))).thenReturn("testTable");
+
+				spyInstance.startSourceConsumer();
+
+				verify(spyInstance, times(1)).offer(event);
+				verify(mockProgressManager, times(1)).incrementEdgeFinishNumber("testTable");
+			}
+		}
+
+		@Test
+		@DisplayName("test startSourceConsumer when offer fails")
+		void testStartSourceConsumerWhenOfferFails() throws Exception {
+			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			AtomicInteger loopCount = new AtomicInteger(0);
+
+			// Mock isRunning to run twice then stop
+			doAnswer(invocation -> loopCount.getAndIncrement() < 2).when(spyInstance).isRunning();
+
+			// Setup event queue
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			TapdataEvent event = mock(TapdataEvent.class);
+			TapEvent tapEvent = mock(TapInsertRecordEvent.class);
+			when(event.getTapEvent()).thenReturn(tapEvent);
+			when(mockEventQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(event, (TapdataEvent) null);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			// Mock offer to fail first time, succeed second time
+			doReturn(false, true).when(spyInstance).offer(any(TapdataEvent.class));
+
+			// Mock getConnectorNode
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapCodecsFilterManager codecsFilterManager = mock(TapCodecsFilterManager.class);
+			when(connectorNode.getCodecsFilterManager()).thenReturn(codecsFilterManager);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+
+			when(spyInstance.tapRecordToTapValue(any(TapEvent.class), any(TapCodecsFilterManager.class))).thenReturn(mock(TransformToTapValueResult.class));
+
+			spyInstance.startSourceConsumer();
+
+			// Verify event was set as pending after first failed offer
+			verify(spyInstance, times(2)).offer(event);
+		}
+
+		@Test
+		@DisplayName("test startSourceConsumer with InterruptedException")
+		void testStartSourceConsumerWithInterruptedException() throws Exception {
+			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			ReflectionTestUtils.setField(spyInstance, "obsLogger", log);
+
+			// Mock isRunning to always return true
+			doReturn(true).when(spyInstance).isRunning();
+
+			// Setup event queue to throw InterruptedException
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			when(mockEventQueue.poll(anyLong(), any(TimeUnit.class))).thenThrow(new InterruptedException());
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			// Should exit loop on InterruptedException
+			assertDoesNotThrow(spyInstance::startSourceConsumer);
+		}
+
+		@Test
+		@DisplayName("test startSourceConsumer with null event from queue")
+		void testStartSourceConsumerWithNullEvent() throws Exception {
+			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			AtomicInteger loopCount = new AtomicInteger(0);
+
+			// Mock isRunning to run once then stop
+			doAnswer(invocation -> loopCount.getAndIncrement() < 1).when(spyInstance).isRunning();
+
+			// Setup event queue to return null
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			when(mockEventQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(null);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			spyInstance.startSourceConsumer();
+
+			// Verify offer was never called since event is null
+			verify(spyInstance, never()).offer(any(TapdataEvent.class));
+		}
+
+		@Test
+		@DisplayName("test startSourceConsumer without snapshotProgressManager")
+		void testStartSourceConsumerWithoutProgressManager() throws Exception {
+			HazelcastSourcePdkBaseNodeImp spyInstance = spy(instance);
+			AtomicInteger loopCount = new AtomicInteger(0);
+
+			// Mock isRunning to run once then stop
+			doAnswer(invocation -> loopCount.getAndIncrement() < 1).when(spyInstance).isRunning();
+
+			// Setup event queue
+			DynamicLinkedBlockingQueue<TapdataEvent> mockEventQueue = mock(DynamicLinkedBlockingQueue.class);
+			TapdataEvent event = mock(TapdataEvent.class);
+			TapEvent tapEvent = mock(TapInsertRecordEvent.class);
+			when(event.getTapEvent()).thenReturn(tapEvent);
+			when(mockEventQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(event);
+			ReflectionTestUtils.setField(spyInstance, "eventQueue", mockEventQueue);
+
+			// Mock offer to succeed
+			doReturn(true).when(spyInstance).offer(any(TapdataEvent.class));
+
+			// Mock getConnectorNode
+			ConnectorNode connectorNode = mock(ConnectorNode.class);
+			TapCodecsFilterManager codecsFilterManager = mock(TapCodecsFilterManager.class);
+			when(connectorNode.getCodecsFilterManager()).thenReturn(codecsFilterManager);
+			doReturn(connectorNode).when(spyInstance).getConnectorNode();
+
+			// Set snapshotProgressManager to null
+			ReflectionTestUtils.setField(spyInstance, "snapshotProgressManager", null);
+
+			when(spyInstance.tapRecordToTapValue(any(TapEvent.class), any(TapCodecsFilterManager.class))).thenReturn(mock(TransformToTapValueResult.class));
+
+			// Should not throw exception even without progress manager
+			assertDoesNotThrow(spyInstance::startSourceConsumer);
+			verify(spyInstance, times(1)).offer(event);
+		}
 	}
 }

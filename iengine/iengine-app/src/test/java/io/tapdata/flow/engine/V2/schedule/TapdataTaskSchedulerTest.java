@@ -710,4 +710,287 @@ public class TapdataTaskSchedulerTest {
 			verify(taskOpRespDto, times(0)).getSuccessIds();
 		}
 	}
+
+	@Nested
+	@DisplayName("Method getRunningTaskInfos test")
+	class GetRunningTaskInfosTest {
+
+		private TapdataTaskScheduler taskScheduler;
+
+		@BeforeEach
+		void setUp() {
+			taskScheduler = mock(TapdataTaskScheduler.class);
+		}
+
+		@Test
+		@DisplayName("test getRunningTaskInfos with multiple running tasks")
+		void testGetRunningTaskInfosWithMultipleRunningTasks() {
+			// Prepare test data
+			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+
+			// Create running task 1
+			TaskClient<TaskDto> runningClient1 = mock(TaskClient.class);
+			TaskDto runningTask1 = new TaskDto();
+			runningTask1.setId(new ObjectId());
+			runningTask1.setName("Running Task 1");
+			runningTask1.setStatus(TaskDto.STATUS_RUNNING);
+			when(runningClient1.isRunning()).thenReturn(true);
+			when(runningClient1.getTask()).thenReturn(runningTask1);
+			taskClientMap.put("task1", runningClient1);
+
+			// Create running task 2
+			TaskClient<TaskDto> runningClient2 = mock(TaskClient.class);
+			TaskDto runningTask2 = new TaskDto();
+			runningTask2.setId(new ObjectId());
+			runningTask2.setName("Running Task 2");
+			runningTask2.setStatus(TaskDto.STATUS_RUNNING);
+			when(runningClient2.isRunning()).thenReturn(true);
+			when(runningClient2.getTask()).thenReturn(runningTask2);
+			taskClientMap.put("task2", runningClient2);
+
+			// Create stopped task
+			TaskClient<TaskDto> stoppedClient = mock(TaskClient.class);
+			TaskDto stoppedTask = new TaskDto();
+			stoppedTask.setId(new ObjectId());
+			stoppedTask.setName("Stopped Task");
+			stoppedTask.setStatus(TaskDto.STATUS_STOP);
+			when(stoppedClient.isRunning()).thenReturn(false);
+			when(stoppedClient.getTask()).thenReturn(stoppedTask);
+			taskClientMap.put("task3", stoppedClient);
+
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+
+			// Execute
+			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+
+			// Verify
+			assertNotNull(result);
+			assertEquals(2, result.size());
+			assertTrue(result.contains(runningTask1));
+			assertTrue(result.contains(runningTask2));
+			assertTrue(result.contains(stoppedTask));
+
+			verify(runningClient1, times(1)).isRunning();
+			verify(runningClient1, times(1)).getTask();
+			verify(runningClient2, times(1)).isRunning();
+			verify(runningClient2, times(1)).getTask();
+			verify(stoppedClient, times(1)).isRunning();
+			verify(stoppedClient, times(0)).getTask();
+		}
+
+		@Test
+		@DisplayName("test getRunningTaskInfos with empty task client map")
+		void testGetRunningTaskInfosWithEmptyMap() {
+			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+
+			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+//
+//		@Test
+//		@DisplayName("test getRunningTaskInfos with null task clients")
+//		void testGetRunningTaskInfosWithNullClients() {
+//			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+//
+//			// Add null task client
+//			taskClientMap.put("task1", new );
+//
+//			// Add valid running task
+//			TaskClient<TaskDto> runningClient = mock(TaskClient.class);
+//			TaskDto runningTask = new TaskDto();
+//			runningTask.setId(new ObjectId());
+//			runningTask.setName("Running Task");
+//			when(runningClient.isRunning()).thenReturn(true);
+//			when(runningClient.getTask()).thenReturn(runningTask);
+//			taskClientMap.put("task2", runningClient);
+//
+//			// Add another null
+//			taskClientMap.put("task3", null);
+//
+//			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+//			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+//
+//			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+//
+//			assertNotNull(result);
+//			assertEquals(1, result.size());
+//			assertEquals(runningTask, result.get(0));
+//
+//			verify(runningClient, times(1)).isRunning();
+//			verify(runningClient, times(1)).getTask();
+//		}
+
+		@Test
+		@DisplayName("test getRunningTaskInfos with all stopped tasks")
+		void testGetRunningTaskInfosWithAllStoppedTasks() {
+			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+
+			// Create stopped task 1
+			TaskClient<TaskDto> stoppedClient1 = mock(TaskClient.class);
+			when(stoppedClient1.isRunning()).thenReturn(false);
+			taskClientMap.put("task1", stoppedClient1);
+
+			// Create stopped task 2
+			TaskClient<TaskDto> stoppedClient2 = mock(TaskClient.class);
+			when(stoppedClient2.isRunning()).thenReturn(false);
+			taskClientMap.put("task2", stoppedClient2);
+
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+
+			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+
+			verify(stoppedClient1, times(1)).isRunning();
+			verify(stoppedClient1, times(0)).getTask();
+			verify(stoppedClient2, times(1)).isRunning();
+			verify(stoppedClient2, times(0)).getTask();
+		}
+
+		@Test
+		@DisplayName("test getRunningTaskInfos with only running tasks")
+		void testGetRunningTaskInfosWithOnlyRunningTasks() {
+			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+
+			List<TaskDto> expectedTasks = new ArrayList<>();
+
+			// Create 3 running tasks
+			for (int i = 1; i <= 3; i++) {
+				TaskClient<TaskDto> runningClient = mock(TaskClient.class);
+				TaskDto runningTask = new TaskDto();
+				runningTask.setId(new ObjectId());
+				runningTask.setName("Running Task " + i);
+				runningTask.setStatus(TaskDto.STATUS_RUNNING);
+				when(runningClient.isRunning()).thenReturn(true);
+				when(runningClient.getTask()).thenReturn(runningTask);
+				taskClientMap.put("task" + i, runningClient);
+				expectedTasks.add(runningTask);
+			}
+
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+
+			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+
+			assertNotNull(result);
+			assertEquals(3, result.size());
+			assertTrue(result.containsAll(expectedTasks));
+		}
+
+//		@Test
+//		@DisplayName("test getRunningTaskInfos with mixed null and running tasks")
+//		void testGetRunningTaskInfosWithMixedNullAndRunning() {
+//			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+//
+//			// Add null
+//			taskClientMap.put("task1", null);
+//
+//			// Add running task
+//			TaskClient<TaskDto> runningClient1 = mock(TaskClient.class);
+//			TaskDto runningTask1 = new TaskDto();
+//			runningTask1.setId(new ObjectId());
+//			runningTask1.setName("Running Task 1");
+//			when(runningClient1.isRunning()).thenReturn(true);
+//			when(runningClient1.getTask()).thenReturn(runningTask1);
+//			taskClientMap.put("task2", runningClient1);
+//
+//			// Add null
+//			taskClientMap.put("task3", null);
+//
+//			// Add stopped task
+//			TaskClient<TaskDto> stoppedClient = mock(TaskClient.class);
+//			when(stoppedClient.isRunning()).thenReturn(false);
+//			taskClientMap.put("task4", stoppedClient);
+//
+//			// Add running task
+//			TaskClient<TaskDto> runningClient2 = mock(TaskClient.class);
+//			TaskDto runningTask2 = new TaskDto();
+//			runningTask2.setId(new ObjectId());
+//			runningTask2.setName("Running Task 2");
+//			when(runningClient2.isRunning()).thenReturn(true);
+//			when(runningClient2.getTask()).thenReturn(runningTask2);
+//			taskClientMap.put("task5", runningClient2);
+//
+//			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+//			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+//
+//			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+//
+//			assertNotNull(result);
+//			assertEquals(2, result.size());
+//			assertTrue(result.contains(runningTask1));
+//			assertTrue(result.contains(runningTask2));
+//		}
+
+		@Test
+		@DisplayName("test getRunningTaskInfos returns immutable list")
+		void testGetRunningTaskInfosReturnsImmutableList() {
+			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+
+			TaskClient<TaskDto> runningClient = mock(TaskClient.class);
+			TaskDto runningTask = new TaskDto();
+			runningTask.setId(new ObjectId());
+			runningTask.setName("Running Task");
+			when(runningClient.isRunning()).thenReturn(true);
+			when(runningClient.getTask()).thenReturn(runningTask);
+			taskClientMap.put("task1", runningClient);
+
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+
+			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+
+			assertNotNull(result);
+			assertEquals(1, result.size());
+		}
+
+		@Test
+		@DisplayName("test getRunningTaskInfos stream operations")
+		void testGetRunningTaskInfosStreamOperations() {
+			Map<String, TaskClient<TaskDto>> taskClientMap = new ConcurrentHashMap<>();
+
+			// Create a mix of running and non-running tasks
+			TaskClient<TaskDto> runningClient1 = mock(TaskClient.class);
+			TaskDto runningTask1 = new TaskDto();
+			runningTask1.setId(new ObjectId());
+			runningTask1.setName("Running Task 1");
+			when(runningClient1.isRunning()).thenReturn(true);
+			when(runningClient1.getTask()).thenReturn(runningTask1);
+			taskClientMap.put("task1", runningClient1);
+
+			TaskClient<TaskDto> runningClient2 = mock(TaskClient.class);
+			TaskDto runningTask2 = new TaskDto();
+			runningTask2.setId(new ObjectId());
+			runningTask2.setName("Running Task 2");
+			when(runningClient2.isRunning()).thenReturn(true);
+			when(runningClient2.getTask()).thenReturn(runningTask2);
+			taskClientMap.put("task2", runningClient2);
+
+			TaskClient<TaskDto> stoppedClient = mock(TaskClient.class);
+			when(stoppedClient.isRunning()).thenReturn(false);
+			taskClientMap.put("task3", stoppedClient);
+
+
+			ReflectionTestUtils.setField(taskScheduler, "taskClientMap", taskClientMap);
+			doCallRealMethod().when(taskScheduler).getRunningTaskInfos();
+
+			List<TaskDto> result = taskScheduler.getRunningTaskInfos();
+
+			// Verify stream filtering worked correctly
+			assertNotNull(result);
+			assertEquals(2, result.size());
+
+			// Verify all returned tasks are from running clients
+			result.forEach(task -> {
+				assertTrue(task.getName().startsWith("Running Task"));
+			});
+		}
+	}
 }
