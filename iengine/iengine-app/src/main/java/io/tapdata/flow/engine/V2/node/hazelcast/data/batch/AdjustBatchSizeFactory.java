@@ -34,17 +34,12 @@ public final class AdjustBatchSizeFactory {
 
     }
 
-    private static volatile AdjustBatchSizeFactory INSTANCE;
+    private static final class InstanceHolder {
+        private static final AdjustBatchSizeFactory INSTANCE = new AdjustBatchSizeFactory();
+    }
 
     public static AdjustBatchSizeFactory getInstance() {
-        if (INSTANCE == null) {
-            synchronized (AdjustBatchSizeFactory.class) {
-                if (INSTANCE == null) {
-                    INSTANCE = new AdjustBatchSizeFactory();
-                }
-            }
-        }
-        return INSTANCE;
+        return InstanceHolder.INSTANCE;
     }
 
     public static void register(String taskId, AdjustStage stage, ThreadPoolExecutorEx sourceRunner) {
@@ -78,19 +73,21 @@ public final class AdjustBatchSizeFactory {
         obsLogger.info("Adjust batch size task started");
     }
 
+    static final String MSG = "Stop adjust batch size task failed, error message: {}";
+
     static void stopTaskIfNeed(String taskId) {
         final AdjustBatchSizeFactory instance = getInstance();
         Optional.ofNullable(instance.adjustTaskFutureMap.get(taskId)).ifPresent(feature -> {
             try {
                 feature.cancel(true);
             } catch (Exception e) {
-                Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
+                Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn(MSG, e.getMessage()));
             }
         });
         try {
             instance.adjustTaskFutureMap.remove(taskId);
         } catch (Exception e) {
-            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
+            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn(MSG, e.getMessage()));
         }
     }
 
@@ -100,18 +97,18 @@ public final class AdjustBatchSizeFactory {
             Optional.ofNullable(instance.adjustTaskMap.get(taskId))
                     .ifPresent(e -> e.set(false));
         } catch (Exception e) {
-            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
+            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn(MSG, e.getMessage()));
         }
         try {
             instance.adjustTaskMap.remove(taskId);
         } catch (Exception e) {
-            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
+            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn(MSG, e.getMessage()));
         }
         AdjustBatchSizeFactory.stopTaskIfNeed(taskId);
         try {
             instance.adjustInstanceMap.remove(taskId);
         } catch (Exception e) {
-            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn("Stop adjust batch size task failed, error message: {}", e.getMessage()));
+            Optional.ofNullable(instance.taskLoggerMap.get(taskId)).ifPresent(log -> log.warn(MSG, e.getMessage()));
         }
         instance.taskLoggerMap.remove(taskId);
     }
@@ -137,28 +134,21 @@ public final class AdjustBatchSizeFactory {
                 .ifPresent(list -> list.foreach(consumer));
     }
 
-    final static class AdjustManager {
-        final AtomicBoolean isAlive;
-        final long checkIntervalMs;
-
-        AdjustManager(AtomicBoolean isAlive, long checkIntervalMs) {
-            this.isAlive = isAlive;
-            this.checkIntervalMs = checkIntervalMs;
-        }
+    record AdjustManager(AtomicBoolean isAlive, long checkIntervalMs) {
 
         static final Map<String, IncreaseRuleInstance> NODE_LIST = new ConcurrentHashMap<>(4);
 
-        void foreach(Consumer<IncreaseRuleInstance> consumer) {
-            NODE_LIST.values().stream().filter(Objects::nonNull).forEach(consumer);
-        }
-
-        void append(String taskId, AdjustStage stage, ThreadPoolExecutorEx sourceRunner) {
-            if (null == stage) {
-                return;
+            void foreach(Consumer<IncreaseRuleInstance> consumer) {
+                NODE_LIST.values().stream().filter(Objects::nonNull).forEach(consumer);
             }
-            NODE_LIST.put(stage.getNodeId(), new IncreaseRuleInstance(isAlive, taskId, checkIntervalMs, stage).sourceRunner(sourceRunner));
+
+            void append(String taskId, AdjustStage stage, ThreadPoolExecutorEx sourceRunner) {
+                if (null == stage) {
+                    return;
+                }
+                NODE_LIST.put(stage.getNodeId(), new IncreaseRuleInstance(isAlive, taskId, checkIntervalMs, stage).sourceRunner(sourceRunner));
+            }
         }
-    }
 
     public static void debug(String taskId, String msg, Object... params) {
         Optional.ofNullable(getInstance().taskLoggerMap.get(taskId)).ifPresent(log -> log.debug(msg, params));

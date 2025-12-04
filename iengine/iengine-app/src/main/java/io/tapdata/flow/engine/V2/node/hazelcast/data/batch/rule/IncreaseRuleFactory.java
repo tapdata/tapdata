@@ -14,22 +14,19 @@ import java.util.List;
  * @description
  */
 public final class IncreaseRuleFactory {
-    static volatile IncreaseRuleFactory FACTORY;
     final List<AbstractRule> rules = new ArrayList<>(8);
 
-    public IncreaseRuleFactory() {
+    IncreaseRuleFactory() {
+        //do nothing
+        //document why this constructor is empty
+    }
 
+    private static final class FactoryHolder {
+        static final IncreaseRuleFactory FACTORY = new IncreaseRuleFactory();
     }
 
     public static IncreaseRuleFactory factory() {
-        if (FACTORY == null) {
-            synchronized (IncreaseRuleFactory.class) {
-                if (FACTORY == null) {
-                    FACTORY = new IncreaseRuleFactory();
-                }
-            }
-        }
-        return FACTORY;
+        return FactoryHolder.FACTORY;
     }
 
     public <T extends AbstractRule>void register(T rule) {
